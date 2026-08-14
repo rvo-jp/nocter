@@ -474,7 +474,10 @@ fn reject_live_at_exit(
 ) {
     for index in 0..body.loans.len() {
         let id = LoanId::from_index(index);
-        if state.may_active.contains(id) {
+        if state.may_active.contains(id)
+            && body.locals[body.loans[index].destination.index()].storage
+                != super::LocalStorage::Return
+        {
             errors.insert(LoanError {
                 block: Some(block),
                 loan: id,

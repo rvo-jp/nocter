@@ -391,6 +391,9 @@ pub(super) fn outcome_intrinsic_is_supported(intrinsic: crate::intrinsics::Intri
 }
 
 fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    if coercion_expression_is_supported(expression, semantic) {
+        return true;
+    }
     if let Expr::Call(call) = expression.without_groups()
         && intrinsic_for_call(call, semantic).is_some_and(value_intrinsic_is_supported)
     {
@@ -402,7 +405,7 @@ fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -
     let Some(ty) = known_expression_type(expression, semantic.typed_hir) else {
         return false;
     };
-    scalar_type(ty, semantic.typed_hir).is_some()
+    value_scalar_type(ty, semantic).is_some()
         && scalar_expression_is_supported(
             expression,
             semantic.resolved,
@@ -572,6 +575,9 @@ fn method_receiver_is_supported(
         return false;
     };
     if kind != crate::typecheck::TypecheckMethodReceiverKind::Owned {
+        if coercion_expression_is_supported(&member.object, semantic) {
+            return true;
+        }
         if semantic
             .typed_hir
             .method_call_receiver_type(member.member_span)
@@ -611,8 +617,62 @@ pub(super) fn borrow_argument_is_supported(
     expression: &Expr,
     semantic: SemanticInputs<'_>,
 ) -> bool {
-    borrow_identifier_is_supported(expression, semantic.resolved, semantic.typed_hir)
+    coercion_expression_is_supported(expression, semantic)
+        || borrow_identifier_is_supported(expression, semantic.resolved, semantic.typed_hir)
         || super::borrows::expression_is_supported(expression, semantic)
+}
+
+fn coercion_expression_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    let Some(conversion) = conversion_plan_for_expression(expression, semantic.typed_hir) else {
+        return false;
+    };
+    let crate::typecheck::TypecheckConversionKind::BorrowCoercion(plan) = &conversion.kind else {
+        return false;
+    };
+    if plan.def_id.is_none()
+        || semantic.typed_hir.type_id(&plan.self_ty).is_none()
+        || semantic.typed_hir.type_id(&plan.target_ty).is_none()
+    {
+        return false;
+    }
+    let expression = expression.without_groups();
+    let expression = match expression {
+        Expr::TypeConversion(conversion) => conversion.expression.without_groups(),
+        expression => expression,
+    };
+    if matches!(conversion.source_ty, crate::ast::TypeExpr::Borrow(_)) {
+        return match expression {
+            Expr::Borrow(borrow) => {
+                super::borrows::source_place_is_supported(&borrow.expression, semantic)
+            }
+            Expr::Identifier(identifier) => semantic
+                .resolved
+                .local_symbol_for_identifier(identifier)
+                .is_some(),
+            Expr::Call(call) => scalar_call_shape_is_supported(
+                call,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
+            Expr::If(if_) => value_conditional_is_supported(
+                if_,
+                crate::mir::ValueRepresentation::Borrow,
+                semantic,
+            ),
+            Expr::Match(match_) => {
+                value_match_is_supported(match_, crate::mir::ValueRepresentation::Borrow, semantic)
+            }
+            Expr::Force(force) => stored_outcome_projection_is_supported(
+                expression,
+                &force.expression,
+                crate::mir::ValueRepresentation::Borrow,
+                semantic,
+            ),
+            _ => false,
+        };
+    }
+    super::borrows::source_place_is_supported(expression, semantic)
 }
 
 pub(super) fn borrow_identifier_is_supported(
@@ -723,18 +783,38 @@ impl<'a> ScalarStatement<'a> {
                 let scalar = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .is_some_and(|symbol| {
-                        binding_scalar_type(symbol, typed_hir).is_some()
-                            && typed_hir
-                                .binding_type_expr(symbol)
-                                .and_then(|ty| typed_hir.type_id(ty))
-                                .is_some()
+                        typed_hir
+                            .binding_type_expr(symbol)
+                            .and_then(|ty| typed_hir.type_id(ty))
+                            .and_then(|ty| {
+                                value_scalar_type(
+                                    ty,
+                                    SemanticInputs {
+                                        resolved,
+                                        resolved_sources,
+                                        typed_hir,
+                                    },
+                                )
+                            })
+                            .is_some()
                     });
                 let borrow = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
-                    .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
-                    && borrow_expression_is_supported(
+                    .and_then(|ty| typed_hir.type_id(ty))
+                    .is_some_and(|ty| {
+                        value_representation(
+                            ty,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        ) == Some(crate::mir::ValueRepresentation::Borrow)
+                    })
+                    && value_expression_is_supported(
                         &binding.initializer,
+                        crate::mir::ValueRepresentation::Borrow,
                         SemanticInputs {
                             resolved,
                             resolved_sources,
@@ -905,12 +985,19 @@ impl<'a> ScalarStatement<'a> {
                     _ => None,
                 };
                 if assignment.operator == AssignmentOperator::Assign
-                    && target_representation == Some(crate::mir::ValueRepresentation::Aggregate)
+                    && target_representation.is_some_and(|representation| {
+                        matches!(
+                            representation,
+                            crate::mir::ValueRepresentation::Aggregate
+                                | crate::mir::ValueRepresentation::Borrow
+                                | crate::mir::ValueRepresentation::View(_)
+                        )
+                    })
                 {
                     return known_expression_type(&assignment.value, typed_hir).is_some()
                         && value_expression_is_supported(
                             &assignment.value,
-                            crate::mir::ValueRepresentation::Aggregate,
+                            target_representation.expect("checked above"),
                             semantic,
                         );
                 }
@@ -1213,13 +1300,6 @@ fn collection_for_is_supported(
             semantic.typed_hir,
         )
         .is_some()
-}
-
-pub(super) fn borrow_expression_is_supported(
-    expression: &Expr,
-    semantic: SemanticInputs<'_>,
-) -> bool {
-    super::borrows::expression_is_supported(expression, semantic)
 }
 
 fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
@@ -1586,7 +1666,8 @@ pub(super) fn scalar_expression_is_supported(
                 resolved_sources,
                 typed_hir,
             };
-            super::projections::scalar_field_is_supported(member, semantic)
+            payloadless_enum_variant_tag(member, semantic).is_some()
+                || super::projections::scalar_field_is_supported(member, semantic)
                 || staged_scalar_field_is_supported(member, semantic)
         }
         Expr::Index(index) => {
@@ -1820,14 +1901,15 @@ pub(super) fn outcome_return_expression_is_supported(
     let Some(representation) = value_representation(payload_ty, semantic) else {
         return false;
     };
-    if !matches!(
+    if matches!(
         representation,
-        crate::mir::ValueRepresentation::Scalar(_) | crate::mir::ValueRepresentation::View(_)
+        crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::Error
     ) {
         return false;
     }
-    intrinsic_expression_type(expression.span(), semantic.typed_hir)
-        .is_some_and(|ty| value_representation(ty, semantic) == Some(representation))
+    (handled_outcome_success_type(expression, semantic).is_some_and(|ty| ty == payload_ty)
+        || intrinsic_expression_type(expression.span(), semantic.typed_hir)
+            .is_some_and(|ty| value_representation(ty, semantic) == Some(representation)))
         && value_expression_is_supported(expression, representation, semantic)
 }
 
@@ -2125,6 +2207,31 @@ pub(super) fn value_conditional_is_supported(
             .is_some_and(|block| value_block_is_supported(block, representation, semantic))
 }
 
+pub(super) fn value_match_is_supported(
+    match_: &crate::ast::SwitchStmt,
+    representation: crate::mir::ValueRepresentation,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    known_expression_type(&match_.expression, semantic.typed_hir)
+        .and_then(|ty| value_scalar_type(ty, semantic))
+        == Some(super::ScalarType::U8)
+        && scalar_expression_is_supported(
+            &match_.expression,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+        && !match_.arms.is_empty()
+        && match_.arms.iter().all(|arm| {
+            arm.payload.is_none()
+                && payloadless_enum_variant_tag_at(arm.variant_name_span, semantic).is_some()
+                && value_block_is_supported(&arm.body, representation, semantic)
+        })
+        && match_.wildcard_arm.as_ref().is_none_or(|wildcard| {
+            value_block_is_supported(&wildcard.body, representation, semantic)
+        })
+}
+
 fn value_block_is_supported(
     block: &Block,
     representation: crate::mir::ValueRepresentation,
@@ -2235,14 +2342,29 @@ pub(super) fn known_expression_type(
     effective_expression_type(expression.span(), typed_hir)
 }
 
+pub(super) fn conversion_plan_for_expression<'a>(
+    expression: &Expr,
+    typed_hir: &'a TypedHir,
+) -> Option<&'a crate::typecheck::TypecheckConversionPlan> {
+    let mut expression = expression;
+    loop {
+        if let Some(plan) = typed_hir.conversion_plan(expression.span()) {
+            return Some(plan);
+        }
+        let Expr::Group(group) = expression else {
+            return None;
+        };
+        expression = &group.expression;
+    }
+}
+
 pub(super) fn call_result_type(
     call: &crate::ast::CallExpr,
     semantic: SemanticInputs<'_>,
 ) -> Option<crate::semantic::TyId> {
-    if let Some(ty) = effective_expression_type(call.span, semantic.typed_hir) {
-        return Some(ty);
-    }
-    let signature = semantic.resolved.call_signature_for_call(call)?;
+    let Some(signature) = semantic.resolved.call_signature_for_call(call) else {
+        return effective_expression_type(call.span, semantic.typed_hir);
+    };
     let mut return_ty = signature.return_type.clone();
     if let Some(specialization) = semantic.typed_hir.function_call_specialization(call.span) {
         let mut substitutions = specialization.substitutions.clone();
@@ -2256,11 +2378,51 @@ pub(super) fn call_result_type(
     semantic.typed_hir.type_id(&return_ty)
 }
 
+pub(super) fn call_has_single_outcome_layer(
+    call: &crate::ast::CallExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    call_result_type(call, semantic)
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+        .is_some_and(|ty| {
+            crate::outcomes::outcome_shape_with_resolver(ty, semantic.resolved, |source| {
+                semantic.resolver_for(source)
+            })
+            .layers
+            .len()
+                == 1
+        })
+}
+
+pub(super) fn handled_outcome_success_type(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> Option<crate::semantic::TyId> {
+    let source = match expression.without_groups() {
+        Expr::Force(force) => &force.expression,
+        Expr::Propagate(propagate) => &propagate.expression,
+        Expr::Otherwise(otherwise) => &otherwise.value,
+        Expr::Catch(catch) => &catch.expression,
+        _ => return None,
+    };
+    let source_ty = match source.without_groups() {
+        Expr::Call(call) => call_result_type(call, semantic),
+        _ => known_expression_type(source, semantic.typed_hir),
+    }?;
+    let source_ty = semantic.typed_hir.type_expr_by_id(source_ty)?;
+    let success = match source_ty {
+        crate::ast::TypeExpr::Optional(optional) => optional.inner.as_ref(),
+        crate::ast::TypeExpr::Fallible(fallible) => fallible.success.as_ref(),
+        _ => return None,
+    };
+    semantic.typed_hir.type_id(success)
+}
+
 pub(super) fn value_representation(
     ty: crate::semantic::TyId,
     semantic: SemanticInputs<'_>,
 ) -> Option<crate::mir::ValueRepresentation> {
-    if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
+    if let Some(scalar) = value_scalar_type(ty, semantic) {
         return Some(crate::mir::ValueRepresentation::Scalar(scalar));
     }
     let ty = semantic.typed_hir.type_expr_by_id(ty)?;
@@ -2279,12 +2441,75 @@ pub(super) fn value_representation(
         crate::abi::AbiType::SliceView => Some(crate::mir::ValueRepresentation::View(
             crate::mir::ViewKind::Slice,
         )),
+        crate::abi::AbiType::Borrow => Some(crate::mir::ValueRepresentation::Borrow),
         crate::abi::AbiType::Struct(_)
         | crate::abi::AbiType::Array { .. }
         | crate::abi::AbiType::Enum(_)
         | crate::abi::AbiType::Outcome { .. } => Some(crate::mir::ValueRepresentation::Aggregate),
         _ => None,
     }
+}
+
+pub(super) fn value_scalar_type(
+    ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> Option<super::ScalarType> {
+    if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
+        return Some(scalar);
+    }
+    let ty = semantic.typed_hir.type_expr_by_id(ty)?;
+    let abi = crate::abi::abi_value_from_type_expr_with_resolver(ty, semantic.resolved, |source| {
+        semantic.resolver_for(source)
+    })
+    .ok()?
+    .ty;
+    Some(match abi {
+        crate::abi::AbiType::Bool => super::ScalarType::Bool,
+        crate::abi::AbiType::U8 => super::ScalarType::U8,
+        crate::abi::AbiType::I32 => super::ScalarType::I32,
+        crate::abi::AbiType::Usize | crate::abi::AbiType::Pointer => super::ScalarType::Usize,
+        crate::abi::AbiType::I8 => super::ScalarType::Integer(crate::integer::IntegerType::I8),
+        crate::abi::AbiType::U16 => super::ScalarType::Integer(crate::integer::IntegerType::U16),
+        crate::abi::AbiType::I16 => super::ScalarType::Integer(crate::integer::IntegerType::I16),
+        crate::abi::AbiType::U32 => super::ScalarType::Integer(crate::integer::IntegerType::U32),
+        crate::abi::AbiType::U64 => super::ScalarType::Integer(crate::integer::IntegerType::U64),
+        crate::abi::AbiType::I64 => super::ScalarType::Integer(crate::integer::IntegerType::I64),
+        crate::abi::AbiType::Isize => {
+            super::ScalarType::Integer(crate::integer::IntegerType::Isize)
+        }
+        _ => return None,
+    })
+}
+
+pub(super) fn payloadless_enum_variant_tag(
+    member: &crate::ast::MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<u8> {
+    payloadless_enum_variant_tag_at(member.member_span, semantic)
+}
+
+pub(super) fn payloadless_enum_variant_tag_at(
+    variant_span: crate::source::ByteSpan,
+    semantic: SemanticInputs<'_>,
+) -> Option<u8> {
+    let definition = semantic.typed_hir.enum_variant_target(variant_span)?;
+    let owner = semantic.resolved.enum_variant_owner(definition)?;
+    if owner
+        .variants
+        .iter()
+        .any(|variant| !variant.payload.is_empty())
+    {
+        return None;
+    }
+    let anchor = semantic
+        .resolved
+        .semantic_db
+        .definition_anchor(definition)?;
+    owner
+        .variants
+        .iter()
+        .position(|variant| variant.name_span == anchor)
+        .and_then(|index| u8::try_from(index).ok())
 }
 
 pub(super) fn value_expression_is_supported(
@@ -2301,6 +2526,16 @@ pub(super) fn value_expression_is_supported(
             semantic.typed_hir,
         ),
         crate::mir::ValueRepresentation::View(kind) => match expression {
+            _ if coercion_expression_is_supported(expression, semantic)
+                && semantic
+                    .typed_hir
+                    .coercion_plan(expression.span())
+                    .and_then(|plan| semantic.typed_hir.type_id(&plan.target_ty))
+                    .and_then(|ty| value_representation(ty, semantic))
+                    == Some(representation) =>
+            {
+                true
+            }
             Expr::StringLiteral(literal) if kind == crate::mir::ViewKind::Str => {
                 crate::literals::decode_string_literal_bytes(&literal.value).is_ok()
             }
@@ -2318,6 +2553,16 @@ pub(super) fn value_expression_is_supported(
             }
             Expr::Member(member) if kind == crate::mir::ViewKind::Str => {
                 super::projections::error_field_is_supported(member, semantic)
+                    || super::projections::field_is_supported(member, semantic)
+                        && known_expression_type(expression, semantic.typed_hir)
+                            .and_then(|ty| value_representation(ty, semantic))
+                            == Some(representation)
+            }
+            Expr::Member(member) => {
+                super::projections::field_is_supported(member, semantic)
+                    && known_expression_type(expression, semantic.typed_hir)
+                        .and_then(|ty| value_representation(ty, semantic))
+                        == Some(representation)
             }
             Expr::Call(call) => {
                 scalar_call_shape_is_supported(
@@ -2404,7 +2649,39 @@ pub(super) fn value_expression_is_supported(
             }
             _ => false,
         },
-        crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => false,
+        crate::mir::ValueRepresentation::Borrow => {
+            coercion_expression_is_supported(expression, semantic)
+                || borrow_argument_is_supported(expression, semantic)
+                || matches!(expression.without_groups(), Expr::If(if_)
+                if value_conditional_is_supported(
+                    if_,
+                    crate::mir::ValueRepresentation::Borrow,
+                    semantic,
+                ))
+                || matches!(expression.without_groups(), Expr::Match(match_)
+                if value_match_is_supported(
+                    match_,
+                    crate::mir::ValueRepresentation::Borrow,
+                    semantic,
+                ))
+                || matches!(expression.without_groups(), Expr::Force(force)
+                if stored_outcome_projection_is_supported(
+                    expression,
+                    &force.expression,
+                    crate::mir::ValueRepresentation::Borrow,
+                    semantic,
+                ))
+                || matches!(expression.without_groups(), Expr::Call(call)
+                    if scalar_call_shape_is_supported(
+                        call,
+                        semantic.resolved,
+                        semantic.resolved_sources,
+                        semantic.typed_hir,
+                    ) && call_result_type(call, semantic)
+                        .and_then(|ty| value_representation(ty, semantic))
+                        == Some(crate::mir::ValueRepresentation::Borrow))
+        }
+        crate::mir::ValueRepresentation::Error => false,
     }
 }
 
@@ -2514,13 +2791,24 @@ fn stored_outcome_projection_is_supported(
     result_representation: crate::mir::ValueRepresentation,
     semantic: SemanticInputs<'_>,
 ) -> bool {
-    let Expr::Identifier(identifier) = source.without_groups() else {
-        return false;
+    let source_supported = match source.without_groups() {
+        Expr::Identifier(identifier) => semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .is_some(),
+        Expr::Call(call) => scalar_call_shape_is_supported(
+            call,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        ),
+        _ => false,
     };
-    let Some(source_ty) = semantic
-        .resolved
-        .local_symbol_for_identifier(identifier)
-        .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+    if !source_supported {
+        return false;
+    }
+    let Some(source_ty) = known_expression_type(source, semantic.typed_hir)
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
     else {
         return false;
     };

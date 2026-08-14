@@ -1,5 +1,4 @@
 use super::*;
-use crate::ir::ComposedOutcomeDestination;
 use crate::outcomes::OutcomeLayer;
 
 #[test]
@@ -81,34 +80,39 @@ func lookup(mode: i32): i32?! {
     )
     .unwrap();
 
-    let call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallComposedOutcome {
-            destination,
-            target,
-            outer,
-            inner,
-            outer_mode,
-            inner_mode,
-            ..
-        } = instruction
-        else {
-            return None;
-        };
-        Some((destination, target, outer, inner, outer_mode, inner_mode))
-    });
-    let Some((
-        ComposedOutcomeDestination::I32(I32Location::Local(0)),
-        target,
-        OutcomeLayer::Fallible,
-        OutcomeLayer::Optional,
-        OutcomeFailureMode::Propagate,
-        OutcomeFailureMode::Handle { instructions },
-    )) = call
-    else {
-        panic!("{function:?}");
-    };
-    assert_eq!(*target, CallTarget::same_file("lookup"));
-    assert!(instructions.contains(&Instruction::ReturnOutcomeSuccess));
+    assert!(
+        function.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallStoredOutcome {
+                destination: AggregateLocation::Slot(1),
+                target,
+                ..
+            } if *target == CallTarget::same_file("lookup")
+        )),
+        "{function:?}"
+    );
+    assert!(
+        function.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CheckStoredFallible {
+                source: AggregateLocation::Slot(1),
+                failure_mode: OutcomeFailureMode::Propagate,
+                ..
+            }
+        )),
+        "{function:?}"
+    );
+    assert!(
+        function.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::IfStoredOutcomeTag {
+                source: AggregateLocation::Slot(0),
+                outcome_instructions,
+                ..
+            } if outcome_instructions.contains(&Instruction::ReturnOutcomeSuccess)
+        )),
+        "{function:?}"
+    );
 }
 
 #[test]

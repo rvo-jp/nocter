@@ -9,6 +9,13 @@ pub(super) fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type
     type_expr_to_type_with_self_type(ty, resolved, None)
 }
 
+pub(crate) fn type_expr_borrow_readwrite(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
+    match type_expr_to_type(ty, resolved) {
+        Type::Borrow { is_readwrite, .. } => Some(is_readwrite),
+        _ => None,
+    }
+}
+
 pub(super) fn type_expr_to_type_in_environment(
     ty: &TypeExpr,
     resolved: &ResolveOutput,

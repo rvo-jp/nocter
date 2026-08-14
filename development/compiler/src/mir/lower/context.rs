@@ -144,9 +144,8 @@ impl<'a> LoweringContext<'a> {
                     .semantic
                     .typed_hir
                     .type_expr_by_id(ty)
-                    .and_then(|ty| match ty {
-                        crate::ast::TypeExpr::Borrow(borrow) => Some(borrow.is_readwrite),
-                        _ => None,
+                    .and_then(|ty| {
+                        crate::typecheck::type_expr_borrow_readwrite(ty, self.semantic.resolved)
                     })
                     .ok_or(BuildError::MissingTypedExpression)?;
                 Local::borrow(

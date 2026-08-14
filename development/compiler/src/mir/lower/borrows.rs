@@ -160,6 +160,20 @@ pub(super) fn lower_to_local(
     scope: ScopeId,
     lifetime: LoanLifetime,
 ) -> Result<(), BuildError> {
+    if context.lower_coercion_to_local(destination, expression, scope)? {
+        return Ok(());
+    }
+    lower_to_local_without_coercion(context, destination, expression, readwrite, scope, lifetime)
+}
+
+pub(super) fn lower_to_local_without_coercion(
+    context: &mut LoweringContext<'_>,
+    destination: crate::mir::LocalId,
+    expression: &Expr,
+    readwrite: bool,
+    scope: ScopeId,
+    lifetime: LoanLifetime,
+) -> Result<(), BuildError> {
     let Expr::Borrow(borrow) = expression.without_groups() else {
         return Err(BuildError::UnsupportedClaimedExpression);
     };
@@ -191,7 +205,7 @@ pub(super) fn lower_to_local(
         .push_statement(Statement::BeginLoan { loan, origin })
 }
 
-fn lower_source_place(
+pub(super) fn lower_source_place(
     context: &mut LoweringContext<'_>,
     expression: &Expr,
     scope: ScopeId,

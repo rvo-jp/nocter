@@ -445,9 +445,7 @@ fn field_segments(
                     crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
                     crate::typecheck::PartialSemantic::Error => None,
                 })?;
-        let representation = super::coverage::scalar_type(ty, semantic.typed_hir)
-            .map(ValueRepresentation::Scalar)
-            .unwrap_or(ValueRepresentation::Aggregate);
+        let representation = super::coverage::value_representation(ty, semantic)?;
         let field_ty = semantic.typed_hir.field_type_expr(member.member_span)?;
         let ownership = if crate::typecheck::type_expr_is_copy(field_ty, semantic.resolved)? {
             OwnershipKind::Copy

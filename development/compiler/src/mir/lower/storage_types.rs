@@ -16,6 +16,9 @@ pub(super) fn binding_storage_type(
     initializer: &Expr,
     semantic: SemanticInputs<'_>,
 ) -> TyId {
+    if super::coverage::conversion_plan_for_expression(initializer, semantic.typed_hir).is_some() {
+        return declared;
+    }
     let Some(intrinsic) =
         super::coverage::intrinsic_expression_type(initializer.span(), semantic.typed_hir)
     else {

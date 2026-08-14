@@ -221,6 +221,23 @@ fn value_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<
             semantic.typed_hir,
         );
     }
+    let view_representation = match abi {
+        AbiType::StrView => Some(crate::mir::ValueRepresentation::View(
+            crate::mir::ViewKind::Str,
+        )),
+        AbiType::SliceView => Some(crate::mir::ValueRepresentation::View(
+            crate::mir::ViewKind::Slice,
+        )),
+        AbiType::Borrow => Some(crate::mir::ValueRepresentation::Borrow),
+        _ => None,
+    };
+    if let Some(representation) = view_representation {
+        return super::coverage::value_expression_is_supported(
+            expression,
+            representation,
+            semantic,
+        );
+    }
     if matches!(
         abi,
         AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
@@ -555,6 +572,47 @@ fn lower_staged_value(
             origin,
         });
     }
+    if matches!(
+        contract.representation,
+        crate::mir::ValueRepresentation::View(_) | crate::mir::ValueRepresentation::Borrow
+    ) {
+        let ty = contract.ty;
+        let origin = context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .map_or(
+                crate::mir::LocalOrigin::Desugared(expression.span()),
+                |expression| crate::mir::LocalOrigin::Temporary(expression.id),
+            );
+        let temporary = crate::mir::LocalId::from_index(context.locals.len());
+        let local = match contract.representation {
+            crate::mir::ValueRepresentation::View(kind) => {
+                crate::mir::Local::view(ty, kind, crate::mir::LocalStorage::Local, origin, scope)
+            }
+            crate::mir::ValueRepresentation::Borrow => {
+                let readwrite = matches!(
+                    contract.ownership,
+                    crate::mir::OwnershipKind::Borrowed { readwrite: true }
+                );
+                crate::mir::Local::borrow(
+                    ty,
+                    readwrite,
+                    crate::mir::LocalStorage::Local,
+                    origin,
+                    scope,
+                )
+            }
+            _ => unreachable!(),
+        };
+        context.locals.push(local);
+        context.lower_value_to_place(temporary, expression, ty, contract.representation, scope)?;
+        return context.control_flow.push_statement(Statement::Assign {
+            destination: Place::projected(base, projection),
+            value: Rvalue::Use(crate::mir::Operand::Copy(Place::local(temporary))),
+            origin: Origin::Desugared(expression.span()),
+        });
+    }
     if contract.representation == crate::mir::ValueRepresentation::Aggregate
         && !matches!(
             expression.without_groups(),
@@ -626,8 +684,11 @@ fn push_construction_projection(
     element: crate::mir::ProjectionElement,
     expression: &Expr,
 ) -> Result<crate::mir::ProjectionPathId, BuildError> {
-    let ty = known_expression_type(expression, context.semantic.typed_hir)
-        .ok_or(BuildError::MissingTypedExpression)?;
+    let ty =
+        super::coverage::conversion_plan_for_expression(expression, context.semantic.typed_hir)
+            .and_then(|conversion| context.semantic.typed_hir.type_id(&conversion.target_ty))
+            .or_else(|| known_expression_type(expression, context.semantic.typed_hir))
+            .ok_or(BuildError::MissingTypedExpression)?;
     let type_expr = context
         .semantic
         .typed_hir
@@ -659,12 +720,8 @@ fn push_projection(
     ty: crate::semantic::TyId,
     type_expr: &crate::ast::TypeExpr,
 ) -> Result<crate::mir::ProjectionPathId, BuildError> {
-    let representation = if matches!(type_expr, crate::ast::TypeExpr::Borrow(_)) {
-        crate::mir::ValueRepresentation::Borrow
-    } else {
-        super::coverage::value_representation(ty, context.semantic)
-            .unwrap_or(crate::mir::ValueRepresentation::Aggregate)
-    };
+    let representation = super::coverage::value_representation(ty, context.semantic)
+        .unwrap_or(crate::mir::ValueRepresentation::Aggregate);
     let ownership = if crate::typecheck::type_expr_is_copy(type_expr, context.semantic.resolved)
         == Some(true)
     {

@@ -76,7 +76,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     );
                     let local = LocalId::from_index(self.context.locals.len());
                     if let Some(scalar) =
-                        binding_scalar_type(symbol, self.context.semantic.typed_hir)
+                        super::coverage::value_scalar_type(ty, self.context.semantic)
                     {
                         self.context.locals.push(crate::mir::locals::Local::scalar(
                             ty,
@@ -109,19 +109,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             crate::mir::ValueRepresentation::View(kind),
                             scope,
                         )?;
-                    } else if let Some(borrow_ty) = self
-                        .context
-                        .semantic
-                        .typed_hir
-                        .binding_type_expr(symbol)
-                        .and_then(|ty| match ty {
-                            crate::ast::TypeExpr::Borrow(borrow) => Some(borrow),
-                            _ => None,
-                        })
-                    {
+                    } else if let Some(readwrite) = crate::typecheck::type_expr_borrow_readwrite(
+                        binding_type_expr,
+                        self.context.semantic.resolved,
+                    ) {
                         self.context.locals.push(crate::mir::locals::Local::borrow(
                             ty,
-                            borrow_ty.is_readwrite,
+                            readwrite,
                             LocalStorage::Local,
                             LocalOrigin::Binding(symbol),
                             scope,
@@ -129,12 +123,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
-                        self.lower_borrow_binding(
-                            local,
-                            &binding.initializer,
-                            borrow_ty.is_readwrite,
-                            scope,
-                        )?;
+                        self.lower_borrow_binding(local, &binding.initializer, readwrite, scope)?;
                     } else {
                         let ownership = if crate::typecheck::type_expr_is_copy(
                             binding_type_expr,
@@ -259,10 +248,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 }
                 ScalarStatement::Assignment(assignment) => {
                     if assignment.operator == crate::ast::AssignmentOperator::Assign
-                        && self.assignment_target_representation(&assignment.target, scope)?
-                            == crate::mir::ValueRepresentation::Aggregate
+                        && matches!(
+                            self.assignment_target_representation(&assignment.target, scope)?,
+                            crate::mir::ValueRepresentation::Aggregate
+                                | crate::mir::ValueRepresentation::Borrow
+                                | crate::mir::ValueRepresentation::View(_)
+                        )
                     {
-                        self.lower_aggregate_assignment(assignment, scope)?;
+                        self.lower_value_assignment(assignment, scope)?;
                         continue;
                     }
                     let (destination, ty, scalar) =
@@ -666,17 +659,38 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             .ok_or(BuildError::UnsupportedClaimedExpression)
     }
 
-    fn lower_aggregate_assignment(
+    fn lower_value_assignment(
         &mut self,
         assignment: &crate::ast::AssignmentStmt,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
         let (destination, ty, representation) =
             self.lower_value_assignment_target(&assignment.target, scope)?;
-        if representation != crate::mir::ValueRepresentation::Aggregate {
-            return Err(BuildError::UnsupportedClaimedExpression);
+        let destination_drop_plan = self.context.locals[destination.local.index()]
+            .drop_plan
+            .and_then(|plan| self.context.drop_plans.get(plan.index()));
+        let direct_outcome_call = matches!(
+            assignment.value.without_groups(),
+            Expr::Force(force) if matches!(force.expression.without_groups(), Expr::Call(_))
+        ) || matches!(
+            assignment.value.without_groups(),
+            Expr::Propagate(propagate)
+                if matches!(propagate.expression.without_groups(), Expr::Call(_))
+        );
+        if destination.projection.is_none()
+            && direct_outcome_call
+            && destination_drop_plan.is_none()
+        {
+            return self.context.lower_value_to_place(
+                destination.local,
+                &assignment.value,
+                ty,
+                representation,
+                scope,
+            );
         }
-        if let Expr::Member(member) = assignment.value.without_groups()
+        if representation == crate::mir::ValueRepresentation::Aggregate
+            && let Expr::Member(member) = assignment.value.without_groups()
             && super::projections::aggregate_value_field_is_supported(member, self.context.semantic)
             && !super::coverage::aggregate_operand_is_supported(
                 &assignment.value,
@@ -704,12 +718,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 origin: Origin::Expression(origin),
             });
         }
-        if super::coverage::aggregate_operand_is_supported(
-            &assignment.value,
-            self.context.semantic.resolved,
-            self.context.semantic.resolved_sources,
-            self.context.semantic.typed_hir,
-        ) {
+        if representation == crate::mir::ValueRepresentation::Aggregate
+            && super::coverage::aggregate_operand_is_supported(
+                &assignment.value,
+                self.context.semantic.resolved,
+                self.context.semantic.resolved_sources,
+                self.context.semantic.typed_hir,
+            )
+        {
             let operand = self.context.lower_aggregate_operand(&assignment.value)?;
             return self.context.control_flow.push_statement(Statement::Assign {
                 destination,
@@ -737,8 +753,11 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         let operand = match self.context.locals[temporary.index()].ownership {
             crate::mir::OwnershipKind::Move => Operand::Move(Place::local(temporary)),
             crate::mir::OwnershipKind::Copy => Operand::Copy(Place::local(temporary)),
-            crate::mir::OwnershipKind::Borrowed { .. } => {
-                return Err(BuildError::UnsupportedClaimedExpression);
+            crate::mir::OwnershipKind::Borrowed { readwrite: true } => {
+                Operand::Move(Place::local(temporary))
+            }
+            crate::mir::OwnershipKind::Borrowed { readwrite: false } => {
+                Operand::Copy(Place::local(temporary))
             }
         };
         self.context.control_flow.push_statement(Statement::Assign {
@@ -819,13 +838,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         readwrite: bool,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        super::borrows::lower_to_local(
-            self.context,
+        let _ = readwrite;
+        self.context.lower_value_to_place(
             destination,
             expression,
-            readwrite,
+            self.context.locals[destination.index()].ty,
+            crate::mir::ValueRepresentation::Borrow,
             scope,
-            crate::mir::LoanLifetime::Scope,
         )
     }
 

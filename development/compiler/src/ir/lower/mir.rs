@@ -3,10 +3,10 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
-    DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, SliceLocation, SliceValue,
-    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolComparisonOperator,
+    BoolLocation, BoolValue, DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value,
+    Instruction, IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, SliceLocation,
+    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -183,6 +183,7 @@ fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentatio
             crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
             ReturnMode::Plain,
         ),
+        Type::Borrow { .. } => (crate::mir::ValueRepresentation::Borrow, ReturnMode::Plain),
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => (
             crate::mir::ValueRepresentation::Aggregate,
             ReturnMode::Plain,
@@ -1204,10 +1205,32 @@ pub(super) fn lower_outcome_success_return(
                 value: lower_slice_operand(source, context)?,
             }
         }
-        crate::mir::ValueRepresentation::Unit
-        | crate::mir::ValueRepresentation::Borrow
-        | crate::mir::ValueRepresentation::Error
-        | crate::mir::ValueRepresentation::Aggregate => {
+        crate::mir::ValueRepresentation::Borrow => Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: lower_usize_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::Aggregate => {
+            let (Operand::Copy(source) | Operand::Move(source)) = source else {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate outcome success return is not backed by a place",
+                ));
+            };
+            let (destination, layout) = match context.return_type.success_type() {
+                Type::Aggregate { layout } => (AggregateLocation::Return, *layout),
+                Type::DirectAggregate { layout, .. } => (AggregateLocation::DirectReturn, *layout),
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate outcome success return has a non-aggregate payload",
+                    ));
+                }
+            };
+            Instruction::CopyAggregate {
+                destination,
+                source: aggregate_location(source, context)?,
+                layout,
+            }
+        }
+        crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
                 "outcome success return payload representation is not projected",
             ));
@@ -1372,6 +1395,22 @@ fn lower_returning_call(
         }
         return Ok(Instruction::CallSlice {
             destination: slice_location(destination, context)?,
+            target,
+            arguments,
+        });
+    }
+    if representation == crate::mir::ValueRepresentation::Borrow {
+        let return_type = context
+            .function_signatures
+            .return_type(&target)
+            .ok_or_else(|| invalid_mir_diagnostics("borrow call has no indexed return type"))?;
+        if !matches!(return_type, Type::Borrow { .. }) {
+            return Err(invalid_mir_diagnostics(
+                "borrow MIR call target does not return a borrow",
+            ));
+        }
+        return Ok(Instruction::CallBorrow {
+            destination: usize_location(destination, context)?,
             target,
             arguments,
         });
@@ -1940,7 +1979,7 @@ fn aggregate_location(
         }));
     }
     match local.storage {
-        LocalStorage::Return => match context.return_type {
+        LocalStorage::Return => match context.return_type.success_type() {
             Type::Aggregate { .. } => Ok(crate::ir::AggregateLocation::Return),
             Type::DirectAggregate { .. } => Ok(crate::ir::AggregateLocation::DirectReturn),
             _ => Err(invalid_mir_diagnostics(
@@ -2176,11 +2215,13 @@ fn lower_statements(
                     "borrow field assignment requires a direct MIR operand",
                 ));
             };
-            instructions.push(Instruction::StoreAggregateUsize {
-                destination: aggregate_location(&Place::local(destination.local), context)?,
-                offset: aggregate_field_offset(body, destination.local, projection)?,
-                value: lower_stored_borrow_pointer(operand, context)?,
-            });
+            instructions.push(store_projected_aggregate_usize(
+                destination.local,
+                projection,
+                0,
+                lower_stored_borrow_pointer(operand, context)?,
+                context,
+            )?);
             continue;
         }
         if destination_representation == crate::mir::ValueRepresentation::Borrow {
@@ -2196,11 +2237,13 @@ fn lower_statements(
             };
             let destination = usize_location(destination, context)?;
             if let Some(projection) = source.projection {
-                instructions.push(Instruction::LoadAggregateUsize {
+                instructions.push(load_projected_aggregate_usize(
                     destination,
-                    source: aggregate_location(&Place::local(source.local), context)?,
-                    offset: aggregate_field_offset(body, source.local, projection)?,
-                });
+                    source.local,
+                    projection,
+                    0,
+                    context,
+                )?);
             } else {
                 instructions.push(Instruction::SetUsize {
                     destination,
@@ -2223,10 +2266,54 @@ fn lower_statements(
                     ));
                 }
             };
-            instructions.push(Instruction::SetStr {
-                destination: str_location(destination, context)?,
-                value: lower_str_operand(operand, context)?,
-            });
+            if destination.projection.is_none()
+                && let Operand::Copy(source) | Operand::Move(source) = operand
+                && let Some(source_projection) = source.projection
+            {
+                let (pointer, len) = str_word_locations(str_location(destination, context)?)?;
+                instructions.push(load_projected_aggregate_usize(
+                    pointer,
+                    source.local,
+                    source_projection,
+                    0,
+                    context,
+                )?);
+                instructions.push(load_projected_aggregate_usize(
+                    len,
+                    source.local,
+                    source_projection,
+                    crate::abi::ABI_WORD_SIZE as u32,
+                    context,
+                )?);
+                continue;
+            }
+            let value = lower_str_operand(operand, context)?;
+            if let Some(projection) = destination.projection {
+                let StrValue::Location(source) = value else {
+                    return Err(invalid_mir_diagnostics(
+                        "projected string-view assignment must materialize its source",
+                    ));
+                };
+                instructions.push(store_projected_aggregate_usize(
+                    destination.local,
+                    projection,
+                    0,
+                    UsizeValue::StrPointer(source),
+                    context,
+                )?);
+                instructions.push(store_projected_aggregate_usize(
+                    destination.local,
+                    projection,
+                    crate::abi::ABI_WORD_SIZE as u32,
+                    UsizeValue::StrLen(source),
+                    context,
+                )?);
+            } else {
+                instructions.push(Instruction::SetStr {
+                    destination: str_location(destination, context)?,
+                    value,
+                });
+            }
             continue;
         }
         if destination_representation
@@ -2243,10 +2330,54 @@ fn lower_statements(
                     ));
                 }
             };
-            instructions.push(Instruction::SetSlice {
-                destination: slice_location(destination, context)?,
-                value: lower_slice_operand(operand, context)?,
-            });
+            if destination.projection.is_none()
+                && let Operand::Copy(source) | Operand::Move(source) = operand
+                && let Some(source_projection) = source.projection
+            {
+                let (pointer, len) = slice_word_locations(slice_location(destination, context)?)?;
+                instructions.push(load_projected_aggregate_usize(
+                    pointer,
+                    source.local,
+                    source_projection,
+                    0,
+                    context,
+                )?);
+                instructions.push(load_projected_aggregate_usize(
+                    len,
+                    source.local,
+                    source_projection,
+                    crate::abi::ABI_WORD_SIZE as u32,
+                    context,
+                )?);
+                continue;
+            }
+            let value = lower_slice_operand(operand, context)?;
+            if let Some(projection) = destination.projection {
+                let SliceValue::Location(source) = value else {
+                    return Err(invalid_mir_diagnostics(
+                        "projected slice-view assignment must materialize its source",
+                    ));
+                };
+                instructions.push(store_projected_aggregate_usize(
+                    destination.local,
+                    projection,
+                    0,
+                    UsizeValue::SlicePointer(source),
+                    context,
+                )?);
+                instructions.push(store_projected_aggregate_usize(
+                    destination.local,
+                    projection,
+                    crate::abi::ABI_WORD_SIZE as u32,
+                    UsizeValue::SliceLen(source),
+                    context,
+                )?);
+            } else {
+                instructions.push(Instruction::SetSlice {
+                    destination: slice_location(destination, context)?,
+                    value,
+                });
+            }
             continue;
         }
         if destination.projection.is_some() {
@@ -3811,6 +3942,78 @@ fn aggregate_field_offset(
     }
 }
 
+fn store_projected_aggregate_usize(
+    base: LocalId,
+    projection: crate::mir::ProjectionPathId,
+    additional_offset: u32,
+    value: UsizeValue,
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let destination = aggregate_location(&Place::local(base), context)?;
+    Ok(
+        match aggregate_borrow_projection(context.body, base, projection)? {
+            AggregateBorrowProjection::Field { offset } => Instruction::StoreAggregateUsize {
+                destination,
+                offset: offset.checked_add(additional_offset).ok_or_else(|| {
+                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
+                })?,
+                value,
+            },
+            AggregateBorrowProjection::Index {
+                base_offset,
+                index,
+                length,
+                stride,
+            } => Instruction::StoreAggregateUsizeIndexed {
+                destination,
+                base_offset: base_offset.checked_add(additional_offset).ok_or_else(|| {
+                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
+                })?,
+                index: lower_direct_usize_index(&index, context)?,
+                length,
+                stride,
+                value,
+            },
+        },
+    )
+}
+
+fn load_projected_aggregate_usize(
+    destination: UsizeLocation,
+    base: LocalId,
+    projection: crate::mir::ProjectionPathId,
+    additional_offset: u32,
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let source = aggregate_location(&Place::local(base), context)?;
+    Ok(
+        match aggregate_borrow_projection(context.body, base, projection)? {
+            AggregateBorrowProjection::Field { offset } => Instruction::LoadAggregateUsize {
+                destination,
+                source,
+                offset: offset.checked_add(additional_offset).ok_or_else(|| {
+                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
+                })?,
+            },
+            AggregateBorrowProjection::Index {
+                base_offset,
+                index,
+                length,
+                stride,
+            } => Instruction::LoadAggregateUsizeIndexed {
+                destination,
+                source,
+                base_offset: base_offset.checked_add(additional_offset).ok_or_else(|| {
+                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
+                })?,
+                index: lower_direct_usize_index(&index, context)?,
+                length,
+                stride,
+            },
+        },
+    )
+}
+
 fn lower_comparison(
     operator: ComparisonOperator,
     left: &Operand,
@@ -4377,6 +4580,22 @@ fn str_location(
     }
 }
 
+fn str_word_locations(
+    location: StrLocation,
+) -> Result<(UsizeLocation, UsizeLocation), Vec<Diagnostic>> {
+    match location {
+        StrLocation::Return => Err(invalid_mir_diagnostics(
+            "a projected string view must be staged before return",
+        )),
+        StrLocation::Local(index) => {
+            Ok((UsizeLocation::Local(index), UsizeLocation::Local(index + 1)))
+        }
+        StrLocation::Parameter(_) => Err(invalid_mir_diagnostics(
+            "a string-view parameter cannot be an assignment destination",
+        )),
+    }
+}
+
 fn lower_intrinsic_assignment(
     destination: &Place,
     intrinsic: crate::intrinsics::IntrinsicId,
@@ -4781,6 +5000,22 @@ fn slice_location(
             context.body,
             place.local,
         ))),
+    }
+}
+
+fn slice_word_locations(
+    location: SliceLocation,
+) -> Result<(UsizeLocation, UsizeLocation), Vec<Diagnostic>> {
+    match location {
+        SliceLocation::Return => Err(invalid_mir_diagnostics(
+            "a projected slice view must be staged before return",
+        )),
+        SliceLocation::Local(index) => {
+            Ok((UsizeLocation::Local(index), UsizeLocation::Local(index + 1)))
+        }
+        SliceLocation::Parameter(_) => Err(invalid_mir_diagnostics(
+            "a slice-view parameter cannot be an assignment destination",
+        )),
     }
 }
 

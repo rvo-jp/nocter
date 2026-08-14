@@ -251,8 +251,8 @@ func make(): File! {
                 arguments: vec![],
                 layout: ValueLayout::new(4, 4),
                 failure_mode: OutcomeFailureMode::PropagateWithCleanup {
-                    code: StrLocation::Local(0),
-                    message: StrLocation::Local(2),
+                    code: StrLocation::Local(1),
+                    message: StrLocation::Local(3),
                     instructions: vec![drop_call.clone()],
                 },
             },
@@ -672,12 +672,21 @@ func use_allocator(): i32! {
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
                 Instruction::CallOutcomeDirectAggregate {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     target: CallTarget::same_file("reset_allocator"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
                     failure_mode: OutcomeFailureMode::Propagate,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(16, 8),
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -768,11 +777,20 @@ func use_text(): i32! {
                     offset: 16,
                     value: usize_const(3),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(24, 8),
+                },
                 Instruction::CallOutcomeAggregate {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     failure_mode: OutcomeFailureMode::Propagate,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(24, 8),
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -903,8 +921,8 @@ func build(): i32! {
     assert!(
         function.instructions.iter().any(|instruction| matches!(
             instruction,
-            Instruction::CallStoredOutcome {
-                destination: AggregateLocation::Slot(2),
+            Instruction::CallOutcomeAggregate {
+                destination: AggregateLocation::Slot(1),
                 target,
                 arguments,
                 ..
@@ -1111,15 +1129,18 @@ func main(): i32! {
         "{function:?}"
     );
     assert!(
-        function
-            .instructions
-            .contains(&Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Slot(1),
-                destination_offset: 0,
-                source: AggregateLocation::Slot(0),
-                source_offset: 8,
+        function.instructions.contains(&Instruction::CallI32 {
+            destination: I32Location::Return,
+            target: CallTarget::same_file("consume"),
+            arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::SlotField {
+                    slot_index: 0,
+                    offset: 8,
+                },
                 layout: ValueLayout::new(16, 8),
-            }),
+                words: 2,
+            })],
+        }),
         "{function:?}"
     );
 }

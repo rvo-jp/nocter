@@ -95,6 +95,7 @@ pub(crate) use operators::{
     comparison_semantics, specialize_comparison_plan, synthetic_comparison_runtime_call,
 };
 pub(crate) use output::TypecheckOutput;
+pub(crate) use type_expr::type_expr_borrow_readwrite;
 pub(crate) use typed_hir::{CheckedScalarType, PartialSemantic, TypedExpression};
 
 pub(crate) fn type_expr_is_assignable(

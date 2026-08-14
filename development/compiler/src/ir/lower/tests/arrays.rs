@@ -1013,27 +1013,28 @@ func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
                 layout: empty_layout,
             })
     );
-    assert!(main.instructions.contains(&Instruction::CallI32 {
-        destination: I32Location::Local(0),
-        target: CallTarget::same_file("consume"),
-        arguments: vec![
-            ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                source: AggregateArgumentSource::Slot(0),
-                layout: pair_layout,
-                words: 1,
-            }),
-            ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                source: AggregateArgumentSource::Slot(1),
-                layout: words_layout,
-                words: 6,
-            }),
-            ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                source: AggregateArgumentSource::Slot(2),
-                layout: empty_layout,
-                words: 0,
-            }),
-        ],
-    }));
+    assert!(
+        main.instructions.contains(&Instruction::CallI32 {
+            destination: I32Location::Local(0),
+            target: CallTarget::same_file("consume"),
+            arguments: vec![
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: pair_layout,
+                    words: 1,
+                }),
+                ScalarArgument::AggregateIndirect(AggregateArgument {
+                    source: AggregateArgumentSource::Slot(1),
+                }),
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(2),
+                    layout: empty_layout,
+                    words: 0,
+                }),
+            ],
+        }),
+        "{main:#?}"
+    );
 }
 
 #[test]

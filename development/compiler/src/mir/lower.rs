@@ -201,11 +201,29 @@ pub(crate) fn try_build_body_with_return_mode(
     {
         return None;
     }
-    let return_ty = tail
-        .expression()
-        .and_then(|expression| intrinsic_expression_type(expression.span(), inputs.typed_hir))
-        .filter(|ty| value_representation(*ty, semantic) == Some(return_representation))
-        .unwrap_or(contextual_return_ty);
+    let return_ty = if return_representation == super::ValueRepresentation::Aggregate {
+        contextual_return_ty
+    } else {
+        tail.expression()
+            .and_then(|expression| coverage::handled_outcome_success_type(expression, semantic))
+            .or_else(|| {
+                tail.expression()
+                    .filter(|expression| {
+                        coverage::conversion_plan_for_expression(expression, inputs.typed_hir)
+                            .is_none_or(|conversion| {
+                                !matches!(
+                                    conversion.kind,
+                                    crate::typecheck::TypecheckConversionKind::BorrowCoercion(_)
+                                )
+                            })
+                    })
+                    .and_then(|expression| {
+                        intrinsic_expression_type(expression.span(), inputs.typed_hir)
+                    })
+                    .filter(|ty| value_representation(*ty, semantic) == Some(return_representation))
+            })
+            .unwrap_or(contextual_return_ty)
+    };
 
     Some((|| {
         let source_body = inputs
@@ -256,7 +274,23 @@ pub(crate) fn try_build_body_with_return_mode(
                     root_scope,
                 )
             }
-            super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+            super::ValueRepresentation::Borrow => {
+                let readwrite = inputs
+                    .typed_hir
+                    .type_expr_by_id(return_ty)
+                    .and_then(|ty| {
+                        crate::typecheck::type_expr_borrow_readwrite(ty, inputs.resolved)
+                    })
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                Local::borrow(
+                    return_ty,
+                    readwrite,
+                    LocalStorage::Return,
+                    LocalOrigin::Return,
+                    root_scope,
+                )
+            }
+            super::ValueRepresentation::Error => {
                 return Err(BuildError::UnsupportedClaimedExpression);
             }
         };
@@ -310,10 +344,12 @@ pub(crate) fn try_build_body_with_return_mode(
                     Local::aggregate(ty, ownership, storage, origin, root_scope)
                 }
                 super::ValueRepresentation::Borrow => {
-                    let crate::ast::TypeExpr::Borrow(borrow) = &parameter.ty else {
-                        return Err(BuildError::UnsupportedClaimedExpression);
-                    };
-                    Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
+                    let readwrite = crate::typecheck::type_expr_borrow_readwrite(
+                        &parameter.ty,
+                        inputs.resolved,
+                    )
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    Local::borrow(ty, readwrite, storage, origin, root_scope)
                 }
                 super::ValueRepresentation::Error => Local::error(ty, storage, origin, root_scope),
                 super::ValueRepresentation::View(kind) => {
@@ -463,29 +499,31 @@ fn build_prepared_body(
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
             match return_representation {
                 super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
-                super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_) => {
-                    context.lower_value_to_place(
-                        return_local,
-                        expression,
-                        return_ty,
-                        return_representation,
-                        root_scope,
-                    )?
-                }
+                super::ValueRepresentation::Scalar(_)
+                | super::ValueRepresentation::View(_)
+                | super::ValueRepresentation::Borrow => context.lower_value_to_place(
+                    return_local,
+                    expression,
+                    return_ty,
+                    return_representation,
+                    root_scope,
+                )?,
                 super::ValueRepresentation::Aggregate => {
                     let return_type_expr = semantic
                         .typed_hir
                         .type_expr_by_id(contextual_return_ty)
                         .ok_or(BuildError::MissingTypedExpression)?;
-                    let returns_stored_outcome = matches!(
-                        crate::abi::abi_value_from_type_expr_with_resolver(
-                            return_type_expr,
-                            semantic.resolved,
-                            |source| semantic.resolved_sources.get(&source).copied(),
-                        )
-                        .map(|value| value.ty),
-                        Ok(crate::abi::AbiType::Outcome { .. })
-                    );
+                    let returns_stored_outcome =
+                        coverage::handled_outcome_success_type(expression, semantic).is_none()
+                            && matches!(
+                                crate::abi::abi_value_from_type_expr_with_resolver(
+                                    return_type_expr,
+                                    semantic.resolved,
+                                    |source| semantic.resolved_sources.get(&source).copied(),
+                                )
+                                .map(|value| value.ty),
+                                Ok(crate::abi::AbiType::Outcome { .. })
+                            );
                     if returns_stored_outcome {
                         let source = context.lower_aggregate_operand(expression)?;
                         context
@@ -501,7 +539,7 @@ fn build_prepared_body(
                         )?;
                     }
                 }
-                super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+                super::ValueRepresentation::Error => {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
             }
@@ -572,11 +610,8 @@ fn type_representation(
     semantic: SemanticInputs<'_>,
 ) -> Option<super::ValueRepresentation> {
     let ty = semantic.typed_hir.type_id(type_expr)?;
-    if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
-        return Some(super::ValueRepresentation::Scalar(scalar));
-    }
-    if let Some(representation @ super::ValueRepresentation::View(_)) =
-        value_representation(ty, semantic)
+    if let Some(representation) = value_representation(ty, semantic)
+        && representation != super::ValueRepresentation::Aggregate
     {
         return Some(representation);
     }
