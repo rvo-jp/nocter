@@ -24,6 +24,32 @@ enum PlannedReceiver<'a> {
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
+    fn lower_intrinsic_rvalue(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        result_ty: crate::semantic::TyId,
+        representation: crate::mir::ValueRepresentation,
+        scope: ScopeId,
+    ) -> Result<Option<Rvalue>, BuildError> {
+        let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic) else {
+            return Ok(None);
+        };
+        if !super::coverage::value_intrinsic_is_supported(intrinsic) {
+            return Ok(None);
+        }
+        let arguments = call
+            .arguments
+            .iter()
+            .map(|argument| self.lower_call_argument(argument, scope))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Some(Rvalue::Intrinsic {
+            intrinsic,
+            arguments,
+            result_ty,
+            representation,
+        }))
+    }
+
     pub(super) fn lower_direct_outcome_return(
         &mut self,
         expression: &Expr,
@@ -171,6 +197,21 @@ impl LoweringContext<'_> {
         representation: crate::mir::ValueRepresentation,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
+        if let Expr::Call(call) = expression.without_groups()
+            && let Some(value) = self.lower_intrinsic_rvalue(call, ty, representation, scope)?
+        {
+            let source = self
+                .semantic
+                .typed_hir
+                .expression(expression.span())
+                .ok_or(BuildError::MissingTypedExpression)?
+                .id;
+            return self.control_flow.push_statement(Statement::Assign {
+                destination: Place::local(destination),
+                value,
+                origin: crate::mir::Origin::Expression(source),
+            });
+        }
         match representation {
             crate::mir::ValueRepresentation::Unit => Err(BuildError::UnsupportedClaimedExpression),
             crate::mir::ValueRepresentation::Scalar(scalar) => {
@@ -1333,7 +1374,13 @@ impl LoweringContext<'_> {
                     LocalOrigin::Temporary(typed_expression.id),
                     scope,
                 ));
-                self.lower_view_expression_to_place(temporary, expression, ty, kind, scope)?;
+                self.lower_value_to_place(
+                    temporary,
+                    expression,
+                    ty,
+                    crate::mir::ValueRepresentation::View(kind),
+                    scope,
+                )?;
                 Ok(Operand::Copy(Place::local(temporary)))
             }
             _ => Err(BuildError::UnsupportedClaimedExpression),
@@ -1438,7 +1485,13 @@ impl LoweringContext<'_> {
             LocalOrigin::Temporary(typed_expression.id),
             scope,
         ));
-        self.lower_expression_to_place(temporary, expression, ty, scalar, scope)?;
+        self.lower_value_to_place(
+            temporary,
+            expression,
+            ty,
+            crate::mir::ValueRepresentation::Scalar(scalar),
+            scope,
+        )?;
         Ok(Operand::Copy(Place::local(temporary)))
     }
 

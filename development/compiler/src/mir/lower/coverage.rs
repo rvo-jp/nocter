@@ -174,6 +174,17 @@ fn scalar_call_shape_is_supported(
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
+    let semantic = SemanticInputs {
+        resolved,
+        resolved_sources,
+        typed_hir,
+    };
+    if intrinsic_for_call(call, semantic).is_some_and(value_intrinsic_is_supported) {
+        return call
+            .arguments
+            .iter()
+            .all(|argument| call_argument_is_supported(argument, semantic));
+    }
     let callee_supported = if let Some(fact) = typed_hir.callable_call(call.span) {
         typed_hir
             .type_id(&fact.specialization.callable_ty)
@@ -277,16 +288,49 @@ fn scalar_call_shape_is_supported(
             _ => false,
         }
     };
-    let semantic = SemanticInputs {
-        resolved,
-        resolved_sources,
-        typed_hir,
-    };
     callee_supported
         && call
             .arguments
             .iter()
             .all(|argument| call_argument_is_supported(argument, semantic))
+}
+
+pub(super) fn intrinsic_for_call(
+    call: &crate::ast::CallExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<crate::intrinsics::IntrinsicId> {
+    let resolved = semantic.resolver_for(call.span.source)?;
+    let symbol = resolved.symbol_for_call(call)?;
+    match symbol.kind {
+        crate::resolve::SymbolKind::Primitive(_) | crate::resolve::SymbolKind::Imported(_) => {
+            crate::intrinsics::IntrinsicId::from_source_name(&symbol.name)
+        }
+        crate::resolve::SymbolKind::Function(_) | crate::resolve::SymbolKind::Type(_) => None,
+    }
+}
+
+pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
+    matches!(
+        intrinsic,
+        crate::intrinsics::IntrinsicId::BytesFromStr
+            | crate::intrinsics::IntrinsicId::StrLenRaw
+            | crate::intrinsics::IntrinsicId::SliceLenRaw
+            | crate::intrinsics::IntrinsicId::StrPtrAddrRaw
+            | crate::intrinsics::IntrinsicId::SlicePtrAddrRaw
+            | crate::intrinsics::IntrinsicId::ArgCountRaw
+            | crate::intrinsics::IntrinsicId::EnvCountRaw
+            | crate::intrinsics::IntrinsicId::CurrentAllocatorState
+            | crate::intrinsics::IntrinsicId::CurrentAllocatorKind
+            | crate::intrinsics::IntrinsicId::ArgRaw
+            | crate::intrinsics::IntrinsicId::EnvNameRaw
+            | crate::intrinsics::IntrinsicId::EnvValueRaw
+            | crate::intrinsics::IntrinsicId::StrFromRawParts
+            | crate::intrinsics::IntrinsicId::StrSubviewUnchecked
+            | crate::intrinsics::IntrinsicId::SliceFromRawParts
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsMut
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsValue
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsValueMut
+    )
 }
 
 fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
@@ -687,8 +731,14 @@ impl<'a> ScalarStatement<'a> {
                                 },
                             )
                         }
-                        Expr::Member(_) | Expr::Identifier(_)
-                            if binding_is_plain_copy_aggregate =>
+                        Expr::Member(_) | Expr::Identifier(_) | Expr::Unary(_)
+                            if binding_is_plain_copy_aggregate
+                                || aggregate_operand_is_supported(
+                                    &binding.initializer,
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                ) =>
                         {
                             value_expression_is_supported(
                                 &binding.initializer,
@@ -1342,38 +1392,25 @@ fn scalar_conditional_statement_is_supported(
     typed_hir: &TypedHir,
     in_loop: bool,
 ) -> bool {
-    let Some(then_statements) = scalar_linear_block_statements(
+    if scalar_linear_block_statements(
         &statement.then_block,
         resolved,
         resolved_sources,
         typed_hir,
         in_loop,
-    ) else {
+    )
+    .is_none()
+    {
         return false;
-    };
-    let else_statements = statement
+    }
+    statement
         .else_block
         .as_ref()
         .map(|block| {
             scalar_linear_block_statements(block, resolved, resolved_sources, typed_hir, in_loop)
         })
-        .unwrap_or_else(|| Some(Vec::new()));
-    let Some(else_statements) = else_statements else {
-        return false;
-    };
-    let then_exits = then_statements.last().is_some_and(|statement| {
-        matches!(
-            statement,
-            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
-        )
-    });
-    let else_exits = else_statements.last().is_some_and(|statement| {
-        matches!(
-            statement,
-            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
-        )
-    });
-    !(then_exits && else_exits)
+        .unwrap_or_else(|| Some(Vec::new()))
+        .is_some()
 }
 
 pub(super) fn scalar_loop_block_statements<'a>(
@@ -1429,10 +1466,11 @@ pub(super) fn scalar_body_parts(
             ),
         }
     };
-    let statements = body_statements
+    let mut statements = body_statements
         .iter()
         .map(|statement| scalar_statement(statement))
         .collect::<Option<Vec<_>>>()?;
+    truncate_unreachable_scalar_tail(&mut statements);
     Some((statements, tail))
 }
 

@@ -397,6 +397,11 @@ fn reject_rvalue_moves(
             reject_operand_move(body, block, source, state, errors);
             reject_operand_move(body, block, index, state, errors);
         }
+        Rvalue::Intrinsic { arguments, .. } => {
+            for argument in arguments {
+                reject_operand_move(body, block, &argument.operand, state, errors);
+            }
+        }
     }
 }
 

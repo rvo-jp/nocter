@@ -659,7 +659,7 @@ fn void_entry_uses_a_zero_width_retained_mir_return() {
     let body = fixture
         .analysis
         .mir_bodies
-        .cached_specialized(body_id, &HashMap::new())
+        .cached_specialized(root.ast.span.source, body_id, &HashMap::new())
         .expect("void lowering should retain a cache entry")
         .expect("void lowering should construct valid MIR");
 
@@ -697,7 +697,7 @@ func effect(): void {
     fixture
         .analysis
         .mir_bodies
-        .cached_specialized(body_id, &HashMap::new())
+        .cached_specialized(root.ast.span.source, body_id, &HashMap::new())
         .expect("void lowering should retain a cache entry")
         .expect("void tail effects should construct valid MIR");
 

@@ -17,7 +17,7 @@ fn cached_main_body(fixture: &LoweringFixture) -> crate::mir::Body {
     fixture
         .analysis
         .mir_bodies
-        .cached_specialized(body_id, &HashMap::new())
+        .cached_specialized(root.ast.span.source, body_id, &HashMap::new())
         .expect("lowering should retain a MIR cache entry")
         .expect("collection iteration should construct valid MIR")
 }

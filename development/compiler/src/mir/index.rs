@@ -2,6 +2,7 @@
 
 use super::{Body, BuildError};
 use crate::semantic::BodyId;
+use crate::source::SourceId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -14,18 +15,24 @@ pub(crate) struct BodyCache {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct BodyInstanceKey {
+    source: SourceId,
     body: BodyId,
     substitutions: Vec<(String, String)>,
 }
 
 impl BodyInstanceKey {
-    fn new(body: BodyId, substitutions: &HashMap<String, crate::ast::TypeExpr>) -> Self {
+    fn new(
+        source: SourceId,
+        body: BodyId,
+        substitutions: &HashMap<String, crate::ast::TypeExpr>,
+    ) -> Self {
         let mut substitutions = substitutions
             .iter()
             .map(|(parameter, ty)| (parameter.clone(), crate::ast::canonical_type_expr(ty)))
             .collect::<Vec<_>>();
         substitutions.sort_unstable();
         Self {
+            source,
             body,
             substitutions,
         }
@@ -35,6 +42,7 @@ impl BodyInstanceKey {
 impl BodyCache {
     pub(crate) fn get_or_build_specialized(
         &self,
+        source: SourceId,
         id: BodyId,
         substitutions: &HashMap<String, crate::ast::TypeExpr>,
         build: impl FnOnce() -> CachedBody,
@@ -43,7 +51,7 @@ impl BodyCache {
             .entries
             .lock()
             .expect("MIR body cache lock must not be poisoned");
-        let key = BodyInstanceKey::new(id, substitutions);
+        let key = BodyInstanceKey::new(source, id, substitutions);
         if let Some(cached) = entries.get(&key) {
             return cached.clone();
         }
@@ -63,13 +71,14 @@ impl BodyCache {
     #[cfg(test)]
     pub(crate) fn cached_specialized(
         &self,
+        source: SourceId,
         id: BodyId,
         substitutions: &HashMap<String, crate::ast::TypeExpr>,
     ) -> Option<Result<Body, BuildError>> {
         self.entries
             .lock()
             .expect("MIR body cache lock must not be poisoned")
-            .get(&BodyInstanceKey::new(id, substitutions))
+            .get(&BodyInstanceKey::new(source, id, substitutions))
             .cloned()
             .flatten()
     }
@@ -91,6 +100,7 @@ mod tests {
     #[test]
     fn body_instance_key_is_order_independent_and_type_sensitive() {
         let body = BodyId::from_index(7);
+        let source = SourceId::new(2);
         let first = HashMap::from([
             ("T".to_string(), named_type("i32")),
             ("U".to_string(), named_type("bool")),
@@ -105,12 +115,16 @@ mod tests {
         ]);
 
         assert_eq!(
-            BodyInstanceKey::new(body, &first),
-            BodyInstanceKey::new(body, &reordered)
+            BodyInstanceKey::new(source, body, &first),
+            BodyInstanceKey::new(source, body, &reordered)
         );
         assert_ne!(
-            BodyInstanceKey::new(body, &first),
-            BodyInstanceKey::new(body, &different)
+            BodyInstanceKey::new(source, body, &first),
+            BodyInstanceKey::new(source, body, &different)
+        );
+        assert_ne!(
+            BodyInstanceKey::new(SourceId::new(3), body, &first),
+            BodyInstanceKey::new(source, body, &first)
         );
     }
 }

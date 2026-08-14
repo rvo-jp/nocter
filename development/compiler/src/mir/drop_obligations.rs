@@ -401,6 +401,11 @@ fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState
             consume_operand_move(body, source, state);
             consume_operand_move(body, index, state);
         }
+        Rvalue::Intrinsic { arguments, .. } => {
+            for argument in arguments {
+                consume_operand_move(body, &argument.operand, state);
+            }
+        }
     }
 }
 

@@ -937,12 +937,18 @@ pub func size(value: &str): usize {
 
     assert_eq!(
         size.instructions,
-        vec![Instruction::TailCall {
-            target: builtin_slice_method_target("u8", "len"),
-            arguments: vec![ScalarArgument::Slice(SliceValue::StrBytes(
-                StrValue::Location(StrLocation::Parameter(0)),
-            ))],
-        }]
+        vec![
+            Instruction::SetSlice {
+                destination: SliceLocation::Local(0),
+                value: SliceValue::StrBytes(StrValue::Location(StrLocation::Parameter(0))),
+            },
+            Instruction::TailCall {
+                target: builtin_slice_method_target("u8", "len"),
+                arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                    SliceLocation::Local(0),
+                ))],
+            },
+        ]
     );
 }
 
@@ -996,10 +1002,14 @@ pub func first(value: &str): u8 {
     assert_eq!(
         first.instructions,
         vec![
+            Instruction::SetSlice {
+                destination: SliceLocation::Local(0),
+                value: SliceValue::StrBytes(StrValue::Location(StrLocation::Parameter(0))),
+            },
             Instruction::SetU8 {
                 destination: U8Location::Return,
-                value: U8Value::StrIndex {
-                    source: StrLocation::Parameter(0),
+                value: U8Value::SliceIndex {
+                    source: SliceLocation::Local(0),
                     index: usize_const(1),
                 },
             },

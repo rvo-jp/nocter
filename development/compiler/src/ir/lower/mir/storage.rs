@@ -48,6 +48,18 @@ pub(super) fn is_inlined_view_cast(body: &Body, local: LocalId) -> bool {
     declaration.storage == LocalStorage::Local
         && matches!(declaration.representation, ValueRepresentation::View(_))
         && matches!(declaration.origin, LocalOrigin::Temporary(_))
+        && body.blocks.iter().any(|block| {
+            block.statements.iter().any(|statement| {
+                matches!(
+                    statement,
+                    crate::mir::Statement::Assign {
+                        destination,
+                        value: Rvalue::ViewCast { .. },
+                        ..
+                    } if *destination == crate::mir::Place::local(local)
+                )
+            })
+        })
         && local_definition_count(body, local) == 1
         && local_use_count(body, local) == 1
         && body.blocks.iter().any(|block| {
@@ -307,6 +319,10 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
         Rvalue::ViewIndex { source, index, .. } => {
             operand_use_count(source, local) + operand_use_count(index, local)
         }
+        Rvalue::Intrinsic { arguments, .. } => arguments
+            .iter()
+            .map(|argument| operand_use_count(&argument.operand, local))
+            .sum(),
     }
 }
 

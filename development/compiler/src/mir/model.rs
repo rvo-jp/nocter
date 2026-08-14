@@ -246,6 +246,12 @@ pub(crate) enum Rvalue {
         element_ty: TyId,
         element_scalar: ScalarType,
     },
+    Intrinsic {
+        intrinsic: crate::intrinsics::IntrinsicId,
+        arguments: Vec<CallArgument>,
+        result_ty: TyId,
+        representation: super::ValueRepresentation,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

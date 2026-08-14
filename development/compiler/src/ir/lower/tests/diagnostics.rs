@@ -345,7 +345,31 @@ func main(): i32 {
 "#,
     );
 
-    assert_runtime_aggregate_drop_state(&ir);
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(!contains_bool_state(&main.instructions, true), "{main:?}");
+    assert!(!contains_bool_state(&main.instructions, false), "{main:?}");
+    let Instruction::If {
+        then_instructions,
+        else_instructions,
+        ..
+    } = &main.instructions[2]
+    else {
+        panic!("{main:?}");
+    };
+    for branch in [then_instructions, else_instructions] {
+        assert!(
+            branch.iter().any(|instruction| matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("File.drop")
+            )),
+            "{main:?}"
+        );
+    }
 }
 
 #[test]
@@ -402,9 +426,9 @@ func done(): bool {
                         offset: 0,
                         value: i32_const(1),
                     },
-                    call_bool(BoolLocation::Local(0), "done", vec![]),
+                    call_bool(BoolLocation::Local(1), "done", vec![]),
                     Instruction::If {
-                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        condition: BoolValue::Location(BoolLocation::Local(1)),
                         then_instructions: vec![
                             Instruction::CallVoid {
                                 target: CallTarget::same_file("File.drop"),

@@ -730,6 +730,50 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     }
                     Some(*element_ty)
                 }
+                super::model::Rvalue::Intrinsic {
+                    arguments,
+                    result_ty,
+                    representation,
+                    ..
+                } => {
+                    let location = OperandLocation::Statement(statement_index);
+                    for argument in arguments {
+                        let actual =
+                            operand_type(body, block_id, location, &argument.operand, &mut errors);
+                        if actual.is_some_and(|actual| actual != argument.ty) {
+                            errors.push(ValidationError::OperandTypeMismatch {
+                                block: block_id,
+                                location,
+                                expected: argument.ty,
+                                actual: actual.unwrap(),
+                            });
+                        }
+                        validate_operand_representation(
+                            body,
+                            block_id,
+                            location,
+                            &argument.operand,
+                            argument.representation,
+                            &mut errors,
+                        );
+                        validate_operand_ownership(
+                            body,
+                            block_id,
+                            location,
+                            &argument.operand,
+                            &mut errors,
+                        );
+                    }
+                    if destination_representation != *representation {
+                        errors.push(ValidationError::OperandRepresentationMismatch {
+                            block: block_id,
+                            location,
+                            expected: *representation,
+                            actual: destination_representation,
+                        });
+                    }
+                    Some(*result_ty)
+                }
             };
             if value_ty.is_some_and(|value_ty| destination_ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {

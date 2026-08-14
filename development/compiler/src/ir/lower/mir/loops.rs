@@ -295,10 +295,43 @@ pub(super) fn lower_linear_loop_body(
                 else_target,
                 join_target,
             } => {
+                let boundaries = [continue_target, exit];
+                let then_boundary =
+                    control_flow::linear_path_boundary(body, *then_target, &boundaries);
+                let else_boundary =
+                    control_flow::linear_path_boundary(body, *else_target, &boundaries);
+                if let (None, Some(then_boundary), Some(else_boundary)) =
+                    (*join_target, then_boundary, else_boundary)
+                {
+                    let then_instructions = lower_loop_branch_path(
+                        context,
+                        *then_target,
+                        then_boundary,
+                        header,
+                        continue_target,
+                        exit,
+                        visited,
+                    )?;
+                    let else_instructions = lower_loop_branch_path(
+                        context,
+                        *else_target,
+                        else_boundary,
+                        header,
+                        continue_target,
+                        exit,
+                        visited,
+                    )?;
+                    instructions.push(Instruction::If {
+                        condition: lower_bool_operand(condition, context)?,
+                        then_instructions,
+                        else_instructions,
+                    });
+                    return Ok(instructions);
+                }
+                let then_end = control_flow::linear_path_target(body, *then_target);
+                let else_end = control_flow::linear_path_target(body, *else_target);
                 let join = (*join_target).or_else(|| {
-                    let then_end = control_flow::linear_path_target(body, *then_target)?;
-                    let else_end = control_flow::linear_path_target(body, *else_target)?;
-                    control_flow::conditional_join(then_end, else_end, continue_target, exit)
+                    control_flow::conditional_join(then_end?, else_end?, continue_target, exit)
                 });
                 let join = join.ok_or_else(|| {
                     super::invalid_mir_diagnostics(

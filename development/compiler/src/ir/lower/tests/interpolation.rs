@@ -113,9 +113,10 @@ fn interpolation_caller_uses_the_retained_mir_body() {
         })
         .and_then(|body| fixture.analysis.semantic_db.body_at(body.span))
         .unwrap();
-    let cached = fixture
-        .analysis
-        .mir_bodies
-        .cached_specialized(body, &HashMap::new());
+    let cached =
+        fixture
+            .analysis
+            .mir_bodies
+            .cached_specialized(root.ast.span.source, body, &HashMap::new());
     assert!(matches!(cached, Some(Ok(_))), "{cached:?}");
 }

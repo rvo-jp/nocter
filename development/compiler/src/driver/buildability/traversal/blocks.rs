@@ -27,21 +27,26 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
             callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
-        let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
-            crate::mir::try_build_closure_body(
-                closure.expression,
-                &closure.plan.ty,
-                closure.receiver_mode,
-                return_representation,
-                return_mode,
-                crate::mir::BuildInputs {
-                    semantic_db: &callable.resolved.semantic_db,
-                    resolved: callable.resolved,
-                    resolved_sources,
-                    typed_hir: callable.typed_hir,
-                },
-            )
-        });
+        let body = mir_bodies.get_or_build_specialized(
+            callable.body.span.source,
+            body_id,
+            &callable.substitutions,
+            || {
+                crate::mir::try_build_closure_body(
+                    closure.expression,
+                    &closure.plan.ty,
+                    closure.receiver_mode,
+                    return_representation,
+                    return_mode,
+                    crate::mir::BuildInputs {
+                        semantic_db: &callable.resolved.semantic_db,
+                        resolved: callable.resolved,
+                        resolved_sources,
+                        typed_hir: callable.typed_hir,
+                    },
+                )
+            },
+        );
         match body {
             Some(Ok(body)) => {
                 if let Err(message) = enqueue_mir_call_targets(
@@ -90,20 +95,25 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                 parameter
             })
             .collect::<Vec<_>>();
-        let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
-            crate::mir::try_build_body_with_return_mode(
-                callable.body,
-                &specialized_parameters,
-                return_representation,
-                return_mode,
-                crate::mir::BuildInputs {
-                    semantic_db: &callable.resolved.semantic_db,
-                    resolved: callable.resolved,
-                    resolved_sources,
-                    typed_hir: &specialized_hir,
-                },
-            )
-        });
+        let body = mir_bodies.get_or_build_specialized(
+            callable.body.span.source,
+            body_id,
+            &callable.substitutions,
+            || {
+                crate::mir::try_build_body_with_return_mode(
+                    callable.body,
+                    &specialized_parameters,
+                    return_representation,
+                    return_mode,
+                    crate::mir::BuildInputs {
+                        semantic_db: &callable.resolved.semantic_db,
+                        resolved: callable.resolved,
+                        resolved_sources,
+                        typed_hir: &specialized_hir,
+                    },
+                )
+            },
+        );
         match body {
             Some(Ok(body)) => {
                 if let Err(message) = enqueue_mir_call_targets(

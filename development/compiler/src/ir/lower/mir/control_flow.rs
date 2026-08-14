@@ -106,6 +106,49 @@ pub(super) fn linear_path_target(
     }
 }
 
+/// Follow a branch made only of linear MIR edges until one of the requested
+/// structural boundaries is reached. Loop branches may cross cleanup blocks
+/// before their actual `continue` or `break` boundary.
+pub(super) fn linear_path_boundary(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+    boundaries: &[crate::mir::BasicBlockId],
+) -> Option<crate::mir::BasicBlockId> {
+    let mut current = start;
+    let mut visited = std::collections::HashSet::new();
+    loop {
+        if boundaries.contains(&current) {
+            return Some(current);
+        }
+        if !visited.insert(current) {
+            return None;
+        }
+        let block = body.blocks.get(current.index())?;
+        current = match &block.terminator {
+            Terminator::Goto { target } | Terminator::Drop { target, .. } => *target,
+            Terminator::Call {
+                continuation:
+                    CallContinuation::Continue { target } | CallContinuation::Return { target, .. },
+                ..
+            } => *target,
+            Terminator::Call {
+                continuation:
+                    CallContinuation::Outcome {
+                        success, failure, ..
+                    }
+                    | CallContinuation::OutcomeEffect {
+                        success, failure, ..
+                    },
+                ..
+            } if dedicated_outcome_failure(body, *failure) => *success,
+            Terminator::InspectOutcome {
+                success, failure, ..
+            } if dedicated_outcome_failure(body, *failure) => *success,
+            _ => return None,
+        };
+    }
+}
+
 pub(super) fn conditional_join(
     then_end: crate::mir::BasicBlockId,
     else_end: crate::mir::BasicBlockId,

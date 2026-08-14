@@ -28,6 +28,7 @@ mod literals;
 mod projections;
 mod regions;
 mod statements;
+mod storage_types;
 use context::LoweringContext;
 use coverage::*;
 use statements::StatementLowerer;
@@ -438,47 +439,39 @@ fn build_prepared_body(
                 root_scope,
             )?;
             context.control_flow.terminate(Terminator::Return)?;
-        } else if let Some(Expr::Call(call)) = tail.expression() {
+        } else if let Some(Expr::Call(call)) = tail.expression()
+            && semantic
+                .typed_hir
+                .expression(call.span)
+                .is_some_and(|expression| expression.diverges)
+        {
             let source = semantic
                 .typed_hir
                 .expression(call.span)
                 .ok_or(BuildError::MissingTypedExpression)?
                 .id;
             let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
-            if returns_never {
-                context
-                    .control_flow
-                    .emit_never_call(source, callee, arguments)?;
-            } else {
-                context.control_flow.emit_returning_call(
-                    source,
-                    callee,
-                    arguments,
-                    return_local,
-                )?;
-                context.control_flow.terminate(Terminator::Return)?;
+            if !returns_never {
+                return Err(BuildError::UnsupportedClaimedExpression);
             }
+            context
+                .control_flow
+                .emit_never_call(source, callee, arguments)?;
         } else {
             let expression = tail
                 .expression()
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
             match return_representation {
                 super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
-                super::ValueRepresentation::Scalar(return_scalar) => context
-                    .lower_expression_to_place(
+                super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_) => {
+                    context.lower_value_to_place(
                         return_local,
                         expression,
                         return_ty,
-                        return_scalar,
+                        return_representation,
                         root_scope,
-                    )?,
-                super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
-                    return_local,
-                    expression,
-                    return_ty,
-                    kind,
-                    root_scope,
-                )?,
+                    )?
+                }
                 super::ValueRepresentation::Aggregate => {
                     let return_type_expr = semantic
                         .typed_hir

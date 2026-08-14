@@ -62,20 +62,21 @@ pub(super) fn try_lower_body(
     let body_id = resolved.semantic_db.body_at(body.span)?;
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
-    let mir_body = cache.get_or_build_specialized(body_id, substitutions, || {
-        crate::mir::try_build_body_with_return_mode(
-            body,
-            parameters,
-            return_representation,
-            return_mode,
-            crate::mir::BuildInputs {
-                semantic_db: &resolved.semantic_db,
-                resolved,
-                resolved_sources,
-                typed_hir,
-            },
-        )
-    })?;
+    let mir_body =
+        cache.get_or_build_specialized(body.span.source, body_id, substitutions, || {
+            crate::mir::try_build_body_with_return_mode(
+                body,
+                parameters,
+                return_representation,
+                return_mode,
+                crate::mir::BuildInputs {
+                    semantic_db: &resolved.semantic_db,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            )
+        })?;
     Some(lower_cached_body(
         mir_body,
         return_type,
@@ -115,21 +116,26 @@ pub(super) fn try_lower_closure_body(
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
     let substitutions = std::collections::HashMap::new();
-    let mir_body = cache.get_or_build_specialized(body_id, &substitutions, || {
-        crate::mir::try_build_closure_body(
-            expression,
-            closure_ty,
-            receiver_mode,
-            return_representation,
-            return_mode,
-            crate::mir::BuildInputs {
-                semantic_db: &resolved.semantic_db,
-                resolved,
-                resolved_sources,
-                typed_hir,
-            },
-        )
-    })?;
+    let mir_body = cache.get_or_build_specialized(
+        expression.body.span.source,
+        body_id,
+        &substitutions,
+        || {
+            crate::mir::try_build_closure_body(
+                expression,
+                closure_ty,
+                receiver_mode,
+                return_representation,
+                return_mode,
+                crate::mir::BuildInputs {
+                    semantic_db: &resolved.semantic_db,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            )
+        },
+    )?;
     Some(lower_cached_body(
         mir_body,
         return_type,
@@ -1896,6 +1902,20 @@ fn lower_statements(
                 body.locals[destination.local.index()].representation,
                 |path| path.representation,
             );
+        if let Rvalue::Intrinsic {
+            intrinsic,
+            arguments,
+            ..
+        } = value
+        {
+            instructions.push(lower_intrinsic_assignment(
+                destination,
+                *intrinsic,
+                arguments,
+                context,
+            )?);
+            continue;
+        }
         if destination_representation == crate::mir::ValueRepresentation::Aggregate {
             let Rvalue::Use(Operand::Copy(source) | Operand::Move(source)) = value else {
                 return Err(invalid_mir_diagnostics(
@@ -2028,7 +2048,7 @@ fn lower_statements(
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2110,7 +2130,7 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2187,7 +2207,7 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2263,7 +2283,7 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
-                    Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2352,7 +2372,7 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -4134,6 +4154,136 @@ fn str_location(
             place.local,
         ))),
     }
+}
+
+fn lower_intrinsic_assignment(
+    destination: &Place,
+    intrinsic: crate::intrinsics::IntrinsicId,
+    arguments: &[crate::mir::CallArgument],
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| lower_call_argument(argument, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    let invalid = || invalid_mir_diagnostics("intrinsic MIR argument contract is invalid");
+    Ok(match (intrinsic, arguments.as_slice()) {
+        (crate::intrinsics::IntrinsicId::BytesFromStr, [ScalarArgument::Str(value)]) => {
+            Instruction::SetSlice {
+                destination: slice_location(destination, context)?,
+                value: SliceValue::StrBytes(value.clone()),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::StrLenRaw, [ScalarArgument::Str(value)]) => {
+            let StrValue::Location(value) = value else {
+                return Err(invalid());
+            };
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::StrLen(*value),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::SliceLenRaw, [ScalarArgument::Slice(value)]) => {
+            let SliceValue::Location(value) = value else {
+                return Err(invalid());
+            };
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::SliceLen(*value),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::StrPtrAddrRaw, [ScalarArgument::Str(value)]) => {
+            let StrValue::Location(value) = value else {
+                return Err(invalid());
+            };
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::StrPointer(*value),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::SlicePtrAddrRaw, [ScalarArgument::Slice(value)]) => {
+            let SliceValue::Location(value) = value else {
+                return Err(invalid());
+            };
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::SlicePointer(*value),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::ArgCountRaw, []) => Instruction::SetUsize {
+            destination: usize_location(destination, context)?,
+            value: UsizeValue::ProcessArgCount,
+        },
+        (crate::intrinsics::IntrinsicId::EnvCountRaw, []) => Instruction::SetUsize {
+            destination: usize_location(destination, context)?,
+            value: UsizeValue::ProcessEnvironmentCount,
+        },
+        (crate::intrinsics::IntrinsicId::CurrentAllocatorState, []) => Instruction::SetUsize {
+            destination: usize_location(destination, context)?,
+            value: UsizeValue::CurrentAllocationState,
+        },
+        (crate::intrinsics::IntrinsicId::CurrentAllocatorKind, []) => Instruction::SetUsize {
+            destination: usize_location(destination, context)?,
+            value: UsizeValue::CurrentAllocationKind,
+        },
+        (crate::intrinsics::IntrinsicId::ArgRaw, [ScalarArgument::Usize(index)]) => {
+            Instruction::SetStr {
+                destination: str_location(destination, context)?,
+                value: StrValue::ProcessArg {
+                    index: index.clone(),
+                },
+            }
+        }
+        (crate::intrinsics::IntrinsicId::EnvNameRaw, [ScalarArgument::Usize(index)]) => {
+            Instruction::SetStr {
+                destination: str_location(destination, context)?,
+                value: StrValue::ProcessEnvironmentName {
+                    index: index.clone(),
+                },
+            }
+        }
+        (crate::intrinsics::IntrinsicId::EnvValueRaw, [ScalarArgument::Usize(index)]) => {
+            Instruction::SetStr {
+                destination: str_location(destination, context)?,
+                value: StrValue::ProcessEnvironmentValue {
+                    index: index.clone(),
+                },
+            }
+        }
+        (
+            crate::intrinsics::IntrinsicId::StrFromRawParts,
+            [ScalarArgument::Usize(pointer), ScalarArgument::Usize(len)],
+        ) => Instruction::SetStrRawParts {
+            destination: str_location(destination, context)?,
+            pointer: pointer.clone(),
+            len: len.clone(),
+        },
+        (
+            crate::intrinsics::IntrinsicId::StrSubviewUnchecked,
+            [
+                ScalarArgument::Str(source),
+                ScalarArgument::Usize(start),
+                ScalarArgument::Usize(len),
+            ],
+        ) => Instruction::SetStrSubview {
+            destination: str_location(destination, context)?,
+            source: source.clone(),
+            start: start.clone(),
+            len: len.clone(),
+        },
+        (
+            crate::intrinsics::IntrinsicId::SliceFromRawParts
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsMut
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsValue
+            | crate::intrinsics::IntrinsicId::SliceFromRawPartsValueMut,
+            [ScalarArgument::Usize(pointer), ScalarArgument::Usize(len)],
+        ) => Instruction::SetSliceRawParts {
+            destination: slice_location(destination, context)?,
+            pointer: pointer.clone(),
+            len: len.clone(),
+        },
+        _ => return Err(invalid()),
+    })
 }
 
 fn lower_slice_operand(

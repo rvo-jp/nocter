@@ -57,7 +57,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         .typed_hir
                         .binding_type_expr(symbol)
                         .ok_or(BuildError::MissingTypedExpression)?;
-                    let ty = self
+                    let declared_ty = self
                         .context
                         .semantic
                         .typed_hir
@@ -69,6 +69,11 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             )
                         })
                         .ok_or(BuildError::MissingTypedExpression)?;
+                    let ty = super::storage_types::binding_storage_type(
+                        declared_ty,
+                        &binding.initializer,
+                        self.context.semantic,
+                    );
                     let local = LocalId::from_index(self.context.locals.len());
                     if let Some(scalar) =
                         binding_scalar_type(symbol, self.context.semantic.typed_hir)

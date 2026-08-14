@@ -448,6 +448,9 @@ fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
             Box::new([left, right].into_iter())
         }
         Rvalue::ViewIndex { source, index, .. } => Box::new([source, index].into_iter()),
+        Rvalue::Intrinsic { arguments, .. } => {
+            Box::new(arguments.iter().map(|argument| &argument.operand))
+        }
     }
 }
 
