@@ -257,6 +257,9 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
             operand_use_count(left, local) + operand_use_count(right, local)
         }
+        Rvalue::ViewIndex { source, index, .. } => {
+            operand_use_count(source, local) + operand_use_count(index, local)
+        }
     }
 }
 

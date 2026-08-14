@@ -380,6 +380,10 @@ fn reject_rvalue_moves(
             reject_operand_move(body, block, left, state, errors);
             reject_operand_move(body, block, right, state, errors);
         }
+        Rvalue::ViewIndex { source, index, .. } => {
+            reject_operand_move(body, block, source, state, errors);
+            reject_operand_move(body, block, index, state, errors);
+        }
     }
 }
 

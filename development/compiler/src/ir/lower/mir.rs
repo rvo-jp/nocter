@@ -1944,6 +1944,11 @@ fn lower_statements(
                             "i32 scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "i32 scalar route received a view index result",
+                        ));
+                    }
                 }
             }
             ScalarType::U8 => {
@@ -1995,6 +2000,15 @@ fn lower_statements(
                             "u8 scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex {
+                        source,
+                        kind: crate::mir::ViewKind::Str,
+                        index,
+                        ..
+                    } => instructions.push(Instruction::SetU8 {
+                        destination,
+                        value: lower_str_index(source, index, context)?,
+                    }),
                 }
             }
             ScalarType::Usize => {
@@ -2044,6 +2058,11 @@ fn lower_statements(
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "usize scalar route received a comparison result",
+                        ));
+                    }
+                    Rvalue::ViewIndex { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "usize scalar route received a view index result",
                         ));
                     }
                 }
@@ -2109,6 +2128,11 @@ fn lower_statements(
                             "integer scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "integer scalar route received a view index result",
+                        ));
+                    }
                 }
             }
             ScalarType::Bool => {
@@ -2172,11 +2196,37 @@ fn lower_statements(
                         destination,
                         value: lower_comparison(*operator, left, right, *operand_scalar, context)?,
                     }),
+                    Rvalue::ViewIndex { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received a view index result",
+                        ));
+                    }
                 }
             }
         }
     }
     Ok(instructions)
+}
+
+fn lower_str_index(
+    source: &Operand,
+    index: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<U8Value, Vec<Diagnostic>> {
+    let index = lower_usize_operand(index, context)?;
+    match source {
+        Operand::StaticStr { bytes, .. } => Ok(U8Value::StaticStrIndex {
+            bytes: bytes.clone(),
+            index,
+        }),
+        Operand::Copy(place) | Operand::Move(place) => Ok(U8Value::StrIndex {
+            source: str_location(place, context)?,
+            index,
+        }),
+        Operand::Constant(_) => Err(invalid_mir_diagnostics(
+            "scalar constant used as a string-view index source",
+        )),
+    }
 }
 
 fn lower_stored_borrow_pointer(

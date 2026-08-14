@@ -638,6 +638,57 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     }
                     Some(*result_ty)
                 }
+                super::model::Rvalue::ViewIndex {
+                    source,
+                    source_ty,
+                    kind,
+                    index,
+                    index_ty,
+                    element_ty,
+                } => {
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        source,
+                        ValueRepresentation::View(*kind),
+                        &mut errors,
+                    );
+                    let actual_source_ty = operand_type(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        source,
+                        &mut errors,
+                    );
+                    if let Some(actual) = actual_source_ty
+                        && actual != *source_ty
+                    {
+                        errors.push(ValidationError::AssignmentTypeMismatch {
+                            block: block_id,
+                            statement: statement_index,
+                            destination: *source_ty,
+                            value: actual,
+                        });
+                    }
+                    validate_operand(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        index,
+                        *index_ty,
+                        ScalarType::Usize,
+                        &mut errors,
+                    );
+                    if destination_representation != ValueRepresentation::Scalar(ScalarType::U8) {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    Some(*element_ty)
+                }
             };
             if value_ty.is_some_and(|value_ty| destination_ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {

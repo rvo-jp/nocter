@@ -782,23 +782,29 @@ fn lowers_u8_str_index_terminal_if_comparison() {
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetU8 {
-                    destination: U8Location::Local(0),
+                    destination: U8Location::Local(1),
                     value: U8Value::StaticStrIndex {
                         bytes: b"Nocter".to_vec(),
                         index: usize_const(0),
                     },
                 },
-                Instruction::If {
-                    condition: BoolValue::I32Comparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                            U8Location::Local(0),
+                        left: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
+                            U8Location::Local(1),
                         ))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(78))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(u8_const(78))),
                     },
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
+                },
+                Instruction::Return,
             ],
         }])
     );
@@ -820,12 +826,16 @@ fn lowers_entry_static_str_index_conversion_to_i32() {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::SetI32 {
-                    destination: I32Location::Return,
-                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StaticStrIndex {
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::StaticStrIndex {
                         bytes: b"A".to_vec(),
                         index: usize_const(0),
-                    })),
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
                 },
                 Instruction::Return,
             ],

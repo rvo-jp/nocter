@@ -1439,6 +1439,7 @@ pub(super) fn scalar_expression_is_supported(
 ) -> bool {
     match expression {
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
+        Expr::ByteLiteral(literal) => crate::literals::decode_byte_literal(&literal.value).is_ok(),
         Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
         Expr::Member(member) => {
@@ -1454,14 +1455,15 @@ pub(super) fn scalar_expression_is_supported(
             known_expression_type(expression, typed_hir)
                 .and_then(|ty| scalar_type(ty, typed_hir))
                 .is_some()
-                && super::indexes::is_supported(
-                    index,
-                    SemanticInputs {
+                && {
+                    let semantic = SemanticInputs {
                         resolved,
                         resolved_sources,
                         typed_hir,
-                    },
-                )
+                    };
+                    super::indexes::is_supported(index, semantic)
+                        || super::indexes::view_is_supported(index, semantic)
+                }
         }
         Expr::Group(group) => {
             scalar_expression_is_supported(&group.expression, resolved, resolved_sources, typed_hir)

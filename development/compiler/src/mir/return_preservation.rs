@@ -1,11 +1,11 @@
 //! Separation of semantic return values from ABI return storage.
 //!
 //! Authored lowering initially targets the distinguished return local so all
-//! source forms share one destination. Before cleanup elaboration, every
-//! non-unit return is rewritten to an ordinary owned local and an explicit
-//! `ReturnValue` operand. Cleanup therefore observes the move out of that
-//! local, while backend projection writes caller-clobbered return registers
-//! only after every cleanup edge has completed.
+//! source forms share one destination. After cleanup elaboration, a return
+//! definition whose successful path crosses a cleanup call is rewritten to
+//! an ordinary owned local and an explicit `ReturnValue` operand. Backend
+//! projection then writes caller-clobbered return registers only after every
+//! cleanup edge has completed.
 
 use super::locals::{LocalOrigin, LocalStorage, ValueRepresentation};
 use super::{

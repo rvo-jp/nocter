@@ -852,6 +852,49 @@ impl LoweringContext<'_> {
             return self.lower_short_circuit_to_place(destination, binary, ty, scope, source);
         }
         let value = match expression {
+            Expr::Index(index) if super::indexes::view_is_supported(index, self.semantic) => {
+                let source_ty = known_expression_type(&index.object, self.semantic.typed_hir)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let checked_index_ty = self
+                    .semantic
+                    .typed_hir
+                    .index_plan(index.span)
+                    .and_then(|plan| self.semantic.typed_hir.type_id(&plan.index_ty))
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let (index_ty, index_scalar) =
+                    if scalar_type(checked_index_ty, self.semantic.typed_hir)
+                        == Some(ScalarType::Usize)
+                    {
+                        (checked_index_ty, ScalarType::Usize)
+                    } else if matches!(index.index.without_groups(), Expr::IntegerLiteral(_)) {
+                        let usize_ty = self
+                            .semantic
+                            .typed_hir
+                            .type_id(&crate::ast::TypeExpr::Reference(
+                                crate::ast::TypeReference {
+                                    span: index.index.span(),
+                                    name: "usize".to_string(),
+                                },
+                            ))
+                            .ok_or(BuildError::MissingTypedExpression)?;
+                        (usize_ty, ScalarType::Usize)
+                    } else {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    };
+                Rvalue::ViewIndex {
+                    source: self.lower_view_operand(
+                        &index.object,
+                        source_ty,
+                        crate::mir::ViewKind::Str,
+                        scope,
+                    )?,
+                    source_ty,
+                    kind: crate::mir::ViewKind::Str,
+                    index: self.lower_operand(&index.index, index_ty, index_scalar, scope)?,
+                    index_ty,
+                    element_ty: ty,
+                }
+            }
             Expr::Unary(unary) => Rvalue::Unary {
                 operator: match unary.operator {
                     crate::ast::UnaryOperator::Negate => UnaryOperator::Negate,
@@ -1257,6 +1300,14 @@ impl LoweringContext<'_> {
                 scalar,
                 value: decode_integer_literal_value(&literal.value)
                     .ok_or(BuildError::InvalidScalarConstant)?,
+            })),
+            Expr::ByteLiteral(literal) => Ok(Operand::Constant(crate::mir::model::Constant {
+                ty,
+                scalar,
+                value: u128::from(
+                    crate::literals::decode_byte_literal(&literal.value)
+                        .map_err(|_| BuildError::InvalidScalarConstant)?,
+                ),
             })),
             Expr::BoolLiteral(literal) => Ok(Operand::Constant(crate::mir::model::Constant {
                 ty,

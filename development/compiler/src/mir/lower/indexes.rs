@@ -33,6 +33,43 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
         && array_contract(index, semantic).is_some()
 }
 
+pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> bool {
+    let Some(plan) = semantic.typed_hir.index_plan(index.span) else {
+        return false;
+    };
+    if plan.projection != crate::typecheck::TypecheckIndexProjection::Str
+        || plan.conversion.is_some()
+    {
+        return false;
+    }
+    let Some(source_ty) = super::coverage::known_expression_type(&index.object, semantic.typed_hir)
+    else {
+        return false;
+    };
+    let Some(index_ty) = semantic.typed_hir.type_id(&plan.index_ty) else {
+        return false;
+    };
+    let index_is_usize =
+        super::coverage::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
+    let index_is_contextual_literal = matches!(index.index.without_groups(), Expr::IntegerLiteral(literal)
+        if crate::literals::decode_integer_literal_value(&literal.value)
+            .is_some_and(|value| u64::try_from(value).is_ok()));
+    super::coverage::value_representation(source_ty, semantic)
+        == Some(ValueRepresentation::View(crate::mir::ViewKind::Str))
+        && super::coverage::value_expression_is_supported(
+            &index.object,
+            ValueRepresentation::View(crate::mir::ViewKind::Str),
+            semantic,
+        )
+        && (index_is_usize || index_is_contextual_literal)
+        && super::coverage::scalar_expression_is_supported(
+            &index.index,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+}
+
 pub(super) fn lower_place(
     context: &mut LoweringContext<'_>,
     index: &IndexExpr,

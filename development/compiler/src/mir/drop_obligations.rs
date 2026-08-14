@@ -386,6 +386,10 @@ fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState
             consume_operand_move(body, left, state);
             consume_operand_move(body, right, state);
         }
+        Rvalue::ViewIndex { source, index, .. } => {
+            consume_operand_move(body, source, state);
+            consume_operand_move(body, index, state);
+        }
     }
 }
 

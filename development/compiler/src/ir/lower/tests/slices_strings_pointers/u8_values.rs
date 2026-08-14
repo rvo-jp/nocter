@@ -390,10 +390,11 @@ func is_a(): bool {
             instructions: vec![
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
-                    value: BoolValue::I32Comparison {
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(u8_const(65))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(65))),
+                        left: UsizeValue::U8ZeroExtend(Box::new(u8_const(65))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(u8_const(65))),
                     },
                 },
                 Instruction::Return,
@@ -516,12 +517,16 @@ func first(text: &str): i32 {
             target: crate::ir::CallTarget::same_file("first".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::SetI32 {
-                    destination: I32Location::Return,
-                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StrIndex {
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::StrIndex {
                         source: StrLocation::Parameter(0),
                         index: usize_const(0),
-                    })),
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
                 },
                 Instruction::Return,
             ],
@@ -552,12 +557,16 @@ func first(text: &str): Exit {
             target: crate::ir::CallTarget::same_file("first".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::SetI32 {
-                    destination: I32Location::Return,
-                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StrIndex {
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::StrIndex {
                         source: StrLocation::Parameter(0),
                         index: usize_const(0),
-                    })),
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
                 },
                 Instruction::Return,
             ],

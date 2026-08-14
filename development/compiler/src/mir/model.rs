@@ -220,6 +220,14 @@ pub(crate) enum Rvalue {
         operand_scalar: ScalarType,
         result_ty: TyId,
     },
+    ViewIndex {
+        source: Operand,
+        source_ty: TyId,
+        kind: super::ViewKind,
+        index: Operand,
+        index_ty: TyId,
+        element_ty: TyId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
