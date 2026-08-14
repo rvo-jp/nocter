@@ -390,6 +390,65 @@ fn lower_scalar_body(
                 continuation,
                 ..
             } => {
+                if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable {
+                    match continuation {
+                        CallContinuation::Outcome {
+                            destination,
+                            success,
+                            failure,
+                            failure_payload,
+                        } => {
+                            let failure_mode = outcome_failure_mode(
+                                &context,
+                                *failure,
+                                *success,
+                                *failure_payload,
+                                &mut visited,
+                            )?;
+                            reserve_aggregate_destination(
+                                &context,
+                                destination,
+                                &mut instructions,
+                            )?;
+                            instructions.extend(lower_outcome_intrinsic_call(
+                                &context,
+                                *intrinsic,
+                                Some(destination),
+                                arguments,
+                                failure_mode,
+                            )?);
+                            current = *success;
+                            continue;
+                        }
+                        CallContinuation::OutcomeEffect {
+                            success,
+                            failure,
+                            failure_payload,
+                        } => {
+                            let failure_mode = outcome_failure_mode(
+                                &context,
+                                *failure,
+                                *success,
+                                *failure_payload,
+                                &mut visited,
+                            )?;
+                            instructions.extend(lower_outcome_intrinsic_call(
+                                &context,
+                                *intrinsic,
+                                None,
+                                arguments,
+                                failure_mode,
+                            )?);
+                            current = *success;
+                            continue;
+                        }
+                        _ => {
+                            return Err(invalid_mir_diagnostics(
+                                "outcome intrinsic has a non-outcome continuation",
+                            ));
+                        }
+                    }
+                }
                 let (call_target, callee_name) =
                     lower_call_target(callee, resolved, typed_hir, function_names, root_source)?;
                 let arguments = arguments
@@ -510,6 +569,13 @@ fn lower_scalar_body(
                         failure,
                         failure_payload,
                     } => {
+                        let failure_mode = outcome_failure_mode(
+                            &context,
+                            *failure,
+                            *success,
+                            *failure_payload,
+                            &mut visited,
+                        )?;
                         validate_outcome_effect_call_return_type(
                             &call_target,
                             &callee_name,
@@ -518,13 +584,7 @@ fn lower_scalar_body(
                         instructions.push(Instruction::CallOutcomeVoid {
                             target: call_target,
                             arguments,
-                            failure_mode: outcome_failure_mode(
-                                &context,
-                                *failure,
-                                *success,
-                                *failure_payload,
-                                &mut visited,
-                            )?,
+                            failure_mode,
                         });
                         current = *success;
                     }
@@ -910,6 +970,19 @@ fn lower_branch(
                     },
                 ..
             } => {
+                let failure_mode =
+                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?;
+                if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable {
+                    instructions.extend(lower_outcome_intrinsic_call(
+                        context,
+                        *intrinsic,
+                        None,
+                        arguments,
+                        failure_mode,
+                    )?);
+                    current = *success;
+                    continue;
+                }
                 let (call_target, callee_name) = lower_call_target(
                     callee,
                     context.resolved,
@@ -929,13 +1002,7 @@ fn lower_branch(
                 instructions.push(Instruction::CallOutcomeVoid {
                     target: call_target,
                     arguments,
-                    failure_mode: outcome_failure_mode(
-                        context,
-                        *failure,
-                        *success,
-                        *failure_payload,
-                        visited,
-                    )?,
+                    failure_mode,
                 });
                 current = *success;
             }
@@ -975,6 +1042,20 @@ fn lower_branch(
                     },
                 ..
             } => {
+                let failure_mode =
+                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?;
+                reserve_aggregate_destination(context, destination, &mut instructions)?;
+                if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable {
+                    instructions.extend(lower_outcome_intrinsic_call(
+                        context,
+                        *intrinsic,
+                        Some(destination),
+                        arguments,
+                        failure_mode,
+                    )?);
+                    current = *success;
+                    continue;
+                }
                 let (call_target, callee_name) = lower_call_target(
                     callee,
                     context.resolved,
@@ -986,13 +1067,12 @@ fn lower_branch(
                     .iter()
                     .map(|argument| lower_call_argument(argument, context))
                     .collect::<Result<Vec<_>, _>>()?;
-                reserve_aggregate_destination(context, destination, &mut instructions)?;
                 instructions.push(lower_outcome_call(
                     context,
                     destination,
                     call_target,
                     arguments,
-                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                    failure_mode,
                     &callee_name,
                 )?);
                 current = *success;
@@ -1473,6 +1553,96 @@ fn outcome_call_instruction(
     })
 }
 
+pub(super) fn lower_outcome_intrinsic_call(
+    context: &BackendContext<'_>,
+    intrinsic: crate::intrinsics::IntrinsicId,
+    destination: Option<&Place>,
+    arguments: &[crate::mir::CallArgument],
+    failure_mode: OutcomeFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| lower_call_argument(argument, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    let invalid_shape = || {
+        invalid_mir_diagnostics(format!(
+            "intrinsic `{}` has an invalid checked MIR call shape",
+            intrinsic.source_name()
+        ))
+    };
+    let instruction = match (intrinsic, destination, arguments.as_slice()) {
+        (
+            crate::intrinsics::IntrinsicId::OpenReadRaw
+            | crate::intrinsics::IntrinsicId::CreateRaw
+            | crate::intrinsics::IntrinsicId::AppendRaw,
+            Some(destination),
+            [ScalarArgument::Usize(path)],
+        ) => {
+            let (flags, mode) = match intrinsic {
+                crate::intrinsics::IntrinsicId::CreateRaw => (1 + 512 + 1024, 438),
+                crate::intrinsics::IntrinsicId::AppendRaw => (1 + 8 + 512, 438),
+                _ => (0, 0),
+            };
+            Instruction::OpenRead {
+                destination: i32_location(destination, context)?,
+                path: path.clone(),
+                flags: UsizeValue::Const(flags),
+                mode: UsizeValue::Const(mode),
+                failure_mode,
+            }
+        }
+        (
+            crate::intrinsics::IntrinsicId::ReadBytesRaw,
+            Some(destination),
+            [ScalarArgument::I32(fd), ScalarArgument::Slice(buffer)],
+        ) => Instruction::ReadSlice {
+            destination: usize_location(destination, context)?,
+            fd: fd.clone(),
+            buffer: buffer.clone(),
+            failure_mode,
+        },
+        (
+            crate::intrinsics::IntrinsicId::WriteTextRaw,
+            None,
+            [ScalarArgument::I32(fd), ScalarArgument::Str(text)],
+        ) => {
+            return Ok(vec![
+                Instruction::WriteStr {
+                    fd: fd.clone(),
+                    text: text.clone(),
+                },
+                outcome_effect_check(failure_mode),
+            ]);
+        }
+        (
+            crate::intrinsics::IntrinsicId::WriteBytesRaw,
+            None,
+            [ScalarArgument::I32(fd), ScalarArgument::Slice(bytes)],
+        ) => {
+            return Ok(vec![
+                Instruction::WriteSlice {
+                    fd: fd.clone(),
+                    bytes: bytes.clone(),
+                },
+                outcome_effect_check(failure_mode),
+            ]);
+        }
+        _ => return Err(invalid_shape()),
+    };
+    Ok(vec![instruction])
+}
+
+fn outcome_effect_check(failure_mode: OutcomeFailureMode) -> Instruction {
+    match failure_mode {
+        OutcomeFailureMode::Propagate => Instruction::PropagateFailure,
+        OutcomeFailureMode::Trap => Instruction::TrapOnFailure,
+        OutcomeFailureMode::PropagateWithCleanup { .. }
+        | OutcomeFailureMode::Handle { .. }
+        | OutcomeFailureMode::Recover { .. }
+        | OutcomeFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
+    }
+}
+
 fn scalar_ir_type(scalar: ScalarType) -> Type {
     match scalar {
         ScalarType::I32 => Type::I32,
@@ -1516,6 +1686,12 @@ fn lower_call_target(
         })?
         .clone();
     let source = match &callee.callable {
+        crate::mir::CallableIdentity::Intrinsic(intrinsic) => {
+            return Err(invalid_mir_diagnostics(format!(
+                "intrinsic `{}` reached ordinary call-target lowering",
+                intrinsic.source_name()
+            )));
+        }
         crate::mir::CallableIdentity::Definition(definition)
         | crate::mir::CallableIdentity::Literal { definition, .. } => {
             resolved

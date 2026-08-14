@@ -509,6 +509,20 @@ impl LoweringContext<'_> {
             .typed_hir
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
+        if let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic)
+            .filter(|intrinsic| super::coverage::outcome_intrinsic_is_supported(*intrinsic))
+        {
+            let arguments = call
+                .arguments
+                .iter()
+                .map(|argument| self.lower_call_argument(argument, scope))
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok((
+                crate::mir::CallInstance::intrinsic(intrinsic),
+                arguments,
+                returns_never,
+            ));
+        }
         let (callee, receiver) = match call.callee.without_groups() {
             _ if self.semantic.typed_hir.callable_call(call.span).is_some() => {
                 let fact = self

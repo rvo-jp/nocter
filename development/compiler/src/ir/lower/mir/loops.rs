@@ -3,7 +3,7 @@
 use super::control_flow;
 use super::{
     lower_bool_operand, lower_call_argument, lower_call_target, lower_outcome_call,
-    lower_returning_call, lower_statements, outcome_failure_mode,
+    lower_outcome_intrinsic_call, lower_returning_call, lower_statements, outcome_failure_mode,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
@@ -611,6 +611,43 @@ fn lower_linear_call_terminator(
             "linear control-flow path expected a call terminator",
         ));
     };
+    if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable {
+        return match continuation {
+            CallContinuation::Outcome {
+                destination,
+                success,
+                failure,
+                failure_payload,
+            } => {
+                super::reserve_aggregate_destination(context, destination, instructions)?;
+                instructions.extend(lower_outcome_intrinsic_call(
+                    context,
+                    *intrinsic,
+                    Some(destination),
+                    arguments,
+                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                )?);
+                Ok(*success)
+            }
+            CallContinuation::OutcomeEffect {
+                success,
+                failure,
+                failure_payload,
+            } => {
+                instructions.extend(lower_outcome_intrinsic_call(
+                    context,
+                    *intrinsic,
+                    None,
+                    arguments,
+                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                )?);
+                Ok(*success)
+            }
+            _ => Err(super::invalid_mir_diagnostics(
+                "outcome intrinsic has a non-outcome continuation in a loop",
+            )),
+        };
+    }
     let (call_target, callee_name) = lower_call_target(
         callee,
         context.resolved,

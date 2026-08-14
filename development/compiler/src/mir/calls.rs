@@ -9,6 +9,7 @@ use crate::semantic::{DefId, TyId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum CallableIdentity {
+    Intrinsic(crate::intrinsics::IntrinsicId),
     Definition(DefId),
     Value {
         ty: TyId,
@@ -39,6 +40,14 @@ pub(crate) struct CallInstance {
 }
 
 impl CallInstance {
+    pub(crate) fn intrinsic(intrinsic: crate::intrinsics::IntrinsicId) -> Self {
+        Self {
+            callable: CallableIdentity::Intrinsic(intrinsic),
+            receiver: None,
+            type_arguments: Vec::new(),
+        }
+    }
+
     pub(crate) fn direct(definition: DefId) -> Self {
         Self {
             callable: CallableIdentity::Definition(definition),
@@ -194,6 +203,7 @@ impl CallInstanceKey {
             .map(|ty| typed_hir.type_expr_by_id(*ty))
             .collect::<Option<Vec<_>>>()?;
         match &instance.callable {
+            CallableIdentity::Intrinsic(_) => None,
             CallableIdentity::Definition(definition) => {
                 Some(Self::from_types(*definition, receiver, type_arguments))
             }

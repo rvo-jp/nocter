@@ -2432,7 +2432,8 @@ func main(): i32 {
             .semantic_db
             .definition(match &callee.callable {
                 crate::mir::CallableIdentity::Definition(definition) => *definition,
-                crate::mir::CallableIdentity::Value { .. }
+                crate::mir::CallableIdentity::Intrinsic(_)
+                | crate::mir::CallableIdentity::Value { .. }
                 | crate::mir::CallableIdentity::Literal { .. } => {
                     panic!("expected definition call")
                 }

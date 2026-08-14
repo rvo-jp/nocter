@@ -203,7 +203,9 @@ fn scalar_call_shape_is_supported(
         typed_hir,
     };
     if intrinsic_for_call(call, semantic).is_some_and(|intrinsic| {
-        value_intrinsic_is_supported(intrinsic) || effect_intrinsic_is_supported(intrinsic)
+        value_intrinsic_is_supported(intrinsic)
+            || effect_intrinsic_is_supported(intrinsic)
+            || outcome_intrinsic_is_supported(intrinsic)
     }) {
         return call
             .arguments
@@ -373,6 +375,18 @@ pub(super) fn effect_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrin
             | crate::intrinsics::IntrinsicId::DropValueAtPtr
             | crate::intrinsics::IntrinsicId::StoreU8ToPtr
             | crate::intrinsics::IntrinsicId::StoreValueToPtr
+    )
+}
+
+pub(super) fn outcome_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
+    matches!(
+        intrinsic,
+        crate::intrinsics::IntrinsicId::OpenReadRaw
+            | crate::intrinsics::IntrinsicId::CreateRaw
+            | crate::intrinsics::IntrinsicId::AppendRaw
+            | crate::intrinsics::IntrinsicId::ReadBytesRaw
+            | crate::intrinsics::IntrinsicId::WriteBytesRaw
+            | crate::intrinsics::IntrinsicId::WriteTextRaw
     )
 }
 

@@ -173,10 +173,14 @@ fn enqueue_mir_call_targets(
         let crate::mir::Terminator::Call { ref callee, .. } = block.terminator else {
             continue;
         };
+        if matches!(callee.callable, crate::mir::CallableIdentity::Intrinsic(_)) {
+            continue;
+        }
         let name = names
             .get_instance(callee, typed_hir)
             .ok_or_else(|| format!("MIR call target has no indexed runtime name: {callee:?}"))?;
         let source = match &callee.callable {
+            crate::mir::CallableIdentity::Intrinsic(_) => unreachable!("handled above"),
             crate::mir::CallableIdentity::Definition(definition)
             | crate::mir::CallableIdentity::Literal { definition, .. } => {
                 callable
