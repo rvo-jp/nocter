@@ -91,6 +91,19 @@ impl TypedHir {
                 Some((span, fact))
             })
             .collect();
+        specialized.closure_plans = specialized
+            .closure_plans
+            .into_iter()
+            .map(|(span, mut plan)| {
+                let TypeExpr::Closure(ty) =
+                    substitute_type_expr_parameters(&TypeExpr::Closure(plan.ty), substitutions)
+                else {
+                    unreachable!("closure type substitution preserves its outer kind")
+                };
+                plan.ty = ty;
+                (span, plan)
+            })
+            .collect();
         specialized
     }
 

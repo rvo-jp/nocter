@@ -54,6 +54,37 @@ pub(super) fn lower_implicit_to_local(
         .push_statement(Statement::BeginLoan { loan, origin })
 }
 
+pub(super) fn lower_symbol_to_local(
+    context: &mut LoweringContext<'_>,
+    destination: crate::mir::LocalId,
+    source_symbol: crate::resolve::LocalSymbolId,
+    readwrite: bool,
+    scope: ScopeId,
+    origin: Origin,
+) -> Result<(), BuildError> {
+    let source = Place::local(
+        *context
+            .locals_by_symbol
+            .get(&source_symbol)
+            .ok_or(BuildError::MissingLocalSymbol)?,
+    );
+    let loan = LoanId::from_index(context.loans.len());
+    context.loans.push(Loan {
+        id: loan,
+        source,
+        destination,
+        kind: if readwrite {
+            BorrowKind::Readwrite
+        } else {
+            BorrowKind::Readonly
+        },
+        scope,
+    });
+    context
+        .control_flow
+        .push_statement(Statement::BeginLoan { loan, origin })
+}
+
 pub(super) fn lower_to_local(
     context: &mut LoweringContext<'_>,
     destination: crate::mir::LocalId,

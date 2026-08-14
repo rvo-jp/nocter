@@ -256,6 +256,7 @@ fn scalar_call_shape_is_supported(
                         if value_expression_is_supported(argument, representation, semantic)
                 )
                 || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
+                || super::aggregates::literal_is_supported(argument, semantic)
                 || borrow_argument_is_supported(argument, semantic)
         })
 }
@@ -467,16 +468,17 @@ impl<'a> ScalarStatement<'a> {
                             )
                     })
                     && match binding.initializer.without_groups() {
-                        Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
-                            super::aggregates::literal_is_supported(
-                                &binding.initializer,
-                                SemanticInputs {
-                                    resolved,
-                                    resolved_sources,
-                                    typed_hir,
-                                },
-                            )
-                        }
+                        Expr::StructLiteral(_)
+                        | Expr::ArrayLiteral(_)
+                        | Expr::Member(_)
+                        | Expr::Closure(_) => super::aggregates::literal_is_supported(
+                            &binding.initializer,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        ),
                         Expr::Call(call) => {
                             super::aggregates::literal_is_supported(
                                 &binding.initializer,
@@ -1478,7 +1480,7 @@ pub(super) fn value_expression_is_supported(
             _ => false,
         },
         crate::mir::ValueRepresentation::Aggregate => match expression.without_groups() {
-            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
+            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) | Expr::Closure(_) => {
                 super::aggregates::literal_is_supported(expression, semantic)
             }
             Expr::Call(call) => aggregate_value_call_is_supported(

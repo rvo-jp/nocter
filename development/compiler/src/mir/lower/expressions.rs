@@ -388,6 +388,26 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Borrow,
             });
         }
+        if super::aggregates::literal_is_supported(argument, self.semantic) {
+            let expression = self
+                .semantic
+                .typed_hir
+                .expression(argument.span())
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let local =
+                self.aggregate_temporary(ty, LocalOrigin::Temporary(expression.id), scope)?;
+            super::aggregates::lower_literal(self, local, argument, scope)?;
+            let ownership = self.locals[local.index()].ownership;
+            return Ok(CallArgument {
+                operand: if ownership == crate::mir::OwnershipKind::Move {
+                    Operand::Move(Place::local(local))
+                } else {
+                    Operand::Copy(Place::local(local))
+                },
+                ty,
+                representation: crate::mir::ValueRepresentation::Aggregate,
+            });
+        }
         let operand = self.lower_aggregate_operand(argument)?;
         Ok(CallArgument {
             operand,

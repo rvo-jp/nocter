@@ -1534,19 +1534,55 @@ fn lower_statements(
                     "aggregate MIR assignment requires a stored source place",
                 ));
             };
-            if source.projection.is_some() || destination.projection.is_some() {
-                return Err(invalid_mir_diagnostics(
-                    "projected aggregate MIR assignment requires range projection",
-                ));
+            reserve_aggregate_destination(
+                context,
+                &Place::local(destination.local),
+                &mut instructions,
+            )?;
+            let destination_ty = destination
+                .projection
+                .and_then(|projection| body.projections.get(projection.index()))
+                .map_or(body.locals[destination.local.index()].ty, |path| path.ty);
+            let layout = aggregate_local_abi_value(destination_ty, context)?.layout;
+            if destination.projection.is_some() || source.projection.is_some() {
+                instructions.push(Instruction::CopyAggregateRange {
+                    destination: aggregate_location(&Place::local(destination.local), context)?,
+                    destination_offset: destination
+                        .projection
+                        .map(|projection| {
+                            aggregate_field_offset(body, destination.local, projection)
+                        })
+                        .transpose()?
+                        .unwrap_or(0),
+                    source: aggregate_location(&Place::local(source.local), context)?,
+                    source_offset: source
+                        .projection
+                        .map(|projection| aggregate_field_offset(body, source.local, projection))
+                        .transpose()?
+                        .unwrap_or(0),
+                    layout,
+                });
+            } else {
+                instructions.push(Instruction::CopyAggregate {
+                    destination: aggregate_location(destination, context)?,
+                    source: aggregate_location(source, context)?,
+                    layout,
+                });
             }
-            reserve_aggregate_destination(context, destination, &mut instructions)?;
-            let layout =
-                aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?
-                    .layout;
-            instructions.push(Instruction::CopyAggregate {
-                destination: aggregate_location(destination, context)?,
-                source: aggregate_location(source, context)?,
-                layout,
+            continue;
+        }
+        if let (crate::mir::ValueRepresentation::Borrow, Some(projection)) =
+            (destination_representation, destination.projection)
+        {
+            let Rvalue::Use(operand) = value else {
+                return Err(invalid_mir_diagnostics(
+                    "borrow field assignment requires a direct MIR operand",
+                ));
+            };
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: aggregate_location(&Place::local(destination.local), context)?,
+                offset: aggregate_field_offset(body, destination.local, projection)?,
+                value: lower_stored_borrow_pointer(operand, context)?,
             });
             continue;
         }
@@ -1865,6 +1901,46 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn lower_stored_borrow_pointer(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    let (Operand::Copy(place) | Operand::Move(place)) = operand else {
+        return Err(invalid_mir_diagnostics(
+            "borrow field value is not a stored MIR place",
+        ));
+    };
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected borrow values require an explicit borrow local",
+        ));
+    }
+    let local = &context.body.locals[place.local.index()];
+    if local.representation != crate::mir::ValueRepresentation::Borrow {
+        return Err(invalid_mir_diagnostics(
+            "borrow field value has a non-borrow representation",
+        ));
+    }
+    Ok(UsizeValue::Location(match local.storage {
+        LocalStorage::Local => UsizeLocation::Local(machine_local_index(context.body, place.local)),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Borrow { abi_index }) => {
+                UsizeLocation::Parameter(abi_index)
+            }
+            _ => {
+                return Err(invalid_mir_diagnostics(
+                    "borrow MIR parameter has no matching ABI projection",
+                ));
+            }
+        },
+        LocalStorage::Return => {
+            return Err(invalid_mir_diagnostics(
+                "return storage cannot initialize a borrow field",
+            ));
+        }
+    }))
 }
 
 fn lower_region_enter(

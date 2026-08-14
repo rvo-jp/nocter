@@ -164,6 +164,15 @@ impl ResolveOutput {
             .or_else(|| self.local_identifier_targets.get(&span).copied())
     }
 
+    /// Resolve an authored identifier occurrence without manufacturing an AST
+    /// identifier solely to query the resolution table.
+    pub(crate) fn local_symbol_id_for_reference_span(
+        &self,
+        span: ByteSpan,
+    ) -> Option<LocalSymbolId> {
+        self.local_identifier_targets.get(&span).copied()
+    }
+
     pub fn local_symbols(&self) -> impl Iterator<Item = &LocalSymbol> {
         self.local_symbols.iter()
     }

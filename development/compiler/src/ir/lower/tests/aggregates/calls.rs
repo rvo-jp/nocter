@@ -223,10 +223,6 @@ func build(): i32 {
             return_type: Type::I32,
             instructions: vec![
                 Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(32, 8),
-                },
-                Instruction::ReserveAggregateSlot {
                     slot_index: 1,
                     layout: ValueLayout::new(16, 8),
                 },
@@ -249,6 +245,10 @@ func build(): i32 {
                     destination: AggregateLocation::Slot(1),
                     offset: 8,
                     value: usize_const(11),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
                 },
                 Instruction::CallAggregate {
                     destination: AggregateLocation::Slot(0),

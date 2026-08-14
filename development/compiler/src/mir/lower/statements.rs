@@ -171,7 +171,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     .control_flow
                                     .emit_returning_call(source, callee, arguments, local)?;
                             }
-                            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
+                            Expr::StructLiteral(_)
+                            | Expr::ArrayLiteral(_)
+                            | Expr::Member(_)
+                            | Expr::Closure(_) => {
                                 super::aggregates::lower_literal(
                                     self.context,
                                     local,

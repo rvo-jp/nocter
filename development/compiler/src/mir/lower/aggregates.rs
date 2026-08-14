@@ -16,8 +16,37 @@ pub(super) fn literal_is_supported(expression: &Expr, semantic: SemanticInputs<'
     let Some(abi) = aggregate_abi_type(expression, semantic) else {
         return false;
     };
-    literal_matches_abi(expression.without_groups(), &abi, semantic)
+    closure_matches_abi(expression.without_groups(), &abi, semantic)
+        || literal_matches_abi(expression.without_groups(), &abi, semantic)
         || variant_matches_abi(expression.without_groups(), &abi, semantic)
+}
+
+fn closure_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
+    let Expr::Closure(closure) = expression else {
+        return false;
+    };
+    let Some(plan) = semantic.typed_hir.closure_plan(closure.span) else {
+        return false;
+    };
+    let AbiType::Struct(fields) = abi else {
+        return false;
+    };
+    closure.captures.len() == plan.ty.captures.len()
+        && closure.captures.len() == fields.len()
+        && closure
+            .captures
+            .iter()
+            .zip(&plan.ty.captures)
+            .zip(fields)
+            .all(|((capture, capture_ty), field)| {
+                capture.name == capture_ty.name
+                    && capture.name == field.name
+                    && semantic
+                        .resolved
+                        .local_symbol_id_for_reference_span(capture.name_span)
+                        .is_some()
+                    && semantic.typed_hir.type_id(&capture_ty.ty).is_some()
+            })
 }
 
 fn literal_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
@@ -204,6 +233,9 @@ pub(super) fn lower_literal(
     let semantic = context.semantic;
     let abi =
         aggregate_abi_type(expression, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    if let Expr::Closure(closure) = expression.without_groups() {
+        return lower_closure(context, destination, closure, &abi, scope);
+    }
     let mut leaves = Vec::new();
     let value = if let AbiType::Enum(enum_) = &abi {
         let (member, arguments) = variant_member_and_arguments(expression)
@@ -266,6 +298,125 @@ pub(super) fn lower_literal(
         value,
         origin,
     })
+}
+
+fn lower_closure(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    closure: &crate::ast::ClosureExpr,
+    abi: &AbiType,
+    scope: ScopeId,
+) -> Result<(), BuildError> {
+    let plan = context
+        .semantic
+        .typed_hir
+        .closure_plan(closure.span)
+        .cloned()
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let AbiType::Struct(fields) = abi else {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    };
+    if closure.captures.len() != plan.ty.captures.len() || closure.captures.len() != fields.len() {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    }
+    let expression = context
+        .semantic
+        .typed_hir
+        .expression(closure.span)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let origin = Origin::Expression(expression.id);
+    context
+        .control_flow
+        .push_statement(Statement::BeginAggregate {
+            destination: Place::local(destination),
+            origin,
+        })?;
+    let layout =
+        crate::abi::layout_struct(fields).map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+    let mut children = Vec::with_capacity(closure.captures.len());
+    for (index, (capture, capture_ty)) in closure.captures.iter().zip(&plan.ty.captures).enumerate()
+    {
+        if capture.name != capture_ty.name || fields[index].name != capture.name {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let offset = layout
+            .fields
+            .get(index)
+            .and_then(|field| u32::try_from(field.offset).ok())
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let child = push_projection_for_type(
+            context,
+            destination,
+            None,
+            crate::mir::ProjectionElement::Field { offset },
+            &capture_ty.ty,
+        )?;
+        let source_symbol = context
+            .semantic
+            .resolved
+            .local_symbol_id_for_reference_span(capture.name_span)
+            .ok_or(BuildError::MissingLocalSymbol)?;
+        let source = Place::local(
+            *context
+                .locals_by_symbol
+                .get(&source_symbol)
+                .ok_or(BuildError::MissingLocalSymbol)?,
+        );
+        let value = match capture.mode {
+            crate::ast::ClosureCaptureMode::ReadonlyBorrow
+            | crate::ast::ClosureCaptureMode::ReadwriteBorrow => {
+                let readwrite = capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow;
+                let borrow_ty = context
+                    .semantic
+                    .typed_hir
+                    .type_id(&capture_ty.ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let temporary = LocalId::from_index(context.locals.len());
+                context.locals.push(crate::mir::Local::borrow(
+                    borrow_ty,
+                    readwrite,
+                    crate::mir::LocalStorage::Local,
+                    crate::mir::LocalOrigin::Temporary(expression.id),
+                    scope,
+                ));
+                super::borrows::lower_symbol_to_local(
+                    context,
+                    temporary,
+                    source_symbol,
+                    readwrite,
+                    scope,
+                    origin,
+                )?;
+                if readwrite {
+                    crate::mir::Operand::Move(Place::local(temporary))
+                } else {
+                    crate::mir::Operand::Copy(Place::local(temporary))
+                }
+            }
+            crate::ast::ClosureCaptureMode::Move => {
+                if crate::typecheck::type_expr_is_copy(&capture_ty.ty, context.semantic.resolved)
+                    == Some(true)
+                {
+                    crate::mir::Operand::Copy(source)
+                } else {
+                    crate::mir::Operand::Move(source)
+                }
+            }
+        };
+        context.control_flow.push_statement(Statement::Assign {
+            destination: Place::projected(destination, child),
+            value: Rvalue::Use(value),
+            origin,
+        })?;
+        children.push(child);
+    }
+    context
+        .control_flow
+        .push_statement(Statement::FinishAggregate {
+            destination: Place::local(destination),
+            fields: children,
+            origin,
+        })
 }
 
 fn lower_staged_aggregate(
@@ -404,13 +555,46 @@ fn push_construction_projection(
         .typed_hir
         .type_expr_by_id(ty)
         .ok_or(BuildError::MissingTypedExpression)?;
-    let representation = scalar_type(ty, context.semantic.typed_hir)
-        .map(crate::mir::ValueRepresentation::Scalar)
-        .unwrap_or(crate::mir::ValueRepresentation::Aggregate);
+    push_projection(context, base, parent, element, ty, type_expr)
+}
+
+fn push_projection_for_type(
+    context: &mut LoweringContext<'_>,
+    base: LocalId,
+    parent: Option<crate::mir::ProjectionPathId>,
+    element: crate::mir::ProjectionElement,
+    type_expr: &crate::ast::TypeExpr,
+) -> Result<crate::mir::ProjectionPathId, BuildError> {
+    let ty = context
+        .semantic
+        .typed_hir
+        .type_id(type_expr)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    push_projection(context, base, parent, element, ty, type_expr)
+}
+
+fn push_projection(
+    context: &mut LoweringContext<'_>,
+    base: LocalId,
+    parent: Option<crate::mir::ProjectionPathId>,
+    element: crate::mir::ProjectionElement,
+    ty: crate::semantic::TyId,
+    type_expr: &crate::ast::TypeExpr,
+) -> Result<crate::mir::ProjectionPathId, BuildError> {
+    let representation = if matches!(type_expr, crate::ast::TypeExpr::Borrow(_)) {
+        crate::mir::ValueRepresentation::Borrow
+    } else {
+        super::coverage::value_representation(ty, context.semantic)
+            .unwrap_or(crate::mir::ValueRepresentation::Aggregate)
+    };
     let ownership = if crate::typecheck::type_expr_is_copy(type_expr, context.semantic.resolved)
         == Some(true)
     {
         crate::mir::OwnershipKind::Copy
+    } else if let crate::ast::TypeExpr::Borrow(borrow) = type_expr {
+        crate::mir::OwnershipKind::Borrowed {
+            readwrite: borrow.is_readwrite,
+        }
     } else {
         crate::mir::OwnershipKind::Move
     };

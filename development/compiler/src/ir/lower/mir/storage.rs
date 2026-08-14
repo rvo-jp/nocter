@@ -49,6 +49,21 @@ pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
         && matches!(declaration.origin, LocalOrigin::Temporary(_))
         && local_definition_count(body, local) == 1
         && local_use_count(body, local) == 1
+        && borrow_temporary_is_call_argument(body, local)
+}
+
+fn borrow_temporary_is_call_argument(body: &Body, local: LocalId) -> bool {
+    body.blocks.iter().any(|block| {
+        matches!(
+            &block.terminator,
+            crate::mir::Terminator::Call { arguments, .. }
+                if arguments.iter().any(|argument| matches!(
+                    argument.operand,
+                    Operand::Copy(place) | Operand::Move(place)
+                        if place == crate::mir::Place::local(local)
+                ))
+        )
+    })
 }
 
 pub(super) fn inlined_borrow_source(body: &Body, local: LocalId) -> Option<crate::mir::Place> {

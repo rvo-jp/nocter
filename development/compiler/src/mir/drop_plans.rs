@@ -172,11 +172,40 @@ fn build_inner(
                 },
             )
         }
-        TypeExpr::Callable(_)
-        | TypeExpr::Closure(_)
-        | TypeExpr::Pointer(_)
-        | TypeExpr::Borrow(_)
-        | TypeExpr::View(_) => None,
+        TypeExpr::Closure(closure) => {
+            let mut fields = Vec::new();
+            for (index, capture) in closure.captures.iter().enumerate() {
+                if capture.mode != crate::ast::ClosureCaptureMode::Move
+                    || crate::typecheck::type_expr_is_copy(
+                        &capture.ty,
+                        resolver_for(&capture.ty, fallback, sources),
+                    ) == Some(true)
+                {
+                    continue;
+                }
+                let plan =
+                    build_inner(&capture.ty, fallback, sources, typed_hir, plans, resolving)?;
+                fields.push(DropPlanField {
+                    index,
+                    ty: typed_hir.type_id(&capture.ty)?,
+                    plan,
+                });
+            }
+            if fields.is_empty() {
+                push(plans, DropPlan::Noop)
+            } else {
+                push(
+                    plans,
+                    DropPlan::Struct {
+                        destructor: None,
+                        fields,
+                    },
+                )
+            }
+        }
+        TypeExpr::Callable(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) | TypeExpr::View(_) => {
+            None
+        }
     }
 }
 
