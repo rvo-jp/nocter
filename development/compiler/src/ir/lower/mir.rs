@@ -770,6 +770,52 @@ fn lower_returning_call(
                 "aggregate call to `{callee_name}` has no indexed return type"
             ))
         })?;
+        if matches!(
+            return_type,
+            Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }
+        ) {
+            let type_expr = context
+                .typed_hir
+                .type_expr_by_id(context.body.locals[destination.local.index()].ty)
+                .ok_or_else(|| invalid_mir_diagnostics("stored outcome local type is missing"))?;
+            let shape = crate::outcomes::outcome_shape_with_resolver(
+                type_expr,
+                context.resolved,
+                |source| context.resolved_sources.get(&source).copied(),
+            );
+            let payload_abi = crate::abi::abi_value_from_type_expr_with_resolver(
+                &shape.payload,
+                context.resolved,
+                |source| context.resolved_sources.get(&source).copied(),
+            )
+            .map_err(|error| {
+                invalid_mir_diagnostics(format!(
+                    "cannot lay out stored outcome payload for `{callee_name}`: {error:?}"
+                ))
+            })?;
+            let storage = shape.storage_layout(payload_abi.layout).ok_or_else(|| {
+                invalid_mir_diagnostics(format!(
+                    "stored outcome returned by `{callee_name}` has an unsupported layer shape"
+                ))
+            })?;
+            let payload_type = super::types::return_type_from_type_expr_with_resolver(
+                &shape.payload,
+                context.resolved,
+                |source| context.resolved_sources.get(&source).copied(),
+            )
+            .ok_or_else(|| {
+                invalid_mir_diagnostics(format!(
+                    "stored outcome payload returned by `{callee_name}` is unsupported"
+                ))
+            })?;
+            return Ok(Instruction::CallStoredOutcome {
+                destination: aggregate_location(destination, context)?,
+                target,
+                arguments,
+                storage,
+                payload_type,
+            });
+        }
         let layout = match return_type {
             Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
             _ => {

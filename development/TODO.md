@@ -9,11 +9,12 @@ fields, forwarding, fixed-array index loans, payload-variant construction, and a
 for enums and outcomes. One construction context owns mutable MIR state and one backend
 context projects the checked body. MIR construction and validation are authoritative after route
 selection; buildability and machine-IR lowering consume the same retained body and identity-backed
-call edges. The next boundary is partially initialized aggregate ownership and projected aggregate
-moves. Do not teach the backend to rediscover drop glue from an AST/type name. After that, expand
-regions, closures,
-typed literals, interpolation, expansion, and iteration until the AST lowering/buildability routes
-can be deleted. Do not add language features or standard-library APIs during the migration. The
+call edges. Stored outcome call results now use checked aggregate MIR locals and acquire their
+recursive machine layout only during backend projection. The next boundary is a semantic MIR
+outcome discriminator and payload projection for consuming or returning stored values; do not put
+tag or payload offsets in MIR. After that, expand closures, typed literals, interpolation,
+expansion, and iteration until the AST lowering/buildability routes can be deleted. Do not add
+language features or standard-library APIs during the migration. The
 v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
 ## Active v0.14.0 Phase 3 MIR Checkpoint

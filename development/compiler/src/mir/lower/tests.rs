@@ -218,6 +218,60 @@ func make(): Pair {
 }
 
 #[test]
+fn builds_stored_outcome_call_results_as_checked_aggregate_storage() {
+    let (_sources, analysis) = analyze_text(
+        r#"func maybe(): i32? {
+    return 42
+}
+
+func main(): i32 {
+    let saved = maybe()
+    return 0
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("stored outcome bindings must select MIR")
+    .unwrap();
+
+    let saved = body
+        .locals
+        .iter()
+        .position(|local| matches!(local.origin, LocalOrigin::Binding(_)))
+        .unwrap();
+    assert_eq!(
+        body.locals[saved].representation,
+        ValueRepresentation::Aggregate
+    );
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Return { destination, .. },
+            ..
+        } if destination.local == LocalId::from_index(saved)
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_aggregate_return_conditionals_with_one_logical_destination() {
     let (_sources, analysis) = analyze_text(
         r#"struct Pair {

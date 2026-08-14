@@ -148,6 +148,7 @@ fn aggregate_value_call_is_supported(
                     Ok(crate::abi::AbiType::Struct(_))
                         | Ok(crate::abi::AbiType::Array { .. })
                         | Ok(crate::abi::AbiType::Enum(_))
+                        | Ok(crate::abi::AbiType::Outcome { .. })
                 )
             })
 }
@@ -326,6 +327,7 @@ impl<'a> ScalarStatement<'a> {
                                 Ok(crate::abi::AbiType::Struct(_))
                                     | Ok(crate::abi::AbiType::Array { .. })
                                     | Ok(crate::abi::AbiType::Enum(_))
+                                    | Ok(crate::abi::AbiType::Outcome { .. })
                             )
                     })
                     && match binding.initializer.without_groups() {
@@ -1171,7 +1173,8 @@ pub(super) fn value_representation(
         )),
         crate::abi::AbiType::Struct(_)
         | crate::abi::AbiType::Array { .. }
-        | crate::abi::AbiType::Enum(_) => Some(crate::mir::ValueRepresentation::Aggregate),
+        | crate::abi::AbiType::Enum(_)
+        | crate::abi::AbiType::Outcome { .. } => Some(crate::mir::ValueRepresentation::Aggregate),
         _ => None,
     }
 }
