@@ -152,7 +152,12 @@ impl LoweringContext<'_> {
                         };
                         source
                     } else {
-                        self.lower_aggregate_member_source(member, ty, scope)?
+                        self.lower_value_member_source(
+                            member,
+                            ty,
+                            crate::mir::ValueRepresentation::Aggregate,
+                            scope,
+                        )?
                     };
                     self.control_flow.push_statement(Statement::Assign {
                         destination: Place::local(destination),
@@ -212,10 +217,11 @@ impl LoweringContext<'_> {
         }
     }
 
-    pub(super) fn lower_aggregate_member_source(
+    pub(super) fn lower_value_member_source(
         &mut self,
         member: &crate::ast::MemberExpr,
         result_ty: crate::semantic::TyId,
+        result_representation: crate::mir::ValueRepresentation,
         scope: ScopeId,
     ) -> Result<Place, BuildError> {
         let root = super::projections::member_chain_root(member);
@@ -249,7 +255,7 @@ impl LoweringContext<'_> {
             &mut self.projections,
             &mut self.drop_plans,
         )?;
-        if representation != crate::mir::ValueRepresentation::Aggregate
+        if representation != result_representation
             || self.projections[source
                 .projection
                 .ok_or(BuildError::UnsupportedClaimedExpression)?
@@ -544,6 +550,27 @@ impl LoweringContext<'_> {
             } else {
                 Operand::Copy(Place::local(local))
             };
+            return Ok(CallArgument {
+                operand,
+                ty,
+                representation: crate::mir::ValueRepresentation::Aggregate,
+            });
+        }
+        if let Expr::Member(member) = argument.without_groups()
+            && super::projections::aggregate_value_field_is_supported(member, self.semantic)
+            && !super::coverage::aggregate_operand_is_supported(
+                argument,
+                self.semantic.resolved,
+                self.semantic.resolved_sources,
+                self.semantic.typed_hir,
+            )
+        {
+            let operand = Operand::Copy(self.lower_value_member_source(
+                member,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?);
             return Ok(CallArgument {
                 operand,
                 ty,
@@ -993,13 +1020,31 @@ impl LoweringContext<'_> {
                 );
             }
             Expr::Member(member) => {
-                let (place, field_scalar) = super::projections::lower_scalar_field_place(
-                    member,
-                    self.semantic,
-                    &self.places_by_symbol,
-                    &mut self.projections,
-                    &mut self.drop_plans,
-                )?;
+                let (place, field_scalar) =
+                    if super::projections::scalar_field_is_supported(member, self.semantic) {
+                        let (place, representation) = super::projections::lower_borrow_field_place(
+                            member,
+                            self.semantic,
+                            &self.places_by_symbol,
+                            &mut self.projections,
+                            &mut self.drop_plans,
+                        )?;
+                        let crate::mir::ValueRepresentation::Scalar(field_scalar) = representation
+                        else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        (place, field_scalar)
+                    } else {
+                        (
+                            self.lower_value_member_source(
+                                member,
+                                ty,
+                                crate::mir::ValueRepresentation::Scalar(scalar),
+                                scope,
+                            )?,
+                            scalar,
+                        )
+                    };
                 if field_scalar != scalar {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }

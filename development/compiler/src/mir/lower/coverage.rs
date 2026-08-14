@@ -311,6 +311,18 @@ fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -
         )
         || super::aggregates::literal_is_supported(expression, semantic)
         || typed_literal_is_supported(expression, semantic)
+        || matches!(expression.without_groups(), Expr::Member(member)
+        if super::projections::aggregate_value_field_is_supported(member, semantic)
+            && semantic
+                .typed_hir
+                .type_expr_by_id(ty)
+                .and_then(|ty| crate::typecheck::type_expr_is_copy(ty, semantic.resolved))
+                == Some(true)
+            && value_expression_is_supported(
+                super::projections::member_chain_root(member),
+                crate::mir::ValueRepresentation::Aggregate,
+                semantic,
+            ))
         || borrow_argument_is_supported(expression, semantic)
 }
 
@@ -574,6 +586,23 @@ impl<'a> ScalarStatement<'a> {
     ) -> bool {
         match self {
             Self::Binding(binding) => {
+                let binding_is_plain_copy_aggregate = resolved
+                    .local_symbol_id_at_name_span(binding.name_span)
+                    .and_then(|symbol| typed_hir.binding_type_expr(symbol))
+                    .is_some_and(|ty| {
+                        crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
+                            && matches!(
+                                crate::abi::abi_value_from_type_expr_with_resolver(
+                                    ty,
+                                    resolved,
+                                    |source| resolved_sources.get(&source).copied(),
+                                )
+                                .map(|value| value.ty),
+                                Ok(crate::abi::AbiType::Struct(_))
+                                    | Ok(crate::abi::AbiType::Array { .. })
+                                    | Ok(crate::abi::AbiType::Enum(_))
+                            )
+                    });
                 let scalar = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .is_some_and(|symbol| {
@@ -620,17 +649,29 @@ impl<'a> ScalarStatement<'a> {
                             )
                     })
                     && match binding.initializer.without_groups() {
-                        Expr::StructLiteral(_)
-                        | Expr::ArrayLiteral(_)
-                        | Expr::Member(_)
-                        | Expr::Closure(_) => super::aggregates::literal_is_supported(
-                            &binding.initializer,
-                            SemanticInputs {
-                                resolved,
-                                resolved_sources,
-                                typed_hir,
-                            },
-                        ),
+                        Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
+                            super::aggregates::literal_is_supported(
+                                &binding.initializer,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        }
+                        Expr::Member(_) | Expr::Identifier(_)
+                            if binding_is_plain_copy_aggregate =>
+                        {
+                            value_expression_is_supported(
+                                &binding.initializer,
+                                crate::mir::ValueRepresentation::Aggregate,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        }
                         Expr::Call(call) => {
                             super::aggregates::literal_is_supported(
                                 &binding.initializer,
@@ -1302,14 +1343,15 @@ pub(super) fn scalar_expression_is_supported(
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
         Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
-        Expr::Member(member) => super::projections::scalar_field_is_supported(
-            member,
-            SemanticInputs {
+        Expr::Member(member) => {
+            let semantic = SemanticInputs {
                 resolved,
                 resolved_sources,
                 typed_hir,
-            },
-        ),
+            };
+            super::projections::scalar_field_is_supported(member, semantic)
+                || staged_scalar_field_is_supported(member, semantic)
+        }
         Expr::Index(index) => {
             known_expression_type(expression, typed_hir)
                 .and_then(|ty| scalar_type(ty, typed_hir))
@@ -1448,6 +1490,20 @@ pub(super) fn scalar_expression_is_supported(
         }
         _ => false,
     }
+}
+
+pub(super) fn staged_scalar_field_is_supported(
+    member: &crate::ast::MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let root = super::projections::member_chain_root(member);
+    matches!(root.without_groups(), Expr::Call(call)
+        if semantic
+            .typed_hir
+            .function_call_specialization(call.span)
+            .is_none())
+        && super::projections::scalar_value_field_is_supported(member, semantic)
+        && value_expression_is_supported(root, crate::mir::ValueRepresentation::Aggregate, semantic)
 }
 
 pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {

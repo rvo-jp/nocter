@@ -174,14 +174,33 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     .control_flow
                                     .emit_returning_call(source, callee, arguments, local)?;
                             }
-                            Expr::StructLiteral(_)
-                            | Expr::ArrayLiteral(_)
-                            | Expr::Member(_)
-                            | Expr::Closure(_) => {
+                            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
                                 super::aggregates::lower_literal(
                                     self.context,
                                     local,
                                     &binding.initializer,
+                                    scope,
+                                )?;
+                            }
+                            Expr::Member(_) | Expr::Identifier(_) | Expr::Unary(_) => {
+                                let origin = self
+                                    .context
+                                    .semantic
+                                    .typed_hir
+                                    .expression(binding.initializer.span())
+                                    .ok_or(BuildError::MissingTypedExpression)?
+                                    .id;
+                                self.context.control_flow.push_statement(
+                                    Statement::BeginAggregate {
+                                        destination: Place::local(local),
+                                        origin: Origin::Expression(origin),
+                                    },
+                                )?;
+                                self.context.lower_value_to_place(
+                                    local,
+                                    &binding.initializer,
+                                    ty,
+                                    crate::mir::ValueRepresentation::Aggregate,
                                     scope,
                                 )?;
                             }
@@ -609,9 +628,12 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 self.context.semantic.typed_hir,
             )
         {
-            let source = self
-                .context
-                .lower_aggregate_member_source(member, ty, scope)?;
+            let source = self.context.lower_value_member_source(
+                member,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
             if let Some(plan) = drop_plan {
                 self.context.control_flow.emit_drop(destination, plan)?;
             }

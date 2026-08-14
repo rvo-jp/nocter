@@ -60,7 +60,10 @@ pub(super) fn source_place_is_supported(expression: &Expr, semantic: SemanticInp
             .resolved
             .local_symbol_for_identifier(identifier)
             .is_some(),
-        Expr::Member(member) => super::projections::field_is_supported(member, semantic),
+        Expr::Member(member) => {
+            super::projections::field_is_supported(member, semantic)
+                || super::coverage::staged_scalar_field_is_supported(member, semantic)
+        }
         Expr::Index(index) => super::indexes::is_supported(index, semantic),
         _ => false,
     }
@@ -207,14 +210,36 @@ fn lower_source_place(
                 .copied()
                 .ok_or(BuildError::MissingLocalSymbol)
         }
-        Expr::Member(member) => super::projections::lower_borrow_field_place(
-            member,
-            context.semantic,
-            &context.places_by_symbol,
-            &mut context.projections,
-            &mut context.drop_plans,
-        )
-        .map(|(place, _)| place),
+        Expr::Member(member) => {
+            if super::projections::field_is_supported(member, context.semantic) {
+                super::projections::lower_borrow_field_place(
+                    member,
+                    context.semantic,
+                    &context.places_by_symbol,
+                    &mut context.projections,
+                    &mut context.drop_plans,
+                )
+                .map(|(place, _)| place)
+            } else {
+                let result_ty = context
+                    .semantic
+                    .typed_hir
+                    .expression(member.span)
+                    .and_then(|expression| match expression.ty {
+                        crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+                        crate::typecheck::PartialSemantic::Error => None,
+                    })
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let scalar = super::coverage::scalar_type(result_ty, context.semantic.typed_hir)
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                context.lower_value_member_source(
+                    member,
+                    result_ty,
+                    crate::mir::ValueRepresentation::Scalar(scalar),
+                    scope,
+                )
+            }
+        }
         Expr::Index(index) => {
             super::indexes::lower_place(context, index, scope).map(|(place, _)| place)
         }

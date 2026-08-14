@@ -816,6 +816,15 @@ fn lowers_zero_length_fixed_array_copy_binding_and_assignment() {
                     source: AggregateLocation::Slot(0),
                     layout: ValueLayout::new(0, 1),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 2,
+                    layout: ValueLayout::new(0, 1),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(2),
+                    layout: ValueLayout::new(0, 1),
+                },
                 Instruction::CopyAggregate {
                     destination: AggregateLocation::Slot(0),
                     source: AggregateLocation::Slot(1),

@@ -482,7 +482,7 @@ func code(header: &Header): i32 {
             instructions: vec![
                 Instruction::LoadAggregateI32 {
                     destination: I32Location::Return,
-                    source: AggregateLocation::Parameter(0),
+                    source: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                     offset: 4,
                 },
                 Instruction::Return,
@@ -720,7 +720,7 @@ func read_code(packet: &Packet): i32 {
             instructions: vec![
                 Instruction::LoadAggregateI32 {
                     destination: I32Location::Return,
-                    source: AggregateLocation::Parameter(0),
+                    source: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                     offset: 12,
                 },
                 Instruction::Return,
@@ -1484,22 +1484,14 @@ func main(): i32 {
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                 },
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 1,
-                    layout: ValueLayout::new(16, 8),
-                },
-                Instruction::CopyAggregateRange {
-                    destination: AggregateLocation::Slot(1),
-                    destination_offset: 0,
-                    source: AggregateLocation::Slot(0),
-                    source_offset: 8,
-                    layout: ValueLayout::new(16, 8),
-                },
                 Instruction::CallI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("consume"),
                     arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                        source: AggregateArgumentSource::Slot(1),
+                        source: AggregateArgumentSource::SlotField {
+                            slot_index: 0,
+                            offset: 8,
+                        },
                         layout: ValueLayout::new(16, 8),
                         words: 2,
                     })],
@@ -1854,10 +1846,7 @@ func choose(value: &i32, code: i32): i32 {
                 target: CallTarget::same_file("choose"),
                 arguments: vec![
                     ScalarArgument::Borrow(BorrowArgument {
-                        source: BorrowSource::AggregateSlotField {
-                            slot_index: 0,
-                            offset: 0,
-                        },
+                        source: BorrowSource::AggregateSlot(0),
                     }),
                     ScalarArgument::I32(I32Value::Const(42)),
                 ],

@@ -4,16 +4,27 @@ use super::{BuildError, SemanticInputs};
 use crate::abi::{AbiType, layout_struct};
 use crate::ast::{Expr, IdentifierExpr, MemberExpr};
 use crate::mir::{
-    LocalId, OwnershipKind, Place, ProjectionElement, ProjectionPath, ProjectionPathId, ScalarType,
+    LocalId, OwnershipKind, Place, ProjectionElement, ProjectionPath, ProjectionPathId,
     ValueRepresentation,
 };
 use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
 
 pub(super) fn scalar_field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
-    field_path_parts(member, semantic, false).is_some_and(|parts| {
+    field_path_parts(member, semantic, true).is_some_and(|parts| {
         parts
             .segments
+            .last()
+            .is_some_and(|segment| matches!(segment.representation, ValueRepresentation::Scalar(_)))
+    })
+}
+
+pub(super) fn scalar_value_field_is_supported(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    value_root_field_segments(member, semantic).is_some_and(|(_, segments)| {
+        segments
             .last()
             .is_some_and(|segment| matches!(segment.representation, ValueRepresentation::Scalar(_)))
     })
@@ -123,40 +134,33 @@ pub(super) fn aggregate_value_field_is_supported(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
 ) -> bool {
+    value_root_field_segments(member, semantic).is_some_and(|(_, segments)| {
+        segments
+            .last()
+            .is_some_and(|segment| segment.representation == ValueRepresentation::Aggregate)
+    })
+}
+
+fn value_root_field_segments<'a>(
+    member: &'a MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<(&'a Expr, Vec<FieldSegment>)> {
     let mut members = Vec::new();
     let root = collect_member_chain_root(member, &mut members);
-    let Some(root_ty) = semantic
+    let root_ty = semantic
         .typed_hir
         .expression(root.span())
         .and_then(|expression| match expression.ty {
             crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
             crate::typecheck::PartialSemantic::Error => None,
         })
-        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
-    else {
-        return false;
-    };
-    field_segments(root_ty, &members, semantic).is_some()
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))?;
+    Some((root, field_segments(root_ty, &members, semantic)?))
 }
 
 pub(super) fn member_chain_root(member: &MemberExpr) -> &Expr {
     let mut members = Vec::new();
     collect_member_chain_root(member, &mut members)
-}
-
-pub(super) fn lower_scalar_field_place(
-    member: &MemberExpr,
-    semantic: SemanticInputs<'_>,
-    places: &HashMap<LocalSymbolId, Place>,
-    projections: &mut Vec<ProjectionPath>,
-    drop_plans: &mut Vec<crate::mir::DropPlan>,
-) -> Result<(Place, ScalarType), BuildError> {
-    let (place, representation) =
-        lower_field_place(member, semantic, places, projections, drop_plans)?;
-    let ValueRepresentation::Scalar(scalar) = representation else {
-        return Err(BuildError::UnsupportedClaimedExpression);
-    };
-    Ok((place, scalar))
 }
 
 pub(super) fn lower_field_place(
