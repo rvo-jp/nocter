@@ -939,9 +939,24 @@ fn effect_call_is_supported(
 ) -> bool {
     scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         && intrinsic_expression_type(call.span, typed_hir)
-            .and_then(|ty| typed_hir.type_expr_by_id(ty))
-            .is_some_and(|ty| {
-                matches!(ty, crate::ast::TypeExpr::Reference(reference) if reference.name == "void")
+            .and_then(|ty| {
+                value_representation(
+                    ty,
+                    SemanticInputs {
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    },
+                )
+            })
+            .is_some_and(|representation| {
+                matches!(
+                    representation,
+                    crate::mir::ValueRepresentation::Unit
+                        | crate::mir::ValueRepresentation::Scalar(_)
+                        | crate::mir::ValueRepresentation::View(_)
+                        | crate::mir::ValueRepresentation::Aggregate
+                )
             })
 }
 

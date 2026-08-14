@@ -126,6 +126,20 @@ impl ControlFlowBuilder {
         self.select_block(target)
     }
 
+    pub(super) fn emit_drop(
+        &mut self,
+        place: Place,
+        plan: crate::mir::DropPlanId,
+    ) -> Result<(), BuildError> {
+        let target = self.reserve_block(self.current_scope()?);
+        self.terminate(Terminator::Drop {
+            place,
+            plan,
+            target,
+        })?;
+        self.select_block(target)
+    }
+
     pub(super) fn emit_never_call(
         &mut self,
         source: ExprId,

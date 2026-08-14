@@ -377,13 +377,46 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     let (callee, arguments, returns_never) =
                         self.context.lower_call(call, scope)?;
                     if returns_never {
-                        return Err(BuildError::UnsupportedClaimedExpression);
+                        self.context
+                            .control_flow
+                            .emit_never_call(source, callee, arguments)?;
+                        return Ok(true);
                     }
                     match kind {
-                        EffectKind::Plain => self
-                            .context
-                            .control_flow
-                            .emit_effect_call(source, callee, arguments)?,
+                        EffectKind::Plain => {
+                            let ty = super::coverage::intrinsic_expression_type(
+                                call.span,
+                                self.context.semantic.typed_hir,
+                            )
+                            .ok_or(BuildError::MissingTypedExpression)?;
+                            let representation =
+                                super::coverage::value_representation(ty, self.context.semantic)
+                                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                            if representation == crate::mir::ValueRepresentation::Unit {
+                                self.context
+                                    .control_flow
+                                    .emit_effect_call(source, callee, arguments)?;
+                            } else {
+                                let destination = self.context.local_for_type(
+                                    ty,
+                                    LocalOrigin::Temporary(source),
+                                    scope,
+                                )?;
+                                self.context.control_flow.emit_returning_call(
+                                    source,
+                                    callee,
+                                    arguments,
+                                    destination,
+                                )?;
+                                if let Some(plan) =
+                                    self.context.locals[destination.index()].drop_plan
+                                {
+                                    self.context
+                                        .control_flow
+                                        .emit_drop(Place::local(destination), plan)?;
+                                }
+                            }
+                        }
                         EffectKind::Trap => self
                             .context
                             .control_flow
