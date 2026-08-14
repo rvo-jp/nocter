@@ -83,6 +83,12 @@ pub(crate) fn type_expr_presentation_label(ty: &TypeExpr, resolved: &ResolveOutp
     type_label(ty, resolved, None)
 }
 
+pub(in crate::typecheck) fn checked_scalar_type_for_resolved(
+    ty: &Type,
+) -> Option<crate::typecheck::CheckedScalarType> {
+    type_exprs::checked_scalar_type(ty)
+}
+
 pub(crate) fn type_symbol_presentation_label(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,

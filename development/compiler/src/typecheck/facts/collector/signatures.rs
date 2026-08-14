@@ -5,14 +5,7 @@ impl TypedHirBuilder<'_> {
         &mut self,
         ty: &TypeExpr,
     ) {
-        let scalar = match ty {
-            TypeExpr::Reference(reference) => IntegerType::from_name(&reference.name)
-                .map(crate::typecheck::CheckedScalarType::Integer)
-                .or_else(|| {
-                    (reference.name == "bool").then_some(crate::typecheck::CheckedScalarType::Bool)
-                }),
-            _ => None,
-        };
+        let scalar = crate::typecheck::checked_scalar_type_for_type_expr(ty, self.resolved);
         self.facts.intern_type_identity(ty.clone(), scalar);
         match ty {
             TypeExpr::Callable(callable) => {
@@ -382,14 +375,7 @@ impl TypedHirBuilder<'_> {
         &mut self,
         ty: &TypeExpr,
     ) {
-        let scalar = match ty {
-            TypeExpr::Reference(reference) => IntegerType::from_name(&reference.name)
-                .map(crate::typecheck::CheckedScalarType::Integer)
-                .or_else(|| {
-                    (reference.name == "bool").then_some(crate::typecheck::CheckedScalarType::Bool)
-                }),
-            _ => None,
-        };
+        let scalar = crate::typecheck::checked_scalar_type_for_type_expr(ty, self.resolved);
         self.facts.intern_type_identity(ty.clone(), scalar);
         match ty {
             TypeExpr::Callable(callable) => {

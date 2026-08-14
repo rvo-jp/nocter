@@ -407,6 +407,12 @@ fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -
             semantic.typed_hir,
         )
         || super::aggregates::literal_is_supported(expression, semantic)
+        || matches!(expression.without_groups(), Expr::Call(_))
+            && value_expression_is_supported(
+                expression,
+                crate::mir::ValueRepresentation::Aggregate,
+                semantic,
+            )
         || typed_literal_is_supported(expression, semantic)
         || matches!(expression.without_groups(), Expr::Member(member)
         if super::projections::aggregate_value_field_is_supported(member, semantic)

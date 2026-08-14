@@ -761,6 +761,37 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Aggregate,
             });
         }
+        if matches!(argument.without_groups(), Expr::Call(_))
+            && value_representation(ty, self.semantic)
+                == Some(crate::mir::ValueRepresentation::Aggregate)
+        {
+            let origin = self
+                .semantic
+                .typed_hir
+                .expression(argument.span())
+                .map_or(LocalOrigin::Desugared(argument.span()), |expression| {
+                    LocalOrigin::Temporary(expression.id)
+                });
+            let local = self.aggregate_temporary(ty, origin, scope)?;
+            self.lower_value_to_place(
+                local,
+                argument,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
+            let operand = if self.locals[local.index()].ownership == crate::mir::OwnershipKind::Move
+            {
+                Operand::Move(Place::local(local))
+            } else {
+                Operand::Copy(Place::local(local))
+            };
+            return Ok(CallArgument {
+                operand,
+                ty,
+                representation: crate::mir::ValueRepresentation::Aggregate,
+            });
+        }
         if matches!(
             argument.without_groups(),
             Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)

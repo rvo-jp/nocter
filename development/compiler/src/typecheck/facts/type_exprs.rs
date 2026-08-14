@@ -229,7 +229,9 @@ pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
     }
 }
 
-pub(super) fn checked_scalar_type(ty: &Type) -> Option<crate::typecheck::CheckedScalarType> {
+pub(in crate::typecheck) fn checked_scalar_type(
+    ty: &Type,
+) -> Option<crate::typecheck::CheckedScalarType> {
     match ty {
         Type::I32 => Some(crate::typecheck::CheckedScalarType::Integer(
             IntegerType::I32,

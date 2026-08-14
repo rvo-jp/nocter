@@ -108,6 +108,13 @@ pub(crate) fn type_expr_is_assignable(
     )
 }
 
+pub(crate) fn checked_scalar_type_for_type_expr(
+    ty: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<CheckedScalarType> {
+    facts::checked_scalar_type_for_resolved(&type_expr::type_expr_to_type(ty, resolved))
+}
+
 pub(crate) fn normalize_associated_type_expr(
     ty: &crate::ast::TypeExpr,
     resolved: &ResolveOutput,
