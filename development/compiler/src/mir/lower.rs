@@ -52,6 +52,9 @@ pub(crate) struct BuildInputs<'a> {
 pub(crate) enum BuildError {
     MissingSourceBody,
     MissingTypedExpression,
+    MissingSpecializedReceiverType,
+    MissingMethodReceiverType,
+    MissingCallExpression,
     InvalidScalarConstant,
     MissingLocalSymbol,
     MissingParameterType,

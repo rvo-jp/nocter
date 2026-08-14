@@ -40,6 +40,60 @@ pub(crate) struct TypedHir {
 }
 
 impl TypedHir {
+    pub(crate) fn specialized(&self, substitutions: &HashMap<String, TypeExpr>) -> Self {
+        if substitutions.is_empty() {
+            return self.clone();
+        }
+        let (expressions, remap) = self.expressions.specialize(substitutions);
+        let mut specialized = self.clone();
+        specialized.expressions = expressions;
+        specialized.binding_type_exprs = specialized
+            .binding_type_exprs
+            .into_iter()
+            .map(|(symbol, ty)| (symbol, substitute_type_expr_parameters(&ty, substitutions)))
+            .collect();
+        specialized.field_type_exprs = specialized
+            .field_type_exprs
+            .into_iter()
+            .map(|(span, ty)| (span, substitute_type_expr_parameters(&ty, substitutions)))
+            .collect();
+        specialized.method_call_receiver_types = specialized
+            .method_call_receiver_types
+            .into_iter()
+            .map(|(span, ty)| (span, remap[ty.index()]))
+            .collect();
+        specialized.function_call_specializations = specialized
+            .function_call_specializations
+            .into_iter()
+            .filter_map(|(span, fact)| {
+                fact.with_context_substitutions(substitutions)
+                    .map(|fact| (span, fact))
+            })
+            .collect();
+        specialized.method_call_specializations = specialized
+            .method_call_specializations
+            .into_iter()
+            .filter_map(|(span, fact)| {
+                fact.with_context_substitutions(substitutions)
+                    .map(|fact| (span, fact))
+            })
+            .collect();
+        specialized.callable_calls = specialized
+            .callable_calls
+            .into_iter()
+            .filter_map(|(span, mut fact)| {
+                let specialization = fact
+                    .specialization
+                    .with_context_substitutions(substitutions)?;
+                fact.receiver_ty =
+                    substitute_type_expr_parameters(&fact.receiver_ty, substitutions);
+                fact.specialization = specialization;
+                Some((span, fact))
+            })
+            .collect();
+        specialized
+    }
+
     pub(super) fn new(semantic_db: Arc<SemanticDb>, anchor: ByteSpan) -> Self {
         Self {
             expressions: crate::typecheck::typed_hir::TypedExpressionArena::new(

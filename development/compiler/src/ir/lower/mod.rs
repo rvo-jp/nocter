@@ -862,6 +862,46 @@ impl<'a> FunctionIndex<'a> {
                         })
                 }))
                 .chain(self.definitions.values().flat_map(|function| {
+                    let Some(substitutions) = function.mir_substitutions() else {
+                        return Vec::new();
+                    };
+                    if substitutions.is_empty() {
+                        return Vec::new();
+                    }
+                    let typed_hir = function.typed_hir.specialized(substitutions);
+                    typed_hir
+                        .function_call_specializations()
+                        .filter_map(|specialization| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(specialization.def_id);
+                            let arguments = specialization.ordered_type_arguments()?;
+                            Some((
+                                crate::mir::CallInstanceKey::from_types(
+                                    definition, None, arguments,
+                                ),
+                                specialization.target_name.clone(),
+                            ))
+                        })
+                        .chain(typed_hir.method_call_specializations().filter_map(
+                            |specialization| {
+                                let definition = self
+                                    .callable_bodies
+                                    .canonical_definition(specialization.def_id);
+                                let arguments = specialization.ordered_type_arguments()?;
+                                Some((
+                                    crate::mir::CallInstanceKey::from_types(
+                                        definition,
+                                        Some(&specialization.self_ty),
+                                        arguments,
+                                    ),
+                                    specialization.target_name.clone(),
+                                ))
+                            },
+                        ))
+                        .collect::<Vec<_>>()
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
                     function
                         .typed_hir
                         .method_call_specializations()
@@ -922,6 +962,15 @@ impl<'a> FunctionIndex<'a> {
 }
 
 impl<'a> IndexedCallable<'a> {
+    fn mir_substitutions(&self) -> Option<&HashMap<String, TypeExpr>> {
+        match &self.declaration {
+            IndexedDeclaration::Function { substitutions, .. }
+            | IndexedDeclaration::Drop { substitutions, .. }
+            | IndexedDeclaration::Method { substitutions, .. } => Some(substitutions),
+            IndexedDeclaration::Literal { .. } | IndexedDeclaration::Closure { .. } => None,
+        }
+    }
+
     fn new_function(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         let mut substitutions = HashMap::new();
         insert_function_self_substitution(declaration, &file.resolved, &mut substitutions);

@@ -189,7 +189,7 @@ impl LoweringContext<'_> {
                         .semantic
                         .typed_hir
                         .type_id(&specialization.self_ty)
-                        .ok_or(BuildError::MissingTypedExpression)?;
+                        .ok_or(BuildError::MissingSpecializedReceiverType)?;
                     crate::mir::CallInstance::specialized(
                         definition,
                         Some(receiver),
@@ -344,7 +344,7 @@ impl LoweringContext<'_> {
             .semantic
             .typed_hir
             .method_call_receiver_type(member.member_span)
-            .ok_or(BuildError::MissingTypedExpression)?;
+            .ok_or(BuildError::MissingMethodReceiverType)?;
         if let Some(representation @ crate::mir::ValueRepresentation::View(view)) =
             value_representation(ty, self.semantic)
         {
@@ -358,7 +358,7 @@ impl LoweringContext<'_> {
             .semantic
             .typed_hir
             .expression(call.span)
-            .ok_or(BuildError::MissingTypedExpression)?
+            .ok_or(BuildError::MissingCallExpression)?
             .id;
         let local = LocalId::from_index(self.locals.len());
         self.locals.push(crate::mir::Local::borrow(

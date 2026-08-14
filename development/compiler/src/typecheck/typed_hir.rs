@@ -43,6 +43,58 @@ pub(super) struct TypedExpressionArena {
 }
 
 impl TypedExpressionArena {
+    pub(super) fn specialize(
+        &self,
+        substitutions: &HashMap<String, TypeExpr>,
+    ) -> (Self, Vec<TyId>) {
+        let types = self
+            .types
+            .iter()
+            .map(|ty| crate::ast::substitute_type_expr_parameters(ty, substitutions))
+            .collect::<Vec<_>>();
+        let mut type_ids = HashMap::new();
+        let mut remap = Vec::with_capacity(types.len());
+        for (index, ty) in types.iter().enumerate() {
+            let key = crate::ast::canonical_type_expr(ty);
+            let canonical = *type_ids
+                .entry(key)
+                .or_insert_with(|| TyId::from_index(index));
+            remap.push(canonical);
+        }
+        let mut scalar_types = self.scalar_types.clone();
+        for (index, canonical) in remap.iter().enumerate() {
+            if scalar_types[canonical.index()].is_none() {
+                scalar_types[canonical.index()] = self.scalar_types[index];
+            }
+        }
+        for (index, canonical) in remap.iter().enumerate() {
+            scalar_types[index] = scalar_types[canonical.index()];
+        }
+        let expressions = self
+            .expressions
+            .iter()
+            .map(|(id, expression)| {
+                let mut expression = *expression;
+                expression.ty = match expression.ty {
+                    PartialSemantic::Known(ty) => PartialSemantic::Known(remap[ty.index()]),
+                    PartialSemantic::Error => PartialSemantic::Error,
+                };
+                expression.contextual_ty = expression.contextual_ty.map(|ty| remap[ty.index()]);
+                (*id, expression)
+            })
+            .collect();
+        (
+            Self {
+                semantic_db: self.semantic_db.clone(),
+                types,
+                scalar_types,
+                type_ids,
+                expressions,
+            },
+            remap,
+        )
+    }
+
     pub(super) fn new(semantic_db: Arc<SemanticDb>, anchor: ByteSpan) -> Self {
         let mut arena = Self {
             semantic_db,

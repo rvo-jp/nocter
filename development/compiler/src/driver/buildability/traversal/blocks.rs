@@ -27,25 +27,42 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
             callable_scalar_return(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
-        let body = mir_bodies.get_or_build(body_id, || {
+        let specialized_hir = callable.typed_hir.specialized(&callable.substitutions);
+        let specialized_parameters = parameters
+            .iter()
+            .cloned()
+            .map(|mut parameter| {
+                parameter.ty = crate::ast::substitute_type_expr_parameters(
+                    &parameter.ty,
+                    &callable.substitutions,
+                );
+                parameter
+            })
+            .collect::<Vec<_>>();
+        let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
             crate::mir::try_build_scalar_body_with_return_mode(
                 callable.body,
-                parameters,
+                &specialized_parameters,
                 return_scalar,
                 return_mode,
                 crate::mir::BuildInputs {
                     semantic_db: &callable.resolved.semantic_db,
                     resolved: callable.resolved,
                     resolved_sources,
-                    typed_hir: callable.typed_hir,
+                    typed_hir: &specialized_hir,
                 },
             )
         });
         match body {
             Some(Ok(body)) => {
-                if let Err(message) =
-                    enqueue_mir_call_targets(&body, callable, root_source, names, queue)
-                {
+                if let Err(message) = enqueue_mir_call_targets(
+                    &body,
+                    callable,
+                    &specialized_hir,
+                    root_source,
+                    names,
+                    queue,
+                ) {
                     diagnostics.push(
                         Diagnostic::error("E8000", message)
                             .with_primary_span_if_absent(sources, callable.body.span),
@@ -86,6 +103,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
 fn enqueue_mir_call_targets(
     body: &crate::mir::Body,
     callable: &IndexedCallable<'_>,
+    typed_hir: &crate::typecheck::TypedHir,
     root_source: SourceId,
     names: &CallableNames,
     queue: &mut VecDeque<CallTarget>,
@@ -95,7 +113,7 @@ fn enqueue_mir_call_targets(
             continue;
         };
         let name = names
-            .get_instance(callee, callable.typed_hir)
+            .get_instance(callee, typed_hir)
             .ok_or_else(|| "MIR call target has no indexed runtime name".to_string())?;
         let source = match callee.callable {
             crate::mir::CallableIdentity::Definition(definition) => {
@@ -107,8 +125,7 @@ fn enqueue_mir_call_targets(
                     .source
             }
             crate::mir::CallableIdentity::Value { ty, .. } => {
-                callable
-                    .typed_hir
+                typed_hir
                     .type_expr_by_id(ty)
                     .ok_or_else(|| "MIR callable-value type is missing".to_string())?
                     .span()

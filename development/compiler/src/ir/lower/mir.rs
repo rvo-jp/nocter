@@ -48,6 +48,7 @@ pub(super) fn try_lower_body(
     resolved: &ResolveOutput,
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
+    substitutions: &std::collections::HashMap<String, crate::ast::TypeExpr>,
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
@@ -55,6 +56,8 @@ pub(super) fn try_lower_body(
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
+    let specialized_hir = (!substitutions.is_empty()).then(|| typed_hir.specialized(substitutions));
+    let typed_hir = specialized_hir.as_ref().unwrap_or(typed_hir);
     let (return_representation, return_mode) = match return_type {
         Type::I32 => (
             crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
@@ -120,7 +123,7 @@ pub(super) fn try_lower_body(
     let body_id = resolved.semantic_db.body_at(body.span)?;
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
-    let mir_body = cache.get_or_build(body_id, || {
+    let mir_body = cache.get_or_build_specialized(body_id, substitutions, || {
         crate::mir::try_build_body_with_return_mode(
             body,
             parameters,

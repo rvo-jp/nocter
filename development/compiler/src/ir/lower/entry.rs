@@ -166,6 +166,7 @@ fn lower_entry_parts(
         resolved,
         &resolved_sources,
         typed_hir,
+        &std::collections::HashMap::new(),
         name,
         &function_signatures,
         &function_names,

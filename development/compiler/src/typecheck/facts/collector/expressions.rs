@@ -366,9 +366,12 @@ impl TypedHirBuilder<'_> {
                             inner: Box::new(self_receiver),
                         },
                     };
-                    if let Some(receiver_ty) =
-                        type_to_type_expr_inner(&parameter_receiver, method.object.span(), None)
-                    {
+                    let mut receiver_parameters = HashSet::new();
+                    if let Some(receiver_ty) = type_to_type_expr_allowing_parameters(
+                        &parameter_receiver,
+                        method.object.span(),
+                        &mut receiver_parameters,
+                    ) {
                         let receiver_ty = self.facts.intern_type_identity(receiver_ty, None);
                         self.facts
                             .method_call_receiver_types
