@@ -10,7 +10,7 @@ use super::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{ComposedOutcomeDestination, Instruction};
-use crate::mir::{LocalId, Place, ScalarType, ValueRepresentation};
+use crate::mir::{LocalId, Operand, Place, ScalarType, ValueRepresentation};
 use std::collections::HashSet;
 
 pub(super) struct Inspection<'a> {
@@ -128,5 +128,66 @@ fn outcome_destination(
                 "stored outcome payload representation is not yet projectable",
             ));
         }
+    })
+}
+
+pub(super) fn lower_return(
+    context: &BackendContext<'_>,
+    source: &Operand,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let (Operand::Copy(source) | Operand::Move(source)) = source else {
+        return Err(invalid_mir_diagnostics(
+            "stored outcome return source is not a place",
+        ));
+    };
+    if source.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected stored outcome returns are unsupported",
+        ));
+    }
+    let local = &context.body.locals[source.local.index()];
+    let type_expr = context
+        .typed_hir
+        .type_expr_by_id(local.ty)
+        .ok_or_else(|| invalid_mir_diagnostics("stored outcome return type is missing"))?;
+    let shape =
+        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
+            context.resolved_sources.get(&source).copied()
+        });
+    let payload_abi = crate::abi::abi_value_from_type_expr_with_resolver(
+        &shape.payload,
+        context.resolved,
+        |source| context.resolved_sources.get(&source).copied(),
+    )
+    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+    let storage = shape
+        .storage_layout(payload_abi.layout)
+        .ok_or_else(|| invalid_mir_diagnostics("stored outcome return has unsupported storage"))?;
+    let payload_type = super::super::types::return_type_from_type_expr_with_resolver(
+        &shape.payload,
+        context.resolved,
+        |source| context.resolved_sources.get(&source).copied(),
+    )
+    .ok_or_else(|| invalid_mir_diagnostics("stored outcome return payload is unsupported"))?;
+    let expected = context.return_type;
+    let expected_layers = match expected {
+        crate::ir::Type::Optional(_) => vec![crate::outcomes::OutcomeLayer::Optional],
+        crate::ir::Type::Fallible(_) => vec![crate::outcomes::OutcomeLayer::Fallible],
+        crate::ir::Type::ComposedOutcome { outer, inner, .. } => vec![*outer, *inner],
+        _ => {
+            return Err(invalid_mir_diagnostics(
+                "stored outcome MIR return belongs to a plain callable",
+            ));
+        }
+    };
+    if shape.layers != expected_layers || expected.success_type() != &payload_type {
+        return Err(invalid_mir_diagnostics(
+            "stored outcome MIR return type differs from the callable result",
+        ));
+    }
+    Ok(Instruction::ReturnStoredOutcome {
+        source: aggregate_location(source, context)?,
+        storage,
+        payload_type,
     })
 }

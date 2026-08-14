@@ -324,5 +324,11 @@ pub(crate) enum Terminator {
     },
     Trap,
     PropagateFailure,
+    /// Return one already stored optional/fallible value without unpacking it.
+    /// The operand retains copy/move ownership semantics; recursive ABI
+    /// storage remains a backend projection of its checked type.
+    ReturnOutcome {
+        source: Operand,
+    },
     Return,
 }

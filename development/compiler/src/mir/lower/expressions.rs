@@ -45,6 +45,20 @@ impl LoweringContext<'_> {
                     self.control_flow
                         .emit_returning_call(source, callee, arguments, destination)
                 }
+                Expr::Identifier(_) | Expr::Unary(_) => {
+                    let source = self
+                        .semantic
+                        .typed_hir
+                        .expression(expression.span())
+                        .ok_or(BuildError::MissingTypedExpression)?
+                        .id;
+                    let operand = self.lower_aggregate_operand(expression)?;
+                    self.control_flow.push_statement(Statement::Assign {
+                        destination: Place::local(destination),
+                        value: Rvalue::Use(operand),
+                        origin: crate::mir::Origin::Expression(source),
+                    })
+                }
                 _ => super::aggregates::lower_literal(self, destination, expression, scope),
             },
             crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => {
@@ -165,7 +179,10 @@ impl LoweringContext<'_> {
         Ok((callee, arguments, returns_never))
     }
 
-    fn lower_aggregate_operand(&mut self, expression: &Expr) -> Result<Operand, BuildError> {
+    pub(super) fn lower_aggregate_operand(
+        &mut self,
+        expression: &Expr,
+    ) -> Result<Operand, BuildError> {
         if !super::coverage::aggregate_operand_is_supported(
             expression,
             self.semantic.resolved,

@@ -100,6 +100,13 @@ pub(super) fn materialize(body: &mut Body) {
                 source_scope,
                 Terminator::PropagateFailure,
             ),
+            Terminator::ReturnOutcome { source } => cleanup_exit(
+                body,
+                &analysis,
+                block_id,
+                source_scope,
+                Terminator::ReturnOutcome { source },
+            ),
             Terminator::Drop {
                 place,
                 plan,

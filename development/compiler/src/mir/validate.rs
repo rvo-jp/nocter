@@ -198,6 +198,7 @@ pub(crate) enum ValidationError {
 pub(crate) enum OperandLocation {
     Statement(usize),
     CallArgument(usize),
+    OutcomeReturn,
     Drop,
 }
 
@@ -771,6 +772,30 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             }
             Terminator::PropagateFailure if body.return_mode == super::ReturnMode::Plain => {
                 errors.push(ValidationError::PropagationFromPlainBody { block: block_id });
+            }
+            Terminator::ReturnOutcome { source } => {
+                operand_type(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    &mut errors,
+                );
+                validate_operand_representation(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    ValueRepresentation::Aggregate,
+                    &mut errors,
+                );
+                validate_operand_ownership(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    &mut errors,
+                );
             }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }

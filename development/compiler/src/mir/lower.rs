@@ -314,13 +314,41 @@ pub(crate) fn try_build_body_with_return_mode(
                     root_scope,
                 )?,
                 super::ValueRepresentation::Aggregate => {
-                    aggregates::lower_literal(&mut context, return_local, expression, root_scope)?;
+                    let return_type_expr = inputs
+                        .typed_hir
+                        .type_expr_by_id(contextual_return_ty)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    let returns_stored_outcome = matches!(
+                        crate::abi::abi_value_from_type_expr_with_resolver(
+                            return_type_expr,
+                            inputs.resolved,
+                            |source| inputs.resolved_sources.get(&source).copied(),
+                        )
+                        .map(|value| value.ty),
+                        Ok(crate::abi::AbiType::Outcome { .. })
+                    );
+                    if returns_stored_outcome {
+                        let source = context.lower_aggregate_operand(expression)?;
+                        context
+                            .control_flow
+                            .terminate(Terminator::ReturnOutcome { source })?;
+                    } else {
+                        context.lower_value_to_place(
+                            return_local,
+                            expression,
+                            return_ty,
+                            return_representation,
+                            root_scope,
+                        )?;
+                    }
                 }
                 super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
             }
-            context.control_flow.terminate(Terminator::Return)?;
+            if context.control_flow.current_block().is_ok() {
+                context.control_flow.terminate(Terminator::Return)?;
+            }
         }
         let parts = context.finish()?;
         let body = Body {

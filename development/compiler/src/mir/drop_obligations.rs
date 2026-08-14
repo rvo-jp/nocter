@@ -208,6 +208,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 }
                 merge_entry(&mut entries, &mut queue, *target, state, body);
             }
+            Terminator::ReturnOutcome { source } => {
+                consume_operand_move(body, source, &mut state);
+                validate_exit(body, block_id, &state, &mut errors);
+            }
             Terminator::Return | Terminator::Trap | Terminator::PropagateFailure => {
                 validate_exit(body, block_id, &state, &mut errors);
             }

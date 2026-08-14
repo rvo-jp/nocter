@@ -175,6 +175,9 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 reject_move(body, block_id, *place, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *target, state);
             }
+            Terminator::ReturnOutcome { source } => {
+                reject_operand_move(body, block_id, source, &state, &mut errors);
+            }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {
                 reject_live_at_exit(body, block_id, &state, &mut errors);
             }

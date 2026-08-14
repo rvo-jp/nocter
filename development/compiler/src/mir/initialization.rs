@@ -301,6 +301,17 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                 }
                 exit_states.insert(block_id, initialized);
             }
+            crate::mir::Terminator::ReturnOutcome { source } => {
+                validate_and_apply_operand(
+                    source,
+                    &mut initialized,
+                    block_id,
+                    InitializationLocation::Return,
+                    body,
+                    &mut errors,
+                );
+                exit_states.insert(block_id, initialized);
+            }
             crate::mir::Terminator::Trap | crate::mir::Terminator::PropagateFailure => {
                 exit_states.insert(block_id, initialized);
             }

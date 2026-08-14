@@ -75,7 +75,10 @@ fn reachable_distances(
                 enqueue(*success);
                 enqueue(*failure);
             }
-            Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
+            Terminator::Trap
+            | Terminator::PropagateFailure
+            | Terminator::ReturnOutcome { .. }
+            | Terminator::Return => {}
         }
     }
     distances

@@ -84,6 +84,10 @@ pub(super) fn try_lower_body(
             crate::mir::ValueRepresentation::Aggregate,
             ReturnMode::Plain,
         ),
+        Type::Optional(_) | Type::ComposedOutcome { .. } => (
+            crate::mir::ValueRepresentation::Aggregate,
+            ReturnMode::Plain,
+        ),
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => (
                 crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
@@ -428,6 +432,10 @@ fn lower_scalar_body(
                 instructions.push(Instruction::PropagateFailure);
                 return Ok(instructions);
             }
+            Terminator::ReturnOutcome { source } => {
+                instructions.push(outcomes::lower_return(&context, source)?);
+                return Ok(instructions);
+            }
             Terminator::Return => {
                 instructions.push(match body.return_mode {
                     ReturnMode::Plain => Instruction::Return,
@@ -755,6 +763,10 @@ fn lower_branch_to_join(
             }
             Terminator::PropagateFailure if body.return_mode == ReturnMode::Fallible => {
                 instructions.push(Instruction::PropagateFailure);
+                return Ok(instructions);
+            }
+            Terminator::ReturnOutcome { source } => {
+                instructions.push(outcomes::lower_return(context, source)?);
                 return Ok(instructions);
             }
             _ => {
@@ -1380,6 +1392,28 @@ fn lower_statements(
                 body.locals[destination.local.index()].representation,
                 |path| path.representation,
             );
+        if destination_representation == crate::mir::ValueRepresentation::Aggregate {
+            let Rvalue::Use(Operand::Copy(source) | Operand::Move(source)) = value else {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate MIR assignment requires a stored source place",
+                ));
+            };
+            if source.projection.is_some() || destination.projection.is_some() {
+                return Err(invalid_mir_diagnostics(
+                    "projected aggregate MIR assignment requires range projection",
+                ));
+            }
+            reserve_aggregate_destination(context, destination, &mut instructions)?;
+            let layout =
+                aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?
+                    .layout;
+            instructions.push(Instruction::CopyAggregate {
+                destination: aggregate_location(destination, context)?,
+                source: aggregate_location(source, context)?,
+                layout,
+            });
+            continue;
+        }
         if destination_representation
             == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str)
         {

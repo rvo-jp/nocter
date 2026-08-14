@@ -345,6 +345,49 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_stored_outcome_forwarding_as_an_owned_return_edge() {
+    let (_sources, analysis) = analyze_text(
+        r#"func forward(value: i32?): i32? {
+    return value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "forward" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ValueRepresentation::Aggregate,
+        ReturnMode::Plain,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("stored outcome forwarding must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::ReturnOutcome {
+            source: Operand::Copy(place),
+        } if body.locals[place.local.index()].storage == LocalStorage::Parameter { ordinal: 0 }
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_aggregate_return_conditionals_with_one_logical_destination() {
     let (_sources, analysis) = analyze_text(
         r#"struct Pair {

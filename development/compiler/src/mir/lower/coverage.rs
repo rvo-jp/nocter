@@ -1278,10 +1278,48 @@ pub(super) fn value_expression_is_supported(
                 semantic.resolved_sources,
                 semantic.typed_hir,
             ),
+            Expr::Identifier(_) | Expr::Unary(_) => stored_outcome_operand_is_supported(
+                expression,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
             _ => false,
         },
         crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => false,
     }
+}
+
+fn stored_outcome_operand_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    if !aggregate_operand_is_supported(expression, resolved, resolved_sources, typed_hir) {
+        return false;
+    }
+    let expression = match expression.without_groups() {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            unary.operand.without_groups()
+        }
+        expression => expression,
+    };
+    let Expr::Identifier(identifier) = expression else {
+        return false;
+    };
+    resolved
+        .local_symbol_for_identifier(identifier)
+        .and_then(|symbol| typed_hir.binding_type_expr(symbol.id))
+        .is_some_and(|ty| {
+            matches!(
+                crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+                    resolved_sources.get(&source).copied()
+                })
+                .map(|value| value.ty),
+                Ok(crate::abi::AbiType::Outcome { .. })
+            )
+        })
 }
 
 fn effective_expression_type(
