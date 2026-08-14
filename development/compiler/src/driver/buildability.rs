@@ -161,8 +161,11 @@ impl CallableNames {
         instance: &crate::mir::CallInstance,
         typed_hir: &TypedHir,
     ) -> Option<&String> {
-        if instance.receiver.is_none() && instance.type_arguments.is_empty() {
-            return self.get(&instance.definition);
+        if instance.receiver.is_none()
+            && instance.type_arguments.is_empty()
+            && let crate::mir::CallableIdentity::Definition(definition) = instance.callable
+        {
+            return self.get(&definition);
         }
         self.instances
             .get(&crate::mir::CallInstanceKey::from_instance(
@@ -521,6 +524,18 @@ impl<'a> CallableIndex<'a> {
                         file,
                         &resolved_sources,
                     ),
+                );
+            }
+        }
+
+        for file in &analysis.files {
+            for (_, fact) in file.typed_hir.callable_call_entries() {
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_callable_type(
+                        &fact.specialization.callable_ty,
+                        fact.specialization.capability,
+                    ),
+                    fact.specialization.target_name.clone(),
                 );
             }
         }

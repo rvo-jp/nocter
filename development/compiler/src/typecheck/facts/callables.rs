@@ -7,6 +7,7 @@ use super::*;
 pub(crate) struct CallableCallFact {
     pub(crate) signature: FunctionSignature,
     pub(crate) specialization: CallableCallSpecialization,
+    pub(crate) receiver_ty: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,8 +29,19 @@ pub(super) fn callable_call_fact(
         &mut free_type_parameters,
     )?;
     let target_name = callable_target_name(&callable_ty);
+    let receiver_ty = match contract.capability {
+        crate::ast::CallableCapability::Consuming => callable_ty.clone(),
+        crate::ast::CallableCapability::Readonly | crate::ast::CallableCapability::Readwrite => {
+            TypeExpr::Borrow(crate::ast::BorrowType {
+                span: call.callee.span(),
+                is_readwrite: contract.capability == crate::ast::CallableCapability::Readwrite,
+                inner: Box::new(callable_ty.clone()),
+            })
+        }
+    };
     Some(CallableCallFact {
         signature: contract.signature.clone(),
+        receiver_ty,
         specialization: CallableCallSpecialization {
             callable_ty,
             capability: contract.capability,

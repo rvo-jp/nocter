@@ -1119,11 +1119,22 @@ fn lower_call_target(
         .name_for_instance(callee, typed_hir)
         .ok_or_else(|| invalid_mir_diagnostics("call target has no indexed runtime name"))?
         .clone();
-    let source = resolved
-        .semantic_db
-        .definition_anchor(callee.definition)
-        .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
-        .source;
+    let source = match callee.callable {
+        crate::mir::CallableIdentity::Definition(definition) => {
+            resolved
+                .semantic_db
+                .definition_anchor(definition)
+                .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
+                .source
+        }
+        crate::mir::CallableIdentity::Value { ty, .. } => {
+            typed_hir
+                .type_expr_by_id(ty)
+                .ok_or_else(|| invalid_mir_diagnostics("callable-value type is missing"))?
+                .span()
+                .source
+        }
+    };
     Ok((
         super::call_target_for_source(source, root_source, name.clone()),
         name,

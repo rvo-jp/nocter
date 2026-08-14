@@ -16,7 +16,7 @@ mod places;
 mod scopes;
 mod validate;
 
-pub(crate) use calls::{CallInstance, CallInstanceKey};
+pub(crate) use calls::{CallInstance, CallInstanceKey, CallableIdentity};
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
 pub(crate) use ids::{
     BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId, ScopeId,

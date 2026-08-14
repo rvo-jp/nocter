@@ -23,7 +23,7 @@ pub struct CallableTypeParameter {
 }
 
 /// The least receiver access required to invoke a callable value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallableCapability {
     Readonly,
     Readwrite,

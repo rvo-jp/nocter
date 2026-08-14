@@ -240,7 +240,9 @@ InstanceMember::Coercion(CoercionDecl)
   monomorphizations.</li><li>Method calls now enter that same edge. Typed HIR retains the method's concrete receiver parameter
   <code>TyId</code>; MIR passes view receivers as views, models aggregate receiver borrows as ordinary loans,
   and moves owned receivers through the existing operand path. Generic instance methods and
-  concrete receiver specializations consequently share one backend target projection.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
+  concrete receiver specializations consequently share one backend target projection.</li><li>Calls through closure and generic callable values retain callable type <code>TyId</code> plus capability as
+  a closed semantic identity. Their receiver parameter type is fixed during type checking, and the
+  shared instance registry alone projects the callable identity to its monomorphized runtime name.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
   as whole-place call arguments. ABI projection maps the source ordinal to the existing borrow
   parameter word; one IR-level frame-dependence predicate prevents both borrow and indirect
   aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Borrow bindings over stored scalar identifiers create explicit <code>Loan</code> records and <code>BeginLoan</code>

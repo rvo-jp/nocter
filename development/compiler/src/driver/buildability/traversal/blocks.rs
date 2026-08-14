@@ -97,12 +97,24 @@ fn enqueue_mir_call_targets(
         let name = names
             .get_instance(callee, callable.typed_hir)
             .ok_or_else(|| "MIR call target has no indexed runtime name".to_string())?;
-        let source = callable
-            .resolved
-            .semantic_db
-            .definition_anchor(callee.definition)
-            .ok_or_else(|| "MIR call target has no source anchor".to_string())?
-            .source;
+        let source = match callee.callable {
+            crate::mir::CallableIdentity::Definition(definition) => {
+                callable
+                    .resolved
+                    .semantic_db
+                    .definition_anchor(definition)
+                    .ok_or_else(|| "MIR call target has no source anchor".to_string())?
+                    .source
+            }
+            crate::mir::CallableIdentity::Value { ty, .. } => {
+                callable
+                    .typed_hir
+                    .type_expr_by_id(ty)
+                    .ok_or_else(|| "MIR callable-value type is missing".to_string())?
+                    .span()
+                    .source
+            }
+        };
         queue.push_back(call_target_for_source(source, root_source, name.clone()));
     }
     Ok(())

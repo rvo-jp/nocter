@@ -2368,7 +2368,10 @@ func main(): i32 {
     assert_eq!(
         analysis
             .semantic_db
-            .definition(callee.definition)
+            .definition(match callee.callable {
+                crate::mir::CallableIdentity::Definition(definition) => definition,
+                crate::mir::CallableIdentity::Value { .. } => panic!("expected definition call"),
+            })
             .unwrap()
             .kind,
         crate::semantic::DefinitionKind::Function

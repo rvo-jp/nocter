@@ -880,6 +880,17 @@ impl<'a> FunctionIndex<'a> {
                             ))
                         })
                 }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    function.typed_hir.callable_call_entries().map(|(_, fact)| {
+                        (
+                            crate::mir::CallInstanceKey::from_callable_type(
+                                &fact.specialization.callable_ty,
+                                fact.specialization.capability,
+                            ),
+                            fact.specialization.target_name.clone(),
+                        )
+                    })
+                }))
                 .collect(),
             self.definitions
                 .values()

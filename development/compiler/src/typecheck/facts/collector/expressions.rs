@@ -448,6 +448,8 @@ impl TypedHirBuilder<'_> {
                         environment,
                     ) && let Some(fact) = callable_call_fact(expression, &contract)
                     {
+                        self.facts
+                            .intern_type_identity(fact.receiver_ty.clone(), None);
                         self.facts.callable_calls.insert(expression.span, fact);
                     } else if let Some(symbol) = self.resolved.symbol_for_call(expression) {
                         match &symbol.kind {

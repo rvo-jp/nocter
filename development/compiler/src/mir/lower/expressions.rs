@@ -12,6 +12,15 @@ use crate::mir::{
 
 mod control_flow_expressions;
 mod outcomes;
+
+enum PlannedReceiver<'a> {
+    Method(&'a crate::ast::MemberExpr),
+    Callable {
+        expression: &'a Expr,
+        receiver_ty: crate::semantic::TyId,
+        capability: crate::ast::CallableCapability,
+    },
+}
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
@@ -107,6 +116,31 @@ impl LoweringContext<'_> {
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
         let (callee, receiver) = match call.callee.without_groups() {
+            _ if self.semantic.typed_hir.callable_call(call.span).is_some() => {
+                let fact = self
+                    .semantic
+                    .typed_hir
+                    .callable_call(call.span)
+                    .ok_or(BuildError::MissingCallTarget)?;
+                let callable_ty = self
+                    .semantic
+                    .typed_hir
+                    .type_id(&fact.specialization.callable_ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let receiver_ty = self
+                    .semantic
+                    .typed_hir
+                    .type_id(&fact.receiver_ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                (
+                    crate::mir::CallInstance::value(callable_ty, fact.specialization.capability),
+                    Some(PlannedReceiver::Callable {
+                        expression: &call.callee,
+                        receiver_ty,
+                        capability: fact.specialization.capability,
+                    }),
+                )
+            }
             Expr::Identifier(identifier) => {
                 let definition = self
                     .semantic
@@ -164,13 +198,24 @@ impl LoweringContext<'_> {
                 } else {
                     crate::mir::CallInstance::direct(definition)
                 };
-                (instance, Some(member))
+                (instance, Some(PlannedReceiver::Method(member)))
             }
             _ => return Err(BuildError::UnsupportedClaimedExpression),
         };
         let mut arguments = Vec::new();
-        if let Some(member) = receiver {
-            arguments.push(self.lower_method_receiver(call, member, scope)?);
+        if let Some(receiver) = receiver {
+            arguments.push(match receiver {
+                PlannedReceiver::Method(member) => {
+                    self.lower_method_receiver(call, member, scope)?
+                }
+                PlannedReceiver::Callable {
+                    expression,
+                    receiver_ty,
+                    capability,
+                } => {
+                    self.lower_callable_receiver(call, expression, receiver_ty, capability, scope)?
+                }
+            });
         }
         for argument in &call.arguments {
             arguments.push(self.lower_call_argument(argument, scope)?);
@@ -338,6 +383,60 @@ impl LoweringContext<'_> {
                 Operand::Copy(Place::local(local))
             },
             ty,
+            representation: crate::mir::ValueRepresentation::Borrow,
+        })
+    }
+
+    fn lower_callable_receiver(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        expression: &Expr,
+        receiver_ty: crate::semantic::TyId,
+        capability: crate::ast::CallableCapability,
+        scope: ScopeId,
+    ) -> Result<CallArgument, BuildError> {
+        if capability == crate::ast::CallableCapability::Consuming {
+            let ty = known_expression_type(expression, self.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let Operand::Copy(place) = self.lower_stored_identifier(expression)? else {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            };
+            return Ok(CallArgument {
+                operand: Operand::Move(place),
+                ty,
+                representation: crate::mir::ValueRepresentation::Aggregate,
+            });
+        }
+        let readwrite = capability == crate::ast::CallableCapability::Readwrite;
+        let source = self
+            .semantic
+            .typed_hir
+            .expression(call.span)
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        let local = LocalId::from_index(self.locals.len());
+        self.locals.push(crate::mir::Local::borrow(
+            receiver_ty,
+            readwrite,
+            LocalStorage::Local,
+            LocalOrigin::Temporary(source),
+            scope,
+        ));
+        super::borrows::lower_implicit_to_local(
+            self,
+            local,
+            expression,
+            readwrite,
+            scope,
+            crate::mir::Origin::Expression(source),
+        )?;
+        Ok(CallArgument {
+            operand: if readwrite {
+                Operand::Move(Place::local(local))
+            } else {
+                Operand::Copy(Place::local(local))
+            },
+            ty: receiver_ty,
             representation: crate::mir::ValueRepresentation::Borrow,
         })
     }

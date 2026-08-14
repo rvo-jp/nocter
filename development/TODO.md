@@ -170,6 +170,9 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   methods on generic receiver types therefore no longer require an AST-specific call selector.
 - failure propagation follows cleanup-only MIR chains and collapses semantic-only loan endings or
   no-op drop plans back to the machine IR's direct propagation mode; real cleanup remains explicit
+- callable-value invocation is a second closed `CallableIdentity` form keyed by checked callable
+  `TyId` and capability. Closure calls therefore use the same MIR `Call` continuation and target
+  registry without manufacturing a declaration `DefId` or retaining a runtime symbol in MIR.
 - primitive source names are recognized once as a closed `IntrinsicId` domain; pointer, view,
   process, allocation, I/O, and syscall lowering no longer dispatches backend semantics by string
   comparison
