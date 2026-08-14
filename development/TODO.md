@@ -197,8 +197,9 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   value local
 - plain aggregate literal and call returns retain one logical aggregate return local; direct versus
   indirect return storage is selected only by machine-IR projection
-- expression-valued conditional construction is representation-independent; scalar and string-view
-  branches plus pure aggregate branches use the same destination-and-join CFG builder
+- expression-valued conditional construction is representation-independent; scalar, string-view,
+  and aggregate branches use the same destination-and-join CFG builder, including leading effects
+  and branch-local or shared ownership cleanup
 - the next checkpoint migrates stored optional/fallible values, failure-value returns, and the
   remaining advanced-expression families
 - value blocks retain whether their tail is an implicit value or an explicit `return`; terminal

@@ -1087,9 +1087,6 @@ fn value_block_is_supported(
     let Some((statements, tail)) = scalar_body_parts(block) else {
         return false;
     };
-    if representation == crate::mir::ValueRepresentation::Aggregate && !statements.is_empty() {
-        return false;
-    }
     if tail.expression().is_some_and(|expression| {
         semantic
             .typed_hir

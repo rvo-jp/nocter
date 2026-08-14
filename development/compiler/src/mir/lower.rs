@@ -128,8 +128,7 @@ pub(crate) fn try_build_body_with_return_mode(
             (matches!(
                 return_representation,
                 super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
-            ) || return_representation == super::ValueRepresentation::Aggregate
-                && source_statements.is_empty())
+            ) || return_representation == super::ValueRepresentation::Aggregate)
                 && value_conditional_is_supported(conditional, return_representation, semantic)
         }))
         || !parameters.iter().all(|parameter| {

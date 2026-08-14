@@ -911,52 +911,32 @@ func choose(flag: bool): Pair {
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Parameter(0)),
                     then_instructions: vec![
-                        Instruction::ReserveAggregateSlot {
-                            slot_index: 1,
-                            layout: pair_layout,
-                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::Slot(1),
+                            destination: AggregateLocation::DirectReturn,
                             offset: 0,
                             value: usize_const(1),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::Slot(1),
+                            destination: AggregateLocation::DirectReturn,
                             offset: 8,
                             value: usize_const(2),
                         },
-                        drop_call.clone(),
-                        Instruction::CopyAggregate {
-                            destination: AggregateLocation::DirectReturn,
-                            source: AggregateLocation::Slot(1),
-                            layout: pair_layout,
-                        },
-                        Instruction::Return,
                     ],
                     else_instructions: vec![
-                        Instruction::ReserveAggregateSlot {
-                            slot_index: 2,
-                            layout: pair_layout,
-                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::Slot(2),
+                            destination: AggregateLocation::DirectReturn,
                             offset: 0,
                             value: usize_const(3),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::Slot(2),
+                            destination: AggregateLocation::DirectReturn,
                             offset: 8,
                             value: usize_const(4),
                         },
-                        drop_call,
-                        Instruction::CopyAggregate {
-                            destination: AggregateLocation::DirectReturn,
-                            source: AggregateLocation::Slot(2),
-                            layout: pair_layout,
-                        },
-                        Instruction::Return,
                     ],
                 },
+                drop_call,
+                Instruction::Return,
             ],
         }
     );
