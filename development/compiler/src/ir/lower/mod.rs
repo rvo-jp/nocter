@@ -1312,7 +1312,6 @@ impl<'a> IndexedCallable<'a> {
                 self.resolved,
                 self.typed_hir,
                 resolved_sources,
-                error_payloads,
             ),
         }
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, span))

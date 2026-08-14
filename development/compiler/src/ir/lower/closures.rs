@@ -1,26 +1,23 @@
 //! Generated callable entry points for concrete closure values.
 
-use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, ResolvedSources};
-use super::functions::lower_method_function_with_prologue;
+use super::context::{FunctionNames, FunctionSignatures, ResolvedSources};
 use super::functions::parameters::{
     lower_aggregate_parameter_setup, lower_function_return_type, lower_scalar_parameters,
-    method_parameters, resolved_function_signature, validate_parameter_slots_match_function_abi,
+    resolved_function_signature, validate_parameter_slots_match_function_abi,
 };
 use super::{
     FunctionSignature, lower_signature_parameter_type, lower_signature_return_type,
     parameter_abi_word_count, success_return_passing,
 };
 use crate::ast::{
-    BorrowExpr, ClosureCaptureMode, ClosureExpr, Expr, GenericParamList, IdentifierExpr,
-    MethodDecl, MethodReceiver, MethodReceiverMode, Parameter, ParameterList, StructLiteralExpr,
-    StructLiteralField, TypeExpr, UnaryExpr, UnaryOperator, Visibility,
+    BorrowExpr, ClosureCaptureMode, ClosureExpr, Expr, IdentifierExpr, MethodReceiverMode,
+    Parameter, StructLiteralExpr, StructLiteralField, TypeExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
+use crate::ir::{AggregateLocation, CallTarget, Function, Instruction};
 use crate::resolve::ResolveOutput;
 use crate::source::{SourceId, SourceMap};
 use crate::typecheck::{TypecheckClosurePlan, TypedHir};
-use std::collections::HashMap;
 
 pub(super) fn lower_closure_to_slot(
     expression: &ClosureExpr,
@@ -108,12 +105,7 @@ pub(super) fn closure_function_signature(
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<FunctionSignature> {
-    let method = closure_method(expression, plan, receiver_mode, "call");
-    let parameters = method_parameters(
-        &method,
-        &crate::ast::TypeExpr::Closure(plan.ty.clone()),
-        &HashMap::new(),
-    );
+    let parameters = closure_parameters(expression, plan, receiver_mode);
     let return_type = (*plan.ty.return_type).clone();
     let resolved_signature = resolved_function_signature(&parameters, return_type.clone());
     Some(FunctionSignature {
@@ -154,11 +146,8 @@ pub(super) fn lower_closure_function<'a>(
     resolved: &'a ResolveOutput,
     typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
-    error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
-    let method = closure_method(expression, plan, receiver_mode, &name);
-    let self_ty = crate::ast::TypeExpr::Closure(plan.ty.clone());
-    let parameters = method_parameters(&method, &self_ty, &HashMap::new());
+    let parameters = closure_parameters(expression, plan, receiver_mode);
     let return_type_expr = (*plan.ty.return_type).clone();
     let parameter_slots = lower_scalar_parameters(
         &name,
@@ -179,7 +168,7 @@ pub(super) fn lower_closure_function<'a>(
     let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
     let return_type =
         lower_function_return_type(&return_type_expr, &name, resolved, &resolved_sources)?;
-    if let Some(instructions) = super::mir::try_lower_closure_body(
+    let instructions = super::mir::try_lower_closure_body(
         mir_bodies,
         expression,
         &plan.ty,
@@ -195,134 +184,52 @@ pub(super) fn lower_closure_function<'a>(
         &parameter_slots,
         root_source,
         sources,
-    ) {
-        let mut lowered = parameter_setup;
-        lowered.extend(instructions?);
-        return Ok(Function {
-            name,
-            target,
-            return_type,
-            instructions: lowered,
-        });
-    }
-    lower_method_function_with_prologue(
-        &method,
-        &self_ty,
-        &HashMap::new(),
-        name,
-        sources,
-        target,
-        function_signatures,
-        function_names,
-        root_source,
-        resolved,
-        typed_hir,
-        resolved_sources,
-        error_payloads,
-        |context| closure_capture_prologue(expression, plan, context),
     )
+    .ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E8015",
+            "checked MIR does not cover this closure body",
+        )]
+    })??;
+    let mut lowered = parameter_setup;
+    lowered.extend(instructions);
+    Ok(Function {
+        name,
+        target,
+        return_type,
+        instructions: lowered,
+    })
 }
 
-fn closure_capture_prologue(
-    expression: &ClosureExpr,
-    plan: &TypecheckClosurePlan,
-    context: &mut super::context::LoweringContext<'_>,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let instructions = Vec::new();
-    for (capture, capture_ty) in expression.captures.iter().zip(&plan.ty.captures) {
-        let field = context
-            .aggregate_field("self", &capture.name)
-            .ok_or_else(closure_capture_lowering_diagnostic)?;
-        let expected = context
-            .ir_type_for_type_expr(&capture_ty.ty)
-            .ok_or_else(closure_capture_lowering_diagnostic)?;
-        if !closure_capture_field_matches_type(&field.kind, &expected) {
-            return Err(closure_capture_lowering_diagnostic());
-        }
-        context.define_closure_capture_field(capture.name.clone(), field);
-    }
-    Ok(instructions)
-}
-
-fn closure_capture_field_matches_type(
-    kind: &super::context::AggregateFieldKind,
-    expected: &Type,
-) -> bool {
-    match (kind, expected) {
-        (super::context::AggregateFieldKind::I32, Type::I32)
-        | (super::context::AggregateFieldKind::U8, Type::U8)
-        | (super::context::AggregateFieldKind::Usize, Type::Usize)
-        | (super::context::AggregateFieldKind::Bool, Type::Bool)
-        | (super::context::AggregateFieldKind::Str, Type::Str)
-        | (super::context::AggregateFieldKind::Slice(_), Type::Slice { .. }) => true,
-        (
-            super::context::AggregateFieldKind::Borrow {
-                is_readwrite: field_readwrite,
-                inner: field_inner,
-            },
-            Type::Borrow {
-                is_readwrite,
-                inner,
-            },
-        ) => field_readwrite == is_readwrite && field_inner == inner.as_ref(),
-        (
-            super::context::AggregateFieldKind::Array { .. }
-            | super::context::AggregateFieldKind::Aggregate { .. },
-            Type::Aggregate { .. } | Type::DirectAggregate { .. },
-        ) => true,
-        _ => false,
-    }
-}
-
-fn closure_capture_lowering_diagnostic() -> Vec<Diagnostic> {
-    vec![Diagnostic::error(
-        "E8015",
-        "closure capture storage does not match its inferred environment type",
-    )]
-}
-
-fn closure_method(
+fn closure_parameters(
     expression: &ClosureExpr,
     plan: &TypecheckClosurePlan,
     receiver_mode: MethodReceiverMode,
-    name: &str,
-) -> MethodDecl {
-    let parameters = expression
-        .parameters
-        .iter()
-        .zip(&plan.ty.parameters)
-        .map(|(parameter, ty)| Parameter {
+) -> Vec<Parameter> {
+    let closure_ty = TypeExpr::Closure(plan.ty.clone());
+    let receiver_ty = match receiver_mode {
+        MethodReceiverMode::Owned => closure_ty,
+        MethodReceiverMode::ReadonlyBorrow | MethodReceiverMode::ReadwriteBorrow => {
+            TypeExpr::Borrow(crate::ast::BorrowType {
+                span: expression.parameters_span,
+                is_readwrite: receiver_mode == MethodReceiverMode::ReadwriteBorrow,
+                inner: Box::new(closure_ty),
+            })
+        }
+    };
+    let mut parameters = vec![Parameter {
+        span: expression.parameters_span,
+        name: "self".to_string(),
+        name_span: expression.parameters_span,
+        ty: receiver_ty,
+    }];
+    parameters.extend(expression.parameters.iter().zip(&plan.ty.parameters).map(
+        |(parameter, ty)| Parameter {
             span: parameter.span,
             name: parameter.name.clone(),
             name_span: parameter.name_span,
             ty: ty.clone(),
-        })
-        .collect();
-    MethodDecl {
-        name: name.to_string(),
-        name_span: expression.parameters_span,
-        callable: crate::ast::CallableDecl {
-            span: expression.span,
-            visibility: Visibility::Private,
-            keyword_span: expression.parameters_span,
-            receiver: MethodReceiver {
-                span: expression.parameters_span,
-                name: "self".to_string(),
-                name_span: expression.parameters_span,
-                mode: receiver_mode,
-            },
-            generics: GenericParamList {
-                span: None,
-                parameters: Vec::new(),
-            },
-            parameters: ParameterList {
-                span: expression.parameters_span,
-                parameters,
-            },
-            return_type: (*plan.ty.return_type).clone(),
-            result_provenance: None,
-            requirements: None,
-            body: Some(expression.body.clone()),
         },
-    }
+    ));
+    parameters
 }

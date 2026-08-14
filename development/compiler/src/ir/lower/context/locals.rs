@@ -889,14 +889,6 @@ impl<'a> LoweringContext<'a> {
             .or_else(|| self.aggregate_local_borrow_field(aggregate_name, field_name))
     }
 
-    pub(in crate::ir::lower) fn define_closure_capture_field(
-        &mut self,
-        name: String,
-        field: AggregateFieldAccess,
-    ) {
-        self.closure_capture_fields.insert(name, field);
-    }
-
     pub(in crate::ir::lower) fn closure_capture_field(
         &self,
         name: &str,
