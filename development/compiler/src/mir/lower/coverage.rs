@@ -1139,27 +1139,32 @@ pub(super) fn scalar_linear_block_statements<'a>(
     if let Some(result) = block.result.as_deref() {
         statements.push(ScalarStatement::Expression(result));
     }
-    let mut exited = false;
+    truncate_unreachable_scalar_tail(&mut statements);
     for statement in &statements {
-        if exited
-            || matches!(
-                statement,
-                ScalarStatement::If(_)
-                    | ScalarStatement::While(_)
-                    | ScalarStatement::ForRange(_)
-                    | ScalarStatement::CollectionFor(_)
-                    | ScalarStatement::Loop(_)
-            )
-            || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, in_loop)
+        if matches!(
+            statement,
+            ScalarStatement::If(_)
+                | ScalarStatement::While(_)
+                | ScalarStatement::ForRange(_)
+                | ScalarStatement::CollectionFor(_)
+                | ScalarStatement::Loop(_)
+        ) || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, in_loop)
         {
             return None;
         }
-        exited = matches!(
-            statement,
-            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
-        );
     }
     Some(statements)
+}
+
+fn truncate_unreachable_scalar_tail(statements: &mut Vec<ScalarStatement<'_>>) {
+    if let Some(index) = statements.iter().position(|statement| {
+        matches!(
+            statement,
+            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
+        )
+    }) {
+        statements.truncate(index + 1);
+    }
 }
 
 fn scalar_conditional_statement_is_supported(
@@ -1212,22 +1217,17 @@ pub(super) fn scalar_loop_block_statements<'a>(
     if block.result.is_some() {
         return None;
     }
-    let statements = block
+    let mut statements = block
         .statements
         .iter()
         .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
         .map(scalar_statement)
         .collect::<Option<Vec<_>>>()?;
-    let mut exited = false;
+    truncate_unreachable_scalar_tail(&mut statements);
     for statement in &statements {
-        if exited || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true)
-        {
+        if !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true) {
             return None;
         }
-        exited = matches!(
-            statement,
-            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
-        );
     }
     Some(statements)
 }
