@@ -69,6 +69,12 @@ fn reachable_distances(
                     enqueue(*failure);
                 }
             },
+            Terminator::InspectOutcome {
+                success, failure, ..
+            } => {
+                enqueue(*success);
+                enqueue(*failure);
+            }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }
     }
@@ -103,6 +109,9 @@ pub(super) fn linear_path_target(
                         success, failure, ..
                     },
                 ..
+            } if dedicated_outcome_failure(body, *failure) => current = *success,
+            Terminator::InspectOutcome {
+                success, failure, ..
             } if dedicated_outcome_failure(body, *failure) => current = *success,
             _ => return None,
         }

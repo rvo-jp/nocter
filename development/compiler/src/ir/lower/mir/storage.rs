@@ -182,6 +182,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                     .sum(),
                 crate::mir::Terminator::Goto { .. }
                 | crate::mir::Terminator::Drop { .. }
+                | crate::mir::Terminator::InspectOutcome { .. }
                 | crate::mir::Terminator::Trap
                 | crate::mir::Terminator::PropagateFailure
                 | crate::mir::Terminator::Return => 0,

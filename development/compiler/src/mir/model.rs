@@ -302,6 +302,18 @@ pub(crate) enum Terminator {
         arguments: Vec<CallArgument>,
         continuation: CallContinuation,
     },
+    /// Branch on the outer layer of a stored outcome and project its success
+    /// payload into `destination`. Recursive tag and payload offsets remain a
+    /// backend concern derived from the source local's checked `TyId`.
+    InspectOutcome {
+        origin: Origin,
+        source: Place,
+        layer: crate::outcomes::OutcomeLayer,
+        destination: Place,
+        success: BasicBlockId,
+        failure: BasicBlockId,
+        failure_payload: Option<LocalId>,
+    },
     /// Destroy one initialized owned place, then continue along `target`.
     /// Cleanup is explicit control flow so every kind of scope exit shares
     /// the same path-sensitive ownership model.

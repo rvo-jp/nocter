@@ -9,10 +9,11 @@ fields, forwarding, fixed-array index loans, payload-variant construction, and a
 for enums and outcomes. One construction context owns mutable MIR state and one backend
 context projects the checked body. MIR construction and validation are authoritative after route
 selection; buildability and machine-IR lowering consume the same retained body and identity-backed
-call edges. Stored outcome call results now use checked aggregate MIR locals and acquire their
-recursive machine layout only during backend projection. The next boundary is a semantic MIR
-outcome discriminator and payload projection for consuming or returning stored values; do not put
-tag or payload offsets in MIR. After that, expand closures, typed literals, interpolation,
+call edges. Stored outcome call results now use checked aggregate MIR locals and single-layer
+inspection uses one semantic MIR terminator shared by initialization, ownership, loan, cleanup, and
+backend projection. Recursive machine layout remains backend-only. The next boundary is composed
+and aggregate payload inspection plus stored-outcome forwarding and failure-value returns; do not
+put tag or payload offsets in MIR. After that, expand closures, typed literals, interpolation,
 expansion, and iteration until the AST lowering/buildability routes can be deleted. Do not add
 language features or standard-library APIs during the migration. The
 v0.13.0 tag, archive, release notes, and qualification record are immutable.

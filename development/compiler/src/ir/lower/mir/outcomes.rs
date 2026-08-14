@@ -1,0 +1,132 @@
+//! Projection of semantic stored-outcome inspection into machine IR.
+//!
+//! MIR retains only the checked source type, outer outcome layer, and CFG
+//! edges. Recursive tag, failure, and payload offsets are derived here from
+//! the shared ABI outcome layout.
+
+use super::{
+    BackendContext, aggregate_location, invalid_mir_diagnostics, lower_branch_to_join,
+    outcome_failure_mode,
+};
+use crate::diagnostics::Diagnostic;
+use crate::ir::{ComposedOutcomeDestination, Instruction};
+use crate::mir::{LocalId, Place, ScalarType, ValueRepresentation};
+use std::collections::HashSet;
+
+pub(super) struct Inspection<'a> {
+    pub(super) source: Place,
+    pub(super) layer: crate::outcomes::OutcomeLayer,
+    pub(super) destination: Place,
+    pub(super) success: crate::mir::BasicBlockId,
+    pub(super) failure: crate::mir::BasicBlockId,
+    pub(super) failure_payload: Option<LocalId>,
+    pub(super) visited: &'a mut HashSet<crate::mir::BasicBlockId>,
+}
+
+pub(super) fn lower(
+    context: &BackendContext<'_>,
+    inspection: Inspection<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let source_local = &context.body.locals[inspection.source.local.index()];
+    let type_expr = context
+        .typed_hir
+        .type_expr_by_id(source_local.ty)
+        .ok_or_else(|| invalid_mir_diagnostics("stored outcome source type is missing"))?;
+    let shape =
+        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
+            context.resolved_sources.get(&source).copied()
+        });
+    let [layer] = shape.layers.as_slice() else {
+        return Err(invalid_mir_diagnostics(
+            "stored outcome inspection requires exactly one outcome layer",
+        ));
+    };
+    if *layer != inspection.layer {
+        return Err(invalid_mir_diagnostics(
+            "stored outcome inspection layer differs from its checked type",
+        ));
+    }
+    let payload = crate::abi::abi_value_from_type_expr_with_resolver(
+        &shape.payload,
+        context.resolved,
+        |source| context.resolved_sources.get(&source).copied(),
+    )
+    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+    let storage = shape.storage_layout(payload.layout).ok_or_else(|| {
+        invalid_mir_diagnostics("stored outcome inspection has unsupported storage")
+    })?;
+    let source = aggregate_location(&inspection.source, context)?;
+    let destination = outcome_destination(context, inspection.destination)?;
+    let success_instructions = vec![Instruction::LoadStoredOutcomePayload {
+        destination,
+        source,
+        offset: storage.payload_offset as u32,
+    }];
+    let entry = &storage.layers[0];
+    match inspection.layer {
+        crate::outcomes::OutcomeLayer::Optional => Ok(Instruction::IfStoredOutcomeTag {
+            source,
+            tag_offset: entry.tag_offset as u32,
+            success_instructions,
+            outcome_instructions: lower_branch_to_join(
+                context,
+                inspection.failure,
+                inspection.success,
+                inspection.visited,
+            )?,
+        }),
+        crate::outcomes::OutcomeLayer::Fallible => Ok(Instruction::CheckStoredFallible {
+            source,
+            tag_offset: entry.tag_offset as u32,
+            error_offset: entry.failure_offset.ok_or_else(|| {
+                invalid_mir_diagnostics("fallible stored outcome has no error storage")
+            })? as u32,
+            success_instructions,
+            failure_mode: outcome_failure_mode(
+                context,
+                inspection.failure,
+                inspection.success,
+                inspection.failure_payload,
+                inspection.visited,
+            )?,
+        }),
+    }
+}
+
+fn outcome_destination(
+    context: &BackendContext<'_>,
+    destination: Place,
+) -> Result<ComposedOutcomeDestination, Vec<Diagnostic>> {
+    let representation = context.body.locals[destination.local.index()].representation;
+    Ok(match representation {
+        ValueRepresentation::Scalar(ScalarType::I32) => {
+            ComposedOutcomeDestination::I32(super::i32_location(&destination, context)?)
+        }
+        ValueRepresentation::Scalar(ScalarType::U8) => {
+            ComposedOutcomeDestination::U8(super::u8_location(&destination, context)?)
+        }
+        ValueRepresentation::Scalar(ScalarType::Usize) => {
+            ComposedOutcomeDestination::Usize(super::usize_location(&destination, context)?)
+        }
+        ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+            ComposedOutcomeDestination::Integer {
+                kind,
+                destination: super::integer_location(&destination, kind, context)?,
+            }
+        }
+        ValueRepresentation::Scalar(ScalarType::Bool) => {
+            ComposedOutcomeDestination::Bool(super::bool_location(&destination, context)?)
+        }
+        ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+            ComposedOutcomeDestination::Str(super::str_location(&destination, context)?)
+        }
+        ValueRepresentation::Borrow => {
+            ComposedOutcomeDestination::Borrow(super::usize_location(&destination, context)?)
+        }
+        ValueRepresentation::Aggregate | ValueRepresentation::Error => {
+            return Err(invalid_mir_diagnostics(
+                "stored outcome payload representation is not yet projectable",
+            ));
+        }
+    })
+}

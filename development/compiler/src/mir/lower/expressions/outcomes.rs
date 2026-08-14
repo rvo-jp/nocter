@@ -20,9 +20,6 @@ pub(super) fn lower_otherwise_to_place(
     scalar: ScalarType,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
-    let Expr::Call(call) = otherwise.value.without_groups() else {
-        return Err(super::super::BuildError::UnsupportedClaimedExpression);
-    };
     lower_recovery_to_place(
         context,
         RecoveryDestination {
@@ -31,7 +28,7 @@ pub(super) fn lower_otherwise_to_place(
             scalar,
             parent_scope,
         },
-        call,
+        &otherwise.value,
         &otherwise.fallback,
         None,
     )
@@ -45,9 +42,6 @@ pub(super) fn lower_catch_to_place(
     scalar: ScalarType,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
-    let Expr::Call(call) = catch.expression.without_groups() else {
-        return Err(super::super::BuildError::UnsupportedClaimedExpression);
-    };
     let fallback_scope = context.child_scope(parent_scope, catch.catch_block.span);
     let failure_payload = match &catch.binding {
         crate::ast::CatchBinding::Discard { .. } => None,
@@ -86,7 +80,7 @@ pub(super) fn lower_catch_to_place(
             scalar,
             parent_scope,
         },
-        call,
+        &catch.expression,
         &catch.catch_block,
         fallback_scope,
         failure_payload,
@@ -96,7 +90,7 @@ pub(super) fn lower_catch_to_place(
 fn lower_recovery_to_place(
     context: &mut LoweringContext<'_>,
     destination: RecoveryDestination,
-    call: &crate::ast::CallExpr,
+    source_expression: &Expr,
     fallback_block: &crate::ast::Block,
     failure_payload: Option<LocalId>,
 ) -> Result<(), super::super::BuildError> {
@@ -104,7 +98,7 @@ fn lower_recovery_to_place(
     lower_recovery_to_place_with_scope(
         context,
         destination,
-        call,
+        source_expression,
         fallback_block,
         fallback_scope,
         failure_payload,
@@ -114,29 +108,46 @@ fn lower_recovery_to_place(
 fn lower_recovery_to_place_with_scope(
     context: &mut LoweringContext<'_>,
     destination: RecoveryDestination,
-    call: &crate::ast::CallExpr,
+    source_expression: &Expr,
     fallback_block: &crate::ast::Block,
     fallback_scope: ScopeId,
     failure_payload: Option<LocalId>,
 ) -> Result<(), super::super::BuildError> {
-    let call_source = context
+    let source = context
         .semantic
         .typed_hir
-        .expression(call.span)
+        .expression(source_expression.span())
         .ok_or(super::super::BuildError::MissingTypedExpression)?
         .id;
-    let (callee, arguments, returns_never) = context.lower_call(call, destination.parent_scope)?;
-    if returns_never {
-        return Err(super::super::BuildError::UnsupportedClaimedExpression);
-    }
-    let success = context.control_flow.begin_handled_outcome_call(
-        call_source,
-        callee,
-        arguments,
-        destination.local,
-        fallback_scope,
-        failure_payload,
-    )?;
+    let success = match source_expression.without_groups() {
+        Expr::Call(call) => {
+            let (callee, arguments, returns_never) =
+                context.lower_call(call, destination.parent_scope)?;
+            if returns_never {
+                return Err(super::super::BuildError::UnsupportedClaimedExpression);
+            }
+            context.control_flow.begin_handled_outcome_call(
+                source,
+                callee,
+                arguments,
+                destination.local,
+                fallback_scope,
+                failure_payload,
+            )?
+        }
+        Expr::Identifier(_) => {
+            let (stored, layer) = stored_outcome_source(context, source_expression)?;
+            context.control_flow.begin_stored_outcome_inspection(
+                crate::mir::Origin::Expression(source),
+                stored,
+                layer,
+                destination.local,
+                fallback_scope,
+                failure_payload,
+            )?
+        }
+        _ => return Err(super::super::BuildError::UnsupportedClaimedExpression),
+    };
     let returns = super::super::statements::lower_value_block(
         context,
         fallback_block,
@@ -152,4 +163,58 @@ fn lower_recovery_to_place_with_scope(
             .terminate(Terminator::Goto { target: success })?;
     }
     context.control_flow.select_block(success)
+}
+
+pub(super) fn lower_terminal_stored_outcome_to_place(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    expression: &Expr,
+    failure: Terminator,
+) -> Result<(), super::super::BuildError> {
+    let source = context
+        .semantic
+        .typed_hir
+        .expression(expression.span())
+        .ok_or(super::super::BuildError::MissingTypedExpression)?
+        .id;
+    let (stored, layer) = stored_outcome_source(context, expression)?;
+    context.control_flow.emit_stored_outcome_inspection(
+        crate::mir::Origin::Expression(source),
+        stored,
+        layer,
+        destination,
+        failure,
+    )
+}
+
+fn stored_outcome_source(
+    context: &LoweringContext<'_>,
+    expression: &Expr,
+) -> Result<(crate::mir::Place, crate::outcomes::OutcomeLayer), super::super::BuildError> {
+    let Expr::Identifier(identifier) = expression.without_groups() else {
+        return Err(super::super::BuildError::UnsupportedClaimedExpression);
+    };
+    let symbol = context
+        .semantic
+        .resolved
+        .local_symbol_for_identifier(identifier)
+        .ok_or(super::super::BuildError::MissingLocalSymbol)?;
+    let local = *context
+        .locals_by_symbol
+        .get(&symbol.id)
+        .ok_or(super::super::BuildError::MissingLocalSymbol)?;
+    let type_expr = context
+        .semantic
+        .typed_hir
+        .binding_type_expr(symbol.id)
+        .ok_or(super::super::BuildError::MissingTypedExpression)?;
+    let shape = crate::outcomes::outcome_shape_with_resolver(
+        type_expr,
+        context.semantic.resolved,
+        |source| context.semantic.resolver_for(source),
+    );
+    let [layer] = shape.layers.as_slice() else {
+        return Err(super::super::BuildError::UnsupportedClaimedExpression);
+    };
+    Ok((crate::mir::Place::local(local), *layer))
 }

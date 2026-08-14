@@ -161,6 +161,16 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     }
                 }
             }
+            Terminator::InspectOutcome {
+                source,
+                success,
+                failure,
+                ..
+            } => {
+                reject_operand_move(body, block_id, &Operand::Copy(*source), &state, &mut errors);
+                merge_entry(&mut entries, &mut queue, *success, state.clone());
+                merge_entry(&mut entries, &mut queue, *failure, state);
+            }
             Terminator::Drop { place, target, .. } => {
                 reject_move(body, block_id, *place, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *target, state);

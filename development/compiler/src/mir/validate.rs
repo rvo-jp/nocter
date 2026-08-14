@@ -158,6 +158,9 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         local: LocalId,
     },
+    InvalidOutcomeInspection {
+        block: BasicBlockId,
+    },
     NonBooleanCondition {
         block: BasicBlockId,
         actual: ValueRepresentation,
@@ -714,6 +717,36 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         &argument.operand,
                         &mut errors,
                     );
+                }
+            }
+            Terminator::InspectOutcome {
+                source,
+                layer,
+                destination,
+                success,
+                failure,
+                failure_payload,
+                ..
+            } => {
+                validate_target(body, block_id, *success, &mut errors);
+                validate_target(body, block_id, *failure, &mut errors);
+                let valid_source = source.projection.is_none()
+                    && body.locals.get(source.local.index()).is_some_and(|local| {
+                        local.representation == ValueRepresentation::Aggregate
+                    });
+                let valid_destination = destination.projection.is_none()
+                    && body.locals.get(destination.local.index()).is_some();
+                let valid_failure_payload = match (layer, failure_payload) {
+                    (crate::outcomes::OutcomeLayer::Optional, None) => true,
+                    (crate::outcomes::OutcomeLayer::Fallible, None) => true,
+                    (crate::outcomes::OutcomeLayer::Fallible, Some(payload)) => body
+                        .locals
+                        .get(payload.index())
+                        .is_some_and(|local| local.representation == ValueRepresentation::Error),
+                    (crate::outcomes::OutcomeLayer::Optional, Some(_)) => false,
+                };
+                if !valid_source || !valid_destination || !valid_failure_payload {
+                    errors.push(ValidationError::InvalidOutcomeInspection { block: block_id });
                 }
             }
             Terminator::Drop {

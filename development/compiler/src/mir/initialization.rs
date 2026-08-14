@@ -250,6 +250,33 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     CallContinuation::Never => {}
                 }
             }
+            crate::mir::Terminator::InspectOutcome {
+                source,
+                destination,
+                success,
+                failure,
+                failure_payload,
+                ..
+            } => {
+                validate_and_apply_operand(
+                    &Operand::Copy(*source),
+                    &mut initialized,
+                    block_id,
+                    InitializationLocation::Switch,
+                    body,
+                    &mut errors,
+                );
+                let mut success_state = initialized.clone();
+                success_state.initialize(body, *destination);
+                let mut failure_state = initialized;
+                if let Some(payload) = failure_payload {
+                    failure_state.initialize(body, Place::local(*payload));
+                }
+                edge_states.insert((block_id, *success), success_state.clone());
+                edge_states.insert((block_id, *failure), failure_state.clone());
+                merge_entry(&mut entries, &mut queue, *success, success_state, body);
+                merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
+            }
             crate::mir::Terminator::Drop { place, target, .. } => {
                 validate_and_apply_operand(
                     &Operand::Move(*place),

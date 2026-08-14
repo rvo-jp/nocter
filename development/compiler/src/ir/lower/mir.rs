@@ -20,6 +20,7 @@ use std::collections::HashSet;
 mod control_flow;
 mod drops;
 mod loops;
+mod outcomes;
 mod parameters;
 mod storage;
 
@@ -396,6 +397,29 @@ fn lower_scalar_body(
                     }
                 }
             }
+            Terminator::InspectOutcome {
+                source,
+                layer,
+                destination,
+                success,
+                failure,
+                failure_payload,
+                ..
+            } => {
+                instructions.push(outcomes::lower(
+                    &context,
+                    outcomes::Inspection {
+                        source: *source,
+                        layer: *layer,
+                        destination: *destination,
+                        success: *success,
+                        failure: *failure,
+                        failure_payload: *failure_payload,
+                        visited: &mut visited,
+                    },
+                )?);
+                current = *success;
+            }
             Terminator::Trap => {
                 instructions.push(Instruction::Trap);
                 return Ok(instructions);
@@ -630,6 +654,29 @@ fn lower_branch_to_join(
                         visited,
                     )?,
                 });
+                current = *success;
+            }
+            Terminator::InspectOutcome {
+                source,
+                layer,
+                destination,
+                success,
+                failure,
+                failure_payload,
+                ..
+            } => {
+                instructions.push(outcomes::lower(
+                    context,
+                    outcomes::Inspection {
+                        source: *source,
+                        layer: *layer,
+                        destination: *destination,
+                        success: *success,
+                        failure: *failure,
+                        failure_payload: *failure_payload,
+                        visited,
+                    },
+                )?);
                 current = *success;
             }
             Terminator::Call {

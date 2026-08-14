@@ -167,6 +167,26 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                     CallContinuation::Never => validate_exit(body, block_id, &state, &mut errors),
                 }
             }
+            Terminator::InspectOutcome {
+                source,
+                destination,
+                success,
+                failure,
+                ..
+            } => {
+                consume_operand_move(body, &Operand::Copy(*source), &mut state);
+                let failure_state = state.clone();
+                activate_destination(
+                    body,
+                    *destination,
+                    &mut state,
+                    block_id,
+                    DropObligationLocation::Exit,
+                    &mut errors,
+                );
+                merge_entry(&mut entries, &mut queue, *success, state, body);
+                merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
+            }
             Terminator::Drop { place, target, .. } => {
                 if !owned_local(body, place.local) {
                     errors.insert(DropObligationError {

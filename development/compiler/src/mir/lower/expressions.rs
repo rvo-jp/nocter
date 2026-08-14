@@ -369,33 +369,43 @@ impl LoweringContext<'_> {
                 );
             }
             Expr::Force(force) => {
-                let Expr::Call(call) = force.expression.without_groups() else {
-                    return Err(BuildError::UnsupportedClaimedExpression);
-                };
-                let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
-                if returns_never {
-                    return Err(BuildError::UnsupportedClaimedExpression);
+                if let Expr::Call(call) = force.expression.without_groups() {
+                    let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+                    if returns_never {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    }
+                    return self.control_flow.emit_trapping_outcome_call(
+                        source,
+                        callee,
+                        arguments,
+                        destination,
+                    );
                 }
-                return self.control_flow.emit_trapping_outcome_call(
-                    source,
-                    callee,
-                    arguments,
+                return outcomes::lower_terminal_stored_outcome_to_place(
+                    self,
                     destination,
+                    &force.expression,
+                    crate::mir::Terminator::Trap,
                 );
             }
             Expr::Propagate(propagate) => {
-                let Expr::Call(call) = propagate.expression.without_groups() else {
-                    return Err(BuildError::UnsupportedClaimedExpression);
-                };
-                let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
-                if returns_never {
-                    return Err(BuildError::UnsupportedClaimedExpression);
+                if let Expr::Call(call) = propagate.expression.without_groups() {
+                    let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+                    if returns_never {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    }
+                    return self.control_flow.emit_propagating_outcome_call(
+                        source,
+                        callee,
+                        arguments,
+                        destination,
+                    );
                 }
-                return self.control_flow.emit_propagating_outcome_call(
-                    source,
-                    callee,
-                    arguments,
+                return outcomes::lower_terminal_stored_outcome_to_place(
+                    self,
                     destination,
+                    &propagate.expression,
+                    crate::mir::Terminator::PropagateFailure,
                 );
             }
             Expr::Member(member) => {

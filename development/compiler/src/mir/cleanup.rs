@@ -73,6 +73,23 @@ pub(super) fn materialize(body: &mut Body) {
                     super::CallContinuation::Never => super::CallContinuation::Never,
                 },
             },
+            Terminator::InspectOutcome {
+                origin,
+                source,
+                layer,
+                destination,
+                success,
+                failure,
+                failure_payload,
+            } => Terminator::InspectOutcome {
+                origin,
+                source,
+                layer,
+                destination,
+                success: cleanup_edge(body, &analysis, block_id, source_scope, success),
+                failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                failure_payload,
+            },
             Terminator::Return => {
                 cleanup_exit(body, &analysis, block_id, source_scope, Terminator::Return)
             }

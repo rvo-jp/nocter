@@ -272,6 +272,79 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_stored_outcome_recovery_as_semantic_control_flow() {
+    let (_sources, analysis) = analyze_text(
+        r#"func maybe(): i32? {
+    return 42
+}
+
+func main(): i32 {
+    let saved = maybe()
+    let value = saved otherwise { 7 }
+    return value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("stored outcome recovery must select MIR")
+    .unwrap();
+
+    let inspection = body
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::InspectOutcome {
+                source,
+                layer,
+                destination,
+                success,
+                failure,
+                failure_payload,
+                ..
+            } => Some((
+                *source,
+                *layer,
+                *destination,
+                *success,
+                *failure,
+                *failure_payload,
+            )),
+            _ => None,
+        });
+    let (source, layer, destination, success, failure, failure_payload) = inspection.unwrap();
+    assert_eq!(
+        body.locals[source.local.index()].representation,
+        ValueRepresentation::Aggregate
+    );
+    assert_eq!(layer, crate::outcomes::OutcomeLayer::Optional);
+    assert_eq!(
+        body.locals[destination.local.index()].representation,
+        ValueRepresentation::Scalar(ScalarType::I32)
+    );
+    assert_ne!(success, failure);
+    assert_eq!(failure_payload, None);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_aggregate_return_conditionals_with_one_logical_destination() {
     let (_sources, analysis) = analyze_text(
         r#"struct Pair {

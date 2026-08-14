@@ -779,36 +779,43 @@ pub(super) fn scalar_expression_is_supported(
         Expr::Call(call) => {
             scalar_value_call_is_supported(call, resolved, resolved_sources, typed_hir)
         }
-        Expr::Force(force) => {
-            let Expr::Call(call) = force.expression.without_groups() else {
-                return false;
-            };
-            scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
-        }
-        Expr::Propagate(propagate) => {
-            let Expr::Call(call) = propagate.expression.without_groups() else {
-                return false;
-            };
-            scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
-        }
+        Expr::Force(force) => scalar_outcome_source_is_supported(
+            &force.expression,
+            resolved,
+            resolved_sources,
+            typed_hir,
+            None,
+        ),
+        Expr::Propagate(propagate) => scalar_outcome_source_is_supported(
+            &propagate.expression,
+            resolved,
+            resolved_sources,
+            typed_hir,
+            None,
+        ),
         Expr::Otherwise(otherwise) => {
-            let Expr::Call(call) = otherwise.value.without_groups() else {
-                return false;
-            };
-            scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
-                && scalar_value_block_is_supported(
-                    &otherwise.fallback,
+            scalar_outcome_source_is_supported(
+                &otherwise.value,
+                resolved,
+                resolved_sources,
+                typed_hir,
+                None,
+            ) && scalar_value_block_is_supported(
+                &otherwise.fallback,
+                resolved,
+                resolved_sources,
+                typed_hir,
+            )
+        }
+        Expr::Catch(catch) => {
+            catch_binding_is_supported(catch, resolved, typed_hir)
+                && scalar_outcome_source_is_supported(
+                    &catch.expression,
                     resolved,
                     resolved_sources,
                     typed_hir,
+                    Some(crate::outcomes::OutcomeLayer::Fallible),
                 )
-        }
-        Expr::Catch(catch) => {
-            let Expr::Call(call) = catch.expression.without_groups() else {
-                return false;
-            };
-            catch_binding_is_supported(catch, resolved, typed_hir)
-                && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
                 && scalar_value_block_is_supported(
                     &catch.catch_block,
                     resolved,
@@ -891,6 +898,47 @@ pub(super) fn scalar_expression_is_supported(
         }
         _ => false,
     }
+}
+
+fn scalar_outcome_source_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+    required_layer: Option<crate::outcomes::OutcomeLayer>,
+) -> bool {
+    if let Expr::Call(call) = expression.without_groups() {
+        return match required_layer {
+            Some(crate::outcomes::OutcomeLayer::Fallible) => {
+                scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
+            }
+            Some(crate::outcomes::OutcomeLayer::Optional) => false,
+            None => {
+                scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                    || scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
+            }
+        };
+    }
+    let Expr::Identifier(identifier) = expression.without_groups() else {
+        return false;
+    };
+    let Some(type_expr) = resolved
+        .local_symbol_for_identifier(identifier)
+        .and_then(|symbol| typed_hir.binding_type_expr(symbol.id))
+    else {
+        return false;
+    };
+    let shape = crate::outcomes::outcome_shape_with_resolver(type_expr, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    });
+    let [layer] = shape.layers.as_slice() else {
+        return false;
+    };
+    required_layer.is_none_or(|required| required == *layer)
+        && typed_hir
+            .type_id(&shape.payload)
+            .and_then(|ty| scalar_type(ty, typed_hir))
+            .is_some()
 }
 
 fn catch_binding_is_supported(

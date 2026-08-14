@@ -210,6 +210,59 @@ impl ControlFlowBuilder {
         Ok(success)
     }
 
+    pub(super) fn begin_stored_outcome_inspection(
+        &mut self,
+        origin: Origin,
+        source: Place,
+        layer: crate::outcomes::OutcomeLayer,
+        destination: LocalId,
+        failure_scope: ScopeId,
+        failure_payload: Option<LocalId>,
+    ) -> Result<BasicBlockId, BuildError> {
+        let success = self.reserve_block(self.current_scope()?);
+        let failure = self.reserve_block(failure_scope);
+        self.terminate(Terminator::InspectOutcome {
+            origin,
+            source,
+            layer,
+            destination: Place::local(destination),
+            success,
+            failure,
+            failure_payload,
+        })?;
+        self.select_block(failure)?;
+        Ok(success)
+    }
+
+    pub(super) fn emit_stored_outcome_inspection(
+        &mut self,
+        origin: Origin,
+        source: Place,
+        layer: crate::outcomes::OutcomeLayer,
+        destination: LocalId,
+        failure_terminator: Terminator,
+    ) -> Result<(), BuildError> {
+        debug_assert!(matches!(
+            failure_terminator,
+            Terminator::Trap | Terminator::PropagateFailure
+        ));
+        let scope = self.current_scope()?;
+        let success = self.reserve_block(scope);
+        let failure = self.reserve_block(scope);
+        self.terminate(Terminator::InspectOutcome {
+            origin,
+            source,
+            layer,
+            destination: Place::local(destination),
+            success,
+            failure,
+            failure_payload: None,
+        })?;
+        self.select_block(failure)?;
+        self.terminate(failure_terminator)?;
+        self.select_block(success)
+    }
+
     fn emit_outcome_call(
         &mut self,
         source: ExprId,
