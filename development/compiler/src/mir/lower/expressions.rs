@@ -669,8 +669,40 @@ impl LoweringContext<'_> {
         if let Some(representation @ crate::mir::ValueRepresentation::View(view)) =
             value_representation(ty, self.semantic)
         {
+            let source_ty = known_expression_type(&member.object, self.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let source = self.lower_view_operand(&member.object, source_ty, view, scope)?;
+            let operand = if source_ty == ty {
+                source
+            } else {
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(member.object.span())
+                    .ok_or(BuildError::MissingTypedExpression)?
+                    .id;
+                let temporary = LocalId::from_index(self.locals.len());
+                self.locals.push(crate::mir::Local::view(
+                    ty,
+                    view,
+                    LocalStorage::Local,
+                    LocalOrigin::Temporary(origin),
+                    scope,
+                ));
+                self.control_flow.push_statement(Statement::Assign {
+                    destination: Place::local(temporary),
+                    value: Rvalue::ViewCast {
+                        source,
+                        source_ty,
+                        target_ty: ty,
+                        kind: view,
+                    },
+                    origin: crate::mir::Origin::Expression(origin),
+                })?;
+                Operand::Copy(Place::local(temporary))
+            };
             return Ok(CallArgument {
-                operand: self.lower_view_operand(&member.object, ty, view, scope)?,
+                operand,
                 ty,
                 representation,
             });

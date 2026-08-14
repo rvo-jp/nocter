@@ -574,6 +574,43 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     }
                     Some(*target_ty)
                 }
+                super::model::Rvalue::ViewCast {
+                    source,
+                    source_ty,
+                    target_ty,
+                    kind,
+                } => {
+                    let location = OperandLocation::Statement(statement_index);
+                    let actual = operand_type(body, block_id, location, source, &mut errors);
+                    if let Some(actual) = actual
+                        && actual != *source_ty
+                    {
+                        errors.push(ValidationError::OperandTypeMismatch {
+                            block: block_id,
+                            location,
+                            expected: *source_ty,
+                            actual,
+                        });
+                    }
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        source,
+                        ValueRepresentation::View(*kind),
+                        &mut errors,
+                    );
+                    validate_operand_ownership(body, block_id, location, source, &mut errors);
+                    if destination_representation != ValueRepresentation::View(*kind) {
+                        errors.push(ValidationError::OperandRepresentationMismatch {
+                            block: block_id,
+                            location,
+                            expected: ValueRepresentation::View(*kind),
+                            actual: destination_representation,
+                        });
+                    }
+                    Some(*target_ty)
+                }
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
                 } => {

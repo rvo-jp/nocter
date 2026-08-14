@@ -28,6 +28,9 @@ pub(super) enum ParameterStorage {
     Str {
         abi_index: usize,
     },
+    Slice {
+        abi_index: usize,
+    },
     Borrow {
         abi_index: usize,
     },
@@ -106,6 +109,13 @@ fn storage_for_name(
     }
     if let Some(abi_index) = named_word(&slots.str, name) {
         return Some(ParameterStorage::Str { abi_index });
+    }
+    if let Some(abi_index) = slots.slice.iter().position(|candidate| {
+        candidate
+            .as_ref()
+            .is_some_and(|candidate| candidate.name == name)
+    }) {
+        return Some(ParameterStorage::Slice { abi_index });
     }
     if let Some(parameter) = slots
         .borrow_parameters

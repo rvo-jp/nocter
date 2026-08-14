@@ -108,7 +108,8 @@ impl<'a> ScalarTail<'a> {
             Self::Expression(expression) | Self::Return(expression) => {
                 known_expression_type(expression, typed_hir)
             }
-            Self::Conditional(if_) => scalar_value_block_result_type(&if_.then_block, typed_hir),
+            Self::Conditional(if_) => effective_expression_type(if_.span, typed_hir)
+                .or_else(|| scalar_value_block_result_type(&if_.then_block, typed_hir)),
         }
     }
 }
@@ -2112,6 +2113,9 @@ pub(super) fn value_representation(
         crate::abi::AbiType::StrView => Some(crate::mir::ValueRepresentation::View(
             crate::mir::ViewKind::Str,
         )),
+        crate::abi::AbiType::SliceView => Some(crate::mir::ValueRepresentation::View(
+            crate::mir::ViewKind::Slice,
+        )),
         crate::abi::AbiType::Struct(_)
         | crate::abi::AbiType::Array { .. }
         | crate::abi::AbiType::Enum(_)
@@ -2133,8 +2137,8 @@ pub(super) fn value_expression_is_supported(
             semantic.resolved_sources,
             semantic.typed_hir,
         ),
-        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => match expression {
-            Expr::StringLiteral(literal) => {
+        crate::mir::ValueRepresentation::View(kind) => match expression {
+            Expr::StringLiteral(literal) if kind == crate::mir::ViewKind::Str => {
                 crate::literals::decode_string_literal_bytes(&literal.value).is_ok()
             }
             Expr::Identifier(identifier) => {
@@ -2149,7 +2153,9 @@ pub(super) fn value_expression_is_supported(
             Expr::Group(group) => {
                 value_expression_is_supported(&group.expression, representation, semantic)
             }
-            Expr::Member(member) => super::projections::error_field_is_supported(member, semantic),
+            Expr::Member(member) if kind == crate::mir::ViewKind::Str => {
+                super::projections::error_field_is_supported(member, semantic)
+            }
             Expr::Call(call) => {
                 scalar_call_shape_is_supported(
                     call,

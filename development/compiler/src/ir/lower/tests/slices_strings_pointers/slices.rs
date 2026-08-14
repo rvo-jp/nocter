@@ -1030,21 +1030,26 @@ func choose(bytes: &[u8]): i32 {
             return_type: Type::I32,
             instructions: vec![
                 Instruction::CallUsize {
-                    destination: UsizeLocation::Local(0),
+                    destination: UsizeLocation::Local(1),
                     target: builtin_slice_method_target("u8", "len"),
                     arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 },
-                Instruction::If {
-                    condition: BoolValue::UsizeComparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::Equal,
-                        left: UsizeValue::Location(UsizeLocation::Local(0)),
+                        left: UsizeValue::Location(UsizeLocation::Local(1)),
                         right: usize_const(0),
                     },
-                    then_instructions: vec![set_return_i32(42), Instruction::Return],
-                    else_instructions: vec![set_return_i32(7), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(42)],
+                    else_instructions: vec![set_return_i32(7)],
+                },
+                Instruction::Return,
             ],
         }
     );
@@ -1086,28 +1091,33 @@ func identity(bytes: &[u8]): &[u8] {
             return_type: Type::I32,
             instructions: vec![
                 call_slice(
-                    SliceLocation::Local(1),
+                    SliceLocation::Local(2),
                     "identity",
                     vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 ),
                 Instruction::CallUsize {
-                    destination: UsizeLocation::Local(0),
+                    destination: UsizeLocation::Local(1),
                     target: builtin_slice_method_target("u8", "len"),
                     arguments: vec![ScalarArgument::Slice(SliceValue::Location(
-                        SliceLocation::Local(1),
+                        SliceLocation::Local(2),
                     ))],
                 },
-                Instruction::If {
-                    condition: BoolValue::UsizeComparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::NotEqual,
-                        left: UsizeValue::Location(UsizeLocation::Local(0)),
+                        left: UsizeValue::Location(UsizeLocation::Local(1)),
                         right: usize_const(0),
                     },
-                    then_instructions: vec![set_return_i32(42), Instruction::Return],
-                    else_instructions: vec![set_return_i32(7), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(42)],
+                    else_instructions: vec![set_return_i32(7)],
+                },
+                Instruction::Return,
             ],
         }
     );
@@ -1147,9 +1157,10 @@ func choose(bytes: &[u8]): i32 {
                 },
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Local(0)),
-                    then_instructions: vec![set_return_i32(42), Instruction::Return],
-                    else_instructions: vec![set_return_i32(7), Instruction::Return],
+                    then_instructions: vec![set_return_i32(42)],
+                    else_instructions: vec![set_return_i32(7)],
                 },
+                Instruction::Return,
             ],
         }
     );
@@ -1740,23 +1751,20 @@ func choose(left: &[u8], right: &[u8], flag: bool): &[u8] {
             name: "choose".to_string(),
             target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: readonly_u8_slice_type(),
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Parameter(4)),
-                then_instructions: vec![
-                    Instruction::SetSlice {
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(4)),
+                    then_instructions: vec![Instruction::SetSlice {
                         destination: SliceLocation::Return,
                         value: SliceValue::Location(SliceLocation::Parameter(0)),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetSlice {
+                    },],
+                    else_instructions: vec![Instruction::SetSlice {
                         destination: SliceLocation::Return,
                         value: SliceValue::Location(SliceLocation::Parameter(2)),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+                    },],
+                },
+                Instruction::Return
+            ],
         }
     );
 }

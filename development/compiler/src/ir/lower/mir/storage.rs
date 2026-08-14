@@ -29,15 +29,56 @@ fn machine_word_width(body: &Body, id: LocalId, local: &crate::mir::Local) -> us
     if local.storage != LocalStorage::Local
         || is_inlined_loop_condition(body, id)
         || is_inlined_borrow_temporary(body, id)
+        || is_inlined_view_cast(body, id)
     {
         return 0;
     }
     match local.representation {
         ValueRepresentation::Unit | ValueRepresentation::Aggregate => 0,
         ValueRepresentation::Error => 4,
-        ValueRepresentation::View(crate::mir::ViewKind::Str) => 2,
+        ValueRepresentation::View(_) => 2,
         ValueRepresentation::Scalar(_) | ValueRepresentation::Borrow => 1,
     }
+}
+
+pub(super) fn is_inlined_view_cast(body: &Body, local: LocalId) -> bool {
+    let Some(declaration) = body.locals.get(local.index()) else {
+        return false;
+    };
+    declaration.storage == LocalStorage::Local
+        && matches!(declaration.representation, ValueRepresentation::View(_))
+        && matches!(declaration.origin, LocalOrigin::Temporary(_))
+        && local_definition_count(body, local) == 1
+        && local_use_count(body, local) == 1
+        && body.blocks.iter().any(|block| {
+            matches!(
+                &block.terminator,
+                crate::mir::Terminator::Call { arguments, .. }
+                    if arguments.iter().any(|argument| matches!(
+                        argument.operand,
+                        Operand::Copy(place) if place == crate::mir::Place::local(local)
+                    ))
+            )
+        })
+}
+
+pub(super) fn inlined_view_cast_source(body: &Body, local: LocalId) -> Option<&Operand> {
+    if !is_inlined_view_cast(body, local) {
+        return None;
+    }
+    body.blocks.iter().find_map(|block| {
+        block
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::mir::Statement::Assign {
+                    destination,
+                    value: Rvalue::ViewCast { source, .. },
+                    ..
+                } if *destination == crate::mir::Place::local(local) => Some(source),
+                _ => None,
+            })
+    })
 }
 
 pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
@@ -255,9 +296,11 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
             .iter()
             .map(|leaf| operand_use_count(&leaf.operand, local))
             .sum(),
-        Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
-            operand_use_count(operand, local)
-        }
+        Rvalue::Unary { operand, .. }
+        | Rvalue::Cast { operand, .. }
+        | Rvalue::ViewCast {
+            source: operand, ..
+        } => operand_use_count(operand, local),
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
             operand_use_count(left, local) + operand_use_count(right, local)
         }

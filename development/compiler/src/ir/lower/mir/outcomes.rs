@@ -218,6 +218,9 @@ fn outcome_destination(
         ValueRepresentation::View(crate::mir::ViewKind::Str) => {
             ComposedOutcomeDestination::Str(super::str_location(&destination, context)?)
         }
+        ValueRepresentation::View(crate::mir::ViewKind::Slice) => {
+            ComposedOutcomeDestination::Slice(super::slice_location(&destination, context)?)
+        }
         ValueRepresentation::Borrow => {
             ComposedOutcomeDestination::Borrow(super::usize_location(&destination, context)?)
         }

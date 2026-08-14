@@ -382,7 +382,11 @@ fn reject_rvalue_moves(
                 reject_operand_move(body, block, &leaf.operand, state, errors);
             }
         }
-        Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
+        Rvalue::Unary { operand, .. }
+        | Rvalue::Cast { operand, .. }
+        | Rvalue::ViewCast {
+            source: operand, ..
+        } => {
             reject_operand_move(body, block, operand, state, errors);
         }
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {

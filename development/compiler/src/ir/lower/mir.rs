@@ -5,8 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
     DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, StrLocation, StrValue, Type,
-    U8Location, U8Value, UsizeLocation, UsizeValue,
+    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, SliceLocation, SliceValue,
+    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -173,6 +173,10 @@ fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentatio
             crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
             ReturnMode::Plain,
         ),
+        Type::Slice { .. } => (
+            crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
+            ReturnMode::Plain,
+        ),
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => (
             crate::mir::ValueRepresentation::Aggregate,
             ReturnMode::Plain,
@@ -205,6 +209,10 @@ fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentatio
             ),
             Type::Str => (
                 crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+                ReturnMode::Fallible,
+            ),
+            Type::Slice { .. } => (
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
                 ReturnMode::Fallible,
             ),
             _ => return None,
@@ -1104,6 +1112,12 @@ pub(super) fn lower_outcome_success_return(
             destination: StrLocation::Return,
             value: lower_str_operand(source, context)?,
         },
+        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) => {
+            Instruction::SetSlice {
+                destination: SliceLocation::Return,
+                value: lower_slice_operand(source, context)?,
+            }
+        }
         crate::mir::ValueRepresentation::Unit
         | crate::mir::ValueRepresentation::Borrow
         | crate::mir::ValueRepresentation::Error
@@ -1260,6 +1274,22 @@ fn lower_returning_call(
             arguments,
         });
     }
+    if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) {
+        let return_type = context
+            .function_signatures
+            .return_type(&target)
+            .ok_or_else(|| invalid_mir_diagnostics("slice call has no indexed return type"))?;
+        if !matches!(return_type, Type::Slice { .. }) {
+            return Err(invalid_mir_diagnostics(
+                "slice MIR call target does not return a slice",
+            ));
+        }
+        return Ok(Instruction::CallSlice {
+            destination: slice_location(destination, context)?,
+            target,
+            arguments,
+        });
+    }
     let scalar = local_scalar(context.body, destination.local)?;
     super::expressions::validate_known_call_success_return_passing(
         function_signatures.success_return_passing(&target),
@@ -1362,6 +1392,14 @@ fn lower_outcome_call(
     if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) {
         return Ok(Instruction::CallOutcomeStr {
             destination: str_location(destination, context)?,
+            target,
+            arguments,
+            failure_mode,
+        });
+    }
+    if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) {
+        return Ok(Instruction::CallOutcomeSlice {
+            destination: slice_location(destination, context)?,
             target,
             arguments,
             failure_mode,
@@ -1564,6 +1602,9 @@ fn lower_call_argument(
         }
         crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
             ScalarArgument::Str(lower_str_operand(&argument.operand, context)?)
+        }
+        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) => {
+            ScalarArgument::Slice(lower_slice_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
@@ -1802,6 +1843,11 @@ fn lower_statements(
         else {
             unreachable!("all MIR statement kinds handled above");
         };
+        if destination.projection.is_none()
+            && storage::is_inlined_view_cast(body, destination.local)
+        {
+            continue;
+        }
         if let Rvalue::Variant { variant, leaves } = value {
             reserve_aggregate_destination(context, destination, &mut instructions)?;
             let location = aggregate_location(destination, context)?;
@@ -1932,14 +1978,40 @@ fn lower_statements(
         if destination_representation
             == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str)
         {
-            let Rvalue::Use(operand) = value else {
-                return Err(invalid_mir_diagnostics(
-                    "string-view assignment requires a direct MIR operand",
-                ));
+            let operand = match value {
+                Rvalue::Use(operand)
+                | Rvalue::ViewCast {
+                    source: operand, ..
+                } => operand,
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "string-view assignment requires a direct MIR operand",
+                    ));
+                }
             };
             instructions.push(Instruction::SetStr {
                 destination: str_location(destination, context)?,
                 value: lower_str_operand(operand, context)?,
+            });
+            continue;
+        }
+        if destination_representation
+            == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+        {
+            let operand = match value {
+                Rvalue::Use(operand)
+                | Rvalue::ViewCast {
+                    source: operand, ..
+                } => operand,
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "slice-view assignment requires a direct MIR operand",
+                    ));
+                }
+            };
+            instructions.push(Instruction::SetSlice {
+                destination: slice_location(destination, context)?,
+                value: lower_slice_operand(operand, context)?,
             });
             continue;
         }
@@ -2016,6 +2088,11 @@ fn lower_statements(
                             "i32 scalar route received a view index result",
                         ));
                     }
+                    Rvalue::ViewCast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "i32 scalar route received a view coercion",
+                        ));
+                    }
                 }
             }
             ScalarType::U8 => {
@@ -2076,6 +2153,19 @@ fn lower_statements(
                         destination,
                         value: lower_str_index(source, index, context)?,
                     }),
+                    Rvalue::ViewIndex {
+                        kind: crate::mir::ViewKind::Slice,
+                        ..
+                    } => {
+                        return Err(invalid_mir_diagnostics(
+                            "u8 slice indexing is not yet projected",
+                        ));
+                    }
+                    Rvalue::ViewCast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "u8 scalar route received a view coercion",
+                        ));
+                    }
                 }
             }
             ScalarType::Usize => {
@@ -2130,6 +2220,11 @@ fn lower_statements(
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "usize scalar route received a view index result",
+                        ));
+                    }
+                    Rvalue::ViewCast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "usize scalar route received a view coercion",
                         ));
                     }
                 }
@@ -2200,6 +2295,11 @@ fn lower_statements(
                             "integer scalar route received a view index result",
                         ));
                     }
+                    Rvalue::ViewCast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "integer scalar route received a view coercion",
+                        ));
+                    }
                 }
             }
             ScalarType::Bool => {
@@ -2266,6 +2366,11 @@ fn lower_statements(
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "boolean scalar route received a view index result",
+                        ));
+                    }
+                    Rvalue::ViewCast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received a view coercion",
                         ));
                     }
                 }
@@ -3770,7 +3875,13 @@ fn lower_str_operand(
     match operand {
         Operand::StaticStr { bytes, .. } => Ok(StrValue::StaticBytes(bytes.clone())),
         Operand::Copy(place) | Operand::Move(place) => {
-            str_location(place, context).map(StrValue::Location)
+            if place.projection.is_none()
+                && let Some(source) = storage::inlined_view_cast_source(context.body, place.local)
+            {
+                lower_str_operand(source, context)
+            } else {
+                str_location(place, context).map(StrValue::Location)
+            }
         }
         Operand::Constant(_) => Err(invalid_mir_diagnostics(
             "scalar constant used as a string-view operand",
@@ -3820,6 +3931,52 @@ fn str_location(
             )),
         },
         LocalStorage::Local => Ok(StrLocation::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
+    }
+}
+
+fn lower_slice_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<SliceValue, Vec<Diagnostic>> {
+    match operand {
+        Operand::Copy(place) | Operand::Move(place) => {
+            if place.projection.is_none()
+                && let Some(source) = storage::inlined_view_cast_source(context.body, place.local)
+            {
+                lower_slice_operand(source, context)
+            } else {
+                slice_location(place, context).map(SliceValue::Location)
+            }
+        }
+        Operand::StaticStr { .. } | Operand::Constant(_) => Err(invalid_mir_diagnostics(
+            "non-slice value used as a slice-view operand",
+        )),
+    }
+}
+
+fn slice_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<SliceLocation, Vec<Diagnostic>> {
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected slice-view storage is not yet supported",
+        ));
+    }
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(SliceLocation::Return),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Slice { abi_index }) => {
+                Ok(SliceLocation::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "slice-view MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(SliceLocation::Local(machine_local_index(
             context.body,
             place.local,
         ))),

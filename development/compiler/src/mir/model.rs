@@ -214,6 +214,12 @@ pub(crate) enum Rvalue {
         target_ty: TyId,
         target_scalar: ScalarType,
     },
+    ViewCast {
+        source: Operand,
+        source_ty: TyId,
+        target_ty: TyId,
+        kind: super::ViewKind,
+    },
     Binary {
         operator: BinaryOperator,
         left: Operand,

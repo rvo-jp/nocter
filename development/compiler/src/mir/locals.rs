@@ -158,6 +158,7 @@ pub(crate) enum ValueRepresentation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ViewKind {
     Str,
+    Slice,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
