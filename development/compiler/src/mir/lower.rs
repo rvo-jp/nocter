@@ -19,6 +19,7 @@ mod borrows;
 mod closures;
 mod context;
 mod coverage;
+mod explicit_drops;
 mod expressions;
 mod indexes;
 mod interpolation;
@@ -127,6 +128,13 @@ pub(crate) fn try_build_body_with_return_mode(
         typed_hir: inputs.typed_hir,
     };
     let (mut source_statements, mut tail) = scalar_body_parts(block)?;
+    if (return_representation == super::ValueRepresentation::Aggregate
+        && coverage::block_contains_explicit_drop(block))
+        || coverage::block_contains_nested_explicit_drop(block)
+        || coverage::reinitializes_explicitly_dropped_local(&source_statements, inputs.resolved)
+    {
+        return None;
+    }
     if return_representation == super::ValueRepresentation::Unit
         && let Some(if_) = tail.conditional()
     {

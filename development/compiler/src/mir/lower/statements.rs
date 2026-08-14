@@ -437,6 +437,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     }
                     false
                 }
+                ScalarStatement::Drop(statement) => {
+                    super::explicit_drops::lower(self.context, statement)?;
+                    false
+                }
                 ScalarStatement::Return(statement) => {
                     let Some(expression) = statement.expression.as_ref() else {
                         if self.context.locals[self.context.return_local().index()].representation

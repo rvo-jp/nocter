@@ -24,6 +24,7 @@ pub(super) enum ScalarStatement<'a> {
     While(&'a WhileStmt),
     Region(&'a RegionStmt),
     Expression(&'a Expr),
+    Drop(&'a crate::ast::DropStmt),
     Return(&'a crate::ast::ReturnStmt),
     Break,
     Continue,
@@ -852,6 +853,14 @@ impl<'a> ScalarStatement<'a> {
                 }
                 _ => false,
             },
+            Self::Drop(statement) => super::explicit_drops::is_supported(
+                statement,
+                SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            ),
             Self::Return(statement) => statement.expression.as_ref().is_none_or(|expression| {
                 typed_hir
                     .expression(expression.span())
@@ -1074,6 +1083,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Region(statement) => Some(ScalarStatement::Region(statement)),
         Stmt::Expression(statement) => Some(ScalarStatement::Expression(&statement.expression)),
+        Stmt::Drop(statement) => Some(ScalarStatement::Drop(statement)),
         Stmt::Return(statement) => Some(ScalarStatement::Return(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
@@ -1206,6 +1216,123 @@ fn truncate_unreachable_scalar_tail(statements: &mut Vec<ScalarStatement<'_>>) {
     }) {
         statements.truncate(index + 1);
     }
+}
+
+pub(super) fn reinitializes_explicitly_dropped_local(
+    statements: &[ScalarStatement<'_>],
+    resolved: &ResolveOutput,
+) -> bool {
+    let mut dropped = std::collections::HashSet::new();
+    for statement in statements {
+        match statement {
+            ScalarStatement::Drop(statement) => {
+                if let Some(symbol) =
+                    resolved.local_symbol_id_for_reference_span(statement.name_span)
+                {
+                    dropped.insert(symbol);
+                }
+            }
+            ScalarStatement::Assignment(assignment) => {
+                if let Expr::Identifier(identifier) = assignment.target.without_groups()
+                    && resolved
+                        .local_symbol_for_identifier(identifier)
+                        .is_some_and(|symbol| dropped.contains(&symbol.id))
+                {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+pub(super) fn block_contains_explicit_drop(block: &Block) -> bool {
+    block.statements.iter().any(|statement| match statement {
+        Stmt::Drop(_) => true,
+        Stmt::If(statement) => {
+            block_contains_explicit_drop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_contains_explicit_drop)
+        }
+        Stmt::IfIs(statement) => {
+            block_contains_explicit_drop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_contains_explicit_drop)
+        }
+        Stmt::Switch(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_contains_explicit_drop(&arm.body))
+                || statement
+                    .wildcard_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_explicit_drop(&arm.body))
+        }
+        Stmt::ForRange(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::CollectionFor(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::LiteralPackFor(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::While(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::Loop(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::Region(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Return(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Expression(_) => false,
+    })
+}
+
+pub(super) fn block_contains_nested_explicit_drop(block: &Block) -> bool {
+    block.statements.iter().any(|statement| match statement {
+        Stmt::ForRange(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::CollectionFor(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::LiteralPackFor(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::While(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::Loop(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::If(statement) => {
+            block_contains_explicit_drop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_contains_explicit_drop)
+        }
+        Stmt::IfIs(statement) => {
+            block_contains_explicit_drop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_contains_explicit_drop)
+        }
+        Stmt::Switch(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_contains_explicit_drop(&arm.body))
+                || statement
+                    .wildcard_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_explicit_drop(&arm.body))
+        }
+        Stmt::Region(statement) => block_contains_explicit_drop(&statement.body),
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Return(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Drop(_)
+        | Stmt::Expression(_) => false,
+    })
 }
 
 fn scalar_conditional_statement_is_supported(
