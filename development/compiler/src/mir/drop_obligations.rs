@@ -77,6 +77,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
 
         for (statement_index, statement) in block.statements.iter().enumerate() {
             match statement {
+                super::Statement::BeginAggregate { .. } => {}
+                super::Statement::FinishAggregate { destination, .. } => {
+                    finish_destination(body, *destination, &mut state);
+                }
                 super::Statement::Assign {
                     destination, value, ..
                 } => {
@@ -192,6 +196,14 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
     errors
 }
 
+fn finish_destination(body: &Body, place: Place, state: &mut ObligationState) {
+    if !owned_place(body, place) {
+        return;
+    }
+    state.may_live.finish_aggregate(body, place);
+    state.must_live.finish_aggregate(body, place);
+}
+
 fn activate_destination(
     body: &Body,
     place: Place,
@@ -261,7 +273,7 @@ fn owned_place(body: &Body, place: Place) -> bool {
 fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState) {
     match value {
         Rvalue::Use(operand) => consume_operand_move(body, operand, state),
-        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => {
+        Rvalue::Variant { leaves, .. } => {
             for leaf in leaves {
                 consume_operand_move(body, &leaf.operand, state);
             }

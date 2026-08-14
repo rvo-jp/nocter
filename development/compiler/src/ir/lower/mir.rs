@@ -977,6 +977,13 @@ fn lower_statements(
     let body = context.body;
     let mut instructions = Vec::new();
     for statement in statements {
+        if let Statement::BeginAggregate { destination, .. } = statement {
+            reserve_aggregate_destination(context, destination, &mut instructions)?;
+            continue;
+        }
+        if matches!(statement, Statement::FinishAggregate { .. }) {
+            continue;
+        }
         if let Statement::EnterRegion { region, .. } = statement {
             instructions.extend(lower_region_enter(*region, context)?);
             continue;
@@ -1010,28 +1017,6 @@ fn lower_statements(
         else {
             unreachable!("all MIR statement kinds handled above");
         };
-        if let Rvalue::Aggregate { leaves } = value {
-            reserve_aggregate_destination(context, destination, &mut instructions)?;
-            let location = aggregate_location(destination, context)?;
-            let abi =
-                aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?;
-            for leaf in leaves {
-                let (offset, leaf_abi) = aggregate_leaf_projection(&abi.ty, &leaf.path)?;
-                if !abi_type_matches_scalar(leaf_abi, leaf.scalar) {
-                    return Err(invalid_mir_diagnostics(
-                        "aggregate MIR leaf scalar does not match its ABI projection",
-                    ));
-                }
-                instructions.push(store_aggregate_scalar(
-                    location,
-                    offset,
-                    leaf.scalar,
-                    &leaf.operand,
-                    context,
-                )?);
-            }
-            continue;
-        }
         if let Rvalue::Variant { variant, leaves } = value {
             reserve_aggregate_destination(context, destination, &mut instructions)?;
             let location = aggregate_location(destination, context)?;
@@ -1086,7 +1071,7 @@ fn lower_statements(
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -1146,7 +1131,7 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -1197,7 +1182,7 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -1248,7 +1233,7 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -1311,7 +1296,7 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                    Rvalue::Variant { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -1824,6 +1809,24 @@ fn aggregate_borrow_projection(
                 length,
                 stride,
             } => {
+                if let Operand::Constant(constant) = &operand {
+                    if constant.scalar != ScalarType::Usize || constant.value >= u128::from(length)
+                    {
+                        return Err(invalid_mir_diagnostics(
+                            "constant MIR aggregate index is out of bounds",
+                        ));
+                    }
+                    let indexed_offset = constant
+                        .value
+                        .checked_mul(u128::from(stride))
+                        .and_then(|indexed| u128::from(offset).checked_add(indexed))
+                        .and_then(|indexed| u32::try_from(indexed).ok())
+                        .ok_or_else(|| {
+                            invalid_mir_diagnostics("aggregate index offset overflowed")
+                        })?;
+                    offset = indexed_offset;
+                    continue;
+                }
                 if index.is_some() {
                     return Err(invalid_mir_diagnostics(
                         "nested MIR indexes require a multidimensional machine projection",

@@ -96,6 +96,8 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                 .statements
                 .iter()
                 .filter(|statement| match statement {
+                    crate::mir::Statement::BeginAggregate { .. }
+                    | crate::mir::Statement::FinishAggregate { .. } => false,
                     crate::mir::Statement::Assign { destination, .. } => destination.local == local,
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
@@ -139,6 +141,8 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                 .statements
                 .iter()
                 .map(|statement| match statement {
+                    crate::mir::Statement::BeginAggregate { .. }
+                    | crate::mir::Statement::FinishAggregate { .. } => 0,
                     crate::mir::Statement::Assign { value, .. } => rvalue_use_count(value, local),
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
@@ -185,7 +189,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
-        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => leaves
+        Rvalue::Variant { leaves, .. } => leaves
             .iter()
             .map(|leaf| operand_use_count(&leaf.operand, local))
             .sum(),

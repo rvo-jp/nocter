@@ -83,6 +83,24 @@ impl PlaceState {
         }
     }
 
+    /// Consolidates initialized child places into their completed aggregate.
+    pub(super) fn finish_aggregate(&mut self, body: &Body, place: Place) {
+        match place.projection {
+            None => {
+                self.clear_projection_state_for_local(body, place.local);
+                self.initialized_roots.insert(place.local);
+            }
+            Some(projection) => {
+                for descendant in descendants(body, projection) {
+                    self.initialized_projections.remove(descendant);
+                    self.invalidated_projections.remove(descendant);
+                }
+                self.initialized_projections.insert(projection);
+                self.invalidated_projections.remove(projection);
+            }
+        }
+    }
+
     pub(super) fn is_available(&self, body: &Body, place: Place) -> bool {
         let Some(projection) = place.projection else {
             return self.initialized_roots.contains(place.local)

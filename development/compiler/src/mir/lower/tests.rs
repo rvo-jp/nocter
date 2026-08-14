@@ -231,7 +231,7 @@ func main(): i32 {
 }
 
 #[test]
-fn builds_owned_struct_literals_as_aggregate_rvalues() {
+fn builds_owned_struct_literals_as_staged_places() {
     let (_sources, analysis) = analyze_text(
         r#"struct Resource {
     fd: i32
@@ -269,24 +269,41 @@ func main(): i32 {
     .expect("owned struct literal must select MIR")
     .unwrap();
 
-    assert!(
-        body.blocks
-            .iter()
-            .any(|block| block.statements.iter().any(|statement| matches!(
-                statement,
-                Statement::Assign {
-                    value: Rvalue::Aggregate { leaves },
-                    ..
-                } if matches!(
-                    leaves.as_slice(),
-                    [crate::mir::AggregateLeaf {
-                        path,
-                        operand: Operand::Constant(crate::mir::Constant { value: 7, .. }),
-                        ..
-                    }] if path == &[crate::mir::AggregateElement::Field(0)]
-                )
-            )))
-    );
+    let resource = LocalId::from_index(1);
+    let field = body
+        .projections
+        .iter()
+        .find(|projection| {
+            projection.base == resource
+                && projection.parent.is_none()
+                && projection.element == ProjectionElement::Field { offset: 0 }
+        })
+        .unwrap();
+    let statements = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .collect::<Vec<_>>();
+    assert!(statements.iter().any(|statement| matches!(
+        statement,
+        Statement::BeginAggregate {
+            destination: crate::mir::Place { local, projection: None },
+            ..
+        } if *local == resource
+    )));
+    assert!(statements.iter().any(|statement| matches!(
+        statement,
+        Statement::Assign {
+            destination,
+            value: Rvalue::Use(Operand::Constant(crate::mir::Constant { value: 7, .. })),
+            ..
+        } if *destination == crate::mir::Place::projected(resource, field.id)
+    )));
+    assert!(statements.iter().any(|statement| matches!(
+        statement,
+        Statement::FinishAggregate { destination, fields, .. }
+            if *destination == crate::mir::Place::local(resource) && fields == &[field.id]
+    )));
 }
 
 #[test]
@@ -412,31 +429,20 @@ func main(): i32 {
     .expect("nested struct literal must select MIR")
     .unwrap();
 
-    let leaves = body
-        .blocks
+    let root_fields = body
+        .projections
         .iter()
-        .flat_map(|block| &block.statements)
-        .find_map(|statement| match statement {
-            Statement::Assign {
-                value: Rvalue::Aggregate { leaves },
-                ..
-            } => Some(leaves),
-            _ => None,
-        })
+        .filter(|projection| projection.parent.is_none())
+        .collect::<Vec<_>>();
+    assert_eq!(root_fields.len(), 2);
+    let nested = root_fields
+        .iter()
+        .find(|projection| projection.representation == ValueRepresentation::Aggregate)
         .unwrap();
-    assert_eq!(
-        leaves
-            .iter()
-            .map(|leaf| leaf.path.as_slice())
-            .collect::<Vec<_>>(),
-        vec![
-            &[crate::mir::AggregateElement::Field(0)][..],
-            &[
-                crate::mir::AggregateElement::Field(1),
-                crate::mir::AggregateElement::Field(0),
-            ][..],
-        ]
-    );
+    assert!(body.projections.iter().any(|projection| {
+        projection.parent == Some(nested.id)
+            && projection.element == ProjectionElement::Field { offset: 0 }
+    }));
 }
 
 #[test]
@@ -470,29 +476,99 @@ fn flattens_fixed_array_literals_to_semantic_leaf_paths() {
     .expect("fixed array literal must select MIR")
     .unwrap();
 
-    let leaves = body
-        .blocks
+    let indices = body
+        .projections
         .iter()
-        .flat_map(|block| &block.statements)
-        .find_map(|statement| match statement {
-            Statement::Assign {
-                value: Rvalue::Aggregate { leaves },
-                ..
-            } => Some(leaves),
+        .filter_map(|projection| match projection.element {
+            ProjectionElement::Index {
+                index: Operand::Constant(crate::mir::Constant { value, .. }),
+                length: 3,
+                stride: 4,
+            } => Some(value),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(indices, vec![0, 1, 2]);
+}
+
+#[test]
+fn cleans_completed_fields_when_later_aggregate_initialization_propagates() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+struct Request {
+    resource: Resource
+    code: i32
+}
+
+func read_code(): i32! {
+    return 7
+}
+
+func run(): i32! {
+    let request = Request {
+        resource: Resource { fd: 1 },
+        code: read_code()?,
+    }
+    return request.code
+}
+"#,
+    );
+    assert!(
+        analysis.diagnostics().is_empty(),
+        "{:?}",
+        analysis.diagnostics()
+    );
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "run" => Some(function),
             _ => None,
         })
         .unwrap();
-    assert_eq!(
-        leaves
-            .iter()
-            .map(|leaf| leaf.path.as_slice())
-            .collect::<Vec<_>>(),
-        vec![
-            &[crate::mir::AggregateElement::Index(0)][..],
-            &[crate::mir::AggregateElement::Index(1)][..],
-            &[crate::mir::AggregateElement::Index(2)][..],
-        ]
-    );
+    let resolved_sources =
+        std::collections::HashMap::from([(file.ast.span.source, &file.resolved)]);
+    let body = try_build_scalar_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        ReturnMode::Fallible,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &resolved_sources,
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("partially initialized aggregate must select MIR")
+    .unwrap();
+
+    let resource = body
+        .projections
+        .iter()
+        .find(|projection| {
+            projection.parent.is_none()
+                && projection.representation == ValueRepresentation::Aggregate
+                && projection.ownership == OwnershipKind::Move
+        })
+        .expect("owned resource projection");
+    assert!(body.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Terminator::Drop { place, .. }
+                if place == crate::mir::Place::projected(resource.base, resource.id)
+        )
+    }));
+    assert_eq!(validate(&body), Ok(()));
 }
 
 #[test]

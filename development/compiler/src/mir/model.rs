@@ -104,6 +104,15 @@ pub(crate) struct BasicBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Statement {
+    BeginAggregate {
+        destination: Place,
+        origin: Origin,
+    },
+    FinishAggregate {
+        destination: Place,
+        fields: Vec<ProjectionPathId>,
+        origin: Origin,
+    },
     Assign {
         destination: Place,
         value: Rvalue,
@@ -150,9 +159,6 @@ impl Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
-    Aggregate {
-        leaves: Vec<AggregateLeaf>,
-    },
     Variant {
         variant: DefId,
         leaves: Vec<AggregateLeaf>,

@@ -372,7 +372,9 @@ func main(): i32! {
         .find_map(|instruction| match instruction {
             Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode:
+                    OutcomeFailureMode::Handle { instructions }
+                    | OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,
@@ -380,21 +382,15 @@ func main(): i32! {
 
     assert!(matches!(
         cleanup.map(Vec::as_slice),
-        Some([Instruction::If {
-            condition: BoolValue::Location(BoolLocation::Local(0)),
-            then_instructions,
-            else_instructions,
-        }]) if else_instructions.is_empty()
+        Some([
+            Instruction::CallVoid { target, arguments },
+            Instruction::PropagateFailure,
+        ]) if target == &CallTarget::same_file("File.drop")
             && matches!(
-                then_instructions.as_slice(),
-                [Instruction::CallVoid { target, arguments }]
-                    if target == &CallTarget::same_file("File.drop")
-                        && matches!(
-                            arguments.as_slice(),
-                            [ScalarArgument::Borrow(BorrowArgument {
-                                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
-                            })]
-                        )
+                arguments.as_slice(),
+                [ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0)
+                })]
             )
     ));
 }
@@ -452,7 +448,9 @@ func main(): i32! {
         .find_map(|instruction| match instruction {
             Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode:
+                    OutcomeFailureMode::Handle { instructions }
+                    | OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,
@@ -460,28 +458,11 @@ func main(): i32! {
 
     assert!(matches!(
         cleanup.map(Vec::as_slice),
-        Some([Instruction::If {
-            condition: BoolValue::Location(BoolLocation::Local(0)),
-            then_instructions: outer_complete,
-            else_instructions,
-        }]) if outer_complete.iter().any(|instruction| matches!(
-                instruction,
-                Instruction::CallVoid { target, .. }
-                    if target == &CallTarget::same_file("Inner.drop")
-            ))
-            && matches!(
-                else_instructions.as_slice(),
-                [Instruction::If {
-                    condition: BoolValue::Location(BoolLocation::Local(1)),
-                    then_instructions,
-                    else_instructions,
-                }] if else_instructions.is_empty()
-                    && matches!(
-                        then_instructions.as_slice(),
-                        [Instruction::CallVoid { target, .. }]
-                            if target == &CallTarget::same_file("File.drop")
-                    )
-            )
+        Some([
+            Instruction::CallVoid { target, .. },
+            Instruction::PropagateFailure,
+        ])
+            if target == &CallTarget::same_file("File.drop")
     ));
 }
 

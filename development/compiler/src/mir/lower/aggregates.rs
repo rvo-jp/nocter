@@ -21,9 +21,6 @@ pub(super) fn literal_is_supported(expression: &Expr, semantic: SemanticInputs<'
 }
 
 fn literal_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
-    if requires_unrepresented_partial_cleanup(expression, abi, semantic) {
-        return false;
-    }
     match (expression, abi) {
         (Expr::StructLiteral(literal), AbiType::Struct(fields)) => {
             literal.fields.iter().all(|field| {
@@ -236,15 +233,27 @@ pub(super) fn lower_literal(
         }
         Rvalue::Variant { variant, leaves }
     } else {
-        lower_literal_leaves(
+        let origin = context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .map(|expression| Origin::Expression(expression.id))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        context
+            .control_flow
+            .push_statement(Statement::BeginAggregate {
+                destination: Place::local(destination),
+                origin,
+            })?;
+        lower_staged_aggregate(
             context,
+            destination,
+            None,
             expression.without_groups(),
             &abi,
             scope,
-            &mut Vec::new(),
-            &mut leaves,
         )?;
-        Rvalue::Aggregate { leaves }
+        return Ok(());
     };
     let origin = context
         .semantic
@@ -257,6 +266,182 @@ pub(super) fn lower_literal(
         value,
         origin,
     })
+}
+
+fn lower_staged_aggregate(
+    context: &mut LoweringContext<'_>,
+    base: LocalId,
+    parent: Option<crate::mir::ProjectionPathId>,
+    expression: &Expr,
+    abi: &AbiType,
+    scope: ScopeId,
+) -> Result<(), BuildError> {
+    let children = match (expression.without_groups(), abi) {
+        (Expr::StructLiteral(literal), AbiType::Struct(fields)) => {
+            let layout = crate::abi::layout_struct(fields)
+                .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+            let mut children = Vec::with_capacity(literal.fields.len());
+            for field in &literal.fields {
+                let index = fields
+                    .iter()
+                    .position(|candidate| candidate.name == field.name)
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                let offset = layout
+                    .fields
+                    .get(index)
+                    .and_then(|field| u32::try_from(field.offset).ok())
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                let child = push_construction_projection(
+                    context,
+                    base,
+                    parent,
+                    crate::mir::ProjectionElement::Field { offset },
+                    &field.value,
+                )?;
+                lower_staged_value(context, base, child, &field.value, &fields[index].ty, scope)?;
+                children.push(child);
+            }
+            children
+        }
+        (Expr::ArrayLiteral(literal), AbiType::Array { element, length }) => {
+            if usize::try_from(*length).ok() != Some(literal.elements.len()) {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            let stride = u32::try_from(
+                crate::abi::array_element_stride(element)
+                    .map_err(|_| BuildError::UnsupportedClaimedExpression)?,
+            )
+            .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+            let usize_ty = context
+                .semantic
+                .typed_hir
+                .type_id(&crate::ast::TypeExpr::Reference(
+                    crate::ast::TypeReference {
+                        span: literal.span,
+                        name: "usize".to_string(),
+                    },
+                ))
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let mut children = Vec::with_capacity(literal.elements.len());
+            for (index, value) in literal.elements.iter().enumerate() {
+                let child = push_construction_projection(
+                    context,
+                    base,
+                    parent,
+                    crate::mir::ProjectionElement::Index {
+                        index: crate::mir::Operand::Constant(crate::mir::Constant {
+                            ty: usize_ty,
+                            scalar: crate::mir::ScalarType::Usize,
+                            value: index as u128,
+                        }),
+                        length: *length,
+                        stride,
+                    },
+                    value,
+                )?;
+                lower_staged_value(context, base, child, value, element, scope)?;
+                children.push(child);
+            }
+            children
+        }
+        _ => return Err(BuildError::UnsupportedClaimedExpression),
+    };
+    let origin = context
+        .semantic
+        .typed_hir
+        .expression(expression.span())
+        .map(|expression| Origin::Expression(expression.id))
+        .ok_or(BuildError::MissingTypedExpression)?;
+    context
+        .control_flow
+        .push_statement(Statement::FinishAggregate {
+            destination: parent
+                .map(|projection| Place::projected(base, projection))
+                .unwrap_or_else(|| Place::local(base)),
+            fields: children,
+            origin,
+        })
+}
+
+fn lower_staged_value(
+    context: &mut LoweringContext<'_>,
+    base: LocalId,
+    projection: crate::mir::ProjectionPathId,
+    expression: &Expr,
+    abi: &AbiType,
+    scope: ScopeId,
+) -> Result<(), BuildError> {
+    let contract = &context.projections[projection.index()];
+    if let crate::mir::ValueRepresentation::Scalar(scalar) = contract.representation {
+        let ty = contract.ty;
+        let operand = context.lower_operand(expression, ty, scalar, scope)?;
+        let origin = context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .map(|expression| Origin::Expression(expression.id))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        return context.control_flow.push_statement(Statement::Assign {
+            destination: Place::projected(base, projection),
+            value: Rvalue::Use(operand),
+            origin,
+        });
+    }
+    lower_staged_aggregate(context, base, Some(projection), expression, abi, scope)
+}
+
+fn push_construction_projection(
+    context: &mut LoweringContext<'_>,
+    base: LocalId,
+    parent: Option<crate::mir::ProjectionPathId>,
+    element: crate::mir::ProjectionElement,
+    expression: &Expr,
+) -> Result<crate::mir::ProjectionPathId, BuildError> {
+    let ty = known_expression_type(expression, context.semantic.typed_hir)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let type_expr = context
+        .semantic
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let representation = scalar_type(ty, context.semantic.typed_hir)
+        .map(crate::mir::ValueRepresentation::Scalar)
+        .unwrap_or(crate::mir::ValueRepresentation::Aggregate);
+    let ownership = if crate::typecheck::type_expr_is_copy(type_expr, context.semantic.resolved)
+        == Some(true)
+    {
+        crate::mir::OwnershipKind::Copy
+    } else {
+        crate::mir::OwnershipKind::Move
+    };
+    let drop_plan = if representation == crate::mir::ValueRepresentation::Aggregate
+        && ownership == crate::mir::OwnershipKind::Move
+    {
+        Some(
+            super::super::drop_plans::build(
+                type_expr,
+                context.semantic.resolved,
+                context.semantic.resolved_sources,
+                context.semantic.typed_hir,
+                &mut context.drop_plans,
+            )
+            .ok_or(BuildError::UnsupportedClaimedExpression)?,
+        )
+    } else {
+        None
+    };
+    let id = crate::mir::ProjectionPathId::from_index(context.projections.len());
+    context.projections.push(crate::mir::ProjectionPath {
+        id,
+        base,
+        parent,
+        element,
+        ty,
+        representation,
+        ownership,
+        drop_plan,
+    });
+    Ok(id)
 }
 
 fn lower_literal_leaves(

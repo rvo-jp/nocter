@@ -109,6 +109,11 @@ buildability is MIR validation rather than a parallel AST model.
   records retain parent identity, checked result type and ownership, and field offset or checked
   index layout; backend lowering never interprets an AST member or index expression to recover a
   storage path.
+- Aggregate construction uses explicit begin and finish statements around projected field writes.
+  Completing an inner aggregate consolidates its initialized children into that projected place;
+  completing the root does the same for the local. A failure between fields therefore exposes
+  exactly the completed owned projections to cleanup, with no backend live flags or AST-shaped
+  partial-construction branch.
 - A named-field move expands the owned sibling projection tree before dataflow. Partial-move
   cleanup can therefore select the maximal remaining initialized places without an AST walk.
   Direct and indirect aggregate arguments retain their slot-relative range through machine IR;

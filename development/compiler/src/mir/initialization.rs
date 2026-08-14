@@ -85,6 +85,24 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
         };
         for (statement_index, statement) in block.statements.iter().enumerate() {
             match statement {
+                crate::mir::Statement::BeginAggregate { .. } => {}
+                crate::mir::Statement::FinishAggregate {
+                    destination,
+                    fields,
+                    ..
+                } => {
+                    for projection in fields {
+                        let place = Place::projected(destination.local, *projection);
+                        if !initialized.is_available(body, place) {
+                            errors.insert(InitializationError {
+                                block: block_id,
+                                location: InitializationLocation::Statement(statement_index),
+                                local: destination.local,
+                            });
+                        }
+                    }
+                    initialized.finish_aggregate(body, *destination);
+                }
                 crate::mir::Statement::Assign {
                     destination, value, ..
                 } => {
@@ -280,9 +298,7 @@ fn merge_entry(
 fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
     match value {
         Rvalue::Use(operand) => Box::new(std::iter::once(operand)),
-        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => {
-            Box::new(leaves.iter().map(|leaf| &leaf.operand))
-        }
+        Rvalue::Variant { leaves, .. } => Box::new(leaves.iter().map(|leaf| &leaf.operand)),
         Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
             Box::new(std::iter::once(operand))
         }

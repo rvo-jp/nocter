@@ -182,6 +182,10 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         region: RegionId,
     },
+    InvalidAggregateConstruction {
+        block: BasicBlockId,
+        statement: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,6 +282,46 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     region: *region,
                 });
             }
+            if let Statement::BeginAggregate { destination, .. } = statement {
+                if destination.projection.is_some()
+                    || operand_representation(body, &Operand::Copy(*destination))
+                        != Some(ValueRepresentation::Aggregate)
+                {
+                    errors.push(ValidationError::InvalidAggregateConstruction {
+                        block: block_id,
+                        statement: statement_index,
+                    });
+                }
+                continue;
+            }
+            if let Statement::FinishAggregate {
+                destination,
+                fields,
+                ..
+            } = statement
+            {
+                let expected_parent = destination.projection;
+                let valid_destination = operand_representation(body, &Operand::Copy(*destination))
+                    == Some(ValueRepresentation::Aggregate);
+                let mut unique = std::collections::HashSet::new();
+                let valid_fields = fields.iter().all(|field| {
+                    unique.insert(*field)
+                        && body
+                            .projections
+                            .get(field.index())
+                            .is_some_and(|projection| {
+                                projection.base == destination.local
+                                    && projection.parent == expected_parent
+                            })
+                });
+                if !valid_destination || !valid_fields {
+                    errors.push(ValidationError::InvalidAggregateConstruction {
+                        block: block_id,
+                        statement: statement_index,
+                    });
+                }
+                continue;
+            }
             if !matches!(statement, Statement::Assign { .. }) {
                 continue;
             }
@@ -341,46 +385,6 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         &mut errors,
                     );
                     ty
-                }
-                super::model::Rvalue::Aggregate { leaves } => {
-                    if destination_representation != ValueRepresentation::Aggregate {
-                        errors.push(ValidationError::AssignmentRequiresScalar {
-                            block: block_id,
-                            statement: statement_index,
-                            actual: destination_representation,
-                        });
-                    }
-                    let mut paths = std::collections::HashSet::new();
-                    for leaf in leaves {
-                        if leaf.path.is_empty() {
-                            errors.push(ValidationError::EmptyAggregateLeafPath {
-                                block: block_id,
-                                statement: statement_index,
-                            });
-                        } else if !paths.insert(&leaf.path) {
-                            errors.push(ValidationError::DuplicateAggregateLeafPath {
-                                block: block_id,
-                                statement: statement_index,
-                            });
-                        }
-                        validate_operand(
-                            body,
-                            block_id,
-                            OperandLocation::Statement(statement_index),
-                            &leaf.operand,
-                            leaf.ty,
-                            leaf.scalar,
-                            &mut errors,
-                        );
-                        validate_operand_ownership(
-                            body,
-                            block_id,
-                            OperandLocation::Statement(statement_index),
-                            &leaf.operand,
-                            &mut errors,
-                        );
-                    }
-                    Some(destination_ty)
                 }
                 super::model::Rvalue::Variant { leaves, .. } => {
                     if destination_representation != ValueRepresentation::Aggregate {
@@ -1303,7 +1307,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_and_duplicate_aggregate_leaf_paths() {
+    fn rejects_empty_and_duplicate_variant_leaf_paths() {
         let mut body = valid_body();
         let ty = body.locals[0].ty;
         body.locals[0] = Local::aggregate(
@@ -1314,7 +1318,7 @@ mod tests {
             body.root_scope,
         );
         let leaf = crate::mir::AggregateLeaf {
-            path: vec![crate::mir::AggregateElement::Field(0)],
+            path: vec![crate::mir::AggregateElement::VariantPayload(0)],
             ty,
             scalar: ScalarType::I32,
             operand: Operand::Constant(Constant {
@@ -1325,7 +1329,8 @@ mod tests {
         };
         body.blocks[0].statements[0] = Statement::Assign {
             destination: Place::local(LocalId::from_index(0)),
-            value: Rvalue::Aggregate {
+            value: Rvalue::Variant {
+                variant: crate::semantic::DefId::from_index(0),
                 leaves: vec![
                     crate::mir::AggregateLeaf {
                         path: Vec::new(),
