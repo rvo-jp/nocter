@@ -249,36 +249,62 @@ impl LoweringContext<'_> {
                 (instance, None)
             }
             Expr::Member(member) => {
-                let definition = self
+                if let Some(definition) = self
                     .semantic
                     .typed_hir
-                    .method_call_target(member.member_span)
-                    .map(|definition| {
-                        self.semantic
-                            .resolved
-                            .callable_bodies
-                            .canonical_definition(definition)
-                    })
-                    .ok_or(BuildError::MissingCallTarget)?;
-                let instance = if let Some(specialization) = self
-                    .semantic
-                    .typed_hir
-                    .method_call_specialization(member.member_span)
+                    .function_call_target(member.member_span)
                 {
-                    let receiver = self
+                    let definition = self
+                        .semantic
+                        .resolved
+                        .callable_bodies
+                        .canonical_definition(definition);
+                    let instance = if let Some(specialization) = self
                         .semantic
                         .typed_hir
-                        .type_id(&specialization.self_ty)
-                        .ok_or(BuildError::MissingSpecializedReceiverType)?;
-                    crate::mir::CallInstance::specialized(
-                        definition,
-                        Some(receiver),
-                        self.call_type_arguments(specialization.ordered_type_arguments())?,
-                    )
+                        .function_call_specialization(call.span)
+                    {
+                        crate::mir::CallInstance::specialized(
+                            definition,
+                            None,
+                            self.call_type_arguments(specialization.ordered_type_arguments())?,
+                        )
+                    } else {
+                        crate::mir::CallInstance::direct(definition)
+                    };
+                    (instance, None)
                 } else {
-                    crate::mir::CallInstance::direct(definition)
-                };
-                (instance, Some(PlannedReceiver::Method(member)))
+                    let definition = self
+                        .semantic
+                        .typed_hir
+                        .method_call_target(member.member_span)
+                        .map(|definition| {
+                            self.semantic
+                                .resolved
+                                .callable_bodies
+                                .canonical_definition(definition)
+                        })
+                        .ok_or(BuildError::MissingCallTarget)?;
+                    let instance = if let Some(specialization) = self
+                        .semantic
+                        .typed_hir
+                        .method_call_specialization(member.member_span)
+                    {
+                        let receiver = self
+                            .semantic
+                            .typed_hir
+                            .type_id(&specialization.self_ty)
+                            .ok_or(BuildError::MissingSpecializedReceiverType)?;
+                        crate::mir::CallInstance::specialized(
+                            definition,
+                            Some(receiver),
+                            self.call_type_arguments(specialization.ordered_type_arguments())?,
+                        )
+                    } else {
+                        crate::mir::CallInstance::direct(definition)
+                    };
+                    (instance, Some(PlannedReceiver::Method(member)))
+                }
             }
             _ => return Err(BuildError::UnsupportedClaimedExpression),
         };

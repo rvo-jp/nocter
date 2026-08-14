@@ -219,6 +219,30 @@ fn scalar_call_shape_is_supported(
                         })
             }
             Expr::Member(member) => {
+                if let Some(definition) = typed_hir.function_call_target(member.member_span) {
+                    return resolved.semantic_db.definition(definition).is_some()
+                        && typed_hir
+                            .function_call_specialization(call.span)
+                            .is_none_or(|specialization| {
+                                specialization
+                                    .ordered_type_arguments()
+                                    .is_some_and(|arguments| {
+                                        arguments
+                                            .into_iter()
+                                            .all(|ty| typed_hir.type_id(ty).is_some())
+                                    })
+                            })
+                        && call.arguments.iter().all(|argument| {
+                            call_argument_is_supported(
+                                argument,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        });
+                }
                 let Some(definition) = typed_hir.method_call_target(member.member_span) else {
                     return false;
                 };
