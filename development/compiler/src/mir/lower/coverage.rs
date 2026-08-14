@@ -1921,21 +1921,27 @@ pub(super) fn value_expression_is_supported(
             Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
                 typed_literal_is_supported(expression, semantic)
             }
-            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) | Expr::Closure(_) => {
+            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
                 super::aggregates::literal_is_supported(expression, semantic)
             }
+            Expr::Member(_) => super::aggregates::literal_is_supported(expression, semantic),
             Expr::Call(call) => aggregate_value_call_is_supported(
                 call,
                 semantic.resolved,
                 semantic.resolved_sources,
                 semantic.typed_hir,
             ),
-            Expr::Identifier(_) | Expr::Unary(_) => stored_outcome_operand_is_supported(
-                expression,
-                semantic.resolved,
-                semantic.resolved_sources,
-                semantic.typed_hir,
-            ),
+            Expr::Identifier(_) | Expr::Unary(_) => {
+                aggregate_operand_is_supported(
+                    expression,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                ) && known_expression_type(expression, semantic.typed_hir)
+                    .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+                    .and_then(|ty| crate::typecheck::type_expr_is_copy(ty, semantic.resolved))
+                    == Some(true)
+            }
             Expr::Force(force) => stored_outcome_projection_is_supported(
                 expression,
                 &force.expression,

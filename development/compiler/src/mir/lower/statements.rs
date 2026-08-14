@@ -596,6 +596,26 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         if representation != crate::mir::ValueRepresentation::Aggregate {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
+        let drop_plan = destination
+            .projection
+            .and_then(|projection| self.context.projections[projection.index()].drop_plan)
+            .or(self.context.locals[destination.local.index()].drop_plan);
+        if super::coverage::aggregate_operand_is_supported(
+            &assignment.value,
+            self.context.semantic.resolved,
+            self.context.semantic.resolved_sources,
+            self.context.semantic.typed_hir,
+        ) {
+            let operand = self.context.lower_aggregate_operand(&assignment.value)?;
+            if let Some(plan) = drop_plan {
+                self.context.control_flow.emit_drop(destination, plan)?;
+            }
+            return self.context.control_flow.push_statement(Statement::Assign {
+                destination,
+                value: Rvalue::Use(operand),
+                origin: Origin::Desugared(assignment.operator_span),
+            });
+        }
         let source = self
             .context
             .semantic
@@ -613,10 +633,6 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             representation,
             scope,
         )?;
-        let drop_plan = destination
-            .projection
-            .and_then(|projection| self.context.projections[projection.index()].drop_plan)
-            .or(self.context.locals[destination.local.index()].drop_plan);
         if let Some(plan) = drop_plan {
             self.context.control_flow.emit_drop(destination, plan)?;
         }
