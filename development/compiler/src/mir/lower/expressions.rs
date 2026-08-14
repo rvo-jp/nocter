@@ -100,7 +100,7 @@ impl LoweringContext<'_> {
         &mut self,
         call: &crate::ast::CallExpr,
         scope: ScopeId,
-    ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
+    ) -> Result<(crate::mir::CallInstance, Vec<CallArgument>, bool), BuildError> {
         let Expr::Identifier(callee) = call.callee.without_groups() else {
             return Err(BuildError::UnsupportedClaimedExpression);
         };
@@ -109,7 +109,7 @@ impl LoweringContext<'_> {
             .typed_hir
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
-        let callee = self
+        let definition = self
             .semantic
             .typed_hir
             .function_call_target(callee.span)
@@ -120,6 +120,26 @@ impl LoweringContext<'_> {
                     .canonical_definition(definition)
             })
             .ok_or(BuildError::MissingCallTarget)?;
+        let callee = if let Some(specialization) = self
+            .semantic
+            .typed_hir
+            .function_call_specialization(call.span)
+        {
+            let type_arguments = specialization
+                .ordered_type_arguments()
+                .ok_or(BuildError::MissingCallTarget)?
+                .into_iter()
+                .map(|ty| {
+                    self.semantic
+                        .typed_hir
+                        .type_id(ty)
+                        .ok_or(BuildError::MissingTypedExpression)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            crate::mir::CallInstance::specialized(definition, None, type_arguments)
+        } else {
+            crate::mir::CallInstance::direct(definition)
+        };
         let arguments = call
             .arguments
             .iter()

@@ -166,8 +166,17 @@ fn scalar_call_shape_is_supported(
         .function_call_target(callee.span)
         .and_then(|target| resolved.semantic_db.definition(target))
         .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Function)
-        && typed_hir.generic_function_call_target(call.span).is_none()
-        && typed_hir.function_call_specialization(call.span).is_none()
+        && typed_hir
+            .function_call_specialization(call.span)
+            .is_none_or(|specialization| {
+                specialization
+                    .ordered_type_arguments()
+                    .is_some_and(|arguments| {
+                        arguments
+                            .into_iter()
+                            .all(|ty| typed_hir.type_id(ty).is_some())
+                    })
+            })
         && call.arguments.iter().all(|argument| {
             let Some(ty) = known_expression_type(argument, typed_hir) else {
                 return false;

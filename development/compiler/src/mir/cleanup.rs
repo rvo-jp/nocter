@@ -344,7 +344,7 @@ mod tests {
                     statements: Vec::new(),
                     terminator: Terminator::Call {
                         origin: Origin::Expression(ExprId::from_index(0)),
-                        callee: DefId::from_index(0),
+                        callee: crate::mir::CallInstance::direct(DefId::from_index(0)),
                         arguments: Vec::new(),
                         continuation: CallContinuation::Return {
                             destination: Place::local(owned),
@@ -435,7 +435,7 @@ mod tests {
                     statements: Vec::new(),
                     terminator: Terminator::Call {
                         origin: Origin::Expression(ExprId::from_index(0)),
-                        callee: DefId::from_index(0),
+                        callee: crate::mir::CallInstance::direct(DefId::from_index(0)),
                         arguments: Vec::new(),
                         continuation: CallContinuation::Return {
                             destination: Place::local(source),

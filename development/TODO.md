@@ -9,7 +9,11 @@ fields, forwarding, fixed-array index loans, payload-variant construction, and a
 for enums and outcomes. One construction context owns mutable MIR state and one backend
 context projects the checked body. MIR construction and validation are authoritative after route
 selection; buildability and machine-IR lowering consume the same retained body and identity-backed
-call edges. Stored outcome call results now use checked aggregate MIR locals and single-layer
+call edges. Call edges now retain a semantic callable instance: canonical declaration identity,
+an optional concrete receiver type, and ordered concrete type arguments. Generic calls no longer
+collapse multiple runtime specializations into one `DefId -> name` entry, and buildability and
+machine lowering project the same instance key. Stored outcome call results now use checked
+aggregate MIR locals and single-layer
 inspection uses one semantic MIR terminator shared by initialization, ownership, loan, cleanup, and
 backend projection. Recursive machine layout remains backend-only. Optional and composed stored
 values also forward through an ownership-aware MIR return edge, and `error.new` failure returns use
@@ -153,6 +157,13 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - one MIR `Call` terminator now carries the checked value representation of every argument rather
   than a scalar-only tag; scalar machine-IR lowering is an explicit projection, while aggregate
   and borrow call routes can reuse the same call identity and continuation model
+- MIR calls retain `CallInstance` rather than a runtime symbol or bare `DefId`; concrete receiver
+  and ordered generic `TyId` arguments form one semantic identity, while buildability and backend
+  indexes share its canonical type projection and therefore cannot silently select different
+  monomorphizations
+- direct generic function calls from MIR-routed bodies now reach their concrete indexed runtime
+  target through that identity; the full library suite covers nested and source-backed generic
+  reachability without returning to AST call discovery
 - primitive source names are recognized once as a closed `IntrinsicId` domain; pointer, view,
   process, allocation, I/O, and syscall lowering no longer dispatches backend semantics by string
   comparison

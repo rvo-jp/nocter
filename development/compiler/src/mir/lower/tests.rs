@@ -2366,7 +2366,11 @@ func main(): i32 {
         panic!("expected MIR call edge");
     };
     assert_eq!(
-        analysis.semantic_db.definition(*callee).unwrap().kind,
+        analysis
+            .semantic_db
+            .definition(callee.definition)
+            .unwrap()
+            .kind,
         crate::semantic::DefinitionKind::Function
     );
     assert_eq!(arguments.len(), 1);

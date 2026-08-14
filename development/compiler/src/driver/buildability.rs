@@ -137,12 +137,44 @@ struct CallableIndex<'a> {
 }
 
 type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
-type CallableNames = HashMap<DefId, String>;
+#[derive(Default)]
+struct CallableNames {
+    definitions: HashMap<DefId, String>,
+    instances: HashMap<crate::mir::CallInstanceKey, String>,
+}
+
+impl CallableNames {
+    fn insert(&mut self, definition: DefId, name: String) {
+        self.definitions.insert(definition, name);
+    }
+
+    fn insert_instance(&mut self, instance: crate::mir::CallInstanceKey, name: String) {
+        self.instances.insert(instance, name);
+    }
+
+    fn get(&self, definition: &DefId) -> Option<&String> {
+        self.definitions.get(definition)
+    }
+
+    fn get_instance(
+        &self,
+        instance: &crate::mir::CallInstance,
+        typed_hir: &TypedHir,
+    ) -> Option<&String> {
+        if instance.receiver.is_none() && instance.type_arguments.is_empty() {
+            return self.get(&instance.definition);
+        }
+        self.instances
+            .get(&crate::mir::CallInstanceKey::from_instance(
+                instance, typed_hir,
+            )?)
+    }
+}
 
 impl<'a> CallableIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
-        let mut names = HashMap::new();
+        let mut names = CallableNames::default();
         let call_specializations = collect_call_specializations(analysis);
         let resolved_sources = analysis
             .files
@@ -188,6 +220,14 @@ impl<'a> CallableIndex<'a> {
                             .into_iter()
                             .flatten()
                         {
+                            if let Some(arguments) = specialization.ordered_type_arguments() {
+                                names.insert_instance(
+                                    crate::mir::CallInstanceKey::from_types(
+                                        definition, None, arguments,
+                                    ),
+                                    specialization.target_name.clone(),
+                                );
+                            }
                             let target = call_target_for_source(
                                 member_identity.source,
                                 root_source,
@@ -251,6 +291,17 @@ impl<'a> CallableIndex<'a> {
                                     .into_iter()
                                     .flatten()
                                 {
+                                    if let Some(arguments) = specialization.ordered_type_arguments()
+                                    {
+                                        names.insert_instance(
+                                            crate::mir::CallInstanceKey::from_types(
+                                                def_id,
+                                                Some(&specialization.self_ty),
+                                                arguments,
+                                            ),
+                                            specialization.target_name.clone(),
+                                        );
+                                    }
                                     let substitutions = method_specialization_context_substitutions(
                                         owner,
                                         specialization,
@@ -344,6 +395,16 @@ impl<'a> CallableIndex<'a> {
                                 .into_iter()
                                 .flatten()
                             {
+                                if let Some(arguments) = specialization.ordered_type_arguments() {
+                                    names.insert_instance(
+                                        crate::mir::CallInstanceKey::from_types(
+                                            def_id,
+                                            Some(&specialization.self_ty),
+                                            arguments,
+                                        ),
+                                        specialization.target_name.clone(),
+                                    );
+                                }
                                 let target = call_target_for_source(
                                     file.ast.span.source,
                                     root_source,

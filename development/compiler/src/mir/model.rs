@@ -298,7 +298,7 @@ pub(crate) enum Terminator {
     },
     Call {
         origin: Origin,
-        callee: DefId,
+        callee: super::calls::CallInstance,
         arguments: Vec<CallArgument>,
         continuation: CallContinuation,
     },

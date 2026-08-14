@@ -5,7 +5,7 @@ use crate::mir::ids::BasicBlockId;
 use crate::mir::{
     CallArgument, CallContinuation, LocalId, Origin, Place, ScopeId, Statement, Terminator,
 };
-use crate::semantic::{DefId, ExprId};
+use crate::semantic::ExprId;
 
 #[derive(Debug)]
 struct PendingBlock {
@@ -93,7 +93,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_returning_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         destination: LocalId,
     ) -> Result<(), BuildError> {
@@ -113,7 +113,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_effect_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
     ) -> Result<(), BuildError> {
         let target = self.reserve_block(self.current_scope()?);
@@ -129,7 +129,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_never_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
     ) -> Result<(), BuildError> {
         self.terminate(Terminator::Call {
@@ -143,7 +143,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_trapping_outcome_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         destination: LocalId,
     ) -> Result<(), BuildError> {
@@ -153,7 +153,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_propagating_outcome_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         destination: LocalId,
     ) -> Result<(), BuildError> {
@@ -169,7 +169,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_trapping_outcome_effect(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
     ) -> Result<(), BuildError> {
         self.emit_outcome_effect(source, callee, arguments, Terminator::Trap)
@@ -178,7 +178,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_propagating_outcome_effect(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
     ) -> Result<(), BuildError> {
         self.emit_outcome_effect(source, callee, arguments, Terminator::PropagateFailure)
@@ -187,7 +187,7 @@ impl ControlFlowBuilder {
     pub(super) fn begin_handled_outcome_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         destination: LocalId,
         failure_scope: ScopeId,
@@ -266,7 +266,7 @@ impl ControlFlowBuilder {
     fn emit_outcome_call(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         destination: LocalId,
         failure_terminator: Terminator,
@@ -297,7 +297,7 @@ impl ControlFlowBuilder {
     fn emit_outcome_effect(
         &mut self,
         source: ExprId,
-        callee: DefId,
+        callee: crate::mir::CallInstance,
         arguments: Vec<CallArgument>,
         failure_terminator: Terminator,
     ) -> Result<(), BuildError> {

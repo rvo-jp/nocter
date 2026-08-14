@@ -841,6 +841,12 @@ impl<'a> FunctionIndex<'a> {
                 .collect(),
             self.definitions
                 .values()
+                .filter_map(|function| {
+                    function.call_instance_name_declaration(self.semantic_db, self.callable_bodies)
+                })
+                .collect(),
+            self.definitions
+                .values()
                 .filter_map(|function| function.drop_name_declaration())
                 .filter_map(|(span, ty, name)| {
                     let authored = self.semantic_db.definition_at(span)?;
@@ -1424,6 +1430,55 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Literal { .. } => None,
             IndexedDeclaration::Closure { .. } => None,
         }
+    }
+
+    fn call_instance_name_declaration(
+        &self,
+        semantic_db: &crate::semantic::SemanticDb,
+        callable_bodies: &crate::callable_bodies::CallableBodyIndex,
+    ) -> Option<(crate::mir::CallInstanceKey, String)> {
+        let (anchor, receiver, parameters, substitutions, name) = match &self.declaration {
+            IndexedDeclaration::Function {
+                declaration,
+                substitutions,
+                name,
+            } => (
+                declaration.name_span,
+                declaration
+                    .owner
+                    .as_ref()
+                    .and_then(|_| substitutions.get("Self")),
+                &declaration.generics.parameters,
+                substitutions,
+                name,
+            ),
+            IndexedDeclaration::Method {
+                declaration,
+                anchor,
+                self_ty,
+                substitutions,
+                name,
+            } => (
+                *anchor,
+                Some(self_ty),
+                &declaration.generics.parameters,
+                substitutions,
+                name,
+            ),
+            IndexedDeclaration::Drop { .. }
+            | IndexedDeclaration::Literal { .. }
+            | IndexedDeclaration::Closure { .. } => return None,
+        };
+        let authored = semantic_db.definition_at(anchor)?;
+        let definition = callable_bodies.canonical_definition(authored);
+        let type_arguments = parameters
+            .iter()
+            .map(|parameter| substitutions.get(&parameter.name))
+            .collect::<Option<Vec<_>>>()?;
+        Some((
+            crate::mir::CallInstanceKey::from_types(definition, receiver, type_arguments),
+            name.clone(),
+        ))
     }
 
     fn drop_name_declaration(&self) -> Option<(crate::source::ByteSpan, &TypeExpr, String)> {

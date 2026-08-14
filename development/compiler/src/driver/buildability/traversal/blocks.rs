@@ -91,16 +91,16 @@ fn enqueue_mir_call_targets(
     queue: &mut VecDeque<CallTarget>,
 ) -> Result<(), String> {
     for block in &body.blocks {
-        let crate::mir::Terminator::Call { callee, .. } = block.terminator else {
+        let crate::mir::Terminator::Call { ref callee, .. } = block.terminator else {
             continue;
         };
         let name = names
-            .get(&callee)
+            .get_instance(callee, callable.typed_hir)
             .ok_or_else(|| "MIR call target has no indexed runtime name".to_string())?;
         let source = callable
             .resolved
             .semantic_db
-            .definition_anchor(callee)
+            .definition_anchor(callee.definition)
             .ok_or_else(|| "MIR call target has no source anchor".to_string())?
             .source;
         queue.push_back(call_target_for_source(source, root_source, name.clone()));

@@ -1,5 +1,6 @@
 //! Checked control-flow representation between typed HIR and machine IR.
 
+mod calls;
 mod cleanup;
 mod dataflow;
 mod drop_obligations;
@@ -15,6 +16,7 @@ mod places;
 mod scopes;
 mod validate;
 
+pub(crate) use calls::{CallInstance, CallInstanceKey};
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
 pub(crate) use ids::{
     BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId, ScopeId,

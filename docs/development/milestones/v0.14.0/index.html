@@ -233,7 +233,11 @@ InstanceMember::Coercion(CoercionDecl)
   the same layout authority as function ABI classification.</li><li>Copy aggregate parameters can flow through MIR calls as whole-place arguments. Backend
   projection preserves the validated direct/indirect ABI classification; indirect stack-backed
   arguments also disable tail-call frame reuse instead of leaking an address into a destroyed
-  caller frame.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
+  caller frame.</li><li>MIR call edges retain a semantic callable instance made from canonical <code>DefId</code>, optional concrete
+  receiver <code>TyId</code>, and ordered concrete type-argument <code>TyId</code> values. Runtime symbol spelling stays
+  in the backend index, and buildability uses the same canonical instance-key projection instead of
+  a competing <code>DefId -&gt; name</code> map. Direct and nested generic calls therefore cannot collide across
+  monomorphizations.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
   as whole-place call arguments. ABI projection maps the source ordinal to the existing borrow
   parameter word; one IR-level frame-dependence predicate prevents both borrow and indirect
   aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Borrow bindings over stored scalar identifiers create explicit <code>Loan</code> records and <code>BeginLoan</code>

@@ -948,6 +948,13 @@ pub(crate) struct FunctionCallSpecialization {
 }
 
 impl FunctionCallSpecialization {
+    pub(crate) fn ordered_type_arguments(&self) -> Option<Vec<&TypeExpr>> {
+        self.generic_parameters
+            .iter()
+            .map(|parameter| self.substitutions.get(parameter))
+            .collect()
+    }
+
     pub(crate) fn with_context_substitutions(
         &self,
         context_substitutions: &HashMap<String, TypeExpr>,
@@ -1028,6 +1035,13 @@ impl DropTypeSpecialization {
 }
 
 impl MethodCallSpecialization {
+    pub(crate) fn ordered_type_arguments(&self) -> Option<Vec<&TypeExpr>> {
+        self.generic_parameters
+            .iter()
+            .map(|parameter| self.substitutions.get(parameter))
+            .collect()
+    }
+
     pub(crate) fn with_context_substitutions(
         &self,
         context_substitutions: &HashMap<String, TypeExpr>,

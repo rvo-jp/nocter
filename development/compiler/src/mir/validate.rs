@@ -1604,7 +1604,7 @@ mod tests {
         body.blocks[0].statements.clear();
         body.blocks[0].terminator = Terminator::Call {
             origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
-            callee: DefId::from_index(0),
+            callee: crate::mir::CallInstance::direct(DefId::from_index(0)),
             arguments: vec![CallArgument {
                 operand: Operand::Constant(Constant {
                     ty: TyId::from_index(1),

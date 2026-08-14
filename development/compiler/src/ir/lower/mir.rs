@@ -267,7 +267,7 @@ fn lower_scalar_body(
                 ..
             } => {
                 let (call_target, callee_name) =
-                    lower_call_target(*callee, resolved, function_names, root_source)?;
+                    lower_call_target(callee, resolved, typed_hir, function_names, root_source)?;
                 let arguments = arguments
                     .iter()
                     .map(|argument| lower_call_argument(argument, &context))
@@ -586,8 +586,9 @@ fn lower_branch_to_join(
                 ..
             } => {
                 let (call_target, callee_name) = lower_call_target(
-                    *callee,
+                    callee,
                     context.resolved,
+                    context.typed_hir,
                     context.function_names,
                     context.root_source,
                 )?;
@@ -617,8 +618,9 @@ fn lower_branch_to_join(
                 ..
             } => {
                 let (call_target, callee_name) = lower_call_target(
-                    *callee,
+                    callee,
                     context.resolved,
+                    context.typed_hir,
                     context.function_names,
                     context.root_source,
                 )?;
@@ -649,8 +651,9 @@ fn lower_branch_to_join(
                 ..
             } => {
                 let (call_target, callee_name) = lower_call_target(
-                    *callee,
+                    callee,
                     context.resolved,
+                    context.typed_hir,
                     context.function_names,
                     context.root_source,
                 )?;
@@ -712,8 +715,9 @@ fn lower_branch_to_join(
                 ..
             } => {
                 let (call_target, callee_name) = lower_call_target(
-                    *callee,
+                    callee,
                     context.resolved,
+                    context.typed_hir,
                     context.function_names,
                     context.root_source,
                 )?;
@@ -1071,18 +1075,19 @@ fn validate_never_call_return_type(
 }
 
 fn lower_call_target(
-    callee: crate::semantic::DefId,
+    callee: &crate::mir::CallInstance,
     resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
     function_names: &super::context::FunctionNames,
     root_source: SourceId,
 ) -> Result<(crate::ir::CallTarget, String), Vec<Diagnostic>> {
     let name = function_names
-        .name_for_definition(callee)
+        .name_for_instance(callee, typed_hir)
         .ok_or_else(|| invalid_mir_diagnostics("call target has no indexed runtime name"))?
         .clone();
     let source = resolved
         .semantic_db
-        .definition_anchor(callee)
+        .definition_anchor(callee.definition)
         .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
         .source;
     Ok((

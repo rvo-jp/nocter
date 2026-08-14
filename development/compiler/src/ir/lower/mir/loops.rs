@@ -312,8 +312,9 @@ fn lower_linear_call_terminator(
         ));
     };
     let (call_target, callee_name) = lower_call_target(
-        *callee,
+        callee,
         context.resolved,
+        context.typed_hir,
         context.function_names,
         context.root_source,
     )?;

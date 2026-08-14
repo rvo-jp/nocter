@@ -337,6 +337,7 @@ struct CallResolution<'a> {
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
     by_definition: HashMap<DefId, String>,
+    by_instance: HashMap<crate::mir::CallInstanceKey, String>,
     drops_by_definition_and_type: HashMap<(DefId, String), String>,
     unique_targets: UniqueCallTargets,
 }
@@ -344,11 +345,13 @@ pub(super) struct FunctionNames {
 impl FunctionNames {
     pub(super) fn from_index(
         functions: Vec<(DefId, String)>,
+        instances: Vec<(crate::mir::CallInstanceKey, String)>,
         drops: Vec<(DefId, String, String)>,
         targets: Vec<(String, CallTarget)>,
     ) -> Self {
         Self {
             by_definition: functions.into_iter().collect(),
+            by_instance: instances.into_iter().collect(),
             drops_by_definition_and_type: drops
                 .into_iter()
                 .map(|(definition, ty, name)| ((definition, ty), name))
@@ -359,6 +362,20 @@ impl FunctionNames {
 
     pub(in crate::ir::lower) fn name_for_definition(&self, definition: DefId) -> Option<&String> {
         self.by_definition.get(&definition)
+    }
+
+    pub(in crate::ir::lower) fn name_for_instance(
+        &self,
+        instance: &crate::mir::CallInstance,
+        typed_hir: &TypedHir,
+    ) -> Option<&String> {
+        if instance.receiver.is_none() && instance.type_arguments.is_empty() {
+            return self.name_for_definition(instance.definition);
+        }
+        self.by_instance
+            .get(&crate::mir::CallInstanceKey::from_instance(
+                instance, typed_hir,
+            )?)
     }
 
     pub(in crate::ir::lower) fn name_for_drop(
