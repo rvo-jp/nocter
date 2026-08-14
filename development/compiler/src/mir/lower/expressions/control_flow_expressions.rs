@@ -1,14 +1,14 @@
 //! Expression-valued control flow normalized into ordinary MIR blocks.
 
 use super::super::context::LoweringContext;
-use crate::mir::{LocalId, ScalarType, ScopeId, Terminator};
+use crate::mir::{LocalId, ScalarType, ScopeId, Terminator, ValueRepresentation};
 
 pub(in crate::mir::lower) fn lower_conditional_to_place(
     context: &mut LoweringContext<'_>,
     destination: LocalId,
     conditional: &crate::ast::IfStmt,
     ty: crate::semantic::TyId,
-    scalar: ScalarType,
+    representation: ValueRepresentation,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
     let condition_ty = super::super::coverage::known_expression_type(
@@ -44,7 +44,7 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
         &conditional.then_block,
         destination,
         ty,
-        scalar,
+        representation,
         then_scope,
         false,
     )?;
@@ -60,7 +60,7 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
         else_block,
         destination,
         ty,
-        scalar,
+        representation,
         else_scope,
         false,
     )?;

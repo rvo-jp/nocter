@@ -124,9 +124,12 @@ pub(crate) fn try_build_body_with_return_mode(
             .all(|statement| statement.is_supported(semantic))
         || !(tail.expression().is_some_and(|expression| {
             value_expression_is_supported(expression, return_representation, semantic)
-        }) || matches!(return_representation, super::ValueRepresentation::Scalar(_))
-            && tail.conditional().is_some()
-            && tail.is_supported(semantic))
+        }) || tail.conditional().is_some_and(|conditional| {
+            (matches!(return_representation, super::ValueRepresentation::Scalar(_))
+                || return_representation == super::ValueRepresentation::Aggregate
+                    && source_statements.is_empty())
+                && value_conditional_is_supported(conditional, return_representation, semantic)
+        }))
         || !parameters.iter().all(|parameter| {
             inputs
                 .resolved
@@ -260,15 +263,12 @@ pub(crate) fn try_build_body_with_return_mode(
         );
         StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
-            let super::ValueRepresentation::Scalar(return_scalar) = return_representation else {
-                return Err(BuildError::UnsupportedClaimedExpression);
-            };
             expressions::lower_conditional_to_place(
                 &mut context,
                 return_local,
                 if_,
                 return_ty,
-                return_scalar,
+                return_representation,
                 root_scope,
             )?;
             context.control_flow.terminate(Terminator::Return)?;

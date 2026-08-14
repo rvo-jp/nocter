@@ -142,7 +142,7 @@ fn lower_recovery_to_place_with_scope(
         fallback_block,
         destination.local,
         destination.ty,
-        destination.scalar,
+        crate::mir::ValueRepresentation::Scalar(destination.scalar),
         fallback_scope,
         true,
     )?;

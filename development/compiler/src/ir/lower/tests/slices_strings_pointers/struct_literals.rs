@@ -160,45 +160,46 @@ func choose(flag: bool): Text {
             return_type: Type::Aggregate {
                 layout: ValueLayout::new(24, 8),
             },
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 0,
-                        value: usize_const(1),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 8,
-                        value: usize_const(2),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 16,
-                        value: usize_const(3),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 0,
-                        value: usize_const(4),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 8,
-                        value: usize_const(5),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::Return,
-                        offset: 16,
-                        value: usize_const(6),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 0,
+                            value: usize_const(1),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 8,
+                            value: usize_const(2),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 16,
+                            value: usize_const(3),
+                        },
+                    ],
+                    else_instructions: vec![
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 0,
+                            value: usize_const(4),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 8,
+                            value: usize_const(5),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Return,
+                            offset: 16,
+                            value: usize_const(6),
+                        },
+                    ],
+                },
+                Instruction::Return,
+            ],
         }
     );
 }
@@ -735,35 +736,36 @@ func choose(flag: bool): Pair {
                 layout: ValueLayout::new(16, 8),
                 words: 2,
             },
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::DirectReturn,
-                        offset: 0,
-                        value: usize_const(1),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::DirectReturn,
-                        offset: 8,
-                        value: usize_const(2),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::DirectReturn,
-                        offset: 0,
-                        value: usize_const(3),
-                    },
-                    Instruction::StoreAggregateUsize {
-                        destination: AggregateLocation::DirectReturn,
-                        offset: 8,
-                        value: usize_const(4),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::DirectReturn,
+                            offset: 0,
+                            value: usize_const(1),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::DirectReturn,
+                            offset: 8,
+                            value: usize_const(2),
+                        },
+                    ],
+                    else_instructions: vec![
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::DirectReturn,
+                            offset: 0,
+                            value: usize_const(3),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::DirectReturn,
+                            offset: 8,
+                            value: usize_const(4),
+                        },
+                    ],
+                },
+                Instruction::Return,
+            ],
         }
     );
 }
@@ -1069,20 +1071,29 @@ func make(): Header {
                 words: 1,
             },
             instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 4),
+                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::DirectReturn,
+                    destination: AggregateLocation::Slot(0),
                     offset: 0,
                     value: U8Value::Const(7),
                 },
                 Instruction::StoreAggregateBool {
-                    destination: AggregateLocation::DirectReturn,
+                    destination: AggregateLocation::Slot(0),
                     offset: 1,
                     value: BoolValue::Const(false),
                 },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::DirectReturn,
+                    destination: AggregateLocation::Slot(0),
                     offset: 4,
                     value: I32Value::Const(42),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(8, 4),
                 },
                 Instruction::Return,
             ],
@@ -1120,29 +1131,20 @@ func make(): Header {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(8, 4),
-                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: U8Value::Const(7),
                 },
                 Instruction::StoreAggregateBool {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 1,
                     value: BoolValue::Const(false),
                 },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 4,
                     value: I32Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(8, 4),
                 },
                 Instruction::Return,
             ],

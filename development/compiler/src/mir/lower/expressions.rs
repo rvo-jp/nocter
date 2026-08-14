@@ -15,6 +15,44 @@ mod outcomes;
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
+    pub(super) fn lower_value_to_place(
+        &mut self,
+        destination: LocalId,
+        expression: &Expr,
+        ty: crate::semantic::TyId,
+        representation: crate::mir::ValueRepresentation,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        match representation {
+            crate::mir::ValueRepresentation::Scalar(scalar) => {
+                self.lower_expression_to_place(destination, expression, ty, scalar, scope)
+            }
+            crate::mir::ValueRepresentation::View(kind) => {
+                self.lower_view_expression_to_place(destination, expression, ty, kind, scope)
+            }
+            crate::mir::ValueRepresentation::Aggregate => match expression.without_groups() {
+                Expr::Call(call) => {
+                    let source = self
+                        .semantic
+                        .typed_hir
+                        .expression(expression.span())
+                        .ok_or(BuildError::MissingTypedExpression)?
+                        .id;
+                    let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+                    if returns_never {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    }
+                    self.control_flow
+                        .emit_returning_call(source, callee, arguments, destination)
+                }
+                _ => super::aggregates::lower_literal(self, destination, expression, scope),
+            },
+            crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => {
+                Err(BuildError::UnsupportedClaimedExpression)
+            }
+        }
+    }
+
     pub(super) fn lower_call(
         &mut self,
         call: &crate::ast::CallExpr,
@@ -296,7 +334,14 @@ impl LoweringContext<'_> {
                 );
             }
             Expr::If(if_) => {
-                return lower_conditional_to_place(self, destination, if_, ty, scalar, scope);
+                return lower_conditional_to_place(
+                    self,
+                    destination,
+                    if_,
+                    ty,
+                    crate::mir::ValueRepresentation::Scalar(scalar),
+                    scope,
+                );
             }
             Expr::Otherwise(otherwise) => {
                 return outcomes::lower_otherwise_to_place(

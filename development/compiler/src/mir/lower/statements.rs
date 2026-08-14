@@ -821,7 +821,7 @@ pub(super) fn lower_value_block(
     block: &crate::ast::Block,
     destination: LocalId,
     ty: crate::semantic::TyId,
-    scalar: ScalarType,
+    representation: crate::mir::ValueRepresentation,
     scope: ScopeId,
     preserve_explicit_return: bool,
 ) -> Result<bool, BuildError> {
@@ -829,18 +829,15 @@ pub(super) fn lower_value_block(
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
     StatementLowerer::new(context).lower(&statements, scope)?;
     let returns = preserve_explicit_return && tail.is_explicit_return();
-    let (destination, ty, scalar) = if returns {
+    let (destination, ty, representation) = if returns {
         let destination = context.return_local();
         let declaration = context
             .locals
             .get(destination.index())
             .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        let scalar = declaration
-            .scalar_type()
-            .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        (destination, declaration.ty, scalar)
+        (destination, declaration.ty, declaration.representation)
     } else {
-        (destination, ty, scalar)
+        (destination, ty, representation)
     };
     if let Some(conditional) = tail.conditional() {
         super::expressions::lower_conditional_to_place(
@@ -848,16 +845,16 @@ pub(super) fn lower_value_block(
             destination,
             conditional,
             ty,
-            scalar,
+            representation,
             scope,
         )?;
     } else {
-        context.lower_expression_to_place(
+        context.lower_value_to_place(
             destination,
             tail.expression()
                 .ok_or(BuildError::UnsupportedClaimedExpression)?,
             ty,
-            scalar,
+            representation,
             scope,
         )?;
     }

@@ -218,6 +218,72 @@ func make(): Pair {
 }
 
 #[test]
+fn builds_aggregate_return_conditionals_with_one_logical_destination() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Pair {
+    left: i32,
+    right: i32,
+}
+
+func choose(flag: bool): Pair {
+    if flag {
+        return Pair { left: 1, right: 2 }
+    } else {
+        return Pair { left: 3, right: 4 }
+    }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "choose" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ValueRepresentation::Aggregate,
+        ReturnMode::Plain,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("aggregate return conditionals must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.locals[body.return_local.index()].representation,
+        ValueRepresentation::Aggregate
+    );
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Switch { .. }
+    ));
+    assert!(
+        body.blocks
+            .iter()
+            .filter(|block| {
+                block.statements.iter().any(|statement| matches!(
+            statement,
+            Statement::BeginAggregate { destination, .. } if destination.local == body.return_local
+        ))
+            })
+            .count()
+            >= 2
+    );
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_owned_parameter_cleanup_from_semantic_drop_plans() {
     let (_sources, analysis) = analyze_text(
         r#"struct Resource {

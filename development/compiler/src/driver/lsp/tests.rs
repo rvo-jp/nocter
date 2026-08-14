@@ -2432,6 +2432,7 @@ fn returns_definition_for_local_reference() {
 
 #[test]
 fn returns_references_for_local_binding() {
+    let _home = NocterHomeEnv::preserve();
     let uri = "file:///tmp/nocter-references-local.nct".to_string();
     let document = open_document(
         uri.clone(),
@@ -5078,6 +5079,16 @@ pub(super) struct NocterHomeEnv {
 }
 
 impl NocterHomeEnv {
+    fn preserve() -> Self {
+        let guard = NOCTER_HOME_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        Self {
+            previous: std::env::var_os("NOCTER_HOME"),
+            _guard: guard,
+        }
+    }
+
     pub(super) fn set(home: &Path) -> Self {
         let guard = NOCTER_HOME_ENV_LOCK
             .lock()

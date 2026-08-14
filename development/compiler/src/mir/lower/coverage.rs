@@ -1062,6 +1062,60 @@ fn scalar_conditional_is_supported(
         })
 }
 
+pub(super) fn value_conditional_is_supported(
+    if_: &IfStmt,
+    representation: crate::mir::ValueRepresentation,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    scalar_expression_is_supported(
+        &if_.condition,
+        semantic.resolved,
+        semantic.resolved_sources,
+        semantic.typed_hir,
+    ) && value_block_is_supported(&if_.then_block, representation, semantic)
+        && if_
+            .else_block
+            .as_ref()
+            .is_some_and(|block| value_block_is_supported(block, representation, semantic))
+}
+
+fn value_block_is_supported(
+    block: &Block,
+    representation: crate::mir::ValueRepresentation,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some((statements, tail)) = scalar_body_parts(block) else {
+        return false;
+    };
+    if representation == crate::mir::ValueRepresentation::Aggregate && !statements.is_empty() {
+        return false;
+    }
+    if tail.expression().is_some_and(|expression| {
+        semantic
+            .typed_hir
+            .expression(expression.span())
+            .is_some_and(|typed| typed.diverges)
+    }) {
+        return false;
+    }
+    statements.iter().all(|statement| {
+        statement.is_supported_in_context(
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+            false,
+        )
+    }) && tail
+        .result_type(semantic.typed_hir)
+        .and_then(|ty| value_representation(ty, semantic))
+        == Some(representation)
+        && (tail.expression().is_some_and(|expression| {
+            value_expression_is_supported(expression, representation, semantic)
+        }) || tail.conditional().is_some_and(|conditional| {
+            value_conditional_is_supported(conditional, representation, semantic)
+        }))
+}
+
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
     let Some(operator) = mir_comparison_operator(binary.operator) else {
         return false;
