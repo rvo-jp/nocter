@@ -144,6 +144,20 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         );
                     }
                 }
+                crate::mir::Statement::DropAtPointer {
+                    pointer, offset, ..
+                } => {
+                    for operand in [pointer, offset] {
+                        validate_and_apply_operand(
+                            operand,
+                            &mut initialized,
+                            block_id,
+                            InitializationLocation::Statement(statement_index),
+                            body,
+                            &mut errors,
+                        );
+                    }
+                }
                 crate::mir::Statement::BeginLoan { loan, .. } => {
                     if let Some(loan) = body.loans.get(loan.index()) {
                         validate_and_apply_operand(

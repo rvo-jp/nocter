@@ -164,6 +164,12 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                         reject_operand_move(body, block_id, &argument.operand, &state, &mut errors);
                     }
                 }
+                Statement::DropAtPointer {
+                    pointer, offset, ..
+                } => {
+                    reject_operand_move(body, block_id, pointer, &state, &mut errors);
+                    reject_operand_move(body, block_id, offset, &state, &mut errors);
+                }
                 Statement::BeginLoan { loan, .. } => {
                     let Some(declaration) = body.loans.get(loan.index()) else {
                         errors.insert(LoanError {

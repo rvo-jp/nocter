@@ -5,7 +5,7 @@ use crate::abi::{AbiType, layout_struct};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BorrowArgument, BorrowSource, I32ComparisonOperator, I32Value, Instruction,
-    ScalarArgument, U8Location, U8Value,
+    ScalarArgument, U8Location, U8Value, UsizeValue,
 };
 use crate::mir::{DropPlan, DropPlanId, Place};
 
@@ -27,6 +27,59 @@ pub(super) fn lower_drop(
         .type_expr_by_id(ty)
         .ok_or_else(|| invalid_mir_diagnostics("drop root type is missing"))?;
     lower_plan(context, location, offset, ty, plan)
+}
+
+pub(super) fn lower_pointer_drop(
+    context: &BackendContext<'_>,
+    pointer: UsizeValue,
+    offset: UsizeValue,
+    ty: crate::semantic::TyId,
+    plan: DropPlanId,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let plan = context.body.drop_plans.get(plan.index()).ok_or_else(|| {
+        invalid_mir_diagnostics("pointer drop references a missing semantic plan")
+    })?;
+    let DropPlan::Direct { destructor } = plan else {
+        return Err(invalid_mir_diagnostics(
+            "pointer drop currently requires one direct semantic destructor",
+        ));
+    };
+    let ty = context
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or_else(|| invalid_mir_diagnostics("pointer drop type is missing"))?;
+    let name = context
+        .function_names
+        .name_for_drop(*destructor, ty)
+        .ok_or_else(|| invalid_mir_diagnostics("pointer drop target has no runtime name"))?
+        .clone();
+    let source = context
+        .resolved
+        .semantic_db
+        .definition_anchor(*destructor)
+        .ok_or_else(|| invalid_mir_diagnostics("pointer drop target has no source anchor"))?
+        .source;
+    let target = super::super::call_target_for_source(source, context.root_source, name);
+    let UsizeValue::Location(pointer) = pointer else {
+        return Err(invalid_mir_diagnostics(
+            "pointer drop pointer must have addressable machine storage",
+        ));
+    };
+    let UsizeValue::Location(offset) = offset else {
+        return Err(invalid_mir_diagnostics(
+            "pointer drop offset must have addressable machine storage",
+        ));
+    };
+    Ok(vec![Instruction::CallVoid {
+        target,
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::PointerOffset {
+                pointer,
+                offset,
+                field_offset: 0,
+            },
+        })],
+    }])
 }
 
 fn lower_plan(

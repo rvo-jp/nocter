@@ -141,6 +141,12 @@ pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
                         consume_operand_move(body, &argument.operand, &mut state);
                     }
                 }
+                super::Statement::DropAtPointer {
+                    pointer, offset, ..
+                } => {
+                    consume_operand_move(body, pointer, &mut state);
+                    consume_operand_move(body, offset, &mut state);
+                }
                 super::Statement::EnterRegion { .. }
                 | super::Statement::ExitRegion { .. }
                 | super::Statement::EnterAllocationContext { .. }

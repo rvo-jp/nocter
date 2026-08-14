@@ -42,7 +42,11 @@ impl LoweringContext<'_> {
             .iter()
             .map(|argument| self.lower_call_argument(argument, scope))
             .collect::<Result<Vec<_>, _>>()?;
-        let type_arguments = if intrinsic == crate::intrinsics::IntrinsicId::StoreValueToPtr {
+        let type_arguments = if matches!(
+            intrinsic,
+            crate::intrinsics::IntrinsicId::StoreValueToPtr
+                | crate::intrinsics::IntrinsicId::DropValueAtPtr
+        ) {
             self.semantic
                 .typed_hir
                 .function_call_specialization(call.span)
@@ -67,12 +71,41 @@ impl LoweringContext<'_> {
             })
             .map(|loan| loan.id)
             .collect::<Vec<_>>();
-        self.control_flow.push_statement(Statement::Intrinsic {
-            intrinsic,
-            arguments,
-            type_arguments,
-            origin,
-        })?;
+        if intrinsic == crate::intrinsics::IntrinsicId::DropValueAtPtr {
+            let ty = *type_arguments
+                .first()
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let ty = self
+                .semantic
+                .typed_hir
+                .type_expr_by_id(ty)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let plan = super::super::drop_plans::build(
+                ty,
+                self.semantic.resolved,
+                self.semantic.resolved_sources,
+                self.semantic.typed_hir,
+                &mut self.drop_plans,
+            )
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            let [pointer, offset] = arguments.as_slice() else {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            };
+            self.control_flow.push_statement(Statement::DropAtPointer {
+                pointer: pointer.operand.clone(),
+                offset: offset.operand.clone(),
+                ty: type_arguments[0],
+                plan,
+                origin,
+            })?;
+        } else {
+            self.control_flow.push_statement(Statement::Intrinsic {
+                intrinsic,
+                arguments,
+                type_arguments,
+                origin,
+            })?;
+        }
         for loan in call_loans {
             self.control_flow
                 .push_statement(Statement::EndLoan { loan })?;

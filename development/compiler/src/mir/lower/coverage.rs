@@ -139,8 +139,19 @@ fn scalar_value_call_is_supported(
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
+    let semantic = SemanticInputs {
+        resolved,
+        resolved_sources,
+        typed_hir,
+    };
     scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         && intrinsic_expression_type(call.span, typed_hir)
+            .or_else(|| {
+                intrinsic_for_call(call, semantic)
+                    .is_some_and(value_intrinsic_is_supported)
+                    .then(|| call_result_type(call, semantic))
+                    .flatten()
+            })
             .and_then(|ty| scalar_type(ty, typed_hir))
             .is_some()
 }
@@ -151,6 +162,18 @@ fn aggregate_value_call_is_supported(
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
+    let semantic = SemanticInputs {
+        resolved,
+        resolved_sources,
+        typed_hir,
+    };
+    if intrinsic_for_call(call, semantic) == Some(crate::intrinsics::IntrinsicId::TakeValueAtPtr)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| value_representation(ty, semantic))
+            != Some(crate::mir::ValueRepresentation::Aggregate)
+    {
+        return false;
+    }
     scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         && effective_expression_type(call.span, typed_hir)
             .and_then(|ty| typed_hir.type_expr_by_id(ty))
@@ -321,6 +344,7 @@ pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrins
             | crate::intrinsics::IntrinsicId::FromRefMut
             | crate::intrinsics::IntrinsicId::PointeeAlign
             | crate::intrinsics::IntrinsicId::PointeeSize
+            | crate::intrinsics::IntrinsicId::TakeValueAtPtr
             | crate::intrinsics::IntrinsicId::StrLenRaw
             | crate::intrinsics::IntrinsicId::SliceLenRaw
             | crate::intrinsics::IntrinsicId::StrPtrAddrRaw
@@ -346,6 +370,7 @@ pub(super) fn effect_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrin
         intrinsic,
         crate::intrinsics::IntrinsicId::CloseFdRaw
             | crate::intrinsics::IntrinsicId::CopyPtrToPtr
+            | crate::intrinsics::IntrinsicId::DropValueAtPtr
             | crate::intrinsics::IntrinsicId::StoreU8ToPtr
             | crate::intrinsics::IntrinsicId::StoreValueToPtr
     )
@@ -1749,6 +1774,12 @@ pub(super) fn outcome_return_expression_is_supported(
     result_ty: crate::semantic::TyId,
     semantic: SemanticInputs<'_>,
 ) -> bool {
+    if let Expr::Call(call) = expression.without_groups()
+        && intrinsic_for_call(call, semantic)
+            == Some(crate::intrinsics::IntrinsicId::TakeValueAtPtr)
+    {
+        return false;
+    }
     let Some(result) = semantic.typed_hir.type_expr_by_id(result_ty) else {
         return false;
     };
@@ -2275,6 +2306,12 @@ pub(super) fn value_expression_is_supported(
                     semantic.resolved_sources,
                     semantic.typed_hir,
                 ) && intrinsic_expression_type(call.span, semantic.typed_hir)
+                    .or_else(|| {
+                        intrinsic_for_call(call, semantic)
+                            .is_some_and(value_intrinsic_is_supported)
+                            .then(|| call_result_type(call, semantic))
+                            .flatten()
+                    })
                     .and_then(|ty| value_representation(ty, semantic))
                     == Some(representation)
             }

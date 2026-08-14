@@ -159,6 +159,13 @@ pub(crate) enum Statement {
         type_arguments: Vec<TyId>,
         origin: Origin,
     },
+    DropAtPointer {
+        pointer: Operand,
+        offset: Operand,
+        ty: TyId,
+        plan: DropPlanId,
+        origin: Origin,
+    },
     BeginLoan {
         loan: LoanId,
         origin: Origin,

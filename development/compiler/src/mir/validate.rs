@@ -404,6 +404,35 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 }
                 continue;
             }
+            if let Statement::DropAtPointer {
+                pointer,
+                offset,
+                ty: _,
+                plan,
+                ..
+            } = statement
+            {
+                let location = OperandLocation::Statement(statement_index);
+                for operand in [pointer, offset] {
+                    operand_type(body, block_id, location, operand, &mut errors);
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        operand,
+                        ValueRepresentation::Scalar(ScalarType::Usize),
+                        &mut errors,
+                    );
+                    validate_operand_ownership(body, block_id, location, operand, &mut errors);
+                }
+                if body.drop_plans.get(plan.index()).is_none() {
+                    errors.push(ValidationError::InvalidDropPlan {
+                        block: block_id,
+                        plan: *plan,
+                    });
+                }
+                continue;
+            }
             if !matches!(statement, Statement::Assign { .. }) {
                 continue;
             }

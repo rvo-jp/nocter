@@ -241,7 +241,8 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                     crate::mir::Statement::BeginAggregate { .. }
                     | crate::mir::Statement::FinishAggregate { .. } => false,
                     crate::mir::Statement::Assign { destination, .. } => destination.local == local,
-                    crate::mir::Statement::Intrinsic { .. } => false,
+                    crate::mir::Statement::Intrinsic { .. }
+                    | crate::mir::Statement::DropAtPointer { .. } => false,
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
                         .get(loan.index())
@@ -304,6 +305,9 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                         .iter()
                         .map(|argument| operand_use_count(&argument.operand, local))
                         .sum(),
+                    crate::mir::Statement::DropAtPointer {
+                        pointer, offset, ..
+                    } => operand_use_count(pointer, local) + operand_use_count(offset, local),
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
                         .get(loan.index())

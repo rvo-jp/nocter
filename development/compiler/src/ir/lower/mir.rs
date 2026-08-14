@@ -1858,6 +1858,23 @@ fn lower_statements(
             )?);
             continue;
         }
+        if let Statement::DropAtPointer {
+            pointer,
+            offset,
+            ty,
+            plan,
+            ..
+        } = statement
+        {
+            instructions.extend(drops::lower_pointer_drop(
+                context,
+                lower_usize_operand(pointer, context)?,
+                lower_usize_operand(offset, context)?,
+                *ty,
+                *plan,
+            )?);
+            continue;
+        }
         let Statement::Assign {
             destination, value, ..
         } = statement
@@ -1925,7 +1942,10 @@ fn lower_statements(
             ..
         } = value
         {
-            instructions.push(lower_intrinsic_assignment(
+            if destination_representation == crate::mir::ValueRepresentation::Aggregate {
+                reserve_aggregate_destination(context, destination, &mut instructions)?;
+            }
+            instructions.extend(lower_intrinsic_assignment(
                 destination,
                 *intrinsic,
                 arguments,
@@ -4187,13 +4207,82 @@ fn lower_intrinsic_assignment(
     arguments: &[crate::mir::CallArgument],
     type_arguments: &[crate::semantic::TyId],
     context: &BackendContext<'_>,
-) -> Result<Instruction, Vec<Diagnostic>> {
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let arguments = arguments
         .iter()
         .map(|argument| lower_call_argument(argument, context))
         .collect::<Result<Vec<_>, _>>()?;
     let invalid = || invalid_mir_diagnostics("intrinsic MIR argument contract is invalid");
-    Ok(match (intrinsic, arguments.as_slice()) {
+    let instruction = match (intrinsic, arguments.as_slice()) {
+        (
+            crate::intrinsics::IntrinsicId::TakeValueAtPtr,
+            [
+                ScalarArgument::Usize(pointer),
+                ScalarArgument::Usize(offset),
+            ],
+        ) => {
+            let destination_ty = destination
+                .projection
+                .and_then(|projection| context.body.projections.get(projection.index()))
+                .map_or(context.body.locals[destination.local.index()].ty, |path| {
+                    path.ty
+                });
+            match context.body.locals[destination.local.index()].representation {
+                crate::mir::ValueRepresentation::Aggregate => {
+                    let layout = aggregate_local_abi_value(destination_ty, context)?.layout;
+                    Instruction::CopyPointerToAggregate {
+                        destination: aggregate_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                        layout,
+                    }
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
+                    Instruction::LoadI32FromPointer {
+                        destination: i32_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::U8) => {
+                    Instruction::LoadU8FromPointer {
+                        destination: u8_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
+                    Instruction::LoadUsizeFromPointer {
+                        destination: usize_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+                    Instruction::LoadIntegerFromPointer {
+                        kind,
+                        destination: integer_location(destination, kind, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
+                    Instruction::LoadBoolFromPointer {
+                        destination: bool_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+                    Instruction::LoadStrFromPointer {
+                        destination: str_location(destination, context)?,
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                    }
+                }
+                _ => return Err(invalid()),
+            }
+        }
         (
             crate::intrinsics::IntrinsicId::Addr | crate::intrinsics::IntrinsicId::FromAddr,
             [ScalarArgument::Usize(value)],
@@ -4337,7 +4426,8 @@ fn lower_intrinsic_assignment(
             len: len.clone(),
         },
         _ => return Err(invalid()),
-    })
+    };
+    Ok(vec![instruction])
 }
 
 fn lower_intrinsic_effect(
