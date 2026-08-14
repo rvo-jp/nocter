@@ -577,10 +577,7 @@ func main(): i32 {
     let drop_holder_file = Instruction::CallVoid {
         target: CallTarget::same_file("File.drop"),
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlotField {
-                slot_index: 1,
-                offset: 0,
-            },
+            source: BorrowSource::AggregateSlot(1),
         })],
     };
     let main = ir
@@ -604,26 +601,14 @@ func main(): i32 {
                 slot_index: 1,
                 layout: ValueLayout::new(4, 4),
             },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(false),
-            },
             Instruction::StoreAggregateI32 {
                 destination: AggregateLocation::Slot(1),
                 offset: 0,
                 value: i32_const(2),
             },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(true),
-            },
             Instruction::ReserveAggregateSlot {
                 slot_index: 2,
                 layout: ValueLayout::new(4, 4),
-            },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(1),
-                value: BoolValue::Const(false),
             },
             Instruction::CopyAggregateRange {
                 destination: AggregateLocation::Slot(2),
@@ -631,10 +616,6 @@ func main(): i32 {
                 source: AggregateLocation::Slot(0),
                 source_offset: 0,
                 layout: ValueLayout::new(4, 4),
-            },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(1),
-                value: BoolValue::Const(true),
             },
             drop_holder.clone(),
             drop_holder_file.clone(),
@@ -644,7 +625,7 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(2),
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(1),
                 offset: 0,
             },
@@ -652,7 +633,7 @@ func main(): i32 {
             drop_holder_file,
             Instruction::SetI32 {
                 destination: I32Location::Return,
-                value: i32_local(2),
+                value: i32_local(0),
             },
             Instruction::Return,
         ],
@@ -1202,28 +1183,11 @@ func make_holder(): Holder {
                 offset: 0,
                 value: i32_const(42),
             },
-            Instruction::ReserveAggregateSlot {
-                slot_index: 1,
-                layout: ValueLayout::new(4, 4),
-            },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(false),
-            },
             Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Slot(1),
+                destination: AggregateLocation::DirectReturn,
                 destination_offset: 0,
                 source: AggregateLocation::Slot(0),
                 source_offset: 0,
-                layout: ValueLayout::new(4, 4),
-            },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(true),
-            },
-            Instruction::CopyAggregate {
-                destination: AggregateLocation::DirectReturn,
-                source: AggregateLocation::Slot(1),
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::Return,
@@ -1373,34 +1337,25 @@ func make_wrap(): Wrap {
             instructions: vec![
                 Instruction::ReserveAggregateSlot {
                     slot_index: 0,
-                    layout: ValueLayout::new(12, 4),
-                },
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 1,
                     layout: ValueLayout::new(8, 4),
                 },
                 Instruction::CallDirectAggregate {
-                    destination: AggregateLocation::Slot(1),
+                    destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make_pair"),
                     arguments: vec![],
                     layout: ValueLayout::new(8, 4),
                 },
                 Instruction::CopyAggregateRange {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     destination_offset: 0,
-                    source: AggregateLocation::Slot(1),
+                    source: AggregateLocation::Slot(0),
                     source_offset: 0,
                     layout: ValueLayout::new(8, 4),
                 },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 8,
                     value: I32Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(12, 4),
                 },
                 Instruction::Return,
             ],
@@ -1614,10 +1569,6 @@ func main(): i32 {
                 slot_index: 1,
                 layout: ValueLayout::new(4, 4),
             },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(false),
-            },
             Instruction::CopyAggregateRange {
                 destination: AggregateLocation::Slot(1),
                 destination_offset: 0,
@@ -1625,12 +1576,8 @@ func main(): i32 {
                 source_offset: 0,
                 layout: ValueLayout::new(4, 4),
             },
-            Instruction::SetBool {
-                destination: BoolLocation::Local(0),
-                value: BoolValue::Const(true),
-            },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(1),
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(1),
                 offset: 0,
             },
@@ -1643,15 +1590,12 @@ func main(): i32 {
             Instruction::CallVoid {
                 target: CallTarget::same_file("File.drop"),
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                    source: BorrowSource::AggregateSlotField {
-                        slot_index: 1,
-                        offset: 0,
-                    },
+                    source: BorrowSource::AggregateSlot(1),
                 })],
             },
             Instruction::SetI32 {
                 destination: I32Location::Return,
-                value: i32_local(1),
+                value: i32_local(0),
             },
             Instruction::Return,
         ],

@@ -901,14 +901,15 @@ func build(): i32! {
     .unwrap();
 
     assert!(
-        function
-            .instructions
-            .contains(&Instruction::CallOutcomeAggregate {
-                destination: AggregateLocation::Slot(1),
-                target: CallTarget::same_file("make"),
-                arguments: vec![],
-                failure_mode: OutcomeFailureMode::Propagate,
-            }),
+        function.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallStoredOutcome {
+                destination: AggregateLocation::Slot(2),
+                target,
+                arguments,
+                ..
+            } if target == &CallTarget::same_file("make") && arguments.is_empty()
+        )),
         "{function:?}"
     );
     assert!(

@@ -221,6 +221,25 @@ fn value_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<
             semantic.typed_hir,
         );
     }
+    if matches!(
+        abi,
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
+    ) && (super::coverage::aggregate_operand_is_supported(
+        expression,
+        semantic.resolved,
+        semantic.resolved_sources,
+        semantic.typed_hir,
+    ) || matches!(expression.without_groups(), Expr::Call(_))
+        && super::coverage::value_expression_is_supported(
+            expression,
+            crate::mir::ValueRepresentation::Aggregate,
+            semantic,
+        )
+        || matches!(expression.without_groups(), Expr::Member(member)
+            if super::projections::aggregate_value_field_is_supported(member, semantic)))
+    {
+        return true;
+    }
     literal_matches_abi(expression.without_groups(), abi, semantic)
 }
 
@@ -530,6 +549,67 @@ fn lower_staged_value(
             .expression(expression.span())
             .map(|expression| Origin::Expression(expression.id))
             .ok_or(BuildError::MissingTypedExpression)?;
+        return context.control_flow.push_statement(Statement::Assign {
+            destination: Place::projected(base, projection),
+            value: Rvalue::Use(operand),
+            origin,
+        });
+    }
+    if contract.representation == crate::mir::ValueRepresentation::Aggregate
+        && !matches!(
+            expression.without_groups(),
+            Expr::StructLiteral(_) | Expr::ArrayLiteral(_)
+        )
+    {
+        let ty = contract.ty;
+        let operand = if matches!(expression.without_groups(), Expr::Call(_)) {
+            let origin = context
+                .semantic
+                .typed_hir
+                .expression(expression.span())
+                .map_or(
+                    crate::mir::LocalOrigin::Desugared(expression.span()),
+                    |expression| crate::mir::LocalOrigin::Temporary(expression.id),
+                );
+            let temporary = context.aggregate_temporary(ty, origin, scope)?;
+            context.lower_value_to_place(
+                temporary,
+                expression,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
+            if context.locals[temporary.index()].ownership == crate::mir::OwnershipKind::Move {
+                crate::mir::Operand::Move(Place::local(temporary))
+            } else {
+                crate::mir::Operand::Copy(Place::local(temporary))
+            }
+        } else if let Expr::Member(member) = expression.without_groups()
+            && super::projections::aggregate_value_field_is_supported(member, context.semantic)
+            && !super::coverage::aggregate_operand_is_supported(
+                expression,
+                context.semantic.resolved,
+                context.semantic.resolved_sources,
+                context.semantic.typed_hir,
+            )
+        {
+            let source = context.lower_value_member_source(
+                member,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
+            crate::mir::Operand::Copy(source)
+        } else {
+            context.lower_aggregate_operand(expression)?
+        };
+        let origin = context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .map_or(Origin::Desugared(expression.span()), |expression| {
+                Origin::Expression(expression.id)
+            });
         return context.control_flow.push_statement(Statement::Assign {
             destination: Place::projected(base, projection),
             value: Rvalue::Use(operand),
