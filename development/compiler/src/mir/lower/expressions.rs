@@ -139,6 +139,33 @@ impl LoweringContext<'_> {
                 Expr::InterpolatedString(interpolated) => {
                     super::interpolation::lower_to_place(self, destination, interpolated, ty, scope)
                 }
+                Expr::Member(member) => {
+                    let source = if super::coverage::aggregate_operand_is_supported(
+                        expression,
+                        self.semantic.resolved,
+                        self.semantic.resolved_sources,
+                        self.semantic.typed_hir,
+                    ) {
+                        let Operand::Copy(source) = self.lower_aggregate_operand(expression)?
+                        else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        source
+                    } else {
+                        self.lower_aggregate_member_source(member, ty, scope)?
+                    };
+                    self.control_flow.push_statement(Statement::Assign {
+                        destination: Place::local(destination),
+                        value: Rvalue::Use(Operand::Copy(source)),
+                        origin: crate::mir::Origin::Expression(
+                            self.semantic
+                                .typed_hir
+                                .expression(member.span)
+                                .ok_or(BuildError::MissingTypedExpression)?
+                                .id,
+                        ),
+                    })
+                }
                 Expr::Identifier(_) | Expr::Unary(_) => {
                     let source = self
                         .semantic
@@ -183,6 +210,55 @@ impl LoweringContext<'_> {
                 Err(BuildError::UnsupportedClaimedExpression)
             }
         }
+    }
+
+    pub(super) fn lower_aggregate_member_source(
+        &mut self,
+        member: &crate::ast::MemberExpr,
+        result_ty: crate::semantic::TyId,
+        scope: ScopeId,
+    ) -> Result<Place, BuildError> {
+        let root = super::projections::member_chain_root(member);
+        let root_expression = self
+            .semantic
+            .typed_hir
+            .expression(root.span())
+            .ok_or(BuildError::MissingTypedExpression)?;
+        let crate::typecheck::PartialSemantic::Known(root_ty) = root_expression.ty else {
+            return Err(BuildError::MissingTypedExpression);
+        };
+        if super::coverage::value_representation(root_ty, self.semantic)
+            != Some(crate::mir::ValueRepresentation::Aggregate)
+        {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let temporary =
+            self.aggregate_temporary(root_ty, LocalOrigin::Temporary(root_expression.id), scope)?;
+        self.lower_value_to_place(
+            temporary,
+            root,
+            root_ty,
+            crate::mir::ValueRepresentation::Aggregate,
+            scope,
+        )?;
+        let (source, representation) = super::projections::lower_field_place_from_value_root(
+            member,
+            root_ty,
+            Place::local(temporary),
+            self.semantic,
+            &mut self.projections,
+            &mut self.drop_plans,
+        )?;
+        if representation != crate::mir::ValueRepresentation::Aggregate
+            || self.projections[source
+                .projection
+                .ok_or(BuildError::UnsupportedClaimedExpression)?
+                .index()]
+            .ty != result_ty
+        {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        Ok(source)
     }
 
     pub(super) fn lower_call(

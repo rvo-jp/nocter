@@ -119,6 +119,31 @@ pub(super) fn owned_field_is_supported(member: &MemberExpr, semantic: SemanticIn
     field_path_parts(member, semantic, false).is_some()
 }
 
+pub(super) fn aggregate_value_field_is_supported(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let mut members = Vec::new();
+    let root = collect_member_chain_root(member, &mut members);
+    let Some(root_ty) = semantic
+        .typed_hir
+        .expression(root.span())
+        .and_then(|expression| match expression.ty {
+            crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+            crate::typecheck::PartialSemantic::Error => None,
+        })
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+    else {
+        return false;
+    };
+    field_segments(root_ty, &members, semantic).is_some()
+}
+
+pub(super) fn member_chain_root(member: &MemberExpr) -> &Expr {
+    let mut members = Vec::new();
+    collect_member_chain_root(member, &mut members)
+}
+
 pub(super) fn lower_scalar_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
@@ -258,17 +283,51 @@ fn lower_field_place_with_borrow_base(
 ) -> Result<(Place, ValueRepresentation), BuildError> {
     let parts = field_path_parts(member, semantic, allow_borrow_base)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let representation = parts
-        .segments
-        .last()
-        .ok_or(BuildError::UnsupportedClaimedExpression)?
-        .representation;
     let base_place = *places
         .get(&parts.base_symbol)
         .ok_or(BuildError::MissingLocalSymbol)?;
+    push_field_place(
+        base_place,
+        parts.segments,
+        semantic,
+        projections,
+        drop_plans,
+    )
+}
+
+pub(super) fn lower_field_place_from_value_root(
+    member: &MemberExpr,
+    root_ty: crate::semantic::TyId,
+    base_place: Place,
+    semantic: SemanticInputs<'_>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
+) -> Result<(Place, ValueRepresentation), BuildError> {
+    let mut members = Vec::new();
+    collect_member_chain_root(member, &mut members);
+    let root_ty = semantic
+        .typed_hir
+        .type_expr_by_id(root_ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let segments = field_segments(root_ty, &members, semantic)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    push_field_place(base_place, segments, semantic, projections, drop_plans)
+}
+
+fn push_field_place(
+    base_place: Place,
+    segments: Vec<FieldSegment>,
+    semantic: SemanticInputs<'_>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
+) -> Result<(Place, ValueRepresentation), BuildError> {
+    let representation = segments
+        .last()
+        .ok_or(BuildError::UnsupportedClaimedExpression)?
+        .representation;
     let base = base_place.local;
     let mut parent = base_place.projection;
-    for segment in parts.segments {
+    for segment in segments {
         let element = ProjectionElement::Field {
             offset: segment.offset,
         };
@@ -343,6 +402,18 @@ fn field_path_parts(
         crate::ast::TypeExpr::Borrow(borrow) if allow_borrow_base => borrow.inner.as_ref(),
         ty => ty,
     };
+    let segments = field_segments(layout_ty, &members, semantic)?;
+    Some(FieldPathParts {
+        base_symbol,
+        segments,
+    })
+}
+
+fn field_segments(
+    layout_ty: &crate::ast::TypeExpr,
+    members: &[&MemberExpr],
+    semantic: SemanticInputs<'_>,
+) -> Option<Vec<FieldSegment>> {
     let mut current = crate::abi::abi_value_from_type_expr_with_resolver(
         layout_ty,
         semantic.resolved,
@@ -388,21 +459,27 @@ fn field_path_parts(
             type_expr: field_ty.clone(),
         });
     }
-    Some(FieldPathParts {
-        base_symbol,
-        segments,
-    })
+    Some(segments)
 }
 
 fn collect_member_chain<'a>(
     member: &'a MemberExpr,
     members: &mut Vec<&'a MemberExpr>,
 ) -> Option<&'a IdentifierExpr> {
+    let Expr::Identifier(base) = collect_member_chain_root(member, members) else {
+        return None;
+    };
+    Some(base)
+}
+
+fn collect_member_chain_root<'a>(
+    member: &'a MemberExpr,
+    members: &mut Vec<&'a MemberExpr>,
+) -> &'a Expr {
     let base = match member.object.without_groups() {
-        Expr::Identifier(identifier) => identifier,
-        Expr::Member(parent) => collect_member_chain(parent, members)?,
-        _ => return None,
+        Expr::Member(parent) => collect_member_chain_root(parent, members),
+        expression => expression,
     };
     members.push(member);
-    Some(base)
+    base
 }

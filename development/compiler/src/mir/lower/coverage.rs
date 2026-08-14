@@ -1924,7 +1924,24 @@ pub(super) fn value_expression_is_supported(
             Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
                 super::aggregates::literal_is_supported(expression, semantic)
             }
-            Expr::Member(_) => super::aggregates::literal_is_supported(expression, semantic),
+            Expr::Member(member) => {
+                let root = super::projections::member_chain_root(member);
+                (aggregate_operand_is_supported(
+                    expression,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                ) || super::projections::aggregate_value_field_is_supported(member, semantic)
+                    && value_expression_is_supported(
+                        root,
+                        crate::mir::ValueRepresentation::Aggregate,
+                        semantic,
+                    ))
+                    && known_expression_type(expression, semantic.typed_hir)
+                        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+                        .and_then(|ty| crate::typecheck::type_expr_is_copy(ty, semantic.resolved))
+                        == Some(true)
+            }
             Expr::Call(call) => aggregate_value_call_is_supported(
                 call,
                 semantic.resolved,

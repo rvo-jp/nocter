@@ -600,6 +600,34 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             .projection
             .and_then(|projection| self.context.projections[projection.index()].drop_plan)
             .or(self.context.locals[destination.local.index()].drop_plan);
+        if let Expr::Member(member) = assignment.value.without_groups()
+            && super::projections::aggregate_value_field_is_supported(member, self.context.semantic)
+            && !super::coverage::aggregate_operand_is_supported(
+                &assignment.value,
+                self.context.semantic.resolved,
+                self.context.semantic.resolved_sources,
+                self.context.semantic.typed_hir,
+            )
+        {
+            let source = self
+                .context
+                .lower_aggregate_member_source(member, ty, scope)?;
+            if let Some(plan) = drop_plan {
+                self.context.control_flow.emit_drop(destination, plan)?;
+            }
+            let origin = self
+                .context
+                .semantic
+                .typed_hir
+                .expression(assignment.value.span())
+                .ok_or(BuildError::MissingTypedExpression)?
+                .id;
+            return self.context.control_flow.push_statement(Statement::Assign {
+                destination,
+                value: Rvalue::Use(Operand::Copy(source)),
+                origin: Origin::Expression(origin),
+            });
+        }
         if super::coverage::aggregate_operand_is_supported(
             &assignment.value,
             self.context.semantic.resolved,
