@@ -299,7 +299,6 @@ fn lower_linear_call_terminator(
     visited: &mut HashSet<crate::mir::BasicBlockId>,
     instructions: &mut Vec<Instruction>,
 ) -> Result<crate::mir::BasicBlockId, Vec<Diagnostic>> {
-    let body = context.body;
     let Terminator::Call {
         callee,
         arguments,
@@ -356,10 +355,9 @@ fn lower_linear_call_terminator(
             failure,
             failure_payload,
         } => {
-            let scalar = super::local_scalar(body, destination.local)?;
+            super::reserve_aggregate_destination(context, destination, instructions)?;
             instructions.push(lower_outcome_call(
                 context,
-                scalar,
                 destination,
                 call_target,
                 arguments,

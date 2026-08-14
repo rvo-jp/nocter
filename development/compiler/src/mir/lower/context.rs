@@ -71,6 +71,48 @@ impl<'a> LoweringContext<'a> {
         scope
     }
 
+    pub(super) fn aggregate_temporary(
+        &mut self,
+        ty: crate::semantic::TyId,
+        origin: crate::mir::LocalOrigin,
+        scope: ScopeId,
+    ) -> Result<LocalId, BuildError> {
+        let type_expr = self
+            .semantic
+            .typed_hir
+            .type_expr_by_id(ty)
+            .ok_or(BuildError::MissingTypedExpression)?;
+        let ownership = if crate::typecheck::type_expr_is_copy(type_expr, self.semantic.resolved)
+            == Some(true)
+        {
+            crate::mir::OwnershipKind::Copy
+        } else {
+            crate::mir::OwnershipKind::Move
+        };
+        let mut local = Local::aggregate(
+            ty,
+            ownership,
+            crate::mir::LocalStorage::Local,
+            origin,
+            scope,
+        );
+        if ownership == crate::mir::OwnershipKind::Move {
+            local.drop_plan = Some(
+                super::super::drop_plans::build(
+                    type_expr,
+                    self.semantic.resolved,
+                    self.semantic.resolved_sources,
+                    self.semantic.typed_hir,
+                    &mut self.drop_plans,
+                )
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            );
+        }
+        let id = LocalId::from_index(self.locals.len());
+        self.locals.push(local);
+        Ok(id)
+    }
+
     pub(super) fn finish(self) -> Result<LoweredBodyParts, BuildError> {
         Ok(LoweredBodyParts {
             locals: self.locals,

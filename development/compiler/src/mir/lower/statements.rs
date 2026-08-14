@@ -179,6 +179,18 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     scope,
                                 )?;
                             }
+                            Expr::Force(_)
+                            | Expr::Propagate(_)
+                            | Expr::Otherwise(_)
+                            | Expr::Catch(_) => {
+                                self.context.lower_value_to_place(
+                                    local,
+                                    &binding.initializer,
+                                    ty,
+                                    crate::mir::ValueRepresentation::Aggregate,
+                                    scope,
+                                )?;
+                            }
                             _ => return Err(BuildError::UnsupportedClaimedExpression),
                         }
                     }
@@ -829,6 +841,18 @@ pub(super) fn lower_value_block(
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
     StatementLowerer::new(context).lower(&statements, scope)?;
     let returns = preserve_explicit_return && tail.is_explicit_return();
+    if returns
+        && tail.expression().is_some_and(|expression| {
+            super::coverage::failure_value_is_supported(expression, context.semantic)
+        })
+    {
+        context.lower_failure_return(
+            tail.expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            scope,
+        )?;
+        return Ok(true);
+    }
     let (destination, ty, representation) = if returns {
         let destination = context.return_local();
         let declaration = context

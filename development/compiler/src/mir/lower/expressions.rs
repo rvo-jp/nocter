@@ -32,23 +32,70 @@ impl LoweringContext<'_> {
         if !super::coverage::failure_value_is_supported(expression, self.semantic) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        let Expr::Call(call) = expression.without_groups() else {
-            unreachable!("supported failure values are constructor calls")
+        let (code, message) = match expression.without_groups() {
+            Expr::Call(call) => {
+                let mut operands = Vec::with_capacity(2);
+                for argument in &call.arguments {
+                    let ty = known_expression_type(argument, self.semantic.typed_hir)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    operands.push(self.lower_view_operand(
+                        argument,
+                        ty,
+                        crate::mir::ViewKind::Str,
+                        scope,
+                    )?);
+                }
+                let [code, message] = operands
+                    .try_into()
+                    .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+                (code, message)
+            }
+            Expr::Identifier(identifier) => {
+                let symbol = self
+                    .semantic
+                    .resolved
+                    .local_symbol_for_identifier(identifier)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                let local = *self
+                    .locals_by_symbol
+                    .get(&symbol.id)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                if self.locals[local.index()].representation
+                    != crate::mir::ValueRepresentation::Error
+                {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                let span = expression.span();
+                let str_ty = self
+                    .semantic
+                    .typed_hir
+                    .type_id(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+                        span,
+                        is_readwrite: false,
+                        inner: Box::new(crate::ast::TypeExpr::Reference(
+                            crate::ast::TypeReference {
+                                span,
+                                name: "str".to_string(),
+                            },
+                        )),
+                    }))
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let code = super::projections::push_error_field_place(
+                    local,
+                    crate::builtin_types::BuiltinErrorField::Code,
+                    str_ty,
+                    &mut self.projections,
+                );
+                let message = super::projections::push_error_field_place(
+                    local,
+                    crate::builtin_types::BuiltinErrorField::Message,
+                    str_ty,
+                    &mut self.projections,
+                );
+                (Operand::Copy(code), Operand::Copy(message))
+            }
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
         };
-        let mut operands = Vec::with_capacity(2);
-        for argument in &call.arguments {
-            let ty = known_expression_type(argument, self.semantic.typed_hir)
-                .ok_or(BuildError::MissingTypedExpression)?;
-            operands.push(self.lower_view_operand(
-                argument,
-                ty,
-                crate::mir::ViewKind::Str,
-                scope,
-            )?);
-        }
-        let [code, message] = operands
-            .try_into()
-            .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
         self.control_flow
             .terminate(crate::mir::Terminator::ReturnFailure { code, message })
     }
@@ -96,6 +143,30 @@ impl LoweringContext<'_> {
                         value: Rvalue::Use(operand),
                         origin: crate::mir::Origin::Expression(source),
                     })
+                }
+                Expr::Force(force) => outcomes::lower_terminal_stored_outcome_to_place(
+                    self,
+                    destination,
+                    &force.expression,
+                    crate::mir::Terminator::Trap,
+                    scope,
+                ),
+                Expr::Propagate(propagate) => outcomes::lower_terminal_stored_outcome_to_place(
+                    self,
+                    destination,
+                    &propagate.expression,
+                    crate::mir::Terminator::PropagateFailure,
+                    scope,
+                ),
+                Expr::Otherwise(otherwise) => outcomes::lower_aggregate_otherwise_to_place(
+                    self,
+                    destination,
+                    otherwise,
+                    ty,
+                    scope,
+                ),
+                Expr::Catch(catch) => {
+                    outcomes::lower_aggregate_catch_to_place(self, destination, catch, ty, scope)
                 }
                 _ => super::aggregates::lower_literal(self, destination, expression, scope),
             },
@@ -665,6 +736,7 @@ impl LoweringContext<'_> {
                     destination,
                     &force.expression,
                     crate::mir::Terminator::Trap,
+                    scope,
                 );
             }
             Expr::Propagate(propagate) => {
@@ -685,6 +757,7 @@ impl LoweringContext<'_> {
                     destination,
                     &propagate.expression,
                     crate::mir::Terminator::PropagateFailure,
+                    scope,
                 );
             }
             Expr::Member(member) => {

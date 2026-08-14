@@ -447,14 +447,25 @@ func lookup(): i32?! {
         .iter()
         .find(|function| function.name == "main")
         .unwrap();
-    assert!(main.instructions.iter().any(|instruction| matches!(
-        instruction,
+    let fallible = main
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction, Instruction::CheckStoredFallible { .. }))
+        .unwrap_or_else(|| panic!("{main:?}"));
+    let optional = main
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
+        .unwrap();
+    assert!(fallible < optional, "{main:?}");
+    assert!(matches!(
+        &main.instructions[fallible],
         Instruction::CheckStoredFallible {
             success_instructions,
             ..
         } if success_instructions.iter().any(|nested| matches!(nested,
-            Instruction::IfStoredOutcomeTag { .. }))
-    )));
+            Instruction::CopyAggregateRange { .. }))
+    ));
 }
 
 #[test]
@@ -582,14 +593,25 @@ func lookup(): i32!? {
         .iter()
         .find(|function| function.name == "main")
         .unwrap();
-    assert!(main.instructions.iter().any(|instruction| matches!(
-        instruction,
+    let optional = main
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
+        .unwrap();
+    let fallible = main
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction, Instruction::CheckStoredFallible { .. }))
+        .unwrap_or_else(|| panic!("{main:?}"));
+    assert!(optional < fallible, "{main:?}");
+    assert!(matches!(
+        &main.instructions[optional],
         Instruction::IfStoredOutcomeTag {
             success_instructions,
             ..
         } if success_instructions.iter().any(|nested| matches!(nested,
-            Instruction::CheckStoredFallible { .. }))
-    )));
+            Instruction::CopyAggregateRange { .. }))
+    ));
 }
 
 #[test]

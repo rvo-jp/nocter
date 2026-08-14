@@ -367,10 +367,9 @@ fn lower_scalar_body(
                             *failure_payload,
                             &mut visited,
                         )?;
-                        let destination_scalar = local_scalar(body, destination.local)?;
+                        reserve_aggregate_destination(&context, destination, &mut instructions)?;
                         instructions.push(lower_outcome_call(
                             &context,
-                            destination_scalar,
                             destination,
                             call_target,
                             arguments,
@@ -413,6 +412,7 @@ fn lower_scalar_body(
                 failure_payload,
                 ..
             } => {
+                reserve_aggregate_destination(&context, destination, &mut instructions)?;
                 instructions.push(outcomes::lower(
                     &context,
                     outcomes::Inspection {
@@ -725,6 +725,7 @@ fn lower_branch_to_join(
                 failure_payload,
                 ..
             } => {
+                reserve_aggregate_destination(context, destination, &mut instructions)?;
                 instructions.push(outcomes::lower(
                     context,
                     outcomes::Inspection {
@@ -762,10 +763,9 @@ fn lower_branch_to_join(
                     .iter()
                     .map(|argument| lower_call_argument(argument, context))
                     .collect::<Result<Vec<_>, _>>()?;
-                let destination_scalar = local_scalar(body, destination.local)?;
+                reserve_aggregate_destination(context, destination, &mut instructions)?;
                 instructions.push(lower_outcome_call(
                     context,
-                    destination_scalar,
                     destination,
                     call_target,
                     arguments,
@@ -1008,7 +1008,7 @@ fn reserve_aggregate_destination(
     Ok(())
 }
 
-fn aggregate_local_abi_value(
+pub(super) fn aggregate_local_abi_value(
     ty: crate::semantic::TyId,
     context: &BackendContext<'_>,
 ) -> Result<crate::abi::AbiValue, Vec<Diagnostic>> {
@@ -1024,13 +1024,72 @@ fn aggregate_local_abi_value(
 
 fn lower_outcome_call(
     context: &BackendContext<'_>,
-    scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
     arguments: Vec<ScalarArgument>,
     failure_mode: OutcomeFailureMode,
     callee_name: &str,
 ) -> Result<Instruction, Vec<Diagnostic>> {
+    let representation = context.body.locals[destination.local.index()].representation;
+    if representation == crate::mir::ValueRepresentation::Aggregate {
+        let return_type = context
+            .function_signatures
+            .return_type(&target)
+            .ok_or_else(|| {
+                invalid_mir_diagnostics(format!(
+                    "outcome aggregate call to `{callee_name}` has no indexed return type"
+                ))
+            })?;
+        let success = match return_type {
+            Type::Optional(success) | Type::Fallible(success) => success.as_ref(),
+            _ => {
+                return Err(invalid_mir_diagnostics(format!(
+                    "outcome aggregate call to `{callee_name}` does not return one outcome layer"
+                )));
+            }
+        };
+        let layout =
+            aggregate_local_abi_value(context.body.locals[destination.local.index()].ty, context)?
+                .layout;
+        if !matches!(
+            success,
+            Type::Aggregate { .. } | Type::DirectAggregate { .. }
+        ) {
+            return Err(invalid_mir_diagnostics(format!(
+                "outcome call to `{callee_name}` has a non-aggregate success type"
+            )));
+        }
+        super::expressions::validate_known_call_success_return_passing(
+            context.function_signatures.success_return_passing(&target),
+            callee_name,
+            success,
+        )?;
+        return Ok(super::aggregates::fallible_aggregate_call_instruction(
+            success,
+            aggregate_location(destination, context)?,
+            target,
+            arguments,
+            layout,
+            failure_mode,
+        ));
+    }
+    if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) {
+        return Ok(Instruction::CallOutcomeStr {
+            destination: str_location(destination, context)?,
+            target,
+            arguments,
+            failure_mode,
+        });
+    }
+    if representation == crate::mir::ValueRepresentation::Borrow {
+        return Ok(Instruction::CallOutcomeBorrow {
+            destination: usize_location(destination, context)?,
+            target,
+            arguments,
+            failure_mode,
+        });
+    }
+    let scalar = local_scalar(context.body, destination.local)?;
     validate_outcome_call_return_type(&target, callee_name, scalar, context.function_signatures)?;
     outcome_call_instruction(
         context,

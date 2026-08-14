@@ -492,6 +492,15 @@ impl<'a> ScalarStatement<'a> {
                                 typed_hir,
                             )
                         }
+                        Expr::Force(_) | Expr::Propagate(_) => value_expression_is_supported(
+                            &binding.initializer,
+                            crate::mir::ValueRepresentation::Aggregate,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        ),
                         _ => false,
                     };
                 (scalar
@@ -1037,6 +1046,20 @@ pub(super) fn scalar_expression_is_supported(
 }
 
 pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    if let Expr::Identifier(identifier) = expression.without_groups() {
+        return semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+            .is_some_and(|ty| {
+                matches!(
+                    ty,
+                    crate::ast::TypeExpr::Reference(reference)
+                        if crate::builtin_types::BuiltinTypeOwner::from_reference_name(&reference.name)
+                            == Some(crate::builtin_types::BuiltinTypeOwner::Error)
+                )
+            });
+    }
     let Expr::Call(call) = expression.without_groups() else {
         return false;
     };
@@ -1086,12 +1109,8 @@ fn scalar_outcome_source_is_supported(
             }
         };
     }
-    let Expr::Identifier(identifier) = expression.without_groups() else {
-        return false;
-    };
-    let Some(type_expr) = resolved
-        .local_symbol_for_identifier(identifier)
-        .and_then(|symbol| typed_hir.binding_type_expr(symbol.id))
+    let Some(type_expr) =
+        known_expression_type(expression, typed_hir).and_then(|ty| typed_hir.type_expr_by_id(ty))
     else {
         return false;
     };
@@ -1106,6 +1125,20 @@ fn scalar_outcome_source_is_supported(
             .type_id(&shape.payload)
             .and_then(|ty| scalar_type(ty, typed_hir))
             .is_some()
+        && match expression.without_groups() {
+            Expr::Identifier(identifier) => {
+                resolved.local_symbol_for_identifier(identifier).is_some()
+            }
+            _ => value_expression_is_supported(
+                expression,
+                crate::mir::ValueRepresentation::Aggregate,
+                SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            ),
+        }
 }
 
 fn catch_binding_is_supported(
@@ -1312,17 +1345,26 @@ fn value_block_is_supported(
     }) {
         return false;
     }
-    statements.iter().all(|statement| {
+    let statements_supported = statements.iter().all(|statement| {
         statement.is_supported_in_context(
             semantic.resolved,
             semantic.resolved_sources,
             semantic.typed_hir,
             false,
         )
-    }) && tail
+    });
+    let tail_representation = tail
         .result_type(semantic.typed_hir)
-        .and_then(|ty| value_representation(ty, semantic))
-        == Some(representation)
+        .and_then(|ty| value_representation(ty, semantic));
+    if tail.is_explicit_return() && tail_representation != Some(representation) {
+        return statements_supported
+            && (tail.is_supported(semantic)
+                || tail
+                    .expression()
+                    .is_some_and(|expression| failure_value_is_supported(expression, semantic)));
+    }
+    statements_supported
+        && tail_representation == Some(representation)
         && (tail.expression().is_some_and(|expression| {
             value_expression_is_supported(expression, representation, semantic)
         }) || tail.conditional().is_some_and(|conditional| {
@@ -1451,10 +1493,102 @@ pub(super) fn value_expression_is_supported(
                 semantic.resolved_sources,
                 semantic.typed_hir,
             ),
+            Expr::Force(force) => stored_outcome_projection_is_supported(
+                expression,
+                &force.expression,
+                representation,
+                semantic,
+            ),
+            Expr::Propagate(propagate) => stored_outcome_projection_is_supported(
+                expression,
+                &propagate.expression,
+                representation,
+                semantic,
+            ),
+            Expr::Otherwise(otherwise) => {
+                aggregate_outcome_source_is_supported(&otherwise.value, None, semantic)
+                    && value_block_is_supported(&otherwise.fallback, representation, semantic)
+            }
+            Expr::Catch(catch) => {
+                catch_binding_is_supported(catch, semantic.resolved, semantic.typed_hir)
+                    && aggregate_outcome_source_is_supported(
+                        &catch.expression,
+                        Some(crate::outcomes::OutcomeLayer::Fallible),
+                        semantic,
+                    )
+                    && value_block_is_supported(&catch.catch_block, representation, semantic)
+            }
             _ => false,
         },
         crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => false,
     }
+}
+
+fn aggregate_outcome_source_is_supported(
+    expression: &Expr,
+    required_layer: Option<crate::outcomes::OutcomeLayer>,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(type_expr) = known_expression_type(expression, semantic.typed_hir)
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+    else {
+        return false;
+    };
+    let shape =
+        crate::outcomes::outcome_shape_with_resolver(type_expr, semantic.resolved, |source| {
+            semantic.resolver_for(source)
+        });
+    let Some(layer) = shape.layers.first() else {
+        return false;
+    };
+    if required_layer.is_some_and(|required| required != *layer) {
+        return false;
+    }
+    match expression.without_groups() {
+        Expr::Identifier(_) | Expr::Unary(_) => stored_outcome_operand_is_supported(
+            expression,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        ),
+        Expr::Call(call) => scalar_call_shape_is_supported(
+            call,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        ),
+        _ => value_expression_is_supported(
+            expression,
+            crate::mir::ValueRepresentation::Aggregate,
+            semantic,
+        ),
+    }
+}
+
+fn stored_outcome_projection_is_supported(
+    expression: &Expr,
+    source: &Expr,
+    result_representation: crate::mir::ValueRepresentation,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Expr::Identifier(identifier) = source.without_groups() else {
+        return false;
+    };
+    let Some(source_ty) = semantic
+        .resolved
+        .local_symbol_for_identifier(identifier)
+        .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+    else {
+        return false;
+    };
+    let shape =
+        crate::outcomes::outcome_shape_with_resolver(source_ty, semantic.resolved, |source| {
+            semantic.resolver_for(source)
+        });
+    !shape.layers.is_empty()
+        && known_expression_type(expression, semantic.typed_hir)
+            .and_then(|ty| value_representation(ty, semantic))
+            == Some(result_representation)
 }
 
 fn stored_outcome_operand_is_supported(

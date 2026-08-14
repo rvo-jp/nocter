@@ -136,26 +136,27 @@ func lookup(mode: i32): i32?! {
     )
     .unwrap();
 
-    let call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallComposedOutcome {
-            outer_mode,
-            inner_mode,
-            ..
-        } = instruction
-        else {
-            return None;
-        };
-        Some((outer_mode, inner_mode))
-    });
-    let Some((
-        OutcomeFailureMode::Catch {
-            instructions: catch_instructions,
-            ..
-        },
-        OutcomeFailureMode::Handle {
-            instructions: absence_instructions,
-        },
-    )) = call
+    let Some(Instruction::CheckStoredFallible {
+        failure_mode:
+            OutcomeFailureMode::Catch {
+                instructions: catch_instructions,
+                ..
+            },
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CheckStoredFallible { .. }))
+    else {
+        panic!("{function:?}");
+    };
+    let Some(Instruction::IfStoredOutcomeTag {
+        outcome_instructions: absence_instructions,
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
     else {
         panic!("{function:?}");
     };

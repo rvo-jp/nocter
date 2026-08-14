@@ -79,16 +79,13 @@ func make(): Header? {
     )
     .unwrap();
 
-    let [
-        Instruction::CallOutcomeDirectAggregate {
-            destination,
-            target,
-            arguments,
-            layout,
-            failure_mode: OutcomeFailureMode::Handle { instructions },
-        },
-        Instruction::Return,
-    ] = function.instructions.as_slice()
+    let Some(Instruction::CallOutcomeDirectAggregate {
+        destination,
+        target,
+        arguments,
+        layout,
+        failure_mode: OutcomeFailureMode::Recover { instructions },
+    }) = function.instructions.first()
     else {
         panic!("{function:?}");
     };
@@ -97,16 +94,11 @@ func make(): Header? {
     assert!(arguments.is_empty());
     assert_eq!(*layout, ValueLayout::new(16, 8));
     assert!(instructions.contains(&Instruction::StoreAggregateI32 {
-        destination: AggregateLocation::Slot(0),
+        destination: AggregateLocation::DirectReturn,
         offset: 4,
         value: I32Value::Const(7),
     }));
-    assert!(instructions.contains(&Instruction::CopyAggregate {
-        destination: AggregateLocation::DirectReturn,
-        source: AggregateLocation::Slot(0),
-        layout: ValueLayout::new(16, 8),
-    }));
-    assert_eq!(instructions.last(), Some(&Instruction::Return));
+    assert_eq!(function.instructions.last(), Some(&Instruction::Return));
 }
 
 #[test]
@@ -138,15 +130,12 @@ func make(): Triple? {
     )
     .unwrap();
 
-    let [
-        Instruction::CallOutcomeAggregate {
-            destination,
-            target,
-            arguments,
-            failure_mode: OutcomeFailureMode::Handle { instructions },
-        },
-        Instruction::Return,
-    ] = function.instructions.as_slice()
+    let Some(Instruction::CallOutcomeAggregate {
+        destination,
+        target,
+        arguments,
+        failure_mode: OutcomeFailureMode::Recover { instructions },
+    }) = function.instructions.first()
     else {
         panic!("{function:?}");
     };
@@ -158,7 +147,7 @@ func make(): Triple? {
         offset: 8,
         value: UsizeValue::Const(7),
     }));
-    assert_eq!(instructions.last(), Some(&Instruction::Return));
+    assert_eq!(function.instructions.last(), Some(&Instruction::Return));
 }
 
 #[test]
@@ -223,66 +212,36 @@ func make(): Header? {
     };
     let [
         Instruction::ReserveAggregateSlot {
-            slot_index: file_slot,
-            layout: file_layout,
+            slot_index: 0,
+            layout: ValueLayout { size: 4, align: 4 },
         },
         Instruction::StoreAggregateI32 {
-            destination: file_destination,
-            offset: file_offset,
-            value: file_value,
-        },
-        Instruction::ReserveAggregateSlot {
-            slot_index: staged_slot,
-            layout: staged_layout,
+            destination: AggregateLocation::Slot(0),
+            offset: 0,
+            value: I32Value::Const(3),
         },
         Instruction::CallOutcomeDirectAggregate {
-            destination,
+            destination: AggregateLocation::DirectReturn,
             target,
             arguments,
             layout,
-            failure_mode: OutcomeFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
         },
         top_drop,
-        Instruction::CopyAggregate {
-            destination: top_copy_destination,
-            source: top_copy_source,
-            layout: top_copy_layout,
-        },
         Instruction::Return,
     ] = function.instructions.as_slice()
     else {
         panic!("{function:?}");
     };
-
-    assert_eq!(*file_slot, 0);
-    assert_eq!(*file_layout, ValueLayout::new(4, 4));
-    assert_eq!(*file_destination, AggregateLocation::Slot(0));
-    assert_eq!(*file_offset, 0);
-    assert_eq!(*file_value, i32_const(3));
-    assert_eq!(*staged_slot, 1);
-    assert_eq!(*staged_layout, ValueLayout::new(16, 8));
-    assert_eq!(*destination, AggregateLocation::Slot(1));
     assert_eq!(*target, CallTarget::same_file("make"));
     assert!(arguments.is_empty());
     assert_eq!(*layout, ValueLayout::new(16, 8));
     assert_eq!(top_drop, &drop_call);
-    assert_eq!(*top_copy_destination, AggregateLocation::DirectReturn);
-    assert_eq!(*top_copy_source, AggregateLocation::Slot(1));
-    assert_eq!(*top_copy_layout, ValueLayout::new(16, 8));
     assert!(instructions.contains(&Instruction::StoreAggregateI32 {
-        destination: AggregateLocation::Slot(1),
+        destination: AggregateLocation::DirectReturn,
         offset: 4,
         value: i32_const(7),
     }));
-    assert!(instructions.as_slice().ends_with(&[
-        drop_call,
-        Instruction::CopyAggregate {
-            destination: AggregateLocation::DirectReturn,
-            source: AggregateLocation::Slot(1),
-            layout: ValueLayout::new(16, 8),
-        },
-        Instruction::Return,
-    ]));
 }
 
 #[test]
@@ -439,64 +398,34 @@ func make(): Triple? {
     };
     let [
         Instruction::ReserveAggregateSlot {
-            slot_index: file_slot,
-            layout: file_layout,
+            slot_index: 0,
+            layout: ValueLayout { size: 4, align: 4 },
         },
         Instruction::StoreAggregateI32 {
-            destination: file_destination,
-            offset: file_offset,
-            value: file_value,
-        },
-        Instruction::ReserveAggregateSlot {
-            slot_index: staged_slot,
-            layout: staged_layout,
+            destination: AggregateLocation::Slot(0),
+            offset: 0,
+            value: I32Value::Const(3),
         },
         Instruction::CallOutcomeAggregate {
-            destination,
+            destination: AggregateLocation::Return,
             target,
             arguments,
-            failure_mode: OutcomeFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
         },
         top_drop,
-        Instruction::CopyAggregate {
-            destination: top_copy_destination,
-            source: top_copy_source,
-            layout: top_copy_layout,
-        },
         Instruction::Return,
     ] = function.instructions.as_slice()
     else {
         panic!("{function:?}");
     };
-
-    assert_eq!(*file_slot, 0);
-    assert_eq!(*file_layout, ValueLayout::new(4, 4));
-    assert_eq!(*file_destination, AggregateLocation::Slot(0));
-    assert_eq!(*file_offset, 0);
-    assert_eq!(*file_value, i32_const(3));
-    assert_eq!(*staged_slot, 1);
-    assert_eq!(*staged_layout, ValueLayout::new(24, 8));
-    assert_eq!(*destination, AggregateLocation::Slot(1));
     assert_eq!(*target, CallTarget::same_file("make"));
     assert!(arguments.is_empty());
     assert_eq!(top_drop, &drop_call);
-    assert_eq!(*top_copy_destination, AggregateLocation::Return);
-    assert_eq!(*top_copy_source, AggregateLocation::Slot(1));
-    assert_eq!(*top_copy_layout, ValueLayout::new(24, 8));
     assert!(instructions.contains(&Instruction::StoreAggregateUsize {
-        destination: AggregateLocation::Slot(1),
+        destination: AggregateLocation::Return,
         offset: 8,
         value: usize_const(7),
     }));
-    assert!(instructions.as_slice().ends_with(&[
-        drop_call,
-        Instruction::CopyAggregate {
-            destination: AggregateLocation::Return,
-            source: AggregateLocation::Slot(1),
-            layout: ValueLayout::new(24, 8),
-        },
-        Instruction::Return,
-    ]));
 }
 
 #[test]

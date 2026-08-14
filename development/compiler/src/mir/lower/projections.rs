@@ -72,6 +72,15 @@ pub(super) fn lower_error_field_place(
             crate::typecheck::PartialSemantic::Error => None,
         })
         .ok_or(BuildError::MissingTypedExpression)?;
+    Ok(push_error_field_place(base, field, ty, projections))
+}
+
+pub(super) fn push_error_field_place(
+    base: LocalId,
+    field: crate::builtin_types::BuiltinErrorField,
+    ty: crate::semantic::TyId,
+    projections: &mut Vec<ProjectionPath>,
+) -> Place {
     let element = ProjectionElement::ErrorField(field);
     let projection = projections
         .iter()
@@ -96,7 +105,7 @@ pub(super) fn lower_error_field_place(
             });
             id
         });
-    Ok(Place::projected(base, projection))
+    Place::projected(base, projection)
 }
 
 pub(super) fn field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {

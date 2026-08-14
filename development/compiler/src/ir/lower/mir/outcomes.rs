@@ -36,9 +36,9 @@ pub(super) fn lower(
         crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
             context.resolved_sources.get(&source).copied()
         });
-    let [layer] = shape.layers.as_slice() else {
+    let Some(layer) = shape.layers.first() else {
         return Err(invalid_mir_diagnostics(
-            "stored outcome inspection requires exactly one outcome layer",
+            "stored outcome inspection requires an outcome layer",
         ));
     };
     if *layer != inspection.layer {
@@ -56,12 +56,8 @@ pub(super) fn lower(
         invalid_mir_diagnostics("stored outcome inspection has unsupported storage")
     })?;
     let source = aggregate_location(&inspection.source, context)?;
-    let destination = outcome_destination(context, inspection.destination)?;
-    let success_instructions = vec![Instruction::LoadStoredOutcomePayload {
-        destination,
-        source,
-        offset: storage.payload_offset as u32,
-    }];
+    let success_instructions =
+        outcome_success_projection(context, inspection.destination, source, &shape, &storage)?;
     let entry = &storage.layers[0];
     match inspection.layer {
         crate::outcomes::OutcomeLayer::Optional => Ok(Instruction::IfStoredOutcomeTag {
@@ -91,6 +87,43 @@ pub(super) fn lower(
             )?,
         }),
     }
+}
+
+fn outcome_success_projection(
+    context: &BackendContext<'_>,
+    destination: Place,
+    source: crate::ir::AggregateLocation,
+    shape: &crate::outcomes::OutcomeShape,
+    storage: &crate::outcomes::storage::OutcomeStorageLayout,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination_local = &context.body.locals[destination.local.index()];
+    if destination_local.representation != ValueRepresentation::Aggregate {
+        return Ok(vec![Instruction::LoadStoredOutcomePayload {
+            destination: outcome_destination(context, destination)?,
+            source,
+            offset: storage.payload_offset as u32,
+        }]);
+    }
+
+    let destination_value = super::aggregate_local_abi_value(destination_local.ty, context)?;
+    let remaining_layout = if shape.layers.len() == 1 {
+        storage.payload_layout
+    } else {
+        crate::outcomes::storage::outcome_storage_layout(&shape.layers[1..], storage.payload_layout)
+            .layout
+    };
+    if destination_value.layout != remaining_layout {
+        return Err(invalid_mir_diagnostics(
+            "stored outcome success payload differs from its MIR destination",
+        ));
+    }
+    Ok(vec![Instruction::CopyAggregateRange {
+        destination: super::aggregate_location(&destination, context)?,
+        destination_offset: 0,
+        source,
+        source_offset: storage.layers[0].success_offset as u32,
+        layout: remaining_layout,
+    }])
 }
 
 fn outcome_destination(

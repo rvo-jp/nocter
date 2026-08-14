@@ -345,6 +345,65 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_composed_stored_outcome_projection_as_two_mir_edges() {
+    let (_sources, analysis) = analyze_text(
+        r#"func lookup(): i32?! {
+    return 42
+}
+
+func main(): i32! {
+    let saved = lookup()
+    let optional = saved?
+    let value = optional otherwise { 7 }
+    return value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        ReturnMode::Fallible,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("composed stored outcomes must select MIR")
+    .unwrap();
+
+    let layers = body
+        .blocks
+        .iter()
+        .filter_map(|block| match block.terminator {
+            Terminator::InspectOutcome { layer, .. } => Some(layer),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        layers,
+        vec![
+            crate::outcomes::OutcomeLayer::Fallible,
+            crate::outcomes::OutcomeLayer::Optional,
+        ]
+    );
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_stored_outcome_forwarding_as_an_owned_return_edge() {
     let (_sources, analysis) = analyze_text(
         r#"func forward(value: i32?): i32? {

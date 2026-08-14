@@ -116,11 +116,15 @@ func maybe_pair(): [i32; 2]? {
                 target,
                 arguments,
                 layout: call_layout,
-                failure_mode: OutcomeFailureMode::Handle { instructions },
+                failure_mode: OutcomeFailureMode::Recover { instructions },
             } if *target == CallTarget::same_file("maybe_pair")
                 && arguments.is_empty()
                 && *call_layout == layout
-                && instructions.contains(&Instruction::Return)
+                && instructions.iter().any(|instruction| matches!(instruction,
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::DirectReturn,
+                        ..
+                    }))
         )),
         "{choose:?}"
     );
