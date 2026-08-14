@@ -84,6 +84,26 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
                         self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
+                    } else if let Some(crate::mir::ValueRepresentation::View(kind)) =
+                        super::coverage::value_representation(ty, self.context.semantic)
+                    {
+                        self.context.locals.push(crate::mir::locals::Local::view(
+                            ty,
+                            kind,
+                            LocalStorage::Local,
+                            LocalOrigin::Binding(symbol),
+                            scope,
+                        ));
+                        self.context
+                            .places_by_symbol
+                            .insert(symbol, Place::local(local));
+                        self.context.lower_value_to_place(
+                            local,
+                            &binding.initializer,
+                            ty,
+                            crate::mir::ValueRepresentation::View(kind),
+                            scope,
+                        )?;
                     } else if let Some(borrow_ty) = self
                         .context
                         .semantic
@@ -613,10 +633,12 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
     fn assignment_target_representation(
         &mut self,
         expression: &Expr,
-        scope: ScopeId,
+        _scope: ScopeId,
     ) -> Result<crate::mir::ValueRepresentation, BuildError> {
-        let (_, _, representation) = self.lower_value_assignment_target(expression, scope)?;
-        Ok(representation)
+        let ty = known_expression_type(expression, self.context.semantic.typed_hir)
+            .ok_or(BuildError::MissingTypedExpression)?;
+        super::coverage::value_representation(ty, self.context.semantic)
+            .ok_or(BuildError::UnsupportedClaimedExpression)
     }
 
     fn lower_aggregate_assignment(

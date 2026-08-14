@@ -685,6 +685,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     index,
                     index_ty,
                     element_ty,
+                    element_scalar,
                 } => {
                     validate_operand_representation(
                         body,
@@ -720,7 +721,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         ScalarType::Usize,
                         &mut errors,
                     );
-                    if destination_representation != ValueRepresentation::Scalar(ScalarType::U8) {
+                    if destination_representation != ValueRepresentation::Scalar(*element_scalar) {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
                             statement: statement_index,
@@ -1355,6 +1356,14 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
                 errors.push(ValidationError::InvalidProjectionElement { projection: id });
             }
             ProjectionElement::Dereference => {}
+            ProjectionElement::ViewIndex { .. }
+                if parent_representation == ValueRepresentation::View(super::ViewKind::Slice)
+                    && matches!(projection.representation, ValueRepresentation::Scalar(_))
+                    && projection.ownership == OwnershipKind::Copy
+                    && projection.drop_plan.is_none() => {}
+            ProjectionElement::ViewIndex { .. } => {
+                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+            }
             ProjectionElement::Field { .. } | ProjectionElement::Index { .. }
                 if matches!(
                     parent_representation,
@@ -1367,7 +1376,8 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
             }
             ProjectionElement::Field { .. } | ProjectionElement::Index { .. } => {}
         }
-        if let ProjectionElement::Index { index, .. } = &projection.element
+        if let ProjectionElement::Index { index, .. } | ProjectionElement::ViewIndex { index } =
+            &projection.element
             && operand_representation(body, index)
                 != Some(ValueRepresentation::Scalar(ScalarType::Usize))
         {

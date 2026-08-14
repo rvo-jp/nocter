@@ -212,14 +212,14 @@ func update(values: &+[u8]): void {
                     },
                 },
                 Instruction::AddU8 {
-                    destination: U8Location::Local(0),
+                    destination: U8Location::Local(1),
                     left: u8_local(0),
                     right: u8_const(2),
                 },
                 Instruction::StoreU8ToSliceIndex {
                     destination: SliceLocation::Parameter(0),
                     index: usize_const(1),
-                    value: u8_local(0),
+                    value: u8_local(1),
                 },
                 Instruction::Return,
             ],
@@ -372,14 +372,14 @@ func update(values: &+[i32]): void {
                     },
                 },
                 Instruction::AddI32 {
-                    destination: I32Location::Local(0),
+                    destination: I32Location::Local(1),
                     left: i32_local(0),
                     right: i32_const(2),
                 },
                 Instruction::StoreI32ToSliceIndex {
                     destination: SliceLocation::Parameter(0),
                     index: usize_const(1),
-                    value: i32_local(0),
+                    value: i32_local(1),
                 },
                 Instruction::Return,
             ],
@@ -414,14 +414,14 @@ func update(values: &+[usize]): void {
                     value: usize_slice_index(SliceLocation::Parameter(0), usize_const(0)),
                 },
                 Instruction::RemainderUsize {
-                    destination: UsizeLocation::Local(0),
+                    destination: UsizeLocation::Local(1),
                     left: usize_local(0),
                     right: usize_const(5),
                 },
                 Instruction::StoreUsizeToSliceIndex {
                     destination: SliceLocation::Parameter(0),
                     index: usize_const(0),
-                    value: usize_local(0),
+                    value: usize_local(1),
                 },
                 Instruction::Return,
             ],
@@ -469,14 +469,14 @@ func addend(): i32 {
                     },
                 },
                 Instruction::AddI32 {
-                    destination: I32Location::Local(3),
+                    destination: I32Location::Local(4),
                     left: i32_local(3),
                     right: i32_local(2),
                 },
                 Instruction::StoreI32ToSliceIndex {
                     destination: SliceLocation::Local(0),
                     index: usize_const(1),
-                    value: i32_local(3),
+                    value: i32_local(4),
                 },
                 Instruction::Return,
             ],
@@ -987,18 +987,23 @@ func choose(values: &[usize]): i32 {
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetUsize {
-                    destination: UsizeLocation::Local(0),
+                    destination: UsizeLocation::Local(1),
                     value: usize_slice_index(SliceLocation::Parameter(0), usize_const(0)),
                 },
-                Instruction::If {
-                    condition: BoolValue::UsizeComparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::Equal,
-                        left: UsizeValue::Location(UsizeLocation::Local(0)),
+                        left: UsizeValue::Location(UsizeLocation::Local(1)),
                         right: usize_const(42),
                     },
-                    then_instructions: vec![set_return_i32(1), Instruction::Return],
-                    else_instructions: vec![set_return_i32(2), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(1)],
+                    else_instructions: vec![set_return_i32(2)],
+                },
+                Instruction::Return,
             ],
         }
     );
@@ -1487,27 +1492,28 @@ func identity(bytes: &[u8]): &[u8] {
             return_type: Type::Bool,
             instructions: vec![
                 call_slice(
-                    SliceLocation::Local(0),
+                    SliceLocation::Local(1),
                     "identity",
                     vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 ),
                 Instruction::SetU8 {
-                    destination: U8Location::Local(2),
+                    destination: U8Location::Local(0),
                     value: U8Value::SliceIndex {
-                        source: SliceLocation::Local(0),
+                        source: SliceLocation::Local(1),
                         index: usize_const(0),
                     },
                 },
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
-                    value: BoolValue::I32Comparison {
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                            U8Location::Local(2),
+                        left: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
+                            U8Location::Local(0),
                         ))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(1))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(u8_const(1))),
                     },
                 },
                 Instruction::Return,
@@ -1548,16 +1554,16 @@ func identity(numbers: &[i32]): &[i32] {
             return_type: Type::Bool,
             instructions: vec![
                 call_slice(
-                    SliceLocation::Local(0),
+                    SliceLocation::Local(1),
                     "identity",
                     vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 ),
                 Instruction::SetI32 {
-                    destination: I32Location::Local(2),
+                    destination: I32Location::Local(0),
                     value: I32Value::SliceIndex {
-                        source: SliceLocation::Local(0),
+                        source: SliceLocation::Local(1),
                         index: usize_const(0),
                     },
                 },
@@ -1565,7 +1571,7 @@ func identity(numbers: &[i32]): &[i32] {
                     destination: BoolLocation::Return,
                     value: BoolValue::I32Comparison {
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::Location(I32Location::Local(2)),
+                        left: I32Value::Location(I32Location::Local(0)),
                         right: i32_const(11),
                     },
                 },
@@ -1607,16 +1613,16 @@ func identity(flags: &[bool]): &[bool] {
             return_type: Type::Bool,
             instructions: vec![
                 call_slice(
-                    SliceLocation::Local(0),
+                    SliceLocation::Local(1),
                     "identity",
                     vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 ),
                 Instruction::SetBool {
-                    destination: BoolLocation::Local(2),
+                    destination: BoolLocation::Local(0),
                     value: BoolValue::SliceIndex {
-                        source: SliceLocation::Local(0),
+                        source: SliceLocation::Local(1),
                         index: usize_const(0),
                     },
                 },
@@ -1624,7 +1630,7 @@ func identity(flags: &[bool]): &[bool] {
                     destination: BoolLocation::Return,
                     value: BoolValue::BoolComparison {
                         operator: BoolComparisonOperator::Equal,
-                        left: Box::new(BoolValue::Location(BoolLocation::Local(2))),
+                        left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
                         right: Box::new(BoolValue::Const(true)),
                     },
                 },
@@ -1664,12 +1670,13 @@ func is_elf(bytes: &[u8]): bool {
                 },
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
-                    value: BoolValue::I32Comparison {
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                        left: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
                             U8Location::Local(0),
                         ))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0x7F))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(u8_const(0x7F))),
                     },
                 },
                 Instruction::Return,

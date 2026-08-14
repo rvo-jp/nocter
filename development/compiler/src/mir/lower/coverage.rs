@@ -626,6 +626,32 @@ impl<'a> ScalarStatement<'a> {
                             typed_hir,
                         },
                     );
+                let view = resolved
+                    .local_symbol_id_at_name_span(binding.name_span)
+                    .and_then(|symbol| typed_hir.binding_type_expr(symbol))
+                    .and_then(|ty| typed_hir.type_id(ty))
+                    .and_then(|ty| {
+                        value_representation(
+                            ty,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        )
+                    })
+                    .is_some_and(|representation| {
+                        matches!(representation, crate::mir::ValueRepresentation::View(_))
+                            && value_expression_is_supported(
+                                &binding.initializer,
+                                representation,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                    });
                 let aggregate = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
@@ -727,6 +753,7 @@ impl<'a> ScalarStatement<'a> {
                         typed_hir,
                     ))
                     || borrow
+                    || view
                     || aggregate
             }
             Self::Assignment(assignment) => {

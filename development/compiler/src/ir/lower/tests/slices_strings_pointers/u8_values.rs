@@ -427,20 +427,31 @@ func is_elf(bytes: &[u8]): bool {
             return_type: Type::Bool,
             instructions: vec![
                 Instruction::SetU8 {
-                    destination: U8Location::Local(0),
+                    destination: U8Location::Local(1),
                     value: U8Value::SliceIndex {
                         source: SliceLocation::Parameter(0),
                         index: usize_const(0),
                     },
                 },
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::Location(U8Location::Local(1)),
+                },
+                Instruction::SetU8 {
+                    destination: U8Location::Local(2),
+                    value: u8_const(0x7F),
+                },
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
-                    value: BoolValue::I32Comparison {
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                        left: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
                             U8Location::Local(0),
                         ))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0x7F))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
+                            U8Location::Local(2),
+                        ))),
                     },
                 },
                 Instruction::Return,
@@ -595,12 +606,18 @@ func first(bytes: &[u8]): usize {
             target: crate::ir::CallTarget::same_file("first".to_string()),
             return_type: Type::Usize,
             instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::SliceIndex {
                         source: SliceLocation::Parameter(0),
                         index: usize_const(1),
-                    })),
+                    },
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
+                        U8Location::Local(0),
+                    ))),
                 },
                 Instruction::Return,
             ],
@@ -631,12 +648,18 @@ func first(bytes: &[u8]): Index {
             target: crate::ir::CallTarget::same_file("first".to_string()),
             return_type: Type::Usize,
             instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::SliceIndex {
                         source: SliceLocation::Parameter(0),
                         index: usize_const(1),
-                    })),
+                    },
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::Location(
+                        U8Location::Local(0),
+                    ))),
                 },
                 Instruction::Return,
             ],

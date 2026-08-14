@@ -946,6 +946,20 @@ impl LoweringContext<'_> {
         }
         let value = match expression {
             Expr::Index(index) if super::indexes::view_is_supported(index, self.semantic) => {
+                let kind = match self
+                    .semantic
+                    .typed_hir
+                    .index_plan(index.span)
+                    .map(|plan| plan.projection)
+                {
+                    Some(crate::typecheck::TypecheckIndexProjection::Str) => {
+                        crate::mir::ViewKind::Str
+                    }
+                    Some(crate::typecheck::TypecheckIndexProjection::Slice) => {
+                        crate::mir::ViewKind::Slice
+                    }
+                    _ => return Err(BuildError::UnsupportedClaimedExpression),
+                };
                 let source_ty = known_expression_type(&index.object, self.semantic.typed_hir)
                     .ok_or(BuildError::MissingTypedExpression)?;
                 let checked_index_ty = self
@@ -975,17 +989,13 @@ impl LoweringContext<'_> {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     };
                 Rvalue::ViewIndex {
-                    source: self.lower_view_operand(
-                        &index.object,
-                        source_ty,
-                        crate::mir::ViewKind::Str,
-                        scope,
-                    )?,
+                    source: self.lower_view_operand(&index.object, source_ty, kind, scope)?,
                     source_ty,
-                    kind: crate::mir::ViewKind::Str,
+                    kind,
                     index: self.lower_operand(&index.index, index_ty, index_scalar, scope)?,
                     index_ty,
                     element_ty: ty,
+                    element_scalar: scalar,
                 }
             }
             Expr::Unary(unary) => Rvalue::Unary {
@@ -1217,24 +1227,75 @@ impl LoweringContext<'_> {
             .expression(expression.span())
             .ok_or(BuildError::MissingTypedExpression)?
             .id;
+        let source_ty =
+            super::coverage::intrinsic_expression_type(expression.span(), self.semantic.typed_hir)
+                .filter(|source_ty| {
+                    super::coverage::value_representation(*source_ty, self.semantic)
+                        == Some(crate::mir::ValueRepresentation::View(kind))
+                })
+                .unwrap_or(ty);
         if let Expr::Call(call) = expression.without_groups() {
             let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
             if returns_never {
                 return Err(BuildError::UnsupportedClaimedExpression);
             }
-            return self
-                .control_flow
-                .emit_returning_call(source, callee, arguments, destination);
+            if source_ty == ty {
+                return self.control_flow.emit_returning_call(
+                    source,
+                    callee,
+                    arguments,
+                    destination,
+                );
+            }
+            let source_local = LocalId::from_index(self.locals.len());
+            self.locals.push(crate::mir::Local::view(
+                source_ty,
+                kind,
+                LocalStorage::Local,
+                LocalOrigin::Temporary(source),
+                scope,
+            ));
+            self.control_flow
+                .emit_returning_call(source, callee, arguments, source_local)?;
+            return self.control_flow.push_statement(Statement::Assign {
+                destination: Place::local(destination),
+                value: Rvalue::ViewCast {
+                    source: Operand::Copy(Place::local(source_local)),
+                    source_ty,
+                    target_ty: ty,
+                    kind,
+                },
+                origin: crate::mir::Origin::Expression(source),
+            });
         }
-        let operand = self.lower_view_operand(expression, ty, kind, scope)?;
+        let operand = self.lower_view_operand(expression, source_ty, kind, scope)?;
+        let operand_ty = match &operand {
+            Operand::Copy(place) | Operand::Move(place) => place.projection.map_or_else(
+                || self.locals.get(place.local.index()).map(|local| local.ty),
+                |projection| self.projections.get(projection.index()).map(|path| path.ty),
+            ),
+            Operand::Constant(constant) => Some(constant.ty),
+            Operand::StaticStr { ty, .. } => Some(*ty),
+        }
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let value = if operand_ty == ty {
+            Rvalue::Use(operand)
+        } else {
+            Rvalue::ViewCast {
+                source: operand,
+                source_ty: operand_ty,
+                target_ty: ty,
+                kind,
+            }
+        };
         self.control_flow.push_statement(Statement::Assign {
             destination: Place::local(destination),
-            value: Rvalue::Use(operand),
+            value,
             origin: crate::mir::Origin::Expression(source),
         })
     }
 
-    fn lower_view_operand(
+    pub(super) fn lower_view_operand(
         &mut self,
         expression: &Expr,
         ty: crate::semantic::TyId,

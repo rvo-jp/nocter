@@ -80,6 +80,9 @@ pub(crate) enum ProjectionElement {
         length: u64,
         stride: u32,
     },
+    ViewIndex {
+        index: Operand,
+    },
     Dereference,
     ErrorField(crate::builtin_types::BuiltinErrorField),
 }
@@ -241,6 +244,7 @@ pub(crate) enum Rvalue {
         index: Operand,
         index_ty: TyId,
         element_ty: TyId,
+        element_scalar: ScalarType,
     },
 }
 

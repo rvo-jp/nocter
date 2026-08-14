@@ -2083,9 +2083,21 @@ fn lower_statements(
                             "i32 scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex {
+                        source,
+                        kind: crate::mir::ViewKind::Slice,
+                        index,
+                        ..
+                    } => {
+                        let (source, index) = lower_slice_index(source, index, context)?;
+                        instructions.push(Instruction::SetI32 {
+                            destination,
+                            value: I32Value::SliceIndex { source, index },
+                        });
+                    }
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
-                            "i32 scalar route received a view index result",
+                            "i32 scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -2154,12 +2166,16 @@ fn lower_statements(
                         value: lower_str_index(source, index, context)?,
                     }),
                     Rvalue::ViewIndex {
+                        source,
                         kind: crate::mir::ViewKind::Slice,
+                        index,
                         ..
                     } => {
-                        return Err(invalid_mir_diagnostics(
-                            "u8 slice indexing is not yet projected",
-                        ));
+                        let (source, index) = lower_slice_index(source, index, context)?;
+                        instructions.push(Instruction::SetU8 {
+                            destination,
+                            value: U8Value::SliceIndex { source, index },
+                        });
                     }
                     Rvalue::ViewCast { .. } => {
                         return Err(invalid_mir_diagnostics(
@@ -2217,9 +2233,24 @@ fn lower_statements(
                             "usize scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex {
+                        source,
+                        kind: crate::mir::ViewKind::Slice,
+                        index,
+                        ..
+                    } => {
+                        let (source, index) = lower_slice_index(source, index, context)?;
+                        instructions.push(Instruction::SetUsize {
+                            destination,
+                            value: UsizeValue::SliceIndex {
+                                source,
+                                index: Box::new(index),
+                            },
+                        });
+                    }
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
-                            "usize scalar route received a view index result",
+                            "usize scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -2290,9 +2321,25 @@ fn lower_statements(
                             "integer scalar route received a comparison result",
                         ));
                     }
+                    Rvalue::ViewIndex {
+                        source,
+                        kind: crate::mir::ViewKind::Slice,
+                        index,
+                        ..
+                    } => {
+                        let (source, index) = lower_slice_index(source, index, context)?;
+                        instructions.push(Instruction::SetUsize {
+                            destination,
+                            value: UsizeValue::IntegerSliceIndex {
+                                kind,
+                                source,
+                                index: Box::new(index),
+                            },
+                        });
+                    }
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
-                            "integer scalar route received a view index result",
+                            "integer scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -2363,9 +2410,21 @@ fn lower_statements(
                         destination,
                         value: lower_comparison(*operator, left, right, *operand_scalar, context)?,
                     }),
+                    Rvalue::ViewIndex {
+                        source,
+                        kind: crate::mir::ViewKind::Slice,
+                        index,
+                        ..
+                    } => {
+                        let (source, index) = lower_slice_index(source, index, context)?;
+                        instructions.push(Instruction::SetBool {
+                            destination,
+                            value: BoolValue::SliceIndex { source, index },
+                        });
+                    }
                     Rvalue::ViewIndex { .. } => {
                         return Err(invalid_mir_diagnostics(
-                            "boolean scalar route received a view index result",
+                            "boolean scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -2784,6 +2843,54 @@ fn lower_borrow_source(
     context: &BackendContext<'_>,
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
     if let Some(projection) = place.projection {
+        let contract = context
+            .body
+            .projections
+            .get(projection.index())
+            .filter(|projection| projection.base == place.local)
+            .ok_or_else(|| invalid_mir_diagnostics("borrow projection is missing"))?;
+        if let crate::mir::ProjectionElement::ViewIndex { index } = &contract.element {
+            if contract.parent.is_some()
+                || context.body.locals[place.local.index()].representation
+                    != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+            {
+                return Err(invalid_mir_diagnostics(
+                    "slice-view index borrow has an invalid projection base",
+                ));
+            }
+            let element = match contract.representation {
+                crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
+                    crate::ir::SliceElementAddressKind::I32
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::U8) => {
+                    crate::ir::SliceElementAddressKind::U8
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
+                    crate::ir::SliceElementAddressKind::Usize
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+                    crate::ir::SliceElementAddressKind::Integer(kind)
+                }
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
+                    crate::ir::SliceElementAddressKind::Bool
+                }
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "slice-view index borrow has an unsupported element representation",
+                    ));
+                }
+            };
+            let index = match lower_direct_usize_index(index, context)? {
+                UsizeValue::Const(value) => crate::ir::SliceElementIndex::Const(value),
+                UsizeValue::Location(location) => crate::ir::SliceElementIndex::Location(location),
+                _ => unreachable!("direct index validation accepts only constants and places"),
+            };
+            return Ok(crate::ir::BorrowSource::SliceIndex {
+                source: slice_location(&Place::local(place.local), context)?,
+                index,
+                element,
+            });
+        }
         let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
         let local = &context.body.locals[place.local.index()];
         if let AggregateBorrowProjection::Index {
@@ -3015,6 +3122,11 @@ fn aggregate_borrow_projection(
                     "error field cannot participate in an aggregate projection",
                 ));
             }
+            crate::mir::ProjectionElement::ViewIndex { .. } => {
+                return Err(invalid_mir_diagnostics(
+                    "slice-view index cannot participate in an aggregate projection",
+                ));
+            }
             crate::mir::ProjectionElement::Dereference => {
                 return Err(invalid_mir_diagnostics(
                     "dereference requires pointer-backed MIR projection",
@@ -3061,6 +3173,46 @@ fn aggregate_scalar_store(
             "aggregate scalar store projection is not scalar",
         ));
     };
+    if let crate::mir::ProjectionElement::ViewIndex { index } = &contract.element {
+        if contract.parent.is_some()
+            || context.body.locals[destination.local.index()].representation
+                != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+        {
+            return Err(invalid_mir_diagnostics(
+                "slice-view index store has an invalid projection base",
+            ));
+        }
+        let destination = slice_location(&Place::local(destination.local), context)?;
+        let index = lower_direct_usize_index(index, context)?;
+        return Ok(match scalar {
+            ScalarType::I32 => Instruction::StoreI32ToSliceIndex {
+                destination,
+                index,
+                value: lower_i32_operand(operand, context)?,
+            },
+            ScalarType::U8 => Instruction::StoreU8ToSliceIndex {
+                destination,
+                index,
+                value: lower_u8_operand(operand, context)?,
+            },
+            ScalarType::Usize => Instruction::StoreUsizeToSliceIndex {
+                destination,
+                index,
+                value: lower_usize_operand(operand, context)?,
+            },
+            ScalarType::Integer(kind) => Instruction::StoreIntegerToSliceIndex {
+                kind,
+                destination,
+                index,
+                value: lower_integer_operand(operand, kind, context)?,
+            },
+            ScalarType::Bool => Instruction::StoreBoolToSliceIndex {
+                destination,
+                index,
+                value: lower_bool_operand(operand, context)?,
+            },
+        });
+    }
     if let Some((pointer, offset)) =
         dereferenced_pointer(context.body, destination.local, projection_id, context)?
     {
@@ -3164,6 +3316,53 @@ fn aggregate_scalar_load(
     let Some(projection) = place.projection else {
         return Ok(None);
     };
+    let projection_contract = context
+        .body
+        .projections
+        .get(projection.index())
+        .filter(|projection| projection.base == place.local)
+        .ok_or_else(|| invalid_mir_diagnostics("scalar load projection is missing"))?;
+    if let crate::mir::ProjectionElement::ViewIndex { index } = &projection_contract.element {
+        if projection_contract.parent.is_some()
+            || context.body.locals[place.local.index()].representation
+                != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+        {
+            return Err(invalid_mir_diagnostics(
+                "slice-view index load has an invalid projection base",
+            ));
+        }
+        let source = slice_location(&Place::local(place.local), context)?;
+        let index = lower_direct_usize_index(index, context)?;
+        return Ok(Some(match destination {
+            ScalarDestination::I32(destination) => Instruction::SetI32 {
+                destination,
+                value: I32Value::SliceIndex { source, index },
+            },
+            ScalarDestination::U8(destination) => Instruction::SetU8 {
+                destination,
+                value: U8Value::SliceIndex { source, index },
+            },
+            ScalarDestination::Usize(destination) => Instruction::SetUsize {
+                destination,
+                value: UsizeValue::SliceIndex {
+                    source,
+                    index: Box::new(index),
+                },
+            },
+            ScalarDestination::Integer(kind, destination) => Instruction::SetUsize {
+                destination,
+                value: UsizeValue::IntegerSliceIndex {
+                    kind,
+                    source,
+                    index: Box::new(index),
+                },
+            },
+            ScalarDestination::Bool(destination) => Instruction::SetBool {
+                destination,
+                value: BoolValue::SliceIndex { source, index },
+            },
+        }));
+    }
     if let Some((pointer, offset)) =
         dereferenced_pointer(context.body, place.local, projection, context)?
     {
@@ -3955,6 +4154,19 @@ fn lower_slice_operand(
             "non-slice value used as a slice-view operand",
         )),
     }
+}
+
+fn lower_slice_index(
+    source: &Operand,
+    index: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<(SliceLocation, UsizeValue), Vec<Diagnostic>> {
+    let SliceValue::Location(source) = lower_slice_operand(source, context)? else {
+        return Err(invalid_mir_diagnostics(
+            "slice index source is not backed by a slice location",
+        ));
+    };
+    Ok((source, lower_usize_operand(index, context)?))
 }
 
 fn slice_location(
