@@ -132,10 +132,14 @@ pub(crate) fn try_build_body_with_return_mode(
         || !source_statements
             .iter()
             .all(|statement| statement.is_supported(semantic))
-        || !(matches!(
-            tail,
-            ScalarTail::ImplicitUnit(_) | ScalarTail::UnitReturn(_)
-        ) && return_representation == super::ValueRepresentation::Unit
+        || !(return_representation == super::ValueRepresentation::Unit
+            && match tail {
+                ScalarTail::ImplicitUnit(_) | ScalarTail::UnitReturn(_) => true,
+                ScalarTail::Expression(expression) | ScalarTail::Return(expression) => {
+                    ScalarStatement::Expression(expression).is_supported(semantic)
+                }
+                ScalarTail::Conditional(_) => false,
+            }
             || tail.expression().is_some_and(|expression| {
                 value_expression_is_supported(expression, return_representation, semantic)
                     || return_mode == ReturnMode::Fallible
@@ -339,6 +343,10 @@ fn build_prepared_body(
             root_scope,
         )?;
     } else if return_representation == super::ValueRepresentation::Unit {
+        if let Some(expression) = tail.expression() {
+            statements::StatementLowerer::new(&mut context)
+                .lower(&[ScalarStatement::Expression(expression)], root_scope)?;
+        }
         context.control_flow.terminate(Terminator::Return)?;
     } else if let Some(if_) = tail.conditional() {
         expressions::lower_conditional_to_place(

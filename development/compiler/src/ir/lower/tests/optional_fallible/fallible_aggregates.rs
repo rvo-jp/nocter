@@ -184,8 +184,8 @@ func fail(): void! {
                 target: CallTarget::same_file("fail"),
                 arguments: vec![],
                 failure_mode: OutcomeFailureMode::PropagateWithCleanup {
-                    code: StrLocation::Local(0),
-                    message: StrLocation::Local(2),
+                    code: StrLocation::Local(1),
+                    message: StrLocation::Local(3),
                     instructions: vec![drop_call.clone()],
                 },
             },

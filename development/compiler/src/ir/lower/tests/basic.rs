@@ -668,3 +668,41 @@ fn void_entry_uses_a_zero_width_retained_mir_return() {
         crate::mir::ValueRepresentation::Unit
     );
 }
+
+#[test]
+fn void_tail_effect_is_evaluated_before_the_retained_mir_return() {
+    let fixture = analyze_text_fixture(
+        r#"func main(): void {
+    effect()
+}
+
+func effect(): void {
+}
+"#,
+    );
+    let ir = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+    let root = fixture.analysis.root_file().unwrap();
+    let body_id = root
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            crate::ast::Item::Function(function) if function.name == "main" => {
+                function.body.as_ref()
+            }
+            _ => None,
+        })
+        .and_then(|body| fixture.analysis.semantic_db.body_at(body.span))
+        .unwrap();
+    fixture
+        .analysis
+        .mir_bodies
+        .cached_specialized(body_id, &HashMap::new())
+        .expect("void lowering should retain a cache entry")
+        .expect("void tail effects should construct valid MIR");
+
+    assert!(matches!(
+        ir.functions[0].instructions.as_slice(),
+        [Instruction::CallVoid { .. }, Instruction::Return]
+    ));
+}
