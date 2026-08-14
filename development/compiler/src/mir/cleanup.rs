@@ -7,8 +7,8 @@ use super::initialization::InitializationAnalysis;
 use super::locals::{OwnershipKind, ValueRepresentation};
 use super::model::BasicBlock;
 use super::{
-    AllocationOverrideId, BasicBlockId, Body, LoanId, LocalId, Place, RegionId, ScopeId, Statement,
-    Terminator,
+    AllocationOverrideId, BasicBlockId, Body, LoanId, LoanLifetime, LocalId, Operand, Place,
+    RegionId, ScopeId, Statement, Terminator,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -61,88 +61,97 @@ pub(super) fn materialize(body: &mut Body) {
                 callee,
                 arguments,
                 continuation,
-            } => Terminator::Call {
-                origin,
-                callee,
-                arguments,
-                continuation: match continuation {
-                    super::CallContinuation::Continue { target } => {
-                        super::CallContinuation::Continue {
-                            target: cleanup_edge(
+            } => {
+                let call_loans = call_lifetime_loans(body, &arguments, &loans, block_id);
+                Terminator::Call {
+                    origin,
+                    callee,
+                    arguments,
+                    continuation: match continuation {
+                        super::CallContinuation::Continue { target } => {
+                            super::CallContinuation::Continue {
+                                target: cleanup_call_edge(
+                                    body,
+                                    &analysis,
+                                    &loans,
+                                    block_id,
+                                    source_scope,
+                                    target,
+                                    &call_loans,
+                                ),
+                            }
+                        }
+                        super::CallContinuation::Return {
+                            destination,
+                            target,
+                        } => super::CallContinuation::Return {
+                            destination,
+                            target: cleanup_call_edge(
                                 body,
                                 &analysis,
                                 &loans,
                                 block_id,
                                 source_scope,
                                 target,
+                                &call_loans,
                             ),
-                        }
-                    }
-                    super::CallContinuation::Return {
-                        destination,
-                        target,
-                    } => super::CallContinuation::Return {
-                        destination,
-                        target: cleanup_edge(
-                            body,
-                            &analysis,
-                            &loans,
-                            block_id,
-                            source_scope,
-                            target,
-                        ),
-                    },
-                    super::CallContinuation::Outcome {
-                        destination,
-                        success,
-                        failure,
-                        failure_payload,
-                    } => super::CallContinuation::Outcome {
-                        destination,
-                        success: cleanup_edge(
-                            body,
-                            &analysis,
-                            &loans,
-                            block_id,
-                            source_scope,
+                        },
+                        super::CallContinuation::Outcome {
+                            destination,
                             success,
-                        ),
-                        failure: cleanup_edge(
-                            body,
-                            &analysis,
-                            &loans,
-                            block_id,
-                            source_scope,
                             failure,
-                        ),
-                        failure_payload,
-                    },
-                    super::CallContinuation::OutcomeEffect {
-                        success,
-                        failure,
-                        failure_payload,
-                    } => super::CallContinuation::OutcomeEffect {
-                        success: cleanup_edge(
-                            body,
-                            &analysis,
-                            &loans,
-                            block_id,
-                            source_scope,
+                            failure_payload,
+                        } => super::CallContinuation::Outcome {
+                            destination,
+                            success: cleanup_call_edge(
+                                body,
+                                &analysis,
+                                &loans,
+                                block_id,
+                                source_scope,
+                                success,
+                                &call_loans,
+                            ),
+                            failure: cleanup_call_edge(
+                                body,
+                                &analysis,
+                                &loans,
+                                block_id,
+                                source_scope,
+                                failure,
+                                &call_loans,
+                            ),
+                            failure_payload,
+                        },
+                        super::CallContinuation::OutcomeEffect {
                             success,
-                        ),
-                        failure: cleanup_edge(
-                            body,
-                            &analysis,
-                            &loans,
-                            block_id,
-                            source_scope,
                             failure,
-                        ),
-                        failure_payload,
+                            failure_payload,
+                        } => super::CallContinuation::OutcomeEffect {
+                            success: cleanup_call_edge(
+                                body,
+                                &analysis,
+                                &loans,
+                                block_id,
+                                source_scope,
+                                success,
+                                &call_loans,
+                            ),
+                            failure: cleanup_call_edge(
+                                body,
+                                &analysis,
+                                &loans,
+                                block_id,
+                                source_scope,
+                                failure,
+                                &call_loans,
+                            ),
+                            failure_payload,
+                        },
+                        super::CallContinuation::Never => super::CallContinuation::Never,
                     },
-                    super::CallContinuation::Never => super::CallContinuation::Never,
-                },
-            },
+                }
+            }
             Terminator::InspectOutcome {
                 origin,
                 source,
@@ -221,13 +230,124 @@ fn cleanup_edge(
     else {
         return target;
     };
-    let actions = cleanup_actions(
+    let mut actions = cleanup_actions(
         body,
         &exited,
         |place| analysis.initialized_on_edge(body, from, target, place),
         |loan| loans.definitely_active_at_exit(from, loan),
     );
+    if body
+        .blocks
+        .get(target.index())
+        .is_some_and(|block| is_terminal_exit(&block.terminator))
+    {
+        actions.extend(
+            conditional_terminal_edge_places(body, analysis, from, target, &exited)
+                .into_iter()
+                .map(CleanupAction::Drop),
+        );
+    }
     prepend_cleanup_chain(body, actions, target)
+}
+
+fn is_terminal_exit(terminator: &Terminator) -> bool {
+    matches!(
+        terminator,
+        Terminator::Return
+            | Terminator::ReturnOutcome { .. }
+            | Terminator::ReturnFailure { .. }
+            | Terminator::PropagateFailure
+            | Terminator::Trap
+    )
+}
+
+fn conditional_terminal_edge_places(
+    body: &Body,
+    analysis: &InitializationAnalysis,
+    from: BasicBlockId,
+    target: BasicBlockId,
+    exited: &[ScopeId],
+) -> Vec<Place> {
+    let initialized_only_on_edge = |place| {
+        analysis.initialized_on_edge(body, from, target, place)
+            && !analysis.initialized_at_entry(body, target, place)
+    };
+    let mut places = Vec::new();
+    for (index, local) in body.locals.iter().enumerate().rev() {
+        let id = LocalId::from_index(index);
+        if id == body.return_local
+            || exited.contains(&local.scope)
+            || local.representation != ValueRepresentation::Aggregate
+            || local.ownership != OwnershipKind::Move
+        {
+            continue;
+        }
+        let root = Place::local(id);
+        if initialized_only_on_edge(root) {
+            places.push(root);
+            continue;
+        }
+        for projection in body.projections.iter().rev().filter(|projection| {
+            projection.base == id
+                && projection.representation == ValueRepresentation::Aggregate
+                && projection.ownership == OwnershipKind::Move
+        }) {
+            let place = Place::projected(id, projection.id);
+            if initialized_only_on_edge(place)
+                && projection
+                    .parent
+                    .is_none_or(|parent| !initialized_only_on_edge(Place::projected(id, parent)))
+            {
+                places.push(place);
+            }
+        }
+    }
+    places
+}
+
+fn cleanup_call_edge(
+    body: &mut Body,
+    analysis: &InitializationAnalysis,
+    loans: &super::loans::LoanAnalysis,
+    from: BasicBlockId,
+    source_scope: ScopeId,
+    target: BasicBlockId,
+    call_loans: &[LoanId],
+) -> BasicBlockId {
+    let target = cleanup_edge(body, analysis, loans, from, source_scope, target);
+    prepend_cleanup_chain(
+        body,
+        call_loans
+            .iter()
+            .copied()
+            .map(CleanupAction::EndLoan)
+            .collect(),
+        target,
+    )
+}
+
+fn call_lifetime_loans(
+    body: &Body,
+    arguments: &[super::CallArgument],
+    analysis: &super::loans::LoanAnalysis,
+    block: BasicBlockId,
+) -> Vec<LoanId> {
+    body.loans
+        .iter()
+        .rev()
+        .filter(|loan| {
+            loan.lifetime == LoanLifetime::Call
+                && analysis.definitely_active_at_exit(block, loan.id)
+                && arguments.iter().any(|argument| {
+                    matches!(
+                        argument.operand,
+                        Operand::Copy(place) | Operand::Move(place)
+                            if place == Place::local(loan.destination)
+                    )
+                })
+        })
+        .map(|loan| loan.id)
+        .collect()
 }
 
 fn cleanup_exit(
@@ -271,7 +391,9 @@ fn cleanup_actions(
             body.loans
                 .iter()
                 .rev()
-                .filter(|loan| loan.scope == *scope && active(loan.id))
+                .filter(|loan| {
+                    loan.lifetime == LoanLifetime::Scope && loan.scope == *scope && active(loan.id)
+                })
                 .map(|loan| CleanupAction::EndLoan(loan.id)),
         );
         actions.extend(

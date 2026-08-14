@@ -1096,13 +1096,10 @@ func main(): i32 {
         .unwrap();
 
     assert!(
-        function
+        !function
             .instructions
-            .contains(&Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Slot(2),
-                destination_offset: 0,
-                source: AggregateLocation::Slot(0),
-                source_offset: 0,
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 2,
                 layout: ValueLayout::new(4, 4),
             })
     );
@@ -1121,7 +1118,7 @@ func main(): i32 {
             .contains(&Instruction::CopyAggregateRange {
                 destination: AggregateLocation::Slot(1),
                 destination_offset: 4,
-                source: AggregateLocation::Slot(2),
+                source: AggregateLocation::Slot(0),
                 source_offset: 0,
                 layout: ValueLayout::new(4, 4),
             })

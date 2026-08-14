@@ -749,7 +749,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         readwrite: bool,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        super::borrows::lower_to_local(self.context, destination, expression, readwrite, scope)
+        super::borrows::lower_to_local(
+            self.context,
+            destination,
+            expression,
+            readwrite,
+            scope,
+            crate::mir::LoanLifetime::Scope,
+        )
     }
 
     fn lower_while(

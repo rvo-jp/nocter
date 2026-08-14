@@ -83,12 +83,19 @@ pub(crate) struct Loan {
     pub(crate) destination: LocalId,
     pub(crate) kind: BorrowKind,
     pub(crate) scope: ScopeId,
+    pub(crate) lifetime: LoanLifetime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BorrowKind {
     Readonly,
     Readwrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LoanLifetime {
+    Scope,
+    Call,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

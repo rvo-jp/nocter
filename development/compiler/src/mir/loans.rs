@@ -247,6 +247,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                         merge_entry(&mut entries, &mut queue, *failure, state);
                     }
                     CallContinuation::Never => {
+                        end_call_lifetime_loans(body, arguments, &mut state);
                         reject_live_at_exit(body, block_id, &state, &mut errors)
                     }
                 }
@@ -279,6 +280,23 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
     }
 
     sorted(errors)
+}
+
+fn end_call_lifetime_loans(body: &Body, arguments: &[super::CallArgument], state: &mut LoanState) {
+    for loan in &body.loans {
+        if loan.lifetime == super::LoanLifetime::Call
+            && arguments.iter().any(|argument| {
+                matches!(
+                    argument.operand,
+                    Operand::Copy(place) | Operand::Move(place)
+                        if place == Place::local(loan.destination)
+                )
+            })
+        {
+            state.may_active.remove(loan.id);
+            state.must_active.remove(loan.id);
+        }
+    }
 }
 
 fn validate_declarations(body: &Body, errors: &mut HashSet<LoanError>) {
@@ -552,6 +570,7 @@ mod tests {
                 destination,
                 kind,
                 scope,
+                lifetime: crate::mir::LoanLifetime::Scope,
             });
         }
         Body {

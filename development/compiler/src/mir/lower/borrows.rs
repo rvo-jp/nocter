@@ -3,7 +3,7 @@
 use super::context::LoweringContext;
 use super::{BuildError, SemanticInputs};
 use crate::ast::Expr;
-use crate::mir::{BorrowKind, Loan, LoanId, Origin, Place, ScopeId, Statement};
+use crate::mir::{BorrowKind, Loan, LoanId, LoanLifetime, Origin, Place, ScopeId, Statement};
 
 pub(super) fn place_argument(
     context: &mut LoweringContext<'_>,
@@ -86,6 +86,7 @@ pub(super) fn lower_implicit_to_local(
             BorrowKind::Readonly
         },
         scope,
+        lifetime: LoanLifetime::Call,
     });
     context
         .control_flow
@@ -115,6 +116,7 @@ pub(super) fn lower_symbol_to_local(
             BorrowKind::Readonly
         },
         scope,
+        lifetime: LoanLifetime::Scope,
     });
     context
         .control_flow
@@ -140,6 +142,7 @@ pub(super) fn lower_place_to_local(
             BorrowKind::Readonly
         },
         scope,
+        lifetime: LoanLifetime::Call,
     });
     context
         .control_flow
@@ -152,6 +155,7 @@ pub(super) fn lower_to_local(
     expression: &Expr,
     readwrite: bool,
     scope: ScopeId,
+    lifetime: LoanLifetime,
 ) -> Result<(), BuildError> {
     let Expr::Borrow(borrow) = expression.without_groups() else {
         return Err(BuildError::UnsupportedClaimedExpression);
@@ -171,6 +175,7 @@ pub(super) fn lower_to_local(
             BorrowKind::Readonly
         },
         scope,
+        lifetime,
     });
     let origin = context
         .semantic

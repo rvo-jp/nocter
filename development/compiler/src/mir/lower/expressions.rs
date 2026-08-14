@@ -486,6 +486,7 @@ impl LoweringContext<'_> {
                     argument,
                     borrow_ty.is_readwrite,
                     scope,
+                    crate::mir::LoanLifetime::Call,
                 )?;
                 if borrow_ty.is_readwrite {
                     Operand::Move(Place::local(local))
@@ -649,7 +650,14 @@ impl LoweringContext<'_> {
             scope,
         ));
         if matches!(expression.without_groups(), Expr::Borrow(_)) {
-            super::borrows::lower_to_local(self, local, expression, readwrite, scope)?;
+            super::borrows::lower_to_local(
+                self,
+                local,
+                expression,
+                readwrite,
+                scope,
+                crate::mir::LoanLifetime::Call,
+            )?;
         } else {
             super::borrows::lower_implicit_to_local(
                 self, local, expression, readwrite, scope, origin,

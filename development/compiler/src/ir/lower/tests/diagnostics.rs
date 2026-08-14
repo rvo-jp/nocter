@@ -67,6 +67,48 @@ fn contains_guarded_drop(instructions: &[Instruction]) -> bool {
     })
 }
 
+fn assert_checked_edge_aggregate_drop(ir: &IrModule) {
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .expect("fixture must lower main");
+    assert!(!contains_bool_state(&main.instructions, true), "{main:?}");
+    assert!(!contains_bool_state(&main.instructions, false), "{main:?}");
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            let Instruction::While {
+                condition_instructions,
+                ..
+            } = instruction
+            else {
+                return false;
+            };
+            condition_instructions.iter().any(|instruction| {
+                let Instruction::If {
+                    then_instructions,
+                    else_instructions,
+                    ..
+                } = instruction
+                else {
+                    return false;
+                };
+                then_instructions
+                    .iter()
+                    .chain(else_instructions)
+                    .any(|instruction| {
+                        matches!(
+                            instruction,
+                            Instruction::CallVoid { target, .. }
+                                if target == &CallTarget::same_file("File.drop")
+                        )
+                    })
+            })
+        }),
+        "{main:?}"
+    );
+}
+
 #[test]
 fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_loop_body() {
     let ir = lower_text(
@@ -252,7 +294,7 @@ func main(): i32 {
 "#,
     );
 
-    assert_runtime_aggregate_drop_state(&ir);
+    assert_checked_edge_aggregate_drop(&ir);
 }
 
 #[test]
@@ -279,7 +321,7 @@ func main(): i32 {
 "#,
     );
 
-    assert_runtime_aggregate_drop_state(&ir);
+    assert_checked_edge_aggregate_drop(&ir);
 }
 
 #[test]

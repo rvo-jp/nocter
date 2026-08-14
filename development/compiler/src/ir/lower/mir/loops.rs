@@ -31,17 +31,35 @@ pub(super) fn lower_linear_loop_condition(
         instructions.extend(lower_statements(context, &block.statements)?);
         if current == condition_block {
             match &block.terminator {
-                Terminator::Switch { condition, .. } => {
-                    if let Some(value) = inline_condition_value(
+                Terminator::Switch {
+                    condition,
+                    then_target,
+                    else_target,
+                    ..
+                } => {
+                    let condition = if let Some(value) = inline_condition_value(
                         context,
                         condition_block,
                         &block.statements,
                         condition,
                     )? {
                         instructions.pop();
-                        return Ok((instructions, value));
+                        value
+                    } else {
+                        lower_bool_operand(condition, context)?
+                    };
+                    let success_cleanup =
+                        lower_condition_edge(context, *then_target, body_block, visited)?;
+                    let failure_cleanup =
+                        lower_condition_edge(context, *else_target, exit_block, visited)?;
+                    if !success_cleanup.is_empty() || !failure_cleanup.is_empty() {
+                        instructions.push(Instruction::If {
+                            condition: condition.clone(),
+                            then_instructions: success_cleanup,
+                            else_instructions: failure_cleanup,
+                        });
                     }
-                    return Ok((instructions, lower_bool_operand(condition, context)?));
+                    return Ok((instructions, condition));
                 }
                 Terminator::InspectOutcome {
                     source,
@@ -74,8 +92,28 @@ pub(super) fn lower_linear_loop_condition(
                 }
             }
         }
-        current =
-            lower_linear_call_terminator(context, &block.terminator, visited, &mut instructions)?;
+        current = match &block.terminator {
+            Terminator::Goto { target } => *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(super::drops::lower_drop(context, *place, *plan)?);
+                *target
+            }
+            Terminator::Call { .. } => lower_linear_call_terminator(
+                context,
+                &block.terminator,
+                visited,
+                &mut instructions,
+            )?,
+            _ => {
+                return Err(super::invalid_mir_diagnostics(
+                    "loop condition setup is not a linear call or cleanup path",
+                ));
+            }
+        };
     }
 }
 

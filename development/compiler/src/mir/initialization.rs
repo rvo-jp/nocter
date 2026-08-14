@@ -22,11 +22,24 @@ pub(crate) struct InitializationError {
 
 pub(super) struct InitializationAnalysis {
     errors: Vec<InitializationError>,
+    entry_states: Vec<Option<PlaceState>>,
     edge_states: HashMap<(BasicBlockId, BasicBlockId), PlaceState>,
     exit_states: HashMap<BasicBlockId, PlaceState>,
 }
 
 impl InitializationAnalysis {
+    pub(super) fn initialized_at_entry(
+        &self,
+        body: &Body,
+        block: BasicBlockId,
+        place: Place,
+    ) -> bool {
+        self.entry_states
+            .get(block.index())
+            .and_then(Option::as_ref)
+            .is_some_and(|state| state.is_available(body, place))
+    }
+
     pub(super) fn initialized_on_edge(
         &self,
         body: &Body,
@@ -59,6 +72,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
     if body.blocks.get(body.entry.index()).is_none() {
         return InitializationAnalysis {
             errors: Vec::new(),
+            entry_states: Vec::new(),
             edge_states: HashMap::new(),
             exit_states: HashMap::new(),
         };
@@ -368,6 +382,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
     });
     InitializationAnalysis {
         errors,
+        entry_states: entries,
         edge_states,
         exit_states,
     }
