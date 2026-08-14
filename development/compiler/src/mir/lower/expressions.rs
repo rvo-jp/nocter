@@ -941,20 +941,31 @@ impl LoweringContext<'_> {
         scalar: ScalarType,
         scope: ScopeId,
     ) -> Result<Operand, BuildError> {
-        if !matches!(
-            expression,
-            Expr::Unary(_)
-                | Expr::TypeConversion(_)
-                | Expr::Binary(_)
-                | Expr::Call(_)
-                | Expr::Force(_)
-                | Expr::Propagate(_)
-                | Expr::Member(_)
-                | Expr::Index(_)
-                | Expr::If(_)
-                | Expr::Otherwise(_)
-                | Expr::Catch(_)
-        ) {
+        let projected_identifier = match expression.without_groups() {
+            Expr::Identifier(identifier) => self
+                .semantic
+                .resolved
+                .local_symbol_for_identifier(identifier)
+                .and_then(|symbol| self.places_by_symbol.get(&symbol.id))
+                .is_some_and(|place| place.projection.is_some()),
+            _ => false,
+        };
+        if !projected_identifier
+            && !matches!(
+                expression,
+                Expr::Unary(_)
+                    | Expr::TypeConversion(_)
+                    | Expr::Binary(_)
+                    | Expr::Call(_)
+                    | Expr::Force(_)
+                    | Expr::Propagate(_)
+                    | Expr::Member(_)
+                    | Expr::Index(_)
+                    | Expr::If(_)
+                    | Expr::Otherwise(_)
+                    | Expr::Catch(_)
+            )
+        {
             return match expression {
                 Expr::Group(group) => self.lower_operand(&group.expression, ty, scalar, scope),
                 _ => self.lower_simple_operand(expression, ty, scalar),

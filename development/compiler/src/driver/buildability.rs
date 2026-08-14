@@ -539,6 +539,21 @@ impl<'a> CallableIndex<'a> {
                 );
             }
         }
+        for callable in definitions.values() {
+            if callable.substitutions.is_empty() {
+                continue;
+            }
+            let specialized = callable.typed_hir.specialized(&callable.substitutions);
+            for (_, fact) in specialized.callable_call_entries() {
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_callable_type(
+                        &fact.specialization.callable_ty,
+                        fact.specialization.capability,
+                    ),
+                    fact.specialization.target_name.clone(),
+                );
+            }
+        }
 
         Self {
             definitions,

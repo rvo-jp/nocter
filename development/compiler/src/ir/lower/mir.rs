@@ -3184,9 +3184,9 @@ fn i32_location(
             Some(parameters::ParameterStorage::I32 { abi_index }) => {
                 Ok(I32Location::Parameter(abi_index))
             }
-            _ => Err(invalid_mir_diagnostics(
-                "i32 MIR parameter has no matching ABI projection",
-            )),
+            actual => Err(invalid_mir_diagnostics(format!(
+                "i32 MIR parameter ordinal {ordinal} has ABI projection {actual:?}"
+            ))),
         },
         LocalStorage::Local => Ok(I32Location::Local(machine_local_index(
             context.body,

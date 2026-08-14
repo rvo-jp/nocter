@@ -133,16 +133,17 @@ pub(crate) fn try_build_closure_body(
                 .resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .ok_or(BuildError::MissingLocalSymbol)?;
+            let parameter_ty = inputs.typed_hir.binding_type_expr(symbol).unwrap_or(ty);
             let ty_id = inputs
                 .typed_hir
-                .type_id(ty)
+                .type_id(parameter_ty)
                 .ok_or(BuildError::MissingParameterType)?;
-            let representation = type_representation(ty, semantic)
+            let representation = type_representation(parameter_ty, semantic)
                 .ok_or(BuildError::ClosurePreparation("parameter representation"))?;
             let local_id = LocalId::from_index(locals.len());
             locals.push(local_contract(
                 ty_id,
-                ty,
+                parameter_ty,
                 representation,
                 LocalStorage::Parameter { ordinal: index + 1 },
                 LocalOrigin::Parameter(symbol),

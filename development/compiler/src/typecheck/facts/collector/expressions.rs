@@ -841,7 +841,15 @@ impl TypedHirBuilder<'_> {
         // MIR still needs stable identities for their receiver and capture
         // fields. Intern the complete structural type at the point where the
         // checker commits the closure plan.
-        self.intern_compiler_type_tree(&crate::ast::TypeExpr::Closure(ty.clone()));
+        let closure_type = crate::ast::TypeExpr::Closure(ty.clone());
+        self.intern_compiler_type_tree(&closure_type);
+        for is_readwrite in [false, true] {
+            self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+                span: expression.parameters_span,
+                is_readwrite,
+                inner: Box::new(closure_type.clone()),
+            }));
+        }
         self.facts.closure_plans.insert(
             expression.span,
             TypecheckClosurePlan {
