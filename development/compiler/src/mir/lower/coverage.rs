@@ -747,7 +747,7 @@ pub(super) fn scalar_expression_is_supported(
             let Expr::Call(call) = catch.expression.without_groups() else {
                 return false;
             };
-            matches!(catch.binding, crate::ast::CatchBinding::Discard { .. })
+            catch_binding_is_supported(catch, resolved, typed_hir)
                 && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
                 && scalar_value_block_is_supported(
                     &catch.catch_block,
@@ -831,6 +831,38 @@ pub(super) fn scalar_expression_is_supported(
         }
         _ => false,
     }
+}
+
+fn catch_binding_is_supported(
+    catch: &crate::ast::CatchExpr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    let crate::ast::CatchBinding::Named { span, .. } = catch.binding else {
+        return true;
+    };
+    let Some(symbol) = resolved.local_symbol_id_at_name_span(span) else {
+        return false;
+    };
+    if !typed_hir.binding_type_expr(symbol).is_some_and(
+        |ty| matches!(ty, crate::ast::TypeExpr::Reference(reference) if reference.name == "error"),
+    ) {
+        return false;
+    }
+    let mut used = false;
+    crate::ast::visit_block_expressions_without_nested_closures(
+        &catch.catch_block,
+        &mut |expression| {
+            if let Expr::Identifier(identifier) = expression
+                && resolved
+                    .local_symbol_for_identifier(identifier)
+                    .is_some_and(|candidate| candidate.id == symbol)
+            {
+                used = true;
+            }
+        },
+    );
+    !used
 }
 
 fn scalar_logical_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {

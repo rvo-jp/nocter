@@ -2388,6 +2388,63 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_named_catch_with_one_logical_error_payload() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32! {
+    return 42
+}
+
+func main(): i32 {
+    return answer() catch failure { 7 }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("named catch expression must select MIR")
+    .unwrap();
+
+    let payload = body
+        .locals
+        .iter()
+        .enumerate()
+        .find_map(|(index, local)| {
+            (local.representation == ValueRepresentation::Error)
+                .then_some(crate::mir::LocalId::from_index(index))
+        })
+        .expect("named catch must reserve one logical error payload");
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Outcome {
+                failure_payload: Some(actual),
+                ..
+            },
+            ..
+        } if actual == payload
+    ));
+    assert_eq!(body.locals[payload.index()].scope, ScopeId::from_index(1));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_propagated_fallible_calls_with_explicit_failure_edges() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32! {

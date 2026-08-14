@@ -1,6 +1,41 @@
 use super::*;
 
 #[test]
+fn lowers_named_scalar_recovery_from_one_logical_error_payload() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer() catch failure { 7 }
+}
+
+func answer(): i32! {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::CallOutcomeI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+                failure_mode: OutcomeFailureMode::Catch {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(2),
+                    instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(7),
+                    }],
+                    recovers: true,
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_ignored_fallible_str_catch_statement_with_reserved_error_locals() {
     let ir = lower_text(
         r#"func main(): i32 {

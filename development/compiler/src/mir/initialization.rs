@@ -217,8 +217,12 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         destination,
                         success,
                         failure,
+                        failure_payload,
                     } => {
-                        let failure_state = initialized.clone();
+                        let mut failure_state = initialized.clone();
+                        if let Some(payload) = failure_payload {
+                            failure_state.initialize(body, Place::local(*payload));
+                        }
                         initialized.initialize(body, *destination);
                         edge_states.insert((block_id, *success), initialized.clone());
                         edge_states.insert((block_id, *failure), failure_state.clone());

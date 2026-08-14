@@ -358,7 +358,9 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             };
             let destination_scalar = match destination_representation {
                 ValueRepresentation::Scalar(scalar) => Some(scalar),
-                ValueRepresentation::Borrow | ValueRepresentation::Aggregate => None,
+                ValueRepresentation::Borrow
+                | ValueRepresentation::Aggregate
+                | ValueRepresentation::Error => None,
             };
             let value_ty = match value {
                 super::model::Rvalue::Use(operand) => {
@@ -496,7 +498,9 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                                 actual,
                             });
                         }
-                        ValueRepresentation::Borrow | ValueRepresentation::Aggregate => {
+                        ValueRepresentation::Borrow
+                        | ValueRepresentation::Aggregate
+                        | ValueRepresentation::Error => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
@@ -567,7 +571,9 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                                 actual,
                             });
                         }
-                        ValueRepresentation::Borrow | ValueRepresentation::Aggregate => {
+                        ValueRepresentation::Borrow
+                        | ValueRepresentation::Aggregate
+                        | ValueRepresentation::Error => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
@@ -626,9 +632,20 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         destination,
                         success,
                         failure,
+                        failure_payload,
                     } => {
                         validate_target(body, block_id, *success, &mut errors);
                         validate_target(body, block_id, *failure, &mut errors);
+                        if let Some(payload) = failure_payload
+                            && !body.locals.get(payload.index()).is_some_and(|local| {
+                                local.representation == ValueRepresentation::Error
+                            })
+                        {
+                            errors.push(ValidationError::MissingCallDestination {
+                                block: block_id,
+                                local: *payload,
+                            });
+                        }
                         Some(destination)
                     }
                     CallContinuation::Never => None,
@@ -799,9 +816,10 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         );
         let return_storage_matches_identity = !return_local_exists
             || (id == body.return_local) == (local.storage == LocalStorage::Return);
-        let scalar_ownership_is_trivial =
-            !matches!(local.representation, ValueRepresentation::Scalar(_))
-                || local.ownership == OwnershipKind::Copy;
+        let scalar_ownership_is_trivial = !matches!(
+            local.representation,
+            ValueRepresentation::Scalar(_) | ValueRepresentation::Error
+        ) || local.ownership == OwnershipKind::Copy;
         if !storage_matches_origin
             || !return_storage_matches_identity
             || !scalar_ownership_is_trivial
@@ -937,7 +955,10 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
             }
             None => base.representation,
         };
-        if matches!(parent_representation, ValueRepresentation::Scalar(_)) {
+        if matches!(
+            parent_representation,
+            ValueRepresentation::Scalar(_) | ValueRepresentation::Error
+        ) {
             errors.push(ValidationError::ProjectionOfScalar { projection: id });
         }
         if let ProjectionElement::Index { index, .. } = &projection.element
@@ -1075,7 +1096,11 @@ fn validate_operand_scalar(
                 actual,
             });
         }
-        Some(actual @ (ValueRepresentation::Borrow | ValueRepresentation::Aggregate)) => {
+        Some(
+            actual @ (ValueRepresentation::Borrow
+            | ValueRepresentation::Aggregate
+            | ValueRepresentation::Error),
+        ) => {
             errors.push(ValidationError::OperandRepresentationMismatch {
                 block,
                 location,

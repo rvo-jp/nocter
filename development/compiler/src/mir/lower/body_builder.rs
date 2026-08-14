@@ -157,6 +157,7 @@ impl ControlFlowBuilder {
         arguments: Vec<CallArgument>,
         destination: LocalId,
         failure_scope: ScopeId,
+        failure_payload: Option<LocalId>,
     ) -> Result<BasicBlockId, BuildError> {
         let success = self.reserve_block(self.current_scope()?);
         let failure = self.reserve_block(failure_scope);
@@ -168,6 +169,7 @@ impl ControlFlowBuilder {
                 destination: Place::local(destination),
                 success,
                 failure,
+                failure_payload,
             },
         })?;
         self.select_block(failure)?;
@@ -197,6 +199,7 @@ impl ControlFlowBuilder {
                 destination: Place::local(destination),
                 success,
                 failure,
+                failure_payload: None,
             },
         })?;
         self.select_block(failure)?;

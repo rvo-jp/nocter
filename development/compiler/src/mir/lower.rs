@@ -172,6 +172,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                     };
                     Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
                 }
+                super::ValueRepresentation::Error => Local::error(ty, storage, origin, root_scope),
             };
             if local_contract.ownership == OwnershipKind::Move {
                 local_contract.drop_plan = Some(

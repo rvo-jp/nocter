@@ -4,6 +4,14 @@ use super::super::context::LoweringContext;
 use crate::ast::Expr;
 use crate::mir::{LocalId, ScalarType, ScopeId, Terminator};
 
+#[derive(Clone, Copy)]
+struct RecoveryDestination {
+    local: LocalId,
+    ty: crate::semantic::TyId,
+    scalar: ScalarType,
+    parent_scope: ScopeId,
+}
+
 pub(super) fn lower_otherwise_to_place(
     context: &mut LoweringContext<'_>,
     destination: LocalId,
@@ -17,16 +25,19 @@ pub(super) fn lower_otherwise_to_place(
     };
     lower_recovery_to_place(
         context,
-        destination,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            scalar,
+            parent_scope,
+        },
         call,
         &otherwise.fallback,
-        ty,
-        scalar,
-        parent_scope,
+        None,
     )
 }
 
-pub(super) fn lower_discard_catch_to_place(
+pub(super) fn lower_catch_to_place(
     context: &mut LoweringContext<'_>,
     destination: LocalId,
     catch: &crate::ast::CatchExpr,
@@ -34,31 +45,79 @@ pub(super) fn lower_discard_catch_to_place(
     scalar: ScalarType,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
-    if !matches!(catch.binding, crate::ast::CatchBinding::Discard { .. }) {
-        return Err(super::super::BuildError::UnsupportedClaimedExpression);
-    }
     let Expr::Call(call) = catch.expression.without_groups() else {
         return Err(super::super::BuildError::UnsupportedClaimedExpression);
     };
-    lower_recovery_to_place(
+    let fallback_scope = context.child_scope(parent_scope, catch.catch_block.span);
+    let failure_payload = match &catch.binding {
+        crate::ast::CatchBinding::Discard { .. } => None,
+        crate::ast::CatchBinding::Named { span, .. } => {
+            let symbol = context
+                .semantic
+                .resolved
+                .local_symbol_id_at_name_span(*span)
+                .ok_or(super::super::BuildError::MissingLocalSymbol)?;
+            let type_expr = context
+                .semantic
+                .typed_hir
+                .binding_type_expr(symbol)
+                .ok_or(super::super::BuildError::MissingTypedExpression)?;
+            let error_ty = context
+                .semantic
+                .typed_hir
+                .type_id(type_expr)
+                .ok_or(super::super::BuildError::MissingTypedExpression)?;
+            let local = LocalId::from_index(context.locals.len());
+            context.locals.push(crate::mir::Local::error(
+                error_ty,
+                crate::mir::LocalStorage::Local,
+                crate::mir::LocalOrigin::Binding(symbol),
+                fallback_scope,
+            ));
+            context.locals_by_symbol.insert(symbol, local);
+            Some(local)
+        }
+    };
+    lower_recovery_to_place_with_scope(
         context,
-        destination,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            scalar,
+            parent_scope,
+        },
         call,
         &catch.catch_block,
-        ty,
-        scalar,
-        parent_scope,
+        fallback_scope,
+        failure_payload,
     )
 }
 
 fn lower_recovery_to_place(
     context: &mut LoweringContext<'_>,
-    destination: LocalId,
+    destination: RecoveryDestination,
     call: &crate::ast::CallExpr,
     fallback_block: &crate::ast::Block,
-    ty: crate::semantic::TyId,
-    scalar: ScalarType,
-    parent_scope: ScopeId,
+    failure_payload: Option<LocalId>,
+) -> Result<(), super::super::BuildError> {
+    let fallback_scope = context.child_scope(destination.parent_scope, fallback_block.span);
+    lower_recovery_to_place_with_scope(
+        context,
+        destination,
+        call,
+        fallback_block,
+        fallback_scope,
+        failure_payload,
+    )
+}
+
+fn lower_recovery_to_place_with_scope(
+    context: &mut LoweringContext<'_>,
+    destination: RecoveryDestination,
+    call: &crate::ast::CallExpr,
+    fallback_block: &crate::ast::Block,
+    fallback_scope: ScopeId,
+    failure_payload: Option<LocalId>,
 ) -> Result<(), super::super::BuildError> {
     let call_source = context
         .semantic
@@ -66,24 +125,24 @@ fn lower_recovery_to_place(
         .expression(call.span)
         .ok_or(super::super::BuildError::MissingTypedExpression)?
         .id;
-    let (callee, arguments, returns_never) = context.lower_call(call, parent_scope)?;
+    let (callee, arguments, returns_never) = context.lower_call(call, destination.parent_scope)?;
     if returns_never {
         return Err(super::super::BuildError::UnsupportedClaimedExpression);
     }
-    let fallback_scope = context.child_scope(parent_scope, fallback_block.span);
     let success = context.control_flow.begin_handled_outcome_call(
         call_source,
         callee,
         arguments,
-        destination,
+        destination.local,
         fallback_scope,
+        failure_payload,
     )?;
     let returns = super::super::statements::lower_value_block(
         context,
         fallback_block,
-        destination,
-        ty,
-        scalar,
+        destination.local,
+        destination.ty,
+        destination.scalar,
         fallback_scope,
         true,
     )?;

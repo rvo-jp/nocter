@@ -247,6 +247,7 @@ pub(crate) enum CallContinuation {
         destination: Place,
         success: BasicBlockId,
         failure: BasicBlockId,
+        failure_payload: Option<LocalId>,
     },
     Never,
 }

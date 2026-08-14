@@ -779,10 +779,18 @@ pub(super) fn lower_value_block(
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
     StatementLowerer::new(context).lower(&statements, scope)?;
     let returns = preserve_explicit_return && tail.is_explicit_return();
-    let destination = if returns {
-        context.return_local()
+    let (destination, ty, scalar) = if returns {
+        let destination = context.return_local();
+        let declaration = context
+            .locals
+            .get(destination.index())
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let scalar = declaration
+            .scalar_type()
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        (destination, declaration.ty, scalar)
     } else {
-        destination
+        (destination, ty, scalar)
     };
     if let Some(conditional) = tail.conditional() {
         super::expressions::lower_conditional_to_place(

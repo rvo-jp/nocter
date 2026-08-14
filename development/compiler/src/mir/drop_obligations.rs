@@ -141,6 +141,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         destination,
                         success,
                         failure,
+                        ..
                     } => {
                         let failure_state = state.clone();
                         activate_destination(

@@ -5,8 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
     DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, Type, U8Location, U8Value,
-    UsizeLocation, UsizeValue,
+    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, StrLocation, Type, U8Location,
+    U8Value, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -294,9 +294,15 @@ fn lower_scalar_body(
                         destination,
                         success,
                         failure,
+                        failure_payload,
                     } => {
-                        let failure_mode =
-                            outcome_failure_mode(&context, *failure, *success, &mut visited)?;
+                        let failure_mode = outcome_failure_mode(
+                            &context,
+                            *failure,
+                            *success,
+                            *failure_payload,
+                            &mut visited,
+                        )?;
                         let destination_scalar = local_scalar(body, destination.local)?;
                         instructions.push(lower_outcome_call(
                             &context,
@@ -334,9 +340,19 @@ fn outcome_failure_mode(
     context: &BackendContext<'_>,
     failure: crate::mir::BasicBlockId,
     success: crate::mir::BasicBlockId,
+    failure_payload: Option<LocalId>,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let body = context.body;
+    if let Some(payload) = failure_payload {
+        let (code, message) = error_locations(body, payload)?;
+        return Ok(OutcomeFailureMode::Catch {
+            code,
+            message,
+            instructions: lower_branch_to_join(context, failure, success, visited)?,
+            recovers: control_flow::can_reach(body, failure, success),
+        });
+    }
     let failure_block = &body.blocks[failure.index()];
     match &failure_block.terminator {
         Terminator::Trap if failure_block.statements.is_empty() => {
@@ -462,6 +478,7 @@ fn lower_branch_to_join(
                         destination,
                         success,
                         failure,
+                        failure_payload,
                     },
                 ..
             } => {
@@ -482,7 +499,7 @@ fn lower_branch_to_join(
                     destination,
                     call_target,
                     arguments,
-                    outcome_failure_mode(context, *failure, *success, visited)?,
+                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
                     &callee_name,
                 )?);
                 current = *success;
@@ -821,6 +838,11 @@ fn lower_call_argument(
             ScalarArgument::Borrow(crate::ir::BorrowArgument {
                 source: lower_borrow_argument_source(&argument.operand, context)?,
             })
+        }
+        crate::mir::ValueRepresentation::Error => {
+            return Err(invalid_mir_diagnostics(
+                "logical error values cannot be passed as scalar call arguments",
+            ));
         }
     })
 }
@@ -1726,6 +1748,11 @@ fn lower_borrow_source(
         crate::mir::ValueRepresentation::Borrow => {
             return lower_borrow_argument_source(&Operand::Copy(place), context);
         }
+        crate::mir::ValueRepresentation::Error => {
+            return Err(invalid_mir_diagnostics(
+                "logical error values cannot be borrowed as scalar places",
+            ));
+        }
         crate::mir::ValueRepresentation::Aggregate => match local.storage {
             LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
                 Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) => {
@@ -1754,6 +1781,26 @@ fn lower_borrow_source(
             }
         },
     })
+}
+
+fn error_locations(
+    body: &Body,
+    local: LocalId,
+) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
+    let Some(declaration) = body.locals.get(local.index()) else {
+        return Err(invalid_mir_diagnostics(
+            "error payload refers to a missing MIR local",
+        ));
+    };
+    if declaration.storage != LocalStorage::Local
+        || declaration.representation != crate::mir::ValueRepresentation::Error
+    {
+        return Err(invalid_mir_diagnostics(
+            "error payload is not backed by logical local storage",
+        ));
+    }
+    let base = storage::machine_local_index(body, local);
+    Ok((StrLocation::Local(base), StrLocation::Local(base + 2)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

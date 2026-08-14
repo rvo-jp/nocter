@@ -13,26 +13,30 @@ pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
     body.locals[..local.index()]
         .iter()
         .enumerate()
-        .filter(|(index, local)| {
-            local.storage == LocalStorage::Local
-                && local.representation != ValueRepresentation::Aggregate
-                && !is_inlined_loop_condition(body, LocalId::from_index(*index))
-                && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
-        })
-        .count()
+        .map(|(index, local)| machine_word_width(body, LocalId::from_index(index), local))
+        .sum()
 }
 
 pub(super) fn machine_local_count(body: &Body) -> usize {
     body.locals
         .iter()
         .enumerate()
-        .filter(|(index, local)| {
-            local.storage == LocalStorage::Local
-                && local.representation != ValueRepresentation::Aggregate
-                && !is_inlined_loop_condition(body, LocalId::from_index(*index))
-                && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
-        })
-        .count()
+        .map(|(index, local)| machine_word_width(body, LocalId::from_index(index), local))
+        .sum()
+}
+
+fn machine_word_width(body: &Body, id: LocalId, local: &crate::mir::Local) -> usize {
+    if local.storage != LocalStorage::Local
+        || is_inlined_loop_condition(body, id)
+        || is_inlined_borrow_temporary(body, id)
+    {
+        return 0;
+    }
+    match local.representation {
+        ValueRepresentation::Aggregate => 0,
+        ValueRepresentation::Error => 4,
+        ValueRepresentation::Scalar(_) | ValueRepresentation::Borrow => 1,
+    }
 }
 
 pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {

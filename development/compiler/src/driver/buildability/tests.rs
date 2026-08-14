@@ -1697,7 +1697,7 @@ func make<T>(): Marker<T> {
 }
 
 #[test]
-fn reports_terminal_if_inside_catch_block_before_ir_lowering() {
+fn accepts_terminal_if_inside_catch_block_on_the_mir_route() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
     return source() catch error {
@@ -1717,12 +1717,7 @@ func source(): i32! {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert_eq!(
-        diagnostics[0].message,
-        "the native compiler cannot lower `catch` blocks outside supported runtime control flow yet"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

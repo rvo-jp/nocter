@@ -46,6 +46,9 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - `catch _` for scalar fallible calls shares the same recovery CFG without manufacturing an error
   binding; discarded error payloads stay absent from MIR locals and backend recovery skips the
   success payload write after executing the failure branch
+- unused named scalar catches retain one logical `error` local that is initialized only on the
+  failure edge; machine-storage projection alone expands that value into its code and message
+  views, while catches that inspect the payload remain on the legacy route
 - buildability classifies plain and fallible scalar returns before constructing the shared MIR body;
   MIR validation rejects propagation from plain bodies, and MIR-to-IR derives its outcome failure
   mode from the checked failure edge
@@ -183,13 +186,14 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - aggregate construction has explicit begin, projected-field initialization, and finish statements;
   failure during a later field drops only completed owned children through ordinary place-state
   cleanup, without runtime live flags or an atomic aggregate rvalue
-- the next checkpoint migrates the remaining optional/catch value and advanced-expression families
+- the next checkpoint migrates stored optional/fallible values, useful named-error views, and the
+  remaining advanced-expression families
 - value blocks retain whether their tail is an implicit value or an explicit `return`; terminal
   recovery branches write return storage and exit, while value fallbacks assign the call
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,658 library tests pass at this checkpoint
+- all 2,660 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

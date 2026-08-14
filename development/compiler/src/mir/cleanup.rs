@@ -49,10 +49,12 @@ pub(super) fn materialize(body: &mut Body) {
                         destination,
                         success,
                         failure,
+                        failure_payload,
                     } => super::CallContinuation::Outcome {
                         destination,
                         success: cleanup_edge(body, &analysis, block_id, source_scope, success),
                         failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                        failure_payload,
                     },
                     super::CallContinuation::Never => super::CallContinuation::Never,
                 },

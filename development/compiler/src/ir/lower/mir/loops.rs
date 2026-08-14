@@ -341,6 +341,7 @@ fn lower_linear_call_terminator(
             destination,
             success,
             failure,
+            failure_payload,
         } => {
             let scalar = super::local_scalar(body, destination.local)?;
             instructions.push(lower_outcome_call(
@@ -349,7 +350,7 @@ fn lower_linear_call_terminator(
                 destination,
                 call_target,
                 arguments,
-                outcome_failure_mode(context, *failure, *success, visited)?,
+                outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
                 &callee_name,
             )?);
             Ok(*success)

@@ -294,14 +294,7 @@ impl LoweringContext<'_> {
                 );
             }
             Expr::Catch(catch) => {
-                return outcomes::lower_discard_catch_to_place(
-                    self,
-                    destination,
-                    catch,
-                    ty,
-                    scalar,
-                    scope,
-                );
+                return outcomes::lower_catch_to_place(self, destination, catch, ty, scalar, scope);
             }
             Expr::Call(call) => {
                 let (callee, arguments, returns_never) = self.lower_call(call, scope)?;

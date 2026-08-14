@@ -81,10 +81,29 @@ impl Local {
         }
     }
 
+    pub(crate) fn error(
+        ty: TyId,
+        storage: LocalStorage,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            ty,
+            representation: ValueRepresentation::Error,
+            ownership: OwnershipKind::Copy,
+            storage,
+            origin,
+            scope,
+            drop_plan: None,
+        }
+    }
+
     pub(crate) fn scalar_type(&self) -> Option<ScalarType> {
         match self.representation {
             ValueRepresentation::Scalar(scalar) => Some(scalar),
-            ValueRepresentation::Borrow | ValueRepresentation::Aggregate => None,
+            ValueRepresentation::Borrow
+            | ValueRepresentation::Aggregate
+            | ValueRepresentation::Error => None,
         }
     }
 }
@@ -93,6 +112,7 @@ impl Local {
 pub(crate) enum ValueRepresentation {
     Scalar(ScalarType),
     Borrow,
+    Error,
     Aggregate,
 }
 
