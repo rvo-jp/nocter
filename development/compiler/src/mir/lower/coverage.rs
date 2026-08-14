@@ -895,6 +895,7 @@ impl<'a> ScalarStatement<'a> {
                             typed_hir,
                         },
                     )
+                    || matches!(expression.without_groups(), Expr::NoneLiteral(_))
             }),
             Self::If(statement) => {
                 scalar_expression_is_supported(
@@ -1649,6 +1650,97 @@ pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticIn
         value_representation(ty, semantic) == Some(representation)
             && value_expression_is_supported(argument, representation, semantic)
     })
+}
+
+pub(super) fn outcome_return_expression_is_supported(
+    expression: &Expr,
+    result_ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(result) = semantic.typed_hir.type_expr_by_id(result_ty) else {
+        return false;
+    };
+    let shape = crate::outcomes::outcome_shape_with_resolver(result, semantic.resolved, |source| {
+        semantic.resolver_for(source)
+    });
+    if shape.layers.is_empty() {
+        return false;
+    }
+    if matches!(expression.without_groups(), Expr::NoneLiteral(_)) {
+        return shape
+            .layers
+            .contains(&crate::outcomes::OutcomeLayer::Optional);
+    }
+    let Some(payload_ty) = semantic.typed_hir.type_id(&shape.payload) else {
+        return false;
+    };
+    let Some(representation) = value_representation(payload_ty, semantic) else {
+        return false;
+    };
+    if !matches!(
+        representation,
+        crate::mir::ValueRepresentation::Scalar(_) | crate::mir::ValueRepresentation::View(_)
+    ) {
+        return false;
+    }
+    intrinsic_expression_type(expression.span(), semantic.typed_hir)
+        .is_some_and(|ty| value_representation(ty, semantic) == Some(representation))
+        && value_expression_is_supported(expression, representation, semantic)
+}
+
+pub(super) fn outcome_return_conditional_is_supported(
+    conditional: &IfStmt,
+    result_ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    scalar_expression_is_supported(
+        &conditional.condition,
+        semantic.resolved,
+        semantic.resolved_sources,
+        semantic.typed_hir,
+    ) && known_expression_type(&conditional.condition, semantic.typed_hir)
+        .and_then(|ty| scalar_type(ty, semantic.typed_hir))
+        == Some(crate::mir::ScalarType::Bool)
+        && outcome_return_block_is_supported(&conditional.then_block, result_ty, semantic)
+        && conditional
+            .else_block
+            .as_ref()
+            .is_some_and(|block| outcome_return_block_is_supported(block, result_ty, semantic))
+}
+
+fn outcome_return_block_is_supported(
+    block: &Block,
+    result_ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    if scalar_linear_block_statements(
+        block,
+        semantic.resolved,
+        semantic.resolved_sources,
+        semantic.typed_hir,
+        false,
+    )
+    .is_none()
+    {
+        return false;
+    }
+    if let Some(result) = block.result.as_deref() {
+        return outcome_return_expression_is_supported(result, result_ty, semantic);
+    }
+    match block
+        .statements
+        .iter()
+        .rev()
+        .find(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
+    {
+        Some(Stmt::Return(statement)) => statement.expression.as_ref().is_some_and(|expression| {
+            outcome_return_expression_is_supported(expression, result_ty, semantic)
+        }),
+        Some(Stmt::If(conditional)) => {
+            outcome_return_conditional_is_supported(conditional, result_ty, semantic)
+        }
+        _ => false,
+    }
 }
 
 fn scalar_outcome_source_is_supported(

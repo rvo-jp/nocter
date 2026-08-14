@@ -163,6 +163,9 @@ pub(crate) enum ValidationError {
     InvalidOutcomeInspection {
         block: BasicBlockId,
     },
+    InvalidOutcomeReturn {
+        block: BasicBlockId,
+    },
     NonBooleanCondition {
         block: BasicBlockId,
         actual: ValueRepresentation,
@@ -877,7 +880,10 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     &mut errors,
                 );
             }
-            Terminator::PropagateFailure if body.return_mode == super::ReturnMode::Plain => {
+            Terminator::PropagateFailure
+                if body.return_mode == super::ReturnMode::Plain
+                    && body.outcome_contract.is_none() =>
+            {
                 errors.push(ValidationError::PropagationFromPlainBody { block: block_id });
             }
             Terminator::ReturnOutcome { source } => {
@@ -922,6 +928,53 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         &mut errors,
                     );
                     validate_operand_ownership(body, block_id, location, operand, &mut errors);
+                }
+            }
+            Terminator::ReturnOutcomeSuccess { source } => {
+                let Some(contract) = body.outcome_contract.as_ref() else {
+                    errors.push(ValidationError::InvalidOutcomeReturn { block: block_id });
+                    continue;
+                };
+                let actual = operand_type(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    &mut errors,
+                );
+                if let Some(actual) = actual
+                    && actual != contract.payload_ty
+                {
+                    errors.push(ValidationError::OperandTypeMismatch {
+                        block: block_id,
+                        location: OperandLocation::OutcomeReturn,
+                        expected: contract.payload_ty,
+                        actual,
+                    });
+                }
+                validate_operand_representation(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    contract.payload_representation,
+                    &mut errors,
+                );
+                validate_operand_ownership(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeReturn,
+                    source,
+                    &mut errors,
+                );
+            }
+            Terminator::ReturnOptionalNone => {
+                if !body.outcome_contract.as_ref().is_some_and(|contract| {
+                    contract
+                        .layers
+                        .contains(&crate::outcomes::OutcomeLayer::Optional)
+                }) {
+                    errors.push(ValidationError::InvalidOutcomeReturn { block: block_id });
                 }
             }
             Terminator::ReturnValue { source } => {
@@ -1578,6 +1631,7 @@ mod tests {
             source_span: span(),
             return_local: LocalId::from_index(0),
             return_mode: crate::mir::ReturnMode::Plain,
+            outcome_contract: None,
             root_scope,
             scopes: vec![crate::mir::Scope::root(span())],
             locals: vec![Local::scalar(

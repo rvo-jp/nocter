@@ -457,13 +457,31 @@ fn lower_terminal_terminator(
                 message: super::lower_str_operand(message, context)?,
             }
         }
+        Terminator::ReturnOutcomeSuccess { source } => {
+            instructions.extend(super::lower_outcome_success_return(context, source)?);
+            instructions.push(Instruction::ReturnOutcomeSuccess);
+            return Ok(true);
+        }
+        Terminator::ReturnOptionalNone => Instruction::ReturnOptionalNone,
         Terminator::PropagateFailure => {
-            if context.body.return_mode != ReturnMode::Fallible {
+            if context.body.return_mode == ReturnMode::Fallible {
+                Instruction::PropagateFailure
+            } else if context
+                .body
+                .outcome_contract
+                .as_ref()
+                .is_some_and(|contract| {
+                    contract
+                        .layers
+                        .contains(&crate::outcomes::OutcomeLayer::Optional)
+                })
+            {
+                Instruction::ReturnOptionalNone
+            } else {
                 return Err(super::invalid_mir_diagnostics(
                     "plain MIR loop propagates a recoverable failure",
                 ));
             }
-            Instruction::PropagateFailure
         }
         Terminator::Trap => Instruction::Trap,
         _ => return Ok(false),

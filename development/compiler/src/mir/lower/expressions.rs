@@ -24,6 +24,67 @@ enum PlannedReceiver<'a> {
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
+    pub(super) fn lower_direct_outcome_return(
+        &mut self,
+        expression: &Expr,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let result_ty = self.locals[self.return_local().index()].ty;
+        let contract = super::outcome_contract(result_ty, self.semantic)?
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        if matches!(expression.without_groups(), Expr::NoneLiteral(_)) {
+            if !contract
+                .layers
+                .contains(&crate::outcomes::OutcomeLayer::Optional)
+            {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            return self
+                .control_flow
+                .terminate(crate::mir::Terminator::ReturnOptionalNone);
+        }
+        let source = match contract.payload_representation {
+            crate::mir::ValueRepresentation::Scalar(scalar) => {
+                self.lower_operand(expression, contract.payload_ty, scalar, scope)?
+            }
+            crate::mir::ValueRepresentation::View(kind) => {
+                self.lower_view_operand(expression, contract.payload_ty, kind, scope)?
+            }
+            crate::mir::ValueRepresentation::Aggregate => {
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(expression.span())
+                    .ok_or(BuildError::MissingTypedExpression)?
+                    .id;
+                let local = self.aggregate_temporary(
+                    contract.payload_ty,
+                    LocalOrigin::Temporary(origin),
+                    scope,
+                )?;
+                self.lower_value_to_place(
+                    local,
+                    expression,
+                    contract.payload_ty,
+                    contract.payload_representation,
+                    scope,
+                )?;
+                if self.locals[local.index()].ownership == crate::mir::OwnershipKind::Move {
+                    Operand::Move(Place::local(local))
+                } else {
+                    Operand::Copy(Place::local(local))
+                }
+            }
+            crate::mir::ValueRepresentation::Unit
+            | crate::mir::ValueRepresentation::Borrow
+            | crate::mir::ValueRepresentation::Error => {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+        };
+        self.control_flow
+            .terminate(crate::mir::Terminator::ReturnOutcomeSuccess { source })
+    }
+
     pub(super) fn lower_failure_return(
         &mut self,
         expression: &Expr,

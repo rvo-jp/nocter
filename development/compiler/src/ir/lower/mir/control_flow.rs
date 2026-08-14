@@ -60,6 +60,8 @@ fn reachable_distances(
             | Terminator::PropagateFailure
             | Terminator::ReturnOutcome { .. }
             | Terminator::ReturnFailure { .. }
+            | Terminator::ReturnOutcomeSuccess { .. }
+            | Terminator::ReturnOptionalNone
             | Terminator::ReturnValue { .. }
             | Terminator::Return => {}
         }

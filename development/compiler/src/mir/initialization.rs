@@ -366,6 +366,20 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                 }
                 exit_states.insert(block_id, initialized);
             }
+            crate::mir::Terminator::ReturnOutcomeSuccess { source } => {
+                validate_and_apply_operand(
+                    source,
+                    &mut initialized,
+                    block_id,
+                    InitializationLocation::Return,
+                    body,
+                    &mut errors,
+                );
+                exit_states.insert(block_id, initialized);
+            }
+            crate::mir::Terminator::ReturnOptionalNone => {
+                exit_states.insert(block_id, initialized);
+            }
             crate::mir::Terminator::ReturnValue { source } => {
                 validate_and_apply_operand(
                     source,
@@ -493,6 +507,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope,
             scopes: vec![Scope::root(span)],
             locals: vec![

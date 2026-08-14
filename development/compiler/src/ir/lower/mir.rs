@@ -564,6 +564,15 @@ fn lower_scalar_body(
                 });
                 return Ok(instructions);
             }
+            Terminator::ReturnOutcomeSuccess { source } => {
+                instructions.extend(lower_outcome_success_return(&context, source)?);
+                instructions.push(Instruction::ReturnOutcomeSuccess);
+                return Ok(instructions);
+            }
+            Terminator::ReturnOptionalNone => {
+                instructions.push(Instruction::ReturnOptionalNone);
+                return Ok(instructions);
+            }
             Terminator::ReturnValue { source } => {
                 instructions.extend(lower_value_return(&context, source)?);
                 instructions.push(match body.return_mode {
@@ -600,7 +609,7 @@ fn outcome_failure_mode(
             recovers: control_flow::can_reach(body, failure, success),
         });
     }
-    if body.return_mode == ReturnMode::Fallible
+    if (body.return_mode == ReturnMode::Fallible || body.outcome_contract.is_some())
         && let Some(path) = no_op_propagation_path(context, failure)?
     {
         visited.extend(path);
@@ -628,7 +637,9 @@ fn outcome_failure_mode(
             visited.insert(failure);
             Ok(OutcomeFailureMode::Trap)
         }
-        Terminator::PropagateFailure if body.return_mode == ReturnMode::Fallible => {
+        Terminator::PropagateFailure
+            if body.return_mode == ReturnMode::Fallible || body.outcome_contract.is_some() =>
+        {
             if !failure_block.statements.is_empty() {
                 return Err(invalid_mir_diagnostics(
                     "failure propagation block contains value instructions",
@@ -1015,6 +1026,16 @@ fn lower_branch(
                 instructions.push(Instruction::PropagateFailure);
                 return Ok(instructions);
             }
+            Terminator::PropagateFailure
+                if body.outcome_contract.as_ref().is_some_and(|contract| {
+                    contract
+                        .layers
+                        .contains(&crate::outcomes::OutcomeLayer::Optional)
+                }) =>
+            {
+                instructions.push(Instruction::ReturnOptionalNone);
+                return Ok(instructions);
+            }
             Terminator::ReturnOutcome { source } => {
                 instructions.push(outcomes::lower_return(context, source)?);
                 return Ok(instructions);
@@ -1046,6 +1067,52 @@ fn lower_branch(
             }
         }
     }
+}
+
+pub(super) fn lower_outcome_success_return(
+    context: &BackendContext<'_>,
+    source: &Operand,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let contract =
+        context.body.outcome_contract.as_ref().ok_or_else(|| {
+            invalid_mir_diagnostics("outcome success return has no body contract")
+        })?;
+    Ok(vec![match contract.payload_representation {
+        crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => Instruction::SetI32 {
+            destination: I32Location::Return,
+            value: lower_i32_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::Scalar(ScalarType::U8) => Instruction::SetU8 {
+            destination: U8Location::Return,
+            value: lower_u8_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: lower_usize_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: lower_integer_operand(source, kind, context)?,
+            }
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => Instruction::SetBool {
+            destination: BoolLocation::Return,
+            value: lower_bool_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => Instruction::SetStr {
+            destination: StrLocation::Return,
+            value: lower_str_operand(source, context)?,
+        },
+        crate::mir::ValueRepresentation::Unit
+        | crate::mir::ValueRepresentation::Borrow
+        | crate::mir::ValueRepresentation::Error
+        | crate::mir::ValueRepresentation::Aggregate => {
+            return Err(invalid_mir_diagnostics(
+                "outcome success return payload representation is not projected",
+            ));
+        }
+    }])
 }
 
 fn lower_value_return(

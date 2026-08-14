@@ -485,6 +485,16 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context.lower_failure_return(expression, scope)?;
                         return Ok(true);
                     }
+                    let result_ty = self.context.locals[self.context.return_local().index()].ty;
+                    if super::coverage::outcome_return_expression_is_supported(
+                        expression,
+                        result_ty,
+                        self.context.semantic,
+                    ) {
+                        self.context
+                            .lower_direct_outcome_return(expression, scope)?;
+                        return Ok(true);
+                    }
                     let return_local = self.context.return_local();
                     let declaration = self.context.locals[return_local.index()].clone();
                     self.context.lower_value_to_place(

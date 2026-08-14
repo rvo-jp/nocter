@@ -15,6 +15,7 @@ pub(crate) struct Body {
     pub(crate) source_span: ByteSpan,
     pub(crate) return_local: LocalId,
     pub(crate) return_mode: ReturnMode,
+    pub(crate) outcome_contract: Option<OutcomeContract>,
     pub(crate) root_scope: ScopeId,
     pub(crate) scopes: Vec<super::scopes::Scope>,
     pub(crate) locals: Vec<Local>,
@@ -26,6 +27,13 @@ pub(crate) struct Body {
     pub(crate) loans: Vec<Loan>,
     pub(crate) projections: Vec<ProjectionPath>,
     pub(crate) drop_plans: Vec<super::drop_plans::DropPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OutcomeContract {
+    pub(crate) layers: Vec<crate::outcomes::OutcomeLayer>,
+    pub(crate) payload_ty: TyId,
+    pub(crate) payload_representation: ValueRepresentation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -377,6 +385,12 @@ pub(crate) enum Terminator {
         code: Operand,
         message: Operand,
     },
+    /// Return successful payload storage for an optional/fallible result.
+    ReturnOutcomeSuccess {
+        source: Operand,
+    },
+    /// Return absence through the optional layer in the result contract.
+    ReturnOptionalNone,
     /// Return an ordinary semantic value. ABI return storage is written only
     /// when this terminal edge is projected to machine IR.
     ReturnValue {

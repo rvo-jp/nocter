@@ -167,6 +167,11 @@ pub(crate) fn try_build_body_with_return_mode(
             })
             || tail.expression().is_some_and(|expression| {
                 value_expression_is_supported(expression, return_representation, semantic)
+                    || coverage::outcome_return_expression_is_supported(
+                        expression,
+                        contextual_return_ty,
+                        semantic,
+                    )
                     || return_mode == ReturnMode::Fallible
                         && coverage::failure_value_is_supported(expression, semantic)
             })
@@ -178,6 +183,11 @@ pub(crate) fn try_build_body_with_return_mode(
                     return_representation,
                     super::ValueRepresentation::Aggregate | super::ValueRepresentation::Unit
                 )) && value_conditional_is_supported(conditional, return_representation, semantic)
+                    || coverage::outcome_return_conditional_is_supported(
+                        conditional,
+                        contextual_return_ty,
+                        semantic,
+                    )
             }))
         || !parameters.iter().all(|parameter| {
             inputs
@@ -386,6 +396,18 @@ fn build_prepared_body(
                     .ok_or(BuildError::UnsupportedClaimedExpression)?,
                 root_scope,
             )?;
+        } else if tail.expression().is_some_and(|expression| {
+            coverage::outcome_return_expression_is_supported(
+                expression,
+                contextual_return_ty,
+                semantic,
+            )
+        }) {
+            context.lower_direct_outcome_return(
+                tail.expression()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                root_scope,
+            )?;
         } else if return_representation == super::ValueRepresentation::Unit
             && tail.conditional().is_none()
         {
@@ -394,6 +416,18 @@ fn build_prepared_body(
                     .lower(&[ScalarStatement::Expression(expression)], root_scope)?;
             }
             context.control_flow.terminate(Terminator::Return)?;
+        } else if let Some(if_) = tail.conditional()
+            && coverage::outcome_return_conditional_is_supported(
+                if_,
+                contextual_return_ty,
+                semantic,
+            )
+        {
+            let exits = StatementLowerer::new(&mut context)
+                .lower(&[ScalarStatement::If(if_)], root_scope)?;
+            if !exits {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
         } else if let Some(if_) = tail.conditional() {
             expressions::lower_conditional_to_place(
                 &mut context,
@@ -484,11 +518,13 @@ fn build_prepared_body(
         }
     }
     let parts = context.finish()?;
+    let outcome_contract = outcome_contract(contextual_return_ty, semantic)?;
     let body = Body {
         source_body,
         source_span: block.span,
         return_local,
         return_mode,
+        outcome_contract,
         root_scope,
         scopes: parts.scopes,
         locals: parts.locals,
@@ -502,6 +538,33 @@ fn build_prepared_body(
         drop_plans: parts.drop_plans,
     };
     super::finalize(body).map_err(BuildError::InvalidMir)
+}
+
+fn outcome_contract(
+    result_ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> Result<Option<super::OutcomeContract>, BuildError> {
+    let result = semantic
+        .typed_hir
+        .type_expr_by_id(result_ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let shape = crate::outcomes::outcome_shape_with_resolver(result, semantic.resolved, |source| {
+        semantic.resolver_for(source)
+    });
+    if shape.layers.is_empty() {
+        return Ok(None);
+    }
+    let payload_ty = semantic
+        .typed_hir
+        .type_id(&shape.payload)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let payload_representation = value_representation(payload_ty, semantic)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    Ok(Some(super::OutcomeContract {
+        layers: shape.layers,
+        payload_ty,
+        payload_representation,
+    }))
 }
 
 fn parameter_representation(

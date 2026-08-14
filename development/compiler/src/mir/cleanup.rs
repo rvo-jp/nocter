@@ -201,6 +201,22 @@ pub(super) fn materialize(body: &mut Body) {
                 source_scope,
                 Terminator::ReturnFailure { code, message },
             ),
+            Terminator::ReturnOutcomeSuccess { source } => cleanup_exit(
+                body,
+                &analysis,
+                &loans,
+                block_id,
+                source_scope,
+                Terminator::ReturnOutcomeSuccess { source },
+            ),
+            Terminator::ReturnOptionalNone => cleanup_exit(
+                body,
+                &analysis,
+                &loans,
+                block_id,
+                source_scope,
+                Terminator::ReturnOptionalNone,
+            ),
             Terminator::ReturnValue { source } => cleanup_exit(
                 body,
                 &analysis,
@@ -264,6 +280,8 @@ fn is_terminal_exit(terminator: &Terminator) -> bool {
         Terminator::Return
             | Terminator::ReturnOutcome { .. }
             | Terminator::ReturnFailure { .. }
+            | Terminator::ReturnOutcomeSuccess { .. }
+            | Terminator::ReturnOptionalNone
             | Terminator::ReturnValue { .. }
             | Terminator::PropagateFailure
             | Terminator::Trap
@@ -550,6 +568,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope: scope,
             scopes: vec![Scope::root(span)],
             locals: vec![
@@ -634,6 +653,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope: scope,
             scopes: vec![Scope::root(span)],
             locals: vec![

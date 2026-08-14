@@ -271,6 +271,13 @@ pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
                 consume_operand_move(body, message, &mut state);
                 validate_exit(body, block_id, &state, &mut errors);
             }
+            Terminator::ReturnOutcomeSuccess { source } => {
+                consume_operand_move(body, source, &mut state);
+                validate_exit(body, block_id, &state, &mut errors);
+            }
+            Terminator::ReturnOptionalNone => {
+                validate_exit(body, block_id, &state, &mut errors);
+            }
             Terminator::ReturnValue { source } => {
                 consume_operand_move(body, source, &mut state);
                 validate_exit(body, block_id, &state, &mut errors);
@@ -461,6 +468,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope: scope,
             scopes: vec![Scope::root(span)],
             locals: vec![

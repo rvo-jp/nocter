@@ -232,6 +232,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope: scope,
             scopes: vec![Scope::root(span)],
             locals: vec![

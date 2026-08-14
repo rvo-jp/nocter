@@ -270,10 +270,14 @@ func maybe_answer(): i32? {
             return_type: Type::Optional(Box::new(Type::I32)),
             instructions: vec![
                 Instruction::CallOutcomeI32 {
-                    destination: I32Location::Return,
+                    destination: I32Location::Local(0),
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
                     failure_mode: OutcomeFailureMode::Propagate,
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Location(I32Location::Local(0)),
                 },
                 Instruction::ReturnOutcomeSuccess,
             ],

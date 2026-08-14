@@ -230,6 +230,9 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                     .map(|argument| operand_use_count(&argument.operand, local))
                     .sum(),
                 crate::mir::Terminator::ReturnValue { source } => operand_use_count(source, local),
+                crate::mir::Terminator::ReturnOutcomeSuccess { source } => {
+                    operand_use_count(source, local)
+                }
                 crate::mir::Terminator::Goto { .. }
                 | crate::mir::Terminator::Drop { .. }
                 | crate::mir::Terminator::InspectOutcome { .. }
@@ -237,6 +240,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                 | crate::mir::Terminator::PropagateFailure
                 | crate::mir::Terminator::ReturnOutcome { .. }
                 | crate::mir::Terminator::ReturnFailure { .. }
+                | crate::mir::Terminator::ReturnOptionalNone
                 | crate::mir::Terminator::Return => 0,
             };
             statements + terminator
@@ -319,6 +323,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: crate::mir::ReturnMode::Plain,
+            outcome_contract: None,
             root_scope,
             scopes: vec![crate::mir::Scope::root(span)],
             locals: vec![

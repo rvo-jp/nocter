@@ -37,8 +37,8 @@ pub(crate) use model::Loan;
 pub(crate) use model::{
     AggregateElement, AggregateLeaf, AllocationContextOverride, AllocationRegion, BinaryOperator,
     Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator, Constant, LoanLifetime,
-    LoopRegion, Operand, Origin, Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue,
-    Statement, Terminator, UnaryOperator,
+    LoopRegion, Operand, Origin, OutcomeContract, Place, ProjectionElement, ProjectionPath,
+    ReturnMode, Rvalue, Statement, Terminator, UnaryOperator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

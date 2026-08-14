@@ -125,6 +125,8 @@ fn successors(terminator: &Terminator) -> Vec<BasicBlockId> {
         | Terminator::PropagateFailure
         | Terminator::ReturnOutcome { .. }
         | Terminator::ReturnFailure { .. }
+        | Terminator::ReturnOutcomeSuccess { .. }
+        | Terminator::ReturnOptionalNone
         | Terminator::ReturnValue { .. }
         | Terminator::Return => Vec::new(),
     }

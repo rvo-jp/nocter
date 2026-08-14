@@ -120,6 +120,8 @@ fn successors(terminator: &Terminator) -> Vec<BasicBlockId> {
         | Terminator::PropagateFailure
         | Terminator::ReturnOutcome { .. }
         | Terminator::ReturnFailure { .. }
+        | Terminator::ReturnOutcomeSuccess { .. }
+        | Terminator::ReturnOptionalNone
         | Terminator::ReturnValue { .. }
         | Terminator::Return => Vec::new(),
     }
@@ -273,6 +275,13 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
             Terminator::ReturnFailure { code, message } => {
                 reject_operand_move(body, block_id, code, &state, &mut errors);
                 reject_operand_move(body, block_id, message, &state, &mut errors);
+            }
+            Terminator::ReturnOutcomeSuccess { source } => {
+                reject_operand_move(body, block_id, source, &state, &mut errors);
+                reject_live_at_exit(body, block_id, &state, &mut errors);
+            }
+            Terminator::ReturnOptionalNone => {
+                reject_live_at_exit(body, block_id, &state, &mut errors);
             }
             Terminator::ReturnValue { source } => {
                 reject_operand_move(body, block_id, source, &state, &mut errors);
@@ -587,6 +596,7 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: ReturnMode::Plain,
+            outcome_contract: None,
             root_scope: scope,
             scopes: vec![Scope::root(span)],
             locals,
