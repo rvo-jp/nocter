@@ -131,17 +131,22 @@ pub(crate) fn try_build_body_with_return_mode(
         || !source_statements
             .iter()
             .all(|statement| statement.is_supported(semantic))
-        || !(tail.expression().is_some_and(|expression| {
-            value_expression_is_supported(expression, return_representation, semantic)
-                || return_mode == ReturnMode::Fallible
-                    && coverage::failure_value_is_supported(expression, semantic)
-        }) || tail.conditional().is_some_and(|conditional| {
-            (matches!(
-                return_representation,
-                super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
-            ) || return_representation == super::ValueRepresentation::Aggregate)
-                && value_conditional_is_supported(conditional, return_representation, semantic)
-        }))
+        || !(matches!(
+            tail,
+            ScalarTail::ImplicitUnit(_) | ScalarTail::UnitReturn(_)
+        ) && return_representation == super::ValueRepresentation::Unit
+            || tail.expression().is_some_and(|expression| {
+                value_expression_is_supported(expression, return_representation, semantic)
+                    || return_mode == ReturnMode::Fallible
+                        && coverage::failure_value_is_supported(expression, semantic)
+            })
+            || tail.conditional().is_some_and(|conditional| {
+                (matches!(
+                    return_representation,
+                    super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
+                ) || return_representation == super::ValueRepresentation::Aggregate)
+                    && value_conditional_is_supported(conditional, return_representation, semantic)
+            }))
         || !parameters.iter().all(|parameter| {
             inputs
                 .resolved
@@ -166,6 +171,12 @@ pub(crate) fn try_build_body_with_return_mode(
             .ok_or(BuildError::MissingSourceBody)?;
         let root_scope = ScopeId::from_index(0);
         let return_local_contract = match return_representation {
+            super::ValueRepresentation::Unit => Local::unit(
+                return_ty,
+                LocalStorage::Return,
+                LocalOrigin::Return,
+                root_scope,
+            ),
             super::ValueRepresentation::Scalar(scalar) => Local::scalar(
                 return_ty,
                 scalar,
@@ -224,6 +235,7 @@ pub(crate) fn try_build_body_with_return_mode(
             let mut local_contract = match parameter_representation(parameter, semantic)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?
             {
+                super::ValueRepresentation::Unit => Local::unit(ty, storage, origin, root_scope),
                 super::ValueRepresentation::Scalar(scalar) => {
                     Local::scalar(ty, scalar, storage, origin, root_scope)
                 }
@@ -325,6 +337,8 @@ fn build_prepared_body(
                 .ok_or(BuildError::UnsupportedClaimedExpression)?,
             root_scope,
         )?;
+    } else if return_representation == super::ValueRepresentation::Unit {
+        context.control_flow.terminate(Terminator::Return)?;
     } else if let Some(if_) = tail.conditional() {
         expressions::lower_conditional_to_place(
             &mut context,
@@ -357,6 +371,7 @@ fn build_prepared_body(
             .expression()
             .ok_or(BuildError::UnsupportedClaimedExpression)?;
         match return_representation {
+            super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
             super::ValueRepresentation::Scalar(return_scalar) => context
                 .lower_expression_to_place(
                     return_local,
@@ -453,14 +468,18 @@ fn type_representation(
     if matches!(type_expr, crate::ast::TypeExpr::Borrow(_)) {
         return Some(super::ValueRepresentation::Borrow);
     }
+    if matches!(type_expr, crate::ast::TypeExpr::Reference(reference) if reference.name == "void") {
+        return Some(super::ValueRepresentation::Unit);
+    }
+    let abi = crate::abi::abi_value_from_type_expr_with_resolver(
+        type_expr,
+        semantic.resolved,
+        |source| semantic.resolver_for(source),
+    )
+    .ok()?
+    .ty;
     let aggregate = matches!(
-        crate::abi::abi_value_from_type_expr_with_resolver(
-            type_expr,
-            semantic.resolved,
-            |source| semantic.resolver_for(source),
-        )
-        .ok()?
-        .ty,
+        abi,
         crate::abi::AbiType::Struct(_)
             | crate::abi::AbiType::Array { .. }
             | crate::abi::AbiType::Enum(_)

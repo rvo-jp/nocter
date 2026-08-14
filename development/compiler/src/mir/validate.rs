@@ -408,7 +408,8 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 ValueRepresentation::Borrow
                 | ValueRepresentation::View(_)
                 | ValueRepresentation::Aggregate
-                | ValueRepresentation::Error => None,
+                | ValueRepresentation::Error
+                | ValueRepresentation::Unit => None,
             };
             let value_ty = match value {
                 super::model::Rvalue::Use(operand) => {
@@ -549,7 +550,8 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         ValueRepresentation::Borrow
                         | ValueRepresentation::View(_)
                         | ValueRepresentation::Aggregate
-                        | ValueRepresentation::Error => {
+                        | ValueRepresentation::Error
+                        | ValueRepresentation::Unit => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
@@ -623,7 +625,8 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         ValueRepresentation::Borrow
                         | ValueRepresentation::View(_)
                         | ValueRepresentation::Aggregate
-                        | ValueRepresentation::Error => {
+                        | ValueRepresentation::Error
+                        | ValueRepresentation::Unit => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
@@ -1279,6 +1282,7 @@ fn validate_operand_ownership(
     let valid = match (operation, ownership) {
         (OperandOwnership::Copy, OwnershipKind::Copy)
         | (OperandOwnership::Copy, OwnershipKind::Borrowed { readwrite: false })
+        | (OperandOwnership::Copy, OwnershipKind::Borrowed { readwrite: true })
         | (OperandOwnership::Move, OwnershipKind::Borrowed { readwrite: true })
         | (OperandOwnership::Move, OwnershipKind::Move) => true,
         (OperandOwnership::Copy | OperandOwnership::Move, _) => false,
@@ -1315,7 +1319,8 @@ fn validate_operand_scalar(
             actual @ (ValueRepresentation::Borrow
             | ValueRepresentation::View(_)
             | ValueRepresentation::Aggregate
-            | ValueRepresentation::Error),
+            | ValueRepresentation::Error
+            | ValueRepresentation::Unit),
         ) => {
             errors.push(ValidationError::OperandRepresentationMismatch {
                 block,

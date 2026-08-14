@@ -195,6 +195,7 @@ fn local_contract(
         OwnershipKind::Move
     };
     let mut local = match representation {
+        ValueRepresentation::Unit => Local::unit(ty, storage, origin, scope),
         ValueRepresentation::Scalar(scalar) => Local::scalar(ty, scalar, storage, origin, scope),
         ValueRepresentation::View(kind) => Local::view(ty, kind, storage, origin, scope),
         ValueRepresentation::Aggregate => Local::aggregate(ty, ownership, storage, origin, scope),

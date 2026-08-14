@@ -632,3 +632,39 @@ fn lowers_void_entry_with_binding_before_implicit_return() {
         }])
     );
 }
+
+#[test]
+fn void_entry_uses_a_zero_width_retained_mir_return() {
+    let fixture = analyze_text_fixture(
+        r#"func main(): void {
+    let value = 1
+    return
+}
+"#,
+    );
+    lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+    let root = fixture.analysis.root_file().unwrap();
+    let body_id = root
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            crate::ast::Item::Function(function) if function.name == "main" => {
+                function.body.as_ref()
+            }
+            _ => None,
+        })
+        .and_then(|body| fixture.analysis.semantic_db.body_at(body.span))
+        .unwrap();
+    let body = fixture
+        .analysis
+        .mir_bodies
+        .cached_specialized(body_id, &HashMap::new())
+        .expect("void lowering should retain a cache entry")
+        .expect("void lowering should construct valid MIR");
+
+    assert_eq!(
+        body.locals[body.return_local.index()].representation,
+        crate::mir::ValueRepresentation::Unit
+    );
+}

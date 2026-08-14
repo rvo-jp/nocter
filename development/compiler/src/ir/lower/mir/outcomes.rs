@@ -221,7 +221,7 @@ fn outcome_destination(
         ValueRepresentation::Borrow => {
             ComposedOutcomeDestination::Borrow(super::usize_location(&destination, context)?)
         }
-        ValueRepresentation::Aggregate | ValueRepresentation::Error => {
+        ValueRepresentation::Unit | ValueRepresentation::Aggregate | ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
                 "stored outcome payload representation is not yet projectable",
             ));

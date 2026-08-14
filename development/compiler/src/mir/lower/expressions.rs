@@ -111,6 +111,7 @@ impl LoweringContext<'_> {
         scope: ScopeId,
     ) -> Result<(), BuildError> {
         match representation {
+            crate::mir::ValueRepresentation::Unit => Err(BuildError::UnsupportedClaimedExpression),
             crate::mir::ValueRepresentation::Scalar(scalar) => {
                 self.lower_expression_to_place(destination, expression, ty, scalar, scope)
             }
@@ -726,22 +727,39 @@ impl LoweringContext<'_> {
                 ty,
             },
             Expr::TypeConversion(conversion) => {
-                let source_ty =
-                    known_expression_type(&conversion.expression, self.semantic.typed_hir)
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                let source_scalar = scalar_type(source_ty, self.semantic.typed_hir)
-                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                Rvalue::Cast {
-                    operand: self.lower_operand(
-                        &conversion.expression,
+                if let Expr::IntegerLiteral(literal) = conversion.expression.without_groups()
+                    && self
+                        .semantic
+                        .typed_hir
+                        .conversion_plan(conversion.span)
+                        .is_some_and(|plan| {
+                            plan.kind == crate::typecheck::TypecheckConversionKind::LosslessInteger
+                        })
+                {
+                    Rvalue::Use(Operand::Constant(crate::mir::model::Constant {
+                        ty,
+                        scalar,
+                        value: decode_integer_literal_value(&literal.value)
+                            .ok_or(BuildError::InvalidScalarConstant)?,
+                    }))
+                } else {
+                    let source_ty =
+                        known_expression_type(&conversion.expression, self.semantic.typed_hir)
+                            .ok_or(BuildError::MissingTypedExpression)?;
+                    let source_scalar = scalar_type(source_ty, self.semantic.typed_hir)
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    Rvalue::Cast {
+                        operand: self.lower_operand(
+                            &conversion.expression,
+                            source_ty,
+                            source_scalar,
+                            scope,
+                        )?,
                         source_ty,
                         source_scalar,
-                        scope,
-                    )?,
-                    source_ty,
-                    source_scalar,
-                    target_ty: ty,
-                    target_scalar: scalar,
+                        target_ty: ty,
+                        target_scalar: scalar,
+                    }
                 }
             }
             Expr::Binary(binary) => {

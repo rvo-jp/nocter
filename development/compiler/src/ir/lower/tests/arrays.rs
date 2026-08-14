@@ -468,7 +468,7 @@ func addend(): i32 {
                     stride: 4,
                 },
                 Instruction::AddI32 {
-                    destination: I32Location::Local(2),
+                    destination: I32Location::Local(3),
                     left: i32_local(2),
                     right: i32_local(1),
                 },
@@ -478,7 +478,7 @@ func addend(): i32 {
                     index: usize_local(0),
                     length: 2,
                     stride: 4,
-                    value: i32_local(2),
+                    value: i32_local(3),
                 },
                 Instruction::Return,
             ],

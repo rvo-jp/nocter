@@ -130,6 +130,9 @@ impl<'a> LoweringContext<'a> {
             return self.aggregate_temporary(ty, origin, scope);
         }
         let local = match representation {
+            crate::mir::ValueRepresentation::Unit => {
+                Local::unit(ty, crate::mir::LocalStorage::Local, origin, scope)
+            }
             crate::mir::ValueRepresentation::Scalar(scalar) => {
                 Local::scalar(ty, scalar, crate::mir::LocalStorage::Local, origin, scope)
             }

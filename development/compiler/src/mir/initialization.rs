@@ -311,7 +311,12 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                 merge_entry(&mut entries, &mut queue, *target, initialized, body);
             }
             crate::mir::Terminator::Return => {
-                if body.locals.get(body.return_local.index()).is_some()
+                if body
+                    .locals
+                    .get(body.return_local.index())
+                    .is_some_and(|local| {
+                        local.representation != crate::mir::ValueRepresentation::Unit
+                    })
                     && !initialized.is_available(body, Place::local(body.return_local))
                 {
                     errors.insert(InitializationError {

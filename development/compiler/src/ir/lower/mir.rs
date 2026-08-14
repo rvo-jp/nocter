@@ -148,6 +148,7 @@ pub(super) fn try_lower_closure_body(
 
 fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentation, ReturnMode)> {
     Some(match return_type {
+        Type::Void => (crate::mir::ValueRepresentation::Unit, ReturnMode::Plain),
         Type::I32 => (
             crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
             ReturnMode::Plain,
@@ -181,6 +182,7 @@ fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentatio
             ReturnMode::Plain,
         ),
         Type::Fallible(success) => match success.as_ref() {
+            Type::Void => (crate::mir::ValueRepresentation::Unit, ReturnMode::Fallible),
             Type::I32 => (
                 crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
                 ReturnMode::Fallible,
@@ -1386,7 +1388,7 @@ fn lower_call_argument(
         crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
             ScalarArgument::Str(lower_str_operand(&argument.operand, context)?)
         }
-        crate::mir::ValueRepresentation::Error => {
+        crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
                 "logical error values cannot be passed as scalar call arguments",
             ));
@@ -2543,7 +2545,7 @@ fn lower_borrow_source(
         crate::mir::ValueRepresentation::Borrow => {
             return lower_borrow_argument_source(&Operand::Copy(place), context);
         }
-        crate::mir::ValueRepresentation::View(_) => {
+        crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::View(_) => {
             return Err(invalid_mir_diagnostics(
                 "view values cannot be borrowed as scalar places",
             ));

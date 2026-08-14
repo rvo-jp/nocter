@@ -193,6 +193,9 @@ fn lower_receiver(
     let representation = value_representation(self_ty, context.semantic)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
     let temporary = match representation {
+        crate::mir::ValueRepresentation::Unit => {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
         crate::mir::ValueRepresentation::Scalar(scalar) => {
             let local = LocalId::from_index(context.locals.len());
             context.locals.push(crate::mir::Local::scalar(

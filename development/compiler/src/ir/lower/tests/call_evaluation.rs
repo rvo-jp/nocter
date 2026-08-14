@@ -119,21 +119,26 @@ func main(): void! {
             _ => None,
         });
 
+    let cleanup = cleanup.expect("expected propagation cleanup");
+    assert_eq!(cleanup.len(), 2);
     assert!(matches!(
-        cleanup.map(Vec::as_slice),
-        Some([
-            Instruction::CallVoid { arguments: second, .. },
-            Instruction::CallVoid { arguments: first, .. },
-        ]) if matches!(
-            second.as_slice(),
-            [ScalarArgument::Borrow(BorrowArgument {
-                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
-            })]
-        ) && matches!(
-            first.as_slice(),
-            [ScalarArgument::Borrow(BorrowArgument {
-                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
-            })]
-        )
+        &cleanup[0],
+        Instruction::CallVoid { arguments, .. }
+            if matches!(
+                arguments.as_slice(),
+                [ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
+                })]
+            )
+    ));
+    assert!(matches!(
+        &cleanup[1],
+        Instruction::CallVoid { arguments, .. }
+            if matches!(
+                arguments.as_slice(),
+                [ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0)
+                })]
+            )
     ));
 }

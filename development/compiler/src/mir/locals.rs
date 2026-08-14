@@ -21,6 +21,23 @@ pub(crate) struct Local {
 }
 
 impl Local {
+    pub(crate) fn unit(
+        ty: TyId,
+        storage: LocalStorage,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            ty,
+            representation: ValueRepresentation::Unit,
+            ownership: OwnershipKind::Copy,
+            storage,
+            origin,
+            scope,
+            drop_plan: None,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn with_drop_plan(mut self, plan: DropPlanId) -> Self {
         self.drop_plan = Some(plan);
@@ -122,13 +139,15 @@ impl Local {
             ValueRepresentation::Borrow
             | ValueRepresentation::View(_)
             | ValueRepresentation::Aggregate
-            | ValueRepresentation::Error => None,
+            | ValueRepresentation::Error
+            | ValueRepresentation::Unit => None,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueRepresentation {
+    Unit,
     Scalar(ScalarType),
     Borrow,
     View(ViewKind),

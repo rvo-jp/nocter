@@ -30,6 +30,8 @@ pub(super) enum ScalarStatement<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum ScalarTail<'a> {
+    ImplicitUnit(crate::source::ByteSpan),
+    UnitReturn(crate::source::ByteSpan),
     Expression(&'a Expr),
     Return(&'a Expr),
     Conditional(&'a IfStmt),
@@ -39,7 +41,7 @@ impl<'a> ScalarTail<'a> {
     pub(super) fn expression(self) -> Option<&'a Expr> {
         match self {
             Self::Expression(expression) | Self::Return(expression) => Some(expression),
-            Self::Conditional(_) => None,
+            Self::ImplicitUnit(_) | Self::UnitReturn(_) | Self::Conditional(_) => None,
         }
     }
 
@@ -47,16 +49,19 @@ impl<'a> ScalarTail<'a> {
         match self {
             Self::Expression(Expr::If(if_)) | Self::Return(Expr::If(if_)) => Some(if_),
             Self::Conditional(if_) => Some(if_),
-            Self::Expression(_) | Self::Return(_) => None,
+            Self::ImplicitUnit(_) | Self::UnitReturn(_) | Self::Expression(_) | Self::Return(_) => {
+                None
+            }
         }
     }
 
     pub(super) fn is_explicit_return(self) -> bool {
-        matches!(self, Self::Return(_))
+        matches!(self, Self::UnitReturn(_) | Self::Return(_))
     }
 
     pub(super) fn is_supported(self, semantic: SemanticInputs<'_>) -> bool {
         match self {
+            Self::ImplicitUnit(_) | Self::UnitReturn(_) => true,
             Self::Expression(Expr::Call(call)) | Self::Return(Expr::Call(call)) => {
                 scalar_tail_call_is_supported(
                     call,
@@ -92,6 +97,12 @@ impl<'a> ScalarTail<'a> {
 
     pub(super) fn result_type(self, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {
         match self {
+            Self::ImplicitUnit(span) | Self::UnitReturn(span) => typed_hir.type_id(
+                &crate::ast::TypeExpr::Reference(crate::ast::TypeReference {
+                    span,
+                    name: "void".to_string(),
+                }),
+            ),
             Self::Expression(expression) | Self::Return(expression) => {
                 known_expression_type(expression, typed_hir)
             }
@@ -1111,13 +1122,20 @@ pub(super) fn scalar_body_parts(
             ScalarTail::Expression(result),
         )
     } else {
-        let (last, leading) = runtime_statements.split_last()?;
-        let tail = match last {
-            Stmt::Return(statement) => ScalarTail::Return(statement.expression.as_ref()?),
-            Stmt::If(if_) => ScalarTail::Conditional(if_),
-            _ => return None,
-        };
-        (leading, tail)
+        match runtime_statements.split_last() {
+            Some((Stmt::Return(statement), leading)) => (
+                leading,
+                statement
+                    .expression
+                    .as_ref()
+                    .map_or(ScalarTail::UnitReturn(statement.span), ScalarTail::Return),
+            ),
+            Some((Stmt::If(if_), leading)) => (leading, ScalarTail::Conditional(if_)),
+            Some(_) | None => (
+                runtime_statements.as_slice(),
+                ScalarTail::ImplicitUnit(block.span),
+            ),
+        }
     };
     let statements = body_statements
         .iter()
@@ -1658,6 +1676,9 @@ pub(super) fn value_representation(
         return Some(crate::mir::ValueRepresentation::Scalar(scalar));
     }
     let ty = semantic.typed_hir.type_expr_by_id(ty)?;
+    if matches!(ty, crate::ast::TypeExpr::Reference(reference) if reference.name == "void") {
+        return Some(crate::mir::ValueRepresentation::Unit);
+    }
     match crate::abi::abi_value_from_type_expr_with_resolver(ty, semantic.resolved, |source| {
         semantic.resolver_for(source)
     })
@@ -1681,6 +1702,7 @@ pub(super) fn value_expression_is_supported(
     semantic: SemanticInputs<'_>,
 ) -> bool {
     match representation {
+        crate::mir::ValueRepresentation::Unit => false,
         crate::mir::ValueRepresentation::Scalar(_) => scalar_expression_is_supported(
             expression,
             semantic.resolved,

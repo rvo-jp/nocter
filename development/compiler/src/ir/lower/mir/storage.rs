@@ -33,7 +33,7 @@ fn machine_word_width(body: &Body, id: LocalId, local: &crate::mir::Local) -> us
         return 0;
     }
     match local.representation {
-        ValueRepresentation::Aggregate => 0,
+        ValueRepresentation::Unit | ValueRepresentation::Aggregate => 0,
         ValueRepresentation::Error => 4,
         ValueRepresentation::View(crate::mir::ViewKind::Str) => 2,
         ValueRepresentation::Scalar(_) | ValueRepresentation::Borrow => 1,
