@@ -1720,27 +1720,19 @@ func ready(): bool {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
                 then_instructions: vec![
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         value: i32_const(7),
                     },
                     drop_file.clone(),
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::SetI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 value: i32_const(0),
             },
             drop_file,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::Return,
         ],
     );
@@ -1991,14 +1983,10 @@ func ready(): bool {
                         value: i32_const(1),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         value: i32_const(7),
                     },
                     drop_file,
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
                     Instruction::Return,
                 ],
             },

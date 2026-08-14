@@ -1036,6 +1036,7 @@ impl LoweringContext<'_> {
                 condition: left,
                 then_target,
                 else_target,
+                join_target: Some(join_target),
             })?;
 
         self.control_flow.select_block(short_target)?;

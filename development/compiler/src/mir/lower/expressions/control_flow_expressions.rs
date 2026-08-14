@@ -36,6 +36,7 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
         condition,
         then_target,
         else_target,
+        join_target: Some(join_target),
     })?;
 
     context.control_flow.select_block(then_target)?;

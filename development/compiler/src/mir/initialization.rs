@@ -190,6 +190,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                 condition,
                 then_target,
                 else_target,
+                ..
             } => {
                 validate_and_apply_operand(
                     condition,

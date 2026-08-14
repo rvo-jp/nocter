@@ -213,6 +213,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 condition,
                 then_target,
                 else_target,
+                ..
             } => {
                 reject_operand_move(body, block_id, condition, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *then_target, state.clone());
@@ -680,6 +681,7 @@ mod tests {
                         }),
                         then_target: BasicBlockId::from_index(1),
                         else_target: BasicBlockId::from_index(2),
+                        join_target: Some(BasicBlockId::from_index(3)),
                     },
                 ),
                 block(

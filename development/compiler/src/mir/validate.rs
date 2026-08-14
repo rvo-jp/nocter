@@ -656,9 +656,13 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 condition,
                 then_target,
                 else_target,
+                join_target,
             } => {
                 validate_target(body, block_id, *then_target, &mut errors);
                 validate_target(body, block_id, *else_target, &mut errors);
+                if let Some(join_target) = join_target {
+                    validate_target(body, block_id, *join_target, &mut errors);
+                }
                 if let Some(actual) = operand_representation(body, condition)
                     && actual != ValueRepresentation::Scalar(ScalarType::Bool)
                 {
@@ -1952,6 +1956,7 @@ mod tests {
                     }),
                     then_target: BasicBlockId::from_index(1),
                     else_target: BasicBlockId::from_index(2),
+                    join_target: Some(BasicBlockId::from_index(3)),
                 },
             },
             BasicBlock {

@@ -24,6 +24,7 @@ pub(super) enum ScalarStatement<'a> {
     While(&'a WhileStmt),
     Region(&'a RegionStmt),
     Expression(&'a Expr),
+    Return(&'a crate::ast::ReturnStmt),
     Break,
     Continue,
 }
@@ -762,6 +763,41 @@ impl<'a> ScalarStatement<'a> {
                 }
                 _ => false,
             },
+            Self::Return(statement) => statement.expression.as_ref().is_none_or(|expression| {
+                typed_hir
+                    .expression(expression.span())
+                    .is_some_and(|expression| expression.diverges)
+                    || known_expression_type(expression, typed_hir)
+                        .and_then(|ty| {
+                            value_representation(
+                                ty,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        })
+                        .is_some_and(|representation| {
+                            value_expression_is_supported(
+                                expression,
+                                representation,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        })
+                    || failure_value_is_supported(
+                        expression,
+                        SemanticInputs {
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        },
+                    )
+            }),
             Self::If(statement) => {
                 scalar_expression_is_supported(
                     &statement.condition,
@@ -949,6 +985,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Region(statement) => Some(ScalarStatement::Region(statement)),
         Stmt::Expression(statement) => Some(ScalarStatement::Expression(&statement.expression)),
+        Stmt::Return(statement) => Some(ScalarStatement::Return(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
         _ => None,
@@ -1045,15 +1082,15 @@ pub(super) fn scalar_linear_block_statements<'a>(
     typed_hir: &TypedHir,
     in_loop: bool,
 ) -> Option<Vec<ScalarStatement<'a>>> {
-    if block.result.is_some() {
-        return None;
-    }
-    let statements = block
+    let mut statements = block
         .statements
         .iter()
         .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
         .map(scalar_statement)
         .collect::<Option<Vec<_>>>()?;
+    if let Some(result) = block.result.as_deref() {
+        statements.push(ScalarStatement::Expression(result));
+    }
     let mut exited = false;
     for statement in &statements {
         if exited
@@ -1071,7 +1108,7 @@ pub(super) fn scalar_linear_block_statements<'a>(
         }
         exited = matches!(
             statement,
-            ScalarStatement::Break | ScalarStatement::Continue
+            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
         );
     }
     Some(statements)
@@ -1106,13 +1143,13 @@ fn scalar_conditional_statement_is_supported(
     let then_exits = then_statements.last().is_some_and(|statement| {
         matches!(
             statement,
-            ScalarStatement::Break | ScalarStatement::Continue
+            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
         )
     });
     let else_exits = else_statements.last().is_some_and(|statement| {
         matches!(
             statement,
-            ScalarStatement::Break | ScalarStatement::Continue
+            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
         )
     });
     !(then_exits && else_exits)
@@ -1141,7 +1178,7 @@ pub(super) fn scalar_loop_block_statements<'a>(
         }
         exited = matches!(
             statement,
-            ScalarStatement::Break | ScalarStatement::Continue
+            ScalarStatement::Return(_) | ScalarStatement::Break | ScalarStatement::Continue
         );
     }
     Some(statements)
@@ -1181,6 +1218,30 @@ pub(super) fn scalar_body_parts(
         .map(|statement| scalar_statement(statement))
         .collect::<Option<Vec<_>>>()?;
     Some((statements, tail))
+}
+
+pub(super) fn terminal_return_type(
+    block: &Block,
+    typed_hir: &TypedHir,
+) -> Option<crate::semantic::TyId> {
+    if let Some(result) = block.result.as_deref() {
+        return known_expression_type(result, typed_hir);
+    }
+    match block
+        .statements
+        .iter()
+        .rev()
+        .find(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))?
+    {
+        Stmt::Return(statement) => known_expression_type(statement.expression.as_ref()?, typed_hir),
+        Stmt::Loop(statement) => terminal_return_type(&statement.body, typed_hir),
+        Stmt::If(statement) => {
+            let then_ty = terminal_return_type(&statement.then_block, typed_hir)?;
+            let else_ty = terminal_return_type(statement.else_block.as_ref()?, typed_hir)?;
+            (then_ty == else_ty).then_some(then_ty)
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn scalar_expression_is_supported(
@@ -1653,11 +1714,17 @@ fn value_block_is_supported(
     }
     statements_supported
         && tail_representation == Some(representation)
-        && (tail.expression().is_some_and(|expression| {
-            value_expression_is_supported(expression, representation, semantic)
-        }) || tail.conditional().is_some_and(|conditional| {
-            value_conditional_is_supported(conditional, representation, semantic)
-        }))
+        && (representation == crate::mir::ValueRepresentation::Unit
+            && matches!(
+                tail,
+                ScalarTail::ImplicitUnit(_) | ScalarTail::UnitReturn(_)
+            )
+            || tail.expression().is_some_and(|expression| {
+                value_expression_is_supported(expression, representation, semantic)
+            })
+            || tail.conditional().is_some_and(|conditional| {
+                value_conditional_is_supported(conditional, representation, semantic)
+            }))
 }
 
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {

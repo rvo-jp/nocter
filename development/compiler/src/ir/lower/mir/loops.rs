@@ -7,7 +7,7 @@ use super::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
-use crate::mir::{CallContinuation, Operand, Rvalue, Statement, Terminator};
+use crate::mir::{CallContinuation, Operand, ReturnMode, Rvalue, Statement, Terminator};
 use std::collections::HashSet;
 
 pub(super) fn lower_linear_loop_condition(
@@ -238,6 +238,9 @@ pub(super) fn lower_linear_loop_body(
                 current = *target;
             }
             Terminator::Call { .. } => {
+                if lower_terminal_call(context, &block.terminator, &mut instructions)? {
+                    return Ok(instructions);
+                }
                 current = lower_linear_call_terminator(
                     context,
                     &block.terminator,
@@ -245,34 +248,36 @@ pub(super) fn lower_linear_loop_body(
                     &mut instructions,
                 )?;
             }
+            terminator if lower_terminal_terminator(context, terminator, &mut instructions)? => {
+                return Ok(instructions);
+            }
             Terminator::Switch {
                 condition,
                 then_target,
                 else_target,
+                join_target,
             } => {
-                let then_end =
-                    control_flow::linear_path_target(body, *then_target).ok_or_else(|| {
-                        super::invalid_mir_diagnostics(
-                            "loop conditional then-branch is not a linear path",
-                        )
-                    })?;
-                let else_end =
-                    control_flow::linear_path_target(body, *else_target).ok_or_else(|| {
-                        super::invalid_mir_diagnostics(
-                            "loop conditional else-branch is not a linear path",
-                        )
-                    })?;
-                let join =
+                let join = (*join_target).or_else(|| {
+                    let then_end = control_flow::linear_path_target(body, *then_target)?;
+                    let else_end = control_flow::linear_path_target(body, *else_target)?;
                     control_flow::conditional_join(then_end, else_end, continue_target, exit)
-                        .ok_or_else(|| {
-                            super::invalid_mir_diagnostics(
-                                "loop conditional does not have one continuation path",
-                            )
-                        })?;
+                });
+                let join = join.ok_or_else(|| {
+                    super::invalid_mir_diagnostics(
+                        "loop conditional does not have a structured continuation",
+                    )
+                })?;
+                let branch_endpoint = |start| {
+                    control_flow::linear_path_target(body, start)
+                        .filter(|target| *target == continue_target || *target == exit)
+                        .unwrap_or(join)
+                };
+                let then_endpoint = branch_endpoint(*then_target);
+                let else_endpoint = branch_endpoint(*else_target);
                 let then_instructions = lower_loop_branch_path(
                     context,
                     *then_target,
-                    then_end,
+                    then_endpoint,
                     header,
                     continue_target,
                     exit,
@@ -281,7 +286,7 @@ pub(super) fn lower_linear_loop_body(
                 let else_instructions = lower_loop_branch_path(
                     context,
                     *else_target,
-                    else_end,
+                    else_endpoint,
                     header,
                     continue_target,
                     exit,
@@ -362,12 +367,18 @@ fn lower_loop_branch_path(
                 current = *target;
             }
             Terminator::Call { .. } => {
+                if lower_terminal_call(context, &block.terminator, &mut instructions)? {
+                    return Ok(instructions);
+                }
                 current = lower_linear_call_terminator(
                     context,
                     &block.terminator,
                     visited,
                     &mut instructions,
                 )?;
+            }
+            terminator if lower_terminal_terminator(context, terminator, &mut instructions)? => {
+                return Ok(instructions);
             }
             _ => {
                 return Err(super::invalid_mir_diagnostics(
@@ -376,6 +387,96 @@ fn lower_loop_branch_path(
             }
         }
     }
+}
+
+fn lower_terminal_terminator(
+    context: &super::BackendContext<'_>,
+    terminator: &Terminator,
+    instructions: &mut Vec<Instruction>,
+) -> Result<bool, Vec<Diagnostic>> {
+    let instruction = match terminator {
+        Terminator::Return => match context.body.return_mode {
+            ReturnMode::Plain => Instruction::Return,
+            ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
+        },
+        Terminator::ReturnOutcome { source } => super::outcomes::lower_return(context, source)?,
+        Terminator::ReturnFailure { code, message } => {
+            if context.body.return_mode != ReturnMode::Fallible {
+                return Err(super::invalid_mir_diagnostics(
+                    "plain MIR loop contains a recoverable failure return",
+                ));
+            }
+            Instruction::ReturnFallibleFailure {
+                code: super::lower_str_operand(code, context)?,
+                message: super::lower_str_operand(message, context)?,
+            }
+        }
+        Terminator::PropagateFailure => {
+            if context.body.return_mode != ReturnMode::Fallible {
+                return Err(super::invalid_mir_diagnostics(
+                    "plain MIR loop propagates a recoverable failure",
+                ));
+            }
+            Instruction::PropagateFailure
+        }
+        Terminator::Trap => Instruction::Trap,
+        _ => return Ok(false),
+    };
+    instructions.push(instruction);
+    Ok(true)
+}
+
+fn lower_terminal_call(
+    context: &super::BackendContext<'_>,
+    terminator: &Terminator,
+    instructions: &mut Vec<Instruction>,
+) -> Result<bool, Vec<Diagnostic>> {
+    let Terminator::Call {
+        callee,
+        arguments,
+        continuation: CallContinuation::Never,
+        ..
+    } = terminator
+    else {
+        return Ok(false);
+    };
+    let (call_target, callee_name) = lower_call_target(
+        callee,
+        context.resolved,
+        context.typed_hir,
+        context.function_names,
+        context.root_source,
+    )?;
+    let arguments = arguments
+        .iter()
+        .map(|argument| lower_call_argument(argument, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    super::validate_never_call_return_type(
+        &call_target,
+        &callee_name,
+        context.function_signatures,
+    )?;
+    let fits_tail_call_abi = arguments
+        .iter()
+        .map(crate::ir::ScalarArgument::abi_word_count)
+        .sum::<usize>()
+        <= crate::abi::ARGUMENT_REGISTER_COUNT
+        && !arguments
+            .iter()
+            .any(crate::ir::ScalarArgument::requires_current_frame_for_tail_call);
+    if fits_tail_call_abi {
+        instructions.push(Instruction::TailCall {
+            target: call_target,
+            arguments,
+        });
+    } else {
+        instructions.push(Instruction::CallVoid {
+            target: call_target,
+            arguments,
+        });
+        instructions.push(Instruction::Trap);
+    }
+    Ok(true)
 }
 
 fn lower_continue_path(

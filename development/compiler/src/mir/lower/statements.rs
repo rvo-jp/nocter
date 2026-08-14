@@ -32,11 +32,8 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         &mut self,
         statements: &[ScalarStatement<'_>],
         scope: ScopeId,
-    ) -> Result<(), BuildError> {
-        if self.lower_in_context(statements, None, scope)? {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        }
-        Ok(())
+    ) -> Result<bool, BuildError> {
+        self.lower_in_context(statements, None, scope)
     }
 
     pub(super) fn lower_in_context(
@@ -322,10 +319,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     super::iteration::lower(self.context, statement, scope)?;
                     false
                 }
-                ScalarStatement::Loop(statement) => {
-                    self.lower_loop(statement, scope)?;
-                    false
-                }
+                ScalarStatement::Loop(statement) => self.lower_loop(statement, scope)?,
                 ScalarStatement::Region(statement) => {
                     let entered = super::regions::enter(self.context, statement, scope)?;
                     let body = scalar_linear_block_statements(
@@ -427,6 +421,62 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             .emit_propagating_outcome_effect(source, callee, arguments)?,
                     }
                     false
+                }
+                ScalarStatement::Return(statement) => {
+                    let Some(expression) = statement.expression.as_ref() else {
+                        if self.context.locals[self.context.return_local().index()].representation
+                            != crate::mir::ValueRepresentation::Unit
+                        {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        }
+                        self.context.control_flow.terminate(Terminator::Return)?;
+                        return Ok(true);
+                    };
+                    if self
+                        .context
+                        .semantic
+                        .typed_hir
+                        .expression(expression.span())
+                        .is_some_and(|expression| expression.diverges)
+                    {
+                        let Expr::Call(call) = expression.without_groups() else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        let source = self
+                            .context
+                            .semantic
+                            .typed_hir
+                            .expression(expression.span())
+                            .ok_or(BuildError::MissingTypedExpression)?
+                            .id;
+                        let (callee, arguments, returns_never) =
+                            self.context.lower_call(call, scope)?;
+                        if !returns_never {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        }
+                        self.context
+                            .control_flow
+                            .emit_never_call(source, callee, arguments)?;
+                        return Ok(true);
+                    }
+                    if super::coverage::failure_value_is_supported(
+                        expression,
+                        self.context.semantic,
+                    ) {
+                        self.context.lower_failure_return(expression, scope)?;
+                        return Ok(true);
+                    }
+                    let return_local = self.context.return_local();
+                    let declaration = self.context.locals[return_local.index()].clone();
+                    self.context.lower_value_to_place(
+                        return_local,
+                        expression,
+                        declaration.ty,
+                        declaration.representation,
+                        scope,
+                    )?;
+                    self.context.control_flow.terminate(Terminator::Return)?;
+                    return Ok(true);
                 }
                 ScalarStatement::Break => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -569,6 +619,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             condition,
             then_target: body_target,
             else_target: exit_target,
+            join_target: None,
         })?;
         self.context.loop_regions.push(crate::mir::LoopRegion {
             header: condition_target,
@@ -628,10 +679,12 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         let then_target = self.context.control_flow.reserve_block(then_scope);
         let else_target = self.context.control_flow.reserve_block(else_scope);
         let join_target = self.context.control_flow.reserve_block(parent_scope);
+        let switch_block = self.context.control_flow.current_block()?;
         self.context.control_flow.terminate(Terminator::Switch {
             condition,
             then_target,
             else_target,
+            join_target: Some(join_target),
         })?;
 
         self.context.control_flow.select_block(then_target)?;
@@ -674,7 +727,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         }
 
         if then_exits && else_exits {
-            return Err(BuildError::UnsupportedClaimedExpression);
+            self.context
+                .control_flow
+                .set_switch_join(switch_block, None)?;
+            self.context
+                .control_flow
+                .discard_last_reserved_block(join_target)?;
+            return Ok(true);
         }
         self.context.control_flow.select_block(join_target)?;
         Ok(false)
@@ -776,6 +835,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             condition: Operand::Copy(Place::local(condition_local)),
             then_target: body,
             else_target: exit,
+            join_target: None,
         })?;
         self.context.loop_regions.push(crate::mir::LoopRegion {
             header,
@@ -834,7 +894,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         &mut self,
         statement: &crate::ast::LoopStmt,
         parent_scope: ScopeId,
-    ) -> Result<(), BuildError> {
+    ) -> Result<bool, BuildError> {
         let loop_scope = self.context.child_scope(parent_scope, statement.span);
         let body_scope = self.context.child_scope(loop_scope, statement.body.span);
         let bool_ty = self
@@ -863,6 +923,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             }),
             then_target: body,
             else_target: exit,
+            join_target: None,
         })?;
         self.context.loop_regions.push(crate::mir::LoopRegion {
             header,
@@ -879,6 +940,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             self.context.semantic.typed_hir,
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let body_returns = matches!(body_statements.last(), Some(ScalarStatement::Return(_)));
         let exits_body = self.lower_in_context(
             &body_statements,
             Some(LoopTargets {
@@ -892,7 +954,11 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 .control_flow
                 .terminate(Terminator::Goto { target: header })?;
         }
-        self.context.control_flow.select_block(exit)
+        self.context.control_flow.select_block(exit)?;
+        if body_returns {
+            self.context.control_flow.terminate(Terminator::Trap)?;
+        }
+        Ok(body_returns)
     }
 }
 
@@ -907,7 +973,9 @@ pub(super) fn lower_value_block(
 ) -> Result<bool, BuildError> {
     let (statements, tail) =
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
-    StatementLowerer::new(context).lower(&statements, scope)?;
+    if StatementLowerer::new(context).lower(&statements, scope)? {
+        return Ok(true);
+    }
     if let Some(expression) = tail.expression()
         && context
             .semantic
@@ -956,6 +1024,12 @@ pub(super) fn lower_value_block(
     } else {
         (destination, ty, representation)
     };
+    if representation == crate::mir::ValueRepresentation::Unit && tail.expression().is_none() {
+        if returns {
+            context.control_flow.terminate(Terminator::Return)?;
+        }
+        return Ok(returns);
+    }
     if let Some(conditional) = tail.conditional() {
         super::expressions::lower_conditional_to_place(
             context,

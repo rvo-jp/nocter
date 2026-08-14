@@ -78,6 +78,41 @@ impl ControlFlowBuilder {
         Ok(())
     }
 
+    pub(super) fn set_switch_join(
+        &mut self,
+        block: BasicBlockId,
+        join_target: Option<BasicBlockId>,
+    ) -> Result<(), BuildError> {
+        let pending = self
+            .blocks
+            .get_mut(block.index())
+            .ok_or(BuildError::MissingOpenBlock)?;
+        let Some(Terminator::Switch {
+            join_target: current,
+            ..
+        }) = pending.terminator.as_mut()
+        else {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        };
+        *current = join_target;
+        Ok(())
+    }
+
+    pub(super) fn discard_last_reserved_block(
+        &mut self,
+        block: BasicBlockId,
+    ) -> Result<(), BuildError> {
+        if self.current.is_some()
+            || block.index() + 1 != self.blocks.len()
+            || self.blocks[block.index()].terminator.is_some()
+            || !self.blocks[block.index()].statements.is_empty()
+        {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        self.blocks.pop();
+        Ok(())
+    }
+
     pub(super) fn current_block(&self) -> Result<BasicBlockId, BuildError> {
         self.current.ok_or(BuildError::MissingOpenBlock)
     }

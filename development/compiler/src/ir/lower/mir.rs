@@ -306,11 +306,25 @@ fn lower_scalar_body(
                 loop_.continue_target,
                 &mut visited,
             )?;
+            let loop_never_continues = condition == BoolValue::Const(true)
+                && body_instructions.last().is_some_and(|instruction| {
+                    matches!(
+                        instruction,
+                        Instruction::Return
+                            | Instruction::ReturnOutcomeSuccess
+                            | Instruction::ReturnFallibleFailure { .. }
+                            | Instruction::TailCall { .. }
+                            | Instruction::Trap
+                    )
+                });
             instructions.push(Instruction::While {
                 condition_instructions,
                 condition,
                 body_instructions,
             });
+            if loop_never_continues {
+                return Ok(instructions);
+            }
             current = loop_.exit;
             continue;
         }
@@ -332,29 +346,29 @@ fn lower_scalar_body(
                 condition,
                 then_target,
                 else_target,
+                join_target,
             } => {
-                let join = control_flow::structured_join(body, *then_target, *else_target, None)
-                    .ok_or_else(|| {
-                        invalid_mir_diagnostics(
-                            "scalar conditional branches must share one join block",
-                        )
-                    })?;
+                let then_instructions = match join_target {
+                    Some(join) => {
+                        lower_branch_to_join(&context, *then_target, *join, &mut visited)?
+                    }
+                    None => lower_branch_to_terminal(&context, *then_target, &mut visited)?,
+                };
+                let else_instructions = match join_target {
+                    Some(join) => {
+                        lower_branch_to_join(&context, *else_target, *join, &mut visited)?
+                    }
+                    None => lower_branch_to_terminal(&context, *else_target, &mut visited)?,
+                };
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, &context)?,
-                    then_instructions: lower_branch_to_join(
-                        &context,
-                        *then_target,
-                        join,
-                        &mut visited,
-                    )?,
-                    else_instructions: lower_branch_to_join(
-                        &context,
-                        *else_target,
-                        join,
-                        &mut visited,
-                    )?,
+                    then_instructions,
+                    else_instructions,
                 });
-                current = join;
+                let Some(join) = join_target else {
+                    return Ok(instructions);
+                };
+                current = *join;
             }
             Terminator::Call {
                 callee,
@@ -701,11 +715,28 @@ fn lower_branch_to_join(
     join: crate::mir::BasicBlockId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_branch(context, start, Some(join), visited)
+}
+
+fn lower_branch_to_terminal(
+    context: &BackendContext<'_>,
+    start: crate::mir::BasicBlockId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_branch(context, start, None, visited)
+}
+
+fn lower_branch(
+    context: &BackendContext<'_>,
+    start: crate::mir::BasicBlockId,
+    join: Option<crate::mir::BasicBlockId>,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let body = context.body;
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
-        if current == join {
+        if Some(current) == join {
             return Ok(instructions);
         }
         if !visited.insert(current) {
@@ -931,14 +962,13 @@ fn lower_branch_to_join(
                 condition,
                 then_target,
                 else_target,
+                join_target,
             } => {
-                let branch_join =
-                    control_flow::structured_join(body, *then_target, *else_target, Some(join))
-                        .ok_or_else(|| {
-                            invalid_mir_diagnostics(
-                                "nested scalar conditional branches do not share a join",
-                            )
-                        })?;
+                let branch_join = join_target.or(join).ok_or_else(|| {
+                    invalid_mir_diagnostics(
+                        "nested scalar conditional branches do not have a structured exit",
+                    )
+                })?;
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, context)?,
                     then_instructions: lower_branch_to_join(

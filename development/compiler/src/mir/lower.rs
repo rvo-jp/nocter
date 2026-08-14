@@ -126,8 +126,20 @@ pub(crate) fn try_build_body_with_return_mode(
         resolved_sources: inputs.resolved_sources,
         typed_hir: inputs.typed_hir,
     };
-    let (source_statements, tail) = scalar_body_parts(block)?;
-    let contextual_return_ty = tail.result_type(inputs.typed_hir)?;
+    let (mut source_statements, mut tail) = scalar_body_parts(block)?;
+    if return_representation == super::ValueRepresentation::Unit
+        && let Some(if_) = tail.conditional()
+    {
+        source_statements.push(ScalarStatement::If(if_));
+        tail = ScalarTail::ImplicitUnit(block.span);
+    }
+    let contextual_return_ty = if matches!(tail, ScalarTail::ImplicitUnit(_))
+        && return_representation != super::ValueRepresentation::Unit
+    {
+        coverage::terminal_return_type(block, inputs.typed_hir)?
+    } else {
+        tail.result_type(inputs.typed_hir)?
+    };
     if value_representation(contextual_return_ty, semantic) != Some(return_representation)
         || !source_statements
             .iter()
@@ -140,6 +152,9 @@ pub(crate) fn try_build_body_with_return_mode(
                 }
                 ScalarTail::Conditional(_) => false,
             }
+            || matches!(tail, ScalarTail::ImplicitUnit(_))
+                && return_representation != super::ValueRepresentation::Unit
+                && coverage::terminal_return_type(block, inputs.typed_hir).is_some()
             || tail.expression().is_some_and(|expression| {
                 inputs
                     .typed_hir
@@ -155,8 +170,10 @@ pub(crate) fn try_build_body_with_return_mode(
                 (matches!(
                     return_representation,
                     super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
-                ) || return_representation == super::ValueRepresentation::Aggregate)
-                    && value_conditional_is_supported(conditional, return_representation, semantic)
+                ) || matches!(
+                    return_representation,
+                    super::ValueRepresentation::Aggregate | super::ValueRepresentation::Unit
+                )) && value_conditional_is_supported(conditional, return_representation, semantic)
             }))
         || !parameters.iter().all(|parameter| {
             inputs
@@ -337,106 +354,113 @@ fn build_prepared_body(
     for statement in prologue {
         context.control_flow.push_statement(statement)?;
     }
-    StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
-    if return_mode == ReturnMode::Fallible
-        && tail
-            .expression()
-            .is_some_and(|expression| coverage::failure_value_is_supported(expression, semantic))
-    {
-        context.lower_failure_return(
-            tail.expression()
-                .ok_or(BuildError::UnsupportedClaimedExpression)?,
-            root_scope,
-        )?;
-    } else if return_representation == super::ValueRepresentation::Unit {
-        if let Some(expression) = tail.expression() {
-            statements::StatementLowerer::new(&mut context)
-                .lower(&[ScalarStatement::Expression(expression)], root_scope)?;
-        }
-        context.control_flow.terminate(Terminator::Return)?;
-    } else if let Some(if_) = tail.conditional() {
-        expressions::lower_conditional_to_place(
-            &mut context,
-            return_local,
-            if_,
-            return_ty,
-            return_representation,
-            root_scope,
-        )?;
-        context.control_flow.terminate(Terminator::Return)?;
-    } else if let Some(Expr::Call(call)) = tail.expression() {
-        let source = semantic
-            .typed_hir
-            .expression(call.span)
-            .ok_or(BuildError::MissingTypedExpression)?
-            .id;
-        let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
-        if returns_never {
-            context
-                .control_flow
-                .emit_never_call(source, callee, arguments)?;
-        } else {
-            context
-                .control_flow
-                .emit_returning_call(source, callee, arguments, return_local)?;
-            context.control_flow.terminate(Terminator::Return)?;
-        }
-    } else {
-        let expression = tail
-            .expression()
-            .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        match return_representation {
-            super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
-            super::ValueRepresentation::Scalar(return_scalar) => context
-                .lower_expression_to_place(
-                    return_local,
-                    expression,
-                    return_ty,
-                    return_scalar,
-                    root_scope,
-                )?,
-            super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
-                return_local,
-                expression,
-                return_ty,
-                kind,
+    let source_exits = StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
+    if !source_exits {
+        if return_mode == ReturnMode::Fallible
+            && tail.expression().is_some_and(|expression| {
+                coverage::failure_value_is_supported(expression, semantic)
+            })
+        {
+            context.lower_failure_return(
+                tail.expression()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
                 root_scope,
-            )?,
-            super::ValueRepresentation::Aggregate => {
-                let return_type_expr = semantic
-                    .typed_hir
-                    .type_expr_by_id(contextual_return_ty)
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                let returns_stored_outcome = matches!(
-                    crate::abi::abi_value_from_type_expr_with_resolver(
-                        return_type_expr,
-                        semantic.resolved,
-                        |source| semantic.resolved_sources.get(&source).copied(),
-                    )
-                    .map(|value| value.ty),
-                    Ok(crate::abi::AbiType::Outcome { .. })
-                );
-                if returns_stored_outcome {
-                    let source = context.lower_aggregate_operand(expression)?;
-                    context
-                        .control_flow
-                        .terminate(Terminator::ReturnOutcome { source })?;
-                } else {
-                    context.lower_value_to_place(
+            )?;
+        } else if return_representation == super::ValueRepresentation::Unit
+            && tail.conditional().is_none()
+        {
+            if let Some(expression) = tail.expression() {
+                statements::StatementLowerer::new(&mut context)
+                    .lower(&[ScalarStatement::Expression(expression)], root_scope)?;
+            }
+            context.control_flow.terminate(Terminator::Return)?;
+        } else if let Some(if_) = tail.conditional() {
+            expressions::lower_conditional_to_place(
+                &mut context,
+                return_local,
+                if_,
+                return_ty,
+                return_representation,
+                root_scope,
+            )?;
+            context.control_flow.terminate(Terminator::Return)?;
+        } else if let Some(Expr::Call(call)) = tail.expression() {
+            let source = semantic
+                .typed_hir
+                .expression(call.span)
+                .ok_or(BuildError::MissingTypedExpression)?
+                .id;
+            let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
+            if returns_never {
+                context
+                    .control_flow
+                    .emit_never_call(source, callee, arguments)?;
+            } else {
+                context.control_flow.emit_returning_call(
+                    source,
+                    callee,
+                    arguments,
+                    return_local,
+                )?;
+                context.control_flow.terminate(Terminator::Return)?;
+            }
+        } else {
+            let expression = tail
+                .expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            match return_representation {
+                super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
+                super::ValueRepresentation::Scalar(return_scalar) => context
+                    .lower_expression_to_place(
                         return_local,
                         expression,
                         return_ty,
-                        return_representation,
+                        return_scalar,
                         root_scope,
-                    )?;
+                    )?,
+                super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
+                    return_local,
+                    expression,
+                    return_ty,
+                    kind,
+                    root_scope,
+                )?,
+                super::ValueRepresentation::Aggregate => {
+                    let return_type_expr = semantic
+                        .typed_hir
+                        .type_expr_by_id(contextual_return_ty)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    let returns_stored_outcome = matches!(
+                        crate::abi::abi_value_from_type_expr_with_resolver(
+                            return_type_expr,
+                            semantic.resolved,
+                            |source| semantic.resolved_sources.get(&source).copied(),
+                        )
+                        .map(|value| value.ty),
+                        Ok(crate::abi::AbiType::Outcome { .. })
+                    );
+                    if returns_stored_outcome {
+                        let source = context.lower_aggregate_operand(expression)?;
+                        context
+                            .control_flow
+                            .terminate(Terminator::ReturnOutcome { source })?;
+                    } else {
+                        context.lower_value_to_place(
+                            return_local,
+                            expression,
+                            return_ty,
+                            return_representation,
+                            root_scope,
+                        )?;
+                    }
+                }
+                super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+                    return Err(BuildError::UnsupportedClaimedExpression);
                 }
             }
-            super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
-                return Err(BuildError::UnsupportedClaimedExpression);
+            if context.control_flow.current_block().is_ok() {
+                context.control_flow.terminate(Terminator::Return)?;
             }
-        }
-        if context.control_flow.current_block().is_ok() {
-            context.control_flow.terminate(Terminator::Return)?;
         }
     }
     let parts = context.finish()?;

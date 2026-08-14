@@ -2,34 +2,6 @@
 
 use crate::mir::{Body, CallContinuation, Terminator};
 
-pub(super) fn structured_join(
-    body: &Body,
-    then_target: crate::mir::BasicBlockId,
-    else_target: crate::mir::BasicBlockId,
-    boundary: Option<crate::mir::BasicBlockId>,
-) -> Option<crate::mir::BasicBlockId> {
-    let then_distances = reachable_distances(body, then_target, boundary);
-    let else_distances = reachable_distances(body, else_target, boundary);
-    let shared = then_distances
-        .iter()
-        .filter_map(|(block, then_distance)| {
-            else_distances
-                .get(block)
-                .map(|else_distance| (*block, then_distance + else_distance))
-        })
-        .min_by_key(|(block, distance)| (*distance, block.index()))
-        .map(|(block, _)| block);
-    shared.or_else(|| {
-        match (
-            linear_path_target(body, then_target),
-            linear_path_target(body, else_target),
-        ) {
-            (Some(join), None) | (None, Some(join)) => Some(join),
-            _ => None,
-        }
-    })
-}
-
 pub(super) fn can_reach(
     body: &Body,
     start: crate::mir::BasicBlockId,

@@ -111,6 +111,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 condition,
                 then_target,
                 else_target,
+                ..
             } => {
                 consume_operand_move(body, condition, &mut state);
                 merge_entry(&mut entries, &mut queue, *then_target, state.clone(), body);
@@ -501,6 +502,7 @@ mod tests {
                 }),
                 then_target: BasicBlockId::from_index(1),
                 else_target: BasicBlockId::from_index(2),
+                join_target: Some(BasicBlockId::from_index(3)),
             }),
             block(Terminator::Drop {
                 place: owned_place(),

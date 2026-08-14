@@ -318,6 +318,9 @@ pub(crate) enum Terminator {
         condition: Operand,
         then_target: BasicBlockId,
         else_target: BasicBlockId,
+        /// Structured continuation chosen before cleanup elaboration.
+        /// Loop conditions and fully terminating arms have no join.
+        join_target: Option<BasicBlockId>,
     },
     Call {
         origin: Origin,

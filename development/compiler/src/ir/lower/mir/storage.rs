@@ -342,6 +342,7 @@ mod tests {
                         condition: Operand::Copy(Place::local(condition)),
                         then_target: BasicBlockId::from_index(1),
                         else_target: BasicBlockId::from_index(2),
+                        join_target: Some(BasicBlockId::from_index(3)),
                     },
                 },
                 BasicBlock {

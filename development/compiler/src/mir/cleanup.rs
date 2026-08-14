@@ -35,6 +35,7 @@ pub(super) fn materialize(body: &mut Body) {
                 condition,
                 then_target,
                 else_target,
+                join_target,
             } => Terminator::Switch {
                 condition,
                 then_target: cleanup_edge(
@@ -53,6 +54,7 @@ pub(super) fn materialize(body: &mut Body) {
                     source_scope,
                     else_target,
                 ),
+                join_target,
             },
             Terminator::Call {
                 origin,
