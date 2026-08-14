@@ -58,7 +58,96 @@ pub(super) fn try_lower_body(
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
     let specialized_hir = (!substitutions.is_empty()).then(|| typed_hir.specialized(substitutions));
     let typed_hir = specialized_hir.as_ref().unwrap_or(typed_hir);
-    let (return_representation, return_mode) = match return_type {
+    let (return_representation, return_mode) = return_contract(return_type)?;
+    let body_id = resolved.semantic_db.body_at(body.span)?;
+    let parameter_projection =
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
+    let mir_body = cache.get_or_build_specialized(body_id, substitutions, || {
+        crate::mir::try_build_body_with_return_mode(
+            body,
+            parameters,
+            return_representation,
+            return_mode,
+            crate::mir::BuildInputs {
+                semantic_db: &resolved.semantic_db,
+                resolved,
+                resolved_sources,
+                typed_hir,
+            },
+        )
+    })?;
+    Some(lower_cached_body(
+        mir_body,
+        return_type,
+        resolved,
+        resolved_sources,
+        typed_hir,
+        function_name,
+        function_signatures,
+        function_names,
+        parameter_projection,
+        root_source,
+        sources,
+        body.span,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn try_lower_closure_body(
+    cache: &crate::mir::BodyCache,
+    expression: &crate::ast::ClosureExpr,
+    closure_ty: &crate::ast::ClosureTypeExpr,
+    receiver_mode: crate::ast::MethodReceiverMode,
+    return_type: &Type,
+    parameters: &[crate::ast::Parameter],
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+    function_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    parameter_slots: &super::context::LoweringParameterSlots,
+    root_source: SourceId,
+    sources: &SourceMap,
+) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
+    let (return_representation, return_mode) = return_contract(return_type)?;
+    let body_id = resolved.semantic_db.body_at(expression.body.span)?;
+    let parameter_projection =
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
+    let substitutions = std::collections::HashMap::new();
+    let mir_body = cache.get_or_build_specialized(body_id, &substitutions, || {
+        crate::mir::try_build_closure_body(
+            expression,
+            closure_ty,
+            receiver_mode,
+            return_representation,
+            return_mode,
+            crate::mir::BuildInputs {
+                semantic_db: &resolved.semantic_db,
+                resolved,
+                resolved_sources,
+                typed_hir,
+            },
+        )
+    })?;
+    Some(lower_cached_body(
+        mir_body,
+        return_type,
+        resolved,
+        resolved_sources,
+        typed_hir,
+        function_name,
+        function_signatures,
+        function_names,
+        parameter_projection,
+        root_source,
+        sources,
+        expression.body.span,
+    ))
+}
+
+fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentation, ReturnMode)> {
+    Some(match return_type {
         Type::I32 => (
             crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
             ReturnMode::Plain,
@@ -119,25 +208,25 @@ pub(super) fn try_lower_body(
             _ => return None,
         },
         _ => return None,
-    };
-    let body_id = resolved.semantic_db.body_at(body.span)?;
-    let parameter_projection =
-        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
-    let mir_body = cache.get_or_build_specialized(body_id, substitutions, || {
-        crate::mir::try_build_body_with_return_mode(
-            body,
-            parameters,
-            return_representation,
-            return_mode,
-            crate::mir::BuildInputs {
-                semantic_db: &resolved.semantic_db,
-                resolved,
-                resolved_sources,
-                typed_hir,
-            },
-        )
-    })?;
-    Some(match mir_body {
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_cached_body(
+    mir_body: Result<Body, crate::mir::BuildError>,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+    function_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    parameter_projection: parameters::ParameterProjection,
+    root_source: SourceId,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match mir_body {
         Ok(mir_body) => lower_scalar_body(
             &mir_body,
             return_type,
@@ -150,16 +239,16 @@ pub(super) fn try_lower_body(
             parameter_projection,
             root_source,
         )
-        .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
+        .map_err(|diagnostics| attach_primary_span(diagnostics, sources, span)),
         Err(error) => Err(attach_primary_span(
             vec![Diagnostic::error(
                 "E8000",
                 format!("compiler could not construct MIR: {error:?}"),
             )],
             sources,
-            body.span,
+            span,
         )),
-    })
+    }
 }
 
 fn lower_scalar_body(
@@ -1402,7 +1491,30 @@ fn aggregate_location(
             "projected aggregate destination has no whole-slot projection",
         ));
     }
-    match context.body.locals[place.local.index()].storage {
+    let local = &context.body.locals[place.local.index()];
+    if local.representation == crate::mir::ValueRepresentation::Borrow {
+        return Ok(crate::ir::AggregateLocation::Borrow(match local.storage {
+            LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+                Some(parameters::ParameterStorage::Borrow { abi_index }) => {
+                    UsizeLocation::Parameter(abi_index)
+                }
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "borrow MIR parameter has no matching ABI projection",
+                    ));
+                }
+            },
+            LocalStorage::Local => {
+                UsizeLocation::Local(machine_local_index(context.body, place.local))
+            }
+            LocalStorage::Return => {
+                return Err(invalid_mir_diagnostics(
+                    "return borrow storage cannot address an aggregate",
+                ));
+            }
+        }));
+    }
+    match local.storage {
         LocalStorage::Return => match context.return_type {
             Type::Aggregate { .. } => Ok(crate::ir::AggregateLocation::Return),
             Type::DirectAggregate { .. } => Ok(crate::ir::AggregateLocation::DirectReturn),
@@ -1584,6 +1696,32 @@ fn lower_statements(
                 offset: aggregate_field_offset(body, destination.local, projection)?,
                 value: lower_stored_borrow_pointer(operand, context)?,
             });
+            continue;
+        }
+        if destination_representation == crate::mir::ValueRepresentation::Borrow {
+            let Rvalue::Use(operand) = value else {
+                return Err(invalid_mir_diagnostics(
+                    "borrow assignment requires a direct MIR operand",
+                ));
+            };
+            let (Operand::Copy(source) | Operand::Move(source)) = operand else {
+                return Err(invalid_mir_diagnostics(
+                    "borrow assignment requires a stored MIR place",
+                ));
+            };
+            let destination = usize_location(destination, context)?;
+            if let Some(projection) = source.projection {
+                instructions.push(Instruction::LoadAggregateUsize {
+                    destination,
+                    source: aggregate_location(&Place::local(source.local), context)?,
+                    offset: aggregate_field_offset(body, source.local, projection)?,
+                });
+            } else {
+                instructions.push(Instruction::SetUsize {
+                    destination,
+                    value: lower_stored_borrow_pointer(operand, context)?,
+                });
+            }
             continue;
         }
         if destination_representation
@@ -2451,6 +2589,11 @@ fn aggregate_borrow_projection(
                     "error field cannot participate in an aggregate projection",
                 ));
             }
+            crate::mir::ProjectionElement::Dereference => {
+                return Err(invalid_mir_diagnostics(
+                    "dereference requires pointer-backed MIR projection",
+                ));
+            }
         }
     }
     Ok(match index {
@@ -2492,6 +2635,38 @@ fn aggregate_scalar_store(
             "aggregate scalar store projection is not scalar",
         ));
     };
+    if let Some((pointer, offset)) =
+        dereferenced_pointer(context.body, destination.local, projection_id, context)?
+    {
+        return Ok(match scalar {
+            ScalarType::I32 => Instruction::StoreI32ToPointer {
+                pointer,
+                offset: UsizeValue::Const(u64::from(offset)),
+                value: lower_i32_operand(operand, context)?,
+            },
+            ScalarType::U8 => Instruction::StoreU8ToPointer {
+                pointer,
+                offset: UsizeValue::Const(u64::from(offset)),
+                value: lower_u8_operand(operand, context)?,
+            },
+            ScalarType::Usize => Instruction::StoreUsizeToPointer {
+                pointer,
+                offset: UsizeValue::Const(u64::from(offset)),
+                value: lower_usize_operand(operand, context)?,
+            },
+            ScalarType::Integer(kind) => Instruction::StoreIntegerToPointer {
+                kind,
+                pointer,
+                offset: UsizeValue::Const(u64::from(offset)),
+                value: lower_integer_operand(operand, kind, context)?,
+            },
+            ScalarType::Bool => Instruction::StoreBoolToPointer {
+                pointer,
+                offset: UsizeValue::Const(u64::from(offset)),
+                value: lower_bool_operand(operand, context)?,
+            },
+        });
+    }
     let location = aggregate_location(&Place::local(destination.local), context)?;
     match aggregate_borrow_projection(context.body, destination.local, projection_id)? {
         AggregateBorrowProjection::Field { offset } => {
@@ -2563,6 +2738,39 @@ fn aggregate_scalar_load(
     let Some(projection) = place.projection else {
         return Ok(None);
     };
+    if let Some((pointer, offset)) =
+        dereferenced_pointer(context.body, place.local, projection, context)?
+    {
+        let offset = UsizeValue::Const(u64::from(offset));
+        return Ok(Some(match destination {
+            ScalarDestination::I32(destination) => Instruction::LoadI32FromPointer {
+                destination,
+                pointer,
+                offset,
+            },
+            ScalarDestination::U8(destination) => Instruction::LoadU8FromPointer {
+                destination,
+                pointer,
+                offset,
+            },
+            ScalarDestination::Usize(destination) => Instruction::LoadUsizeFromPointer {
+                destination,
+                pointer,
+                offset,
+            },
+            ScalarDestination::Integer(kind, destination) => Instruction::LoadIntegerFromPointer {
+                kind,
+                destination,
+                pointer,
+                offset,
+            },
+            ScalarDestination::Bool(destination) => Instruction::LoadBoolFromPointer {
+                destination,
+                pointer,
+                offset,
+            },
+        }));
+    }
     let source = aggregate_location(&Place::local(place.local), context)?;
     let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
     Ok(Some(match projection {
@@ -2648,6 +2856,54 @@ fn aggregate_scalar_load(
             }
         }
     }))
+}
+
+fn dereferenced_pointer(
+    body: &Body,
+    base: LocalId,
+    mut projection: crate::mir::ProjectionPathId,
+    context: &BackendContext<'_>,
+) -> Result<Option<(UsizeValue, u32)>, Vec<Diagnostic>> {
+    let mut elements = Vec::new();
+    loop {
+        let path = body
+            .projections
+            .get(projection.index())
+            .ok_or_else(|| invalid_mir_diagnostics("MIR dereference projection is missing"))?;
+        if path.base != base {
+            return Err(invalid_mir_diagnostics(
+                "MIR dereference projection changed base local",
+            ));
+        }
+        elements.push(path.element.clone());
+        let Some(parent) = path.parent else {
+            break;
+        };
+        projection = parent;
+    }
+    elements.reverse();
+    if !matches!(
+        elements.first(),
+        Some(crate::mir::ProjectionElement::Dereference)
+    ) {
+        return Ok(None);
+    }
+    let mut offset = 0u32;
+    for element in &elements[1..] {
+        let crate::mir::ProjectionElement::Field {
+            offset: field_offset,
+        } = element
+        else {
+            return Err(invalid_mir_diagnostics(
+                "dereferenced MIR place contains an unsupported projection",
+            ));
+        };
+        offset = offset
+            .checked_add(*field_offset)
+            .ok_or_else(|| invalid_mir_diagnostics("dereference field offset overflowed"))?;
+    }
+    let pointer = lower_stored_borrow_pointer(&Operand::Copy(Place::local(base)), context)?;
+    Ok(Some((pointer, offset)))
 }
 
 fn lower_direct_usize_index(

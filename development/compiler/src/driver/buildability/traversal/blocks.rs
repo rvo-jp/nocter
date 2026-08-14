@@ -22,6 +22,57 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
 
     enqueue_drop_targets_in_callable(callable, root_source, queue);
 
+    if let Some(closure) = &callable.closure_mir
+        && let Some((return_scalar, return_mode)) =
+            callable_scalar_return(callable, resolved_sources)
+        && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
+    {
+        let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
+            crate::mir::try_build_closure_body(
+                closure.expression,
+                &closure.plan.ty,
+                closure.receiver_mode,
+                crate::mir::ValueRepresentation::Scalar(return_scalar),
+                return_mode,
+                crate::mir::BuildInputs {
+                    semantic_db: &callable.resolved.semantic_db,
+                    resolved: callable.resolved,
+                    resolved_sources,
+                    typed_hir: callable.typed_hir,
+                },
+            )
+        });
+        match body {
+            Some(Ok(body)) => {
+                if let Err(message) = enqueue_mir_call_targets(
+                    &body,
+                    callable,
+                    callable.typed_hir,
+                    root_source,
+                    names,
+                    queue,
+                ) {
+                    diagnostics.push(
+                        Diagnostic::error("E8000", message)
+                            .with_primary_span_if_absent(sources, callable.body.span),
+                    );
+                }
+                return;
+            }
+            Some(Err(error)) => {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "E8000",
+                        format!("compiler could not construct MIR: {error:?}"),
+                    )
+                    .with_primary_span_if_absent(sources, callable.body.span),
+                );
+                return;
+            }
+            None => {}
+        }
+    }
+
     if let Some(parameters) = callable.mir_parameters
         && let Some((return_scalar, return_mode)) =
             callable_scalar_return(callable, resolved_sources)

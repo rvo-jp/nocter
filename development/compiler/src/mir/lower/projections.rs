@@ -46,7 +46,7 @@ pub(super) fn error_field_is_supported(member: &MemberExpr, semantic: SemanticIn
 pub(super) fn lower_error_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
-    locals: &HashMap<LocalSymbolId, LocalId>,
+    places: &HashMap<LocalSymbolId, Place>,
     projections: &mut Vec<ProjectionPath>,
 ) -> Result<Place, BuildError> {
     if !error_field_is_supported(member, semantic) {
@@ -59,7 +59,7 @@ pub(super) fn lower_error_field_place(
         .resolved
         .local_symbol_for_identifier(base)
         .ok_or(BuildError::MissingLocalSymbol)?;
-    let base = *locals
+    let base = *places
         .get(&symbol.id)
         .ok_or(BuildError::MissingLocalSymbol)?;
     let field = crate::builtin_types::BuiltinErrorField::from_source_name(&member.member)
@@ -72,7 +72,10 @@ pub(super) fn lower_error_field_place(
             crate::typecheck::PartialSemantic::Error => None,
         })
         .ok_or(BuildError::MissingTypedExpression)?;
-    Ok(push_error_field_place(base, field, ty, projections))
+    if base.projection.is_some() {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    }
+    Ok(push_error_field_place(base.local, field, ty, projections))
 }
 
 pub(super) fn push_error_field_place(
@@ -119,12 +122,12 @@ pub(super) fn owned_field_is_supported(member: &MemberExpr, semantic: SemanticIn
 pub(super) fn lower_scalar_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
-    locals: &HashMap<LocalSymbolId, LocalId>,
+    places: &HashMap<LocalSymbolId, Place>,
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ScalarType), BuildError> {
     let (place, representation) =
-        lower_field_place(member, semantic, locals, projections, drop_plans)?;
+        lower_field_place(member, semantic, places, projections, drop_plans)?;
     let ValueRepresentation::Scalar(scalar) = representation else {
         return Err(BuildError::UnsupportedClaimedExpression);
     };
@@ -134,21 +137,21 @@ pub(super) fn lower_scalar_field_place(
 pub(super) fn lower_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
-    locals: &HashMap<LocalSymbolId, LocalId>,
+    places: &HashMap<LocalSymbolId, Place>,
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ValueRepresentation), BuildError> {
-    lower_field_place_with_borrow_base(member, semantic, locals, projections, drop_plans, false)
+    lower_field_place_with_borrow_base(member, semantic, places, projections, drop_plans, false)
 }
 
 pub(super) fn lower_borrow_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
-    locals: &HashMap<LocalSymbolId, LocalId>,
+    places: &HashMap<LocalSymbolId, Place>,
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ValueRepresentation), BuildError> {
-    lower_field_place_with_borrow_base(member, semantic, locals, projections, drop_plans, true)
+    lower_field_place_with_borrow_base(member, semantic, places, projections, drop_plans, true)
 }
 
 /// Materializes the complete owned-field projection tree needed by partial
@@ -234,7 +237,7 @@ fn ensure_owned_drop_projections_inner(
 fn lower_field_place_with_borrow_base(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
-    locals: &HashMap<LocalSymbolId, LocalId>,
+    places: &HashMap<LocalSymbolId, Place>,
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
     allow_borrow_base: bool,
@@ -246,10 +249,11 @@ fn lower_field_place_with_borrow_base(
         .last()
         .ok_or(BuildError::UnsupportedClaimedExpression)?
         .representation;
-    let base = *locals
+    let base_place = *places
         .get(&parts.base_symbol)
         .ok_or(BuildError::MissingLocalSymbol)?;
-    let mut parent = None;
+    let base = base_place.local;
+    let mut parent = base_place.projection;
     for segment in parts.segments {
         let element = ProjectionElement::Field {
             offset: segment.offset,

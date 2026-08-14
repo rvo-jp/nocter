@@ -27,7 +27,7 @@ pub(super) fn enter(
         .local_symbol_for_identifier(parent)
         .ok_or(BuildError::MissingLocalSymbol)?;
     let parent = *context
-        .locals_by_symbol
+        .places_by_symbol
         .get(&parent_symbol.id)
         .ok_or(BuildError::MissingLocalSymbol)?;
     let symbol = context
@@ -61,7 +61,9 @@ pub(super) fn enter(
         LocalOrigin::Binding(symbol),
         scope,
     ));
-    context.locals_by_symbol.insert(symbol, allocator);
+    context
+        .places_by_symbol
+        .insert(symbol, Place::local(allocator));
     let usize_ty = context
         .semantic
         .typed_hir
@@ -91,7 +93,7 @@ pub(super) fn enter(
         id: region,
         scope,
         allocator,
-        parent: Place::local(parent),
+        parent,
         state,
         parent_state,
         parent_kind,

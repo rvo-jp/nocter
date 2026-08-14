@@ -837,6 +837,11 @@ impl TypedHirBuilder<'_> {
         expression: &crate::ast::ClosureExpr,
         ty: &crate::ast::ClosureTypeExpr,
     ) {
+        // Compiler-owned closure types are not authored type occurrences, but
+        // MIR still needs stable identities for their receiver and capture
+        // fields. Intern the complete structural type at the point where the
+        // checker commits the closure plan.
+        self.intern_compiler_type_tree(&crate::ast::TypeExpr::Closure(ty.clone()));
         self.facts.closure_plans.insert(
             expression.span,
             TypecheckClosurePlan {

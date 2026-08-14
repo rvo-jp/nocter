@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub(super) struct LoweringContext<'a> {
     pub(super) semantic: SemanticInputs<'a>,
     pub(super) locals: Vec<Local>,
-    pub(super) locals_by_symbol: HashMap<LocalSymbolId, LocalId>,
+    pub(super) places_by_symbol: HashMap<LocalSymbolId, crate::mir::Place>,
     pub(super) projections: Vec<ProjectionPath>,
     pub(super) drop_plans: Vec<DropPlan>,
     pub(super) control_flow: ControlFlowBuilder,
@@ -41,8 +41,9 @@ impl<'a> LoweringContext<'a> {
     pub(super) fn new(
         semantic: SemanticInputs<'a>,
         locals: Vec<Local>,
-        locals_by_symbol: HashMap<LocalSymbolId, LocalId>,
+        places_by_symbol: HashMap<LocalSymbolId, crate::mir::Place>,
         drop_plans: Vec<DropPlan>,
+        projections: Vec<ProjectionPath>,
         root_scope: ScopeId,
         root: Scope,
     ) -> Self {
@@ -50,8 +51,8 @@ impl<'a> LoweringContext<'a> {
         Self {
             semantic,
             locals,
-            locals_by_symbol,
-            projections: Vec::new(),
+            places_by_symbol,
+            projections,
             drop_plans,
             control_flow: ControlFlowBuilder::new(root_scope),
             loop_regions: Vec::new(),

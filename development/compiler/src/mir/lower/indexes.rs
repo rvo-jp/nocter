@@ -113,17 +113,17 @@ fn lower_base(
                 .resolved
                 .local_symbol_for_identifier(identifier)
                 .ok_or(BuildError::MissingLocalSymbol)?;
-            let local = *context
-                .locals_by_symbol
+            let place = *context
+                .places_by_symbol
                 .get(&symbol.id)
                 .ok_or(BuildError::MissingLocalSymbol)?;
-            Ok((local, None))
+            Ok((place.local, place.projection))
         }
         Expr::Member(member) => {
             let (place, representation) = super::projections::lower_field_place(
                 member,
                 context.semantic,
-                &context.locals_by_symbol,
+                &context.places_by_symbol,
                 &mut context.projections,
                 &mut context.drop_plans,
             )?;

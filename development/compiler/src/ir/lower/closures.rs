@@ -2,7 +2,10 @@
 
 use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, ResolvedSources};
 use super::functions::lower_method_function_with_prologue;
-use super::functions::parameters::{method_parameters, resolved_function_signature};
+use super::functions::parameters::{
+    lower_aggregate_parameter_setup, lower_function_return_type, lower_scalar_parameters,
+    method_parameters, resolved_function_signature, validate_parameter_slots_match_function_abi,
+};
 use super::{
     FunctionSignature, lower_signature_parameter_type, lower_signature_return_type,
     parameter_abi_word_count, success_return_passing,
@@ -144,6 +147,7 @@ pub(super) fn lower_closure_function<'a>(
     name: String,
     sources: &SourceMap,
     target: CallTarget,
+    mir_bodies: &crate::mir::BodyCache,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
@@ -153,9 +157,57 @@ pub(super) fn lower_closure_function<'a>(
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     let method = closure_method(expression, plan, receiver_mode, &name);
+    let self_ty = crate::ast::TypeExpr::Closure(plan.ty.clone());
+    let parameters = method_parameters(&method, &self_ty, &HashMap::new());
+    let return_type_expr = (*plan.ty.return_type).clone();
+    let parameter_slots = lower_scalar_parameters(
+        &name,
+        &parameters,
+        root_source,
+        resolved,
+        &resolved_sources,
+        sources,
+    )?;
+    validate_parameter_slots_match_function_abi(
+        &name,
+        &parameters,
+        &return_type_expr,
+        resolved,
+        &resolved_sources,
+        &parameter_slots,
+    )?;
+    let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
+    let return_type =
+        lower_function_return_type(&return_type_expr, &name, resolved, &resolved_sources)?;
+    if let Some(instructions) = super::mir::try_lower_closure_body(
+        mir_bodies,
+        expression,
+        &plan.ty,
+        receiver_mode,
+        &return_type,
+        &parameters,
+        resolved,
+        &resolved_sources,
+        typed_hir,
+        &name,
+        &function_signatures,
+        &function_names,
+        &parameter_slots,
+        root_source,
+        sources,
+    ) {
+        let mut lowered = parameter_setup;
+        lowered.extend(instructions?);
+        return Ok(Function {
+            name,
+            target,
+            return_type,
+            instructions: lowered,
+        });
+    }
     lower_method_function_with_prologue(
         &method,
-        &crate::ast::TypeExpr::Closure(plan.ty.clone()),
+        &self_ty,
         &HashMap::new(),
         name,
         sources,

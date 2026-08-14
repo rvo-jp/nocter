@@ -62,12 +62,10 @@ pub(super) fn lower_symbol_to_local(
     scope: ScopeId,
     origin: Origin,
 ) -> Result<(), BuildError> {
-    let source = Place::local(
-        *context
-            .locals_by_symbol
-            .get(&source_symbol)
-            .ok_or(BuildError::MissingLocalSymbol)?,
-    );
+    let source = *context
+        .places_by_symbol
+        .get(&source_symbol)
+        .ok_or(BuildError::MissingLocalSymbol)?;
     let loan = LoanId::from_index(context.loans.len());
     context.loans.push(Loan {
         id: loan,
@@ -135,17 +133,16 @@ fn lower_source_place(
                 .local_symbol_for_identifier(identifier)
                 .map(|symbol| symbol.id)
                 .ok_or(BuildError::MissingLocalSymbol)?;
-            Ok(Place::local(
-                *context
-                    .locals_by_symbol
-                    .get(&symbol)
-                    .ok_or(BuildError::MissingLocalSymbol)?,
-            ))
+            context
+                .places_by_symbol
+                .get(&symbol)
+                .copied()
+                .ok_or(BuildError::MissingLocalSymbol)
         }
         Expr::Member(member) => super::projections::lower_borrow_field_place(
             member,
             context.semantic,
-            &context.locals_by_symbol,
+            &context.places_by_symbol,
             &mut context.projections,
             &mut context.drop_plans,
         )

@@ -55,7 +55,7 @@ pub(super) fn type_expr_with_owner_substitutions(
     substitute_type_expr_parameters(ty, substitutions)
 }
 
-pub(super) fn lower_scalar_parameters(
+pub(in crate::ir::lower) fn lower_scalar_parameters(
     function_name: &str,
     parameters: &[Parameter],
     root_source: SourceId,
@@ -230,7 +230,7 @@ pub(super) fn lower_scalar_parameters(
     Ok(slots)
 }
 
-pub(super) fn validate_parameter_slots_match_function_abi(
+pub(in crate::ir::lower) fn validate_parameter_slots_match_function_abi(
     function_name: &str,
     parameters: &[Parameter],
     return_type: &TypeExpr,
@@ -286,7 +286,7 @@ pub(super) fn void_type_expr(span: ByteSpan) -> TypeExpr {
     })
 }
 
-pub(super) fn lower_aggregate_parameter_setup(
+pub(in crate::ir::lower) fn lower_aggregate_parameter_setup(
     parameters: &LoweringParameterSlots,
 ) -> Vec<Instruction> {
     let mut instructions = Vec::new();
@@ -646,7 +646,7 @@ pub(super) fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<
     )]
 }
 
-pub(super) fn lower_function_return_type(
+pub(in crate::ir::lower) fn lower_function_return_type(
     ty: &TypeExpr,
     name: &str,
     resolved: &ResolveOutput,

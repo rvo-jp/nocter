@@ -35,6 +35,10 @@ pub(super) fn overlap(body: &Body, left: Place, right: Place) -> bool {
             super::model::ProjectionElement::ErrorField(left),
             super::model::ProjectionElement::ErrorField(right),
         ) if left_path.parent == right_path.parent => left == right,
+        (
+            super::model::ProjectionElement::Dereference,
+            super::model::ProjectionElement::Dereference,
+        ) if left_path.parent == right_path.parent => true,
         // Index projections can alias unless a later representation proves
         // their indices distinct. Conservatism here preserves soundness.
         _ => true,

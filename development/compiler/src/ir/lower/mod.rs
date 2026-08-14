@@ -1296,6 +1296,7 @@ impl<'a> IndexedCallable<'a> {
                 name.clone(),
                 sources,
                 target,
+                mir_bodies,
                 function_signatures,
                 function_names,
                 root_source,

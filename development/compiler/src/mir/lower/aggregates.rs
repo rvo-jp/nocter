@@ -356,12 +356,10 @@ fn lower_closure(
             .resolved
             .local_symbol_id_for_reference_span(capture.name_span)
             .ok_or(BuildError::MissingLocalSymbol)?;
-        let source = Place::local(
-            *context
-                .locals_by_symbol
-                .get(&source_symbol)
-                .ok_or(BuildError::MissingLocalSymbol)?,
-        );
+        let source = *context
+            .places_by_symbol
+            .get(&source_symbol)
+            .ok_or(BuildError::MissingLocalSymbol)?;
         let value = match capture.mode {
             crate::ast::ClosureCaptureMode::ReadonlyBorrow
             | crate::ast::ClosureCaptureMode::ReadwriteBorrow => {

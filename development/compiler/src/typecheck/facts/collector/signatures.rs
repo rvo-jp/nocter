@@ -1,6 +1,63 @@
 use super::*;
 
 impl TypedHirBuilder<'_> {
+    pub(in crate::typecheck::facts::collector) fn intern_compiler_type_tree(
+        &mut self,
+        ty: &TypeExpr,
+    ) {
+        let scalar = match ty {
+            TypeExpr::Reference(reference) => IntegerType::from_name(&reference.name)
+                .map(crate::typecheck::CheckedScalarType::Integer)
+                .or_else(|| {
+                    (reference.name == "bool").then_some(crate::typecheck::CheckedScalarType::Bool)
+                }),
+            _ => None,
+        };
+        self.facts.intern_type_identity(ty.clone(), scalar);
+        match ty {
+            TypeExpr::Callable(callable) => {
+                for parameter in &callable.parameters {
+                    self.intern_compiler_type_tree(&parameter.ty);
+                }
+                self.intern_compiler_type_tree(&callable.return_type);
+            }
+            TypeExpr::Closure(closure) => {
+                for capture in &closure.captures {
+                    self.intern_compiler_type_tree(&capture.ty);
+                }
+                for parameter in &closure.parameters {
+                    self.intern_compiler_type_tree(parameter);
+                }
+                self.intern_compiler_type_tree(&closure.return_type);
+            }
+            TypeExpr::Opaque(opaque) => {
+                self.intern_compiler_type_tree(&opaque.interface);
+                for binding in &opaque.associated_bindings {
+                    self.intern_compiler_type_tree(&binding.value);
+                }
+                if let Some(witness) = &opaque.witness {
+                    self.intern_compiler_type_tree(witness);
+                }
+            }
+            TypeExpr::Generic(generic) => {
+                for argument in &generic.arguments {
+                    self.intern_compiler_type_tree(argument);
+                }
+            }
+            TypeExpr::Projection(projection) => self.intern_compiler_type_tree(&projection.base),
+            TypeExpr::Pointer(pointer) => self.intern_compiler_type_tree(&pointer.inner),
+            TypeExpr::Borrow(borrow) => self.intern_compiler_type_tree(&borrow.inner),
+            TypeExpr::View(view) => self.intern_compiler_type_tree(&view.element),
+            TypeExpr::Array(array) => self.intern_compiler_type_tree(&array.element),
+            TypeExpr::Optional(optional) => self.intern_compiler_type_tree(&optional.inner),
+            TypeExpr::Fallible(fallible) => {
+                self.intern_compiler_type_tree(&fallible.success);
+                self.intern_compiler_type_tree(&fallible.error);
+            }
+            TypeExpr::Reference(_) => {}
+        }
+    }
+
     pub(in crate::typecheck::facts::collector) fn collect_item_signature_type_references(
         &mut self,
         item: &Item,

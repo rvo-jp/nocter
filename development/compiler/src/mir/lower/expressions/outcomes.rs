@@ -134,7 +134,9 @@ fn catch_failure_payload(
                 crate::mir::LocalOrigin::Binding(symbol),
                 fallback_scope,
             ));
-            context.locals_by_symbol.insert(symbol, local);
+            context
+                .places_by_symbol
+                .insert(symbol, crate::mir::Place::local(local));
             Some(local)
         }
     })
@@ -326,8 +328,8 @@ pub(super) fn stored_outcome_source(
         .resolved
         .local_symbol_for_identifier(identifier)
         .ok_or(super::super::BuildError::MissingLocalSymbol)?;
-    let local = *context
-        .locals_by_symbol
+    let place = *context
+        .places_by_symbol
         .get(&symbol.id)
         .ok_or(super::super::BuildError::MissingLocalSymbol)?;
     let type_expr = context
@@ -343,5 +345,5 @@ pub(super) fn stored_outcome_source(
     let Some(layer) = shape.layers.first() else {
         return Err(super::super::BuildError::UnsupportedClaimedExpression);
     };
-    Ok((crate::mir::Place::local(local), *layer))
+    Ok((place, *layer))
 }

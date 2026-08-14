@@ -920,7 +920,10 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         let storage_matches_origin = matches!(
             (local.storage, local.origin),
             (LocalStorage::Return, LocalOrigin::Return)
-                | (LocalStorage::Parameter { .. }, LocalOrigin::Parameter(_))
+                | (
+                    LocalStorage::Parameter { .. },
+                    LocalOrigin::Parameter(_) | LocalOrigin::CallableReceiver(_)
+                )
                 | (
                     LocalStorage::Local,
                     LocalOrigin::Binding(_) | LocalOrigin::Temporary(_) | LocalOrigin::Desugared(_)
@@ -1079,6 +1082,12 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
             ProjectionElement::ErrorField(_) => {
                 errors.push(ValidationError::InvalidProjectionElement { projection: id });
             }
+            ProjectionElement::Dereference
+                if parent_representation != ValueRepresentation::Borrow =>
+            {
+                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+            }
+            ProjectionElement::Dereference => {}
             ProjectionElement::Field { .. } | ProjectionElement::Index { .. }
                 if matches!(
                     parent_representation,

@@ -573,11 +573,19 @@ struct IndexedCallable<'a> {
     span: ByteSpan,
     body: &'a Block,
     mir_parameters: Option<&'a [Parameter]>,
+    closure_mir: Option<ClosureMir<'a>>,
     return_type: Option<TypeExpr>,
     substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
     typed_hir: &'a TypedHir,
     issues: Vec<BuildabilityIssue>,
+}
+
+#[derive(Clone)]
+struct ClosureMir<'a> {
+    expression: &'a crate::ast::ClosureExpr,
+    plan: crate::typecheck::TypecheckClosurePlan,
+    receiver_mode: crate::ast::MethodReceiverMode,
 }
 
 struct BuildabilityIssue {
@@ -592,6 +600,7 @@ impl<'a> IndexedCallable<'a> {
             span: test.span,
             body: &test.body,
             mir_parameters: None,
+            closure_mir: None,
             return_type: Some(test.return_type()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -628,6 +637,7 @@ impl<'a> IndexedCallable<'a> {
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
             mir_parameters: Some(&function.parameters.parameters),
+            closure_mir: None,
             return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -671,6 +681,7 @@ impl<'a> IndexedCallable<'a> {
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
             mir_parameters: None,
+            closure_mir: None,
             return_type: Some(return_type),
             substitutions,
             resolved: &file.resolved,
@@ -713,6 +724,7 @@ impl<'a> IndexedCallable<'a> {
             span: method.span,
             body,
             mir_parameters: None,
+            closure_mir: None,
             return_type: Some(return_type),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
@@ -746,6 +758,7 @@ impl<'a> IndexedCallable<'a> {
             span: drop_.span,
             body: &drop_.body,
             mir_parameters: None,
+            closure_mir: None,
             return_type: None,
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
@@ -772,6 +785,11 @@ impl<'a> IndexedCallable<'a> {
             span: expression.span,
             body: &expression.body,
             mir_parameters: None,
+            closure_mir: Some(ClosureMir {
+                expression,
+                plan: plan.clone(),
+                receiver_mode,
+            }),
             return_type: Some((*plan.ty.return_type).clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,

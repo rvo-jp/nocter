@@ -57,6 +57,7 @@ pub(crate) enum ProjectionElement {
         length: u64,
         stride: u32,
     },
+    Dereference,
     ErrorField(crate::builtin_types::BuiltinErrorField),
 }
 

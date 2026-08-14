@@ -56,13 +56,15 @@ impl LoweringContext<'_> {
                     .resolved
                     .local_symbol_for_identifier(identifier)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                let local = *self
-                    .locals_by_symbol
+                let place = *self
+                    .places_by_symbol
                     .get(&symbol.id)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                if self.locals[local.index()].representation
-                    != crate::mir::ValueRepresentation::Error
-                {
+                let representation = place.projection.map_or(
+                    self.locals[place.local.index()].representation,
+                    |projection| self.projections[projection.index()].representation,
+                );
+                if representation != crate::mir::ValueRepresentation::Error {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
                 let span = expression.span();
@@ -81,13 +83,13 @@ impl LoweringContext<'_> {
                     }))
                     .ok_or(BuildError::MissingTypedExpression)?;
                 let code = super::projections::push_error_field_place(
-                    local,
+                    place.local,
                     crate::builtin_types::BuiltinErrorField::Code,
                     str_ty,
                     &mut self.projections,
                 );
                 let message = super::projections::push_error_field_place(
-                    local,
+                    place.local,
                     crate::builtin_types::BuiltinErrorField::Message,
                     str_ty,
                     &mut self.projections,
@@ -561,7 +563,7 @@ impl LoweringContext<'_> {
                 let (place, representation) = super::projections::lower_field_place(
                     member,
                     self.semantic,
-                    &self.locals_by_symbol,
+                    &self.places_by_symbol,
                     &mut self.projections,
                     &mut self.drop_plans,
                 )?;
@@ -599,11 +601,11 @@ impl LoweringContext<'_> {
             .resolved
             .local_symbol_for_identifier(identifier)
             .ok_or(BuildError::MissingLocalSymbol)?;
-        let local = *self
-            .locals_by_symbol
+        let place = *self
+            .places_by_symbol
             .get(&symbol.id)
             .ok_or(BuildError::MissingLocalSymbol)?;
-        Ok(Operand::Copy(Place::local(local)))
+        Ok(Operand::Copy(place))
     }
 
     pub(super) fn lower_expression_to_place(
@@ -784,7 +786,7 @@ impl LoweringContext<'_> {
                 let (place, field_scalar) = super::projections::lower_scalar_field_place(
                     member,
                     self.semantic,
-                    &self.locals_by_symbol,
+                    &self.places_by_symbol,
                     &mut self.projections,
                     &mut self.drop_plans,
                 )?;
@@ -859,7 +861,7 @@ impl LoweringContext<'_> {
                 super::projections::lower_error_field_place(
                     member,
                     self.semantic,
-                    &self.locals_by_symbol,
+                    &self.places_by_symbol,
                     &mut self.projections,
                 )
                 .map(Operand::Copy)
@@ -1005,12 +1007,12 @@ impl LoweringContext<'_> {
                     .local_symbol_for_identifier(identifier)
                     .map(|symbol| symbol.id)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                Ok(Operand::Copy(Place::local(
+                Ok(Operand::Copy(
                     *self
-                        .locals_by_symbol
+                        .places_by_symbol
                         .get(&symbol)
                         .ok_or(BuildError::MissingLocalSymbol)?,
-                )))
+                ))
             }
             _ => Err(BuildError::UnsupportedClaimedExpression),
         }

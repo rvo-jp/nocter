@@ -62,3 +62,63 @@ func build(value: Boxed): i32 {
         } if *layout == ValueLayout::new(4, 4)
     )));
 }
+
+#[test]
+fn lowers_closure_callable_body_through_shared_mir_cache() {
+    let fixture = analyze_text_fixture(
+        r#"func main(): i32 {
+    let factor = 2
+    let callback = (&factor; value: i32): i32 { value * factor }
+    return callback(3)
+}
+"#,
+    );
+    let module = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+
+    assert_eq!(fixture.analysis.mir_bodies.len(), 2);
+    let closure = module
+        .functions
+        .iter()
+        .find(|function| function.name.starts_with("<closure@"))
+        .expect("reachable closure callable should be lowered");
+    assert!(
+        closure
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::MultiplyI32 { .. }))
+    );
+}
+
+#[test]
+fn lowers_readwrite_capture_access_as_pointer_backed_places() {
+    let fixture = analyze_text_fixture(
+        r#"func main(): i32 {
+    var total = 1
+    var callback = (&+total; value: i32): i32 {
+        total = total + value
+        total
+    }
+    return callback(2)
+}
+"#,
+    );
+    let module = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+    let closure = module
+        .functions
+        .iter()
+        .find(|function| function.name.starts_with("<closure@"))
+        .expect("reachable closure callable should be lowered");
+
+    assert!(
+        closure
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::LoadI32FromPointer { .. }))
+    );
+    assert!(
+        closure
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::StoreI32ToPointer { .. }))
+    );
+}

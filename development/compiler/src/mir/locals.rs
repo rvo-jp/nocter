@@ -170,6 +170,7 @@ pub(crate) enum LocalStorage {
 pub(crate) enum LocalOrigin {
     Return,
     Parameter(LocalSymbolId),
+    CallableReceiver(ExprId),
     Binding(LocalSymbolId),
     Temporary(ExprId),
     Desugared(ByteSpan),

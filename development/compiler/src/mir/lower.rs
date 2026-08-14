@@ -16,6 +16,7 @@ use std::collections::HashMap;
 mod aggregates;
 mod body_builder;
 mod borrows;
+mod closures;
 mod context;
 mod coverage;
 mod expressions;
@@ -64,6 +65,8 @@ pub(crate) enum BuildError {
     BlockAlreadyTerminated,
     UnterminatedReservedBlock,
     UnsupportedClaimedExpression,
+    ClosurePreparation(&'static str),
+    ClosureBody(Box<BuildError>),
     InvalidMir(Vec<ValidationError>),
 }
 
@@ -158,7 +161,6 @@ pub(crate) fn try_build_body_with_return_mode(
             .semantic_db
             .body_at(block.span)
             .ok_or(BuildError::MissingSourceBody)?;
-        let return_local = LocalId::from_index(0);
         let root_scope = ScopeId::from_index(0);
         let return_local_contract = match return_representation {
             super::ValueRepresentation::Scalar(scalar) => Local::scalar(
@@ -202,7 +204,7 @@ pub(crate) fn try_build_body_with_return_mode(
         };
         let mut locals = vec![return_local_contract];
         let mut drop_plans = Vec::new();
-        let mut locals_by_symbol = HashMap::new();
+        let mut places_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
             let symbol = inputs
                 .resolved
@@ -257,140 +259,185 @@ pub(crate) fn try_build_body_with_return_mode(
                 );
             }
             locals.push(local_contract);
-            locals_by_symbol.insert(symbol, local);
+            places_by_symbol.insert(symbol, crate::mir::Place::local(local));
         }
-        let mut context = LoweringContext::new(
+        build_prepared_body(
+            block,
+            source_statements,
+            tail,
+            contextual_return_ty,
+            return_ty,
+            return_representation,
+            return_mode,
+            source_body,
             semantic,
             locals,
-            locals_by_symbol,
+            places_by_symbol,
             drop_plans,
+            Vec::new(),
+            Vec::new(),
+        )
+    })())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_prepared_body(
+    block: &Block,
+    source_statements: Vec<ScalarStatement<'_>>,
+    tail: ScalarTail<'_>,
+    contextual_return_ty: crate::semantic::TyId,
+    return_ty: crate::semantic::TyId,
+    return_representation: super::ValueRepresentation,
+    return_mode: ReturnMode,
+    source_body: crate::semantic::BodyId,
+    semantic: SemanticInputs<'_>,
+    locals: Vec<Local>,
+    places_by_symbol: HashMap<crate::resolve::LocalSymbolId, crate::mir::Place>,
+    drop_plans: Vec<super::DropPlan>,
+    projections: Vec<super::ProjectionPath>,
+    prologue: Vec<super::Statement>,
+) -> Result<Body, BuildError> {
+    let return_local = LocalId::from_index(0);
+    let root_scope = ScopeId::from_index(0);
+    let mut context = LoweringContext::new(
+        semantic,
+        locals,
+        places_by_symbol,
+        drop_plans,
+        projections,
+        root_scope,
+        Scope::root(block.span),
+    );
+    for statement in prologue {
+        context.control_flow.push_statement(statement)?;
+    }
+    StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
+    if return_mode == ReturnMode::Fallible
+        && tail
+            .expression()
+            .is_some_and(|expression| coverage::failure_value_is_supported(expression, semantic))
+    {
+        context.lower_failure_return(
+            tail.expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
             root_scope,
-            Scope::root(block.span),
-        );
-        StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
-        if return_mode == ReturnMode::Fallible
-            && tail.expression().is_some_and(|expression| {
-                coverage::failure_value_is_supported(expression, semantic)
-            })
-        {
-            context.lower_failure_return(
-                tail.expression()
-                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
-                root_scope,
-            )?;
-        } else if let Some(if_) = tail.conditional() {
-            expressions::lower_conditional_to_place(
-                &mut context,
-                return_local,
-                if_,
-                return_ty,
-                return_representation,
-                root_scope,
-            )?;
-            context.control_flow.terminate(Terminator::Return)?;
-        } else if let Some(Expr::Call(call)) = tail.expression() {
-            let source = inputs
-                .typed_hir
-                .expression(call.span)
-                .ok_or(BuildError::MissingTypedExpression)?
-                .id;
-            let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
-            if returns_never {
-                context
-                    .control_flow
-                    .emit_never_call(source, callee, arguments)?;
-            } else {
-                context.control_flow.emit_returning_call(
-                    source,
-                    callee,
-                    arguments,
-                    return_local,
-                )?;
-                context.control_flow.terminate(Terminator::Return)?;
-            }
+        )?;
+    } else if let Some(if_) = tail.conditional() {
+        expressions::lower_conditional_to_place(
+            &mut context,
+            return_local,
+            if_,
+            return_ty,
+            return_representation,
+            root_scope,
+        )?;
+        context.control_flow.terminate(Terminator::Return)?;
+    } else if let Some(Expr::Call(call)) = tail.expression() {
+        let source = semantic
+            .typed_hir
+            .expression(call.span)
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
+        if returns_never {
+            context
+                .control_flow
+                .emit_never_call(source, callee, arguments)?;
         } else {
-            let expression = tail
-                .expression()
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            match return_representation {
-                super::ValueRepresentation::Scalar(return_scalar) => context
-                    .lower_expression_to_place(
-                        return_local,
-                        expression,
-                        return_ty,
-                        return_scalar,
-                        root_scope,
-                    )?,
-                super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
+            context
+                .control_flow
+                .emit_returning_call(source, callee, arguments, return_local)?;
+            context.control_flow.terminate(Terminator::Return)?;
+        }
+    } else {
+        let expression = tail
+            .expression()
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        match return_representation {
+            super::ValueRepresentation::Scalar(return_scalar) => context
+                .lower_expression_to_place(
                     return_local,
                     expression,
                     return_ty,
-                    kind,
+                    return_scalar,
                     root_scope,
                 )?,
-                super::ValueRepresentation::Aggregate => {
-                    let return_type_expr = inputs
-                        .typed_hir
-                        .type_expr_by_id(contextual_return_ty)
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                    let returns_stored_outcome = matches!(
-                        crate::abi::abi_value_from_type_expr_with_resolver(
-                            return_type_expr,
-                            inputs.resolved,
-                            |source| inputs.resolved_sources.get(&source).copied(),
-                        )
-                        .map(|value| value.ty),
-                        Ok(crate::abi::AbiType::Outcome { .. })
-                    );
-                    if returns_stored_outcome {
-                        let source = context.lower_aggregate_operand(expression)?;
-                        context
-                            .control_flow
-                            .terminate(Terminator::ReturnOutcome { source })?;
-                    } else {
-                        context.lower_value_to_place(
-                            return_local,
-                            expression,
-                            return_ty,
-                            return_representation,
-                            root_scope,
-                        )?;
-                    }
-                }
-                super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
-                    return Err(BuildError::UnsupportedClaimedExpression);
+            super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
+                return_local,
+                expression,
+                return_ty,
+                kind,
+                root_scope,
+            )?,
+            super::ValueRepresentation::Aggregate => {
+                let return_type_expr = semantic
+                    .typed_hir
+                    .type_expr_by_id(contextual_return_ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let returns_stored_outcome = matches!(
+                    crate::abi::abi_value_from_type_expr_with_resolver(
+                        return_type_expr,
+                        semantic.resolved,
+                        |source| semantic.resolved_sources.get(&source).copied(),
+                    )
+                    .map(|value| value.ty),
+                    Ok(crate::abi::AbiType::Outcome { .. })
+                );
+                if returns_stored_outcome {
+                    let source = context.lower_aggregate_operand(expression)?;
+                    context
+                        .control_flow
+                        .terminate(Terminator::ReturnOutcome { source })?;
+                } else {
+                    context.lower_value_to_place(
+                        return_local,
+                        expression,
+                        return_ty,
+                        return_representation,
+                        root_scope,
+                    )?;
                 }
             }
-            if context.control_flow.current_block().is_ok() {
-                context.control_flow.terminate(Terminator::Return)?;
+            super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+                return Err(BuildError::UnsupportedClaimedExpression);
             }
         }
-        let parts = context.finish()?;
-        let body = Body {
-            source_body,
-            source_span: block.span,
-            return_local,
-            return_mode,
-            root_scope,
-            scopes: parts.scopes,
-            locals: parts.locals,
-            entry: BasicBlockId::from_index(0),
-            blocks: parts.blocks,
-            loop_regions: parts.loop_regions,
-            allocation_regions: parts.allocation_regions,
-            loans: parts.loans,
-            projections: parts.projections,
-            drop_plans: parts.drop_plans,
-        };
-        super::finalize(body).map_err(BuildError::InvalidMir)
-    })())
+        if context.control_flow.current_block().is_ok() {
+            context.control_flow.terminate(Terminator::Return)?;
+        }
+    }
+    let parts = context.finish()?;
+    let body = Body {
+        source_body,
+        source_span: block.span,
+        return_local,
+        return_mode,
+        root_scope,
+        scopes: parts.scopes,
+        locals: parts.locals,
+        entry: BasicBlockId::from_index(0),
+        blocks: parts.blocks,
+        loop_regions: parts.loop_regions,
+        allocation_regions: parts.allocation_regions,
+        loans: parts.loans,
+        projections: parts.projections,
+        drop_plans: parts.drop_plans,
+    };
+    super::finalize(body).map_err(BuildError::InvalidMir)
 }
 
 fn parameter_representation(
     parameter: &Parameter,
     semantic: SemanticInputs<'_>,
 ) -> Option<super::ValueRepresentation> {
-    let ty = semantic.typed_hir.type_id(&parameter.ty)?;
+    type_representation(&parameter.ty, semantic)
+}
+
+fn type_representation(
+    type_expr: &crate::ast::TypeExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<super::ValueRepresentation> {
+    let ty = semantic.typed_hir.type_id(type_expr)?;
     if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
         return Some(super::ValueRepresentation::Scalar(scalar));
     }
@@ -399,12 +446,12 @@ fn parameter_representation(
     {
         return Some(representation);
     }
-    if matches!(parameter.ty, crate::ast::TypeExpr::Borrow(_)) {
+    if matches!(type_expr, crate::ast::TypeExpr::Borrow(_)) {
         return Some(super::ValueRepresentation::Borrow);
     }
     let aggregate = matches!(
         crate::abi::abi_value_from_type_expr_with_resolver(
-            &parameter.ty,
+            type_expr,
             semantic.resolved,
             |source| semantic.resolver_for(source),
         )
@@ -416,15 +463,17 @@ fn parameter_representation(
             | crate::abi::AbiType::Outcome { .. }
     );
     (aggregate
-        && (crate::typecheck::type_expr_is_copy(&parameter.ty, semantic.resolved) == Some(true)
+        && (crate::typecheck::type_expr_is_copy(type_expr, semantic.resolved) == Some(true)
             || super::drop_plans::is_supported(
-                &parameter.ty,
+                type_expr,
                 semantic.resolved,
                 semantic.resolved_sources,
                 semantic.typed_hir,
             )))
     .then_some(super::ValueRepresentation::Aggregate)
 }
+
+pub(crate) use closures::try_build_closure_body;
 
 #[cfg(test)]
 #[path = "lower/tests.rs"]

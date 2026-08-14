@@ -83,7 +83,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             LocalOrigin::Binding(symbol),
                             scope,
                         ));
-                        self.context.locals_by_symbol.insert(symbol, local);
+                        self.context
+                            .places_by_symbol
+                            .insert(symbol, Place::local(local));
                         self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
                     } else if let Some(borrow_ty) = self
                         .context
@@ -102,7 +104,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             LocalOrigin::Binding(symbol),
                             scope,
                         ));
-                        self.context.locals_by_symbol.insert(symbol, local);
+                        self.context
+                            .places_by_symbol
+                            .insert(symbol, Place::local(local));
                         self.lower_borrow_binding(
                             local,
                             &binding.initializer,
@@ -139,7 +143,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             );
                         }
                         self.context.locals.push(aggregate);
-                        self.context.locals_by_symbol.insert(symbol, local);
+                        self.context
+                            .places_by_symbol
+                            .insert(symbol, Place::local(local));
                         match binding.initializer.without_groups() {
                             Expr::Call(_)
                                 if super::aggregates::literal_is_supported(
@@ -422,16 +428,25 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     .local_symbol_for_identifier(identifier)
                     .map(|symbol| symbol.id)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                let local = *self
+                let place = *self
                     .context
-                    .locals_by_symbol
+                    .places_by_symbol
                     .get(&symbol)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                let declaration = &self.context.locals[local.index()];
+                let declaration = if let Some(projection) = place.projection {
+                    let path = &self.context.projections[projection.index()];
+                    let crate::mir::ValueRepresentation::Scalar(scalar) = path.representation
+                    else {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    };
+                    return Ok((place, path.ty, scalar));
+                } else {
+                    &self.context.locals[place.local.index()]
+                };
                 let scalar = declaration
                     .scalar_type()
                     .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                Ok((Place::local(local), declaration.ty, scalar))
+                Ok((place, declaration.ty, scalar))
             }
             Expr::Index(index) => {
                 let (place, representation) =
@@ -652,7 +667,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             LocalOrigin::Binding(symbol),
             loop_scope,
         ));
-        self.context.locals_by_symbol.insert(symbol, value);
+        self.context
+            .places_by_symbol
+            .insert(symbol, Place::local(value));
         self.lower_value(value, &statement.start, ty, scalar, loop_scope)?;
 
         let end = LocalId::from_index(self.context.locals.len());

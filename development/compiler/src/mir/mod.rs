@@ -26,7 +26,7 @@ pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation, ViewKind,
 };
 pub(crate) use lower::{
-    BuildError, BuildInputs, try_build_body_with_return_mode,
+    BuildError, BuildInputs, try_build_body_with_return_mode, try_build_closure_body,
     try_build_scalar_body_with_return_mode,
 };
 #[cfg(test)]
