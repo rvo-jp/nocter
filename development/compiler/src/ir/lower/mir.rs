@@ -1753,11 +1753,6 @@ fn lower_statements(
                     "aggregate MIR assignment requires a stored source place",
                 ));
             };
-            reserve_aggregate_destination(
-                context,
-                &Place::local(destination.local),
-                &mut instructions,
-            )?;
             let destination_ty = destination
                 .projection
                 .and_then(|projection| body.projections.get(projection.index()))

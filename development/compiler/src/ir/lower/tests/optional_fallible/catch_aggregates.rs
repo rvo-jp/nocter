@@ -333,7 +333,7 @@ func source(): Header! {
         .unwrap();
     assert_contains_fallible_direct_aggregate_catch_call(
         main,
-        AggregateLocation::Slot(0),
+        AggregateLocation::Slot(1),
         "source",
     );
     assert!(

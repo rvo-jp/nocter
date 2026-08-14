@@ -1077,6 +1077,7 @@ func main(): i32 {
                             source: BorrowSource::AggregateSlot(0),
                         })],
                     },
+                    Instruction::Continue,
                 ],
             },
             Instruction::SetI32 {
@@ -1599,15 +1600,11 @@ func main(): i32! {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
             drop_call,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::ReturnOutcomeSuccess,
         ],
     );

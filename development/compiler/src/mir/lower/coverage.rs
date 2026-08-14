@@ -687,6 +687,42 @@ impl<'a> ScalarStatement<'a> {
                     || aggregate
             }
             Self::Assignment(assignment) => {
+                let semantic = SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                };
+                let target_representation = match &assignment.target {
+                    Expr::Identifier(identifier) => resolved
+                        .local_symbol_for_identifier(identifier)
+                        .and_then(|symbol| {
+                            typed_hir
+                                .binding_type_expr(symbol.id)
+                                .and_then(|ty| typed_hir.type_id(ty))
+                        })
+                        .and_then(|ty| value_representation(ty, semantic)),
+                    Expr::Index(index) if super::indexes::is_supported(index, semantic) => {
+                        known_expression_type(&assignment.target, typed_hir)
+                            .and_then(|ty| value_representation(ty, semantic))
+                    }
+                    Expr::Member(member)
+                        if super::projections::field_is_supported(member, semantic) =>
+                    {
+                        known_expression_type(&assignment.target, typed_hir)
+                            .and_then(|ty| value_representation(ty, semantic))
+                    }
+                    _ => None,
+                };
+                if assignment.operator == AssignmentOperator::Assign
+                    && target_representation == Some(crate::mir::ValueRepresentation::Aggregate)
+                {
+                    return known_expression_type(&assignment.value, typed_hir).is_some()
+                        && value_expression_is_supported(
+                            &assignment.value,
+                            crate::mir::ValueRepresentation::Aggregate,
+                            semantic,
+                        );
+                }
                 let target_is_supported = match &assignment.target {
                     Expr::Identifier(identifier) => resolved
                         .local_symbol_for_identifier(identifier)

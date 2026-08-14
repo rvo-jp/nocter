@@ -214,6 +214,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     false
                 }
                 ScalarStatement::Assignment(assignment) => {
+                    if assignment.operator == crate::ast::AssignmentOperator::Assign
+                        && self.assignment_target_representation(&assignment.target, scope)?
+                            == crate::mir::ValueRepresentation::Aggregate
+                    {
+                        self.lower_aggregate_assignment(assignment, scope)?;
+                        continue;
+                    }
                     let (destination, ty, scalar) =
                         self.lower_assignment_target(&assignment.target, scope)?;
                     if assignment.operator == crate::ast::AssignmentOperator::Assign {
@@ -568,6 +575,109 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             }
             _ => Err(BuildError::UnsupportedClaimedExpression),
         }
+    }
+
+    fn assignment_target_representation(
+        &mut self,
+        expression: &Expr,
+        scope: ScopeId,
+    ) -> Result<crate::mir::ValueRepresentation, BuildError> {
+        let (_, _, representation) = self.lower_value_assignment_target(expression, scope)?;
+        Ok(representation)
+    }
+
+    fn lower_aggregate_assignment(
+        &mut self,
+        assignment: &crate::ast::AssignmentStmt,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let (destination, ty, representation) =
+            self.lower_value_assignment_target(&assignment.target, scope)?;
+        if representation != crate::mir::ValueRepresentation::Aggregate {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let source = self
+            .context
+            .semantic
+            .typed_hir
+            .expression(assignment.value.span())
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        let temporary = self
+            .context
+            .local_for_type(ty, LocalOrigin::Temporary(source), scope)?;
+        self.context.lower_value_to_place(
+            temporary,
+            &assignment.value,
+            ty,
+            representation,
+            scope,
+        )?;
+        let drop_plan = destination
+            .projection
+            .and_then(|projection| self.context.projections[projection.index()].drop_plan)
+            .or(self.context.locals[destination.local.index()].drop_plan);
+        if let Some(plan) = drop_plan {
+            self.context.control_flow.emit_drop(destination, plan)?;
+        }
+        let operand = match self.context.locals[temporary.index()].ownership {
+            crate::mir::OwnershipKind::Move => Operand::Move(Place::local(temporary)),
+            crate::mir::OwnershipKind::Copy => Operand::Copy(Place::local(temporary)),
+            crate::mir::OwnershipKind::Borrowed { .. } => {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+        };
+        self.context.control_flow.push_statement(Statement::Assign {
+            destination,
+            value: Rvalue::Use(operand),
+            origin: Origin::Desugared(assignment.operator_span),
+        })
+    }
+
+    fn lower_value_assignment_target(
+        &mut self,
+        expression: &Expr,
+        scope: ScopeId,
+    ) -> Result<
+        (
+            Place,
+            crate::semantic::TyId,
+            crate::mir::ValueRepresentation,
+        ),
+        BuildError,
+    > {
+        let (place, representation) = match expression.without_groups() {
+            Expr::Identifier(identifier) => {
+                let symbol = self
+                    .context
+                    .semantic
+                    .resolved
+                    .local_symbol_for_identifier(identifier)
+                    .map(|symbol| symbol.id)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                let place = *self
+                    .context
+                    .places_by_symbol
+                    .get(&symbol)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                let declaration = &self.context.locals[place.local.index()];
+                (place, declaration.representation)
+            }
+            Expr::Member(member) => super::projections::lower_borrow_field_place(
+                member,
+                self.context.semantic,
+                &self.context.places_by_symbol,
+                &mut self.context.projections,
+                &mut self.context.drop_plans,
+            )?,
+            Expr::Index(index) => super::indexes::lower_place(self.context, index, scope)?,
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
+        };
+        let ty = match place.projection {
+            Some(projection) => self.context.projections[projection.index()].ty,
+            None => self.context.locals[place.local.index()].ty,
+        };
+        Ok((place, ty, representation))
     }
 
     fn scalar_temporary(

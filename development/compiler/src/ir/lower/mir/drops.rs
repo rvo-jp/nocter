@@ -256,6 +256,10 @@ fn direct_drop(
                 offset,
             }
         }
+        (AggregateLocation::Borrow(pointer), 0) => BorrowSource::BorrowLocal(pointer),
+        (AggregateLocation::Borrow(pointer), offset) => {
+            BorrowSource::BorrowLocalField { pointer, offset }
+        }
         _ => {
             return Err(invalid_mir_diagnostics(
                 "semantic drop place has no addressable aggregate storage",

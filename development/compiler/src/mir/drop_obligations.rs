@@ -191,7 +191,16 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
             }
             Terminator::Drop { place, target, .. } => {
-                if !owned_local(body, place.local) {
+                let external_projection = place.projection.is_some()
+                    && body.locals.get(place.local.index()).is_some_and(|local| {
+                        matches!(local.ownership, OwnershipKind::Borrowed { readwrite: true })
+                    })
+                    && owned_place(body, *place);
+                if external_projection {
+                    // The caller owns a pointee reached through a readwrite
+                    // borrow, so its obligation is intentionally absent from
+                    // this body's local dataflow state.
+                } else if !owned_local(body, place.local) {
                     errors.insert(DropObligationError {
                         block: block_id,
                         location: DropObligationLocation::Drop,

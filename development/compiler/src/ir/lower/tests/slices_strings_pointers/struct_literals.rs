@@ -527,14 +527,10 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::SetI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 value: i32_const(0),
             },
             drop_call,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::Return,
         ],
     );
@@ -1507,20 +1503,29 @@ func use_text(): i32 {
                     offset: 16,
                     value: usize_const(3),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(24, 8),
+                },
                 Instruction::StoreAggregateUsize {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     offset: 0,
                     value: usize_const(4),
                 },
                 Instruction::StoreAggregateUsize {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     offset: 8,
                     value: usize_const(5),
                 },
                 Instruction::StoreAggregateUsize {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     offset: 16,
                     value: usize_const(6),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(24, 8),
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -1784,25 +1789,36 @@ func update(): i32 {
                     offset: 24,
                     value: usize_const(2),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
-                    offset: 8,
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
                     value: u8_const(8),
                 },
                 Instruction::StoreAggregateBool {
-                    destination: AggregateLocation::Slot(0),
-                    offset: 9,
+                    destination: AggregateLocation::Slot(1),
+                    offset: 1,
                     value: BoolValue::Const(true),
                 },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
-                    offset: 12,
+                    destination: AggregateLocation::Slot(1),
+                    offset: 4,
                     value: i32_const(42),
                 },
                 Instruction::StoreAggregateUsize {
-                    destination: AggregateLocation::Slot(0),
-                    offset: 16,
+                    destination: AggregateLocation::Slot(1),
+                    offset: 8,
                     value: usize_const(12),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(0),
+                    destination_offset: 8,
+                    source: AggregateLocation::Slot(1),
+                    source_offset: 0,
+                    layout: ValueLayout::new(16, 8),
                 },
                 Instruction::LoadAggregateI32 {
                     destination: I32Location::Return,

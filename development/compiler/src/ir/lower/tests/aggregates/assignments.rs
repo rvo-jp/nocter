@@ -213,28 +213,20 @@ func touch(): void {
                         arguments: vec![],
                     },
                     Instruction::LoadAggregateI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
                     drop_file.clone(),
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::SetI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 value: i32_const(0),
             },
             drop_file,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::Return,
         ],
     );
@@ -306,14 +298,10 @@ func main(): i32 {
                 ],
             },
             Instruction::SetI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 value: i32_const(0),
             },
             drop_file,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::Return,
         ],
     );
@@ -377,7 +365,7 @@ func main(): i32 {
     );
     assert!(
         main.instructions.contains(&Instruction::LoadAggregateI32 {
-            destination: I32Location::Local(0),
+            destination: I32Location::Return,
             source: AggregateLocation::Slot(0),
             offset: 0,
         }),
@@ -756,10 +744,19 @@ func use_allocator(): i32 {
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
                 Instruction::CallDirectAggregate {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     target: CallTarget::same_file("reset_allocator"),
                     arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
                     layout: ValueLayout::new(16, 8),
                 },
                 Instruction::CallVoid {
@@ -847,10 +844,19 @@ func use_text(): i32 {
                     offset: 16,
                     value: usize_const(3),
                 },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(24, 8),
+                },
                 Instruction::CallAggregate {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::Slot(1),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(24, 8),
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -1040,8 +1046,8 @@ func replace(holder: &+Holder): void {
     assert!(function.instructions.contains(&Instruction::CallVoid {
         target: CallTarget::same_file("File.drop"),
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateParameterField {
-                parameter_index: 0,
+            source: BorrowSource::BorrowLocalField {
+                pointer: UsizeLocation::Parameter(0),
                 offset: 4,
             },
         })],
@@ -1050,7 +1056,7 @@ func replace(holder: &+Holder): void {
         function
             .instructions
             .contains(&Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Parameter(0),
+                destination: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                 destination_offset: 4,
                 source: AggregateLocation::Slot(0),
                 source_offset: 0,
@@ -1165,7 +1171,7 @@ func make_file(): File {
         function
             .instructions
             .contains(&Instruction::CallDirectAggregate {
-                destination: AggregateLocation::Slot(2),
+                destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make_file"),
                 arguments: vec![],
                 layout: ValueLayout::new(4, 4),
@@ -1175,9 +1181,9 @@ func make_file(): File {
         function
             .instructions
             .contains(&Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Slot(1),
-                destination_offset: 0,
-                source: AggregateLocation::Slot(2),
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(1),
                 source_offset: 0,
                 layout: ValueLayout::new(4, 4),
             })
