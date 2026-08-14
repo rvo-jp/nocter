@@ -237,7 +237,10 @@ InstanceMember::Coercion(CoercionDecl)
   receiver <code>TyId</code>, and ordered concrete type-argument <code>TyId</code> values. Runtime symbol spelling stays
   in the backend index, and buildability uses the same canonical instance-key projection instead of
   a competing <code>DefId -&gt; name</code> map. Direct and nested generic calls therefore cannot collide across
-  monomorphizations.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
+  monomorphizations.</li><li>Method calls now enter that same edge. Typed HIR retains the method's concrete receiver parameter
+  <code>TyId</code>; MIR passes view receivers as views, models aggregate receiver borrows as ordinary loans,
+  and moves owned receivers through the existing operand path. Generic instance methods and
+  concrete receiver specializations consequently share one backend target projection.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
   as whole-place call arguments. ABI projection maps the source ordinal to the existing borrow
   parameter word; one IR-level frame-dependence predicate prevents both borrow and indirect
   aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Borrow bindings over stored scalar identifiers create explicit <code>Loan</code> records and <code>BeginLoan</code>

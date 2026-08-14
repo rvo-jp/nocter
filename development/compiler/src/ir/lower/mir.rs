@@ -476,6 +476,12 @@ fn outcome_failure_mode(
             recovers: control_flow::can_reach(body, failure, success),
         });
     }
+    if body.return_mode == ReturnMode::Fallible
+        && let Some(path) = no_op_propagation_path(context, failure)?
+    {
+        visited.extend(path);
+        return Ok(OutcomeFailureMode::Propagate);
+    }
     let failure_block = &body.blocks[failure.index()];
     match &failure_block.terminator {
         Terminator::Trap if failure_block.statements.is_empty() => {
@@ -497,6 +503,34 @@ fn outcome_failure_mode(
         _ => Ok(OutcomeFailureMode::Handle {
             instructions: lower_branch_to_join(context, failure, success, visited)?,
         }),
+    }
+}
+
+fn no_op_propagation_path(
+    context: &BackendContext<'_>,
+    start: crate::mir::BasicBlockId,
+) -> Result<Option<Vec<crate::mir::BasicBlockId>>, Vec<Diagnostic>> {
+    let mut current = start;
+    let mut path = Vec::new();
+    loop {
+        if path.contains(&current) {
+            return Ok(None);
+        }
+        path.push(current);
+        let block = &context.body.blocks[current.index()];
+        if !lower_statements(context, &block.statements)?.is_empty() {
+            return Ok(None);
+        }
+        match block.terminator {
+            Terminator::Goto { target } => current = target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } if drops::lower_drop(context, place, plan)?.is_empty() => current = target,
+            Terminator::PropagateFailure => return Ok(Some(path)),
+            _ => return Ok(None),
+        }
     }
 }
 

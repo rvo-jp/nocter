@@ -16,7 +16,7 @@ pub(super) fn expression_is_supported(expression: &Expr, semantic: SemanticInput
         && source_place_is_supported(&borrow.expression, semantic)
 }
 
-fn source_place_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+pub(super) fn source_place_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
     match expression.without_groups() {
         Expr::Identifier(identifier) => semantic
             .resolved
@@ -26,6 +26,32 @@ fn source_place_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) ->
         Expr::Index(index) => super::indexes::is_supported(index, semantic),
         _ => false,
     }
+}
+
+pub(super) fn lower_implicit_to_local(
+    context: &mut LoweringContext<'_>,
+    destination: crate::mir::LocalId,
+    expression: &Expr,
+    readwrite: bool,
+    scope: ScopeId,
+    origin: Origin,
+) -> Result<(), BuildError> {
+    let source = lower_source_place(context, expression, scope)?;
+    let loan = LoanId::from_index(context.loans.len());
+    context.loans.push(Loan {
+        id: loan,
+        source,
+        destination,
+        kind: if readwrite {
+            BorrowKind::Readwrite
+        } else {
+            BorrowKind::Readonly
+        },
+        scope,
+    });
+    context
+        .control_flow
+        .push_statement(Statement::BeginLoan { loan, origin })
 }
 
 pub(super) fn lower_to_local(

@@ -351,6 +351,29 @@ impl TypedHirBuilder<'_> {
                     self.facts
                         .method_call_receiver_kinds
                         .insert(method.member_span, kind);
+                    let source_receiver =
+                        expression_type(&method.object, self.resolved, environment);
+                    let self_receiver =
+                        method_self_type_for_receiver_in_environment(&source_receiver, environment);
+                    let parameter_receiver = match resolved_method.receiver.mode {
+                        MethodReceiverMode::Owned => self_receiver,
+                        MethodReceiverMode::ReadonlyBorrow => Type::Borrow {
+                            is_readwrite: false,
+                            inner: Box::new(self_receiver),
+                        },
+                        MethodReceiverMode::ReadwriteBorrow => Type::Borrow {
+                            is_readwrite: true,
+                            inner: Box::new(self_receiver),
+                        },
+                    };
+                    if let Some(receiver_ty) =
+                        type_to_type_expr_inner(&parameter_receiver, method.object.span(), None)
+                    {
+                        let receiver_ty = self.facts.intern_type_identity(receiver_ty, None);
+                        self.facts
+                            .method_call_receiver_types
+                            .insert(method.member_span, receiver_ty);
+                    }
                     let receiver_is_bounded_parameter = matches!(
                         method_self_type_for_receiver_in_environment(
                             &expression_type(&method.object, self.resolved, environment),

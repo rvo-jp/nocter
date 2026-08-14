@@ -29,6 +29,7 @@ pub(crate) struct TypedHir {
     pub(super) enum_variant_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) method_call_receiver_kinds: HashMap<ByteSpan, TypecheckMethodReceiverKind>,
+    pub(super) method_call_receiver_types: HashMap<ByteSpan, crate::semantic::TyId>,
     pub(super) generic_function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     pub(super) generic_method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
@@ -68,6 +69,7 @@ impl TypedHir {
             enum_variant_targets: HashMap::new(),
             method_call_targets: HashMap::new(),
             method_call_receiver_kinds: HashMap::new(),
+            method_call_receiver_types: HashMap::new(),
             generic_function_call_targets: HashMap::new(),
             function_call_specializations: HashMap::new(),
             generic_method_call_targets: HashMap::new(),
@@ -357,6 +359,13 @@ impl TypedHir {
         member_span: ByteSpan,
     ) -> Option<TypecheckMethodReceiverKind> {
         self.method_call_receiver_kinds.get(&member_span).copied()
+    }
+
+    pub(crate) fn method_call_receiver_type(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::TyId> {
+        self.method_call_receiver_types.get(&member_span).copied()
     }
 
     pub(crate) fn generic_function_call_target(

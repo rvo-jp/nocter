@@ -844,6 +844,42 @@ impl<'a> FunctionIndex<'a> {
                 .filter_map(|function| {
                     function.call_instance_name_declaration(self.semantic_db, self.callable_bodies)
                 })
+                .chain(self.definitions.values().flat_map(|function| {
+                    function
+                        .typed_hir
+                        .function_call_specializations()
+                        .filter_map(|specialization| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(specialization.def_id);
+                            let arguments = specialization.ordered_type_arguments()?;
+                            Some((
+                                crate::mir::CallInstanceKey::from_types(
+                                    definition, None, arguments,
+                                ),
+                                specialization.target_name.clone(),
+                            ))
+                        })
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    function
+                        .typed_hir
+                        .method_call_specializations()
+                        .filter_map(|specialization| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(specialization.def_id);
+                            let arguments = specialization.ordered_type_arguments()?;
+                            Some((
+                                crate::mir::CallInstanceKey::from_types(
+                                    definition,
+                                    Some(&specialization.self_ty),
+                                    arguments,
+                                ),
+                                specialization.target_name.clone(),
+                            ))
+                        })
+                }))
                 .collect(),
             self.definitions
                 .values()
@@ -1471,12 +1507,18 @@ impl<'a> IndexedCallable<'a> {
         };
         let authored = semantic_db.definition_at(anchor)?;
         let definition = callable_bodies.canonical_definition(authored);
+        let receiver = receiver.map(|ty| substitute_type_expr_parameters(ty, substitutions));
         let type_arguments = parameters
             .iter()
             .map(|parameter| substitutions.get(&parameter.name))
+            .map(|ty| ty.map(|ty| substitute_type_expr_parameters(ty, substitutions)))
             .collect::<Option<Vec<_>>>()?;
         Some((
-            crate::mir::CallInstanceKey::from_types(definition, receiver, type_arguments),
+            crate::mir::CallInstanceKey::from_types(
+                definition,
+                receiver.as_ref(),
+                type_arguments.iter(),
+            ),
             name.clone(),
         ))
     }

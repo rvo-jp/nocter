@@ -164,6 +164,12 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - direct generic function calls from MIR-routed bodies now reach their concrete indexed runtime
   target through that identity; the full library suite covers nested and source-backed generic
   reachability without returning to AST call discovery
+- direct method calls use the same MIR call edge. Type checking retains the concrete receiver
+  parameter `TyId`; view receivers pass their logical view value, while aggregate receivers create
+  ordinary explicit MIR loans. Owned receivers, readwrite receivers, generic instance methods, and
+  methods on generic receiver types therefore no longer require an AST-specific call selector.
+- failure propagation follows cleanup-only MIR chains and collapses semantic-only loan endings or
+  no-op drop plans back to the machine IR's direct propagation mode; real cleanup remains explicit
 - primitive source names are recognized once as a closed `IntrinsicId` domain; pointer, view,
   process, allocation, I/O, and syscall lowering no longer dispatches backend semantics by string
   comparison

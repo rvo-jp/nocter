@@ -159,24 +159,58 @@ fn scalar_call_shape_is_supported(
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    let Expr::Identifier(callee) = call.callee.without_groups() else {
-        return false;
-    };
-    typed_hir
-        .function_call_target(callee.span)
-        .and_then(|target| resolved.semantic_db.definition(target))
-        .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Function)
-        && typed_hir
-            .function_call_specialization(call.span)
-            .is_none_or(|specialization| {
-                specialization
-                    .ordered_type_arguments()
-                    .is_some_and(|arguments| {
-                        arguments
-                            .into_iter()
-                            .all(|ty| typed_hir.type_id(ty).is_some())
+    let callee_supported = match call.callee.without_groups() {
+        Expr::Identifier(callee) => {
+            typed_hir
+                .function_call_target(callee.span)
+                .and_then(|target| resolved.semantic_db.definition(target))
+                .is_some_and(|definition| {
+                    definition.kind == crate::semantic::DefinitionKind::Function
+                })
+                && typed_hir
+                    .function_call_specialization(call.span)
+                    .is_none_or(|specialization| {
+                        specialization
+                            .ordered_type_arguments()
+                            .is_some_and(|arguments| {
+                                arguments
+                                    .into_iter()
+                                    .all(|ty| typed_hir.type_id(ty).is_some())
+                            })
                     })
-            })
+        }
+        Expr::Member(member) => {
+            let Some(definition) = typed_hir.method_call_target(member.member_span) else {
+                return false;
+            };
+            if resolved.semantic_db.definition(definition).is_none() {
+                return false;
+            }
+            let specialization_supported = typed_hir
+                .method_call_specialization(member.member_span)
+                .is_none_or(|specialization| {
+                    typed_hir.type_id(&specialization.self_ty).is_some()
+                        && specialization
+                            .ordered_type_arguments()
+                            .is_some_and(|arguments| {
+                                arguments
+                                    .into_iter()
+                                    .all(|ty| typed_hir.type_id(ty).is_some())
+                            })
+                });
+            specialization_supported
+                && method_receiver_is_supported(
+                    member,
+                    SemanticInputs {
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    },
+                )
+        }
+        _ => false,
+    };
+    callee_supported
         && call.arguments.iter().all(|argument| {
             let Some(ty) = known_expression_type(argument, typed_hir) else {
                 return false;
@@ -196,6 +230,52 @@ fn scalar_call_shape_is_supported(
                 || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
                 || borrow_argument_is_supported(argument, semantic)
         })
+}
+
+fn method_receiver_is_supported(
+    member: &crate::ast::MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(kind) = semantic
+        .typed_hir
+        .method_call_receiver_kind(member.member_span)
+    else {
+        return false;
+    };
+    if kind != crate::typecheck::TypecheckMethodReceiverKind::Owned {
+        if semantic
+            .typed_hir
+            .method_call_receiver_type(member.member_span)
+            .and_then(|ty| value_representation(ty, semantic))
+            .is_some_and(|representation| {
+                matches!(representation, crate::mir::ValueRepresentation::View(_))
+                    && value_expression_is_supported(&member.object, representation, semantic)
+            })
+        {
+            return true;
+        }
+        return super::borrows::source_place_is_supported(&member.object, semantic);
+    }
+    let Some(ty) = known_expression_type(&member.object, semantic.typed_hir) else {
+        return false;
+    };
+    scalar_type(ty, semantic.typed_hir).is_some()
+        && scalar_expression_is_supported(
+            &member.object,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+        || value_representation(ty, semantic).is_some_and(|representation| {
+            matches!(representation, crate::mir::ValueRepresentation::View(_))
+                && value_expression_is_supported(&member.object, representation, semantic)
+        })
+        || aggregate_operand_is_supported(
+            &member.object,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
 }
 
 pub(super) fn borrow_argument_is_supported(

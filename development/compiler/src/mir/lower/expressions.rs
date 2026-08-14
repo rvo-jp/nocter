@@ -101,131 +101,245 @@ impl LoweringContext<'_> {
         call: &crate::ast::CallExpr,
         scope: ScopeId,
     ) -> Result<(crate::mir::CallInstance, Vec<CallArgument>, bool), BuildError> {
-        let Expr::Identifier(callee) = call.callee.without_groups() else {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        };
         let returns_never = self
             .semantic
             .typed_hir
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
-        let definition = self
-            .semantic
-            .typed_hir
-            .function_call_target(callee.span)
-            .map(|definition| {
-                self.semantic
-                    .resolved
-                    .callable_bodies
-                    .canonical_definition(definition)
-            })
-            .ok_or(BuildError::MissingCallTarget)?;
-        let callee = if let Some(specialization) = self
-            .semantic
-            .typed_hir
-            .function_call_specialization(call.span)
-        {
-            let type_arguments = specialization
-                .ordered_type_arguments()
-                .ok_or(BuildError::MissingCallTarget)?
-                .into_iter()
-                .map(|ty| {
-                    self.semantic
-                        .typed_hir
-                        .type_id(ty)
-                        .ok_or(BuildError::MissingTypedExpression)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            crate::mir::CallInstance::specialized(definition, None, type_arguments)
-        } else {
-            crate::mir::CallInstance::direct(definition)
-        };
-        let arguments = call
-            .arguments
-            .iter()
-            .map(|argument| {
-                let ty = known_expression_type(argument, self.semantic.typed_hir)
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                if let Some(scalar) = scalar_type(ty, self.semantic.typed_hir) {
-                    let operand = self.lower_operand(argument, ty, scalar, scope)?;
-                    return Ok(CallArgument {
-                        operand,
-                        ty,
-                        representation: crate::mir::ValueRepresentation::Scalar(scalar),
-                    });
-                }
-                if let Some(representation @ crate::mir::ValueRepresentation::View(kind)) =
-                    value_representation(ty, self.semantic)
+        let (callee, receiver) = match call.callee.without_groups() {
+            Expr::Identifier(identifier) => {
+                let definition = self
+                    .semantic
+                    .typed_hir
+                    .function_call_target(identifier.span)
+                    .map(|definition| {
+                        self.semantic
+                            .resolved
+                            .callable_bodies
+                            .canonical_definition(definition)
+                    })
+                    .ok_or(BuildError::MissingCallTarget)?;
+                let instance = if let Some(specialization) = self
+                    .semantic
+                    .typed_hir
+                    .function_call_specialization(call.span)
                 {
-                    let ty = super::coverage::intrinsic_expression_type(
-                        argument.span(),
-                        self.semantic.typed_hir,
+                    crate::mir::CallInstance::specialized(
+                        definition,
+                        None,
+                        self.call_type_arguments(specialization.ordered_type_arguments())?,
                     )
-                    .filter(|ty| value_representation(*ty, self.semantic) == Some(representation))
-                    .unwrap_or(ty);
-                    return Ok(CallArgument {
-                        operand: self.lower_view_operand(argument, ty, kind, scope)?,
-                        ty,
-                        representation,
-                    });
-                }
-                if super::coverage::borrow_argument_is_supported(argument, self.semantic) {
-                    let operand = if super::coverage::borrow_identifier_is_supported(
-                        argument,
-                        self.semantic.resolved,
-                        self.semantic.typed_hir,
-                    ) {
-                        self.lower_stored_identifier(argument)?
-                    } else {
-                        let typed_expression = self
-                            .semantic
-                            .typed_hir
-                            .expression(argument.span())
-                            .ok_or(BuildError::MissingTypedExpression)?;
-                        let crate::ast::TypeExpr::Borrow(borrow_ty) = self
-                            .semantic
-                            .typed_hir
-                            .type_expr_by_id(ty)
-                            .ok_or(BuildError::MissingTypedExpression)?
-                        else {
-                            return Err(BuildError::UnsupportedClaimedExpression);
-                        };
-                        let local = LocalId::from_index(self.locals.len());
-                        self.locals.push(crate::mir::Local::borrow(
-                            ty,
-                            borrow_ty.is_readwrite,
-                            LocalStorage::Local,
-                            LocalOrigin::Temporary(typed_expression.id),
-                            scope,
-                        ));
-                        super::borrows::lower_to_local(
-                            self,
-                            local,
-                            argument,
-                            borrow_ty.is_readwrite,
-                            scope,
-                        )?;
-                        if borrow_ty.is_readwrite {
-                            Operand::Move(Place::local(local))
-                        } else {
-                            Operand::Copy(Place::local(local))
-                        }
-                    };
-                    return Ok(CallArgument {
-                        operand,
-                        ty,
-                        representation: crate::mir::ValueRepresentation::Borrow,
-                    });
-                }
-                let operand = self.lower_aggregate_operand(argument)?;
-                Ok(CallArgument {
-                    operand,
-                    ty,
-                    representation: crate::mir::ValueRepresentation::Aggregate,
-                })
-            })
-            .collect::<Result<Vec<_>, BuildError>>()?;
+                } else {
+                    crate::mir::CallInstance::direct(definition)
+                };
+                (instance, None)
+            }
+            Expr::Member(member) => {
+                let definition = self
+                    .semantic
+                    .typed_hir
+                    .method_call_target(member.member_span)
+                    .map(|definition| {
+                        self.semantic
+                            .resolved
+                            .callable_bodies
+                            .canonical_definition(definition)
+                    })
+                    .ok_or(BuildError::MissingCallTarget)?;
+                let instance = if let Some(specialization) = self
+                    .semantic
+                    .typed_hir
+                    .method_call_specialization(member.member_span)
+                {
+                    let receiver = self
+                        .semantic
+                        .typed_hir
+                        .type_id(&specialization.self_ty)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    crate::mir::CallInstance::specialized(
+                        definition,
+                        Some(receiver),
+                        self.call_type_arguments(specialization.ordered_type_arguments())?,
+                    )
+                } else {
+                    crate::mir::CallInstance::direct(definition)
+                };
+                (instance, Some(member))
+            }
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
+        };
+        let mut arguments = Vec::new();
+        if let Some(member) = receiver {
+            arguments.push(self.lower_method_receiver(call, member, scope)?);
+        }
+        for argument in &call.arguments {
+            arguments.push(self.lower_call_argument(argument, scope)?);
+        }
         Ok((callee, arguments, returns_never))
+    }
+
+    fn call_type_arguments(
+        &self,
+        arguments: Option<Vec<&crate::ast::TypeExpr>>,
+    ) -> Result<Vec<crate::semantic::TyId>, BuildError> {
+        arguments
+            .ok_or(BuildError::MissingCallTarget)?
+            .into_iter()
+            .map(|ty| {
+                self.semantic
+                    .typed_hir
+                    .type_id(ty)
+                    .ok_or(BuildError::MissingTypedExpression)
+            })
+            .collect()
+    }
+
+    fn lower_call_argument(
+        &mut self,
+        argument: &Expr,
+        scope: ScopeId,
+    ) -> Result<CallArgument, BuildError> {
+        let ty = known_expression_type(argument, self.semantic.typed_hir)
+            .ok_or(BuildError::MissingTypedExpression)?;
+        if let Some(scalar) = scalar_type(ty, self.semantic.typed_hir) {
+            let operand = self.lower_operand(argument, ty, scalar, scope)?;
+            return Ok(CallArgument {
+                operand,
+                ty,
+                representation: crate::mir::ValueRepresentation::Scalar(scalar),
+            });
+        }
+        if let Some(representation @ crate::mir::ValueRepresentation::View(kind)) =
+            value_representation(ty, self.semantic)
+        {
+            let ty = super::coverage::intrinsic_expression_type(
+                argument.span(),
+                self.semantic.typed_hir,
+            )
+            .filter(|ty| value_representation(*ty, self.semantic) == Some(representation))
+            .unwrap_or(ty);
+            return Ok(CallArgument {
+                operand: self.lower_view_operand(argument, ty, kind, scope)?,
+                ty,
+                representation,
+            });
+        }
+        if super::coverage::borrow_argument_is_supported(argument, self.semantic) {
+            let operand = if super::coverage::borrow_identifier_is_supported(
+                argument,
+                self.semantic.resolved,
+                self.semantic.typed_hir,
+            ) {
+                self.lower_stored_identifier(argument)?
+            } else {
+                let typed_expression = self
+                    .semantic
+                    .typed_hir
+                    .expression(argument.span())
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let crate::ast::TypeExpr::Borrow(borrow_ty) = self
+                    .semantic
+                    .typed_hir
+                    .type_expr_by_id(ty)
+                    .ok_or(BuildError::MissingTypedExpression)?
+                else {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                };
+                let local = LocalId::from_index(self.locals.len());
+                self.locals.push(crate::mir::Local::borrow(
+                    ty,
+                    borrow_ty.is_readwrite,
+                    LocalStorage::Local,
+                    LocalOrigin::Temporary(typed_expression.id),
+                    scope,
+                ));
+                super::borrows::lower_to_local(
+                    self,
+                    local,
+                    argument,
+                    borrow_ty.is_readwrite,
+                    scope,
+                )?;
+                if borrow_ty.is_readwrite {
+                    Operand::Move(Place::local(local))
+                } else {
+                    Operand::Copy(Place::local(local))
+                }
+            };
+            return Ok(CallArgument {
+                operand,
+                ty,
+                representation: crate::mir::ValueRepresentation::Borrow,
+            });
+        }
+        let operand = self.lower_aggregate_operand(argument)?;
+        Ok(CallArgument {
+            operand,
+            ty,
+            representation: crate::mir::ValueRepresentation::Aggregate,
+        })
+    }
+
+    fn lower_method_receiver(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        member: &crate::ast::MemberExpr,
+        scope: ScopeId,
+    ) -> Result<CallArgument, BuildError> {
+        let kind = self
+            .semantic
+            .typed_hir
+            .method_call_receiver_kind(member.member_span)
+            .ok_or(BuildError::MissingCallTarget)?;
+        if kind == crate::typecheck::TypecheckMethodReceiverKind::Owned {
+            return self.lower_call_argument(&member.object, scope);
+        }
+        let readwrite = kind == crate::typecheck::TypecheckMethodReceiverKind::ReadwriteBorrow;
+        let ty = self
+            .semantic
+            .typed_hir
+            .method_call_receiver_type(member.member_span)
+            .ok_or(BuildError::MissingTypedExpression)?;
+        if let Some(representation @ crate::mir::ValueRepresentation::View(view)) =
+            value_representation(ty, self.semantic)
+        {
+            return Ok(CallArgument {
+                operand: self.lower_view_operand(&member.object, ty, view, scope)?,
+                ty,
+                representation,
+            });
+        }
+        let source = self
+            .semantic
+            .typed_hir
+            .expression(call.span)
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        let local = LocalId::from_index(self.locals.len());
+        self.locals.push(crate::mir::Local::borrow(
+            ty,
+            readwrite,
+            LocalStorage::Local,
+            LocalOrigin::Temporary(source),
+            scope,
+        ));
+        super::borrows::lower_implicit_to_local(
+            self,
+            local,
+            &member.object,
+            readwrite,
+            scope,
+            crate::mir::Origin::Expression(source),
+        )?;
+        Ok(CallArgument {
+            operand: if readwrite {
+                Operand::Move(Place::local(local))
+            } else {
+                Operand::Copy(Place::local(local))
+            },
+            ty,
+            representation: crate::mir::ValueRepresentation::Borrow,
+        })
     }
 
     pub(super) fn lower_aggregate_operand(
