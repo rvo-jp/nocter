@@ -24,6 +24,41 @@ fn retains_checked_mir_for_machine_ir_lowering() {
 }
 
 #[test]
+fn retains_checked_mir_for_unit_view_and_aggregate_returns() {
+    let (sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    left: i32
+    right: i32
+}
+
+func sink(): void {
+    return
+}
+
+func label(): &str {
+    return "pair"
+}
+
+func pair(): Pair {
+    return Pair { left: 1, right: 2 }
+}
+
+func main(): i32 {
+    sink()
+    let text = label()
+    let value = pair()
+    return value.left
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(analysis.mir_bodies.len(), 4);
+}
+
+#[test]
 fn follows_retained_mir_call_edges_without_ast_body_traversal() {
     let (sources, analysis) = analyze_text(
         r#"func add_two(value: i32): i32 {

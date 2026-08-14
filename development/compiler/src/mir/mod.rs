@@ -28,7 +28,6 @@ pub(crate) use locals::{
 };
 pub(crate) use lower::{
     BuildError, BuildInputs, try_build_body_with_return_mode, try_build_closure_body,
-    try_build_scalar_body_with_return_mode,
 };
 #[cfg(test)]
 pub(crate) use model::BasicBlock;

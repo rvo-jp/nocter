@@ -97,7 +97,8 @@ fn try_build_scalar_body(
     )
 }
 
-pub(crate) fn try_build_scalar_body_with_return_mode(
+#[cfg(test)]
+fn try_build_scalar_body_with_return_mode(
     block: &Block,
     parameters: &[Parameter],
     return_scalar: ScalarType,

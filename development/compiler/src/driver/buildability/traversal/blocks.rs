@@ -23,8 +23,8 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     enqueue_drop_targets_in_callable(callable, root_source, queue);
 
     if let Some(closure) = &callable.closure_mir
-        && let Some((return_scalar, return_mode)) =
-            callable_scalar_return(callable, resolved_sources)
+        && let Some((return_representation, return_mode)) =
+            callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
         let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
@@ -32,7 +32,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                 closure.expression,
                 &closure.plan.ty,
                 closure.receiver_mode,
-                crate::mir::ValueRepresentation::Scalar(return_scalar),
+                return_representation,
                 return_mode,
                 crate::mir::BuildInputs {
                     semantic_db: &callable.resolved.semantic_db,
@@ -74,8 +74,8 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     }
 
     if let Some(parameters) = callable.mir_parameters
-        && let Some((return_scalar, return_mode)) =
-            callable_scalar_return(callable, resolved_sources)
+        && let Some((return_representation, return_mode)) =
+            callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
         let specialized_hir = callable.typed_hir.specialized(&callable.substitutions);
@@ -91,10 +91,10 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
             })
             .collect::<Vec<_>>();
         let body = mir_bodies.get_or_build_specialized(body_id, &callable.substitutions, || {
-            crate::mir::try_build_scalar_body_with_return_mode(
+            crate::mir::try_build_body_with_return_mode(
                 callable.body,
                 &specialized_parameters,
-                return_scalar,
+                return_representation,
                 return_mode,
                 crate::mir::BuildInputs {
                     semantic_db: &callable.resolved.semantic_db,
@@ -189,10 +189,10 @@ fn enqueue_mir_call_targets(
     Ok(())
 }
 
-fn callable_scalar_return(
+fn callable_return_contract(
     callable: &IndexedCallable<'_>,
     resolved_sources: &ResolvedSources<'_>,
-) -> Option<(crate::mir::ScalarType, crate::mir::ReturnMode)> {
+) -> Option<(crate::mir::ValueRepresentation, crate::mir::ReturnMode)> {
     let return_type = callable.return_type.as_ref()?;
     let outcome_shape = outcome_shape_with_resolver(return_type, callable.resolved, |source| {
         resolved_sources.get(&source).copied()
@@ -202,17 +202,41 @@ fn callable_scalar_return(
         [crate::outcomes::OutcomeLayer::Fallible] => crate::mir::ReturnMode::Fallible,
         _ => return None,
     };
-    let value = abi_value_from_type_expr_with_resolver(return_type, callable.resolved, |source| {
-        resolved_sources.get(&source).copied()
-    })
+    if matches!(
+        &outcome_shape.payload,
+        TypeExpr::Reference(reference) if reference.name == "void"
+    ) {
+        return Some((crate::mir::ValueRepresentation::Unit, return_mode));
+    }
+    let value = abi_value_from_type_expr_with_resolver(
+        &outcome_shape.payload,
+        callable.resolved,
+        |source| resolved_sources.get(&source).copied(),
+    )
     .ok()?;
-    let scalar = match value.ty {
-        AbiType::I32 => crate::mir::ScalarType::I32,
-        AbiType::Usize => crate::mir::ScalarType::Usize,
-        AbiType::Bool => crate::mir::ScalarType::Bool,
+    let representation = match value.ty {
+        AbiType::I32 => crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::I32),
+        AbiType::U8 => crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::U8),
+        AbiType::Usize => crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::Usize),
+        AbiType::Bool => crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::Bool),
+        AbiType::I8 => scalar_integer(crate::integer::IntegerType::I8),
+        AbiType::I16 => scalar_integer(crate::integer::IntegerType::I16),
+        AbiType::U16 => scalar_integer(crate::integer::IntegerType::U16),
+        AbiType::U32 => scalar_integer(crate::integer::IntegerType::U32),
+        AbiType::I64 => scalar_integer(crate::integer::IntegerType::I64),
+        AbiType::U64 => scalar_integer(crate::integer::IntegerType::U64),
+        AbiType::Isize => scalar_integer(crate::integer::IntegerType::Isize),
+        AbiType::StrView => crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+        AbiType::Array { .. } | AbiType::Struct(_) | AbiType::Enum(_) => {
+            crate::mir::ValueRepresentation::Aggregate
+        }
         _ => return None,
     };
-    Some((scalar, return_mode))
+    Some((representation, return_mode))
+}
+
+fn scalar_integer(kind: crate::integer::IntegerType) -> crate::mir::ValueRepresentation {
+    crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::Integer(kind))
 }
 
 pub(in crate::driver::buildability) fn enqueue_drop_targets_in_callable(
