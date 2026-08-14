@@ -704,6 +704,18 @@ impl<'a> ScalarStatement<'a> {
                                 },
                             )
                     }
+                    Expr::Member(member) => {
+                        super::projections::field_is_supported(
+                            member,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        ) && known_expression_type(&assignment.target, typed_hir)
+                            .and_then(|ty| scalar_type(ty, typed_hir))
+                            .is_some()
+                    }
                     _ => false,
                 };
                 (assignment.operator == AssignmentOperator::Assign

@@ -663,14 +663,14 @@ func answer(): u8 {
         offset: 1,
     }));
     assert!(instructions.contains(&Instruction::AddU8 {
-        destination: U8Location::Local(1),
+        destination: U8Location::Local(2),
         left: u8_local(1),
         right: u8_local(0),
     }));
     assert!(instructions.contains(&Instruction::StoreAggregateU8 {
         destination: AggregateLocation::Slot(0),
         offset: 1,
-        value: u8_local(1),
+        value: u8_local(2),
     }));
 }
 

@@ -226,25 +226,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                 scope,
                             )?;
                         } else {
-                            let value = self.scalar_temporary(
-                                ty,
-                                scalar,
-                                LocalOrigin::Temporary(
-                                    self.context
-                                        .semantic
-                                        .typed_hir
-                                        .expression(assignment.value.span())
-                                        .ok_or(BuildError::MissingTypedExpression)?
-                                        .id,
-                                ),
-                                scope,
-                            );
-                            self.lower_value(value, &assignment.value, ty, scalar, scope)?;
+                            let value =
+                                self.context
+                                    .lower_operand(&assignment.value, ty, scalar, scope)?;
                             self.context
                                 .control_flow
                                 .push_statement(Statement::Assign {
                                     destination,
-                                    value: Rvalue::Use(Operand::Copy(Place::local(value))),
+                                    value: Rvalue::Use(value),
                                     origin: Origin::Desugared(assignment.operator_span),
                                 })?;
                         }
@@ -549,6 +538,24 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             Expr::Index(index) => {
                 let (place, representation) =
                     super::indexes::lower_place(self.context, index, scope)?;
+                let crate::mir::ValueRepresentation::Scalar(scalar) = representation else {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                };
+                let ty = self.context.projections[place
+                    .projection
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?
+                    .index()]
+                .ty;
+                Ok((place, ty, scalar))
+            }
+            Expr::Member(member) => {
+                let (place, representation) = super::projections::lower_borrow_field_place(
+                    member,
+                    self.context.semantic,
+                    &self.context.places_by_symbol,
+                    &mut self.context.projections,
+                    &mut self.context.drop_plans,
+                )?;
                 let crate::mir::ValueRepresentation::Scalar(scalar) = representation else {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 };

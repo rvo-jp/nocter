@@ -30,7 +30,7 @@ func set_code(header: &+Header): void {
             return_type: Type::Void,
             instructions: vec![
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Parameter(0),
+                    destination: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                     offset: 4,
                     value: I32Value::Const(99),
                 },
@@ -74,7 +74,7 @@ func set_code(header: &+Header): void {
                 Instruction::If {
                     condition: BoolValue::Const(true),
                     then_instructions: vec![Instruction::StoreAggregateI32 {
-                        destination: AggregateLocation::Parameter(0),
+                        destination: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                         offset: 4,
                         value: I32Value::Const(99),
                     }],
@@ -129,7 +129,7 @@ func ready(): bool {
                     )],
                     condition: BoolValue::Location(BoolLocation::Local(0)),
                     body_instructions: vec![Instruction::StoreAggregateI32 {
-                        destination: AggregateLocation::Parameter(0),
+                        destination: AggregateLocation::Borrow(UsizeLocation::Parameter(0)),
                         offset: 4,
                         value: I32Value::Const(99),
                     }],
@@ -1534,14 +1534,14 @@ func answer(): i32 {
                 offset: 4,
             },
             Instruction::AddI32 {
-                destination: I32Location::Local(1),
+                destination: I32Location::Local(2),
                 left: i32_local(1),
                 right: i32_local(0),
             },
             Instruction::StoreAggregateI32 {
                 destination: AggregateLocation::Slot(0),
                 offset: 4,
-                value: i32_local(1),
+                value: i32_local(2),
             },
             Instruction::LoadAggregateI32 {
                 destination: I32Location::Return,
@@ -1592,14 +1592,14 @@ func main(): usize {
                 offset: 8,
             },
             Instruction::RemainderUsize {
-                destination: UsizeLocation::Local(0),
+                destination: UsizeLocation::Local(1),
                 left: usize_local(0),
                 right: usize_const(5),
             },
             Instruction::StoreAggregateUsize {
                 destination: AggregateLocation::Slot(0),
                 offset: 8,
-                value: usize_local(0),
+                value: usize_local(1),
             },
             Instruction::LoadAggregateUsize {
                 destination: UsizeLocation::Return,
