@@ -230,6 +230,20 @@ pub enum AbiReturn {
     Value(AbiValue),
 }
 
+/// Native ABI classification of a resolved source type before it is assigned
+/// a parameter or return position.
+///
+/// `void`, `never`, and the logical `error` value do not have an ordinary
+/// `AbiValue`, but downstream stages still need to distinguish them without
+/// repeating alias resolution or matching source names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbiTypeContract {
+    Void,
+    Never,
+    Error,
+    Value(AbiValue),
+}
+
 impl AbiReturn {
     pub fn passing(&self) -> ReturnPassing {
         match self {

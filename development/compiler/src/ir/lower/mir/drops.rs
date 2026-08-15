@@ -578,8 +578,5 @@ fn aggregate_abi_value(
     ty: &crate::ast::TypeExpr,
     context: &BackendContext<'_>,
 ) -> Result<crate::abi::AbiValue, Vec<Diagnostic>> {
-    crate::abi::abi_value_from_type_expr_with_resolver(ty, context.resolved, |source| {
-        context.resolved_sources.get(&source).copied()
-    })
-    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))
+    context.types.abi_value_for_type_expr(ty)
 }

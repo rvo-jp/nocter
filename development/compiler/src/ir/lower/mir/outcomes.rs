@@ -33,15 +33,8 @@ pub(super) fn lower(
         ));
     };
     let source_local = &context.body.locals[source_place.local.index()];
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(source_local.ty)
-        .ok_or_else(|| invalid_mir_diagnostics("stored outcome source type is missing"))?;
-    let shape =
-        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
-            context.resolved_sources.get(&source).copied()
-        });
-    let Some(layer) = shape.layers.first() else {
+    let outcome = context.types.outcome(source_local.ty)?;
+    let Some(layer) = outcome.shape.layers.first() else {
         return Err(invalid_mir_diagnostics(
             "stored outcome inspection requires an outcome layer",
         ));
@@ -51,19 +44,15 @@ pub(super) fn lower(
             "stored outcome inspection layer differs from its checked type",
         ));
     }
-    let payload = crate::abi::abi_value_from_type_expr_with_resolver(
-        &shape.payload,
-        context.resolved,
-        |source| context.resolved_sources.get(&source).copied(),
-    )
-    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
-    let storage = shape.storage_layout(payload.layout).ok_or_else(|| {
-        invalid_mir_diagnostics("stored outcome inspection has unsupported storage")
-    })?;
     let source = aggregate_location(source_place, context)?;
-    let success_instructions =
-        outcome_success_projection(context, inspection.destination, source, &shape, &storage)?;
-    let entry = &storage.layers[0];
+    let success_instructions = outcome_success_projection(
+        context,
+        inspection.destination,
+        source,
+        &outcome.shape,
+        &outcome.storage,
+    )?;
+    let entry = &outcome.storage.layers[0];
     match inspection.layer {
         crate::outcomes::OutcomeLayer::Optional => Ok(Instruction::IfStoredOutcomeTag {
             source,
@@ -144,33 +133,22 @@ pub(super) fn lower_optional_loop_condition(
         ));
     };
     let source_local = &context.body.locals[source_place.local.index()];
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(source_local.ty)
-        .ok_or_else(|| invalid_mir_diagnostics("optional loop source type is missing"))?;
-    let shape =
-        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
-            context.resolved_sources.get(&source).copied()
-        });
-    if shape.layers.as_slice() != [crate::outcomes::OutcomeLayer::Optional] {
+    let outcome = context.types.outcome(source_local.ty)?;
+    if outcome.shape.layers.as_slice() != [crate::outcomes::OutcomeLayer::Optional] {
         return Err(invalid_mir_diagnostics(
             "optional loop source must contain exactly one optional layer",
         ));
     }
-    let payload = crate::abi::abi_value_from_type_expr_with_resolver(
-        &shape.payload,
-        context.resolved,
-        |source| context.resolved_sources.get(&source).copied(),
-    )
-    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
-    let storage = shape
-        .storage_layout(payload.layout)
-        .ok_or_else(|| invalid_mir_diagnostics("optional loop storage is unsupported"))?;
     let source = aggregate_location(source_place, context)?;
     let condition =
         crate::ir::BoolLocation::Local(super::storage::machine_local_count(context.body));
-    let mut projection =
-        outcome_success_projection(context, destination, source, &shape, &storage)?;
+    let mut projection = outcome_success_projection(
+        context,
+        destination,
+        source,
+        &outcome.shape,
+        &outcome.storage,
+    )?;
     projection.append(&mut success_instructions);
     projection.push(Instruction::SetBool {
         destination: condition,
@@ -183,7 +161,7 @@ pub(super) fn lower_optional_loop_condition(
     Ok((
         Instruction::IfStoredOutcomeTag {
             source,
-            tag_offset: storage.layers[0].tag_offset as u32,
+            tag_offset: outcome.storage.layers[0].tag_offset as u32,
             success_instructions: projection,
             outcome_instructions: failure_instructions,
         },
@@ -247,29 +225,7 @@ pub(super) fn lower_return(
         ));
     }
     let local = &context.body.locals[source.local.index()];
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(local.ty)
-        .ok_or_else(|| invalid_mir_diagnostics("stored outcome return type is missing"))?;
-    let shape =
-        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
-            context.resolved_sources.get(&source).copied()
-        });
-    let payload_abi = crate::abi::abi_value_from_type_expr_with_resolver(
-        &shape.payload,
-        context.resolved,
-        |source| context.resolved_sources.get(&source).copied(),
-    )
-    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
-    let storage = shape
-        .storage_layout(payload_abi.layout)
-        .ok_or_else(|| invalid_mir_diagnostics("stored outcome return has unsupported storage"))?;
-    let payload_type = super::super::types::return_type_from_type_expr_with_resolver(
-        &shape.payload,
-        context.resolved,
-        |source| context.resolved_sources.get(&source).copied(),
-    )
-    .ok_or_else(|| invalid_mir_diagnostics("stored outcome return payload is unsupported"))?;
+    let outcome = context.types.outcome(local.ty)?;
     let expected = context.return_type;
     let expected_layers = match expected {
         crate::ir::Type::Optional(_) => vec![crate::outcomes::OutcomeLayer::Optional],
@@ -281,14 +237,14 @@ pub(super) fn lower_return(
             ));
         }
     };
-    if shape.layers != expected_layers || expected.success_type() != &payload_type {
+    if outcome.shape.layers != expected_layers || expected.success_type() != &outcome.payload_type {
         return Err(invalid_mir_diagnostics(
             "stored outcome MIR return type differs from the callable result",
         ));
     }
     Ok(Instruction::ReturnStoredOutcome {
         source: aggregate_location(source, context)?,
-        storage,
-        payload_type,
+        storage: outcome.storage,
+        payload_type: outcome.payload_type,
     })
 }

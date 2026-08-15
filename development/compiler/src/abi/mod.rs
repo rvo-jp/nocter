@@ -20,10 +20,12 @@ pub use layout::{
 };
 pub use model::{
     ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT, AbiEnum, AbiEnumVariant, AbiField, AbiParameter,
-    AbiReturn, AbiType, AbiTypeError, AbiValue, DIRECT_VALUE_MAX_SIZE, FieldLayout, FunctionAbi,
-    LayoutError, ParameterPassing, ReturnPassing, StructLayout, ValueClassification, ValueLayout,
+    AbiReturn, AbiType, AbiTypeContract, AbiTypeError, AbiValue, DIRECT_VALUE_MAX_SIZE,
+    FieldLayout, FunctionAbi, LayoutError, ParameterPassing, ReturnPassing, StructLayout,
+    ValueClassification, ValueLayout,
 };
 pub use types::{
+    abi_type_contract_from_type_expr, abi_type_contract_from_type_expr_with_resolver,
     abi_type_from_type_expr, abi_type_from_type_expr_with_resolver, abi_value_from_type_expr,
     abi_value_from_type_expr_with_resolver,
 };

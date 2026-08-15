@@ -2,6 +2,7 @@
 
 mod calls;
 mod cleanup;
+mod contracts;
 mod control_flow;
 mod dataflow;
 mod drop_obligations;
@@ -22,6 +23,7 @@ mod validate;
 
 pub(crate) use calls::runtime_name_with_unqualified_receiver;
 pub(crate) use calls::{CallInstance, CallInstanceKey, CallableIdentity, LiteralSegment};
+pub(crate) use contracts::{CallableReturnContract, callable_return_contract};
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
 pub(crate) use error_values::{StaticErrorPayload, static_error_payload};
 pub(crate) use ids::{

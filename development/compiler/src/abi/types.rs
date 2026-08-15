@@ -1,6 +1,7 @@
 use super::layout::{align_to, layout_of};
 use super::{
-    AbiEnum, AbiEnumVariant, AbiField, AbiReturn, AbiType, AbiTypeError, AbiValue, ValueLayout,
+    AbiEnum, AbiEnumVariant, AbiField, AbiReturn, AbiType, AbiTypeContract, AbiTypeError, AbiValue,
+    ValueLayout,
 };
 use crate::ast::{TypeExpr, canonical_type_expr, substitute_type_expr_parameters};
 use crate::literals::decode_integer_literal_value;
@@ -53,6 +54,61 @@ where
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
         AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(canonical_type_expr(ty))),
     }
+}
+
+pub fn abi_type_contract_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Result<AbiTypeContract, AbiTypeError> {
+    abi_type_contract_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub fn abi_type_contract_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<AbiTypeContract, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_type_contract_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+fn abi_type_contract_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Result<AbiTypeContract, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if let TypeExpr::Reference(reference) = ty {
+        match reference.name.as_str() {
+            "void" => return Ok(AbiTypeContract::Void),
+            "never" => return Ok(AbiTypeContract::Never),
+            "error" => return Ok(AbiTypeContract::Error),
+            _ => {}
+        }
+        let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+        if let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name)
+            && let Some(target) = &symbol.alias_target
+        {
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
+            }
+            let result = abi_type_contract_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            return result;
+        }
+    }
+
+    abi_value_from_type_expr_inner(ty, fallback_resolved, resolver).map(AbiTypeContract::Value)
 }
 
 pub(in crate::abi) fn abi_value_from_type_expr_inner<'a, F>(

@@ -27,6 +27,7 @@ mod loops;
 mod outcomes;
 mod parameters;
 mod storage;
+mod type_projection;
 
 /// Immutable inputs shared by every control-flow structuring path.
 ///
@@ -36,12 +37,12 @@ pub(super) struct BackendContext<'a> {
     body: &'a Body,
     return_type: &'a Type,
     resolved: &'a ResolveOutput,
-    resolved_sources: &'a crate::resolve::ResolvedSources<'a>,
     typed_hir: &'a TypedHir,
     function_signatures: &'a super::context::FunctionSignatures,
     function_names: &'a super::context::FunctionNames,
     error_payloads: &'a super::context::ErrorPayloads,
     parameters: parameters::ParameterProjection,
+    types: type_projection::TypeProjection<'a>,
     root_source: SourceId,
 }
 
@@ -74,10 +75,13 @@ pub(super) fn lower_body(
     let specialized_hir =
         crate::mir::prepare_typed_hir(typed_hir, substitutions, parameters, return_type_expr, None);
     let typed_hir = &specialized_hir;
-    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
-        .ok_or_else(|| {
-            unsupported_mir_boundary(sources, body.span, function_name, "return type")
-        })?;
+    let specialized_return_type =
+        crate::ast::substitute_type_expr_parameters(return_type_expr, substitutions);
+    let return_contract =
+        crate::mir::callable_return_contract(&specialized_return_type, resolved, resolved_sources)
+            .ok_or_else(|| {
+                unsupported_mir_boundary(sources, body.span, function_name, "return type")
+            })?;
     let body_id = resolved.semantic_db.body_at(body.span).ok_or_else(|| {
         unsupported_mir_boundary(sources, body.span, function_name, "source body identity")
     })?;
@@ -89,15 +93,15 @@ pub(super) fn lower_body(
         crate::mir::build_body_with_return_mode(
             body,
             parameters,
-            return_representation,
-            return_mode,
+            return_contract.representation,
+            return_contract.mode,
             crate::mir::BuildInputs {
                 semantic_db: &resolved.semantic_db,
                 resolved,
                 resolved_sources,
                 typed_hir,
-                declared_return_ty: typed_hir.type_id(return_type_expr),
-                outcome_layers: outcome_layers.clone(),
+                declared_return_ty: typed_hir.type_id(&specialized_return_type),
+                outcome_layers: return_contract.outcome_layers.clone(),
             },
         )
     });
@@ -147,10 +151,13 @@ pub(super) fn lower_literal_body(
         Some(&literal_pack),
     );
     let typed_hir = &specialized_hir;
-    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
-        .ok_or_else(|| {
-            unsupported_mir_boundary(sources, body.span, function_name, "return type")
-        })?;
+    let specialized_return_type =
+        crate::ast::substitute_type_expr_parameters(return_type_expr, substitutions);
+    let return_contract =
+        crate::mir::callable_return_contract(&specialized_return_type, resolved, resolved_sources)
+            .ok_or_else(|| {
+                unsupported_mir_boundary(sources, body.span, function_name, "return type")
+            })?;
     let body_id = resolved.semantic_db.body_at(body.span).ok_or_else(|| {
         unsupported_mir_boundary(sources, body.span, function_name, "source body identity")
     })?;
@@ -167,15 +174,15 @@ pub(super) fn lower_literal_body(
             crate::mir::build_literal_body(
                 body,
                 parameters,
-                return_representation,
-                return_mode,
+                return_contract.representation,
+                return_contract.mode,
                 crate::mir::BuildInputs {
                     semantic_db: &resolved.semantic_db,
                     resolved,
                     resolved_sources,
                     typed_hir,
-                    declared_return_ty: typed_hir.type_id(return_type_expr),
-                    outcome_layers: outcome_layers.clone(),
+                    declared_return_ty: typed_hir.type_id(&specialized_return_type),
+                    outcome_layers: return_contract.outcome_layers.clone(),
                 },
                 literal_pack,
             )
@@ -217,10 +224,14 @@ pub(super) fn lower_closure_body(
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
-        .ok_or_else(|| {
-            unsupported_mir_boundary(sources, expression.body.span, function_name, "return type")
-        })?;
+    let return_contract = crate::mir::callable_return_contract(
+        closure_ty.return_type.as_ref(),
+        resolved,
+        resolved_sources,
+    )
+    .ok_or_else(|| {
+        unsupported_mir_boundary(sources, expression.body.span, function_name, "return type")
+    })?;
     let body_id = resolved
         .semantic_db
         .body_at(expression.body.span)
@@ -253,15 +264,15 @@ pub(super) fn lower_closure_body(
                 expression,
                 closure_ty,
                 receiver_mode,
-                return_representation,
-                return_mode,
+                return_contract.representation,
+                return_contract.mode,
                 crate::mir::BuildInputs {
                     semantic_db: &resolved.semantic_db,
                     resolved,
                     resolved_sources,
                     typed_hir,
                     declared_return_ty: typed_hir.type_id(closure_ty.return_type.as_ref()),
-                    outcome_layers: outcome_layers.clone(),
+                    outcome_layers: return_contract.outcome_layers.clone(),
                 },
             )
         },
@@ -297,45 +308,6 @@ fn unsupported_mir_boundary(
         sources,
         span,
     )
-}
-
-fn return_contract(
-    return_type: &Type,
-) -> Option<(
-    crate::mir::ValueRepresentation,
-    ReturnMode,
-    Vec<crate::outcomes::OutcomeLayer>,
-)> {
-    let return_mode = if return_type.contains_outcome_layer(crate::outcomes::OutcomeLayer::Fallible)
-    {
-        ReturnMode::Fallible
-    } else {
-        ReturnMode::Plain
-    };
-    let success = return_type.success_type();
-    let representation = match success {
-        Type::Void | Type::Never => crate::mir::ValueRepresentation::Unit,
-        Type::I32 => crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
-        Type::U8 => crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
-        Type::Usize => crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
-        Type::Integer(kind) => crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
-        Type::Bool => crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
-        Type::Str => crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
-        Type::Slice { .. } => crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
-        Type::Borrow { .. } => crate::mir::ValueRepresentation::Borrow,
-        Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
-            crate::mir::ValueRepresentation::Aggregate
-        }
-        Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. } => return None,
-        _ => return None,
-    };
-    let outcome_layers = match return_type {
-        Type::Optional(_) => vec![crate::outcomes::OutcomeLayer::Optional],
-        Type::Fallible(_) => vec![crate::outcomes::OutcomeLayer::Fallible],
-        Type::ComposedOutcome { outer, inner, .. } => vec![*outer, *inner],
-        _ => Vec::new(),
-    };
-    Some((representation, return_mode, outcome_layers))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -398,12 +370,12 @@ fn lower_scalar_body(
         body,
         return_type,
         resolved,
-        resolved_sources,
         typed_hir,
         function_signatures,
         function_names,
         error_payloads,
         parameters: parameter_projection,
+        types: type_projection::TypeProjection::new(typed_hir, resolved, resolved_sources),
         root_source,
     };
     let mut instructions = Vec::new();
@@ -1415,46 +1387,15 @@ fn lower_returning_call(
             return_type,
             Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }
         ) {
-            let type_expr = context
-                .typed_hir
-                .type_expr_by_id(context.body.locals[destination.local.index()].ty)
-                .ok_or_else(|| invalid_mir_diagnostics("stored outcome local type is missing"))?;
-            let shape = crate::outcomes::outcome_shape_with_resolver(
-                type_expr,
-                context.resolved,
-                |source| context.resolved_sources.get(&source).copied(),
-            );
-            let payload_abi = crate::abi::abi_value_from_type_expr_with_resolver(
-                &shape.payload,
-                context.resolved,
-                |source| context.resolved_sources.get(&source).copied(),
-            )
-            .map_err(|error| {
-                invalid_mir_diagnostics(format!(
-                    "cannot lay out stored outcome payload for `{callee_name}`: {error:?}"
-                ))
-            })?;
-            let storage = shape.storage_layout(payload_abi.layout).ok_or_else(|| {
-                invalid_mir_diagnostics(format!(
-                    "stored outcome returned by `{callee_name}` has an unsupported layer shape"
-                ))
-            })?;
-            let payload_type = super::types::return_type_from_type_expr_with_resolver(
-                &shape.payload,
-                context.resolved,
-                |source| context.resolved_sources.get(&source).copied(),
-            )
-            .ok_or_else(|| {
-                invalid_mir_diagnostics(format!(
-                    "stored outcome payload returned by `{callee_name}` is unsupported"
-                ))
-            })?;
+            let outcome = context
+                .types
+                .outcome(context.body.locals[destination.local.index()].ty)?;
             return Ok(Instruction::CallStoredOutcome {
                 destination: aggregate_location(destination, context)?,
                 target,
                 arguments,
-                storage,
-                payload_type,
+                storage: outcome.storage,
+                payload_type: outcome.payload_type,
             });
         }
         let layout = match return_type {
@@ -1606,14 +1547,7 @@ pub(super) fn aggregate_local_abi_value(
     ty: crate::semantic::TyId,
     context: &BackendContext<'_>,
 ) -> Result<crate::abi::AbiValue, Vec<Diagnostic>> {
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(ty)
-        .ok_or_else(|| invalid_mir_diagnostics("aggregate local type is missing"))?;
-    crate::abi::abi_value_from_type_expr_with_resolver(type_expr, context.resolved, |source| {
-        context.resolved_sources.get(&source).copied()
-    })
-    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))
+    context.types.abi_value(ty)
 }
 
 fn lower_outcome_call(
@@ -3298,25 +3232,7 @@ fn outcome_storage_for_ty(
     ty: crate::semantic::TyId,
     context: &BackendContext<'_>,
 ) -> Result<crate::outcomes::storage::OutcomeStorageLayout, Vec<Diagnostic>> {
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(ty)
-        .ok_or_else(|| invalid_mir_diagnostics("stored outcome type is missing"))?;
-    let shape =
-        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
-            context.resolved_sources.get(&source).copied()
-        });
-    let payload = crate::abi::abi_value_from_type_expr_with_resolver(
-        &shape.payload,
-        context.resolved,
-        |source| context.resolved_sources.get(&source).copied(),
-    )
-    .map_err(|error| {
-        invalid_mir_diagnostics(format!("stored outcome payload layout failed: {error:?}"))
-    })?;
-    shape
-        .storage_layout(payload.layout)
-        .ok_or_else(|| invalid_mir_diagnostics("stored outcome has no supported layers"))
+    Ok(context.types.outcome(ty)?.storage)
 }
 
 fn lower_stored_outcome_construction(
@@ -4036,16 +3952,14 @@ fn lower_borrow_source(
                                     "slice-view index borrow element type is missing",
                                 )
                             })?;
-                    let abi = crate::abi::abi_value_from_type_expr_with_resolver(
-                        type_expr,
-                        context.resolved,
-                        |source| context.resolved_sources.get(&source).copied(),
-                    )
-                    .map_err(|_| {
-                        invalid_mir_diagnostics(
-                            "slice-view index borrow element ABI is unavailable",
-                        )
-                    })?;
+                    let abi = context
+                        .types
+                        .abi_value_for_type_expr(type_expr)
+                        .map_err(|_| {
+                            invalid_mir_diagnostics(
+                                "slice-view index borrow element ABI is unavailable",
+                            )
+                        })?;
                     let stride = crate::abi::layout_of(&abi.ty)
                         .ok()
                         .and_then(|layout| u32::try_from(layout.size).ok())
