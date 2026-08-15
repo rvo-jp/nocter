@@ -280,6 +280,7 @@ fn try_build_scalar_body_with_return_mode(
         super::CallableReturnContract {
             representation: super::ValueRepresentation::Scalar(return_scalar),
             mode: return_mode,
+            outcome_layers: Vec::new(),
         },
         inputs,
     ))
@@ -299,6 +300,7 @@ fn try_build_body_with_return_mode(
         super::CallableReturnContract {
             representation: return_representation,
             mode: return_mode,
+            outcome_layers: Vec::new(),
         },
         inputs,
     ))
@@ -339,6 +341,7 @@ fn build_body_with_literal_pack(
     let super::CallableReturnContract {
         representation: return_representation,
         mode: return_mode,
+        outcome_layers,
     } = return_contract;
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
@@ -492,16 +495,17 @@ fn build_body_with_literal_pack(
                 root_scope,
             ),
         };
-        let return_is_outcome = inputs
-            .typed_hir
-            .type_expr_by_id(declared_return_ty)
-            .is_some_and(|ty| {
-                !crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
-                    inputs.resolved_sources.get(&source).copied()
-                })
-                .layers
-                .is_empty()
-            });
+        let return_is_outcome = !outcome_layers.is_empty()
+            || inputs
+                .typed_hir
+                .type_expr_by_id(declared_return_ty)
+                .is_some_and(|ty| {
+                    !crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
+                        inputs.resolved_sources.get(&source).copied()
+                    })
+                    .layers
+                    .is_empty()
+                });
         if return_local_contract.ownership == OwnershipKind::Move && !return_is_outcome {
             let return_type_expr = inputs
                 .typed_hir
@@ -588,6 +592,7 @@ fn build_body_with_literal_pack(
             tail,
             contextual_return_ty,
             declared_return_ty,
+            &outcome_layers,
             return_ty,
             return_representation,
             return_mode,
@@ -610,6 +615,7 @@ fn build_prepared_body(
     tail: ScalarTail<'_>,
     _contextual_return_ty: crate::semantic::TyId,
     declared_return_ty: crate::semantic::TyId,
+    declared_outcome_layers: &[crate::outcomes::OutcomeLayer],
     return_ty: crate::semantic::TyId,
     return_representation: super::ValueRepresentation,
     return_mode: ReturnMode,
@@ -624,8 +630,29 @@ fn build_prepared_body(
 ) -> Result<Body, BuildError> {
     let return_local = LocalId::from_index(0);
     let root_scope = ScopeId::from_index(0);
-    let outcome_contract = outcome_contract(declared_return_ty, semantic)
-        .map_err(|error| error.context("build body outcome contract"))?;
+    let outcome_contract = if declared_outcome_layers.is_empty() {
+        outcome_contract(declared_return_ty, semantic)
+            .map_err(|error| error.context("build body outcome contract"))?
+    } else {
+        Some(super::OutcomeContract {
+            layers: declared_outcome_layers.to_vec(),
+            payload_ty: return_ty,
+            payload_representation: return_representation,
+            payload_borrow_readwrite: semantic
+                .typed_hir
+                .type_expr_by_id(declared_return_ty)
+                .map(|result| {
+                    crate::outcomes::outcome_shape_with_resolver(
+                        result,
+                        semantic.resolved,
+                        |source| semantic.resolver_for(source),
+                    )
+                    .payload
+                })
+                .as_ref()
+                .and_then(|payload| borrow_readwrite(payload, semantic.resolved)),
+        })
+    };
     let mut context = LoweringContext::new(
         semantic,
         outcome_contract.clone(),

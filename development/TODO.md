@@ -2,12 +2,12 @@
 
 ## Current Task
 
-v0.14.0 Phases 0 through 3 are complete. Checked MIR is now the sole production execution model:
-buildability constructs and validates reachable specialized bodies, and machine-IR lowering
-projects the same retained bodies. The temporary feature routers and AST-driven body
-buildability/lowering families have been deleted. Phase 4 backend convergence is next; it should
-reduce projection duplication without changing language behavior or the published v0.13.0
-artifacts.
+v0.14.0 Phases 0 through 4 are complete. Checked MIR is the sole production execution model, and
+one checked type/ABI authority now feeds buildability, MIR return contracts, and body-local machine
+projection. Integer operations, aggregate scalar access, and source-ordinal parameter storage no
+longer have parallel backend classifiers. Phase 5 stabilization is next; it must remove remaining
+migration adapters, narrow lint exceptions, consolidate boundary tests, and qualify v0.14.0
+without changing language behavior or the published v0.13.0 artifacts.
 
 ## Completed v0.14.0 Phase 3 MIR Checkpoint
 
@@ -856,5 +856,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan v0.14.0 Phase 4 backend convergence before implementation. Do not alter published release
-archives, tags, release notes, or qualification evidence; published artifacts remain immutable.
+Plan v0.14.0 Phase 5 stabilization before implementation. Do not alter published release archives,
+tags, release notes, or qualification evidence; published artifacts remain immutable.

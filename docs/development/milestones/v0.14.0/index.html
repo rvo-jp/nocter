@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.14.0 Semantic Architecture Migration - Nocter</title>
-    <meta name="description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
+    <meta name="description" content="Status: Phases 0 through 4 complete. Phase 5 stabilization is next.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta property="og:description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
+    <meta property="og:description" content="Status: Phases 0 through 4 complete. Phase 5 stabilization is next.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
+    <meta name="twitter:description" content="Status: Phases 0 through 4 complete. Phase 5 stabilization is next.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 3 complete. Phase 4 is next.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 4 complete. Phase 5 stabilization is next.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -138,7 +138,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 3 complete. Phase 4 is next.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
+                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 4 complete. Phase 5 stabilization is next.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
   semantic identities by inventing source names or treating byte ranges as identifiers.</li><li>Each compile-unit definition, body, expression, type, requirement, intrinsic, and monomorphized
   item receives a typed ID from one semantic database.</li><li>A span is location metadata owned by the database. It may diagnose or navigate an ID, but map
   equality on spans must not decide whether two semantic entities are identical.</li><li>The checker produces the semantic result consumed by ownership, provenance, LSP, specialization,
@@ -376,10 +376,26 @@ InstanceMember::Coercion(CoercionDecl)
   Machine-IR projection reads checked MIR and uses source blocks only at the separate cache/build
   boundary; it never inspects source expressions or statements for execution semantics.</li><li>The complete verification matrix passes after the migration, including 2,028 library tests and
   223 distributed installed-home tests, formatting, warnings-denied Clippy, documentation
-  generation, and diff checks.</li></ul><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 4 — Backend Convergence:</strong> replace string-based primitive dispatch with <code>IntrinsicId</code>,
-  centralize checked-type-to-ABI projection, unify duplicated integer and aggregate projection
-  paths, and remove backend adapters that restate MIR contracts.</li><li><strong>Phase 5 — Stabilization:</strong> remove migration adapters, narrow lint exceptions, consolidate tests
-  around the new boundaries, qualify, and publish v0.14.0.</li></ul>
+  generation, and diff checks.</li></ul><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="phase-4-backend-convergence">Phase 4: Backend Convergence</h2><h3 id="goal-5">Goal</h3><p>Make checked types and finalized MIR the only semantic inputs to native storage projection. Phase 4 does not change the language or calling convention. It removes parallel representations at the MIR-to-machine boundary so buildability, machine IR, and the backend cannot independently classify the same callable, integer operation, parameter, or aggregate access.</p><h3 id="completion-record-5">Completion Record</h3><ul><li><code>IntrinsicId</code>, introduced before this phase while completing executable MIR coverage, remains the
+  closed primitive-operation domain. Backend lowering receives an intrinsic identity and never
+  selects compiler authority by comparing a source function name.</li><li><code>AbiTypeContract</code> is the shared checked-type boundary for <code>void</code>, <code>never</code>, <code>error</code>, and ordinary
+  ABI values. Both buildability and machine-IR lowering obtain MIR return representation from the
+  same <code>CallableReturnContract</code> projection.</li><li>The specialized declared type produces one return contract containing representation, return
+  mode, and ordered outcome layers. MIR builders accept that contract as one value and bind its
+  layers to the normalized payload <code>TyId</code>; callers no longer repeat those facts in parallel
+  arguments.</li><li>Each machine-IR body owns a <code>TypeProjection</code> cache keyed by <code>TyId</code>. ABI value and outcome layout
+  queries for MIR locals flow through that cache rather than repeatedly resolving source types in
+  unrelated lowering branches.</li><li>Native integer instructions carry one <code>IntegerBinaryOperator</code> under their storage class. The 21
+  former type-and-operation variants were removed, and backend arithmetic dispatch shares the same
+  operator projection for <code>i32</code>, <code>u8</code>, <code>usize</code>, and the canonical-width integer path.</li><li>Parameter lowering records the ABI storage selected for each source ordinal when it creates the
+  signature. MIR-to-machine projection consumes that ordinal table directly; it no longer
+  reconstructs parameter storage by matching source names across parallel word arrays.</li><li>Aggregate scalar load/store instruction selection lives in one aggregate projection module. A
+  validated <code>AggregateRange</code> carries the location, byte offset, and optional checked index, so
+  field access, indexed access, initialization, and projected writes do not maintain separate
+  scalar type switches.</li><li>The removed integer variants, name-based parameter rematching, direct machine-body ABI/outcome
+  resolvers, and split MIR return-builder contract have no production callers.</li><li>The complete compiler regression matrix, public examples, source corpus, documentation build,
+  formatting, warnings-denied Clippy, and diff checks pass without changing public behavior.</li></ul><h3 id="completion-definition-5">Completion Definition</h3><p>Phase 4 is complete when primitive operations have typed identity before backend dispatch; one checked-type projection owns callable representation and ABI layout; body-local type projection is cached by <code>TyId</code>; integer and aggregate instruction selection have one type-directed boundary; source parameter ordinals map directly to their ABI storage; MIR builders receive one return contract instead of parallel facts; removed variants and adapters have no production references; and the complete verification gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 5 — Stabilization:</strong> remove remaining migration adapters, narrow lint exceptions,
+  consolidate tests around the new boundaries, qualify, and publish v0.14.0.</li></ul>
             </div>
         </main>
     </div>

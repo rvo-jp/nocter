@@ -15,6 +15,7 @@ use crate::source::SourceId;
 pub(crate) struct CallableReturnContract {
     pub(crate) representation: super::ValueRepresentation,
     pub(crate) mode: super::ReturnMode,
+    pub(crate) outcome_layers: Vec<crate::outcomes::OutcomeLayer>,
 }
 
 pub(crate) fn callable_return_contract(
@@ -54,6 +55,7 @@ where
     Some(CallableReturnContract {
         representation,
         mode,
+        outcome_layers: shape.layers,
     })
 }
 

@@ -13,8 +13,8 @@ and qualification belong in [development milestones](../milestones/README.md).
   -> semantic definition index / resolution
   -> checker-owned typed HIR
   -> checked control-flow MIR
+  -> checked type / ABI projection
   -> machine IR
-  -> ABI classification
   -> ARM64 code generation
   -> Mach-O image
 ```
@@ -115,6 +115,18 @@ into layout, but it may not revisit source expressions.
 compiler drift or hand-built invalid IR; it is not a substitute for source diagnostics.
 Target-specific syscalls, instruction encoding, and executable layout stay in `backend` and
 `target`. Update [ABI and Layout](../../spec/09-abi-layout.md) whenever public ABI behavior changes.
+
+The checked type boundary distinguishes `void`, `never`, `error`, and ordinary ABI values before
+projecting a MIR representation. The specialized declared type produces one callable return
+contract containing representation, failure mode, and ordered outcome layers; MIR construction
+binds it to the normalized payload `TyId`. A machine-body `TypeProjection` caches ABI values and
+outcome storage by `TyId`; individual instruction lowerers do not resolve the same type again.
+
+Source parameter ordinal and ABI word index are different domains. Signature lowering records one
+ordinal-to-storage table, and MIR parameter places consume it directly. Aggregate field and index
+paths become a validated `AggregateRange`; one projection module selects typed aggregate
+load/store instructions from that range. Integer instructions similarly carry a common operator
+under their storage class, leaving the target backend responsible only for emission.
 
 ## Allocator and Drop Boundary
 

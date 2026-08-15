@@ -4,10 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.14.0](v0.14.0.md). Phases 0 through 3 completed typed compile-unit
-identity, checker-owned partial typed HIR, indexed editor projection, and the replacement of
-AST-shaped buildability and lowering with checked control-flow MIR. Phase 4 backend convergence is
-next. The milestone does not add public language features.
+The active milestone is [v0.14.0](v0.14.0.md). Phases 0 through 4 completed typed compile-unit
+identity, checker-owned partial typed HIR, indexed editor projection, checked control-flow MIR, and
+the convergence of checked type, ABI, parameter, integer, and aggregate machine projection. Phase
+5 stabilization is next. The milestone does not add public language features.
 
 The latest completed milestone is [v0.13.0](v0.13.0.md). Phases 0 through 6 are complete, and the
 exact release is published and independently audited. Phase 1 replaced the obsolete

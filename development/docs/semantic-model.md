@@ -31,8 +31,10 @@ Different domains are not interchangeable.
 | `OpaqueTypeId` | one authored anonymous `some Interface` result | named-declaration lookup |
 | `TyId` | interned normalized semantic type | source spelling |
 
-`RequirementId`, `IntrinsicId`, and `MonoItemId` are planned domains. They are not introduced as
-empty wrappers before their phases can remove the corresponding old authority.
+`IntrinsicId` is the closed identity domain for compiler-recognized primitive operations; source
+names are converted once and never drive backend dispatch. `RequirementId` and `MonoItemId` remain
+planned domains. They are not introduced as empty wrappers before their phases can remove the
+corresponding old authority.
 
 `SourceId` continues to identify loaded source within a generation. `ByteSpan` continues to locate
 text. Neither is a declaration identity.
@@ -143,6 +145,11 @@ operations and diagnostics; path-sensitive execution facts belong in MIR rather 
 those locations as identity. Invalid or incomplete source therefore remains partial rather than
 becoming an alternate successful model. Later phases may render or lower this result; they may not
 invoke selectors again.
+
+Phase 4 makes storage projection equally explicit. A checked `TyId` is projected through the
+shared ABI authority and cached for one machine body. The callable return contract, parameter
+ordinal mapping, integer operator, and aggregate range are typed values; a backend consumer cannot
+reconstruct any of them from source names, parameter names, or a repeated AST type classification.
 
 ## Migration Enforcement
 

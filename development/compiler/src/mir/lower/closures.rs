@@ -22,6 +22,7 @@ pub(crate) fn build_closure_body(
     let crate::mir::CallableReturnContract {
         representation: return_representation,
         mode: return_mode,
+        outcome_layers,
     } = return_contract;
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
@@ -158,6 +159,7 @@ pub(crate) fn build_closure_body(
             tail,
             contextual_return_ty,
             inputs.declared_return_ty.unwrap_or(contextual_return_ty),
+            &outcome_layers,
             return_ty,
             return_representation,
             return_mode,
