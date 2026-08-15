@@ -581,152 +581,29 @@ impl EntryEmitter {
             } => {
                 self.emit_store_str_to_slice_index(*destination, index, value, frame)?;
             }
-            Instruction::AddU8 {
+            Instruction::U8Binary {
+                operator,
                 destination,
                 left,
                 right,
             } => {
-                self.emit_add_u8(*destination, left, right)?;
+                self.emit_u8_binary(*operator, *destination, left, right)?;
             }
-            Instruction::SubtractU8 {
+            Instruction::I32Binary {
+                operator,
                 destination,
                 left,
                 right,
             } => {
-                self.emit_subtract_u8(*destination, left, right)?;
+                self.emit_i32_binary(*operator, *destination, left, right)?;
             }
-            Instruction::MultiplyU8 {
+            Instruction::UsizeBinary {
+                operator,
                 destination,
                 left,
                 right,
             } => {
-                self.emit_multiply_u8(*destination, left, right)?;
-            }
-            Instruction::DivideU8 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_divide_u8(*destination, left, right)?;
-            }
-            Instruction::RemainderU8 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_remainder_u8(*destination, left, right)?;
-            }
-            Instruction::ShiftLeftU8 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_left_u8(*destination, left, right)?;
-            }
-            Instruction::ShiftRightU8 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_right_u8(*destination, left, right)?;
-            }
-            Instruction::AddI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_add_i32(*destination, left, right)?;
-            }
-            Instruction::SubtractI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_subtract_i32(*destination, left, right)?;
-            }
-            Instruction::MultiplyI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_multiply_i32(*destination, left, right)?;
-            }
-            Instruction::DivideI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_divide_i32(*destination, left, right)?;
-            }
-            Instruction::RemainderI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_remainder_i32(*destination, left, right)?;
-            }
-            Instruction::ShiftLeftI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_left_i32(*destination, left, right)?;
-            }
-            Instruction::ShiftRightI32 {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_right_i32(*destination, left, right)?;
-            }
-            Instruction::AddUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_add_usize(*destination, left, right)?;
-            }
-            Instruction::SubtractUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_subtract_usize(*destination, left, right)?;
-            }
-            Instruction::MultiplyUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_multiply_usize(*destination, left, right)?;
-            }
-            Instruction::DivideUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_divide_usize(*destination, left, right)?;
-            }
-            Instruction::RemainderUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_remainder_usize(*destination, left, right)?;
-            }
-            Instruction::ShiftLeftUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_left_usize(*destination, left, right)?;
-            }
-            Instruction::ShiftRightUsize {
-                destination,
-                left,
-                right,
-            } => {
-                self.emit_shift_right_usize(*destination, left, right)?;
+                self.emit_usize_binary(*operator, *destination, left, right)?;
             }
             Instruction::IntegerBinary {
                 kind,

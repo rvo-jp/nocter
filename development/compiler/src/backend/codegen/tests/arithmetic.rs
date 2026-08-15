@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::IntegerBinaryOperator;
 
 #[test]
 fn generates_i32_local_binding_return() {
@@ -46,7 +47,8 @@ fn generates_i32_local_addition_binding_return() {
                 destination: I32Location::Local(0),
                 value: i32_const(40),
             },
-            Instruction::AddI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Add,
                 destination: I32Location::Local(1),
                 left: i32_local(0),
                 right: i32_const(2),
@@ -87,7 +89,8 @@ fn generates_i32_addition_with_overflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::AddI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Add,
                 destination: I32Location::Return,
                 left: i32_const(40),
                 right: i32_const(2),
@@ -110,7 +113,8 @@ fn generates_i32_subtraction_with_overflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::SubtractI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Subtract,
                 destination: I32Location::Return,
                 left: i32_const(40),
                 right: i32_const(2),
@@ -133,7 +137,8 @@ fn generates_i32_multiplication_with_overflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::MultiplyI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Multiply,
                 destination: I32Location::Return,
                 left: i32_const(21),
                 right: i32_const(2),
@@ -158,7 +163,8 @@ fn generates_i32_shift_left_with_count_traps() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::ShiftLeftI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::ShiftLeft,
                 destination: I32Location::Return,
                 left: i32_const(5),
                 right: i32_const(3),
@@ -182,7 +188,8 @@ fn generates_i32_shift_right_with_count_traps() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::ShiftRightI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::ShiftRight,
                 destination: I32Location::Return,
                 left: i32_const(8),
                 right: i32_const(1),
@@ -206,7 +213,8 @@ fn generates_i32_division_with_safety_traps() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::DivideI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Divide,
                 destination: I32Location::Return,
                 left: i32_const(84),
                 right: i32_const(2),
@@ -228,7 +236,8 @@ fn generates_i32_remainder_with_safety_traps() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::I32,
         instructions: vec![
-            Instruction::RemainderI32 {
+            Instruction::I32Binary {
+                operator: IntegerBinaryOperator::Remainder,
                 destination: I32Location::Return,
                 left: i32_const(85),
                 right: i32_const(43),
@@ -251,7 +260,8 @@ fn generates_u8_addition_with_range_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::AddU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::Add,
                 destination: U8Location::Return,
                 left: u8_const(40),
                 right: u8_const(2),
@@ -273,7 +283,8 @@ fn generates_u8_subtraction_with_range_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::SubtractU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::Subtract,
                 destination: U8Location::Return,
                 left: u8_const(40),
                 right: u8_const(2),
@@ -295,7 +306,8 @@ fn generates_u8_multiplication_with_range_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::MultiplyU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::Multiply,
                 destination: U8Location::Return,
                 left: u8_const(21),
                 right: u8_const(2),
@@ -317,7 +329,8 @@ fn generates_u8_division_with_zero_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::DivideU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::Divide,
                 destination: U8Location::Return,
                 left: u8_const(84),
                 right: u8_const(2),
@@ -341,7 +354,8 @@ fn generates_u8_remainder_with_zero_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::RemainderU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::Remainder,
                 destination: U8Location::Return,
                 left: u8_const(85),
                 right: u8_const(43),
@@ -365,7 +379,8 @@ fn generates_u8_shift_left_with_count_and_range_traps() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::ShiftLeftU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::ShiftLeft,
                 destination: U8Location::Return,
                 left: u8_const(5),
                 right: u8_const(3),
@@ -387,7 +402,8 @@ fn generates_u8_shift_right_with_count_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::U8,
         instructions: vec![
-            Instruction::ShiftRightU8 {
+            Instruction::U8Binary {
+                operator: IntegerBinaryOperator::ShiftRight,
                 destination: U8Location::Return,
                 left: u8_const(8),
                 right: u8_const(1),
@@ -409,7 +425,8 @@ fn generates_usize_addition_with_overflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::AddUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::Add,
                 destination: UsizeLocation::Return,
                 left: usize_const(40),
                 right: usize_const(2),
@@ -432,7 +449,8 @@ fn generates_usize_subtraction_with_underflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::SubtractUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::Subtract,
                 destination: UsizeLocation::Return,
                 left: usize_const(40),
                 right: usize_const(2),
@@ -455,7 +473,8 @@ fn generates_usize_multiplication_with_overflow_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::MultiplyUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::Multiply,
                 destination: UsizeLocation::Return,
                 left: usize_const(21),
                 right: usize_const(2),
@@ -480,7 +499,8 @@ fn generates_usize_division_with_zero_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::DivideUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::Divide,
                 destination: UsizeLocation::Return,
                 left: usize_const(84),
                 right: usize_const(2),
@@ -504,7 +524,8 @@ fn generates_usize_remainder_with_zero_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::RemainderUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::Remainder,
                 destination: UsizeLocation::Return,
                 left: usize_const(85),
                 right: usize_const(43),
@@ -529,7 +550,8 @@ fn generates_usize_shift_left_with_count_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::ShiftLeftUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::ShiftLeft,
                 destination: UsizeLocation::Return,
                 left: usize_const(5),
                 right: usize_const(3),
@@ -553,7 +575,8 @@ fn generates_usize_shift_right_with_count_trap() {
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Usize,
         instructions: vec![
-            Instruction::ShiftRightUsize {
+            Instruction::UsizeBinary {
+                operator: IntegerBinaryOperator::ShiftRight,
                 destination: UsizeLocation::Return,
                 left: usize_const(8),
                 right: usize_const(1),

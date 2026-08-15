@@ -3,7 +3,7 @@
 use super::context::{
     AggregateBorrowParameter, AggregateParameterSource, BorrowParameter, ErrorPayloads,
     FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringOutcomeParameter,
-    LoweringParameterSlots, ResolvedSources, SliceTypeInfo,
+    LoweringParameterSlots, ParameterStorage, ResolvedSources, SliceTypeInfo,
 };
 use super::types::{
     borrow_inner_type_with_resolver, borrow_type_from_type_expr,

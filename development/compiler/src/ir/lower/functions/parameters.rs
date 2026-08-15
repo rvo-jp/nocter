@@ -72,12 +72,18 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
                     name: parameter.name.clone(),
                     parameter_index,
                 });
+                slots.push_source_storage(ParameterStorage::Borrow {
+                    abi_index: parameter_index,
+                });
             }
             ScalarParameterKind::BorrowAggregate { .. } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 slots.aggregate_borrows.push(AggregateBorrowParameter {
                     name: parameter.name.clone(),
                     parameter_index,
+                });
+                slots.push_source_storage(ParameterStorage::Borrow {
+                    abi_index: parameter_index,
                 });
             }
             ScalarParameterKind::AggregateIndirect { layout } => {
@@ -89,6 +95,11 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
                 });
+                slots.push_source_storage(ParameterStorage::Aggregate {
+                    slot_index,
+                    layout,
+                    classification: ValueClassification::Indirect,
+                });
             }
             ScalarParameterKind::AggregateDirect { layout, words } => {
                 let start_index = slots.reserve_empty_abi_words(words);
@@ -99,25 +110,42 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
                 });
+                slots.push_source_storage(ParameterStorage::Aggregate {
+                    slot_index,
+                    layout,
+                    classification: ValueClassification::Direct { words },
+                });
             }
             ScalarParameterKind::OutcomeIndirect { storage, .. } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 let slot_index = slots.aggregates.len() + slots.outcomes.len();
+                let layout = storage.layout;
                 slots.outcomes.push(LoweringOutcomeParameter {
                     name: parameter.name.clone(),
                     storage,
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
                 });
+                slots.push_source_storage(ParameterStorage::Aggregate {
+                    slot_index,
+                    layout,
+                    classification: ValueClassification::Indirect,
+                });
             }
             ScalarParameterKind::OutcomeDirect { storage, words, .. } => {
                 let start_index = slots.reserve_empty_abi_words(words);
                 let slot_index = slots.aggregates.len() + slots.outcomes.len();
+                let layout = storage.layout;
                 slots.outcomes.push(LoweringOutcomeParameter {
                     name: parameter.name.clone(),
                     storage,
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
+                });
+                slots.push_source_storage(ParameterStorage::Aggregate {
+                    slot_index,
+                    layout,
+                    classification: ValueClassification::Direct { words },
                 });
             }
         }

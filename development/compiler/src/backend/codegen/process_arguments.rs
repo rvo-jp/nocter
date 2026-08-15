@@ -253,31 +253,13 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         Instruction::StoreStrToSliceIndex { index, value, .. } => {
             usize_value_uses_process_arguments(index) || str_value_uses_process_arguments(value)
         }
-        Instruction::AddU8 { left, right, .. }
-        | Instruction::SubtractU8 { left, right, .. }
-        | Instruction::MultiplyU8 { left, right, .. }
-        | Instruction::DivideU8 { left, right, .. }
-        | Instruction::RemainderU8 { left, right, .. }
-        | Instruction::ShiftLeftU8 { left, right, .. }
-        | Instruction::ShiftRightU8 { left, right, .. } => {
+        Instruction::U8Binary { left, right, .. } => {
             u8_value_uses_process_arguments(left) || u8_value_uses_process_arguments(right)
         }
-        Instruction::AddI32 { left, right, .. }
-        | Instruction::SubtractI32 { left, right, .. }
-        | Instruction::MultiplyI32 { left, right, .. }
-        | Instruction::DivideI32 { left, right, .. }
-        | Instruction::RemainderI32 { left, right, .. }
-        | Instruction::ShiftLeftI32 { left, right, .. }
-        | Instruction::ShiftRightI32 { left, right, .. } => {
+        Instruction::I32Binary { left, right, .. } => {
             i32_value_uses_process_arguments(left) || i32_value_uses_process_arguments(right)
         }
-        Instruction::AddUsize { left, right, .. }
-        | Instruction::SubtractUsize { left, right, .. }
-        | Instruction::MultiplyUsize { left, right, .. }
-        | Instruction::DivideUsize { left, right, .. }
-        | Instruction::RemainderUsize { left, right, .. }
-        | Instruction::ShiftLeftUsize { left, right, .. }
-        | Instruction::ShiftRightUsize { left, right, .. } => {
+        Instruction::UsizeBinary { left, right, .. } => {
             usize_value_uses_process_arguments(left) || usize_value_uses_process_arguments(right)
         }
         Instruction::IntegerBinary { left, right, .. } => {

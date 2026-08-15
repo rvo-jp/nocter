@@ -964,37 +964,19 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_slice_value_parameter_spill_requests(value, requests);
             }
         }
-        Instruction::AddU8 { left, right, .. }
-        | Instruction::SubtractU8 { left, right, .. }
-        | Instruction::MultiplyU8 { left, right, .. }
-        | Instruction::DivideU8 { left, right, .. }
-        | Instruction::RemainderU8 { left, right, .. }
-        | Instruction::ShiftLeftU8 { left, right, .. }
-        | Instruction::ShiftRightU8 { left, right, .. } => {
+        Instruction::U8Binary { left, right, .. } => {
             if include_value_parameters {
                 record_u8_value_parameter_spill_requests(left, requests);
                 record_u8_value_parameter_spill_requests(right, requests);
             }
         }
-        Instruction::AddI32 { left, right, .. }
-        | Instruction::SubtractI32 { left, right, .. }
-        | Instruction::MultiplyI32 { left, right, .. }
-        | Instruction::DivideI32 { left, right, .. }
-        | Instruction::RemainderI32 { left, right, .. }
-        | Instruction::ShiftLeftI32 { left, right, .. }
-        | Instruction::ShiftRightI32 { left, right, .. } => {
+        Instruction::I32Binary { left, right, .. } => {
             if include_value_parameters {
                 record_i32_value_parameter_spill_requests(left, requests);
                 record_i32_value_parameter_spill_requests(right, requests);
             }
         }
-        Instruction::AddUsize { left, right, .. }
-        | Instruction::SubtractUsize { left, right, .. }
-        | Instruction::MultiplyUsize { left, right, .. }
-        | Instruction::DivideUsize { left, right, .. }
-        | Instruction::RemainderUsize { left, right, .. }
-        | Instruction::ShiftLeftUsize { left, right, .. }
-        | Instruction::ShiftRightUsize { left, right, .. } => {
+        Instruction::UsizeBinary { left, right, .. } => {
             if include_value_parameters {
                 record_usize_value_parameter_spill_requests(left, requests);
                 record_usize_value_parameter_spill_requests(right, requests);

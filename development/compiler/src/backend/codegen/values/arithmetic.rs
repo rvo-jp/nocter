@@ -1,6 +1,96 @@
 use super::*;
 
 impl EntryEmitter {
+    pub(in crate::backend::codegen) fn emit_u8_binary(
+        &mut self,
+        operator: crate::ir::IntegerBinaryOperator,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match operator {
+            crate::ir::IntegerBinaryOperator::Add => self.emit_add_u8(destination, left, right),
+            crate::ir::IntegerBinaryOperator::Subtract => {
+                self.emit_subtract_u8(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Multiply => {
+                self.emit_multiply_u8(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Divide => {
+                self.emit_divide_u8(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Remainder => {
+                self.emit_remainder_u8(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftLeft => {
+                self.emit_shift_left_u8(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftRight => {
+                self.emit_shift_right_u8(destination, left, right)
+            }
+        }
+    }
+
+    pub(in crate::backend::codegen) fn emit_i32_binary(
+        &mut self,
+        operator: crate::ir::IntegerBinaryOperator,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match operator {
+            crate::ir::IntegerBinaryOperator::Add => self.emit_add_i32(destination, left, right),
+            crate::ir::IntegerBinaryOperator::Subtract => {
+                self.emit_subtract_i32(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Multiply => {
+                self.emit_multiply_i32(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Divide => {
+                self.emit_divide_i32(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Remainder => {
+                self.emit_remainder_i32(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftLeft => {
+                self.emit_shift_left_i32(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftRight => {
+                self.emit_shift_right_i32(destination, left, right)
+            }
+        }
+    }
+
+    pub(in crate::backend::codegen) fn emit_usize_binary(
+        &mut self,
+        operator: crate::ir::IntegerBinaryOperator,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match operator {
+            crate::ir::IntegerBinaryOperator::Add => self.emit_add_usize(destination, left, right),
+            crate::ir::IntegerBinaryOperator::Subtract => {
+                self.emit_subtract_usize(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Multiply => {
+                self.emit_multiply_usize(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Divide => {
+                self.emit_divide_usize(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::Remainder => {
+                self.emit_remainder_usize(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftLeft => {
+                self.emit_shift_left_usize(destination, left, right)
+            }
+            crate::ir::IntegerBinaryOperator::ShiftRight => {
+                self.emit_shift_right_usize(destination, left, right)
+            }
+        }
+    }
+
     pub(in crate::backend::codegen) fn emit_add_u8(
         &mut self,
         destination: U8Location,

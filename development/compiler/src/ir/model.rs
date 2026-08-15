@@ -438,107 +438,20 @@ pub(crate) enum Instruction {
         index: UsizeValue,
         value: StrValue,
     },
-    AddU8 {
+    U8Binary {
+        operator: IntegerBinaryOperator,
         destination: U8Location,
         left: U8Value,
         right: U8Value,
     },
-    SubtractU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    MultiplyU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    DivideU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    RemainderU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    ShiftLeftU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    ShiftRightU8 {
-        destination: U8Location,
-        left: U8Value,
-        right: U8Value,
-    },
-    AddI32 {
+    I32Binary {
+        operator: IntegerBinaryOperator,
         destination: I32Location,
         left: I32Value,
         right: I32Value,
     },
-    SubtractI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    MultiplyI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    DivideI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    RemainderI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    ShiftLeftI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    ShiftRightI32 {
-        destination: I32Location,
-        left: I32Value,
-        right: I32Value,
-    },
-    AddUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    SubtractUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    MultiplyUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    DivideUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    RemainderUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    ShiftLeftUsize {
-        destination: UsizeLocation,
-        left: UsizeValue,
-        right: UsizeValue,
-    },
-    ShiftRightUsize {
+    UsizeBinary {
+        operator: IntegerBinaryOperator,
         destination: UsizeLocation,
         left: UsizeValue,
         right: UsizeValue,

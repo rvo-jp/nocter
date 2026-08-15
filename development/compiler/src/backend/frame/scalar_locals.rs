@@ -464,118 +464,31 @@ pub(super) fn record_instruction_scalar_locals(
             record_slice_location(*destination, highest_local_index);
             record_slice_value(value, highest_local_index);
         }
-        Instruction::AddU8 {
+        Instruction::U8Binary {
             destination,
             left,
             right,
-        }
-        | Instruction::SubtractU8 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::MultiplyU8 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::DivideU8 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::RemainderU8 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftLeftU8 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftRightU8 {
-            destination,
-            left,
-            right,
+            ..
         } => {
             record_u8_location(*destination, highest_local_index);
             record_u8_value(left, highest_local_index);
             record_u8_value(right, highest_local_index);
         }
-        Instruction::AddI32 {
+        Instruction::I32Binary {
             destination,
             left,
             right,
-        }
-        | Instruction::SubtractI32 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::MultiplyI32 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::DivideI32 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::RemainderI32 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftLeftI32 {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftRightI32 {
-            destination,
-            left,
-            right,
+            ..
         } => {
             record_i32_location(*destination, highest_local_index);
             record_i32_value(left, highest_local_index);
             record_i32_value(right, highest_local_index);
         }
-        Instruction::AddUsize {
+        Instruction::UsizeBinary {
             destination,
             left,
             right,
-        }
-        | Instruction::SubtractUsize {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::MultiplyUsize {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::DivideUsize {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::RemainderUsize {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftLeftUsize {
-            destination,
-            left,
-            right,
-        }
-        | Instruction::ShiftRightUsize {
-            destination,
-            left,
-            right,
+            ..
         } => {
             record_usize_location(*destination, highest_local_index);
             record_usize_value(left, highest_local_index);

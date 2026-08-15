@@ -1,8 +1,8 @@
 use super::*;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BorrowArgument, CallTarget,
-    DirectAggregateArgument, OutcomeFailureMode, ScalarArgument, SliceLocation, SliceValue,
-    StrValue, Type,
+    DirectAggregateArgument, IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument,
+    SliceLocation, SliceValue, StrValue, Type,
 };
 
 #[test]
@@ -682,7 +682,8 @@ fn counts_scalar_slots_from_nested_i32_and_bool_locals() {
             left: Box::new(BoolValue::Location(BoolLocation::Local(1))),
             right: Box::new(BoolValue::Const(true)),
         },
-        then_instructions: vec![Instruction::AddI32 {
+        then_instructions: vec![Instruction::I32Binary {
+            operator: IntegerBinaryOperator::Add,
             destination: I32Location::Local(3),
             left: I32Value::Location(I32Location::Local(0)),
             right: I32Value::Const(1),

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::IntegerBinaryOperator;
 
 #[test]
 fn emits_framed_function_prologue_and_return_epilogue() {
@@ -282,7 +283,8 @@ fn normal_i32_call_spills_and_reloads_scalar_locals() {
                     value: i32_const(40),
                 },
                 call_i32(I32Location::Local(1), "add_two", vec![i32_local(0)]),
-                Instruction::AddI32 {
+                Instruction::I32Binary {
+                    operator: IntegerBinaryOperator::Add,
                     destination: I32Location::Return,
                     left: i32_local(0),
                     right: i32_local(1),
@@ -295,7 +297,8 @@ fn normal_i32_call_spills_and_reloads_scalar_locals() {
             target: crate::ir::CallTarget::same_file("add_two".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::AddI32 {
+                Instruction::I32Binary {
+                    operator: IntegerBinaryOperator::Add,
                     destination: I32Location::Return,
                     left: i32_param(0),
                     right: i32_const(2),
@@ -562,7 +565,8 @@ fn generates_i32_tail_call_with_arguments_and_add() {
             target: crate::ir::CallTarget::same_file("add".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::AddI32 {
+                Instruction::I32Binary {
+                    operator: IntegerBinaryOperator::Add,
                     destination: I32Location::Return,
                     left: i32_param(0),
                     right: i32_param(1),

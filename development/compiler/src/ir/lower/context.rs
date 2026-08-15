@@ -39,6 +39,43 @@ pub(super) struct AggregateBorrowParameter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ParameterStorage {
+    I32 {
+        abi_index: usize,
+    },
+    U8 {
+        abi_index: usize,
+    },
+    Usize {
+        abi_index: usize,
+    },
+    Integer {
+        kind: IntegerType,
+        abi_index: usize,
+    },
+    Bool {
+        abi_index: usize,
+    },
+    Str {
+        abi_index: usize,
+    },
+    Slice {
+        abi_index: usize,
+    },
+    Borrow {
+        abi_index: usize,
+    },
+    Error {
+        abi_index: usize,
+    },
+    Aggregate {
+        slot_index: usize,
+        layout: ValueLayout,
+        classification: crate::abi::ValueClassification,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AggregateParameterSource {
     Indirect { parameter_index: usize },
     Direct { start_index: usize, words: usize },
@@ -62,6 +99,7 @@ pub(super) struct LoweringOutcomeParameter {
 
 #[derive(Default)]
 pub(super) struct LoweringParameterSlots {
+    source_storage: Vec<ParameterStorage>,
     pub(super) i32: Vec<Option<String>>,
     pub(super) u8: Vec<Option<String>>,
     pub(super) usize: Vec<Option<String>>,
@@ -78,29 +116,47 @@ pub(super) struct LoweringParameterSlots {
 
 impl LoweringParameterSlots {
     pub(super) fn push_i32_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(Some(name), None, None, None, None, None, None);
+        self.source_storage
+            .push(ParameterStorage::I32 { abi_index });
     }
 
     pub(super) fn push_u8_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(None, Some(name), None, None, None, None, None);
+        self.source_storage.push(ParameterStorage::U8 { abi_index });
     }
 
     pub(super) fn push_usize_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(None, None, Some(name), None, None, None, None);
+        self.source_storage
+            .push(ParameterStorage::Usize { abi_index });
     }
 
     pub(super) fn push_integer_parameter(&mut self, name: String, kind: IntegerType) {
         let index = self.next_parameter_index();
         self.push_empty_abi_word();
         self.integer[index] = Some((name, kind));
+        self.source_storage.push(ParameterStorage::Integer {
+            kind,
+            abi_index: index,
+        });
     }
 
     pub(super) fn push_bool_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(None, None, None, Some(name), None, None, None);
+        self.source_storage
+            .push(ParameterStorage::Bool { abi_index });
     }
 
     pub(super) fn push_str_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(None, None, None, None, Some(name), None, None);
+        self.source_storage
+            .push(ParameterStorage::Str { abi_index });
     }
 
     pub(super) fn push_slice_parameter(
@@ -109,6 +165,7 @@ impl LoweringParameterSlots {
         element_kind: TypecheckSliceElementKind,
         element_type: Option<TypeExpr>,
     ) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(
             None,
             None,
@@ -124,11 +181,16 @@ impl LoweringParameterSlots {
             }),
             None,
         );
+        self.source_storage
+            .push(ParameterStorage::Slice { abi_index });
     }
 
     pub(super) fn push_error_parameter(&mut self, name: String) {
+        let abi_index = self.next_parameter_index();
         self.push_abi_word(None, None, None, None, None, None, Some(name));
         self.reserve_empty_abi_words(3);
+        self.source_storage
+            .push(ParameterStorage::Error { abi_index });
     }
 
     pub(super) fn push_empty_abi_word(&mut self) {
@@ -145,6 +207,14 @@ impl LoweringParameterSlots {
 
     pub(super) fn parameter_abi_word_count(&self) -> usize {
         self.i32.len()
+    }
+
+    pub(super) fn source_storage(&self) -> &[ParameterStorage] {
+        &self.source_storage
+    }
+
+    pub(super) fn push_source_storage(&mut self, storage: ParameterStorage) {
+        self.source_storage.push(storage);
     }
 
     fn next_parameter_index(&self) -> usize {

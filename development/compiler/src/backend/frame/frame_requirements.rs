@@ -145,27 +145,9 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
-        | Instruction::AddU8 { .. }
-        | Instruction::SubtractU8 { .. }
-        | Instruction::MultiplyU8 { .. }
-        | Instruction::DivideU8 { .. }
-        | Instruction::RemainderU8 { .. }
-        | Instruction::ShiftLeftU8 { .. }
-        | Instruction::ShiftRightU8 { .. }
-        | Instruction::AddI32 { .. }
-        | Instruction::SubtractI32 { .. }
-        | Instruction::MultiplyI32 { .. }
-        | Instruction::DivideI32 { .. }
-        | Instruction::RemainderI32 { .. }
-        | Instruction::ShiftLeftI32 { .. }
-        | Instruction::ShiftRightI32 { .. }
-        | Instruction::AddUsize { .. }
-        | Instruction::SubtractUsize { .. }
-        | Instruction::MultiplyUsize { .. }
-        | Instruction::DivideUsize { .. }
-        | Instruction::RemainderUsize { .. }
-        | Instruction::ShiftLeftUsize { .. }
-        | Instruction::ShiftRightUsize { .. }
+        | Instruction::U8Binary { .. }
+        | Instruction::I32Binary { .. }
+        | Instruction::UsizeBinary { .. }
         | Instruction::IntegerBinary { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::ReturnStoredOutcome { .. }
@@ -326,27 +308,9 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
-        | Instruction::AddU8 { .. }
-        | Instruction::SubtractU8 { .. }
-        | Instruction::MultiplyU8 { .. }
-        | Instruction::DivideU8 { .. }
-        | Instruction::RemainderU8 { .. }
-        | Instruction::ShiftLeftU8 { .. }
-        | Instruction::ShiftRightU8 { .. }
-        | Instruction::AddI32 { .. }
-        | Instruction::SubtractI32 { .. }
-        | Instruction::MultiplyI32 { .. }
-        | Instruction::DivideI32 { .. }
-        | Instruction::RemainderI32 { .. }
-        | Instruction::ShiftLeftI32 { .. }
-        | Instruction::ShiftRightI32 { .. }
-        | Instruction::AddUsize { .. }
-        | Instruction::SubtractUsize { .. }
-        | Instruction::MultiplyUsize { .. }
-        | Instruction::DivideUsize { .. }
-        | Instruction::RemainderUsize { .. }
-        | Instruction::ShiftLeftUsize { .. }
-        | Instruction::ShiftRightUsize { .. }
+        | Instruction::U8Binary { .. }
+        | Instruction::I32Binary { .. }
+        | Instruction::UsizeBinary { .. }
         | Instruction::IntegerBinary { .. }
         | Instruction::Trap
         | Instruction::Break

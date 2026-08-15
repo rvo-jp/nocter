@@ -13,8 +13,8 @@ use crate::ir::{
     U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
-    BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
-    Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator, UnaryOperator,
+    Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand, Place, ReturnMode,
+    Rvalue, ScalarType, Statement, Terminator, UnaryOperator,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -23,6 +23,7 @@ use std::collections::HashSet;
 
 mod control_flow;
 mod drops;
+mod integer_projection;
 mod loops;
 mod outcomes;
 mod parameters;
@@ -2856,7 +2857,8 @@ fn lower_statements(
                                 value: I32Value::Const(value),
                             });
                         } else {
-                            instructions.push(Instruction::SubtractI32 {
+                            instructions.push(Instruction::I32Binary {
+                                operator: IntegerBinaryOperator::Subtract,
                                 destination,
                                 left: I32Value::Const(0),
                                 right: lower_i32_operand(operand, context)?,
@@ -2873,7 +2875,7 @@ fn lower_statements(
                         left,
                         right,
                         ..
-                    } => instructions.push(i32_binary_instruction(
+                    } => instructions.push(integer_projection::i32_binary_instruction(
                         *operator,
                         destination,
                         lower_i32_operand(left, context)?,
@@ -2947,7 +2949,7 @@ fn lower_statements(
                         left,
                         right,
                         ..
-                    } => instructions.push(u8_binary_instruction(
+                    } => instructions.push(integer_projection::u8_binary_instruction(
                         *operator,
                         destination,
                         lower_u8_operand(left, context)?,
@@ -3010,7 +3012,7 @@ fn lower_statements(
                         left,
                         right,
                         ..
-                    } => instructions.push(usize_binary_instruction(
+                    } => instructions.push(integer_projection::usize_binary_instruction(
                         *operator,
                         destination,
                         lower_usize_operand(left, context)?,
@@ -3100,7 +3102,7 @@ fn lower_statements(
                         ..
                     } => instructions.push(Instruction::IntegerBinary {
                         kind,
-                        operator: integer_binary_operator(*operator),
+                        operator: integer_projection::binary_operator(*operator),
                         destination,
                         left: lower_integer_operand(left, kind, context)?,
                         right: lower_integer_operand(right, kind, context)?,
@@ -4975,153 +4977,6 @@ fn attach_primary_span(
         .into_iter()
         .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
         .collect()
-}
-
-fn i32_binary_instruction(
-    operator: BinaryOperator,
-    destination: I32Location,
-    left: I32Value,
-    right: I32Value,
-) -> Instruction {
-    match operator {
-        BinaryOperator::Add => Instruction::AddI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Subtract => Instruction::SubtractI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Multiply => Instruction::MultiplyI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Divide => Instruction::DivideI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Remainder => Instruction::RemainderI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftLeft => Instruction::ShiftLeftI32 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftRight => Instruction::ShiftRightI32 {
-            destination,
-            left,
-            right,
-        },
-    }
-}
-
-fn u8_binary_instruction(
-    operator: BinaryOperator,
-    destination: U8Location,
-    left: U8Value,
-    right: U8Value,
-) -> Instruction {
-    match operator {
-        BinaryOperator::Add => Instruction::AddU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Subtract => Instruction::SubtractU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Multiply => Instruction::MultiplyU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Divide => Instruction::DivideU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Remainder => Instruction::RemainderU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftLeft => Instruction::ShiftLeftU8 {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftRight => Instruction::ShiftRightU8 {
-            destination,
-            left,
-            right,
-        },
-    }
-}
-
-fn usize_binary_instruction(
-    operator: BinaryOperator,
-    destination: UsizeLocation,
-    left: UsizeValue,
-    right: UsizeValue,
-) -> Instruction {
-    match operator {
-        BinaryOperator::Add => Instruction::AddUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Subtract => Instruction::SubtractUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Multiply => Instruction::MultiplyUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Divide => Instruction::DivideUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::Remainder => Instruction::RemainderUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftLeft => Instruction::ShiftLeftUsize {
-            destination,
-            left,
-            right,
-        },
-        BinaryOperator::ShiftRight => Instruction::ShiftRightUsize {
-            destination,
-            left,
-            right,
-        },
-    }
-}
-
-fn integer_binary_operator(operator: BinaryOperator) -> IntegerBinaryOperator {
-    match operator {
-        BinaryOperator::Add => IntegerBinaryOperator::Add,
-        BinaryOperator::Subtract => IntegerBinaryOperator::Subtract,
-        BinaryOperator::Multiply => IntegerBinaryOperator::Multiply,
-        BinaryOperator::Divide => IntegerBinaryOperator::Divide,
-        BinaryOperator::Remainder => IntegerBinaryOperator::Remainder,
-        BinaryOperator::ShiftLeft => IntegerBinaryOperator::ShiftLeft,
-        BinaryOperator::ShiftRight => IntegerBinaryOperator::ShiftRight,
-    }
 }
 
 fn i32_location(
