@@ -113,7 +113,7 @@ func main(): i32 {
             Instruction::If { then_instructions, .. }
             if then_instructions.contains(&Instruction::SetUsizeFromBorrow {
                 destination: UsizeLocation::Return,
-                source: BorrowSource::AggregateParameter(0),
+                source: BorrowSource::BorrowParameter(0),
             }) && then_instructions.contains(&Instruction::ReturnOutcomeSuccess)
         )),
         "{maybe:?}"

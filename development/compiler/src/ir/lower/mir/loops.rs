@@ -2,7 +2,7 @@
 
 use super::control_flow;
 use super::{
-    lower_bool_operand, lower_call_argument, lower_call_target, lower_outcome_call,
+    lower_bool_operand, lower_call_arguments, lower_call_target, lower_outcome_call,
     lower_outcome_intrinsic_call, lower_returning_call, lower_statements, outcome_failure_mode,
 };
 use crate::diagnostics::Diagnostic;
@@ -544,10 +544,7 @@ fn lower_terminal_call(
         context.function_names,
         context.root_source,
     )?;
-    let arguments = arguments
-        .iter()
-        .map(|argument| lower_call_argument(argument, context))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = lower_call_arguments(arguments, context)?;
     super::validate_never_call_return_type(
         &call_target,
         &callee_name,
@@ -655,10 +652,7 @@ fn lower_linear_call_terminator(
         context.function_names,
         context.root_source,
     )?;
-    let arguments = arguments
-        .iter()
-        .map(|argument| lower_call_argument(argument, context))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = lower_call_arguments(arguments, context)?;
     match continuation {
         CallContinuation::Continue { target } => {
             super::validate_effect_call_return_type(

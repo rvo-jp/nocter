@@ -388,6 +388,13 @@ fn reject_rvalue_moves(
 ) {
     match value {
         Rvalue::Use(operand) => reject_operand_move(body, block, operand, state, errors),
+        Rvalue::Error { code, message } => {
+            reject_operand_move(body, block, code, state, errors);
+            reject_operand_move(body, block, message, state, errors);
+        }
+        Rvalue::Discriminant { source, .. } => {
+            reject_operand_move(body, block, source, state, errors);
+        }
         Rvalue::Variant { leaves, .. } => {
             for leaf in leaves {
                 reject_operand_move(body, block, &leaf.operand, state, errors);
@@ -400,7 +407,9 @@ fn reject_rvalue_moves(
         } => {
             reject_operand_move(body, block, operand, state, errors);
         }
-        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
+        Rvalue::Binary { left, right, .. }
+        | Rvalue::Compare { left, right, .. }
+        | Rvalue::ViewCompare { left, right, .. } => {
             reject_operand_move(body, block, left, state, errors);
             reject_operand_move(body, block, right, state, errors);
         }

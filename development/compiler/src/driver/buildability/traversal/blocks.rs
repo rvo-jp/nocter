@@ -23,7 +23,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     enqueue_drop_targets_in_callable(callable, root_source, queue);
 
     if let Some(closure) = &callable.closure_mir
-        && let Some((return_representation, return_mode)) =
+        && let Some((return_representation, return_mode, outcome_layers)) =
             callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
@@ -43,6 +43,11 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                         resolved: callable.resolved,
                         resolved_sources,
                         typed_hir: callable.typed_hir,
+                        declared_return_ty: callable
+                            .return_type
+                            .as_ref()
+                            .and_then(|ty| callable.typed_hir.type_id(ty)),
+                        outcome_layers: outcome_layers.clone(),
                     },
                 )
             },
@@ -79,7 +84,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     }
 
     if let Some(parameters) = callable.mir_parameters
-        && let Some((return_representation, return_mode)) =
+        && let Some((return_representation, return_mode, outcome_layers)) =
             callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
@@ -110,6 +115,11 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                         resolved: callable.resolved,
                         resolved_sources,
                         typed_hir: &specialized_hir,
+                        declared_return_ty: callable
+                            .return_type
+                            .as_ref()
+                            .and_then(|ty| specialized_hir.type_id(ty)),
+                        outcome_layers: outcome_layers.clone(),
                     },
                 )
             },
@@ -206,21 +216,32 @@ fn enqueue_mir_call_targets(
 fn callable_return_contract(
     callable: &IndexedCallable<'_>,
     resolved_sources: &ResolvedSources<'_>,
-) -> Option<(crate::mir::ValueRepresentation, crate::mir::ReturnMode)> {
+) -> Option<(
+    crate::mir::ValueRepresentation,
+    crate::mir::ReturnMode,
+    Vec<crate::outcomes::OutcomeLayer>,
+)> {
     let return_type = callable.return_type.as_ref()?;
     let outcome_shape = outcome_shape_with_resolver(return_type, callable.resolved, |source| {
         resolved_sources.get(&source).copied()
     });
-    let return_mode = match outcome_shape.layers.as_slice() {
-        [] => crate::mir::ReturnMode::Plain,
-        [crate::outcomes::OutcomeLayer::Fallible] => crate::mir::ReturnMode::Fallible,
-        _ => return None,
+    let return_mode = if outcome_shape
+        .layers
+        .contains(&crate::outcomes::OutcomeLayer::Fallible)
+    {
+        crate::mir::ReturnMode::Fallible
+    } else {
+        crate::mir::ReturnMode::Plain
     };
     if matches!(
         &outcome_shape.payload,
         TypeExpr::Reference(reference) if reference.name == "void"
     ) {
-        return Some((crate::mir::ValueRepresentation::Unit, return_mode));
+        return Some((
+            crate::mir::ValueRepresentation::Unit,
+            return_mode,
+            outcome_shape.layers,
+        ));
     }
     let value = abi_value_from_type_expr_with_resolver(
         &outcome_shape.payload,
@@ -246,7 +267,7 @@ fn callable_return_contract(
         }
         _ => return None,
     };
-    Some((representation, return_mode))
+    Some((representation, return_mode, outcome_shape.layers))
 }
 
 fn scalar_integer(kind: crate::integer::IntegerType) -> crate::mir::ValueRepresentation {

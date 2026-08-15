@@ -392,6 +392,11 @@ fn owned_place(body: &Body, place: Place) -> bool {
 fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState) {
     match value {
         Rvalue::Use(operand) => consume_operand_move(body, operand, state),
+        Rvalue::Error { code, message } => {
+            consume_operand_move(body, code, state);
+            consume_operand_move(body, message, state);
+        }
+        Rvalue::Discriminant { source, .. } => consume_operand_move(body, source, state),
         Rvalue::Variant { leaves, .. } => {
             for leaf in leaves {
                 consume_operand_move(body, &leaf.operand, state);
@@ -404,7 +409,9 @@ fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState
         } => {
             consume_operand_move(body, operand, state);
         }
-        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
+        Rvalue::Binary { left, right, .. }
+        | Rvalue::Compare { left, right, .. }
+        | Rvalue::ViewCompare { left, right, .. } => {
             consume_operand_move(body, left, state);
             consume_operand_move(body, right, state);
         }

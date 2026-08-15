@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 pub(super) struct LoweringContext<'a> {
     pub(super) semantic: SemanticInputs<'a>,
+    pub(super) outcome_contract: Option<crate::mir::OutcomeContract>,
     pub(super) locals: Vec<Local>,
     pub(super) places_by_symbol: HashMap<LocalSymbolId, crate::mir::Place>,
     pub(super) projections: Vec<ProjectionPath>,
@@ -43,6 +44,7 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn new(
         semantic: SemanticInputs<'a>,
+        outcome_contract: Option<crate::mir::OutcomeContract>,
         locals: Vec<Local>,
         places_by_symbol: HashMap<LocalSymbolId, crate::mir::Place>,
         drop_plans: Vec<DropPlan>,
@@ -53,6 +55,7 @@ impl<'a> LoweringContext<'a> {
         debug_assert_eq!(root_scope.index(), 0);
         Self {
             semantic,
+            outcome_contract,
             locals,
             places_by_symbol,
             projections,

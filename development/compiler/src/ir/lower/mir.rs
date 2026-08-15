@@ -40,10 +40,19 @@ pub(super) struct BackendContext<'a> {
     root_source: SourceId,
 }
 
+fn success_return_instruction(body: &Body) -> Instruction {
+    if body.outcome_contract.is_some() {
+        Instruction::ReturnOutcomeSuccess
+    } else {
+        Instruction::Return
+    }
+}
+
 pub(super) fn try_lower_body(
     cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
     parameters: &[crate::ast::Parameter],
+    return_type_expr: &crate::ast::TypeExpr,
     return_type: &Type,
     resolved: &ResolveOutput,
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
@@ -58,12 +67,12 @@ pub(super) fn try_lower_body(
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
     let specialized_hir = (!substitutions.is_empty()).then(|| typed_hir.specialized(substitutions));
     let typed_hir = specialized_hir.as_ref().unwrap_or(typed_hir);
-    let (return_representation, return_mode) = return_contract(return_type)?;
+    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)?;
     let body_id = resolved.semantic_db.body_at(body.span)?;
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
-    let mir_body =
-        cache.get_or_build_specialized(body.span.source, body_id, substitutions, || {
+    let mir_body = cache
+        .get_or_build_specialized(body.span.source, body_id, substitutions, || {
             crate::mir::try_build_body_with_return_mode(
                 body,
                 parameters,
@@ -74,9 +83,12 @@ pub(super) fn try_lower_body(
                     resolved,
                     resolved_sources,
                     typed_hir,
+                    declared_return_ty: typed_hir.type_id(return_type_expr),
+                    outcome_layers: outcome_layers.clone(),
                 },
             )
-        })?;
+        })
+        .unwrap_or(Err(crate::mir::BuildError::MissingSourceBody));
     Some(lower_cached_body(
         mir_body,
         return_type,
@@ -111,16 +123,13 @@ pub(super) fn try_lower_closure_body(
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    let (return_representation, return_mode) = return_contract(return_type)?;
+    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)?;
     let body_id = resolved.semantic_db.body_at(expression.body.span)?;
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
     let substitutions = std::collections::HashMap::new();
-    let mir_body = cache.get_or_build_specialized(
-        expression.body.span.source,
-        body_id,
-        &substitutions,
-        || {
+    let mir_body = cache
+        .get_or_build_specialized(expression.body.span.source, body_id, &substitutions, || {
             crate::mir::try_build_closure_body(
                 expression,
                 closure_ty,
@@ -132,10 +141,12 @@ pub(super) fn try_lower_closure_body(
                     resolved,
                     resolved_sources,
                     typed_hir,
+                    declared_return_ty: typed_hir.type_id(closure_ty.return_type.as_ref()),
+                    outcome_layers: outcome_layers.clone(),
                 },
             )
-        },
-    )?;
+        })
+        .unwrap_or(Err(crate::mir::BuildError::MissingSourceBody));
     Some(lower_cached_body(
         mir_body,
         return_type,
@@ -152,80 +163,43 @@ pub(super) fn try_lower_closure_body(
     ))
 }
 
-fn return_contract(return_type: &Type) -> Option<(crate::mir::ValueRepresentation, ReturnMode)> {
-    Some(match return_type {
-        Type::Void => (crate::mir::ValueRepresentation::Unit, ReturnMode::Plain),
-        Type::I32 => (
-            crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
-            ReturnMode::Plain,
-        ),
-        Type::U8 => (
-            crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
-            ReturnMode::Plain,
-        ),
-        Type::Usize => (
-            crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
-            ReturnMode::Plain,
-        ),
-        Type::Integer(kind) => (
-            crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
-            ReturnMode::Plain,
-        ),
-        Type::Bool => (
-            crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
-            ReturnMode::Plain,
-        ),
-        Type::Str => (
-            crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
-            ReturnMode::Plain,
-        ),
-        Type::Slice { .. } => (
-            crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
-            ReturnMode::Plain,
-        ),
-        Type::Borrow { .. } => (crate::mir::ValueRepresentation::Borrow, ReturnMode::Plain),
-        Type::Aggregate { .. } | Type::DirectAggregate { .. } => (
-            crate::mir::ValueRepresentation::Aggregate,
-            ReturnMode::Plain,
-        ),
-        Type::Optional(_) | Type::ComposedOutcome { .. } => (
-            crate::mir::ValueRepresentation::Aggregate,
-            ReturnMode::Plain,
-        ),
-        Type::Fallible(success) => match success.as_ref() {
-            Type::Void => (crate::mir::ValueRepresentation::Unit, ReturnMode::Fallible),
-            Type::I32 => (
-                crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
-                ReturnMode::Fallible,
-            ),
-            Type::U8 => (
-                crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
-                ReturnMode::Fallible,
-            ),
-            Type::Usize => (
-                crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
-                ReturnMode::Fallible,
-            ),
-            Type::Integer(kind) => (
-                crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
-                ReturnMode::Fallible,
-            ),
-            Type::Bool => (
-                crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
-                ReturnMode::Fallible,
-            ),
-            Type::Str => (
-                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
-                ReturnMode::Fallible,
-            ),
-            Type::Slice { .. } => (
-                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
-                ReturnMode::Fallible,
-            ),
-            _ => return None,
-        },
+fn return_contract(
+    return_type: &Type,
+) -> Option<(
+    crate::mir::ValueRepresentation,
+    ReturnMode,
+    Vec<crate::outcomes::OutcomeLayer>,
+)> {
+    let return_mode = if return_type.contains_outcome_layer(crate::outcomes::OutcomeLayer::Fallible)
+    {
+        ReturnMode::Fallible
+    } else {
+        ReturnMode::Plain
+    };
+    let success = return_type.success_type();
+    let representation = match success {
+        Type::Void => crate::mir::ValueRepresentation::Unit,
+        Type::I32 => crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
+        Type::U8 => crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
+        Type::Usize => crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
+        Type::Integer(kind) => crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
+        Type::Bool => crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
+        Type::Str => crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+        Type::Slice { .. } => crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice),
+        Type::Borrow { .. } => crate::mir::ValueRepresentation::Borrow,
+        Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
+            crate::mir::ValueRepresentation::Aggregate
+        }
+        Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. } => return None,
         _ => return None,
-    })
+    };
+    let outcome_layers = match return_type {
+        Type::Optional(_) => vec![crate::outcomes::OutcomeLayer::Optional],
+        Type::Fallible(_) => vec![crate::outcomes::OutcomeLayer::Fallible],
+        Type::ComposedOutcome { outer, inner, .. } => vec![*outer, *inner],
+        _ => Vec::new(),
+    };
+    Some((representation, return_mode, outcome_layers))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -452,10 +426,7 @@ fn lower_scalar_body(
                 }
                 let (call_target, callee_name) =
                     lower_call_target(callee, resolved, typed_hir, function_names, root_source)?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, &context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, &context)?;
                 let fits_tail_call_abi = arguments
                     .iter()
                     .map(ScalarArgument::abi_word_count)
@@ -650,17 +621,11 @@ fn lower_scalar_body(
             }
             Terminator::ReturnValue { source } => {
                 instructions.extend(lower_value_return(&context, source)?);
-                instructions.push(match body.return_mode {
-                    ReturnMode::Plain => Instruction::Return,
-                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-                });
+                instructions.push(success_return_instruction(body));
                 return Ok(instructions);
             }
             Terminator::Return => {
-                instructions.push(match body.return_mode {
-                    ReturnMode::Plain => Instruction::Return,
-                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-                });
+                instructions.push(success_return_instruction(body));
                 return Ok(instructions);
             }
         }
@@ -869,10 +834,7 @@ fn lower_branch(
                     context.function_names,
                     context.root_source,
                 )?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, context)?;
                 validate_never_call_return_type(
                     &call_target,
                     &callee_name,
@@ -913,10 +875,7 @@ fn lower_branch(
                     context.function_names,
                     context.root_source,
                 )?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, context)?;
                 validate_effect_call_return_type(
                     &call_target,
                     &callee_name,
@@ -945,10 +904,7 @@ fn lower_branch(
                     context.function_names,
                     context.root_source,
                 )?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, context)?;
                 reserve_aggregate_destination(context, destination, &mut instructions)?;
                 instructions.push(lower_returning_call(
                     context,
@@ -991,10 +947,7 @@ fn lower_branch(
                     context.function_names,
                     context.root_source,
                 )?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, context)?;
                 validate_outcome_effect_call_return_type(
                     &call_target,
                     &callee_name,
@@ -1064,10 +1017,7 @@ fn lower_branch(
                     context.function_names,
                     context.root_source,
                 )?;
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| lower_call_argument(argument, context))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = lower_call_arguments(arguments, context)?;
                 instructions.push(lower_outcome_call(
                     context,
                     destination,
@@ -1107,10 +1057,7 @@ fn lower_branch(
                 current = branch_join;
             }
             Terminator::Return => {
-                instructions.push(match body.return_mode {
-                    ReturnMode::Plain => Instruction::Return,
-                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-                });
+                instructions.push(success_return_instruction(body));
                 return Ok(instructions);
             }
             Terminator::Trap => {
@@ -1135,6 +1082,11 @@ fn lower_branch(
                 instructions.push(outcomes::lower_return(context, source)?);
                 return Ok(instructions);
             }
+            Terminator::ReturnOutcomeSuccess { source } => {
+                instructions.extend(lower_outcome_success_return(context, source)?);
+                instructions.push(Instruction::ReturnOutcomeSuccess);
+                return Ok(instructions);
+            }
             Terminator::ReturnFailure { code, message } => {
                 if body.return_mode != ReturnMode::Fallible {
                     return Err(invalid_mir_diagnostics(
@@ -1149,10 +1101,7 @@ fn lower_branch(
             }
             Terminator::ReturnValue { source } => {
                 instructions.extend(lower_value_return(context, source)?);
-                instructions.push(match body.return_mode {
-                    ReturnMode::Plain => Instruction::Return,
-                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-                });
+                instructions.push(success_return_instruction(body));
                 return Ok(instructions);
             }
             _ => {
@@ -1205,10 +1154,17 @@ pub(super) fn lower_outcome_success_return(
                 value: lower_slice_operand(source, context)?,
             }
         }
-        crate::mir::ValueRepresentation::Borrow => Instruction::SetUsize {
-            destination: UsizeLocation::Return,
-            value: lower_usize_operand(source, context)?,
-        },
+        crate::mir::ValueRepresentation::Borrow => {
+            let (Operand::Copy(source) | Operand::Move(source)) = source else {
+                return Err(invalid_mir_diagnostics(
+                    "borrow outcome success return is not backed by a place",
+                ));
+            };
+            Instruction::SetUsizeFromBorrow {
+                destination: UsizeLocation::Return,
+                source: lower_borrow_source(*source, context)?,
+            }
+        }
         crate::mir::ValueRepresentation::Aggregate => {
             let (Operand::Copy(source) | Operand::Move(source)) = source else {
                 return Err(invalid_mir_diagnostics(
@@ -1436,12 +1392,19 @@ fn reserve_aggregate_destination(
         return Ok(());
     }
     let value = aggregate_local_abi_value(local.ty, context)?;
-    let crate::ir::AggregateLocation::Slot(slot_index) = aggregate_location(destination, context)?
+    let crate::ir::AggregateLocation::Slot(slot_index) =
+        aggregate_location(&Place::local(destination.local), context)?
     else {
         return Err(invalid_mir_diagnostics(
             "aggregate local destination is not slot-backed",
         ));
     };
+    if instructions.iter().any(|instruction| {
+        matches!(instruction, Instruction::ReserveAggregateSlot { slot_index: reserved, .. }
+            if *reserved == slot_index)
+    }) {
+        return Ok(());
+    }
     instructions.push(Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
@@ -1599,10 +1562,7 @@ pub(super) fn lower_outcome_intrinsic_call(
     arguments: &[crate::mir::CallArgument],
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let arguments = arguments
-        .iter()
-        .map(|argument| lower_call_argument(argument, context))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = lower_call_arguments(arguments, context)?;
     let invalid_shape = || {
         invalid_mir_diagnostics(format!(
             "intrinsic `{}` has an invalid checked MIR call shape",
@@ -1833,6 +1793,65 @@ fn lower_call_argument(
             ));
         }
     })
+}
+
+fn lower_call_arguments(
+    arguments: &[crate::mir::CallArgument],
+    context: &BackendContext<'_>,
+) -> Result<Vec<ScalarArgument>, Vec<Diagnostic>> {
+    let mut lowered = Vec::new();
+    for argument in arguments {
+        if argument.representation == crate::mir::ValueRepresentation::Error {
+            let (Operand::Copy(place) | Operand::Move(place)) = &argument.operand else {
+                return Err(invalid_mir_diagnostics(
+                    "logical error call argument is not a stored place",
+                ));
+            };
+            let declaration = context
+                .body
+                .locals
+                .get(place.local.index())
+                .ok_or_else(|| {
+                    invalid_mir_diagnostics("logical error call argument local is missing")
+                })?;
+            if place.projection.is_some()
+                || declaration.representation != crate::mir::ValueRepresentation::Error
+            {
+                return Err(invalid_mir_diagnostics(
+                    "logical error call argument has an invalid place",
+                ));
+            }
+            let (code, message) = match declaration.storage {
+                LocalStorage::Local => {
+                    let base = machine_local_index(context.body, place.local);
+                    (StrLocation::Local(base), StrLocation::Local(base + 2))
+                }
+                LocalStorage::Parameter { ordinal } => {
+                    let Some(parameters::ParameterStorage::Error { abi_index }) =
+                        context.parameters.get(ordinal)
+                    else {
+                        return Err(invalid_mir_diagnostics(
+                            "logical error parameter has no matching ABI projection",
+                        ));
+                    };
+                    (
+                        StrLocation::Parameter(abi_index),
+                        StrLocation::Parameter(abi_index + 2),
+                    )
+                }
+                LocalStorage::Return => {
+                    return Err(invalid_mir_diagnostics(
+                        "logical error return storage cannot be a call argument",
+                    ));
+                }
+            };
+            lowered.push(ScalarArgument::Str(StrValue::Location(code)));
+            lowered.push(ScalarArgument::Str(StrValue::Location(message)));
+        } else {
+            lowered.push(lower_call_argument(argument, context)?);
+        }
+    }
+    Ok(lowered)
 }
 
 fn lower_borrow_argument_source(
@@ -2126,20 +2145,108 @@ fn lower_statements(
                 value: U8Value::Const(abi_variant.tag),
             });
             for leaf in leaves {
-                let (offset, leaf_abi) =
-                    enum_variant_leaf_projection(enum_, abi_variant, &leaf.path)?;
-                if !abi_type_matches_scalar(leaf_abi, leaf.scalar) {
-                    return Err(invalid_mir_diagnostics(
-                        "variant MIR leaf scalar does not match its ABI projection",
-                    ));
+                let (offset, leaf_abi) = enum_variant_leaf_projection(
+                    enum_,
+                    abi_variant,
+                    signature.payload.len(),
+                    &leaf.path,
+                )?;
+                match leaf.representation {
+                    crate::mir::ValueRepresentation::Scalar(scalar) => {
+                        if !abi_type_matches_scalar(leaf_abi, scalar) {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR leaf scalar does not match its ABI projection",
+                            ));
+                        }
+                        instructions.push(store_aggregate_scalar(
+                            location,
+                            offset,
+                            scalar,
+                            &leaf.operand,
+                            context,
+                        )?);
+                    }
+                    crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+                        if !matches!(leaf_abi, crate::abi::AbiType::StrView) {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR string leaf does not match its ABI projection",
+                            ));
+                        }
+                        let value = lower_str_operand(&leaf.operand, context)?;
+                        let StrValue::Location(source) = value else {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR string leaf must be materialized",
+                            ));
+                        };
+                        instructions.push(Instruction::StoreAggregateUsize {
+                            destination: location,
+                            offset,
+                            value: UsizeValue::StrPointer(source),
+                        });
+                        instructions.push(Instruction::StoreAggregateUsize {
+                            destination: location,
+                            offset: offset + crate::abi::ABI_WORD_SIZE as u32,
+                            value: UsizeValue::StrLen(source),
+                        });
+                    }
+                    crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) => {
+                        if !matches!(leaf_abi, crate::abi::AbiType::SliceView) {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR slice leaf does not match its ABI projection",
+                            ));
+                        }
+                        let value = lower_slice_operand(&leaf.operand, context)?;
+                        let SliceValue::Location(source) = value else {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR slice leaf must be materialized",
+                            ));
+                        };
+                        instructions.push(Instruction::StoreAggregateUsize {
+                            destination: location,
+                            offset,
+                            value: UsizeValue::SlicePointer(source),
+                        });
+                        instructions.push(Instruction::StoreAggregateUsize {
+                            destination: location,
+                            offset: offset + crate::abi::ABI_WORD_SIZE as u32,
+                            value: UsizeValue::SliceLen(source),
+                        });
+                    }
+                    crate::mir::ValueRepresentation::Borrow => {
+                        if !matches!(leaf_abi, crate::abi::AbiType::Borrow) {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR borrow leaf does not match its ABI projection",
+                            ));
+                        }
+                        instructions.push(Instruction::StoreAggregateUsize {
+                            destination: location,
+                            offset,
+                            value: lower_stored_borrow_pointer(&leaf.operand, context)?,
+                        });
+                    }
+                    crate::mir::ValueRepresentation::Aggregate => {
+                        let (Operand::Copy(source) | Operand::Move(source)) = &leaf.operand else {
+                            return Err(invalid_mir_diagnostics(
+                                "variant MIR aggregate leaf is not stored in a place",
+                            ));
+                        };
+                        let layout = crate::abi::layout_of(leaf_abi)
+                            .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+                        instructions.push(Instruction::CopyAggregateRange {
+                            destination: location,
+                            destination_offset: offset,
+                            source: aggregate_location(source, context)?,
+                            source_offset: 0,
+                            layout,
+                        });
+                    }
+                    crate::mir::ValueRepresentation::Unit
+                    | crate::mir::ValueRepresentation::Error => {
+                        return Err(invalid_mir_diagnostics(
+                            "variant MIR leaf has no aggregate ABI representation",
+                        ));
+                    }
                 }
-                instructions.push(store_aggregate_scalar(
-                    location,
-                    offset,
-                    leaf.scalar,
-                    &leaf.operand,
-                    context,
-                )?);
             }
             continue;
         }
@@ -2150,6 +2257,34 @@ fn lower_statements(
                 body.locals[destination.local.index()].representation,
                 |path| path.representation,
             );
+        if destination_representation == crate::mir::ValueRepresentation::Error {
+            let (destination_code, destination_message) =
+                error_place_locations(*destination, context)?;
+            let (code, message) = match value {
+                Rvalue::Error { code, message } => (
+                    lower_str_operand(code, context)?,
+                    lower_str_operand(message, context)?,
+                ),
+                Rvalue::Use(Operand::Copy(source) | Operand::Move(source)) => {
+                    let (code, message) = error_place_locations(*source, context)?;
+                    (StrValue::Location(code), StrValue::Location(message))
+                }
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "logical error assignment has an invalid MIR value",
+                    ));
+                }
+            };
+            instructions.push(Instruction::SetStr {
+                destination: destination_code,
+                value: code,
+            });
+            instructions.push(Instruction::SetStr {
+                destination: destination_message,
+                value: message,
+            });
+            continue;
+        }
         if let Rvalue::Intrinsic {
             intrinsic,
             arguments,
@@ -2269,6 +2404,10 @@ fn lower_statements(
             if destination.projection.is_none()
                 && let Operand::Copy(source) | Operand::Move(source) = operand
                 && let Some(source_projection) = source.projection
+                && !matches!(
+                    context.body.projections[source_projection.index()].element,
+                    crate::mir::ProjectionElement::ViewIndex { .. }
+                )
             {
                 let (pointer, len) = str_word_locations(str_location(destination, context)?)?;
                 instructions.push(load_projected_aggregate_usize(
@@ -2393,7 +2532,11 @@ fn lower_statements(
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
+                    Rvalue::Variant { .. }
+                    | Rvalue::Discriminant { .. }
+                    | Rvalue::ViewCompare { .. }
+                    | Rvalue::Error { .. }
+                    | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2475,8 +2618,23 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
+                    Rvalue::Variant { .. }
+                    | Rvalue::ViewCompare { .. }
+                    | Rvalue::Error { .. }
+                    | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
+                    }
+                    Rvalue::Discriminant { source, .. } => {
+                        let (Operand::Copy(source) | Operand::Move(source)) = source else {
+                            return Err(invalid_mir_diagnostics(
+                                "enum discriminant source is not a stored aggregate",
+                            ));
+                        };
+                        instructions.push(Instruction::LoadAggregateU8 {
+                            destination,
+                            source: aggregate_location(source, context)?,
+                            offset: 0,
+                        });
                     }
                     Rvalue::Use(operand) => {
                         if let Some(instruction) = aggregate_scalar_load(
@@ -2552,7 +2710,11 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
+                    Rvalue::Variant { .. }
+                    | Rvalue::Discriminant { .. }
+                    | Rvalue::ViewCompare { .. }
+                    | Rvalue::Error { .. }
+                    | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2628,7 +2790,11 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
-                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
+                    Rvalue::Variant { .. }
+                    | Rvalue::Discriminant { .. }
+                    | Rvalue::ViewCompare { .. }
+                    | Rvalue::Error { .. }
+                    | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2717,7 +2883,10 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. } | Rvalue::Intrinsic { .. } => {
+                    Rvalue::Variant { .. }
+                    | Rvalue::Discriminant { .. }
+                    | Rvalue::Error { .. }
+                    | Rvalue::Intrinsic { .. } => {
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
@@ -2775,6 +2944,38 @@ fn lower_statements(
                         destination,
                         value: lower_comparison(*operator, left, right, *operand_scalar, context)?,
                     }),
+                    Rvalue::ViewCompare {
+                        operator,
+                        left,
+                        right,
+                        kind: crate::mir::ViewKind::Str,
+                        ..
+                    } => {
+                        let operator = match operator {
+                            ComparisonOperator::Equal => crate::ir::BoolComparisonOperator::Equal,
+                            ComparisonOperator::NotEqual => {
+                                crate::ir::BoolComparisonOperator::NotEqual
+                            }
+                            _ => {
+                                return Err(invalid_mir_diagnostics(
+                                    "string views support only equality comparisons",
+                                ));
+                            }
+                        };
+                        instructions.push(Instruction::SetBool {
+                            destination,
+                            value: BoolValue::StrComparison {
+                                operator,
+                                left: lower_str_operand(left, context)?,
+                                right: lower_str_operand(right, context)?,
+                            },
+                        });
+                    }
+                    Rvalue::ViewCompare { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received an unsupported view comparison",
+                        ));
+                    }
                     Rvalue::ViewIndex {
                         source,
                         kind: crate::mir::ViewKind::Slice,
@@ -3110,6 +3311,7 @@ fn enum_variant_signature<'a>(
 fn enum_variant_leaf_projection<'a>(
     enum_: &'a crate::abi::AbiEnum,
     variant: &'a crate::abi::AbiEnumVariant,
+    declared_payload_count: usize,
     path: &[crate::mir::AggregateElement],
 ) -> Result<(u32, &'a crate::abi::AbiType), Vec<Diagnostic>> {
     let Some(crate::mir::AggregateElement::VariantPayload(payload_index)) = path.first() else {
@@ -3122,7 +3324,8 @@ fn enum_variant_leaf_projection<'a>(
         .as_ref()
         .ok_or_else(|| invalid_mir_diagnostics("payloadless MIR variant has payload leaves"))?;
     let (payload_offset, payload_ty) = match payload {
-        crate::abi::AbiType::Struct(fields) if fields.len() > 1 => {
+        payload if declared_payload_count == 1 && *payload_index == 0 => (0, payload),
+        crate::abi::AbiType::Struct(fields) if declared_payload_count == fields.len() => {
             let layout = crate::abi::layout_struct(fields)
                 .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
             let field = fields.get(*payload_index).ok_or_else(|| {
@@ -3135,7 +3338,6 @@ fn enum_variant_leaf_projection<'a>(
                 .ok_or_else(|| invalid_mir_diagnostics("variant MIR payload layout is missing"))?;
             (offset, &field.ty)
         }
-        payload if *payload_index == 0 => (0, payload),
         _ => {
             return Err(invalid_mir_diagnostics(
                 "variant MIR payload index does not match its ABI",
@@ -3402,6 +3604,51 @@ fn error_locations(
     }
     let base = storage::machine_local_index(body, local);
     Ok((StrLocation::Local(base), StrLocation::Local(base + 2)))
+}
+
+fn error_place_locations(
+    place: Place,
+    context: &BackendContext<'_>,
+) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "logical error storage cannot be projected as another error",
+        ));
+    }
+    let declaration = context
+        .body
+        .locals
+        .get(place.local.index())
+        .ok_or_else(|| {
+            invalid_mir_diagnostics("logical error storage refers to a missing local")
+        })?;
+    if declaration.representation != crate::mir::ValueRepresentation::Error {
+        return Err(invalid_mir_diagnostics(
+            "logical error storage has a non-error representation",
+        ));
+    }
+    match declaration.storage {
+        LocalStorage::Local => {
+            let base = machine_local_index(context.body, place.local);
+            Ok((StrLocation::Local(base), StrLocation::Local(base + 2)))
+        }
+        LocalStorage::Parameter { ordinal } => {
+            let Some(parameters::ParameterStorage::Error { abi_index }) =
+                context.parameters.get(ordinal)
+            else {
+                return Err(invalid_mir_diagnostics(
+                    "logical error parameter has no matching ABI projection",
+                ));
+            };
+            Ok((
+                StrLocation::Parameter(abi_index),
+                StrLocation::Parameter(abi_index + 2),
+            ))
+        }
+        LocalStorage::Return => Err(invalid_mir_diagnostics(
+            "logical error return storage is not supported",
+        )),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4518,6 +4765,23 @@ fn lower_str_operand(
     match operand {
         Operand::StaticStr { bytes, .. } => Ok(StrValue::StaticBytes(bytes.clone())),
         Operand::Copy(place) | Operand::Move(place) => {
+            if let Some(projection) = place.projection
+                && let Some(path) = context.body.projections.get(projection.index())
+                && let crate::mir::ProjectionElement::ViewIndex { index } = &path.element
+            {
+                if path.parent.is_some()
+                    || context.body.locals[place.local.index()].representation
+                        != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+                {
+                    return Err(invalid_mir_diagnostics(
+                        "string slice index has an invalid MIR base",
+                    ));
+                }
+                return Ok(StrValue::SliceIndex {
+                    source: slice_location(&Place::local(place.local), context)?,
+                    index: lower_direct_usize_index(index, context)?,
+                });
+            }
             if place.projection.is_none()
                 && let Some(source) = storage::inlined_view_cast_source(context.body, place.local)
             {
@@ -4548,20 +4812,33 @@ fn str_location(
             ));
         };
         let declaration = &context.body.locals[place.local.index()];
-        if declaration.representation != crate::mir::ValueRepresentation::Error
-            || declaration.storage != LocalStorage::Local
-        {
+        if declaration.representation != crate::mir::ValueRepresentation::Error {
             return Err(invalid_mir_diagnostics(
                 "error field projection is not backed by a logical error local",
             ));
         }
-        let base = machine_local_index(context.body, place.local);
-        return Ok(StrLocation::Local(
-            base + match field {
-                crate::builtin_types::BuiltinErrorField::Code => 0,
-                crate::builtin_types::BuiltinErrorField::Message => 2,
-            },
-        ));
+        let field_offset = match field {
+            crate::builtin_types::BuiltinErrorField::Code => 0,
+            crate::builtin_types::BuiltinErrorField::Message => 2,
+        };
+        return match declaration.storage {
+            LocalStorage::Local => Ok(StrLocation::Local(
+                machine_local_index(context.body, place.local) + field_offset,
+            )),
+            LocalStorage::Parameter { ordinal } => {
+                let Some(parameters::ParameterStorage::Error { abi_index }) =
+                    context.parameters.get(ordinal)
+                else {
+                    return Err(invalid_mir_diagnostics(
+                        "logical error parameter has no matching ABI projection",
+                    ));
+                };
+                Ok(StrLocation::Parameter(abi_index + field_offset))
+            }
+            LocalStorage::Return => Err(invalid_mir_diagnostics(
+                "logical error return field cannot be projected",
+            )),
+        };
     }
     match context.body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(StrLocation::Return),
@@ -4603,10 +4880,7 @@ fn lower_intrinsic_assignment(
     type_arguments: &[crate::semantic::TyId],
     context: &BackendContext<'_>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let arguments = arguments
-        .iter()
-        .map(|argument| lower_call_argument(argument, context))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = lower_call_arguments(arguments, context)?;
     let invalid = || invalid_mir_diagnostics("intrinsic MIR argument contract is invalid");
     let instruction = match (intrinsic, arguments.as_slice()) {
         (
@@ -4831,10 +5105,7 @@ fn lower_intrinsic_effect(
     type_arguments: &[crate::semantic::TyId],
     context: &BackendContext<'_>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let arguments = arguments
-        .iter()
-        .map(|argument| lower_call_argument(argument, context))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = lower_call_arguments(arguments, context)?;
     let invalid = || invalid_mir_diagnostics("intrinsic MIR effect contract is invalid");
     Ok(match (intrinsic, arguments.as_slice()) {
         (crate::intrinsics::IntrinsicId::CloseFdRaw, [ScalarArgument::I32(fd)]) => {

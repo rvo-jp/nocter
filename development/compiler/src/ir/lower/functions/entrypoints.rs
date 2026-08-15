@@ -255,6 +255,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         mir_bodies,
         body,
         &parameters,
+        &return_type_expr,
         &return_type,
         resolved,
         &resolved_sources,

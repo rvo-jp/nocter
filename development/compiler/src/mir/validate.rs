@@ -501,6 +501,33 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                     ty
                 }
+                super::model::Rvalue::Error { code, message } => {
+                    if destination_representation != ValueRepresentation::Error {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    for operand in [code, message] {
+                        validate_operand_representation(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            operand,
+                            ValueRepresentation::View(super::ViewKind::Str),
+                            &mut errors,
+                        );
+                        validate_operand_ownership(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            operand,
+                            &mut errors,
+                        );
+                    }
+                    Some(destination_ty)
+                }
                 super::model::Rvalue::Variant { leaves, .. } => {
                     if destination_representation != ValueRepresentation::Aggregate {
                         errors.push(ValidationError::AssignmentRequiresScalar {
@@ -525,13 +552,25 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                                 statement: statement_index,
                             });
                         }
-                        validate_operand(
+                        let location = OperandLocation::Statement(statement_index);
+                        let actual_ty =
+                            operand_type(body, block_id, location, &leaf.operand, &mut errors);
+                        if let Some(actual) = actual_ty
+                            && actual != leaf.ty
+                        {
+                            errors.push(ValidationError::OperandTypeMismatch {
+                                block: block_id,
+                                location,
+                                expected: leaf.ty,
+                                actual,
+                            });
+                        }
+                        validate_operand_representation(
                             body,
                             block_id,
-                            OperandLocation::Statement(statement_index),
+                            location,
                             &leaf.operand,
-                            leaf.ty,
-                            leaf.scalar,
+                            leaf.representation,
                             &mut errors,
                         );
                         validate_operand_ownership(
@@ -543,6 +582,40 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         );
                     }
                     Some(destination_ty)
+                }
+                super::model::Rvalue::Discriminant {
+                    source,
+                    enum_ty,
+                    result_ty,
+                } => {
+                    let location = OperandLocation::Statement(statement_index);
+                    let actual_ty = operand_type(body, block_id, location, source, &mut errors);
+                    if actual_ty.is_some_and(|actual| actual != *enum_ty) {
+                        errors.push(ValidationError::OperandTypeMismatch {
+                            block: block_id,
+                            location,
+                            expected: *enum_ty,
+                            actual: actual_ty.unwrap(),
+                        });
+                    }
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        source,
+                        ValueRepresentation::Aggregate,
+                        &mut errors,
+                    );
+                    // Reading an enum tag observes storage without copying or
+                    // moving the aggregate value itself.
+                    if destination_representation != ValueRepresentation::Scalar(ScalarType::U8) {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    Some(*result_ty)
                 }
                 super::model::Rvalue::Unary {
                     operator,
@@ -735,6 +808,34 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             });
                         }
                         ValueRepresentation::Scalar(_) => {}
+                    }
+                    Some(*result_ty)
+                }
+                super::model::Rvalue::ViewCompare {
+                    left,
+                    right,
+                    kind,
+                    result_ty,
+                    ..
+                } => {
+                    let location = OperandLocation::Statement(statement_index);
+                    for operand in [left, right] {
+                        validate_operand_representation(
+                            body,
+                            block_id,
+                            location,
+                            operand,
+                            ValueRepresentation::View(*kind),
+                            &mut errors,
+                        );
+                        validate_operand_ownership(body, block_id, location, operand, &mut errors);
+                    }
+                    if destination_representation != ValueRepresentation::Scalar(ScalarType::Bool) {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
                     }
                     Some(*result_ty)
                 }
@@ -1462,7 +1563,10 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
             ProjectionElement::Dereference => {}
             ProjectionElement::ViewIndex { .. }
                 if parent_representation == ValueRepresentation::View(super::ViewKind::Slice)
-                    && matches!(projection.representation, ValueRepresentation::Scalar(_))
+                    && matches!(
+                        projection.representation,
+                        ValueRepresentation::Scalar(_) | ValueRepresentation::View(_)
+                    )
                     && projection.ownership == OwnershipKind::Copy
                     && projection.drop_plan.is_none() => {}
             ProjectionElement::ViewIndex { .. } => {
@@ -1872,7 +1976,7 @@ mod tests {
         let leaf = crate::mir::AggregateLeaf {
             path: vec![crate::mir::AggregateElement::VariantPayload(0)],
             ty,
-            scalar: ScalarType::I32,
+            representation: ValueRepresentation::Scalar(ScalarType::I32),
             operand: Operand::Constant(Constant {
                 ty,
                 scalar: ScalarType::I32,

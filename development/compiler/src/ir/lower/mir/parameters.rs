@@ -34,6 +34,9 @@ pub(super) enum ParameterStorage {
     Borrow {
         abi_index: usize,
     },
+    Error {
+        abi_index: usize,
+    },
     Aggregate {
         slot_index: usize,
         layout: ValueLayout,
@@ -125,6 +128,9 @@ fn storage_for_name(
         return Some(ParameterStorage::Borrow {
             abi_index: parameter.parameter_index,
         });
+    }
+    if let Some(abi_index) = named_word(&slots.error, name) {
+        return Some(ParameterStorage::Error { abi_index });
     }
     if let Some(parameter) = slots
         .aggregate_borrows

@@ -10,7 +10,7 @@ use crate::ast::{
 };
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
-use crate::resolve::{LocalSymbolId, ResolveOutput};
+use crate::resolve::{LocalSymbolId, ResolveOutput, SymbolKind};
 use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedHir};
 
 #[derive(Debug, Clone, Copy)]
@@ -18,6 +18,8 @@ pub(super) enum ScalarStatement<'a> {
     Binding(&'a BindingStmt),
     Assignment(&'a AssignmentStmt),
     If(&'a IfStmt),
+    IfIs(&'a crate::ast::IfIsStmt),
+    Match(&'a crate::ast::SwitchStmt),
     ForRange(&'a ForRangeStmt),
     CollectionFor(&'a CollectionForStmt),
     Loop(&'a LoopStmt),
@@ -1195,6 +1197,8 @@ impl<'a> ScalarStatement<'a> {
                     typed_hir,
                 },
             ),
+            Self::Match(_) => true,
+            Self::IfIs(_) => true,
             Self::Loop(statement) => {
                 scalar_loop_block_statements(&statement.body, resolved, resolved_sources, typed_hir)
                     .is_some()
@@ -1307,6 +1311,8 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
         Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
         Stmt::If(statement) => Some(ScalarStatement::If(statement)),
+        Stmt::IfIs(statement) => Some(ScalarStatement::IfIs(statement)),
+        Stmt::Switch(statement) => Some(ScalarStatement::Match(statement)),
         Stmt::ForRange(statement) => Some(ScalarStatement::ForRange(statement)),
         Stmt::CollectionFor(statement) => Some(ScalarStatement::CollectionFor(statement)),
         Stmt::Loop(statement) => Some(ScalarStatement::Loop(statement)),
@@ -1411,29 +1417,18 @@ pub(super) fn scalar_linear_block_statements<'a>(
     typed_hir: &TypedHir,
     in_loop: bool,
 ) -> Option<Vec<ScalarStatement<'a>>> {
-    let mut statements = block
+    let reachable = reachable_runtime_statements(block);
+    let mut statements = reachable
         .statements
         .iter()
-        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
+        .copied()
         .map(scalar_statement)
         .collect::<Option<Vec<_>>>()?;
     if let Some(result) = block.result.as_deref() {
         statements.push(ScalarStatement::Expression(result));
     }
     truncate_unreachable_scalar_tail(&mut statements);
-    for statement in &statements {
-        if matches!(
-            statement,
-            ScalarStatement::If(_)
-                | ScalarStatement::While(_)
-                | ScalarStatement::ForRange(_)
-                | ScalarStatement::CollectionFor(_)
-                | ScalarStatement::Loop(_)
-        ) || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, in_loop)
-        {
-            return None;
-        }
-    }
+    let _ = (resolved, resolved_sources, typed_hir, in_loop);
     Some(statements)
 }
 
@@ -1446,94 +1441,6 @@ fn truncate_unreachable_scalar_tail(statements: &mut Vec<ScalarStatement<'_>>) {
     }) {
         statements.truncate(index + 1);
     }
-}
-
-pub(super) fn block_contains_repeating_explicit_drop(block: &Block) -> bool {
-    block.statements.iter().any(|statement| match statement {
-        Stmt::ForRange(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::CollectionFor(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::LiteralPackFor(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::While(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::Loop(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::If(statement) => {
-            block_contains_repeating_explicit_drop(&statement.then_block)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(block_contains_repeating_explicit_drop)
-        }
-        Stmt::IfIs(statement) => {
-            block_contains_repeating_explicit_drop(&statement.then_block)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(block_contains_repeating_explicit_drop)
-        }
-        Stmt::Switch(statement) => {
-            statement
-                .arms
-                .iter()
-                .any(|arm| block_contains_repeating_explicit_drop(&arm.body))
-                || statement
-                    .wildcard_arm
-                    .as_ref()
-                    .is_some_and(|arm| block_contains_repeating_explicit_drop(&arm.body))
-        }
-        Stmt::Region(statement) => block_contains_repeating_explicit_drop(&statement.body),
-        Stmt::Import(_)
-        | Stmt::FromImport(_)
-        | Stmt::Return(_)
-        | Stmt::Binding(_)
-        | Stmt::Assignment(_)
-        | Stmt::Break(_)
-        | Stmt::Continue(_)
-        | Stmt::Drop(_)
-        | Stmt::Expression(_) => false,
-    })
-}
-
-fn block_contains_explicit_drop(block: &Block) -> bool {
-    block.statements.iter().any(|statement| match statement {
-        Stmt::Drop(_) => true,
-        Stmt::If(statement) => {
-            block_contains_explicit_drop(&statement.then_block)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(block_contains_explicit_drop)
-        }
-        Stmt::IfIs(statement) => {
-            block_contains_explicit_drop(&statement.then_block)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(block_contains_explicit_drop)
-        }
-        Stmt::Switch(statement) => {
-            statement
-                .arms
-                .iter()
-                .any(|arm| block_contains_explicit_drop(&arm.body))
-                || statement
-                    .wildcard_arm
-                    .as_ref()
-                    .is_some_and(|arm| block_contains_explicit_drop(&arm.body))
-        }
-        Stmt::ForRange(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::CollectionFor(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::LiteralPackFor(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::While(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::Loop(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::Region(statement) => block_contains_explicit_drop(&statement.body),
-        Stmt::Import(_)
-        | Stmt::FromImport(_)
-        | Stmt::Return(_)
-        | Stmt::Binding(_)
-        | Stmt::Assignment(_)
-        | Stmt::Break(_)
-        | Stmt::Continue(_)
-        | Stmt::Expression(_) => false,
-    })
 }
 
 fn scalar_conditional_statement_is_supported(
@@ -1573,29 +1480,23 @@ pub(super) fn scalar_loop_block_statements<'a>(
     if block.result.is_some() {
         return None;
     }
-    let mut statements = block
+    let reachable = reachable_runtime_statements(block);
+    let mut statements = reachable
         .statements
         .iter()
-        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
+        .copied()
         .map(scalar_statement)
         .collect::<Option<Vec<_>>>()?;
     truncate_unreachable_scalar_tail(&mut statements);
-    for statement in &statements {
-        if !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true) {
-            return None;
-        }
-    }
+    let _ = (resolved, resolved_sources, typed_hir);
     Some(statements)
 }
 
 pub(super) fn scalar_body_parts(
     block: &Block,
 ) -> Option<(Vec<ScalarStatement<'_>>, ScalarTail<'_>)> {
-    let runtime_statements = block
-        .statements
-        .iter()
-        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
-        .collect::<Vec<_>>();
+    let reachable = reachable_runtime_statements(block);
+    let runtime_statements = reachable.statements;
     let (body_statements, tail) = if let Some(result) = block.result.as_deref() {
         (
             runtime_statements.as_slice(),
@@ -1623,6 +1524,30 @@ pub(super) fn scalar_body_parts(
         .collect::<Option<Vec<_>>>()?;
     truncate_unreachable_scalar_tail(&mut statements);
     Some((statements, tail))
+}
+
+struct ReachableStatements<'a> {
+    statements: Vec<&'a Stmt>,
+}
+
+/// Select executable source before classifying statement families.  An
+/// unsupported construct after an unconditional exit is not part of the MIR
+/// body and therefore must not force a legacy-route decision.
+fn reachable_runtime_statements(block: &Block) -> ReachableStatements<'_> {
+    let mut statements = Vec::new();
+    for statement in &block.statements {
+        if matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)) {
+            continue;
+        }
+        statements.push(statement);
+        if matches!(
+            statement,
+            Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_)
+        ) {
+            break;
+        }
+    }
+    ReachableStatements { statements }
 }
 
 pub(super) fn terminal_return_type(
@@ -1788,21 +1713,27 @@ pub(super) fn scalar_expression_is_supported(
                 )
         }
         Expr::Binary(binary) => {
+            let semantic = SemanticInputs {
+                resolved,
+                resolved_sources,
+                typed_hir,
+            };
             (mir_binary_operator(binary.operator).is_some()
-                || scalar_comparison_is_supported(binary, typed_hir)
+                || scalar_comparison_is_supported(binary, semantic)
+                || view_comparison_is_supported(binary, semantic)
                 || scalar_logical_is_supported(binary, typed_hir))
-                && scalar_expression_is_supported(
-                    &binary.left,
-                    resolved,
-                    resolved_sources,
-                    typed_hir,
-                )
-                && scalar_expression_is_supported(
-                    &binary.right,
-                    resolved,
-                    resolved_sources,
-                    typed_hir,
-                )
+                && (view_comparison_is_supported(binary, semantic)
+                    || scalar_expression_is_supported(
+                        &binary.left,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    ) && scalar_expression_is_supported(
+                        &binary.right,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    ))
         }
         Expr::If(if_) => {
             scalar_conditional_is_supported(if_, resolved, resolved_sources, typed_hir)
@@ -1843,31 +1774,40 @@ pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticIn
     let Expr::Call(call) = expression.without_groups() else {
         return false;
     };
+    if let Some(symbol) = semantic.resolved.symbol_for_call(call)
+        && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
+        && signature.parameters.len() == 2
+        && call.arguments.len() == 2
+        && type_expr_resolves_to_error(&signature.return_type, semantic.resolved)
+    {
+        return true;
+    }
     let Some((owner, function)) = semantic.resolved.associated_function_for_call(call) else {
         return false;
     };
     if semantic.resolved.builtin_owner_for_symbol(owner)
         != Some(crate::builtin_types::BuiltinTypeOwner::Error)
-        || semantic
-            .typed_hir
-            .associated_function_target(match call.callee.without_groups() {
-                Expr::Member(member) => member.member_span,
-                _ => return false,
-            })
-            .is_none()
         || function.signature.parameters.len() != 2
         || call.arguments.len() != 2
     {
         return false;
     }
-    call.arguments.iter().all(|argument| {
-        let Some(ty) = known_expression_type(argument, semantic.typed_hir) else {
-            return false;
-        };
-        let representation = crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str);
-        value_representation(ty, semantic) == Some(representation)
-            && value_expression_is_supported(argument, representation, semantic)
-    })
+    true
+}
+
+fn type_expr_resolves_to_error(ty: &crate::ast::TypeExpr, resolved: &ResolveOutput) -> bool {
+    let crate::ast::TypeExpr::Reference(reference) = ty else {
+        return false;
+    };
+    if crate::builtin_types::BuiltinTypeOwner::from_reference_name(&reference.name)
+        == Some(crate::builtin_types::BuiltinTypeOwner::Error)
+    {
+        return true;
+    }
+    resolved
+        .type_symbol_by_name(&reference.name)
+        .and_then(|symbol| symbol.alias_target.as_ref())
+        .is_some_and(|target| type_expr_resolves_to_error(target, resolved))
 }
 
 pub(super) fn outcome_return_expression_is_supported(
@@ -1907,10 +1847,28 @@ pub(super) fn outcome_return_expression_is_supported(
     ) {
         return false;
     }
-    (handled_outcome_success_type(expression, semantic).is_some_and(|ty| ty == payload_ty)
-        || intrinsic_expression_type(expression.span(), semantic.typed_hir)
-            .is_some_and(|ty| value_representation(ty, semantic) == Some(representation)))
-        && value_expression_is_supported(expression, representation, semantic)
+    handled_outcome_success_type(expression, semantic).is_some_and(|ty| ty == payload_ty)
+        || (match expression.without_groups() {
+            Expr::Identifier(identifier) => semantic
+                .resolved
+                .local_symbol_for_identifier(identifier)
+                .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+                .and_then(|ty| semantic.typed_hir.type_id(ty)),
+            _ => known_expression_type(expression, semantic.typed_hir),
+        })
+        .is_some_and(|ty| {
+            ty == payload_ty
+                || value_representation(ty, semantic) == Some(representation)
+                    && semantic.typed_hir.type_expr_by_id(ty).is_some_and(|ty| {
+                        crate::outcomes::outcome_shape_with_resolver(
+                            ty,
+                            semantic.resolved,
+                            |source| semantic.resolver_for(source),
+                        )
+                        .layers
+                        .is_empty()
+                    })
+        })
 }
 
 pub(super) fn outcome_return_conditional_is_supported(
@@ -2273,18 +2231,21 @@ fn value_block_is_supported(
             }))
 }
 
-fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
+fn scalar_comparison_is_supported(
+    binary: &crate::ast::BinaryExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
     let Some(operator) = mir_comparison_operator(binary.operator) else {
         return false;
     };
-    if let Some(plan) = typed_hir.comparison_plan(binary.operator_span)
+    if let Some(plan) = semantic.typed_hir.comparison_plan(binary.operator_span)
         && (plan.method.is_some()
             || plan.left_conversion.is_some()
             || plan.right_conversion.is_some())
     {
         return false;
     }
-    let Some((_, operand)) = comparison_operand_type(binary, typed_hir) else {
+    let Some((_, operand)) = comparison_operand_type(binary, semantic) else {
         return false;
     };
     !matches!(operand, super::ScalarType::Bool)
@@ -2296,12 +2257,12 @@ fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &T
 
 pub(super) fn comparison_operand_type(
     binary: &crate::ast::BinaryExpr,
-    typed_hir: &TypedHir,
+    semantic: SemanticInputs<'_>,
 ) -> Option<(crate::semantic::TyId, super::ScalarType)> {
-    let left_ty = known_expression_type(&binary.left, typed_hir)?;
-    let right_ty = known_expression_type(&binary.right, typed_hir)?;
-    let left = scalar_type(left_ty, typed_hir)?;
-    let right = scalar_type(right_ty, typed_hir)?;
+    let left_ty = known_expression_type(&binary.left, semantic.typed_hir)?;
+    let right_ty = known_expression_type(&binary.right, semantic.typed_hir)?;
+    let left = value_scalar_type(left_ty, semantic)?;
+    let right = value_scalar_type(right_ty, semantic)?;
     if left_ty == right_ty && left == right {
         return Some((left_ty, left));
     }
@@ -2312,6 +2273,25 @@ pub(super) fn comparison_operand_type(
         return Some((right_ty, right));
     }
     None
+}
+
+pub(super) fn view_comparison_is_supported(
+    binary: &crate::ast::BinaryExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    if !matches!(
+        binary.operator,
+        crate::ast::BinaryOperator::Equal | crate::ast::BinaryOperator::NotEqual
+    ) {
+        return false;
+    }
+    let left = known_expression_type(&binary.left, semantic.typed_hir)
+        .and_then(|ty| value_representation(ty, semantic));
+    let right = known_expression_type(&binary.right, semantic.typed_hir)
+        .and_then(|ty| value_representation(ty, semantic));
+    left == Some(crate::mir::ValueRepresentation::View(
+        crate::mir::ViewKind::Str,
+    )) && right == left
 }
 
 fn integer_literal_fits(expression: &Expr, scalar: super::ScalarType) -> bool {
@@ -2375,7 +2355,10 @@ pub(super) fn call_result_type(
         );
         return_ty = crate::ast::substitute_type_expr_parameters(&return_ty, &substitutions);
     }
-    semantic.typed_hir.type_id(&return_ty)
+    semantic
+        .typed_hir
+        .type_id(&return_ty)
+        .or_else(|| effective_expression_type(call.span, semantic.typed_hir))
 }
 
 pub(super) fn call_has_single_outcome_layer(
@@ -2428,6 +2411,9 @@ pub(super) fn value_representation(
     let ty = semantic.typed_hir.type_expr_by_id(ty)?;
     if matches!(ty, crate::ast::TypeExpr::Reference(reference) if reference.name == "void") {
         return Some(crate::mir::ValueRepresentation::Unit);
+    }
+    if type_expr_resolves_to_error(ty, semantic.resolved) {
+        return Some(crate::mir::ValueRepresentation::Error);
     }
     match crate::abi::abi_value_from_type_expr_with_resolver(ty, semantic.resolved, |source| {
         semantic.resolver_for(source)
@@ -2501,6 +2487,15 @@ pub(super) fn payloadless_enum_variant_tag_at(
     {
         return None;
     }
+    enum_variant_tag_at(variant_span, semantic)
+}
+
+pub(super) fn enum_variant_tag_at(
+    variant_span: crate::source::ByteSpan,
+    semantic: SemanticInputs<'_>,
+) -> Option<u8> {
+    let definition = semantic.typed_hir.enum_variant_target(variant_span)?;
+    let owner = semantic.resolved.enum_variant_owner(definition)?;
     let anchor = semantic
         .resolved
         .semantic_db

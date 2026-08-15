@@ -162,6 +162,7 @@ fn lower_entry_parts(
         mir_bodies,
         body,
         &[],
+        return_type_expr,
         &return_type,
         resolved,
         &resolved_sources,

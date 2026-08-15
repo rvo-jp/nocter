@@ -109,6 +109,25 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             crate::mir::ValueRepresentation::View(kind),
                             scope,
                         )?;
+                    } else if super::coverage::value_representation(ty, self.context.semantic)
+                        == Some(crate::mir::ValueRepresentation::Error)
+                    {
+                        self.context.locals.push(crate::mir::locals::Local::error(
+                            ty,
+                            LocalStorage::Local,
+                            LocalOrigin::Binding(symbol),
+                            scope,
+                        ));
+                        self.context
+                            .places_by_symbol
+                            .insert(symbol, Place::local(local));
+                        self.context.lower_value_to_place(
+                            local,
+                            &binding.initializer,
+                            ty,
+                            crate::mir::ValueRepresentation::Error,
+                            scope,
+                        )?;
                     } else if let Some(readwrite) = crate::typecheck::type_expr_borrow_readwrite(
                         binding_type_expr,
                         self.context.semantic.resolved,
@@ -158,6 +177,18 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
                         match binding.initializer.without_groups() {
+                            Expr::Call(call)
+                                if matches!(call.callee.without_groups(), Expr::Member(member)
+                                    if self.context.semantic.typed_hir
+                                        .enum_variant_target(member.member_span).is_some()) =>
+                            {
+                                super::aggregates::lower_literal(
+                                    self.context,
+                                    local,
+                                    &binding.initializer,
+                                    scope,
+                                )?;
+                            }
                             Expr::Call(_)
                                 if super::aggregates::literal_is_supported(
                                     &binding.initializer,
@@ -344,6 +375,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     false
                 }
                 ScalarStatement::If(statement) => self.lower_if(statement, loop_targets, scope)?,
+                ScalarStatement::IfIs(statement) => {
+                    super::expressions::lower_if_is_statement(self.context, statement, scope)
+                        .map_err(|error| error.context("lower if-is statement"))?
+                }
+                ScalarStatement::Match(statement) => {
+                    super::expressions::lower_match_statement(self.context, statement, scope)
+                        .map_err(|error| error.context("lower match statement"))?
+                }
                 ScalarStatement::ForRange(statement) => {
                     self.lower_for_range(statement, scope)?;
                     false
@@ -392,7 +431,42 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             };
                             (call, EffectKind::Propagate)
                         }
-                        _ => return Err(BuildError::UnsupportedClaimedExpression),
+                        _ => {
+                            let ty =
+                                known_expression_type(expression, self.context.semantic.typed_hir)
+                                    .ok_or(BuildError::MissingTypedExpression)?;
+                            let representation =
+                                super::coverage::value_representation(ty, self.context.semantic)
+                                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                            if representation == crate::mir::ValueRepresentation::Unit {
+                                return Err(BuildError::UnsupportedClaimedExpression);
+                            }
+                            let origin = self
+                                .context
+                                .semantic
+                                .typed_hir
+                                .expression(expression.span())
+                                .ok_or(BuildError::MissingTypedExpression)?
+                                .id;
+                            let destination = self.context.local_for_type(
+                                ty,
+                                LocalOrigin::Temporary(origin),
+                                scope,
+                            )?;
+                            self.context.lower_value_to_place(
+                                destination,
+                                expression,
+                                ty,
+                                representation,
+                                scope,
+                            )?;
+                            if let Some(plan) = self.context.locals[destination.index()].drop_plan {
+                                self.context
+                                    .control_flow
+                                    .emit_drop(Place::local(destination), plan)?;
+                            }
+                            continue;
+                        }
                     };
                     if matches!(kind, EffectKind::Plain)
                         && self.context.lower_intrinsic_effect(
@@ -459,14 +533,64 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                 }
                             }
                         }
-                        EffectKind::Trap => self
-                            .context
-                            .control_flow
-                            .emit_trapping_outcome_effect(source, callee, arguments)?,
-                        EffectKind::Propagate => self
-                            .context
-                            .control_flow
-                            .emit_propagating_outcome_effect(source, callee, arguments)?,
+                        EffectKind::Trap | EffectKind::Propagate => {
+                            let success_ty = super::coverage::handled_outcome_success_type(
+                                expression,
+                                self.context.semantic,
+                            )
+                            .ok_or(BuildError::MissingTypedExpression)?;
+                            let representation = super::coverage::value_representation(
+                                success_ty,
+                                self.context.semantic,
+                            )
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                            if representation == crate::mir::ValueRepresentation::Unit {
+                                match kind {
+                                    EffectKind::Trap => self
+                                        .context
+                                        .control_flow
+                                        .emit_trapping_outcome_effect(source, callee, arguments)?,
+                                    EffectKind::Propagate => {
+                                        self.context.control_flow.emit_propagating_outcome_effect(
+                                            source, callee, arguments,
+                                        )?
+                                    }
+                                    EffectKind::Plain => unreachable!(),
+                                }
+                            } else {
+                                let destination = self.context.local_for_type(
+                                    success_ty,
+                                    LocalOrigin::Temporary(source),
+                                    scope,
+                                )?;
+                                match kind {
+                                    EffectKind::Trap => {
+                                        self.context.control_flow.emit_trapping_outcome_call(
+                                            source,
+                                            callee,
+                                            arguments,
+                                            destination,
+                                        )?
+                                    }
+                                    EffectKind::Propagate => {
+                                        self.context.control_flow.emit_propagating_outcome_call(
+                                            source,
+                                            callee,
+                                            arguments,
+                                            destination,
+                                        )?
+                                    }
+                                    EffectKind::Plain => unreachable!(),
+                                }
+                                if let Some(plan) =
+                                    self.context.locals[destination.index()].drop_plan
+                                {
+                                    self.context
+                                        .control_flow
+                                        .emit_drop(Place::local(destination), plan)?;
+                                }
+                            }
+                        }
                     }
                     false
                 }
@@ -530,13 +654,15 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     }
                     let return_local = self.context.return_local();
                     let declaration = self.context.locals[return_local.index()].clone();
-                    self.context.lower_value_to_place(
-                        return_local,
-                        expression,
-                        declaration.ty,
-                        declaration.representation,
-                        scope,
-                    )?;
+                    self.context
+                        .lower_value_to_place(
+                            return_local,
+                            expression,
+                            declaration.ty,
+                            declaration.representation,
+                            scope,
+                        )
+                        .map_err(|error| error.context("lower explicit return value"))?;
                     self.context.control_flow.terminate(Terminator::Return)?;
                     return Ok(true);
                 }
@@ -1230,7 +1356,10 @@ pub(super) fn lower_value_block(
 ) -> Result<bool, BuildError> {
     let (statements, tail) =
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
-    if StatementLowerer::new(context).lower(&statements, scope)? {
+    if StatementLowerer::new(context)
+        .lower(&statements, scope)
+        .map_err(|error| error.context("lower value block statements"))?
+    {
         return Ok(true);
     }
     if let Some(expression) = tail.expression()
@@ -1297,14 +1426,16 @@ pub(super) fn lower_value_block(
             scope,
         )?;
     } else {
-        context.lower_value_to_place(
-            destination,
-            tail.expression()
-                .ok_or(BuildError::UnsupportedClaimedExpression)?,
-            ty,
-            representation,
-            scope,
-        )?;
+        context
+            .lower_value_to_place(
+                destination,
+                tail.expression()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                ty,
+                representation,
+                scope,
+            )
+            .map_err(|error| error.context("lower value block tail"))?;
     }
     if returns {
         context.control_flow.terminate(Terminator::Return)?;

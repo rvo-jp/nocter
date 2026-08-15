@@ -71,89 +71,7 @@ fn literal_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInput
     }
 }
 
-fn requires_unrepresented_partial_cleanup(
-    expression: &Expr,
-    abi: &AbiType,
-    semantic: SemanticInputs<'_>,
-) -> bool {
-    let values = match (expression.without_groups(), abi) {
-        (Expr::StructLiteral(literal), AbiType::Struct(fields)) => literal
-            .fields
-            .iter()
-            .filter_map(|field| {
-                fields
-                    .iter()
-                    .find(|candidate| candidate.name == field.name)
-                    .map(|abi| (&field.value, &abi.ty))
-            })
-            .collect::<Vec<_>>(),
-        (Expr::ArrayLiteral(literal), AbiType::Array { element, .. }) => literal
-            .elements
-            .iter()
-            .map(|value| (value, element.as_ref()))
-            .collect::<Vec<_>>(),
-        (expression, AbiType::Enum(enum_)) => {
-            let Some((member, arguments)) = variant_member_and_arguments(expression) else {
-                return false;
-            };
-            let Some(variant) = enum_
-                .variants
-                .iter()
-                .find(|variant| variant.name == member.member)
-            else {
-                return false;
-            };
-            variant_payload_values(arguments, variant.payload.as_ref()).unwrap_or_default()
-        }
-        _ => return false,
-    };
-
-    let mut completed_owned_value = false;
-    for (value, value_abi) in values {
-        if completed_owned_value && expression_propagates_failure(value) {
-            return true;
-        }
-        if requires_unrepresented_partial_cleanup(value, value_abi, semantic) {
-            return true;
-        }
-        completed_owned_value |= value_requires_drop(value, semantic);
-    }
-    false
-}
-
-fn value_requires_drop(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
-    let Some(ty) = known_expression_type(expression, semantic.typed_hir)
-        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
-    else {
-        return false;
-    };
-    crate::typecheck::type_expr_is_copy(ty, semantic.resolved) == Some(false)
-        && super::super::drop_plans::is_supported(
-            ty,
-            semantic.resolved,
-            semantic.resolved_sources,
-            semantic.typed_hir,
-        )
-}
-
-fn expression_propagates_failure(expression: &Expr) -> bool {
-    match expression {
-        Expr::Propagate(_) => true,
-        Expr::Group(group) => expression_propagates_failure(&group.expression),
-        Expr::ArrayLiteral(literal) => literal.elements.iter().any(expression_propagates_failure),
-        Expr::StructLiteral(literal) => literal
-            .fields
-            .iter()
-            .any(|field| expression_propagates_failure(&field.value)),
-        Expr::Call(call) => call.arguments.iter().any(expression_propagates_failure),
-        _ => false,
-    }
-}
-
 fn variant_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
-    if requires_unrepresented_partial_cleanup(expression, abi, semantic) {
-        return false;
-    }
     let AbiType::Enum(enum_) = abi else {
         return false;
     };
@@ -267,8 +185,22 @@ pub(super) fn lower_literal(
     scope: ScopeId,
 ) -> Result<(), BuildError> {
     let semantic = context.semantic;
-    let abi =
-        aggregate_abi_type(expression, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let destination_ty = context
+        .locals
+        .get(destination.index())
+        .ok_or(BuildError::MissingTypedExpression)?
+        .ty;
+    let destination_ty = semantic
+        .typed_hir
+        .type_expr_by_id(destination_ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let abi = crate::abi::abi_value_from_type_expr_with_resolver(
+        destination_ty,
+        semantic.resolved,
+        |source| semantic.resolver_for(source),
+    )
+    .map_err(|_| BuildError::UnsupportedClaimedExpression)?
+    .ty;
     if let Expr::Closure(closure) = expression.without_groups() {
         return lower_closure(context, destination, closure, &abi, scope);
     }
@@ -483,7 +415,8 @@ fn lower_staged_aggregate(
                     crate::mir::ProjectionElement::Field { offset },
                     &field.value,
                 )?;
-                lower_staged_value(context, base, child, &field.value, &fields[index].ty, scope)?;
+                lower_staged_value(context, base, child, &field.value, &fields[index].ty, scope)
+                    .map_err(|error| error.context("lower aggregate field"))?;
                 children.push(child);
             }
             children
@@ -524,7 +457,8 @@ fn lower_staged_aggregate(
                     },
                     value,
                 )?;
-                lower_staged_value(context, base, child, value, element, scope)?;
+                lower_staged_value(context, base, child, value, element, scope)
+                    .map_err(|error| error.context("lower aggregate element"))?;
                 children.push(child);
             }
             children
@@ -620,7 +554,17 @@ fn lower_staged_value(
         )
     {
         let ty = contract.ty;
-        let operand = if matches!(expression.without_groups(), Expr::Call(_)) {
+        let operand = if matches!(
+            expression.without_groups(),
+            Expr::Call(_)
+                | Expr::Force(_)
+                | Expr::Propagate(_)
+                | Expr::Otherwise(_)
+                | Expr::Catch(_)
+                | Expr::TypedSequenceLiteral(_)
+                | Expr::TypedStringLiteral(_)
+                | Expr::InterpolatedString(_)
+        ) {
             let origin = context
                 .semantic
                 .typed_hir
@@ -777,8 +721,23 @@ fn lower_literal_leaves(
         leaves.push(AggregateLeaf {
             path: path.clone(),
             ty,
-            scalar,
+            representation: crate::mir::ValueRepresentation::Scalar(scalar),
             operand: context.lower_operand(expression, ty, scalar, scope)?,
+        });
+        return Ok(());
+    }
+
+    let ty = known_expression_type(expression, context.semantic.typed_hir)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    if let Some(representation) = super::coverage::value_representation(ty, context.semantic)
+        && representation != crate::mir::ValueRepresentation::Aggregate
+    {
+        let argument = context.lower_call_argument(expression, scope)?;
+        leaves.push(AggregateLeaf {
+            path: path.clone(),
+            ty: argument.ty,
+            representation: argument.representation,
+            operand: argument.operand,
         });
         return Ok(());
     }
@@ -811,6 +770,22 @@ fn lower_literal_leaves(
                 lower_literal_leaves(context, value, element, scope, path, leaves)?;
                 path.pop();
             }
+        }
+        _ if matches!(
+            abi,
+            AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
+        ) =>
+        {
+            let argument = context.lower_call_argument(expression, scope)?;
+            if argument.representation != crate::mir::ValueRepresentation::Aggregate {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            leaves.push(AggregateLeaf {
+                path: path.clone(),
+                ty: argument.ty,
+                representation: argument.representation,
+                operand: argument.operand,
+            });
         }
         _ => return Err(BuildError::UnsupportedClaimedExpression),
     }

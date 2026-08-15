@@ -382,6 +382,10 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
+        Rvalue::Error { code, message } => {
+            operand_use_count(code, local) + operand_use_count(message, local)
+        }
+        Rvalue::Discriminant { source, .. } => operand_use_count(source, local),
         Rvalue::Variant { leaves, .. } => leaves
             .iter()
             .map(|leaf| operand_use_count(&leaf.operand, local))
@@ -391,7 +395,9 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
         | Rvalue::ViewCast {
             source: operand, ..
         } => operand_use_count(operand, local),
-        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
+        Rvalue::Binary { left, right, .. }
+        | Rvalue::Compare { left, right, .. }
+        | Rvalue::ViewCompare { left, right, .. } => {
             operand_use_count(left, local) + operand_use_count(right, local)
         }
         Rvalue::ViewIndex { source, index, .. } => {

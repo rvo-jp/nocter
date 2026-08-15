@@ -825,14 +825,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
                 destination: StrLocation::Return,
                 target: CallTarget::same_file("maybe_text"),
                 arguments: vec![],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetStr {
-                            destination: StrLocation::Return,
-                            value: str_static_value(b"fallback"),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: str_static_value(b"fallback"),
+                    }],
                 },
             },
             Instruction::Return,
@@ -849,14 +846,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
                 arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                     SliceLocation::Parameter(0),
                 ))],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetSlice {
-                            destination: SliceLocation::Return,
-                            value: SliceValue::Location(SliceLocation::Parameter(0)),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetSlice {
+                        destination: SliceLocation::Return,
+                        value: SliceValue::Location(SliceLocation::Parameter(0)),
+                    }],
                 },
             },
             Instruction::Return,

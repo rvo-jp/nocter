@@ -106,6 +106,7 @@ impl TypedExpressionArena {
         for (name, scalar) in [
             ("bool", CheckedScalarType::Bool),
             ("i32", CheckedScalarType::Integer(IntegerType::I32)),
+            ("u8", CheckedScalarType::Integer(IntegerType::U8)),
             ("usize", CheckedScalarType::Integer(IntegerType::Usize)),
         ] {
             arena.intern_type(
@@ -116,6 +117,33 @@ impl TypedExpressionArena {
                 Some(scalar),
             );
         }
+        let str_ty = TypeExpr::Reference(crate::ast::TypeReference {
+            span: anchor,
+            name: "str".to_string(),
+        });
+        arena.intern_type(str_ty.clone(), None);
+        arena.intern_type(
+            TypeExpr::Borrow(crate::ast::BorrowType {
+                span: anchor,
+                is_readwrite: false,
+                inner: Box::new(str_ty),
+            }),
+            None,
+        );
+        arena.intern_type(
+            TypeExpr::Reference(crate::ast::TypeReference {
+                span: anchor,
+                name: "error".to_string(),
+            }),
+            None,
+        );
+        arena.intern_type(
+            TypeExpr::Reference(crate::ast::TypeReference {
+                span: anchor,
+                name: "void".to_string(),
+            }),
+            None,
+        );
         arena
     }
 

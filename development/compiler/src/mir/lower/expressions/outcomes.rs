@@ -104,6 +104,98 @@ pub(super) fn lower_aggregate_catch_to_place(
     )
 }
 
+pub(super) fn lower_view_otherwise_to_place(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    otherwise: &crate::ast::OtherwiseExpr,
+    ty: crate::semantic::TyId,
+    kind: crate::mir::ViewKind,
+    parent_scope: ScopeId,
+) -> Result<(), super::super::BuildError> {
+    lower_recovery_to_place(
+        context,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            representation: ValueRepresentation::View(kind),
+            parent_scope,
+        },
+        &otherwise.value,
+        &otherwise.fallback,
+        None,
+    )
+}
+
+pub(super) fn lower_view_catch_to_place(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    catch: &crate::ast::CatchExpr,
+    ty: crate::semantic::TyId,
+    kind: crate::mir::ViewKind,
+    parent_scope: ScopeId,
+) -> Result<(), super::super::BuildError> {
+    let fallback_scope = context.child_scope(parent_scope, catch.catch_block.span);
+    let failure_payload = catch_failure_payload(context, catch, fallback_scope)?;
+    lower_recovery_to_place_with_scope(
+        context,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            representation: ValueRepresentation::View(kind),
+            parent_scope,
+        },
+        &catch.expression,
+        &catch.catch_block,
+        fallback_scope,
+        failure_payload,
+    )
+}
+
+pub(super) fn lower_borrow_otherwise_to_place(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    otherwise: &crate::ast::OtherwiseExpr,
+    ty: crate::semantic::TyId,
+    parent_scope: ScopeId,
+) -> Result<(), super::super::BuildError> {
+    lower_recovery_to_place(
+        context,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            representation: ValueRepresentation::Borrow,
+            parent_scope,
+        },
+        &otherwise.value,
+        &otherwise.fallback,
+        None,
+    )
+}
+
+pub(super) fn lower_borrow_catch_to_place(
+    context: &mut LoweringContext<'_>,
+    destination: LocalId,
+    catch: &crate::ast::CatchExpr,
+    ty: crate::semantic::TyId,
+    parent_scope: ScopeId,
+) -> Result<(), super::super::BuildError> {
+    let fallback_scope = context.child_scope(parent_scope, catch.catch_block.span);
+    let failure_payload = catch_failure_payload(context, catch, fallback_scope)?;
+    lower_recovery_to_place_with_scope(
+        context,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            representation: ValueRepresentation::Borrow,
+            parent_scope,
+        },
+        &catch.expression,
+        &catch.catch_block,
+        fallback_scope,
+        failure_payload,
+    )
+}
+
 fn catch_failure_payload(
     context: &mut LoweringContext<'_>,
     catch: &crate::ast::CatchExpr,
@@ -174,11 +266,8 @@ fn lower_recovery_to_place_with_scope(
         .expression(source_expression.span())
         .ok_or(super::super::BuildError::MissingTypedExpression)?
         .id;
-    let source_ty = super::super::coverage::known_expression_type(
-        source_expression,
-        context.semantic.typed_hir,
-    )
-    .ok_or(super::super::BuildError::MissingTypedExpression)?;
+    let source_ty = outcome_source_type(context, source_expression)
+        .ok_or(super::super::BuildError::MissingTypedExpression)?;
     let source_shape = outcome_shape(context, source_ty)?;
     let success = match source_expression.without_groups() {
         Expr::Call(call) if source_shape.layers.len() == 1 => {
@@ -213,13 +302,15 @@ fn lower_recovery_to_place_with_scope(
                 crate::mir::LocalOrigin::Temporary(source),
                 destination.parent_scope,
             )?;
-            context.lower_value_to_place(
-                stored,
-                source_expression,
-                source_ty,
-                crate::mir::ValueRepresentation::Aggregate,
-                destination.parent_scope,
-            )?;
+            context
+                .lower_value_to_place(
+                    stored,
+                    source_expression,
+                    source_ty,
+                    crate::mir::ValueRepresentation::Aggregate,
+                    destination.parent_scope,
+                )
+                .map_err(|error| error.context("materialize recovered outcome source"))?;
             let layer = *source_shape
                 .layers
                 .first()
@@ -242,7 +333,8 @@ fn lower_recovery_to_place_with_scope(
         destination.representation,
         fallback_scope,
         true,
-    )?;
+    )
+    .map_err(|error| error.context("lower recovery fallback"))?;
     if !returns {
         context
             .control_flow
@@ -286,9 +378,8 @@ pub(super) fn lower_terminal_stored_outcome_to_place(
     let (stored, layer) = if matches!(expression.without_groups(), Expr::Identifier(_)) {
         stored_outcome_source(context, expression)?
     } else {
-        let ty =
-            super::super::coverage::known_expression_type(expression, context.semantic.typed_hir)
-                .ok_or(super::super::BuildError::MissingTypedExpression)?;
+        let ty = outcome_source_type(context, expression)
+            .ok_or(super::super::BuildError::MissingTypedExpression)?;
         let shape = outcome_shape(context, ty)?;
         let local =
             context.aggregate_temporary(ty, crate::mir::LocalOrigin::Temporary(source), scope)?;
@@ -314,6 +405,25 @@ pub(super) fn lower_terminal_stored_outcome_to_place(
         destination,
         failure,
     )
+}
+
+fn outcome_source_type(
+    context: &LoweringContext<'_>,
+    expression: &Expr,
+) -> Option<crate::semantic::TyId> {
+    match expression.without_groups() {
+        Expr::Call(call) => super::super::coverage::call_result_type(call, context.semantic),
+        Expr::Identifier(identifier) => context
+            .semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .and_then(|symbol| context.semantic.typed_hir.binding_type_expr(symbol.id))
+            .and_then(|ty| context.semantic.typed_hir.type_id(ty)),
+        _ => super::super::coverage::intrinsic_expression_type(
+            expression.span(),
+            context.semantic.typed_hir,
+        ),
+    }
 }
 
 fn stored_outcome_operand(

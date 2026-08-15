@@ -46,12 +46,17 @@ impl<'a> SemanticInputs<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct BuildInputs<'a> {
     pub(crate) semantic_db: &'a SemanticDb,
     pub(crate) resolved: &'a ResolveOutput,
     pub(crate) resolved_sources: &'a ResolvedSources<'a>,
     pub(crate) typed_hir: &'a TypedHir,
+    /// Declared callable result, including optional/fallible layers.  Expression
+    /// facts carry the contextual success type, so the declaration is the
+    /// authoritative source for the ABI outcome contract.
+    pub(crate) declared_return_ty: Option<crate::semantic::TyId>,
+    pub(crate) outcome_layers: Vec<crate::outcomes::OutcomeLayer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,9 +75,22 @@ pub(crate) enum BuildError {
     BlockAlreadyTerminated,
     UnterminatedReservedBlock,
     UnsupportedClaimedExpression,
+    Context {
+        operation: &'static str,
+        source: Box<BuildError>,
+    },
     ClosurePreparation(&'static str),
     ClosureBody(Box<BuildError>),
     InvalidMir(Vec<ValidationError>),
+}
+
+impl BuildError {
+    pub(super) fn context(self, operation: &'static str) -> Self {
+        Self::Context {
+            operation,
+            source: Box::new(self),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -95,6 +113,8 @@ fn try_build_scalar_body(
             resolved,
             resolved_sources: &resolved_sources,
             typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
 }
@@ -128,10 +148,11 @@ pub(crate) fn try_build_body_with_return_mode(
         resolved_sources: inputs.resolved_sources,
         typed_hir: inputs.typed_hir,
     };
-    let (mut source_statements, mut tail) = scalar_body_parts(block)?;
-    if coverage::block_contains_repeating_explicit_drop(block) {
-        return None;
-    }
+    let Some((mut source_statements, mut tail)) = scalar_body_parts(block) else {
+        return Some(Err(
+            BuildError::UnsupportedClaimedExpression.context("normalize source body")
+        ));
+    };
     if return_representation == super::ValueRepresentation::Unit
         && let Some(if_) = tail.conditional()
     {
@@ -141,67 +162,24 @@ pub(crate) fn try_build_body_with_return_mode(
     let contextual_return_ty = if matches!(tail, ScalarTail::ImplicitUnit(_))
         && return_representation != super::ValueRepresentation::Unit
     {
-        coverage::terminal_return_type(block, inputs.typed_hir)?
+        coverage::terminal_return_type(block, inputs.typed_hir).or(inputs.declared_return_ty)?
     } else {
         tail.result_type(inputs.typed_hir)?
     };
-    if value_representation(contextual_return_ty, semantic) != Some(return_representation)
-        || !source_statements
-            .iter()
-            .all(|statement| statement.is_supported(semantic))
-        || !(return_representation == super::ValueRepresentation::Unit
-            && match tail {
-                ScalarTail::ImplicitUnit(_) | ScalarTail::UnitReturn(_) => true,
-                ScalarTail::Expression(expression) | ScalarTail::Return(expression) => {
-                    ScalarStatement::Expression(expression).is_supported(semantic)
-                }
-                ScalarTail::Conditional(_) => false,
-            }
-            || matches!(tail, ScalarTail::ImplicitUnit(_))
-                && return_representation != super::ValueRepresentation::Unit
-                && coverage::terminal_return_type(block, inputs.typed_hir).is_some()
-            || tail.expression().is_some_and(|expression| {
-                inputs
-                    .typed_hir
-                    .expression(expression.span())
-                    .is_some_and(|expression| expression.diverges)
+    let declared_return_ty = inputs.declared_return_ty.unwrap_or(contextual_return_ty);
+    let declared_payload_ty = inputs
+        .typed_hir
+        .type_expr_by_id(declared_return_ty)
+        .map(|ty| {
+            crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
+                inputs.resolved_sources.get(&source).copied()
             })
-            || tail.expression().is_some_and(|expression| {
-                value_expression_is_supported(expression, return_representation, semantic)
-                    || coverage::outcome_return_expression_is_supported(
-                        expression,
-                        contextual_return_ty,
-                        semantic,
-                    )
-                    || return_mode == ReturnMode::Fallible
-                        && coverage::failure_value_is_supported(expression, semantic)
-            })
-            || tail.conditional().is_some_and(|conditional| {
-                (matches!(
-                    return_representation,
-                    super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
-                ) || matches!(
-                    return_representation,
-                    super::ValueRepresentation::Aggregate | super::ValueRepresentation::Unit
-                )) && value_conditional_is_supported(conditional, return_representation, semantic)
-                    || coverage::outcome_return_conditional_is_supported(
-                        conditional,
-                        contextual_return_ty,
-                        semantic,
-                    )
-            }))
-        || !parameters.iter().all(|parameter| {
-            inputs
-                .resolved
-                .local_symbol_id_at_name_span(parameter.name_span)
-                .is_some()
-                && inputs.typed_hir.type_id(&parameter.ty).is_some()
-                && parameter_representation(parameter, semantic).is_some()
         })
-    {
-        return None;
-    }
-    let return_ty = if return_representation == super::ValueRepresentation::Aggregate {
+        .filter(|shape| !shape.layers.is_empty())
+        .and_then(|shape| inputs.typed_hir.type_id(&shape.payload));
+    let return_ty = if let Some(payload_ty) = declared_payload_ty {
+        payload_ty
+    } else if return_representation == super::ValueRepresentation::Aggregate {
         contextual_return_ty
     } else {
         tail.expression()
@@ -224,7 +202,6 @@ pub(crate) fn try_build_body_with_return_mode(
             })
             .unwrap_or(contextual_return_ty)
     };
-
     Some((|| {
         let source_body = inputs
             .semantic_db
@@ -294,7 +271,18 @@ pub(crate) fn try_build_body_with_return_mode(
                 return Err(BuildError::UnsupportedClaimedExpression);
             }
         };
-        if return_local_contract.ownership == OwnershipKind::Move {
+        let return_is_outcome = !inputs.outcome_layers.is_empty()
+            || inputs
+                .typed_hir
+                .type_expr_by_id(declared_return_ty)
+                .is_some_and(|ty| {
+                    !crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
+                        inputs.resolved_sources.get(&source).copied()
+                    })
+                    .layers
+                    .is_empty()
+                });
+        if return_local_contract.ownership == OwnershipKind::Move && !return_is_outcome {
             let return_type_expr = inputs
                 .typed_hir
                 .type_expr_by_id(return_ty)
@@ -376,6 +364,8 @@ pub(crate) fn try_build_body_with_return_mode(
             source_statements,
             tail,
             contextual_return_ty,
+            declared_return_ty,
+            &inputs.outcome_layers,
             return_ty,
             return_representation,
             return_mode,
@@ -396,6 +386,8 @@ fn build_prepared_body(
     source_statements: Vec<ScalarStatement<'_>>,
     tail: ScalarTail<'_>,
     contextual_return_ty: crate::semantic::TyId,
+    declared_return_ty: crate::semantic::TyId,
+    declared_outcome_layers: &[crate::outcomes::OutcomeLayer],
     return_ty: crate::semantic::TyId,
     return_representation: super::ValueRepresentation,
     return_mode: ReturnMode,
@@ -409,8 +401,19 @@ fn build_prepared_body(
 ) -> Result<Body, BuildError> {
     let return_local = LocalId::from_index(0);
     let root_scope = ScopeId::from_index(0);
+    let outcome_contract = if declared_outcome_layers.is_empty() {
+        outcome_contract(declared_return_ty, semantic)
+            .map_err(|error| error.context("build body outcome contract"))?
+    } else {
+        Some(super::OutcomeContract {
+            layers: declared_outcome_layers.to_vec(),
+            payload_ty: return_ty,
+            payload_representation: return_representation,
+        })
+    };
     let mut context = LoweringContext::new(
         semantic,
+        outcome_contract.clone(),
         locals,
         places_by_symbol,
         drop_plans,
@@ -421,18 +424,22 @@ fn build_prepared_body(
     for statement in prologue {
         context.control_flow.push_statement(statement)?;
     }
-    let source_exits = StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
+    let source_exits = StatementLowerer::new(&mut context)
+        .lower(&source_statements, root_scope)
+        .map_err(|error| error.context("lower body statements"))?;
     if !source_exits {
         if return_mode == ReturnMode::Fallible
             && tail.expression().is_some_and(|expression| {
                 coverage::failure_value_is_supported(expression, semantic)
             })
         {
-            context.lower_failure_return(
-                tail.expression()
-                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
-                root_scope,
-            )?;
+            context
+                .lower_failure_return(
+                    tail.expression()
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                    root_scope,
+                )
+                .map_err(|error| error.context("lower tail failure return"))?;
         } else if tail.expression().is_some_and(|expression| {
             coverage::outcome_return_expression_is_supported(
                 expression,
@@ -440,11 +447,13 @@ fn build_prepared_body(
                 semantic,
             )
         }) {
-            context.lower_direct_outcome_return(
-                tail.expression()
-                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
-                root_scope,
-            )?;
+            context
+                .lower_direct_outcome_return(
+                    tail.expression()
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                    root_scope,
+                )
+                .map_err(|error| error.context("lower tail outcome return"))?;
         } else if return_representation == super::ValueRepresentation::Unit
             && tail.conditional().is_none()
         {
@@ -473,7 +482,8 @@ fn build_prepared_body(
                 return_ty,
                 return_representation,
                 root_scope,
-            )?;
+            )
+            .map_err(|error| error.context("lower tail conditional"))?;
             context.control_flow.terminate(Terminator::Return)?;
         } else if let Some(Expr::Call(call)) = tail.expression()
             && semantic
@@ -501,13 +511,15 @@ fn build_prepared_body(
                 super::ValueRepresentation::Unit => unreachable!("unit returns terminate above"),
                 super::ValueRepresentation::Scalar(_)
                 | super::ValueRepresentation::View(_)
-                | super::ValueRepresentation::Borrow => context.lower_value_to_place(
-                    return_local,
-                    expression,
-                    return_ty,
-                    return_representation,
-                    root_scope,
-                )?,
+                | super::ValueRepresentation::Borrow => context
+                    .lower_value_to_place(
+                        return_local,
+                        expression,
+                        return_ty,
+                        return_representation,
+                        root_scope,
+                    )
+                    .map_err(|error| error.context("lower tail value"))?,
                 super::ValueRepresentation::Aggregate => {
                     let return_type_expr = semantic
                         .typed_hir
@@ -530,13 +542,15 @@ fn build_prepared_body(
                             .control_flow
                             .terminate(Terminator::ReturnOutcome { source })?;
                     } else {
-                        context.lower_value_to_place(
-                            return_local,
-                            expression,
-                            return_ty,
-                            return_representation,
-                            root_scope,
-                        )?;
+                        context
+                            .lower_value_to_place(
+                                return_local,
+                                expression,
+                                return_ty,
+                                return_representation,
+                                root_scope,
+                            )
+                            .map_err(|error| error.context("lower aggregate tail value"))?;
                     }
                 }
                 super::ValueRepresentation::Error => {
@@ -548,8 +562,9 @@ fn build_prepared_body(
             }
         }
     }
-    let parts = context.finish()?;
-    let outcome_contract = outcome_contract(contextual_return_ty, semantic)?;
+    let parts = context
+        .finish()
+        .map_err(|error| error.context("finish MIR body"))?;
     let body = Body {
         source_body,
         source_span: block.span,

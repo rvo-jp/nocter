@@ -464,15 +464,17 @@ fn merge_entry(
 fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
     match value {
         Rvalue::Use(operand) => Box::new(std::iter::once(operand)),
+        Rvalue::Error { code, message } => Box::new([code, message].into_iter()),
+        Rvalue::Discriminant { source, .. } => Box::new(std::iter::once(source)),
         Rvalue::Variant { leaves, .. } => Box::new(leaves.iter().map(|leaf| &leaf.operand)),
         Rvalue::Unary { operand, .. }
         | Rvalue::Cast { operand, .. }
         | Rvalue::ViewCast {
             source: operand, ..
         } => Box::new(std::iter::once(operand)),
-        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
-            Box::new([left, right].into_iter())
-        }
+        Rvalue::Binary { left, right, .. }
+        | Rvalue::Compare { left, right, .. }
+        | Rvalue::ViewCompare { left, right, .. } => Box::new([left, right].into_iter()),
         Rvalue::ViewIndex { source, index, .. } => Box::new([source, index].into_iter()),
         Rvalue::Intrinsic { arguments, .. } => {
             Box::new(arguments.iter().map(|argument| &argument.operand))

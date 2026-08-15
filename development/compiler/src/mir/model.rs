@@ -5,7 +5,7 @@ use super::ids::{
     AllocationOverrideId, BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId,
     ScopeId,
 };
-use super::locals::{Local, OwnershipKind, ScalarType, ValueRepresentation};
+use super::locals::{Local, OwnershipKind, ScalarType, ValueRepresentation, ViewKind};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
 
@@ -214,9 +214,18 @@ impl Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
+    Error {
+        code: Operand,
+        message: Operand,
+    },
     Variant {
         variant: DefId,
         leaves: Vec<AggregateLeaf>,
+    },
+    Discriminant {
+        source: Operand,
+        enum_ty: TyId,
+        result_ty: TyId,
     },
     Unary {
         operator: UnaryOperator,
@@ -250,6 +259,13 @@ pub(crate) enum Rvalue {
         operand_scalar: ScalarType,
         result_ty: TyId,
     },
+    ViewCompare {
+        operator: ComparisonOperator,
+        left: Operand,
+        right: Operand,
+        kind: ViewKind,
+        result_ty: TyId,
+    },
     ViewIndex {
         source: Operand,
         source_ty: TyId,
@@ -272,7 +288,7 @@ pub(crate) enum Rvalue {
 pub(crate) struct AggregateLeaf {
     pub(crate) path: Vec<AggregateElement>,
     pub(crate) ty: TyId,
-    pub(crate) scalar: ScalarType,
+    pub(crate) representation: ValueRepresentation,
     pub(crate) operand: Operand,
 }
 

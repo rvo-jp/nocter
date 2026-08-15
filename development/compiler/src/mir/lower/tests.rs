@@ -36,6 +36,8 @@ fn builds_string_view_literal_return_without_abi_shaped_locals() {
             resolved: &file.resolved,
             resolved_sources: &resolved_sources,
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("string-view literal return must select MIR")
@@ -140,6 +142,8 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("fallible effect statements must select MIR")
@@ -199,6 +203,8 @@ func make(): Pair {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("aggregate literal returns must select MIR")
@@ -383,6 +389,8 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("composed stored outcomes must select MIR")
@@ -435,6 +443,8 @@ fn builds_stored_outcome_forwarding_as_an_owned_return_edge() {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("stored outcome forwarding must select MIR")
@@ -487,6 +497,8 @@ func choose(flag: bool): Pair {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("aggregate return conditionals must select MIR")
@@ -1056,6 +1068,8 @@ func run(): i32! {
             resolved: &file.resolved,
             resolved_sources: &resolved_sources,
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("partially initialized aggregate must select MIR")
@@ -3054,6 +3068,8 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
+            declared_return_ty: None,
+            outcome_layers: Vec::new(),
         },
     )
     .expect("propagating scalar outcome calls must select MIR")

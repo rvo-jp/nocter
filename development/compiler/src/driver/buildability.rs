@@ -461,6 +461,14 @@ impl<'a> CallableIndex<'a> {
                                 .into_iter()
                                 .flatten()
                             {
+                                if let Some(arguments) = specialization.ordered_type_arguments() {
+                                    names.insert_instance(
+                                        crate::mir::CallInstanceKey::from_types(
+                                            definition, None, arguments,
+                                        ),
+                                        specialization.target_name.clone(),
+                                    );
+                                }
                                 let mut substitutions = specialization.substitutions.clone();
                                 let self_ty = substitute_type_expr_parameters(
                                     &construct.target,

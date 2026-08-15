@@ -19,7 +19,7 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
             && semantic
                 .typed_hir
                 .type_id(&plan.element_ty)
-                .and_then(|ty| super::coverage::scalar_type(ty, semantic.typed_hir))
+                .and_then(|ty| super::coverage::value_representation(ty, semantic))
                 .is_some();
     }
     if plan.projection != crate::typecheck::TypecheckIndexProjection::Array
@@ -28,11 +28,15 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
     {
         return false;
     }
-    let Some(index_ty) = super::coverage::known_expression_type(&index.index, semantic.typed_hir)
-    else {
+    let Some(index_ty) = semantic.typed_hir.type_id(&plan.index_ty) else {
         return false;
     };
-    super::coverage::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize)
+    let index_is_usize =
+        super::coverage::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
+    let index_is_contextual_literal = matches!(index.index.without_groups(), Expr::IntegerLiteral(literal)
+        if crate::literals::decode_integer_literal_value(&literal.value)
+            .is_some_and(|value| u64::try_from(value).is_ok()));
+    (index_is_usize || index_is_contextual_literal)
         && super::coverage::scalar_expression_is_supported(
             &index.index,
             semantic.resolved,
@@ -54,7 +58,8 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
     if plan.conversion.is_some() {
         return false;
     }
-    let Some(source_ty) = super::coverage::known_expression_type(&index.object, semantic.typed_hir)
+    let Some(source_ty) = super::coverage::handled_outcome_success_type(&index.object, semantic)
+        .or_else(|| super::coverage::known_expression_type(&index.object, semantic.typed_hir))
     else {
         return false;
     };
@@ -68,11 +73,6 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
             .is_some_and(|value| u64::try_from(value).is_ok()));
     super::coverage::value_representation(source_ty, semantic)
         == Some(ValueRepresentation::View(kind))
-        && super::coverage::value_expression_is_supported(
-            &index.object,
-            ValueRepresentation::View(kind),
-            semantic,
-        )
         && (index_is_usize || index_is_contextual_literal)
         && super::coverage::scalar_expression_is_supported(
             &index.index,
@@ -101,7 +101,11 @@ pub(super) fn lower_place(
     let (base, parent) = lower_base(context, &index.object)?;
     let contract =
         array_contract(index, context.semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let index_ty = super::coverage::known_expression_type(&index.index, context.semantic.typed_hir)
+    let index_ty = context
+        .semantic
+        .typed_hir
+        .index_plan(index.span)
+        .and_then(|plan| context.semantic.typed_hir.type_id(&plan.index_ty))
         .ok_or(BuildError::MissingTypedExpression)?;
     let index_operand = context.lower_operand(&index.index, index_ty, ScalarType::Usize, scope)?;
     let element = ProjectionElement::Index {
@@ -158,9 +162,11 @@ fn lower_view_index_place(
         .typed_hir
         .index_plan(index.span)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let source_ty =
-        super::coverage::known_expression_type(&index.object, context.semantic.typed_hir)
-            .ok_or(BuildError::MissingTypedExpression)?;
+    let source_ty = super::coverage::handled_outcome_success_type(&index.object, context.semantic)
+        .or_else(|| {
+            super::coverage::known_expression_type(&index.object, context.semantic.typed_hir)
+        })
+        .ok_or(BuildError::MissingTypedExpression)?;
     let Operand::Copy(source) =
         context.lower_view_operand(&index.object, source_ty, crate::mir::ViewKind::Slice, scope)?
     else {
@@ -197,7 +203,7 @@ fn lower_view_index_place(
         .typed_hir
         .type_id(&plan.element_ty)
         .ok_or(BuildError::MissingTypedExpression)?;
-    let scalar = super::coverage::scalar_type(ty, context.semantic.typed_hir)
+    let representation = super::coverage::value_representation(ty, context.semantic)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
     let id = ProjectionPathId::from_index(context.projections.len());
     context.projections.push(ProjectionPath {
@@ -208,14 +214,11 @@ fn lower_view_index_place(
             index: index_operand,
         },
         ty,
-        representation: ValueRepresentation::Scalar(scalar),
+        representation,
         ownership: OwnershipKind::Copy,
         drop_plan: None,
     });
-    Ok((
-        Place::projected(source.local, id),
-        ValueRepresentation::Scalar(scalar),
-    ))
+    Ok((Place::projected(source.local, id), representation))
 }
 
 fn base_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
