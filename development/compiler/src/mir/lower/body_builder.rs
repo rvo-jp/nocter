@@ -259,6 +259,30 @@ impl ControlFlowBuilder {
         Ok(success)
     }
 
+    pub(super) fn begin_handled_outcome_effect(
+        &mut self,
+        source: ExprId,
+        callee: crate::mir::CallInstance,
+        arguments: Vec<CallArgument>,
+        failure_scope: ScopeId,
+        failure_payload: Option<LocalId>,
+    ) -> Result<BasicBlockId, BuildError> {
+        let success = self.reserve_block(self.current_scope()?);
+        let failure = self.reserve_block(failure_scope);
+        self.terminate(Terminator::Call {
+            origin: Origin::Expression(source),
+            callee,
+            arguments,
+            continuation: CallContinuation::OutcomeEffect {
+                success,
+                failure,
+                failure_payload,
+            },
+        })?;
+        self.select_block(failure)?;
+        Ok(success)
+    }
+
     pub(super) fn begin_stored_outcome_inspection(
         &mut self,
         origin: Origin,

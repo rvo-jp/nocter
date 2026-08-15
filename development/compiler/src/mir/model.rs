@@ -214,6 +214,21 @@ impl Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
+    /// Constructs stored outcome storage from a success value. The backend
+    /// derives tag and payload offsets from the destination type; MIR retains
+    /// only the semantic value being wrapped.
+    OutcomeSuccess {
+        value: CallArgument,
+    },
+    /// Constructs the first optional failure reachable through successful
+    /// outer layers of the destination outcome.
+    OutcomeNone,
+    /// Constructs the first fallible failure reachable through successful
+    /// outer layers of the destination outcome.
+    OutcomeFailure {
+        code: Operand,
+        message: Operand,
+    },
     Error {
         code: Operand,
         message: Operand,

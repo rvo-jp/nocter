@@ -1099,6 +1099,10 @@ fn lower_branch(
                 });
                 return Ok(instructions);
             }
+            Terminator::ReturnOptionalNone => {
+                instructions.push(Instruction::ReturnOptionalNone);
+                return Ok(instructions);
+            }
             Terminator::ReturnValue { source } => {
                 instructions.extend(lower_value_return(context, source)?);
                 instructions.push(success_return_instruction(body));
@@ -2250,6 +2254,13 @@ fn lower_statements(
             }
             continue;
         }
+        if matches!(
+            value,
+            Rvalue::OutcomeSuccess { .. } | Rvalue::OutcomeNone | Rvalue::OutcomeFailure { .. }
+        ) {
+            lower_stored_outcome_construction(context, destination, value, &mut instructions)?;
+            continue;
+        }
         let destination_representation = destination
             .projection
             .and_then(|projection| body.projections.get(projection.index()))
@@ -2404,9 +2415,10 @@ fn lower_statements(
             if destination.projection.is_none()
                 && let Operand::Copy(source) | Operand::Move(source) = operand
                 && let Some(source_projection) = source.projection
-                && !matches!(
+                && matches!(
                     context.body.projections[source_projection.index()].element,
-                    crate::mir::ProjectionElement::ViewIndex { .. }
+                    crate::mir::ProjectionElement::Field { .. }
+                        | crate::mir::ProjectionElement::Index { .. }
                 )
             {
                 let (pointer, len) = str_word_locations(str_location(destination, context)?)?;
@@ -2532,7 +2544,10 @@ fn lower_statements(
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. }
+                    Rvalue::OutcomeSuccess { .. }
+                    | Rvalue::OutcomeNone
+                    | Rvalue::OutcomeFailure { .. }
+                    | Rvalue::Variant { .. }
                     | Rvalue::Discriminant { .. }
                     | Rvalue::ViewCompare { .. }
                     | Rvalue::Error { .. }
@@ -2618,7 +2633,10 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. }
+                    Rvalue::OutcomeSuccess { .. }
+                    | Rvalue::OutcomeNone
+                    | Rvalue::OutcomeFailure { .. }
+                    | Rvalue::Variant { .. }
                     | Rvalue::ViewCompare { .. }
                     | Rvalue::Error { .. }
                     | Rvalue::Intrinsic { .. } => {
@@ -2710,7 +2728,10 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. }
+                    Rvalue::OutcomeSuccess { .. }
+                    | Rvalue::OutcomeNone
+                    | Rvalue::OutcomeFailure { .. }
+                    | Rvalue::Variant { .. }
                     | Rvalue::Discriminant { .. }
                     | Rvalue::ViewCompare { .. }
                     | Rvalue::Error { .. }
@@ -2790,7 +2811,10 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
-                    Rvalue::Variant { .. }
+                    Rvalue::OutcomeSuccess { .. }
+                    | Rvalue::OutcomeNone
+                    | Rvalue::OutcomeFailure { .. }
+                    | Rvalue::Variant { .. }
                     | Rvalue::Discriminant { .. }
                     | Rvalue::ViewCompare { .. }
                     | Rvalue::Error { .. }
@@ -2883,7 +2907,10 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Variant { .. }
+                    Rvalue::OutcomeSuccess { .. }
+                    | Rvalue::OutcomeNone
+                    | Rvalue::OutcomeFailure { .. }
+                    | Rvalue::Variant { .. }
                     | Rvalue::Discriminant { .. }
                     | Rvalue::Error { .. }
                     | Rvalue::Intrinsic { .. } => {
@@ -3003,6 +3030,223 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn outcome_storage_for_ty(
+    ty: crate::semantic::TyId,
+    context: &BackendContext<'_>,
+) -> Result<crate::outcomes::storage::OutcomeStorageLayout, Vec<Diagnostic>> {
+    let type_expr = context
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or_else(|| invalid_mir_diagnostics("stored outcome type is missing"))?;
+    let shape =
+        crate::outcomes::outcome_shape_with_resolver(type_expr, context.resolved, |source| {
+            context.resolved_sources.get(&source).copied()
+        });
+    let payload = crate::abi::abi_value_from_type_expr_with_resolver(
+        &shape.payload,
+        context.resolved,
+        |source| context.resolved_sources.get(&source).copied(),
+    )
+    .map_err(|error| {
+        invalid_mir_diagnostics(format!("stored outcome payload layout failed: {error:?}"))
+    })?;
+    shape
+        .storage_layout(payload.layout)
+        .ok_or_else(|| invalid_mir_diagnostics("stored outcome has no supported layers"))
+}
+
+fn lower_stored_outcome_construction(
+    context: &BackendContext<'_>,
+    destination: &Place,
+    value: &Rvalue,
+    instructions: &mut Vec<Instruction>,
+) -> Result<(), Vec<Diagnostic>> {
+    let destination_ty = destination
+        .projection
+        .and_then(|projection| context.body.projections.get(projection.index()))
+        .map_or(context.body.locals[destination.local.index()].ty, |path| {
+            path.ty
+        });
+    let storage = outcome_storage_for_ty(destination_ty, context)?;
+    reserve_aggregate_destination(context, &Place::local(destination.local), instructions)?;
+    let location = aggregate_location(&Place::local(destination.local), context)?;
+    let base_offset = destination
+        .projection
+        .map(|projection| aggregate_field_offset(context.body, destination.local, projection))
+        .transpose()?
+        .unwrap_or(0);
+    let checked_offset = |offset: u64, role: &str| {
+        u32::try_from(offset)
+            .ok()
+            .and_then(|offset| base_offset.checked_add(offset))
+            .ok_or_else(|| {
+                invalid_mir_diagnostics(format!("stored outcome {role} offset is invalid"))
+            })
+    };
+    let store_success_prefix = |through: usize, instructions: &mut Vec<Instruction>| {
+        for layer in storage.layers.iter().take(through) {
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: checked_offset(layer.tag_offset, "tag")?,
+                value: UsizeValue::Const(0),
+            });
+        }
+        Ok::<(), Vec<Diagnostic>>(())
+    };
+    match value {
+        Rvalue::OutcomeNone => {
+            let layer_index = storage
+                .layers
+                .iter()
+                .position(|layer| layer.layer == crate::outcomes::OutcomeLayer::Optional)
+                .ok_or_else(|| {
+                    invalid_mir_diagnostics("none assigned to a non-optional outcome")
+                })?;
+            store_success_prefix(layer_index, instructions)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: checked_offset(storage.layers[layer_index].tag_offset, "tag")?,
+                value: UsizeValue::Const(1),
+            });
+        }
+        Rvalue::OutcomeFailure { code, message } => {
+            let layer_index = storage
+                .layers
+                .iter()
+                .position(|layer| layer.layer == crate::outcomes::OutcomeLayer::Fallible)
+                .ok_or_else(|| {
+                    invalid_mir_diagnostics("failure assigned to a non-fallible outcome")
+                })?;
+            store_success_prefix(layer_index, instructions)?;
+            let layer = storage.layers[layer_index];
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: checked_offset(layer.tag_offset, "tag")?,
+                value: UsizeValue::Const(1),
+            });
+            let error_offset = checked_offset(
+                layer.failure_offset.ok_or_else(|| {
+                    invalid_mir_diagnostics("fallible outcome has no failure storage")
+                })?,
+                "failure",
+            )?;
+            let code = lower_str_operand(code, context)?;
+            let message = lower_str_operand(message, context)?;
+            let StrValue::Location(code) = code else {
+                return Err(invalid_mir_diagnostics(
+                    "stored failure code was not materialized",
+                ));
+            };
+            let StrValue::Location(message) = message else {
+                return Err(invalid_mir_diagnostics(
+                    "stored failure message was not materialized",
+                ));
+            };
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: error_offset,
+                value: UsizeValue::StrPointer(code),
+            });
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: error_offset + crate::abi::ABI_WORD_SIZE as u32,
+                value: UsizeValue::StrLen(code),
+            });
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: error_offset + 2 * crate::abi::ABI_WORD_SIZE as u32,
+                value: UsizeValue::StrPointer(message),
+            });
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: location,
+                offset: error_offset + 3 * crate::abi::ABI_WORD_SIZE as u32,
+                value: UsizeValue::StrLen(message),
+            });
+        }
+        Rvalue::OutcomeSuccess { value } => {
+            store_success_prefix(storage.layers.len(), instructions)?;
+            let offset = checked_offset(storage.payload_offset, "payload")?;
+            match value.representation {
+                crate::mir::ValueRepresentation::Scalar(scalar) => instructions.push(
+                    store_aggregate_scalar(location, offset, scalar, &value.operand, context)?,
+                ),
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+                    let StrValue::Location(source) = lower_str_operand(&value.operand, context)?
+                    else {
+                        return Err(invalid_mir_diagnostics(
+                            "stored outcome string was not materialized",
+                        ));
+                    };
+                    instructions.push(Instruction::StoreAggregateUsize {
+                        destination: location,
+                        offset,
+                        value: UsizeValue::StrPointer(source),
+                    });
+                    instructions.push(Instruction::StoreAggregateUsize {
+                        destination: location,
+                        offset: offset + crate::abi::ABI_WORD_SIZE as u32,
+                        value: UsizeValue::StrLen(source),
+                    });
+                }
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice) => {
+                    let SliceValue::Location(source) =
+                        lower_slice_operand(&value.operand, context)?
+                    else {
+                        return Err(invalid_mir_diagnostics(
+                            "stored outcome slice was not materialized",
+                        ));
+                    };
+                    instructions.push(Instruction::StoreAggregateUsize {
+                        destination: location,
+                        offset,
+                        value: UsizeValue::SlicePointer(source),
+                    });
+                    instructions.push(Instruction::StoreAggregateUsize {
+                        destination: location,
+                        offset: offset + crate::abi::ABI_WORD_SIZE as u32,
+                        value: UsizeValue::SliceLen(source),
+                    });
+                }
+                crate::mir::ValueRepresentation::Borrow => {
+                    instructions.push(Instruction::StoreAggregateUsize {
+                        destination: location,
+                        offset,
+                        value: lower_stored_borrow_pointer(&value.operand, context)?,
+                    })
+                }
+                crate::mir::ValueRepresentation::Aggregate => {
+                    let (Operand::Copy(source) | Operand::Move(source)) = &value.operand else {
+                        return Err(invalid_mir_diagnostics(
+                            "stored outcome aggregate payload has no place",
+                        ));
+                    };
+                    instructions.push(Instruction::CopyAggregateRange {
+                        destination: location,
+                        destination_offset: offset,
+                        source: aggregate_location(&Place::local(source.local), context)?,
+                        source_offset: source
+                            .projection
+                            .map(|projection| {
+                                aggregate_field_offset(context.body, source.local, projection)
+                            })
+                            .transpose()?
+                            .unwrap_or(0),
+                        layout: aggregate_local_abi_value(value.ty, context)?.layout,
+                    });
+                }
+                crate::mir::ValueRepresentation::Unit => {}
+                crate::mir::ValueRepresentation::Error => {
+                    return Err(invalid_mir_diagnostics(
+                        "logical Error cannot be an outcome success payload",
+                    ));
+                }
+            }
+        }
+        _ => unreachable!("caller filters stored outcome construction rvalues"),
+    }
+    Ok(())
 }
 
 fn lower_str_index(

@@ -196,6 +196,40 @@ pub(super) fn lower_borrow_catch_to_place(
     )
 }
 
+pub(in crate::mir::lower) fn lower_unit_catch(
+    context: &mut LoweringContext<'_>,
+    catch: &crate::ast::CatchExpr,
+    parent_scope: ScopeId,
+) -> Result<(), super::super::BuildError> {
+    let ty = super::super::coverage::handled_outcome_success_type(
+        &Expr::Catch(catch.clone()),
+        context.semantic,
+    )
+    .ok_or(super::super::BuildError::MissingTypedExpression)?;
+    let destination = LocalId::from_index(context.locals.len());
+    context.locals.push(crate::mir::Local::unit(
+        ty,
+        crate::mir::LocalStorage::Local,
+        crate::mir::LocalOrigin::Desugared(catch.span),
+        parent_scope,
+    ));
+    let fallback_scope = context.child_scope(parent_scope, catch.catch_block.span);
+    let failure_payload = catch_failure_payload(context, catch, fallback_scope)?;
+    lower_recovery_to_place_with_scope(
+        context,
+        RecoveryDestination {
+            local: destination,
+            ty,
+            representation: ValueRepresentation::Unit,
+            parent_scope,
+        },
+        &catch.expression,
+        &catch.catch_block,
+        fallback_scope,
+        failure_payload,
+    )
+}
+
 fn catch_failure_payload(
     context: &mut LoweringContext<'_>,
     catch: &crate::ast::CatchExpr,
@@ -276,14 +310,24 @@ fn lower_recovery_to_place_with_scope(
             if returns_never {
                 return Err(super::super::BuildError::UnsupportedClaimedExpression);
             }
-            context.control_flow.begin_handled_outcome_call(
-                source,
-                callee,
-                arguments,
-                destination.local,
-                fallback_scope,
-                failure_payload,
-            )?
+            if destination.representation == ValueRepresentation::Unit {
+                context.control_flow.begin_handled_outcome_effect(
+                    source,
+                    callee,
+                    arguments,
+                    fallback_scope,
+                    failure_payload,
+                )?
+            } else {
+                context.control_flow.begin_handled_outcome_call(
+                    source,
+                    callee,
+                    arguments,
+                    destination.local,
+                    fallback_scope,
+                    failure_payload,
+                )?
+            }
         }
         Expr::Identifier(_) => {
             let (stored, layer) = stored_outcome_source(context, source_expression)?;

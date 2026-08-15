@@ -412,6 +412,18 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     exits
                 }
                 ScalarStatement::Expression(expression) => {
+                    if let Expr::Catch(catch) = expression.without_groups()
+                        && super::coverage::handled_outcome_success_type(
+                            expression,
+                            self.context.semantic,
+                        )
+                        .and_then(|ty| {
+                            super::coverage::value_representation(ty, self.context.semantic)
+                        }) == Some(crate::mir::ValueRepresentation::Unit)
+                    {
+                        super::expressions::lower_unit_catch(self.context, catch, scope)?;
+                        continue;
+                    }
                     enum EffectKind {
                         Plain,
                         Trap,
@@ -640,6 +652,57 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context.semantic,
                     ) {
                         self.context.lower_failure_return(expression, scope)?;
+                        return Ok(true);
+                    }
+                    if matches!(expression.without_groups(), Expr::NoneLiteral(_))
+                        && self
+                            .context
+                            .outcome_contract
+                            .as_ref()
+                            .is_some_and(|contract| {
+                                contract
+                                    .layers
+                                    .contains(&crate::outcomes::OutcomeLayer::Optional)
+                            })
+                    {
+                        self.context
+                            .lower_direct_outcome_return(expression, scope)?;
+                        return Ok(true);
+                    }
+                    if self
+                        .context
+                        .outcome_contract
+                        .as_ref()
+                        .is_some_and(|contract| {
+                            contract.payload_representation
+                                == crate::mir::ValueRepresentation::Aggregate
+                        })
+                        && !super::coverage::expression_has_outcome_value(
+                            expression,
+                            self.context.semantic,
+                        )
+                    {
+                        self.context
+                            .lower_direct_outcome_return(expression, scope)?;
+                        return Ok(true);
+                    }
+                    if self
+                        .context
+                        .outcome_contract
+                        .as_ref()
+                        .is_some_and(|contract| {
+                            contract.payload_representation
+                                == crate::mir::ValueRepresentation::Aggregate
+                        })
+                        && super::coverage::expression_has_outcome_value(
+                            expression,
+                            self.context.semantic,
+                        )
+                    {
+                        let source = self.context.lower_aggregate_operand(expression)?;
+                        self.context
+                            .control_flow
+                            .terminate(Terminator::ReturnOutcome { source })?;
                         return Ok(true);
                     }
                     let result_ty = self.context.locals[self.context.return_local().index()].ty;

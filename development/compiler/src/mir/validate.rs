@@ -501,6 +501,79 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                     ty
                 }
+                super::model::Rvalue::OutcomeSuccess { value } => {
+                    if destination_representation != ValueRepresentation::Aggregate {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    let location = OperandLocation::Statement(statement_index);
+                    let actual_ty =
+                        operand_type(body, block_id, location, &value.operand, &mut errors);
+                    if actual_ty.is_some_and(|actual| actual != value.ty) {
+                        errors.push(ValidationError::OperandTypeMismatch {
+                            block: block_id,
+                            location,
+                            expected: value.ty,
+                            actual: actual_ty.unwrap(),
+                        });
+                    }
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        &value.operand,
+                        value.representation,
+                        &mut errors,
+                    );
+                    validate_operand_ownership(
+                        body,
+                        block_id,
+                        location,
+                        &value.operand,
+                        &mut errors,
+                    );
+                    Some(destination_ty)
+                }
+                super::model::Rvalue::OutcomeNone => {
+                    if destination_representation != ValueRepresentation::Aggregate {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    Some(destination_ty)
+                }
+                super::model::Rvalue::OutcomeFailure { code, message } => {
+                    if destination_representation != ValueRepresentation::Aggregate {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_representation,
+                        });
+                    }
+                    for operand in [code, message] {
+                        validate_operand_representation(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            operand,
+                            ValueRepresentation::View(super::ViewKind::Str),
+                            &mut errors,
+                        );
+                        validate_operand_ownership(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            operand,
+                            &mut errors,
+                        );
+                    }
+                    Some(destination_ty)
+                }
                 super::model::Rvalue::Error { code, message } => {
                     if destination_representation != ValueRepresentation::Error {
                         errors.push(ValidationError::AssignmentRequiresScalar {

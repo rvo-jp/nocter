@@ -464,6 +464,9 @@ fn merge_entry(
 fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
     match value {
         Rvalue::Use(operand) => Box::new(std::iter::once(operand)),
+        Rvalue::OutcomeSuccess { value } => Box::new(std::iter::once(&value.operand)),
+        Rvalue::OutcomeNone => Box::new(std::iter::empty()),
+        Rvalue::OutcomeFailure { code, message } => Box::new([code, message].into_iter()),
         Rvalue::Error { code, message } => Box::new([code, message].into_iter()),
         Rvalue::Discriminant { source, .. } => Box::new(std::iter::once(source)),
         Rvalue::Variant { leaves, .. } => Box::new(leaves.iter().map(|leaf| &leaf.operand)),

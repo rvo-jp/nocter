@@ -388,6 +388,14 @@ fn reject_rvalue_moves(
 ) {
     match value {
         Rvalue::Use(operand) => reject_operand_move(body, block, operand, state, errors),
+        Rvalue::OutcomeSuccess { value } => {
+            reject_operand_move(body, block, &value.operand, state, errors);
+        }
+        Rvalue::OutcomeNone => {}
+        Rvalue::OutcomeFailure { code, message } => {
+            reject_operand_move(body, block, code, state, errors);
+            reject_operand_move(body, block, message, state, errors);
+        }
         Rvalue::Error { code, message } => {
             reject_operand_move(body, block, code, state, errors);
             reject_operand_move(body, block, message, state, errors);

@@ -1774,6 +1774,13 @@ pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticIn
     let Expr::Call(call) = expression.without_groups() else {
         return false;
     };
+    if known_expression_type(expression, semantic.typed_hir)
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+        .is_some_and(|ty| type_expr_resolves_to_error(ty, semantic.resolved))
+        && call.arguments.len() == 2
+    {
+        return true;
+    }
     if let Some(symbol) = semantic.resolved.symbol_for_call(call)
         && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
         && signature.parameters.len() == 2
@@ -2374,6 +2381,38 @@ pub(super) fn call_has_single_outcome_layer(
             .layers
             .len()
                 == 1
+        })
+}
+
+pub(super) fn expression_has_outcome_value(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let ty = match expression.without_groups() {
+        Expr::Call(call) => call_result_type(call, semantic),
+        Expr::Identifier(identifier) => semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+            .and_then(|ty| semantic.typed_hir.type_id(ty)),
+        Expr::Unary(unary) => return expression_has_outcome_value(&unary.operand, semantic),
+        Expr::Member(_)
+        | Expr::Index(_)
+        | Expr::Force(_)
+        | Expr::Propagate(_)
+        | Expr::Otherwise(_)
+        | Expr::Catch(_)
+        | Expr::If(_)
+        | Expr::Match(_) => known_expression_type(expression, semantic.typed_hir),
+        _ => return false,
+    };
+    ty.and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+        .is_some_and(|ty| {
+            !crate::outcomes::outcome_shape_with_resolver(ty, semantic.resolved, |source| {
+                semantic.resolver_for(source)
+            })
+            .layers
+            .is_empty()
         })
 }
 

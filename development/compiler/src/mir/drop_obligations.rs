@@ -392,6 +392,12 @@ fn owned_place(body: &Body, place: Place) -> bool {
 fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState) {
     match value {
         Rvalue::Use(operand) => consume_operand_move(body, operand, state),
+        Rvalue::OutcomeSuccess { value } => consume_operand_move(body, &value.operand, state),
+        Rvalue::OutcomeNone => {}
+        Rvalue::OutcomeFailure { code, message } => {
+            consume_operand_move(body, code, state);
+            consume_operand_move(body, message, state);
+        }
         Rvalue::Error { code, message } => {
             consume_operand_move(body, code, state);
             consume_operand_move(body, message, state);

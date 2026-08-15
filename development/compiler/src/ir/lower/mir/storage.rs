@@ -382,6 +382,11 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
+        Rvalue::OutcomeSuccess { value } => operand_use_count(&value.operand, local),
+        Rvalue::OutcomeNone => 0,
+        Rvalue::OutcomeFailure { code, message } => {
+            operand_use_count(code, local) + operand_use_count(message, local)
+        }
         Rvalue::Error { code, message } => {
             operand_use_count(code, local) + operand_use_count(message, local)
         }

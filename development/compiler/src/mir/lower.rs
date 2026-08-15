@@ -440,10 +440,36 @@ fn build_prepared_body(
                     root_scope,
                 )
                 .map_err(|error| error.context("lower tail failure return"))?;
+        } else if context.outcome_contract.as_ref().is_some_and(|contract| {
+            contract.payload_representation == super::ValueRepresentation::Aggregate
+        }) && tail
+            .expression()
+            .is_some_and(|expression| !coverage::expression_has_outcome_value(expression, semantic))
+        {
+            context
+                .lower_direct_outcome_return(
+                    tail.expression()
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                    root_scope,
+                )
+                .map_err(|error| error.context("lower tail outcome success"))?;
+        } else if context.outcome_contract.as_ref().is_some_and(|contract| {
+            contract.payload_representation == super::ValueRepresentation::Aggregate
+        }) && tail
+            .expression()
+            .is_some_and(|expression| coverage::expression_has_outcome_value(expression, semantic))
+        {
+            let source = context.lower_aggregate_operand(
+                tail.expression()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            )?;
+            context
+                .control_flow
+                .terminate(Terminator::ReturnOutcome { source })?;
         } else if tail.expression().is_some_and(|expression| {
             coverage::outcome_return_expression_is_supported(
                 expression,
-                contextual_return_ty,
+                declared_return_ty,
                 semantic,
             )
         }) {
@@ -463,11 +489,7 @@ fn build_prepared_body(
             }
             context.control_flow.terminate(Terminator::Return)?;
         } else if let Some(if_) = tail.conditional()
-            && coverage::outcome_return_conditional_is_supported(
-                if_,
-                contextual_return_ty,
-                semantic,
-            )
+            && coverage::outcome_return_conditional_is_supported(if_, declared_return_ty, semantic)
         {
             let exits = StatementLowerer::new(&mut context)
                 .lower(&[ScalarStatement::If(if_)], root_scope)?;
