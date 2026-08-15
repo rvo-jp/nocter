@@ -179,7 +179,7 @@ fn diagnose_sequence_spread_borrow_conflicts(
             return;
         };
         for (index, element) in literal.elements.iter().enumerate() {
-            let Some(earlier) = sequence_spread_borrow_source(element) else {
+            let Some(earlier) = sequence_spread_borrow_source(element, resolved) else {
                 continue;
             };
             for later in &literal.elements[index + 1..] {
@@ -224,7 +224,10 @@ fn diagnose_sequence_spread_borrow_conflicts(
     reported
 }
 
-fn sequence_spread_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
+fn sequence_spread_borrow_source(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> Option<DirectBorrowSource> {
     let spread = crate::typecheck::sequence_spread(expression)?;
     match spread.operand.without_groups() {
         Expr::Unary(crate::ast::UnaryExpr {
@@ -232,12 +235,12 @@ fn sequence_spread_borrow_source(expression: &Expr) -> Option<DirectBorrowSource
             ..
         }) => None,
         Expr::Borrow(borrow) => Some(DirectBorrowSource {
-            source: expression_place(&borrow.expression)?,
+            source: expression_place(&borrow.expression, resolved)?,
             source_span: borrow.expression.span(),
             is_readwrite: borrow.is_readwrite,
         }),
         operand => Some(DirectBorrowSource {
-            source: expression_place(operand)?,
+            source: expression_place(operand, resolved)?,
             source_span: operand.span(),
             is_readwrite: false,
         }),
@@ -332,21 +335,22 @@ fn statement_conflicting_action(
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => None,
         Stmt::Drop(statement)
-            if BorrowPlace::whole(statement.name.clone()).conflicts_with(source) =>
+            if reference_place(&statement.name, statement.name_span, resolved)
+                .is_some_and(|place| place.conflicts_with(source)) =>
         {
             Some(BorrowAction {
-                place: BorrowPlace::whole(statement.name.clone()),
+                place: reference_place(&statement.name, statement.name_span, resolved)?,
                 span: statement.name_span,
                 description: "drop",
             })
         }
         Stmt::Assignment(statement)
-            if assignment_target_place(&statement.target)
+            if assignment_target_place(&statement.target, resolved)
                 .as_ref()
                 .is_some_and(|target| target.conflicts_with(source)) =>
         {
             Some(BorrowAction {
-                place: assignment_target_place(&statement.target)?,
+                place: assignment_target_place(&statement.target, resolved)?,
                 span: statement.target.span(),
                 description: "assign to",
             })
@@ -551,7 +555,8 @@ fn expression_move_action(
     match expression {
         Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
             (capture.mode == crate::ast::ClosureCaptureMode::Move)
-                .then(|| BorrowPlace::whole(capture.name.clone()))
+                .then(|| reference_place(&capture.name, capture.name_span, resolved))
+                .flatten()
                 .filter(|place| place.conflicts_with(source))
                 .map(|place| BorrowAction {
                     place,
@@ -574,10 +579,11 @@ fn expression_move_action(
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             match expression.operand.as_ref() {
                 Expr::Identifier(identifier)
-                    if BorrowPlace::whole(identifier.name.clone()).conflicts_with(source) =>
+                    if reference_place(&identifier.name, identifier.span, resolved)
+                        .is_some_and(|place| place.conflicts_with(source)) =>
                 {
                     Some(BorrowAction {
-                        place: BorrowPlace::whole(identifier.name.clone()),
+                        place: reference_place(&identifier.name, identifier.span, resolved)?,
                         span: identifier.span,
                         description: "move",
                     })
@@ -613,20 +619,22 @@ fn expression_move_action(
         Expr::Call(expression) => {
             if let Some(identifier) =
                 consuming_callable_identifier(expression, resolved, environment)
-                && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
+                && reference_place(&identifier.name, identifier.span, resolved)
+                    .is_some_and(|place| place.conflicts_with(source))
             {
                 return Some(BorrowAction {
-                    place: BorrowPlace::whole(identifier.name.clone()),
+                    place: reference_place(&identifier.name, identifier.span, resolved)?,
                     span: identifier.span,
                     description: "move",
                 });
             }
             if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
-                && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
+                && reference_place(&identifier.name, identifier.span, resolved)
+                    .is_some_and(|place| place.conflicts_with(source))
             {
                 return Some(BorrowAction {
-                    place: BorrowPlace::whole(identifier.name.clone()),
+                    place: reference_place(&identifier.name, identifier.span, resolved)?,
                     span: identifier.span,
                     description: "move",
                 });
@@ -726,7 +734,7 @@ fn expression_read_action(
 ) -> Option<BorrowAction> {
     match expression {
         Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
-            let place = BorrowPlace::whole(capture.name.clone());
+            let place = reference_place(&capture.name, capture.name_span, resolved)?;
             place.conflicts_with(source).then_some(BorrowAction {
                 place,
                 span: capture.name_span,
@@ -746,7 +754,7 @@ fn expression_read_action(
             expression_read_action(&using.allocator, source, resolved, environment)
         }),
         Expr::Identifier(identifier) => {
-            let place = BorrowPlace::whole(identifier.name.clone());
+            let place = reference_place(&identifier.name, identifier.span, resolved)?;
             place.conflicts_with(source).then_some(BorrowAction {
                 place,
                 span: identifier.span,
@@ -789,7 +797,7 @@ fn expression_read_action(
             )
         }
         Expr::Member(expression) => {
-            if let Some(place) = member_expression_place(expression)
+            if let Some(place) = member_expression_place(expression, resolved)
                 && place.conflicts_with(source)
             {
                 return Some(BorrowAction {
@@ -798,14 +806,14 @@ fn expression_read_action(
                     description: "use",
                 });
             }
-            if expression_place_has_only_named_fields(&expression.object) {
+            if expression_place_has_only_named_fields(&expression.object, resolved) {
                 None
             } else {
                 expression_read_action(&expression.object, source, resolved, environment)
             }
         }
         Expr::Index(expression) => {
-            if let Some(place) = index_expression_place(expression)
+            if let Some(place) = index_expression_place(expression, resolved)
                 && place.conflicts_with(source)
             {
                 return Some(BorrowAction {
@@ -814,11 +822,12 @@ fn expression_read_action(
                     description: "use",
                 });
             }
-            let object_action = if expression_place_has_only_named_fields(&expression.object) {
-                None
-            } else {
-                expression_read_action(&expression.object, source, resolved, environment)
-            };
+            let object_action =
+                if expression_place_has_only_named_fields(&expression.object, resolved) {
+                    None
+                } else {
+                    expression_read_action(&expression.object, source, resolved, environment)
+                };
             object_action.or_else(|| {
                 expression_read_action(&expression.index, source, resolved, environment)
             })

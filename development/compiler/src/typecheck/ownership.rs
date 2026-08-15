@@ -1,3 +1,15 @@
+//! Source-language ownership authority.
+//!
+//! This pass decides user-visible move, initialization, borrow-conflict, and
+//! explicit-drop validity for every checked body, including bodies that have
+//! no native representation. Places use resolver-owned `LocalSymbolId`
+//! identity; names and spans are diagnostic projections only.
+//!
+//! Checked MIR retains explicit moves, loans, drops, and CFG dataflow as a
+//! consistency verifier for executable bodies. MIR validation must not define
+//! a second accepted-language ownership policy or replace this pass in
+//! `nocter check`.
+
 use super::bindings::continuing_binding_type;
 use super::callables::{callable_contract_for_call, consuming_callable_identifier};
 use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
@@ -54,6 +66,6 @@ use place_state::{PlaceState, PlaceStateForest};
 use places::{
     assignment_target_place, expression_place, expression_place_has_only_named_fields,
     index_expression_place, member_expression_place, owned_method_receiver_identifier,
-    unwrap_group, whole_identifier,
+    reference_place, unwrap_group, whole_identifier,
 };
 use state_checks::{check_expression_ownership, check_statement_ownership};

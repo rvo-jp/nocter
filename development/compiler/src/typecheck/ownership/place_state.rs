@@ -4,20 +4,20 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct PlaceStateForest {
-    roots: HashMap<String, TrackedPlace>,
+    roots: HashMap<crate::resolve::LocalSymbolId, TrackedPlace>,
 }
 
 impl PlaceStateForest {
-    pub(super) fn define_root(&mut self, name: String, state: PlaceState) {
-        self.roots.insert(name, TrackedPlace::new(state));
+    pub(super) fn define_root(&mut self, symbol: crate::resolve::LocalSymbolId, state: PlaceState) {
+        self.roots.insert(symbol, TrackedPlace::new(state));
     }
 
-    pub(super) fn remove_root(&mut self, name: &str) {
-        self.roots.remove(name);
+    pub(super) fn remove_root(&mut self, symbol: crate::resolve::LocalSymbolId) {
+        self.roots.remove(&symbol);
     }
 
-    pub(super) fn contains_root(&self, name: &str) -> bool {
-        self.roots.contains_key(name)
+    pub(super) fn contains_root(&self, symbol: crate::resolve::LocalSymbolId) -> bool {
+        self.roots.contains_key(&symbol)
     }
 
     pub(super) fn state(&self, place: &BorrowPlace) -> Option<PlaceState> {
@@ -265,16 +265,21 @@ mod tests {
 
     fn field(root: &str, fields: &[&str]) -> BorrowPlace {
         BorrowPlace {
-            root: root.to_string(),
+            root: crate::resolve::LocalSymbolId::for_test(0),
+            root_name: root.to_string(),
             fields: Some(fields.iter().map(|field| (*field).to_string()).collect()),
         }
+    }
+
+    fn root(name: &str) -> BorrowPlace {
+        BorrowPlace::whole(crate::resolve::LocalSymbolId::for_test(0), name.to_string())
     }
 
     #[test]
     fn invalidating_field_keeps_sibling_live_and_marks_root_partial() {
         let mut states = PlaceStateForest::default();
         states.define_root(
-            "value".to_string(),
+            crate::resolve::LocalSymbolId::for_test(0),
             PlaceState::Initialized { span: span(0) },
         );
         states.invalidate(
@@ -292,7 +297,7 @@ mod tests {
                 .is_some_and(PlaceState::is_initialized)
         );
         assert_eq!(
-            states.state(&BorrowPlace::whole("value".to_string())),
+            states.state(&root("value")),
             Some(PlaceState::PartiallyInitialized { span: span(1) })
         );
     }
@@ -301,7 +306,7 @@ mod tests {
     fn reinitializing_field_restores_whole_place() {
         let mut states = PlaceStateForest::default();
         states.define_root(
-            "value".to_string(),
+            crate::resolve::LocalSymbolId::for_test(0),
             PlaceState::Initialized { span: span(0) },
         );
         let left = field("value", &["left"]);
@@ -310,7 +315,7 @@ mod tests {
 
         assert!(
             states
-                .state(&BorrowPlace::whole("value".to_string()))
+                .state(&root("value"))
                 .is_some_and(PlaceState::is_initialized)
         );
     }
@@ -319,7 +324,7 @@ mod tests {
     fn branch_join_marks_moved_field_maybe_initialized() {
         let mut incoming = PlaceStateForest::default();
         incoming.define_root(
-            "value".to_string(),
+            crate::resolve::LocalSymbolId::for_test(0),
             PlaceState::Initialized { span: span(0) },
         );
         let mut moved = incoming.clone();
@@ -341,7 +346,7 @@ mod tests {
     fn nested_invalidation_only_poison_ancestors() {
         let mut states = PlaceStateForest::default();
         states.define_root(
-            "value".to_string(),
+            crate::resolve::LocalSymbolId::for_test(0),
             PlaceState::Initialized { span: span(0) },
         );
         states.invalidate(
@@ -363,9 +368,9 @@ mod tests {
     #[test]
     fn initializing_field_of_dead_root_produces_partial_state() {
         let mut states = PlaceStateForest::default();
-        let root = BorrowPlace::whole("value".to_string());
+        let root = root("value");
         states.define_root(
-            "value".to_string(),
+            crate::resolve::LocalSymbolId::for_test(0),
             PlaceState::Initialized { span: span(0) },
         );
         states.invalidate(&root, PlaceState::Moved { span: span(1) });
@@ -383,6 +388,29 @@ mod tests {
         assert_eq!(
             states.state(&field("value", &["right"])),
             Some(PlaceState::Moved { span: span(1) })
+        );
+    }
+
+    #[test]
+    fn equal_display_names_do_not_merge_distinct_local_symbols() {
+        let first = crate::resolve::LocalSymbolId::for_test(0);
+        let second = crate::resolve::LocalSymbolId::for_test(1);
+        let mut states = PlaceStateForest::default();
+        states.define_root(first, PlaceState::Initialized { span: span(0) });
+        states.define_root(second, PlaceState::Initialized { span: span(1) });
+        states.invalidate(
+            &BorrowPlace::whole(first, "value".to_string()),
+            PlaceState::Moved { span: span(2) },
+        );
+
+        assert_eq!(
+            states.state(&BorrowPlace::whole(first, "value".to_string())),
+            Some(PlaceState::Moved { span: span(2) })
+        );
+        assert!(
+            states
+                .state(&BorrowPlace::whole(second, "value".to_string()))
+                .is_some_and(PlaceState::is_initialized)
         );
     }
 }

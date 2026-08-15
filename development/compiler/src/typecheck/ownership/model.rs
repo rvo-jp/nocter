@@ -26,14 +26,16 @@ pub(super) struct BorrowAction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct BorrowPlace {
-    pub(super) root: String,
+    pub(super) root: crate::resolve::LocalSymbolId,
+    pub(super) root_name: String,
     pub(super) fields: Option<Vec<String>>,
 }
 
 impl BorrowPlace {
-    pub(super) fn whole(root: String) -> Self {
+    pub(super) fn whole(root: crate::resolve::LocalSymbolId, root_name: String) -> Self {
         Self {
             root,
+            root_name,
             fields: Some(Vec::new()),
         }
     }
@@ -60,12 +62,12 @@ impl BorrowPlace {
 
     pub(super) fn display(&self) -> String {
         let Some(fields) = &self.fields else {
-            return self.root.clone();
+            return self.root_name.clone();
         };
         if fields.is_empty() {
-            self.root.clone()
+            self.root_name.clone()
         } else {
-            format!("{}.{}", self.root, fields.join("."))
+            format!("{}.{}", self.root_name, fields.join("."))
         }
     }
 }
@@ -152,7 +154,9 @@ impl OwnershipState {
         if let Some(ty) = environment.get(name) {
             self.define_binding(name.to_string(), span, ty, resolved, environment);
         } else {
-            self.places.remove_root(name);
+            if let Some(symbol) = resolved.local_symbol_id_at_span(span) {
+                self.places.remove_root(symbol);
+            }
         }
     }
 
@@ -163,7 +167,10 @@ impl OwnershipState {
         environment: &TypeEnvironment,
         resolved: &ResolveOutput,
     ) {
-        if self.places.contains_root(name) {
+        let Some(symbol) = resolved.local_symbol_id_at_span(span) else {
+            return;
+        };
+        if self.places.contains_root(symbol) {
             return;
         }
         self.define_binding_from_environment(name, span, environment, resolved);
@@ -177,19 +184,23 @@ impl OwnershipState {
         resolved: &ResolveOutput,
         environment: &TypeEnvironment,
     ) {
+        let Some(symbol) = resolved.local_symbol_id_at_span(span) else {
+            return;
+        };
         if non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_some()
             || matches!(ty, Type::Parameter(name) if !environment
                 .generic_requirements(name)
                 .is_some_and(|requirements| requirements.has_copy()))
         {
-            if self.places.contains_root(&name) {
-                self.places.initialize(&BorrowPlace::whole(name), span);
+            if self.places.contains_root(symbol) {
+                self.places
+                    .initialize(&BorrowPlace::whole(symbol, name), span);
             } else {
                 self.places
-                    .define_root(name, PlaceState::Initialized { span });
+                    .define_root(symbol, PlaceState::Initialized { span });
             }
         } else {
-            self.places.remove_root(&name);
+            self.places.remove_root(symbol);
         }
     }
 
@@ -197,10 +208,14 @@ impl OwnershipState {
         &self,
         sources: &SourceMap,
         identifier: &IdentifierExpr,
+        resolved: &ResolveOutput,
         action: &'static str,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> bool {
-        let place = BorrowPlace::whole(identifier.name.clone());
+        let Some(symbol) = resolved.local_symbol_id_for_reference_span(identifier.span) else {
+            return true;
+        };
+        let place = BorrowPlace::whole(symbol, identifier.name.clone());
         self.require_place_initialized(sources, &place, identifier.span, action, diagnostics)
     }
 
@@ -244,13 +259,17 @@ impl OwnershipState {
         &mut self,
         sources: &SourceMap,
         identifier: &IdentifierExpr,
+        resolved: &ResolveOutput,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if !self.require_initialized(sources, identifier, "move", diagnostics) {
+        if !self.require_initialized(sources, identifier, resolved, "move", diagnostics) {
             return;
         }
+        let Some(symbol) = resolved.local_symbol_id_for_reference_span(identifier.span) else {
+            return;
+        };
         self.places.invalidate(
-            &BorrowPlace::whole(identifier.name.clone()),
+            &BorrowPlace::whole(symbol, identifier.name.clone()),
             PlaceState::Moved {
                 span: identifier.span,
             },
@@ -275,17 +294,21 @@ impl OwnershipState {
         sources: &SourceMap,
         name: &str,
         span: ByteSpan,
+        resolved: &ResolveOutput,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let identifier = IdentifierExpr {
             span,
             name: name.to_string(),
         };
-        if !self.require_initialized(sources, &identifier, "drop", diagnostics) {
+        if !self.require_initialized(sources, &identifier, resolved, "drop", diagnostics) {
             return;
         }
+        let Some(symbol) = resolved.local_symbol_id_at_span(span) else {
+            return;
+        };
         self.places.invalidate(
-            &BorrowPlace::whole(name.to_string()),
+            &BorrowPlace::whole(symbol, name.to_string()),
             PlaceState::Dropped { span },
         );
     }

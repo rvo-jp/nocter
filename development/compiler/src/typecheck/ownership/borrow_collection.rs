@@ -173,7 +173,7 @@ pub(super) fn collect_direct_borrow_expressions(
                     ..
                 })
         )
-        && let Some(source) = expression_place(&spread.operand)
+        && let Some(source) = expression_place(&spread.operand, resolved)
     {
         borrows.push(DirectBorrowSource {
             source,
@@ -181,7 +181,7 @@ pub(super) fn collect_direct_borrow_expressions(
             is_readwrite: false,
         });
     }
-    if let Some(source) = direct_borrow_source(expression) {
+    if let Some(source) = direct_borrow_source(expression, resolved) {
         borrows.push(source);
     }
 
@@ -193,8 +193,12 @@ pub(super) fn collect_direct_borrow_expressions(
                     crate::ast::ClosureCaptureMode::ReadwriteBorrow => true,
                     crate::ast::ClosureCaptureMode::Move => continue,
                 };
+                let Some(source) = reference_place(&capture.name, capture.name_span, resolved)
+                else {
+                    continue;
+                };
                 borrows.push(DirectBorrowSource {
-                    source: BorrowPlace::whole(capture.name.clone()),
+                    source,
                     source_span: capture.name_span,
                     is_readwrite,
                 });
@@ -390,11 +394,14 @@ pub(super) fn collect_direct_borrow_expressions(
     }
 }
 
-pub(super) fn direct_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
+pub(super) fn direct_borrow_source(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> Option<DirectBorrowSource> {
     let Expr::Borrow(borrow) = unwrap_group(expression) else {
         return None;
     };
-    let source = expression_place(&borrow.expression)?;
+    let source = expression_place(&borrow.expression, resolved)?;
     Some(DirectBorrowSource {
         source,
         source_span: borrow.expression.span(),
@@ -415,7 +422,7 @@ pub(super) fn returned_borrow_sources(
     ) {
         return Vec::new();
     }
-    if let Some(source) = direct_borrow_source(expression) {
+    if let Some(source) = direct_borrow_source(expression, resolved) {
         return vec![source];
     }
 
@@ -664,7 +671,7 @@ fn borrow_sources_for_input(
     summaries: &CallableProvenanceSummaries,
     active_borrows: &[ActiveBorrow],
 ) -> Vec<DirectBorrowSource> {
-    if let Some(mut source) = direct_borrow_source(expression) {
+    if let Some(mut source) = direct_borrow_source(expression, resolved) {
         source.is_readwrite = result_is_readwrite;
         return vec![source];
     }
@@ -686,7 +693,7 @@ fn borrow_sources_for_input(
 
     if input_is_borrowed
         && !expression_is_borrow_value(expression, resolved, environment)
-        && let Some(source) = expression_place(expression)
+        && let Some(source) = expression_place(expression, resolved)
     {
         return vec![DirectBorrowSource {
             source,
@@ -719,7 +726,7 @@ fn method_borrow_receiver_source(
     if signature.receiver.mode == MethodReceiverMode::Owned {
         return None;
     }
-    let source = expression_place(&method.object)?;
+    let source = expression_place(&method.object, resolved)?;
     Some(DirectBorrowSource {
         source,
         source_span: method.object.span(),
@@ -736,7 +743,7 @@ fn callable_borrow_receiver_source(
     if contract.capability == crate::ast::CallableCapability::Consuming {
         return None;
     }
-    let source = expression_place(&call.callee)?;
+    let source = expression_place(&call.callee, resolved)?;
     Some(DirectBorrowSource {
         source,
         source_span: call.callee.span(),

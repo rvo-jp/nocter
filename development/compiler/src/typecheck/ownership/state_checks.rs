@@ -377,7 +377,7 @@ pub(super) fn check_statement_ownership(
                     environment,
                     resolved,
                 );
-                ownership.move_binding(sources, identifier, diagnostics);
+                ownership.move_binding(sources, identifier, resolved, diagnostics);
             }
             let item_type = resolution
                 .as_ref()
@@ -394,7 +394,7 @@ pub(super) fn check_statement_ownership(
                             | super::super::iteration::CollectionIterationSourceMode::ReadwriteConversion
                     )
                 })
-                .and_then(|_| direct_borrow_source(&statement.source))
+                .and_then(|_| direct_borrow_source(&statement.source, resolved))
                 .map(|source| ActiveBorrow {
                     source: source.source,
                     borrow_name: format!("collection iterator `{}`", statement.name),
@@ -523,7 +523,13 @@ pub(super) fn check_statement_ownership(
                 environment,
                 resolved,
             );
-            ownership.drop_binding(sources, &statement.name, statement.name_span, diagnostics);
+            ownership.drop_binding(
+                sources,
+                &statement.name,
+                statement.name_span,
+                resolved,
+                diagnostics,
+            );
             FlowState::fallthrough()
         }
         Stmt::Expression(statement) => {
@@ -563,7 +569,13 @@ pub(super) fn check_expression_ownership(
                     span: capture.name_span,
                     name: capture.name.clone(),
                 };
-                ownership.require_initialized(sources, &identifier, "capture", diagnostics);
+                ownership.require_initialized(
+                    sources,
+                    &identifier,
+                    resolved,
+                    "capture",
+                    diagnostics,
+                );
                 if capture.mode == crate::ast::ClosureCaptureMode::Move
                     && let Some(ty) = environment.get(&capture.name)
                     && (non_copy_owned_type_kind_in_environment(ty, resolved, environment)
@@ -578,7 +590,7 @@ pub(super) fn check_expression_ownership(
                         environment,
                         resolved,
                     );
-                    ownership.move_binding(sources, &identifier, diagnostics);
+                    ownership.move_binding(sources, &identifier, resolved, diagnostics);
                 }
             }
         }
@@ -620,18 +632,18 @@ pub(super) fn check_expression_ownership(
             }
         }
         Expr::Identifier(identifier) => {
-            ownership.require_initialized(sources, identifier, "use", diagnostics);
+            ownership.require_initialized(sources, identifier, resolved, "use", diagnostics);
         }
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
-            if let Some(place) = expression_place(&expression.operand)
-                && let Some(ty) = environment.get(&place.root)
+            if let Some(place) = expression_place(&expression.operand, resolved)
+                && let Some(ty) = environment.get(&place.root_name)
                 && (non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_some()
                     || matches!(ty, Type::Parameter(name) if !environment
                         .generic_requirements(name)
                         .is_some_and(|requirements| requirements.has_copy())))
             {
                 ownership.ensure_binding_from_environment(
-                    &place.root,
+                    &place.root_name,
                     expression.operand.span(),
                     environment,
                     resolved,
@@ -763,7 +775,7 @@ pub(super) fn check_expression_ownership(
                     environment,
                     resolved,
                 );
-                ownership.move_binding(sources, identifier, diagnostics);
+                ownership.move_binding(sources, identifier, resolved, diagnostics);
             } else if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
             {
@@ -773,7 +785,7 @@ pub(super) fn check_expression_ownership(
                     environment,
                     resolved,
                 );
-                ownership.move_binding(sources, identifier, diagnostics);
+                ownership.move_binding(sources, identifier, resolved, diagnostics);
             } else if let Some(method) = method_member_for_call(expression)
                 && resolved_method_for_call(resolved, expression, environment).is_some()
             {

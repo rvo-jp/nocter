@@ -502,6 +502,11 @@ impl LocalSymbolId {
     pub const fn raw(self) -> u32 {
         self.0
     }
+
+    #[cfg(test)]
+    pub(crate) const fn for_test(raw: u32) -> Self {
+        Self(raw)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

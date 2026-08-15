@@ -15,33 +15,59 @@ pub(super) fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
-pub(super) fn assignment_target_place(expression: &Expr) -> Option<BorrowPlace> {
-    expression_place(expression)
+pub(super) fn assignment_target_place(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowPlace> {
+    expression_place(expression, resolved)
 }
 
-pub(super) fn expression_place(expression: &Expr) -> Option<BorrowPlace> {
+pub(super) fn expression_place(expression: &Expr, resolved: &ResolveOutput) -> Option<BorrowPlace> {
     match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some(BorrowPlace::whole(identifier.name.clone())),
-        Expr::Member(member) => member_expression_place(member),
-        Expr::Index(index) => index_expression_place(index),
+        Expr::Identifier(identifier) => Some(BorrowPlace::whole(
+            resolved.local_symbol_id_for_reference_span(identifier.span)?,
+            identifier.name.clone(),
+        )),
+        Expr::Member(member) => member_expression_place(member, resolved),
+        Expr::Index(index) => index_expression_place(index, resolved),
         _ => None,
     }
 }
 
-pub(super) fn member_expression_place(member: &crate::ast::MemberExpr) -> Option<BorrowPlace> {
-    let mut place = expression_place(&member.object)?;
+pub(super) fn reference_place(
+    name: &str,
+    span: crate::source::ByteSpan,
+    resolved: &ResolveOutput,
+) -> Option<BorrowPlace> {
+    Some(BorrowPlace::whole(
+        resolved.local_symbol_id_for_reference_span(span)?,
+        name.to_string(),
+    ))
+}
+
+pub(super) fn member_expression_place(
+    member: &crate::ast::MemberExpr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowPlace> {
+    let mut place = expression_place(&member.object, resolved)?;
     place.push_field(member.member.clone());
     Some(place)
 }
 
-pub(super) fn index_expression_place(index: &crate::ast::IndexExpr) -> Option<BorrowPlace> {
-    let mut place = expression_place(&index.object)?;
+pub(super) fn index_expression_place(
+    index: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowPlace> {
+    let mut place = expression_place(&index.object, resolved)?;
     place.mark_unknown();
     Some(place)
 }
 
-pub(super) fn expression_place_has_only_named_fields(expression: &Expr) -> bool {
-    expression_place(expression).is_some_and(|place| place.fields.is_some())
+pub(super) fn expression_place_has_only_named_fields(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> bool {
+    expression_place(expression, resolved).is_some_and(|place| place.fields.is_some())
 }
 
 pub(super) fn owned_method_receiver_identifier<'a>(
