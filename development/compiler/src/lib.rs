@@ -7,6 +7,7 @@ pub mod ast;
 pub mod backend;
 mod builtin_types;
 mod callable_bodies;
+mod callable_parameters;
 pub mod comments;
 pub mod diagnostics;
 pub mod driver;

@@ -11,7 +11,7 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
     representation: ValueRepresentation,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
-    let condition_ty = super::super::coverage::known_expression_type(
+    let condition_ty = super::super::source_model::known_expression_type(
         &conditional.condition,
         context.semantic.typed_hir,
     )
@@ -73,6 +73,47 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
     context.control_flow.select_block(join_target)
 }
 
+pub(in crate::mir::lower) fn lower_if_is_to_place(
+    context: &mut LoweringContext<'_>,
+    expression: &crate::ast::IfIsStmt,
+    destination: LocalId,
+    ty: crate::semantic::TyId,
+    representation: ValueRepresentation,
+    parent_scope: ScopeId,
+    preserve_explicit_return: bool,
+) -> Result<(), super::super::BuildError> {
+    let else_block = expression
+        .else_block
+        .clone()
+        .ok_or(super::super::BuildError::UnsupportedClaimedExpression)?;
+    let match_ = crate::ast::SwitchStmt {
+        span: expression.span,
+        expression: expression.expression.clone(),
+        arms: vec![crate::ast::SwitchArm {
+            span: expression.pattern_span,
+            enum_name: expression.enum_name.clone(),
+            enum_name_span: expression.enum_name_span,
+            variant_name: expression.variant_name.clone(),
+            variant_name_span: expression.variant_name_span,
+            payload: expression.payload.clone(),
+            body: expression.then_block.clone(),
+        }],
+        wildcard_arm: Some(crate::ast::SwitchWildcardArm {
+            span: else_block.span,
+            body: else_block,
+        }),
+    };
+    lower_match_to_place(
+        context,
+        &match_,
+        destination,
+        ty,
+        representation,
+        parent_scope,
+        preserve_explicit_return,
+    )
+}
+
 pub(in crate::mir::lower) fn lower_match_to_place(
     context: &mut LoweringContext<'_>,
     match_: &crate::ast::SwitchStmt,
@@ -82,20 +123,21 @@ pub(in crate::mir::lower) fn lower_match_to_place(
     parent_scope: ScopeId,
     preserve_explicit_return: bool,
 ) -> Result<(), super::super::BuildError> {
-    let source_ty =
-        super::super::coverage::handled_outcome_success_type(&match_.expression, context.semantic)
-            .or_else(|| {
-                super::super::coverage::known_expression_type(
-                    &match_.expression,
-                    context.semantic.typed_hir,
-                )
-            })
-            .ok_or_else(|| {
-                super::super::BuildError::MissingTypedExpression
-                    .context("resolve match source type")
-            })?;
+    let source_ty = super::super::source_model::handled_outcome_success_type(
+        &match_.expression,
+        context.semantic,
+    )
+    .or_else(|| {
+        super::super::source_model::known_expression_type(
+            &match_.expression,
+            context.semantic.typed_hir,
+        )
+    })
+    .ok_or_else(|| {
+        super::super::BuildError::MissingTypedExpression.context("resolve match source type")
+    })?;
     let (source, tag_ty, payload_source) =
-        if super::super::coverage::value_scalar_type(source_ty, context.semantic)
+        if super::super::source_model::value_scalar_type(source_ty, context.semantic)
             == Some(ScalarType::U8)
         {
             (
@@ -108,7 +150,7 @@ pub(in crate::mir::lower) fn lower_match_to_place(
                 source_ty,
                 None,
             )
-        } else if super::super::coverage::value_representation(source_ty, context.semantic)
+        } else if super::super::source_model::value_representation(source_ty, context.semantic)
             == Some(ValueRepresentation::Aggregate)
         {
             let u8_ty = context
@@ -184,15 +226,18 @@ pub(in crate::mir::lower) fn lower_match_to_place(
         return Err(super::super::BuildError::UnsupportedClaimedExpression);
     }
 
-    let compared_arms = if wildcard.is_some() {
+    let exhaustive = wildcard.is_none() && match_is_exhaustive(context, match_);
+    let compared_arms = if wildcard.is_some() || !exhaustive {
         match_.arms.len()
     } else {
         match_.arms.len().saturating_sub(1)
     };
     for (index, arm) in match_.arms.iter().take(compared_arms).enumerate() {
-        let tag =
-            super::super::coverage::enum_variant_tag_at(arm.variant_name_span, context.semantic)
-                .ok_or(super::super::BuildError::UnsupportedClaimedExpression)?;
+        let tag = super::super::source_model::enum_variant_tag_at(
+            arm.variant_name_span,
+            context.semantic,
+        )
+        .ok_or(super::super::BuildError::UnsupportedClaimedExpression)?;
         let condition = LocalId::from_index(context.locals.len());
         context.locals.push(crate::mir::Local::scalar(
             bool_ty,
@@ -223,8 +268,10 @@ pub(in crate::mir::lower) fn lower_match_to_place(
             context.control_flow.reserve_block(parent_scope)
         } else if let Some((_, _, target)) = wildcard {
             target
-        } else {
+        } else if exhaustive {
             arm_targets[index + 1]
+        } else {
+            join_target
         };
         context.control_flow.terminate(Terminator::Switch {
             condition: crate::mir::Operand::Copy(crate::mir::Place::local(condition)),
@@ -342,16 +389,18 @@ fn match_source_operand(
             place
         }
         expression => {
-            let ty =
-                super::super::coverage::handled_outcome_success_type(expression, context.semantic)
-                    .or_else(|| {
-                        super::super::coverage::known_expression_type(
-                            expression,
-                            context.semantic.typed_hir,
-                        )
-                    })
-                    .ok_or(super::super::BuildError::MissingTypedExpression)?;
-            if super::super::coverage::value_representation(ty, context.semantic)
+            let ty = super::super::source_model::handled_outcome_success_type(
+                expression,
+                context.semantic,
+            )
+            .or_else(|| {
+                super::super::source_model::known_expression_type(
+                    expression,
+                    context.semantic.typed_hir,
+                )
+            })
+            .ok_or(super::super::BuildError::MissingTypedExpression)?;
+            if super::super::source_model::value_representation(ty, context.semantic)
                 != Some(ValueRepresentation::Aggregate)
             {
                 return Err(super::super::BuildError::UnsupportedClaimedExpression);
@@ -419,7 +468,7 @@ fn bind_payload(
     };
     let payload_offset = u32::try_from(enum_.payload_offset)
         .map_err(|_| super::super::BuildError::UnsupportedClaimedExpression)?;
-    let representation = super::super::coverage::value_representation(ty, context.semantic)
+    let representation = super::super::source_model::value_representation(ty, context.semantic)
         .ok_or(super::super::BuildError::MissingTypedExpression)?;
     let ownership = match context.semantic.typed_hir.payload_binding_mode(symbol) {
         Some(crate::typecheck::TypecheckPayloadBindingMode::Move) => {
@@ -515,14 +564,15 @@ pub(in crate::mir::lower) fn lower_match_statement(
     match_: &crate::ast::SwitchStmt,
     parent_scope: ScopeId,
 ) -> Result<bool, super::super::BuildError> {
-    let exits = match_
-        .arms
-        .iter()
-        .all(|arm| block_has_terminal_return(&arm.body))
+    let exits = (match_.wildcard_arm.is_some() || match_is_exhaustive(context, match_))
+        && match_
+            .arms
+            .iter()
+            .all(|arm| block_exits_function(context, &arm.body))
         && match_
             .wildcard_arm
             .as_ref()
-            .is_none_or(|arm| block_has_terminal_return(&arm.body));
+            .is_none_or(|arm| block_exits_function(context, &arm.body));
     let ty = context
         .semantic
         .typed_hir
@@ -556,6 +606,37 @@ pub(in crate::mir::lower) fn lower_match_statement(
     Ok(exits)
 }
 
+fn match_is_exhaustive(context: &LoweringContext<'_>, match_: &crate::ast::SwitchStmt) -> bool {
+    let Some(first) = match_.arms.first() else {
+        return false;
+    };
+    let Some(first_definition) = context
+        .semantic
+        .typed_hir
+        .enum_variant_target(first.variant_name_span)
+    else {
+        return false;
+    };
+    let Some(owner) = context
+        .semantic
+        .resolved
+        .enum_variant_owner(first_definition)
+    else {
+        return false;
+    };
+    let definitions = match_
+        .arms
+        .iter()
+        .filter_map(|arm| {
+            context
+                .semantic
+                .typed_hir
+                .enum_variant_target(arm.variant_name_span)
+        })
+        .collect::<std::collections::HashSet<_>>();
+    definitions.len() == owner.variants.len()
+}
+
 pub(in crate::mir::lower) fn lower_if_is_statement(
     context: &mut LoweringContext<'_>,
     statement: &crate::ast::IfIsStmt,
@@ -583,11 +664,11 @@ pub(in crate::mir::lower) fn lower_if_is_statement(
             body: wildcard,
         }),
     };
-    let exits = block_has_terminal_return(&statement.then_block)
+    let exits = block_exits_function(context, &statement.then_block)
         && statement
             .else_block
             .as_ref()
-            .is_some_and(block_has_terminal_return);
+            .is_some_and(|block| block_exits_function(context, block));
     let ty = context
         .semantic
         .typed_hir
@@ -621,6 +702,56 @@ pub(in crate::mir::lower) fn lower_if_is_statement(
     Ok(exits)
 }
 
-fn block_has_terminal_return(block: &crate::ast::Block) -> bool {
-    matches!(block.statements.last(), Some(crate::ast::Stmt::Return(_)))
+pub(in crate::mir::lower) fn block_exits_function(
+    context: &LoweringContext<'_>,
+    block: &crate::ast::Block,
+) -> bool {
+    if block.result.as_ref().is_some_and(|result| {
+        context
+            .semantic
+            .typed_hir
+            .expression(result.span())
+            .is_some_and(|expression| expression.diverges)
+    }) {
+        return true;
+    }
+    block
+        .statements
+        .iter()
+        .any(|statement| statement_exits_function(context, statement))
+}
+
+fn statement_exits_function(context: &LoweringContext<'_>, statement: &crate::ast::Stmt) -> bool {
+    match statement {
+        crate::ast::Stmt::Return(_) => true,
+        crate::ast::Stmt::Expression(expression) => context
+            .semantic
+            .typed_hir
+            .expression(expression.span)
+            .is_some_and(|expression| expression.diverges),
+        crate::ast::Stmt::If(statement) => {
+            statement.else_block.as_ref().is_some_and(|else_block| {
+                block_exits_function(context, &statement.then_block)
+                    && block_exits_function(context, else_block)
+            })
+        }
+        crate::ast::Stmt::IfIs(statement) => {
+            statement.else_block.as_ref().is_some_and(|else_block| {
+                block_exits_function(context, &statement.then_block)
+                    && block_exits_function(context, else_block)
+            })
+        }
+        crate::ast::Stmt::Switch(statement) => {
+            (statement.wildcard_arm.is_some() || match_is_exhaustive(context, statement))
+                && statement
+                    .arms
+                    .iter()
+                    .all(|arm| block_exits_function(context, &arm.body))
+                && statement
+                    .wildcard_arm
+                    .as_ref()
+                    .is_none_or(|arm| block_exits_function(context, &arm.body))
+        }
+        _ => false,
+    }
 }

@@ -1,29 +1,5 @@
 use super::*;
 
-pub(in crate::driver::buildability) fn type_expr_is_supported_copy_aggregate_vec_element_with_resolver<
-    'a,
-    F,
->(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
-        return false;
-    };
-    if !matches!(value.ty, AbiType::Struct(_)) || value.layout.size == 0 {
-        return false;
-    }
-    type_expr_is_runtime_copy_struct_with_resolver(
-        ty,
-        fallback_resolved,
-        resolver,
-        &mut HashSet::new(),
-    )
-}
 pub(in crate::driver::buildability) fn type_expr_is_runtime_copy_struct_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,

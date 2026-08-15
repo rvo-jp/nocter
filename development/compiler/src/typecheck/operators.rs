@@ -83,25 +83,6 @@ pub(crate) fn synthetic_comparison_call(expression: &BinaryExpr) -> CallExpr {
     }
 }
 
-/// Preserves authored left-to-right evaluation. Native call lowering swaps the already evaluated
-/// scalar arguments when the comparison plan uses reversed strict-order orientation.
-pub(crate) fn synthetic_comparison_runtime_call(expression: &BinaryExpr) -> CallExpr {
-    let semantics = comparison_semantics(expression.operator).expect("comparison operator");
-    CallExpr {
-        span: expression.span,
-        callee: Box::new(Expr::Member(MemberExpr {
-            span: expression.operator_span,
-            object: expression.left.clone(),
-            member: crate::semantic::OperatorCallableKind::for_comparison(semantics.kind)
-                .lookup_name()
-                .to_string(),
-            member_span: expression.operator_span,
-        })),
-        arguments_span: expression.right.span(),
-        arguments: vec![expression.right.as_ref().clone()],
-    }
-}
-
 pub(super) fn comparison_operator_matches(
     expression: &BinaryExpr,
     left_type: &Type,

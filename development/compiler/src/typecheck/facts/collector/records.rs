@@ -460,9 +460,6 @@ impl TypedHirBuilder<'_> {
             self.record_payload_enum_drop_type_specializations(&ty);
             self.facts.binding_type_exprs.insert(symbol, ty);
         }
-        if let Some(kind) = scalar_view_kind(ty) {
-            self.facts.binding_scalar_view_kinds.insert(symbol, kind);
-        }
         self.record_drop_type_specialization(name_span, ty);
     }
 
@@ -572,14 +569,6 @@ impl TypedHirBuilder<'_> {
             field_ty.as_ref(),
             environment,
         );
-        if let Some(field_ty) = field_ty
-            && let Some(specialization) =
-                self.drop_type_specialization(member.member_span, &field_ty)
-        {
-            self.facts
-                .field_drop_type_specializations
-                .insert(member.member_span, specialization);
-        }
     }
 
     pub(in crate::typecheck::facts::collector) fn record_struct_literal_field_reference(
@@ -624,9 +613,6 @@ impl TypedHirBuilder<'_> {
             type_to_type_expr_allowing_parameters(field_ty, span, &mut free_type_parameters)
         {
             self.facts.field_type_exprs.insert(span, ty);
-        }
-        if let Some(kind) = scalar_view_kind(field_ty) {
-            self.facts.field_scalar_view_kinds.insert(span, kind);
         }
     }
 

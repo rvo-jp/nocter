@@ -5,17 +5,7 @@ pub(super) fn function_parameters(
     function: &FunctionDecl,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> Vec<Parameter> {
-    function
-        .parameters
-        .parameters
-        .iter()
-        .map(|parameter| Parameter {
-            span: parameter.span,
-            name: parameter.name.clone(),
-            name_span: parameter.name_span,
-            ty: substitute_type_expr_parameters(&parameter.ty, substitutions),
-        })
-        .collect()
+    crate::callable_parameters::function(&function.parameters.parameters, substitutions)
 }
 
 pub(in crate::ir::lower) fn method_parameters(
@@ -23,36 +13,7 @@ pub(in crate::ir::lower) fn method_parameters(
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> Vec<Parameter> {
-    let mut parameters = Vec::with_capacity(method.parameters.parameters.len() + 1);
-    parameters.push(Parameter {
-        span: method.receiver.span,
-        name: method.receiver.name.clone(),
-        name_span: method.receiver.name_span,
-        ty: type_expr_with_owner_substitutions(
-            &type_expr_with_self_type(&method.receiver.implicit_parameter().ty, self_ty),
-            substitutions,
-        ),
-    });
-    parameters.extend(
-        method
-            .parameters
-            .parameters
-            .iter()
-            .map(|parameter| Parameter {
-                span: parameter.span,
-                name: parameter.name.clone(),
-                name_span: parameter.name_span,
-                ty: type_expr_with_owner_substitutions(&parameter.ty, substitutions),
-            }),
-    );
-    parameters
-}
-
-pub(super) fn type_expr_with_owner_substitutions(
-    ty: &TypeExpr,
-    substitutions: &HashMap<String, TypeExpr>,
-) -> TypeExpr {
-    substitute_type_expr_parameters(ty, substitutions)
+    crate::callable_parameters::instance(method, self_ty, substitutions)
 }
 
 pub(in crate::ir::lower) fn lower_scalar_parameters(
@@ -105,33 +66,21 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
             ScalarParameterKind::Error => {
                 slots.push_error_parameter(parameter.name.clone());
             }
-            ScalarParameterKind::Borrow {
-                inner,
-                is_readwrite,
-            } => {
+            ScalarParameterKind::Borrow => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 slots.borrow_parameters.push(BorrowParameter {
                     name: parameter.name.clone(),
-                    inner,
                     parameter_index,
-                    is_readwrite,
                 });
             }
-            ScalarParameterKind::BorrowAggregate {
-                layout,
-                is_readwrite,
-                fields,
-            } => {
+            ScalarParameterKind::BorrowAggregate { .. } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 slots.aggregate_borrows.push(AggregateBorrowParameter {
                     name: parameter.name.clone(),
-                    layout,
                     parameter_index,
-                    is_readwrite,
-                    fields,
                 });
             }
-            ScalarParameterKind::AggregateIndirect { layout, fields } => {
+            ScalarParameterKind::AggregateIndirect { layout } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 let slot_index = slots.aggregates.len();
                 slots.aggregates.push(LoweringAggregateParameter {
@@ -139,25 +88,9 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
-                    is_copy: type_expr_is_copy_aggregate_value_with_resolver(
-                        &parameter.ty,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
-                    drop_kind: aggregate_drop_for_type_expr_with_resolver(
-                        &parameter.ty,
-                        root_source,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
-                    fields,
                 });
             }
-            ScalarParameterKind::AggregateDirect {
-                layout,
-                words,
-                fields,
-            } => {
+            ScalarParameterKind::AggregateDirect { layout, words } => {
                 let start_index = slots.reserve_empty_abi_words(words);
                 let slot_index = slots.aggregates.len();
                 slots.aggregates.push(LoweringAggregateParameter {
@@ -165,63 +98,26 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
-                    is_copy: type_expr_is_copy_aggregate_value_with_resolver(
-                        &parameter.ty,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
-                    drop_kind: aggregate_drop_for_type_expr_with_resolver(
-                        &parameter.ty,
-                        root_source,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
-                    fields,
                 });
             }
-            ScalarParameterKind::OutcomeIndirect {
-                storage,
-                payload_type,
-                is_copy,
-            } => {
+            ScalarParameterKind::OutcomeIndirect { storage, .. } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
                 let slot_index = slots.aggregates.len() + slots.outcomes.len();
                 slots.outcomes.push(LoweringOutcomeParameter {
                     name: parameter.name.clone(),
                     storage,
-                    payload_type,
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
-                    is_copy,
-                    drop_kind: outcome_drop_for_type_expr_with_resolver(
-                        &parameter.ty,
-                        root_source,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
                 });
             }
-            ScalarParameterKind::OutcomeDirect {
-                storage,
-                payload_type,
-                words,
-                is_copy,
-            } => {
+            ScalarParameterKind::OutcomeDirect { storage, words, .. } => {
                 let start_index = slots.reserve_empty_abi_words(words);
                 let slot_index = slots.aggregates.len() + slots.outcomes.len();
                 slots.outcomes.push(LoweringOutcomeParameter {
                     name: parameter.name.clone(),
                     storage,
-                    payload_type,
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
-                    is_copy,
-                    drop_kind: outcome_drop_for_type_expr_with_resolver(
-                        &parameter.ty,
-                        root_source,
-                        resolved,
-                        |source| resolved_sources.get(&source).copied(),
-                    ),
                 });
             }
         }
@@ -341,34 +237,23 @@ pub(super) enum ScalarParameterKind {
     Str,
     Slice(SliceTypeInfo),
     Error,
-    Borrow {
-        inner: Type,
-        is_readwrite: bool,
-    },
+    Borrow,
     BorrowAggregate {
         layout: crate::abi::ValueLayout,
-        is_readwrite: bool,
-        fields: Vec<AggregateField>,
     },
     AggregateIndirect {
         layout: crate::abi::ValueLayout,
-        fields: Vec<AggregateField>,
     },
     AggregateDirect {
         layout: crate::abi::ValueLayout,
         words: usize,
-        fields: Vec<AggregateField>,
     },
     OutcomeIndirect {
         storage: crate::outcomes::storage::OutcomeStorageLayout,
-        payload_type: Type,
-        is_copy: bool,
     },
     OutcomeDirect {
         storage: crate::outcomes::storage::OutcomeStorageLayout,
-        payload_type: Type,
         words: usize,
-        is_copy: bool,
     },
 }
 
@@ -414,38 +299,12 @@ pub(super) fn lower_scalar_parameter_kind(
         let storage = shape
             .storage_layout(payload.layout)
             .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
-        let payload_type =
-            return_type_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
-                resolved_sources.get(&source).copied()
-            })
-            .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
-        let is_copy =
-            type_expr_is_copy_aggregate_value_with_resolver(&parameter.ty, resolved, |source| {
-                resolved_sources.get(&source).copied()
-            }) || matches!(
-                payload_type,
-                Type::I32
-                    | Type::U8
-                    | Type::Usize
-                    | Type::Integer(_)
-                    | Type::Bool
-                    | Type::Str
-                    | Type::Slice { .. }
-                    | Type::Borrow { .. }
-            );
         return Ok(match value.classification {
-            crate::abi::ValueClassification::Indirect => ScalarParameterKind::OutcomeIndirect {
-                storage,
-                payload_type,
-                is_copy,
-            },
+            crate::abi::ValueClassification::Indirect => {
+                ScalarParameterKind::OutcomeIndirect { storage }
+            }
             crate::abi::ValueClassification::Direct { words } => {
-                ScalarParameterKind::OutcomeDirect {
-                    storage,
-                    payload_type,
-                    words,
-                    is_copy,
-                }
+                ScalarParameterKind::OutcomeDirect { storage, words }
             }
         });
     }
@@ -564,10 +423,7 @@ pub(super) fn lower_borrow_parameter_kind(
                 resolved_sources,
             )
         }
-        Some(inner) => Ok(ScalarParameterKind::Borrow {
-            inner,
-            is_readwrite: borrow.is_readwrite,
-        }),
+        Some(_) => Ok(ScalarParameterKind::Borrow),
         None => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
 }
@@ -575,7 +431,7 @@ pub(super) fn lower_borrow_parameter_kind(
 pub(super) fn lower_aggregate_borrow_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
-    root_source: SourceId,
+    _root_source: SourceId,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
@@ -589,26 +445,17 @@ pub(super) fn lower_aggregate_borrow_parameter_kind(
     if !matches!(value.ty, AbiType::Struct(_)) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr_with_resolver(
-        &borrow.inner,
-        root_source,
-        resolved,
-        |source| resolved_sources.get(&source).copied(),
-    )
-    .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     Ok(ScalarParameterKind::BorrowAggregate {
         layout: value.layout,
-        is_readwrite: borrow.is_readwrite,
-        fields,
     })
 }
 
 pub(super) fn lower_aggregate_parameter_kind(
-    parameter: &Parameter,
+    _parameter: &Parameter,
     function_name: &str,
-    root_source: SourceId,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
+    _root_source: SourceId,
+    _resolved: &ResolveOutput,
+    _resolved_sources: &ResolvedSources<'_>,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     if !matches!(
@@ -617,22 +464,13 @@ pub(super) fn lower_aggregate_parameter_kind(
     ) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr_with_resolver(
-        &parameter.ty,
-        root_source,
-        resolved,
-        |source| resolved_sources.get(&source).copied(),
-    )
-    .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     match value.classification {
         ValueClassification::Indirect => Ok(ScalarParameterKind::AggregateIndirect {
             layout: value.layout,
-            fields,
         }),
         ValueClassification::Direct { words } => Ok(ScalarParameterKind::AggregateDirect {
             layout: value.layout,
             words,
-            fields,
         }),
     }
 }

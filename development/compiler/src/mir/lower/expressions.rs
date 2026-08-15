@@ -2,7 +2,7 @@
 
 use super::BuildError;
 use super::context::LoweringContext;
-use super::coverage::{known_expression_type, scalar_type, value_representation};
+use super::source_model::{known_expression_type, scalar_type, value_representation};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
@@ -22,7 +22,8 @@ enum PlannedReceiver<'a> {
     },
 }
 pub(super) use control_flow_expressions::{
-    lower_conditional_to_place, lower_if_is_statement, lower_match_statement, lower_match_to_place,
+    block_exits_function, lower_conditional_to_place, lower_if_is_statement, lower_if_is_to_place,
+    lower_match_statement, lower_match_to_place,
 };
 pub(super) use outcomes::lower_unit_catch;
 
@@ -33,15 +34,23 @@ impl LoweringContext<'_> {
         expression: &Expr,
         scope: ScopeId,
     ) -> Result<bool, BuildError> {
-        let Some(conversion) =
-            super::coverage::conversion_plan_for_expression(expression, self.semantic.typed_hir)
-                .cloned()
-        else {
+        let Some(conversion) = self.semantic.conversion_plan(expression) else {
             return Ok(false);
         };
-        let crate::typecheck::TypecheckConversionKind::BorrowCoercion(plan) = conversion.kind
+        self.lower_planned_coercion_to_local(destination, expression, &conversion, scope)?;
+        Ok(true)
+    }
+
+    pub(super) fn lower_planned_coercion_to_local(
+        &mut self,
+        destination: LocalId,
+        expression: &Expr,
+        conversion: &crate::typecheck::TypecheckConversionPlan,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let crate::typecheck::TypecheckConversionKind::BorrowCoercion(plan) = &conversion.kind
         else {
-            return Ok(false);
+            return Err(BuildError::UnsupportedClaimedExpression);
         };
         let definition = plan.def_id.ok_or(BuildError::MissingCallTarget)?;
         let definition = self
@@ -102,9 +111,18 @@ impl LoweringContext<'_> {
                 ty: source_ty,
                 representation: crate::mir::ValueRepresentation::Borrow,
             }
-        } else {
+        } else if super::borrows::source_place_is_supported(source, self.semantic) {
             let source = super::borrows::lower_source_place(self, source, scope)?;
             super::borrows::place_argument(
+                self,
+                source,
+                &plan.self_ty,
+                receiver_is_readwrite,
+                scope,
+                crate::mir::Origin::Desugared(expression.span()),
+            )?
+        } else {
+            super::borrows::expression_argument(
                 self,
                 source,
                 &plan.self_ty,
@@ -125,7 +143,7 @@ impl LoweringContext<'_> {
             vec![argument],
             destination,
         )?;
-        Ok(true)
+        Ok(())
     }
 
     pub(super) fn lower_intrinsic_effect(
@@ -134,10 +152,10 @@ impl LoweringContext<'_> {
         origin: crate::mir::Origin,
         scope: ScopeId,
     ) -> Result<bool, BuildError> {
-        let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic) else {
+        let Some(intrinsic) = super::source_model::intrinsic_for_call(call, self.semantic) else {
             return Ok(false);
         };
-        if !super::coverage::effect_intrinsic_is_supported(intrinsic) {
+        if !super::source_model::effect_intrinsic_is_supported(intrinsic) {
             return Ok(false);
         }
         let first_new_loan = self.loans.len();
@@ -184,7 +202,12 @@ impl LoweringContext<'_> {
                 .typed_hir
                 .type_expr_by_id(ty)
                 .ok_or(BuildError::MissingTypedExpression)?;
-            if crate::typecheck::type_expr_is_copy(ty, self.semantic.resolved) != Some(true) {
+            if super::super::drop_plans::is_copy(
+                ty,
+                self.semantic.resolved,
+                self.semantic.resolved_sources,
+            ) != Some(true)
+            {
                 let plan = super::super::drop_plans::build(
                     ty,
                     self.semantic.resolved,
@@ -226,10 +249,10 @@ impl LoweringContext<'_> {
         representation: crate::mir::ValueRepresentation,
         scope: ScopeId,
     ) -> Result<Option<Rvalue>, BuildError> {
-        let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic) else {
+        let Some(intrinsic) = super::source_model::intrinsic_for_call(call, self.semantic) else {
             return Ok(None);
         };
-        if !super::coverage::value_intrinsic_is_supported(intrinsic) {
+        if !super::source_model::value_intrinsic_is_supported(intrinsic) {
             return Ok(None);
         }
         let arguments = call
@@ -315,34 +338,51 @@ impl LoweringContext<'_> {
                 }
             }
             crate::mir::ValueRepresentation::Borrow => {
-                if matches!(expression.without_groups(), Expr::Identifier(_)) {
-                    self.lower_stored_identifier(expression)?
-                } else {
-                    let origin = self
-                        .semantic
-                        .typed_hir
-                        .expression(expression.span())
-                        .ok_or(BuildError::MissingTypedExpression)?
-                        .id;
-                    let local = self.local_for_type(
-                        contract.payload_ty,
-                        LocalOrigin::Temporary(origin),
-                        scope,
-                    )?;
-                    self.lower_value_to_place(
-                        local,
-                        expression,
-                        contract.payload_ty,
-                        contract.payload_representation,
-                        scope,
-                    )?;
-                    if self.locals[local.index()].ownership
-                        == (crate::mir::OwnershipKind::Borrowed { readwrite: true })
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(expression.span())
+                    .map_or(LocalOrigin::Desugared(expression.span()), |expression| {
+                        LocalOrigin::Temporary(expression.id)
+                    });
+                let readwrite = match expression.without_groups() {
+                    Expr::Borrow(borrow) => borrow.is_readwrite,
+                    _ => contract
+                        .payload_borrow_readwrite
+                        .ok_or(BuildError::MissingTypedExpression)?,
+                };
+                let local = LocalId::from_index(self.locals.len());
+                self.locals.push(crate::mir::Local::borrow(
+                    contract.payload_ty,
+                    readwrite,
+                    LocalStorage::Local,
+                    origin,
+                    scope,
+                ));
+                let first_new_loan = self.loans.len();
+                self.lower_value_to_place(
+                    local,
+                    expression,
+                    contract.payload_ty,
+                    contract.payload_representation,
+                    scope,
+                )?;
+                // A borrow returned inside an outcome is an operand of the
+                // terminal edge, not an intermediate value in return storage.
+                // Preserve any loan that directly initializes this staging
+                // place until that edge has consumed it.
+                for loan in &mut self.loans[first_new_loan..] {
+                    if loan.destination == local && loan.lifetime == crate::mir::LoanLifetime::Scope
                     {
-                        Operand::Move(Place::local(local))
-                    } else {
-                        Operand::Copy(Place::local(local))
+                        loan.lifetime = crate::mir::LoanLifetime::Return;
                     }
+                }
+                if self.locals[local.index()].ownership
+                    == (crate::mir::OwnershipKind::Borrowed { readwrite: true })
+                {
+                    Operand::Move(Place::local(local))
+                } else {
+                    Operand::Copy(Place::local(local))
                 }
             }
             crate::mir::ValueRepresentation::Unit | crate::mir::ValueRepresentation::Error => {
@@ -358,7 +398,7 @@ impl LoweringContext<'_> {
         expression: &Expr,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        if !super::coverage::failure_value_is_supported(expression, self.semantic) {
+        if !super::source_model::failure_value_is_supported(expression, self.semantic) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
         let (code, message) = self.lower_error_operands(expression, scope)?;
@@ -416,9 +456,9 @@ impl LoweringContext<'_> {
         }
         match representation {
             crate::mir::ValueRepresentation::Unit => Err(BuildError::UnsupportedClaimedExpression),
-            crate::mir::ValueRepresentation::Scalar(scalar) => {
-                self.lower_expression_to_place(destination, expression, ty, scalar, scope)
-            }
+            crate::mir::ValueRepresentation::Scalar(scalar) => self
+                .lower_expression_to_place(destination, expression, ty, scalar, scope)
+                .map_err(|error| error.context("lower scalar value to place")),
             crate::mir::ValueRepresentation::View(kind) => {
                 self.lower_view_expression_to_place(destination, expression, ty, kind, scope)
             }
@@ -431,7 +471,10 @@ impl LoweringContext<'_> {
                     })
                 }
                 _ if self.type_has_outcome_layers(ty)
-                    && super::coverage::failure_value_is_supported(expression, self.semantic) =>
+                    && super::source_model::failure_value_is_supported(
+                        expression,
+                        self.semantic,
+                    ) =>
                 {
                     let (code, message) = self.lower_error_operands(expression, scope)?;
                     self.control_flow.push_statement(Statement::Assign {
@@ -486,7 +529,7 @@ impl LoweringContext<'_> {
                     super::aggregates::lower_literal(self, destination, expression, scope)
                 }
                 Expr::Member(member) => {
-                    let source = if super::coverage::aggregate_operand_is_supported(
+                    let source = if super::source_model::aggregate_operand_is_supported(
                         expression,
                         self.semantic.resolved,
                         self.semantic.resolved_sources,
@@ -534,7 +577,7 @@ impl LoweringContext<'_> {
                 }
                 Expr::Force(force) => {
                     if let Expr::Call(call) = force.expression.without_groups()
-                        && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                        && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                     {
                         let source = self
                             .semantic
@@ -564,7 +607,7 @@ impl LoweringContext<'_> {
                 }
                 Expr::Propagate(propagate) => {
                     if let Expr::Call(call) = propagate.expression.without_groups()
-                        && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                        && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                     {
                         let source = self
                             .semantic
@@ -610,6 +653,15 @@ impl LoweringContext<'_> {
                     crate::mir::ValueRepresentation::Aggregate,
                     scope,
                 ),
+                Expr::IfIs(if_is) => control_flow_expressions::lower_if_is_to_place(
+                    self,
+                    if_is,
+                    destination,
+                    ty,
+                    crate::mir::ValueRepresentation::Aggregate,
+                    scope,
+                    false,
+                ),
                 Expr::Match(match_) => control_flow_expressions::lower_match_to_place(
                     self,
                     match_,
@@ -645,7 +697,7 @@ impl LoweringContext<'_> {
         expression: &Expr,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let value = if super::coverage::failure_value_is_supported(expression, self.semantic) {
+        let value = if super::source_model::failure_value_is_supported(expression, self.semantic) {
             let (code, message) = self.lower_error_operands(expression, scope)?;
             Rvalue::Error { code, message }
         } else {
@@ -678,7 +730,7 @@ impl LoweringContext<'_> {
         })
     }
 
-    fn type_has_outcome_layers(&self, ty: crate::semantic::TyId) -> bool {
+    pub(super) fn type_has_outcome_layers(&self, ty: crate::semantic::TyId) -> bool {
         self.semantic
             .typed_hir
             .type_expr_by_id(ty)
@@ -694,7 +746,7 @@ impl LoweringContext<'_> {
     }
 
     fn expression_has_outcome_value(&self, expression: &Expr) -> bool {
-        super::coverage::expression_has_outcome_value(expression, self.semantic)
+        super::source_model::expression_has_outcome_value(expression, self.semantic)
     }
 
     fn lower_outcome_success_argument(
@@ -718,7 +770,7 @@ impl LoweringContext<'_> {
             .typed_hir
             .type_id(&shape.payload)
             .ok_or(BuildError::MissingTypedExpression)?;
-        let representation = super::coverage::value_representation(payload_ty, self.semantic)
+        let representation = super::source_model::value_representation(payload_ty, self.semantic)
             .ok_or(BuildError::MissingTypedExpression)?;
         let operand = match representation {
             crate::mir::ValueRepresentation::Scalar(scalar) => {
@@ -806,12 +858,27 @@ impl LoweringContext<'_> {
         match expression.without_groups() {
             Expr::Call(call) => {
                 if let Some([code, message]) =
-                    super::coverage::error_constructor_arguments(call, self.semantic)
+                    super::source_model::error_constructor_arguments(call, self.semantic)
                 {
                     let code_ty = known_expression_type(code, self.semantic.typed_hir)
                         .ok_or(BuildError::MissingTypedExpression)?;
                     let message_ty = known_expression_type(message, self.semantic.typed_hir)
                         .ok_or(BuildError::MissingTypedExpression)?;
+                    if value_representation(code_ty, self.semantic)
+                        != Some(crate::mir::ValueRepresentation::View(
+                            crate::mir::ViewKind::Str,
+                        ))
+                        || value_representation(message_ty, self.semantic)
+                            != Some(crate::mir::ValueRepresentation::View(
+                                crate::mir::ViewKind::Str,
+                            ))
+                    {
+                        return Err(BuildError::UnsupportedSource {
+                            span: call.span,
+                            construct: "error constructors with non-`&str` payloads",
+                            help: "pass `&str` code and message values to an error constructor",
+                        });
+                    }
                     return Ok((
                         self.lower_view_operand(code, code_ty, crate::mir::ViewKind::Str, scope)
                             .map_err(|error| error.context("lower error code"))?,
@@ -823,6 +890,15 @@ impl LoweringContext<'_> {
                         )
                         .map_err(|error| error.context("lower error message"))?,
                     ));
+                }
+                if matches!(call.callee.without_groups(), Expr::Member(member)
+                    if self.semantic.typed_hir.method_call_target(member.member_span).is_some())
+                {
+                    return Err(BuildError::UnsupportedSource {
+                        span: call.span,
+                        construct: "error-returning method calls in failure positions",
+                        help: "return an `error` value from a free zero-argument helper, or construct the error directly at the failure site",
+                    });
                 }
                 let expression_fact = self
                     .semantic
@@ -855,6 +931,13 @@ impl LoweringContext<'_> {
                 let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
                 if returns_never {
                     return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                if !arguments.is_empty() {
+                    return Err(BuildError::UnsupportedSource {
+                        span: call.span,
+                        construct: "error-returning helpers with runtime arguments",
+                        help: "construct the error directly at the failure site until runtime error values have a complete ABI",
+                    });
                 }
                 self.control_flow.emit_returning_call(
                     expression_fact.id,
@@ -927,6 +1010,13 @@ impl LoweringContext<'_> {
         scope: ScopeId,
     ) -> Result<(), BuildError> {
         match expression.without_groups() {
+            Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => self
+                .lower_borrow_value_to_place_without_coercion(
+                    destination,
+                    &unary.operand,
+                    ty,
+                    scope,
+                ),
             Expr::Borrow(_) => super::borrows::lower_to_local_without_coercion(
                 self,
                 destination,
@@ -958,6 +1048,15 @@ impl LoweringContext<'_> {
                 crate::mir::ValueRepresentation::Borrow,
                 scope,
             ),
+            Expr::IfIs(if_is) => lower_if_is_to_place(
+                self,
+                if_is,
+                destination,
+                ty,
+                crate::mir::ValueRepresentation::Borrow,
+                scope,
+                false,
+            ),
             Expr::Match(match_) => lower_match_to_place(
                 self,
                 match_,
@@ -969,7 +1068,7 @@ impl LoweringContext<'_> {
             ),
             Expr::Force(force) => {
                 if let Expr::Call(call) = force.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let source = self
                         .semantic
@@ -999,7 +1098,7 @@ impl LoweringContext<'_> {
             }
             Expr::Propagate(propagate) => {
                 if let Expr::Call(call) = propagate.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let source = self
                         .semantic
@@ -1061,24 +1160,38 @@ impl LoweringContext<'_> {
         let crate::typecheck::PartialSemantic::Known(root_ty) = root_expression.ty else {
             return Err(BuildError::MissingTypedExpression);
         };
-        if super::coverage::value_representation(root_ty, self.semantic)
+        if super::source_model::value_representation(root_ty, self.semantic)
             != Some(crate::mir::ValueRepresentation::Aggregate)
         {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        let temporary =
-            self.aggregate_temporary(root_ty, LocalOrigin::Temporary(root_expression.id), scope)?;
-        self.lower_value_to_place(
-            temporary,
-            root,
-            root_ty,
-            crate::mir::ValueRepresentation::Aggregate,
-            scope,
-        )?;
+        let root_place = if let Expr::Index(index) = root.without_groups()
+            && super::indexes::is_supported(index, self.semantic)
+        {
+            let (place, representation) = super::indexes::lower_place(self, index, scope)?;
+            if representation != crate::mir::ValueRepresentation::Aggregate {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            place
+        } else {
+            let temporary = self.aggregate_temporary(
+                root_ty,
+                LocalOrigin::Temporary(root_expression.id),
+                scope,
+            )?;
+            self.lower_value_to_place(
+                temporary,
+                root,
+                root_ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
+            Place::local(temporary)
+        };
         let (source, representation) = super::projections::lower_field_place_from_value_root(
             member,
             root_ty,
-            Place::local(temporary),
+            root_place,
             self.semantic,
             &mut self.projections,
             &mut self.drop_plans,
@@ -1100,15 +1213,37 @@ impl LoweringContext<'_> {
         call: &crate::ast::CallExpr,
         scope: ScopeId,
     ) -> Result<(crate::mir::CallInstance, Vec<CallArgument>, bool), BuildError> {
+        if let Some(symbol) = self.semantic.resolved.symbol_for_call(call)
+            && let crate::resolve::SymbolKind::Imported(imported) = &symbol.kind
+            && imported.kind == crate::resolve::ImportedSymbolKind::UnloadedName
+        {
+            return Err(BuildError::UnloadedImportedCall {
+                span: call.span,
+                path: imported.path.clone(),
+            });
+        }
+        if self
+            .semantic
+            .typed_hir
+            .generic_function_call_target(call.span)
+            .is_some()
+            && self
+                .semantic
+                .typed_hir
+                .function_call_specialization(call.span)
+                .is_none()
+        {
+            return Err(BuildError::UnspecializedGenericCall { span: call.span });
+        }
         let returns_never = self
             .semantic
             .typed_hir
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
-        if let Some(intrinsic) =
-            super::coverage::intrinsic_for_call(call, self.semantic).filter(|intrinsic| {
-                super::coverage::outcome_intrinsic_is_supported(*intrinsic)
-                    || super::coverage::never_intrinsic_is_supported(*intrinsic)
+        if let Some(intrinsic) = super::source_model::intrinsic_for_call(call, self.semantic)
+            .filter(|intrinsic| {
+                super::source_model::outcome_intrinsic_is_supported(*intrinsic)
+                    || super::source_model::never_intrinsic_is_supported(*intrinsic)
             })
         {
             let arguments = call
@@ -1241,11 +1376,11 @@ impl LoweringContext<'_> {
                         .typed_hir
                         .method_call_specialization(member.member_span)
                     {
-                        let receiver = self
-                            .semantic
-                            .typed_hir
-                            .type_id(&specialization.self_ty)
-                            .ok_or(BuildError::MissingSpecializedReceiverType)?;
+                        let receiver = super::storage_types::runtime_type_id_for_type_expr(
+                            &specialization.self_ty,
+                            self.semantic,
+                        )
+                        .ok_or(BuildError::MissingSpecializedReceiverType)?;
                         crate::mir::CallInstance::specialized(
                             definition,
                             Some(receiver),
@@ -1262,9 +1397,9 @@ impl LoweringContext<'_> {
         let mut arguments = Vec::new();
         if let Some(receiver) = receiver {
             arguments.push(match receiver {
-                PlannedReceiver::Method(member) => {
-                    self.lower_method_receiver(call, member, scope)?
-                }
+                PlannedReceiver::Method(member) => self
+                    .lower_method_receiver(call, member, scope)
+                    .map_err(|error| error.context("lower method receiver"))?,
                 PlannedReceiver::Callable {
                     expression,
                     receiver_ty,
@@ -1304,15 +1439,19 @@ impl LoweringContext<'_> {
         argument: &Expr,
         scope: ScopeId,
     ) -> Result<CallArgument, BuildError> {
-        let ty = super::coverage::conversion_plan_for_expression(argument, self.semantic.typed_hir)
-            .and_then(|conversion| self.semantic.typed_hir.type_id(&conversion.target_ty))
-            .or_else(|| super::coverage::handled_outcome_success_type(argument, self.semantic))
-            .or_else(|| match argument.without_groups() {
-                Expr::Call(call) => super::coverage::call_result_type(call, self.semantic),
-                _ => known_expression_type(argument, self.semantic.typed_hir),
-            })
-            .ok_or(BuildError::MissingTypedExpression)?;
-        if super::coverage::failure_value_is_supported(argument, self.semantic) {
+        let ty =
+            super::source_model::conversion_plan_for_expression(argument, self.semantic.typed_hir)
+                .and_then(|conversion| self.semantic.typed_hir.type_id(&conversion.target_ty))
+                .or_else(|| {
+                    super::source_model::handled_outcome_success_type(argument, self.semantic)
+                })
+                .or_else(|| match argument.without_groups() {
+                    Expr::Call(call) => super::source_model::call_result_type(call, self.semantic),
+                    _ => super::source_model::expression_value_type(argument, self.semantic),
+                })
+                .ok_or(BuildError::MissingTypedExpression)?;
+        let ty = super::storage_types::normalized_storage_type(ty, self.semantic);
+        if super::source_model::failure_value_is_supported(argument, self.semantic) {
             let error_ty = self
                 .semantic
                 .typed_hir
@@ -1344,7 +1483,7 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Error,
             });
         }
-        if let Some(scalar) = super::coverage::value_scalar_type(ty, self.semantic) {
+        if let Some(scalar) = super::source_model::value_scalar_type(ty, self.semantic) {
             let operand = self.lower_operand(argument, ty, scalar, scope)?;
             return Ok(CallArgument {
                 operand,
@@ -1355,12 +1494,38 @@ impl LoweringContext<'_> {
         if let Some(representation @ crate::mir::ValueRepresentation::View(kind)) =
             value_representation(ty, self.semantic)
         {
-            let ty = super::coverage::intrinsic_expression_type(
+            let ty = super::source_model::intrinsic_expression_type(
                 argument.span(),
                 self.semantic.typed_hir,
             )
             .filter(|ty| value_representation(*ty, self.semantic) == Some(representation))
             .unwrap_or(ty);
+            if matches!(
+                argument.without_groups(),
+                Expr::If(_) | Expr::IfIs(_) | Expr::Match(_)
+            ) {
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(argument.span())
+                    .map_or(LocalOrigin::Desugared(argument.span()), |expression| {
+                        LocalOrigin::Temporary(expression.id)
+                    });
+                let local = LocalId::from_index(self.locals.len());
+                self.locals.push(crate::mir::Local::view(
+                    ty,
+                    kind,
+                    LocalStorage::Local,
+                    origin,
+                    scope,
+                ));
+                self.lower_view_expression_to_place(local, argument, ty, kind, scope)?;
+                return Ok(CallArgument {
+                    operand: Operand::Copy(Place::local(local)),
+                    ty,
+                    representation,
+                });
+            }
             return Ok(CallArgument {
                 operand: self.lower_view_operand(argument, ty, kind, scope)?,
                 ty,
@@ -1389,9 +1554,16 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Error,
             });
         }
-        if super::coverage::borrow_argument_is_supported(argument, self.semantic) {
-            let operand = if super::coverage::conversion_plan_for_expression(
-                argument,
+        if value_representation(ty, self.semantic) == Some(crate::mir::ValueRepresentation::Borrow)
+        {
+            let borrow_expression = match argument.without_groups() {
+                Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+                    unary.operand.as_ref()
+                }
+                _ => argument,
+            };
+            let operand = if super::source_model::conversion_plan_for_expression(
+                borrow_expression,
                 self.semantic.typed_hir,
             )
             .is_some()
@@ -1399,7 +1571,7 @@ impl LoweringContext<'_> {
                 let typed_expression = self
                     .semantic
                     .typed_hir
-                    .expression(argument.span())
+                    .expression(borrow_expression.span())
                     .ok_or(BuildError::MissingTypedExpression)?;
                 let crate::ast::TypeExpr::Borrow(borrow_ty) = self
                     .semantic
@@ -1420,27 +1592,28 @@ impl LoweringContext<'_> {
                 super::borrows::lower_to_local(
                     self,
                     local,
-                    argument,
+                    borrow_expression,
                     borrow_ty.is_readwrite,
                     scope,
                     crate::mir::LoanLifetime::Call,
-                )?;
+                )
+                .map_err(|error| error.context("lower converted borrow argument"))?;
                 if borrow_ty.is_readwrite {
                     Operand::Move(Place::local(local))
                 } else {
                     Operand::Copy(Place::local(local))
                 }
-            } else if super::coverage::borrow_identifier_is_supported(
-                argument,
+            } else if super::source_model::borrow_identifier_is_supported(
+                borrow_expression,
                 self.semantic.resolved,
                 self.semantic.typed_hir,
             ) {
-                self.lower_stored_identifier(argument)?
+                self.lower_stored_identifier(borrow_expression)?
             } else {
                 let typed_expression = self
                     .semantic
                     .typed_hir
-                    .expression(argument.span())
+                    .expression(borrow_expression.span())
                     .ok_or(BuildError::MissingTypedExpression)?;
                 let crate::ast::TypeExpr::Borrow(borrow_ty) = self
                     .semantic
@@ -1461,20 +1634,30 @@ impl LoweringContext<'_> {
                 super::borrows::lower_to_local(
                     self,
                     local,
-                    argument,
+                    borrow_expression,
                     borrow_ty.is_readwrite,
                     scope,
                     crate::mir::LoanLifetime::Call,
-                )?;
+                )
+                .map_err(|error| error.context("lower borrow argument"))?;
                 if borrow_ty.is_readwrite {
                     Operand::Move(Place::local(local))
                 } else {
                     Operand::Copy(Place::local(local))
                 }
             };
+            let operand_ty = match operand {
+                Operand::Copy(place) | Operand::Move(place) => place
+                    .projection
+                    .and_then(|projection| self.projections.get(projection.index()))
+                    .map_or(self.locals[place.local.index()].ty, |projection| {
+                        projection.ty
+                    }),
+                Operand::Constant(_) | Operand::StaticStr { .. } => ty,
+            };
             return Ok(CallArgument {
                 operand,
-                ty,
+                ty: operand_ty,
                 representation: crate::mir::ValueRepresentation::Borrow,
             });
         }
@@ -1483,7 +1666,13 @@ impl LoweringContext<'_> {
             && (super::aggregates::literal_is_supported(argument, self.semantic)
                 || matches!(
                     argument.without_groups(),
-                    Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_)
+                    Expr::StructLiteral(_)
+                        | Expr::ArrayLiteral(_)
+                        | Expr::Closure(_)
+                        | Expr::InterpolatedString(_)
+                        | Expr::If(_)
+                        | Expr::IfIs(_)
+                        | Expr::Match(_)
                 )
                 || matches!(argument.without_groups(), Expr::Call(call)
                     if matches!(call.callee.without_groups(), Expr::Member(member)
@@ -1583,7 +1772,7 @@ impl LoweringContext<'_> {
         }
         if let Expr::Member(member) = argument.without_groups()
             && super::projections::aggregate_value_field_is_supported(member, self.semantic)
-            && !super::coverage::aggregate_operand_is_supported(
+            && !super::source_model::aggregate_operand_is_supported(
                 argument,
                 self.semantic.resolved,
                 self.semantic.resolved_sources,
@@ -1641,7 +1830,11 @@ impl LoweringContext<'_> {
             let Some(path) = self.projections.get(projection.index()) else {
                 return false;
             };
-            if matches!(path.element, crate::mir::ProjectionElement::Index { .. }) {
+            if matches!(
+                path.element,
+                crate::mir::ProjectionElement::Index { .. }
+                    | crate::mir::ProjectionElement::ViewIndex { .. }
+            ) {
                 return true;
             }
             let Some(parent) = path.parent else {
@@ -1691,7 +1884,8 @@ impl LoweringContext<'_> {
                 .type_id(&plan.target_ty)
                 .ok_or(BuildError::MissingMethodReceiverType)?;
             let representation = value_representation(ty, self.semantic)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                .ok_or(BuildError::UnsupportedClaimedExpression)
+                .map_err(|error| error.context("resolve coerced method receiver representation"))?;
             let origin = self
                 .semantic
                 .typed_hir
@@ -1713,15 +1907,21 @@ impl LoweringContext<'_> {
                     LocalOrigin::Temporary(origin),
                     scope,
                 ),
-                _ => return Err(BuildError::UnsupportedClaimedExpression),
+                _ => {
+                    return Err(BuildError::UnsupportedClaimedExpression
+                        .context("materialize coerced method receiver"));
+                }
             };
             let local_id = LocalId::from_index(self.locals.len());
             self.locals.push(local);
-            if !self.lower_coercion_to_local(local_id, &member.object, scope)? {
+            if !self
+                .lower_coercion_to_local(local_id, &member.object, scope)
+                .map_err(|error| error.context("lower method receiver coercion"))?
+            {
                 return Err(BuildError::UnsupportedClaimedExpression);
             }
             return Ok(CallArgument {
-                operand: if readwrite {
+                operand: if readwrite && representation == crate::mir::ValueRepresentation::Borrow {
                     Operand::Move(Place::local(local_id))
                 } else {
                     Operand::Copy(Place::local(local_id))
@@ -1734,10 +1934,12 @@ impl LoweringContext<'_> {
             value_representation(ty, self.semantic)
         {
             let source_ty =
-                super::coverage::handled_outcome_success_type(&member.object, self.semantic)
+                super::source_model::handled_outcome_success_type(&member.object, self.semantic)
                     .or_else(|| known_expression_type(&member.object, self.semantic.typed_hir))
                     .ok_or(BuildError::MissingTypedExpression)?;
-            let source = self.lower_view_operand(&member.object, source_ty, view, scope)?;
+            let source = self
+                .lower_view_operand(&member.object, source_ty, view, scope)
+                .map_err(|error| error.context("lower view method receiver"))?;
             let operand = if source_ty == ty {
                 source
             } else {
@@ -1794,7 +1996,8 @@ impl LoweringContext<'_> {
             readwrite,
             scope,
             crate::mir::Origin::Expression(source),
-        )?;
+        )
+        .map_err(|error| error.context("lower implicit borrowed method receiver"))?;
         Ok(CallArgument {
             operand: if readwrite {
                 Operand::Move(Place::local(local))
@@ -1827,6 +2030,24 @@ impl LoweringContext<'_> {
             .typed_hir
             .type_id(&receiver_type)
             .ok_or(BuildError::MissingMethodReceiverType)?;
+        if super::source_model::expression_value_type(expression, self.semantic)
+            .and_then(|source_ty| self.semantic.typed_hir.type_expr_by_id(source_ty))
+            .is_some_and(|source_ty| {
+                crate::ast::canonical_type_expr(source_ty)
+                    == crate::ast::canonical_type_expr(&receiver_type)
+            })
+        {
+            return self.lower_call_argument(expression, scope);
+        }
+        if let Some(kind) =
+            super::source_model::view_kind_for_type_expr(&receiver_type, self.semantic)
+        {
+            return Ok(CallArgument {
+                operand: self.lower_view_operand(expression, ty, kind, scope)?,
+                ty,
+                representation: crate::mir::ValueRepresentation::View(kind),
+            });
+        }
         let local = LocalId::from_index(self.locals.len());
         self.locals.push(crate::mir::Local::borrow(
             ty,
@@ -1919,20 +2140,22 @@ impl LoweringContext<'_> {
         expression: &Expr,
         scope: ScopeId,
     ) -> Result<Operand, BuildError> {
-        if !super::coverage::aggregate_operand_is_supported(
-            expression,
-            self.semantic.resolved,
-            self.semantic.resolved_sources,
-            self.semantic.typed_hir,
-        ) {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        }
+        let authored_expression = expression;
         let (expression, moved) = match expression.without_groups() {
             Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
                 (unary.operand.without_groups(), true)
             }
             expression => (expression, false),
         };
+        if !super::source_model::aggregate_operand_is_supported(
+            authored_expression,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+            self.semantic.typed_hir,
+        ) && !matches!(expression, Expr::Index(index) if super::indexes::is_supported(index, self.semantic))
+        {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
         let place = match expression {
             Expr::Identifier(_) => {
                 let Operand::Copy(place) = self.lower_stored_identifier(expression)? else {
@@ -1969,15 +2192,32 @@ impl LoweringContext<'_> {
                 if representation != crate::mir::ValueRepresentation::Aggregate {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
+                if place.projection.is_some_and(|projection| {
+                    matches!(
+                        self.projections[projection.index()].element,
+                        crate::mir::ProjectionElement::ViewIndex { .. }
+                    ) && self.projections[projection.index()].ownership
+                        == crate::mir::OwnershipKind::Move
+                }) {
+                    return Err(BuildError::UnsupportedSource {
+                        span: index.span,
+                        construct: "slice indexing outside scalar, `&str`, and copy aggregate elements",
+                        help: "add a `copy` element constraint or use an owned iterator to transfer move-only elements",
+                    });
+                }
                 place
             }
             _ => return Err(BuildError::UnsupportedClaimedExpression),
         };
-        Ok(if moved {
-            Operand::Move(place)
-        } else {
-            Operand::Copy(place)
-        })
+        Ok(
+            if moved
+                && self.locals[place.local.index()].ownership == crate::mir::OwnershipKind::Move
+            {
+                Operand::Move(place)
+            } else {
+                Operand::Copy(place)
+            },
+        )
     }
 
     fn lower_stored_identifier(&self, expression: &Expr) -> Result<Operand, BuildError> {
@@ -2004,76 +2244,51 @@ impl LoweringContext<'_> {
         scalar: ScalarType,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
+        if let Expr::Call(call) = expression.without_groups()
+            && let Some(operand) = super::literal_packs::length_operand(self, call)
+        {
+            return self.control_flow.push_statement(Statement::Assign {
+                destination: Place::local(destination),
+                value: Rvalue::Use(operand),
+                origin: crate::mir::Origin::Desugared(call.span),
+            });
+        }
         let source = self
             .semantic
             .typed_hir
             .expression(expression.span())
-            .ok_or(BuildError::MissingTypedExpression)?
-            .id;
+            .map(|expression| expression.id);
         if let Expr::Binary(binary) = expression
             && matches!(
                 binary.operator,
                 crate::ast::BinaryOperator::LogicalAnd | crate::ast::BinaryOperator::LogicalOr
             )
         {
-            return self.lower_short_circuit_to_place(destination, binary, ty, scope, source);
+            return self.lower_short_circuit_to_place(
+                destination,
+                binary,
+                ty,
+                scope,
+                source.ok_or(BuildError::MissingTypedExpression)?,
+            );
+        }
+        if let Expr::Binary(binary) = expression
+            && self
+                .semantic
+                .comparison_plan(binary.operator_span)
+                .is_some_and(|plan| plan.method.is_some())
+        {
+            return self
+                .lower_declared_comparison_to_place(
+                    destination,
+                    binary,
+                    ty,
+                    scope,
+                    source.ok_or(BuildError::MissingTypedExpression)?,
+                )
+                .map_err(|error| error.context("lower declared comparison"));
         }
         let value = match expression {
-            Expr::Index(index) if super::indexes::view_is_supported(index, self.semantic) => {
-                let kind = match self
-                    .semantic
-                    .typed_hir
-                    .index_plan(index.span)
-                    .map(|plan| plan.projection)
-                {
-                    Some(crate::typecheck::TypecheckIndexProjection::Str) => {
-                        crate::mir::ViewKind::Str
-                    }
-                    Some(crate::typecheck::TypecheckIndexProjection::Slice) => {
-                        crate::mir::ViewKind::Slice
-                    }
-                    _ => return Err(BuildError::UnsupportedClaimedExpression),
-                };
-                let source_ty =
-                    super::coverage::handled_outcome_success_type(&index.object, self.semantic)
-                        .or_else(|| known_expression_type(&index.object, self.semantic.typed_hir))
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                let checked_index_ty = self
-                    .semantic
-                    .typed_hir
-                    .index_plan(index.span)
-                    .and_then(|plan| self.semantic.typed_hir.type_id(&plan.index_ty))
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                let (index_ty, index_scalar) =
-                    if scalar_type(checked_index_ty, self.semantic.typed_hir)
-                        == Some(ScalarType::Usize)
-                    {
-                        (checked_index_ty, ScalarType::Usize)
-                    } else if matches!(index.index.without_groups(), Expr::IntegerLiteral(_)) {
-                        let usize_ty = self
-                            .semantic
-                            .typed_hir
-                            .type_id(&crate::ast::TypeExpr::Reference(
-                                crate::ast::TypeReference {
-                                    span: index.index.span(),
-                                    name: "usize".to_string(),
-                                },
-                            ))
-                            .ok_or(BuildError::MissingTypedExpression)?;
-                        (usize_ty, ScalarType::Usize)
-                    } else {
-                        return Err(BuildError::UnsupportedClaimedExpression);
-                    };
-                Rvalue::ViewIndex {
-                    source: self.lower_view_operand(&index.object, source_ty, kind, scope)?,
-                    source_ty,
-                    kind,
-                    index: self.lower_operand(&index.index, index_ty, index_scalar, scope)?,
-                    index_ty,
-                    element_ty: ty,
-                    element_scalar: scalar,
-                }
-            }
             Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
                 Rvalue::Use(self.lower_operand(&unary.operand, ty, scalar, scope)?)
             }
@@ -2090,14 +2305,15 @@ impl LoweringContext<'_> {
                 ty,
             },
             Expr::TypeConversion(conversion) => {
-                if let Expr::IntegerLiteral(literal) = conversion.expression.without_groups()
-                    && self
-                        .semantic
-                        .typed_hir
-                        .conversion_plan(conversion.span)
-                        .is_some_and(|plan| {
-                            plan.kind == crate::typecheck::TypecheckConversionKind::LosslessInteger
-                        })
+                let checked_literal_conversion = self
+                    .semantic
+                    .typed_hir
+                    .conversion_plan(conversion.span)
+                    .is_some_and(|plan| {
+                        plan.kind == crate::typecheck::TypecheckConversionKind::LosslessInteger
+                    });
+                if checked_literal_conversion
+                    && let Expr::IntegerLiteral(literal) = conversion.expression.without_groups()
                 {
                     Rvalue::Use(Operand::Constant(crate::mir::model::Constant {
                         ty,
@@ -2105,19 +2321,42 @@ impl LoweringContext<'_> {
                         value: decode_integer_literal_value(&literal.value)
                             .ok_or(BuildError::InvalidScalarConstant)?,
                     }))
+                } else if checked_literal_conversion
+                    && let Expr::Unary(unary) = conversion.expression.without_groups()
+                    && unary.operator == crate::ast::UnaryOperator::Negate
+                    && let Expr::IntegerLiteral(literal) = unary.operand.without_groups()
+                {
+                    Rvalue::Unary {
+                        operator: UnaryOperator::Negate,
+                        operand: Operand::Constant(crate::mir::model::Constant {
+                            ty,
+                            scalar,
+                            value: decode_integer_literal_value(&literal.value)
+                                .ok_or(BuildError::InvalidScalarConstant)?,
+                        }),
+                        ty,
+                    }
                 } else {
-                    let source_ty =
-                        known_expression_type(&conversion.expression, self.semantic.typed_hir)
-                            .ok_or(BuildError::MissingTypedExpression)?;
+                    let source_ty = self
+                        .semantic
+                        .typed_hir
+                        .conversion_plan(conversion.span)
+                        .and_then(|plan| self.semantic.typed_hir.type_id(&plan.source_ty))
+                        .or_else(|| {
+                            super::source_model::expression_value_type(
+                                &conversion.expression,
+                                self.semantic,
+                            )
+                        })
+                        .ok_or(BuildError::MissingTypedExpression)
+                        .map_err(|error| error.context("resolve conversion source type"))?;
                     let source_scalar = scalar_type(source_ty, self.semantic.typed_hir)
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                        .ok_or(BuildError::UnsupportedClaimedExpression)
+                        .map_err(|error| error.context("resolve conversion source scalar"))?;
                     Rvalue::Cast {
-                        operand: self.lower_operand(
-                            &conversion.expression,
-                            source_ty,
-                            source_scalar,
-                            scope,
-                        )?,
+                        operand: self
+                            .lower_operand(&conversion.expression, source_ty, source_scalar, scope)
+                            .map_err(|error| error.context("lower conversion source"))?,
                         source_ty,
                         source_scalar,
                         target_ty: ty,
@@ -2126,7 +2365,7 @@ impl LoweringContext<'_> {
                 }
             }
             Expr::Binary(binary) => {
-                if super::coverage::view_comparison_is_supported(binary, self.semantic) {
+                if super::source_model::view_comparison_is_supported(binary, self.semantic) {
                     let operator = mir_comparison_operator(binary.operator)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let left_ty = known_expression_type(&binary.left, self.semantic.typed_hir)
@@ -2159,24 +2398,22 @@ impl LoweringContext<'_> {
                     }
                 } else {
                     let operator = mir_comparison_operator(binary.operator)
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                        .ok_or(BuildError::UnsupportedClaimedExpression)
+                        .map_err(|error| error.context("resolve builtin comparison operator"))?;
                     let (operand_ty, operand_scalar) =
-                        super::coverage::comparison_operand_type(binary, self.semantic)
-                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                        super::source_model::comparison_operand_type(binary, self.semantic)
+                            .ok_or(BuildError::UnsupportedClaimedExpression)
+                            .map_err(|error| {
+                                error.context("resolve builtin comparison operand type")
+                            })?;
                     Rvalue::Compare {
                         operator,
-                        left: self.lower_operand(
-                            &binary.left,
-                            operand_ty,
-                            operand_scalar,
-                            scope,
-                        )?,
-                        right: self.lower_operand(
-                            &binary.right,
-                            operand_ty,
-                            operand_scalar,
-                            scope,
-                        )?,
+                        left: self
+                            .lower_operand(&binary.left, operand_ty, operand_scalar, scope)
+                            .map_err(|error| error.context("lower comparison left operand"))?,
+                        right: self
+                            .lower_operand(&binary.right, operand_ty, operand_scalar, scope)
+                            .map_err(|error| error.context("lower comparison right operand"))?,
                         operand_ty,
                         operand_scalar,
                         result_ty: ty,
@@ -2184,13 +2421,9 @@ impl LoweringContext<'_> {
                 }
             }
             Expr::Group(group) => {
-                return self.lower_expression_to_place(
-                    destination,
-                    &group.expression,
-                    ty,
-                    scalar,
-                    scope,
-                );
+                return self
+                    .lower_expression_to_place(destination, &group.expression, ty, scalar, scope)
+                    .map_err(|error| error.context("lower grouped scalar expression"));
             }
             Expr::If(if_) => {
                 return lower_conditional_to_place(
@@ -2200,6 +2433,17 @@ impl LoweringContext<'_> {
                     ty,
                     crate::mir::ValueRepresentation::Scalar(scalar),
                     scope,
+                );
+            }
+            Expr::IfIs(if_is) => {
+                return lower_if_is_to_place(
+                    self,
+                    if_is,
+                    destination,
+                    ty,
+                    crate::mir::ValueRepresentation::Scalar(scalar),
+                    scope,
+                    false,
                 );
             }
             Expr::Match(match_) => {
@@ -2227,12 +2471,14 @@ impl LoweringContext<'_> {
                 return outcomes::lower_catch_to_place(self, destination, catch, ty, scalar, scope);
             }
             Expr::Call(call) => {
-                let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+                let (callee, arguments, returns_never) = self
+                    .lower_call(call, scope)
+                    .map_err(|error| error.context("lower scalar call"))?;
                 if returns_never {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
                 return self.control_flow.emit_returning_call(
-                    source,
+                    source.ok_or(BuildError::MissingTypedExpression)?,
                     callee,
                     arguments,
                     destination,
@@ -2240,14 +2486,14 @@ impl LoweringContext<'_> {
             }
             Expr::Force(force) => {
                 if let Expr::Call(call) = force.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
                     if returns_never {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     }
                     return self.control_flow.emit_trapping_outcome_call(
-                        source,
+                        source.ok_or(BuildError::MissingTypedExpression)?,
                         callee,
                         arguments,
                         destination,
@@ -2263,14 +2509,14 @@ impl LoweringContext<'_> {
             }
             Expr::Propagate(propagate) => {
                 if let Expr::Call(call) = propagate.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
                     if returns_never {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     }
                     return self.control_flow.emit_propagating_outcome_call(
-                        source,
+                        source.ok_or(BuildError::MissingTypedExpression)?,
                         callee,
                         arguments,
                         destination,
@@ -2286,7 +2532,7 @@ impl LoweringContext<'_> {
             }
             Expr::Member(member) => {
                 if let Some(tag) =
-                    super::coverage::payloadless_enum_variant_tag(member, self.semantic)
+                    super::source_model::payloadless_enum_variant_tag(member, self.semantic)
                 {
                     Rvalue::Use(Operand::Constant(crate::mir::model::Constant {
                         ty,
@@ -2328,20 +2574,175 @@ impl LoweringContext<'_> {
                 }
             }
             Expr::Index(index) => {
-                let (place, representation) = super::indexes::lower_place(self, index, scope)?;
+                let (place, representation) = super::indexes::lower_place(self, index, scope)
+                    .map_err(|error| error.context("lower scalar index expression"))?;
                 if representation != crate::mir::ValueRepresentation::Scalar(scalar) {
-                    return Err(BuildError::UnsupportedClaimedExpression);
+                    return Err(BuildError::UnsupportedClaimedExpression
+                        .context("match scalar index result representation"));
                 }
                 Rvalue::Use(Operand::Copy(place))
             }
-            _ => Rvalue::Use(self.lower_simple_operand(expression, ty, scalar)?),
+            _ => Rvalue::Use(
+                self.lower_simple_operand(expression, ty, scalar)
+                    .map_err(|error| error.context("lower simple scalar operand"))?,
+            ),
         };
-        self.control_flow.push_statement(Statement::Assign {
-            destination: Place::local(destination),
-            value,
-            origin: crate::mir::Origin::Expression(source),
-        })?;
+        self.control_flow
+            .push_statement(Statement::Assign {
+                destination: Place::local(destination),
+                value,
+                origin: source.map_or(crate::mir::Origin::Desugared(expression.span()), |source| {
+                    crate::mir::Origin::Expression(source)
+                }),
+            })
+            .map_err(|error| error.context("assign scalar expression result"))?;
         Ok(())
+    }
+
+    fn lower_declared_comparison_to_place(
+        &mut self,
+        destination: LocalId,
+        binary: &crate::ast::BinaryExpr,
+        ty: crate::semantic::TyId,
+        scope: ScopeId,
+        source: crate::semantic::ExprId,
+    ) -> Result<(), BuildError> {
+        let plan = self
+            .semantic
+            .comparison_plan(binary.operator_span)
+            .ok_or(BuildError::MissingCallTarget)?;
+        let method = plan.method.ok_or(BuildError::MissingCallTarget)?;
+        let definition = self
+            .semantic
+            .resolved
+            .callable_bodies
+            .canonical_definition(method.def_id);
+        let receiver = self
+            .semantic
+            .typed_hir
+            .type_id(&method.self_ty)
+            .ok_or(BuildError::MissingSpecializedReceiverType)?;
+        // Preserve authored left-to-right evaluation even when `>` selects a
+        // reversed strict-order implementation.  Operand adjustment happens
+        // before the completed arguments are reordered for the call ABI.
+        let mut arguments = vec![
+            self.lower_comparison_operand(
+                &binary.left,
+                plan.left_conversion.as_ref(),
+                !plan.reverse_operands,
+                &method.self_ty,
+                scope,
+            )
+            .map_err(|error| error.context("lower comparison left operand"))?,
+            self.lower_comparison_operand(
+                &binary.right,
+                plan.right_conversion.as_ref(),
+                plan.reverse_operands || plan.right_implicit_readonly_borrow,
+                &method.self_ty,
+                scope,
+            )
+            .map_err(|error| error.context("lower comparison right operand"))?,
+        ];
+        if plan.reverse_operands {
+            arguments.swap(0, 1);
+        }
+        let call_destination = if plan.invert_result {
+            let temporary = LocalId::from_index(self.locals.len());
+            self.locals.push(crate::mir::Local::scalar(
+                ty,
+                ScalarType::Bool,
+                LocalStorage::Local,
+                LocalOrigin::Temporary(source),
+                scope,
+            ));
+            temporary
+        } else {
+            destination
+        };
+        self.control_flow.emit_returning_call(
+            source,
+            crate::mir::CallInstance::specialized(definition, Some(receiver), Vec::new()),
+            arguments,
+            call_destination,
+        )?;
+        if plan.invert_result {
+            self.control_flow.push_statement(Statement::Assign {
+                destination: Place::local(destination),
+                value: Rvalue::Unary {
+                    operator: UnaryOperator::LogicalNot,
+                    operand: Operand::Copy(Place::local(call_destination)),
+                    ty,
+                },
+                origin: crate::mir::Origin::Expression(source),
+            })?;
+        }
+        Ok(())
+    }
+
+    fn lower_comparison_operand(
+        &mut self,
+        expression: &Expr,
+        conversion: Option<&crate::typecheck::TypecheckConversionPlan>,
+        implicit_readonly_borrow: bool,
+        receiver_ty: &crate::ast::TypeExpr,
+        scope: ScopeId,
+    ) -> Result<CallArgument, BuildError> {
+        if let Some(conversion) = conversion {
+            let ty = self
+                .semantic
+                .typed_hir
+                .type_id(&conversion.target_ty)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let local =
+                self.local_for_type(ty, LocalOrigin::Desugared(expression.span()), scope)?;
+            self.lower_planned_coercion_to_local(local, expression, conversion, scope)?;
+            let representation = value_representation(ty, self.semantic)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            return Ok(CallArgument {
+                operand: Operand::Copy(Place::local(local)),
+                ty,
+                representation,
+            });
+        }
+        let source_representation = match expression.without_groups() {
+            Expr::Identifier(identifier) => self
+                .semantic
+                .resolved
+                .local_symbol_for_identifier(identifier)
+                .and_then(|symbol| self.semantic.typed_hir.binding_type_expr(symbol.id))
+                .and_then(|ty| self.semantic.typed_hir.type_id(ty))
+                .and_then(|ty| value_representation(ty, self.semantic)),
+            _ => super::source_model::intrinsic_expression_type(
+                expression.span(),
+                self.semantic.typed_hir,
+            )
+            .or_else(|| known_expression_type(expression, self.semantic.typed_hir))
+            .and_then(|ty| value_representation(ty, self.semantic)),
+        };
+        if (implicit_readonly_borrow
+            || source_representation == Some(crate::mir::ValueRepresentation::Aggregate))
+            && source_representation != Some(crate::mir::ValueRepresentation::Borrow)
+            && !matches!(
+                source_representation,
+                Some(crate::mir::ValueRepresentation::View(_))
+            )
+        {
+            let origin = crate::mir::Origin::Desugared(expression.span());
+            return if super::borrows::source_place_is_supported(expression, self.semantic) {
+                let source = super::borrows::lower_source_place(self, expression, scope)?;
+                super::borrows::place_argument(self, source, receiver_ty, false, scope, origin)
+            } else {
+                super::borrows::expression_argument(
+                    self,
+                    expression,
+                    receiver_ty,
+                    false,
+                    scope,
+                    origin,
+                )
+            };
+        }
+        self.lower_call_argument(expression, scope)
     }
 
     pub(super) fn lower_view_expression_to_place(
@@ -2361,14 +2762,48 @@ impl LoweringContext<'_> {
             .expression(expression.span())
             .ok_or(BuildError::MissingTypedExpression)?
             .id;
-        let source_ty =
-            super::coverage::intrinsic_expression_type(expression.span(), self.semantic.typed_hir)
-                .filter(|source_ty| {
-                    super::coverage::value_representation(*source_ty, self.semantic)
-                        == Some(crate::mir::ValueRepresentation::View(kind))
-                })
-                .unwrap_or(ty);
+        let source_ty = super::source_model::intrinsic_expression_type(
+            expression.span(),
+            self.semantic.typed_hir,
+        )
+        .filter(|source_ty| {
+            super::source_model::value_representation(*source_ty, self.semantic)
+                == Some(crate::mir::ValueRepresentation::View(kind))
+        })
+        .unwrap_or(ty);
         match expression.without_groups() {
+            Expr::If(if_) => {
+                return lower_conditional_to_place(
+                    self,
+                    destination,
+                    if_,
+                    ty,
+                    crate::mir::ValueRepresentation::View(kind),
+                    scope,
+                );
+            }
+            Expr::IfIs(if_is) => {
+                return lower_if_is_to_place(
+                    self,
+                    if_is,
+                    destination,
+                    ty,
+                    crate::mir::ValueRepresentation::View(kind),
+                    scope,
+                    false,
+                );
+            }
+            Expr::Match(match_) => {
+                return lower_match_to_place(
+                    self,
+                    match_,
+                    destination,
+                    ty,
+                    crate::mir::ValueRepresentation::View(kind),
+                    scope,
+                    false,
+                );
+            }
             Expr::Otherwise(otherwise) => {
                 return outcomes::lower_view_otherwise_to_place(
                     self,
@@ -2391,7 +2826,7 @@ impl LoweringContext<'_> {
             }
             Expr::Force(force) => {
                 if let Expr::Call(call) = force.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
                     if returns_never {
@@ -2414,7 +2849,7 @@ impl LoweringContext<'_> {
             }
             Expr::Propagate(propagate) => {
                 if let Expr::Call(call) = propagate.expression.without_groups()
-                    && super::coverage::call_has_single_outcome_layer(call, self.semantic)
+                    && super::source_model::call_has_single_outcome_layer(call, self.semantic)
                 {
                     let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
                     if returns_never {
@@ -2580,12 +3015,18 @@ impl LoweringContext<'_> {
                 )
                 .map(Operand::Copy)
             }
-            Expr::Index(index) if super::indexes::view_is_supported(index, self.semantic) => {
+            Expr::Index(index) if super::indexes::is_supported(index, self.semantic) => {
                 let (place, representation) = super::indexes::lower_place(self, index, scope)?;
                 if representation != crate::mir::ValueRepresentation::View(kind) {
                     return Err(BuildError::UnsupportedClaimedExpression);
                 }
                 Ok(Operand::Copy(place))
+            }
+            Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+                // Views carry no owned storage. `move` is accepted uniformly
+                // by the source language, but remains a transparent copy at
+                // the MIR ABI boundary.
+                self.lower_view_operand(&unary.operand, ty, kind, scope)
             }
             Expr::Group(group) => self.lower_view_operand(&group.expression, ty, kind, scope),
             Expr::Call(_)
@@ -2627,7 +3068,9 @@ impl LoweringContext<'_> {
         scope: ScopeId,
         source: crate::semantic::ExprId,
     ) -> Result<(), BuildError> {
-        let left = self.lower_operand(&binary.left, ty, ScalarType::Bool, scope)?;
+        let left = self
+            .lower_operand(&binary.left, ty, ScalarType::Bool, scope)
+            .map_err(|error| error.context("lower short-circuit left operand"))?;
         let right_target = self.control_flow.reserve_block(scope);
         let short_target = self.control_flow.reserve_block(scope);
         let join_target = self.control_flow.reserve_block(scope);
@@ -2659,7 +3102,8 @@ impl LoweringContext<'_> {
         })?;
 
         self.control_flow.select_block(right_target)?;
-        self.lower_expression_to_place(destination, &binary.right, ty, ScalarType::Bool, scope)?;
+        self.lower_expression_to_place(destination, &binary.right, ty, ScalarType::Bool, scope)
+            .map_err(|error| error.context("lower short-circuit right operand"))?;
         self.control_flow.terminate(crate::mir::Terminator::Goto {
             target: join_target,
         })?;
@@ -2679,7 +3123,11 @@ impl LoweringContext<'_> {
                 .resolved
                 .local_symbol_for_identifier(identifier)
                 .and_then(|symbol| self.places_by_symbol.get(&symbol.id))
-                .is_some_and(|place| place.projection.is_some()),
+                .is_some_and(|place| {
+                    place.projection.is_some()
+                        || self.locals[place.local.index()].representation
+                            == crate::mir::ValueRepresentation::Borrow
+                }),
             _ => false,
         };
         if !projected_identifier
@@ -2694,6 +3142,8 @@ impl LoweringContext<'_> {
                     | Expr::Member(_)
                     | Expr::Index(_)
                     | Expr::If(_)
+                    | Expr::IfIs(_)
+                    | Expr::Match(_)
                     | Expr::Otherwise(_)
                     | Expr::Catch(_)
             )
@@ -2730,7 +3180,7 @@ impl LoweringContext<'_> {
     }
 
     fn lower_simple_operand(
-        &self,
+        &mut self,
         expression: &Expr,
         ty: crate::semantic::TyId,
         scalar: ScalarType,
@@ -2766,12 +3216,29 @@ impl LoweringContext<'_> {
                     .local_symbol_for_identifier(identifier)
                     .map(|symbol| symbol.id)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                Ok(Operand::Copy(
-                    *self
-                        .places_by_symbol
-                        .get(&symbol)
-                        .ok_or(BuildError::MissingLocalSymbol)?,
-                ))
+                let place = *self
+                    .places_by_symbol
+                    .get(&symbol)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                if place.projection.is_none()
+                    && self.locals[place.local.index()].representation
+                        == crate::mir::ValueRepresentation::Borrow
+                {
+                    let projection =
+                        crate::mir::ProjectionPathId::from_index(self.projections.len());
+                    self.projections.push(crate::mir::ProjectionPath {
+                        id: projection,
+                        base: place.local,
+                        parent: None,
+                        element: crate::mir::ProjectionElement::Dereference,
+                        ty,
+                        representation: crate::mir::ValueRepresentation::Scalar(scalar),
+                        ownership: crate::mir::OwnershipKind::Copy,
+                        drop_plan: None,
+                    });
+                    return Ok(Operand::Copy(Place::projected(place.local, projection)));
+                }
+                Ok(Operand::Copy(place))
             }
             _ => Err(BuildError::UnsupportedClaimedExpression),
         }

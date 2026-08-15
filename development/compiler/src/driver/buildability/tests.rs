@@ -15,7 +15,7 @@ fn retains_checked_mir_for_machine_ir_lowering() {
     );
 
     assert_eq!(analysis.mir_bodies.len(), 0);
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(analysis.mir_bodies.len(), 1);
 
@@ -52,7 +52,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(analysis.mir_bodies.len(), 4);
@@ -71,7 +71,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(analysis.mir_bodies.len(), 2);
 
@@ -100,7 +100,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(analysis.mir_bodies.len(), 2);
@@ -141,7 +141,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -158,7 +158,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0435");
@@ -191,7 +191,7 @@ func unused(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -209,7 +209,7 @@ fn does_not_report_reachable_str_equality() {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -227,7 +227,7 @@ func unused(): bool {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -250,7 +250,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -274,7 +274,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -302,7 +302,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -336,7 +336,7 @@ func value_choice(): Choice {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -355,7 +355,7 @@ fn does_not_report_terminal_if_expression_body_result() {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -378,7 +378,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -401,7 +401,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -432,7 +432,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -463,7 +463,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -497,7 +497,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -529,7 +529,7 @@ func main(): i32! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -583,7 +583,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -607,7 +607,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -636,13 +636,13 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn reports_owned_payload_match_move_binding_without_direct_drop() {
+fn accepts_owned_payload_match_move_binding_without_direct_drop() {
     let (sources, analysis) = analyze_text(
         r#"struct Detail {
     code: i32
@@ -663,14 +663,9 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "payload bindings outside runtime scalar/view, copy aggregate, and owned recursively droppable aggregate types in `match`"
-        )),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -699,7 +694,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -722,7 +717,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -749,7 +744,7 @@ func make_file(): File! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -773,7 +768,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -801,7 +796,7 @@ func make_file(): File! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -830,7 +825,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -853,7 +848,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -877,7 +872,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -904,7 +899,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -924,7 +919,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -944,7 +939,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -972,7 +967,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1000,7 +995,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1037,7 +1032,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1074,7 +1069,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1116,7 +1111,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1158,7 +1153,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1173,7 +1168,7 @@ fn does_not_report_unreachable_tail_after_return() {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1203,7 +1198,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1226,7 +1221,7 @@ func unused(): bool {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1243,7 +1238,7 @@ fn accepts_computed_values_for_every_builtin_integer() {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1277,7 +1272,7 @@ func make_fallible_pair(): [i32; 2]! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1319,7 +1314,7 @@ func sum(values: [i32; 3]): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1393,7 +1388,7 @@ func maybe_triple(flag: bool): Triple? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1451,7 +1446,7 @@ func maybe_packet(flag: bool): Packet? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1480,13 +1475,13 @@ func make_pair(): [i32; 2] {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn reports_reachable_fixed_array_aggregate_field_control_assignment_before_ir_lowering() {
+fn accepts_reachable_fixed_array_aggregate_field_control_assignment() {
     let (sources, analysis) = analyze_text(
         r#"copy struct Bag {
     values: [i32; 2]
@@ -1506,16 +1501,9 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-            diagnostics.iter().any(|diagnostic| {
-                diagnostic.code == "E0435"
-                    && diagnostic.message
-                        == "the native compiler cannot lower fixed array assignments outside supported replacement values yet"
-            }),
-            "{diagnostics:?}"
-        );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -1537,7 +1525,7 @@ func buffer(): &+[u8] {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1557,7 +1545,7 @@ func buffer(): &+[u8] {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1578,7 +1566,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1602,7 +1590,7 @@ func make(): Box<i32> {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1620,7 +1608,7 @@ func identity<T>(value: T): T {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1642,7 +1630,7 @@ func identity<T>(value: T): T {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1671,7 +1659,7 @@ func forward<T>(box: Box<T>): T {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1694,7 +1682,7 @@ func make<T>(): Marker<T> {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1726,7 +1714,7 @@ func make<T>(): Marker<T> {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1750,7 +1738,7 @@ func source(): i32! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1772,7 +1760,7 @@ func source(): i32? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1844,7 +1832,7 @@ func maybe_text(flag: bool): &str? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1914,7 +1902,7 @@ func maybe_text(flag: bool): &str? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1939,7 +1927,7 @@ func source(): i32? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1965,7 +1953,7 @@ func make<T>(): Marker<T> {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -1995,7 +1983,7 @@ func make<T>(): Marker<T> {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2018,7 +2006,7 @@ func empty<T>(): T? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0435");
@@ -2052,7 +2040,7 @@ func attempt(): Attempt {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2071,7 +2059,7 @@ func empty<T>(): T? {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0435");
@@ -2105,7 +2093,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2130,7 +2118,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2155,7 +2143,7 @@ func unused(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2184,7 +2172,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2215,7 +2203,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2249,7 +2237,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2280,7 +2268,7 @@ func main(): i32! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2322,7 +2310,7 @@ func main(): i32 {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2354,7 +2342,7 @@ func main(): i32! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2385,7 +2373,7 @@ func main(): i32! {
 "#,
     );
 
-    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    let diagnostics = native_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }

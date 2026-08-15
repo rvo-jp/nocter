@@ -1,6 +1,7 @@
 //! Backend-independent intermediate representation.
 
 mod lower;
+pub(crate) use lower::coercion_symbol_name;
 mod model;
 
 pub(crate) use lower::{lower_executable, lower_test};

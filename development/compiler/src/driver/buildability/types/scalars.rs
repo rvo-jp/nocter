@@ -11,14 +11,6 @@ where
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
         .is_ok_and(|value| matches!(value.ty, AbiType::StrView))
 }
-pub(in crate::driver::buildability) fn type_expr_is_buildable_scalar_or_view_for_sources(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, &source_resolver)
-}
 pub(in crate::driver::buildability) fn type_expr_is_buildable_scalar_or_view_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -111,14 +103,4 @@ where
         value.ty.integer_type().is_some()
             || matches!(value.ty, AbiType::Bool | AbiType::Pointer | AbiType::Borrow)
     })
-}
-
-pub(in crate::driver::buildability) fn type_expr_has_native_integer_abi_for_sources(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
-        .is_ok_and(|value| value.ty.integer_type().is_some())
 }

@@ -436,6 +436,7 @@ pub(super) fn scalar_argument_uses_process_arguments(argument: &ScalarArgument) 
         ScalarArgument::I32(value) => i32_value_uses_process_arguments(value),
         ScalarArgument::U8(value) => u8_value_uses_process_arguments(value),
         ScalarArgument::Usize(value) => usize_value_uses_process_arguments(value),
+        ScalarArgument::Integer(_, value) => usize_value_uses_process_arguments(value),
         ScalarArgument::Bool(value) => bool_value_uses_process_arguments(value),
         ScalarArgument::Str(value) => str_value_uses_process_arguments(value),
         ScalarArgument::Slice(value) => slice_value_uses_process_arguments(value),
@@ -458,7 +459,6 @@ pub(super) fn u8_value_uses_process_arguments(value: &crate::ir::U8Value) -> boo
     match value {
         crate::ir::U8Value::Const(_) | crate::ir::U8Value::Location(_) => false,
         crate::ir::U8Value::StrIndex { index, .. }
-        | crate::ir::U8Value::StaticStrIndex { index, .. }
         | crate::ir::U8Value::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }
 }

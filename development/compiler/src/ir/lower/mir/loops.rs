@@ -3,7 +3,7 @@
 use super::control_flow;
 use super::{
     lower_bool_operand, lower_call_arguments, lower_call_target, lower_outcome_call,
-    lower_outcome_intrinsic_call, lower_returning_call, lower_statements, outcome_failure_mode,
+    lower_outcome_intrinsic_call, lower_statements, outcome_failure_mode,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
@@ -16,6 +16,7 @@ pub(super) fn lower_linear_loop_condition(
     condition_block: crate::mir::BasicBlockId,
     body_block: crate::mir::BasicBlockId,
     exit_block: crate::mir::BasicBlockId,
+    continue_target: crate::mir::BasicBlockId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<(Vec<Instruction>, BoolValue), Vec<Diagnostic>> {
     let body = context.body;
@@ -105,6 +106,11 @@ pub(super) fn lower_linear_loop_condition(
             Terminator::Call { .. } => lower_linear_call_terminator(
                 context,
                 &block.terminator,
+                Some(LoopTargets {
+                    header: condition_block,
+                    continue_target,
+                    exit: exit_block,
+                }),
                 visited,
                 &mut instructions,
             )?,
@@ -207,38 +213,9 @@ pub(super) fn lower_linear_loop_body(
             instructions.push(Instruction::Break);
             return Ok(instructions);
         }
-        if let Some(nested) = body
-            .loop_regions
-            .iter()
-            .find(|loop_| loop_.header == current)
-        {
-            if !visited.insert(current) {
-                return Err(super::invalid_mir_diagnostics(
-                    "nested loop header reuses an already lowered block",
-                ));
-            }
-            let (condition_instructions, condition) = lower_linear_loop_condition(
-                context,
-                nested.header,
-                nested.condition,
-                nested.body,
-                nested.exit,
-                visited,
-            )?;
-            let body_instructions = lower_linear_loop_body(
-                context,
-                nested.body,
-                nested.header,
-                nested.exit,
-                nested.continue_target,
-                visited,
-            )?;
-            instructions.push(Instruction::While {
-                condition_instructions,
-                condition,
-                body_instructions,
-            });
-            current = nested.exit;
+        if let Some((nested_loop, nested_exit)) = lower_nested_loop_at(context, current, visited)? {
+            instructions.push(nested_loop);
+            current = nested_exit;
             continue;
         }
         if !visited.insert(current) {
@@ -282,6 +259,11 @@ pub(super) fn lower_linear_loop_body(
                 current = lower_linear_call_terminator(
                     context,
                     &block.terminator,
+                    Some(LoopTargets {
+                        header,
+                        continue_target,
+                        exit,
+                    }),
                     visited,
                     &mut instructions,
                 )?;
@@ -295,7 +277,7 @@ pub(super) fn lower_linear_loop_body(
                 else_target,
                 join_target,
             } => {
-                let boundaries = [continue_target, exit];
+                let boundaries = [header, continue_target, exit];
                 let then_boundary =
                     control_flow::linear_path_boundary(body, *then_target, &boundaries);
                 let else_boundary =
@@ -339,9 +321,12 @@ pub(super) fn lower_linear_loop_body(
                     )
                 })?;
                 let branch_endpoint = |start| {
-                    control_flow::linear_path_target(body, start)
-                        .filter(|target| *target == continue_target || *target == exit)
-                        .unwrap_or(join)
+                    control_flow::linear_path_boundary(
+                        body,
+                        start,
+                        &[join, header, continue_target, exit],
+                    )
+                    .unwrap_or(join)
                 };
                 let then_endpoint = branch_endpoint(*then_target);
                 let else_endpoint = branch_endpoint(*else_target);
@@ -397,15 +382,22 @@ fn lower_loop_branch_path(
             if endpoint == continue_target {
                 instructions.extend(lower_continue_path(context, continue_target, header)?);
                 instructions.push(Instruction::Continue);
+            } else if endpoint == header {
+                instructions.push(Instruction::Continue);
             } else if endpoint == exit {
                 instructions.push(Instruction::Break);
             }
             return Ok(instructions);
         }
+        if let Some((nested_loop, nested_exit)) = lower_nested_loop_at(context, current, visited)? {
+            instructions.push(nested_loop);
+            current = nested_exit;
+            continue;
+        }
         if !visited.insert(current) {
-            return Err(super::invalid_mir_diagnostics(
-                "loop conditional branch reuses an already lowered block",
-            ));
+            return Err(super::invalid_mir_diagnostics(format!(
+                "loop conditional branch from {start:?} to {endpoint:?} reuses already lowered block {current:?} (header {header:?}, continue {continue_target:?}, exit {exit:?})"
+            )));
         }
         let block = &body.blocks[current.index()];
         instructions.extend(lower_statements(context, &block.statements)?);
@@ -413,6 +405,8 @@ fn lower_loop_branch_path(
             Terminator::Goto { target } if *target == endpoint => {
                 if endpoint == continue_target {
                     instructions.extend(lower_continue_path(context, continue_target, header)?);
+                    instructions.push(Instruction::Continue);
+                } else if endpoint == header {
                     instructions.push(Instruction::Continue);
                 } else if endpoint == exit {
                     instructions.push(Instruction::Break);
@@ -430,6 +424,8 @@ fn lower_loop_branch_path(
                     if endpoint == continue_target {
                         instructions.extend(lower_continue_path(context, continue_target, header)?);
                         instructions.push(Instruction::Continue);
+                    } else if endpoint == header {
+                        instructions.push(Instruction::Continue);
                     } else if endpoint == exit {
                         instructions.push(Instruction::Break);
                     }
@@ -444,9 +440,50 @@ fn lower_loop_branch_path(
                 current = lower_linear_call_terminator(
                     context,
                     &block.terminator,
+                    Some(LoopTargets {
+                        header,
+                        continue_target,
+                        exit,
+                    }),
                     visited,
                     &mut instructions,
                 )?;
+            }
+            Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+                join_target,
+            } => {
+                let join = join_target.unwrap_or(endpoint);
+                let boundaries = [join, header, continue_target, exit];
+                let branch_endpoint = |start| {
+                    control_flow::linear_path_boundary(body, start, &boundaries).unwrap_or(join)
+                };
+                let then_instructions = lower_loop_branch_path(
+                    context,
+                    *then_target,
+                    branch_endpoint(*then_target),
+                    header,
+                    continue_target,
+                    exit,
+                    visited,
+                )?;
+                let else_instructions = lower_loop_branch_path(
+                    context,
+                    *else_target,
+                    branch_endpoint(*else_target),
+                    header,
+                    continue_target,
+                    exit,
+                    visited,
+                )?;
+                instructions.push(Instruction::If {
+                    condition: lower_bool_operand(condition, context)?,
+                    then_instructions,
+                    else_instructions,
+                });
+                current = join;
             }
             terminator if lower_terminal_terminator(context, terminator, &mut instructions)? => {
                 return Ok(instructions);
@@ -460,6 +497,51 @@ fn lower_loop_branch_path(
     }
 }
 
+fn lower_nested_loop_at(
+    context: &super::BackendContext<'_>,
+    current: crate::mir::BasicBlockId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Option<(Instruction, crate::mir::BasicBlockId)>, Vec<Diagnostic>> {
+    let Some(nested) = context
+        .body
+        .loop_regions
+        .iter()
+        .find(|loop_| loop_.header == current)
+    else {
+        return Ok(None);
+    };
+    if !visited.insert(current) {
+        return Err(super::invalid_mir_diagnostics(
+            "nested loop header reuses an already lowered block",
+        ));
+    }
+    let (condition_instructions, condition) = lower_linear_loop_condition(
+        context,
+        nested.header,
+        nested.condition,
+        nested.body,
+        nested.exit,
+        nested.continue_target,
+        visited,
+    )?;
+    let body_instructions = lower_linear_loop_body(
+        context,
+        nested.body,
+        nested.header,
+        nested.exit,
+        nested.continue_target,
+        visited,
+    )?;
+    Ok(Some((
+        Instruction::While {
+            condition_instructions,
+            condition,
+            body_instructions,
+        },
+        nested.exit,
+    )))
+}
+
 fn lower_terminal_terminator(
     context: &super::BackendContext<'_>,
     terminator: &Terminator,
@@ -467,17 +549,11 @@ fn lower_terminal_terminator(
 ) -> Result<bool, Vec<Diagnostic>> {
     if let Terminator::ReturnValue { source } = terminator {
         instructions.extend(super::lower_value_return(context, source)?);
-        instructions.push(match context.body.return_mode {
-            ReturnMode::Plain => Instruction::Return,
-            ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-        });
+        instructions.push(super::success_return_instruction(context.body));
         return Ok(true);
     }
     let instruction = match terminator {
-        Terminator::Return => match context.body.return_mode {
-            ReturnMode::Plain => Instruction::Return,
-            ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
-        },
+        Terminator::Return => super::success_return_instruction(context.body),
         Terminator::ReturnOutcome { source } => super::outcomes::lower_return(context, source)?,
         Terminator::ReturnFailure { code, message } => {
             if context.body.return_mode != ReturnMode::Fallible {
@@ -594,6 +670,7 @@ fn lower_continue_path(
 fn lower_linear_call_terminator(
     context: &super::BackendContext<'_>,
     terminator: &Terminator,
+    loop_targets: Option<LoopTargets>,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
     instructions: &mut Vec<Instruction>,
 ) -> Result<crate::mir::BasicBlockId, Vec<Diagnostic>> {
@@ -622,7 +699,14 @@ fn lower_linear_call_terminator(
                     *intrinsic,
                     Some(destination),
                     arguments,
-                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                    linear_outcome_failure_mode(
+                        context,
+                        *failure,
+                        *success,
+                        *failure_payload,
+                        loop_targets,
+                        visited,
+                    )?,
                 )?);
                 Ok(*success)
             }
@@ -636,7 +720,14 @@ fn lower_linear_call_terminator(
                     *intrinsic,
                     None,
                     arguments,
-                    outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                    linear_outcome_failure_mode(
+                        context,
+                        *failure,
+                        *success,
+                        *failure_payload,
+                        loop_targets,
+                        visited,
+                    )?,
                 )?);
                 Ok(*success)
             }
@@ -671,7 +762,7 @@ fn lower_linear_call_terminator(
             target,
         } => {
             super::reserve_aggregate_destination(context, destination, instructions)?;
-            instructions.push(lower_returning_call(
+            instructions.extend(super::lower_returning_call_sequence(
                 context,
                 destination,
                 call_target,
@@ -693,7 +784,14 @@ fn lower_linear_call_terminator(
                 destination,
                 call_target,
                 arguments,
-                outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
+                linear_outcome_failure_mode(
+                    context,
+                    *failure,
+                    *success,
+                    *failure_payload,
+                    loop_targets,
+                    visited,
+                )?,
                 &callee_name,
             )?);
             Ok(*success)
@@ -711,11 +809,12 @@ fn lower_linear_call_terminator(
             instructions.push(Instruction::CallOutcomeVoid {
                 target: call_target,
                 arguments,
-                failure_mode: outcome_failure_mode(
+                failure_mode: linear_outcome_failure_mode(
                     context,
                     *failure,
                     *success,
                     *failure_payload,
+                    loop_targets,
                     visited,
                 )?,
             });
@@ -724,5 +823,50 @@ fn lower_linear_call_terminator(
         CallContinuation::Never => Err(super::invalid_mir_diagnostics(
             "linear control-flow path contains a non-returning call",
         )),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct LoopTargets {
+    header: crate::mir::BasicBlockId,
+    continue_target: crate::mir::BasicBlockId,
+    exit: crate::mir::BasicBlockId,
+}
+
+fn linear_outcome_failure_mode(
+    context: &super::BackendContext<'_>,
+    failure: crate::mir::BasicBlockId,
+    success: crate::mir::BasicBlockId,
+    failure_payload: Option<crate::mir::LocalId>,
+    loop_targets: Option<LoopTargets>,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<crate::ir::OutcomeFailureMode, Vec<Diagnostic>> {
+    let Some(targets) = loop_targets else {
+        return outcome_failure_mode(context, failure, success, failure_payload, visited);
+    };
+    let boundaries = [targets.continue_target, targets.exit];
+    let Some(boundary) = control_flow::linear_path_boundary(context.body, failure, &boundaries)
+    else {
+        return outcome_failure_mode(context, failure, success, failure_payload, visited);
+    };
+    let instructions = lower_loop_branch_path(
+        context,
+        failure,
+        boundary,
+        targets.header,
+        targets.continue_target,
+        targets.exit,
+        visited,
+    )?;
+    if let Some(payload) = failure_payload {
+        let (code, message) = super::error_locations(context.body, payload)?;
+        Ok(crate::ir::OutcomeFailureMode::Catch {
+            code,
+            message,
+            instructions,
+            recovers: false,
+        })
+    } else {
+        Ok(crate::ir::OutcomeFailureMode::Handle { instructions })
     }
 }

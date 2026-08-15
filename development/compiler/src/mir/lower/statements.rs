@@ -2,11 +2,11 @@
 
 use super::BuildError;
 use super::context::LoweringContext;
-use super::coverage::{
+use super::expressions::mir_assignment_operator;
+use super::source_model::{
     ScalarStatement, binding_scalar_type, known_expression_type, scalar_body_parts,
     scalar_linear_block_statements, scalar_loop_block_statements,
 };
-use super::expressions::mir_assignment_operator;
 use crate::ast::Expr;
 use crate::mir::{
     BinaryOperator, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand, Origin, Place,
@@ -42,41 +42,80 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         loop_targets: Option<LoopTargets>,
         scope: ScopeId,
     ) -> Result<bool, BuildError> {
+        if let Some(targets) = loop_targets {
+            self.context.active_loop_targets.push(targets);
+        }
+        let result = self.lower_in_context_inner(statements, loop_targets, scope);
+        if loop_targets.is_some() {
+            self.context.active_loop_targets.pop();
+        }
+        result
+    }
+
+    fn lower_in_context_inner(
+        &mut self,
+        statements: &[ScalarStatement<'_>],
+        loop_targets: Option<LoopTargets>,
+        scope: ScopeId,
+    ) -> Result<bool, BuildError> {
         for statement in statements {
             let exits_block = match *statement {
                 ScalarStatement::Binding(binding) => {
+                    if let Expr::Call(call) = binding.initializer.without_groups()
+                        && self
+                            .context
+                            .semantic
+                            .typed_hir
+                            .generic_function_call_target(call.span)
+                            .is_some()
+                        && self
+                            .context
+                            .semantic
+                            .typed_hir
+                            .function_call_specialization(call.span)
+                            .is_none()
+                    {
+                        return Err(BuildError::UnspecializedGenericCall { span: call.span });
+                    }
                     let symbol = self
                         .context
                         .semantic
                         .resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
-                    let binding_type_expr = self
-                        .context
-                        .semantic
-                        .typed_hir
-                        .binding_type_expr(symbol)
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                    let declared_ty = self
-                        .context
-                        .semantic
-                        .typed_hir
-                        .type_id(binding_type_expr)
+                    let declared_type_expr =
+                        self.context.semantic.typed_hir.binding_type_expr(symbol);
+                    let declared_ty = declared_type_expr
+                        .and_then(|ty| self.context.semantic.typed_hir.type_id(ty))
                         .or_else(|| {
                             known_expression_type(
                                 &binding.initializer,
                                 self.context.semantic.typed_hir,
                             )
                         })
-                        .ok_or(BuildError::MissingTypedExpression)?;
+                        .or_else(|| match binding.initializer.without_groups() {
+                            Expr::Call(call) => {
+                                super::source_model::call_result_type(call, self.context.semantic)
+                            }
+                            _ => None,
+                        })
+                        .ok_or(BuildError::MissingTypedExpression)
+                        .map_err(|error| error.context("resolve binding storage type"))?;
                     let ty = super::storage_types::binding_storage_type(
                         declared_ty,
                         &binding.initializer,
                         self.context.semantic,
                     );
+                    let binding_type_expr = self
+                        .context
+                        .semantic
+                        .typed_hir
+                        .type_expr_by_id(ty)
+                        .ok_or(BuildError::MissingTypedExpression)
+                        .map_err(|error| error.context("resolve binding type expression"))?;
                     let local = LocalId::from_index(self.context.locals.len());
                     if let Some(scalar) =
-                        super::coverage::value_scalar_type(ty, self.context.semantic)
+                        super::source_model::value_scalar_type(ty, self.context.semantic)
                     {
                         self.context.locals.push(crate::mir::locals::Local::scalar(
                             ty,
@@ -88,9 +127,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
-                        self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
+                        self.lower_value(local, &binding.initializer, ty, scalar, scope)
+                            .map_err(|error| error.context("lower scalar binding"))?;
                     } else if let Some(crate::mir::ValueRepresentation::View(kind)) =
-                        super::coverage::value_representation(ty, self.context.semantic)
+                        super::source_model::value_representation(ty, self.context.semantic)
                     {
                         self.context.locals.push(crate::mir::locals::Local::view(
                             ty,
@@ -102,14 +142,16 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
-                        self.context.lower_value_to_place(
-                            local,
-                            &binding.initializer,
-                            ty,
-                            crate::mir::ValueRepresentation::View(kind),
-                            scope,
-                        )?;
-                    } else if super::coverage::value_representation(ty, self.context.semantic)
+                        self.context
+                            .lower_value_to_place(
+                                local,
+                                &binding.initializer,
+                                ty,
+                                crate::mir::ValueRepresentation::View(kind),
+                                scope,
+                            )
+                            .map_err(|error| error.context("lower view binding"))?;
+                    } else if super::source_model::value_representation(ty, self.context.semantic)
                         == Some(crate::mir::ValueRepresentation::Error)
                     {
                         self.context.locals.push(crate::mir::locals::Local::error(
@@ -142,11 +184,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context
                             .places_by_symbol
                             .insert(symbol, Place::local(local));
-                        self.lower_borrow_binding(local, &binding.initializer, readwrite, scope)?;
+                        self.lower_borrow_binding(local, &binding.initializer, readwrite, scope)
+                            .map_err(|error| error.context("lower borrow binding"))?;
                     } else {
-                        let ownership = if crate::typecheck::type_expr_is_copy(
+                        let ownership = if super::super::drop_plans::is_copy(
                             binding_type_expr,
                             self.context.semantic.resolved,
+                            self.context.semantic.resolved_sources,
                         ) == Some(true)
                         {
                             crate::mir::OwnershipKind::Copy
@@ -169,7 +213,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     self.context.semantic.typed_hir,
                                     &mut self.context.drop_plans,
                                 )
-                                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                                .ok_or(BuildError::UnsupportedClaimedExpression)
+                                .map_err(|error| {
+                                    error.context("build aggregate binding drop plan")
+                                })?,
                             );
                         }
                         self.context.locals.push(aggregate);
@@ -202,13 +249,16 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     scope,
                                 )?;
                             }
-                            Expr::Call(_) => self.context.lower_value_to_place(
-                                local,
-                                &binding.initializer,
-                                ty,
-                                crate::mir::ValueRepresentation::Aggregate,
-                                scope,
-                            )?,
+                            Expr::Call(_) => self
+                                .context
+                                .lower_value_to_place(
+                                    local,
+                                    &binding.initializer,
+                                    ty,
+                                    crate::mir::ValueRepresentation::Aggregate,
+                                    scope,
+                                )
+                                .map_err(|error| error.context("lower aggregate call binding"))?,
                             Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
                                 super::aggregates::lower_literal(
                                     self.context,
@@ -234,13 +284,17 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                         origin: Origin::Expression(origin),
                                     },
                                 )?;
-                                self.context.lower_value_to_place(
-                                    local,
-                                    &binding.initializer,
-                                    ty,
-                                    crate::mir::ValueRepresentation::Aggregate,
-                                    scope,
-                                )?;
+                                self.context
+                                    .lower_value_to_place(
+                                        local,
+                                        &binding.initializer,
+                                        ty,
+                                        crate::mir::ValueRepresentation::Aggregate,
+                                        scope,
+                                    )
+                                    .map_err(|error| {
+                                        error.context("lower aggregate binding value")
+                                    })?;
                             }
                             Expr::TypedSequenceLiteral(_)
                             | Expr::TypedStringLiteral(_)
@@ -256,7 +310,8 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             Expr::Force(_)
                             | Expr::Propagate(_)
                             | Expr::Otherwise(_)
-                            | Expr::Catch(_) => {
+                            | Expr::Catch(_)
+                            | Expr::NoneLiteral(_) => {
                                 self.context.lower_value_to_place(
                                     local,
                                     &binding.initializer,
@@ -279,7 +334,8 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                 | crate::mir::ValueRepresentation::View(_)
                         )
                     {
-                        self.lower_value_assignment(assignment, scope)?;
+                        self.lower_value_assignment(assignment, scope)
+                            .map_err(|error| error.context("lower non-scalar assignment"))?;
                         continue;
                     }
                     let (destination, ty, scalar) = self
@@ -385,8 +441,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     false
                 }
                 ScalarStatement::CollectionFor(statement) => {
-                    super::iteration::lower(self.context, statement, scope)?;
+                    super::iteration::lower(self.context, statement, scope)
+                        .map_err(|error| error.context("lower collection-for statement"))?;
                     false
+                }
+                ScalarStatement::LiteralPackFor(statement) => {
+                    super::literal_packs::lower(self.context, statement, scope)
+                        .map_err(|error| error.context("lower literal-pack loop"))?
                 }
                 ScalarStatement::Loop(statement) => self.lower_loop(statement, scope)?,
                 ScalarStatement::Region(statement) => {
@@ -401,21 +462,22 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let exits = self.lower_in_context(&body, loop_targets, entered.scope)?;
                     if !exits {
-                        self.context.control_flow.terminate(Terminator::Goto {
-                            target: entered.exit,
-                        })?;
+                        let exit = self.context.control_flow.reserve_block(scope);
+                        self.context
+                            .control_flow
+                            .terminate(Terminator::Goto { target: exit })?;
+                        self.context.control_flow.select_block(exit)?;
                     }
-                    self.context.control_flow.select_block(entered.exit)?;
                     exits
                 }
                 ScalarStatement::Expression(expression) => {
                     if let Expr::Catch(catch) = expression.without_groups()
-                        && super::coverage::handled_outcome_success_type(
+                        && super::source_model::handled_outcome_success_type(
                             expression,
                             self.context.semantic,
                         )
                         .and_then(|ty| {
-                            super::coverage::value_representation(ty, self.context.semantic)
+                            super::source_model::value_representation(ty, self.context.semantic)
                         }) == Some(crate::mir::ValueRepresentation::Unit)
                     {
                         super::expressions::lower_unit_catch(self.context, catch, scope)?;
@@ -444,9 +506,11 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             let ty =
                                 known_expression_type(expression, self.context.semantic.typed_hir)
                                     .ok_or(BuildError::MissingTypedExpression)?;
-                            let representation =
-                                super::coverage::value_representation(ty, self.context.semantic)
-                                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                            let representation = super::source_model::value_representation(
+                                ty,
+                                self.context.semantic,
+                            )
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
                             if representation == crate::mir::ValueRepresentation::Unit {
                                 return Err(BuildError::UnsupportedClaimedExpression);
                             }
@@ -505,7 +569,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         .ok_or(BuildError::MissingTypedExpression)?
                         .id;
                     let (callee, arguments, returns_never) =
-                        self.context.lower_call(call, scope)?;
+                        self.context
+                            .lower_call(call, scope)
+                            .map_err(|error| error.context("lower effect call"))?;
                     if returns_never {
                         self.context
                             .control_flow
@@ -514,14 +580,16 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     }
                     match kind {
                         EffectKind::Plain => {
-                            let ty = super::coverage::intrinsic_expression_type(
+                            let ty = super::source_model::intrinsic_expression_type(
                                 call.span,
                                 self.context.semantic.typed_hir,
                             )
                             .ok_or(BuildError::MissingTypedExpression)?;
-                            let representation =
-                                super::coverage::value_representation(ty, self.context.semantic)
-                                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                            let representation = super::source_model::value_representation(
+                                ty,
+                                self.context.semantic,
+                            )
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
                             if representation == crate::mir::ValueRepresentation::Unit {
                                 self.context
                                     .control_flow
@@ -548,12 +616,12 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             }
                         }
                         EffectKind::Trap | EffectKind::Propagate => {
-                            let success_ty = super::coverage::handled_outcome_success_type(
+                            let success_ty = super::source_model::handled_outcome_success_type(
                                 expression,
                                 self.context.semantic,
                             )
                             .ok_or(BuildError::MissingTypedExpression)?;
-                            let representation = super::coverage::value_representation(
+                            let representation = super::source_model::value_representation(
                                 success_ty,
                                 self.context.semantic,
                             )
@@ -649,10 +717,20 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             .emit_never_call(source, callee, arguments)?;
                         return Ok(true);
                     }
-                    if super::coverage::failure_value_is_supported(
-                        expression,
-                        self.context.semantic,
-                    ) {
+                    if self
+                        .context
+                        .outcome_contract
+                        .as_ref()
+                        .is_some_and(|contract| {
+                            contract
+                                .layers
+                                .contains(&crate::outcomes::OutcomeLayer::Fallible)
+                        })
+                        && super::source_model::failure_value_is_supported(
+                            expression,
+                            self.context.semantic,
+                        )
+                    {
                         self.context.lower_failure_return(expression, scope)?;
                         return Ok(true);
                     }
@@ -668,7 +746,8 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             })
                     {
                         self.context
-                            .lower_direct_outcome_return(expression, scope)?;
+                            .lower_direct_outcome_return(expression, scope)
+                            .map_err(|error| error.context("lower aggregate outcome return"))?;
                         return Ok(true);
                     }
                     if self
@@ -679,42 +758,42 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             contract.payload_representation
                                 == crate::mir::ValueRepresentation::Aggregate
                         })
-                        && !super::coverage::expression_has_outcome_value(
+                        && !super::source_model::expression_has_outcome_value(
                             expression,
                             self.context.semantic,
                         )
                     {
                         self.context
-                            .lower_direct_outcome_return(expression, scope)?;
+                            .lower_direct_outcome_return(expression, scope)
+                            .map_err(|error| {
+                                error.context("lower direct aggregate outcome return")
+                            })?;
                         return Ok(true);
                     }
-                    if self
-                        .context
-                        .outcome_contract
-                        .as_ref()
-                        .is_some_and(|contract| {
-                            contract.payload_representation
-                                == crate::mir::ValueRepresentation::Aggregate
-                        })
-                        && super::coverage::expression_has_outcome_value(
+                    if self.context.outcome_contract.is_some()
+                        && super::source_model::expression_has_outcome_value(
                             expression,
                             self.context.semantic,
                         )
                     {
-                        let source = self.context.lower_aggregate_operand(expression, scope)?;
+                        let source = self
+                            .context
+                            .lower_aggregate_operand(expression, scope)
+                            .map_err(|error| error.context("lower stored outcome return"))?;
                         self.context
                             .control_flow
                             .terminate(Terminator::ReturnOutcome { source })?;
                         return Ok(true);
                     }
                     let result_ty = self.context.locals[self.context.return_local().index()].ty;
-                    if super::coverage::outcome_return_expression_is_supported(
+                    if super::source_model::outcome_return_expression_is_supported(
                         expression,
                         result_ty,
                         self.context.semantic,
                     ) {
                         self.context
-                            .lower_direct_outcome_return(expression, scope)?;
+                            .lower_direct_outcome_return(expression, scope)
+                            .map_err(|error| error.context("lower direct outcome return"))?;
                         return Ok(true);
                     }
                     let return_local = self.context.return_local();
@@ -846,7 +925,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
     ) -> Result<crate::mir::ValueRepresentation, BuildError> {
         let ty = known_expression_type(expression, self.context.semantic.typed_hir)
             .ok_or(BuildError::MissingTypedExpression)?;
-        super::coverage::value_representation(ty, self.context.semantic)
+        super::source_model::value_representation(ty, self.context.semantic)
             .ok_or(BuildError::UnsupportedClaimedExpression)
     }
 
@@ -855,8 +934,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         assignment: &crate::ast::AssignmentStmt,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let (destination, ty, representation) =
-            self.lower_value_assignment_target(&assignment.target, scope)?;
+        let (destination, ty, representation) = self
+            .lower_value_assignment_target(&assignment.target, scope)
+            .map_err(|error| error.context("lower value assignment target"))?;
         let destination_drop_plan = self.context.locals[destination.local.index()]
             .drop_plan
             .and_then(|plan| self.context.drop_plans.get(plan.index()));
@@ -883,7 +963,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         if representation == crate::mir::ValueRepresentation::Aggregate
             && let Expr::Member(member) = assignment.value.without_groups()
             && super::projections::aggregate_value_field_is_supported(member, self.context.semantic)
-            && !super::coverage::aggregate_operand_is_supported(
+            && !super::source_model::aggregate_operand_is_supported(
                 &assignment.value,
                 self.context.semantic.resolved,
                 self.context.semantic.resolved_sources,
@@ -909,8 +989,14 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 origin: Origin::Expression(origin),
             });
         }
+        let direct_aggregate_operand = !self.context.type_has_outcome_layers(ty)
+            || super::source_model::expression_has_outcome_value(
+                &assignment.value,
+                self.context.semantic,
+            );
         if representation == crate::mir::ValueRepresentation::Aggregate
-            && super::coverage::aggregate_operand_is_supported(
+            && direct_aggregate_operand
+            && super::source_model::aggregate_operand_is_supported(
                 &assignment.value,
                 self.context.semantic.resolved,
                 self.context.semantic.resolved_sources,
@@ -935,14 +1021,11 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             .id;
         let temporary = self
             .context
-            .local_for_type(ty, LocalOrigin::Temporary(source), scope)?;
-        self.context.lower_value_to_place(
-            temporary,
-            &assignment.value,
-            ty,
-            representation,
-            scope,
-        )?;
+            .local_for_type(ty, LocalOrigin::Temporary(source), scope)
+            .map_err(|error| error.context("create value assignment temporary"))?;
+        self.context
+            .lower_value_to_place(temporary, &assignment.value, ty, representation, scope)
+            .map_err(|error| error.context("lower value assignment source"))?;
         let operand = match self.context.locals[temporary.index()].ownership {
             crate::mir::OwnershipKind::Move => Operand::Move(Place::local(temporary)),
             crate::mir::OwnershipKind::Copy => Operand::Copy(Place::local(temporary)),
@@ -1217,8 +1300,12 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 .map_err(|error| error.context("remove terminal if join"))?;
             self.context
                 .control_flow
-                .discard_last_reserved_block(join_target)
-                .map_err(|error| error.context("discard terminal if join block"))?;
+                .select_block(join_target)
+                .map_err(|error| error.context("select unreachable if join block"))?;
+            self.context
+                .control_flow
+                .terminate(Terminator::Trap)
+                .map_err(|error| error.context("seal unreachable if join block"))?;
             return Ok(true);
         }
         self.context
@@ -1462,8 +1549,9 @@ pub(super) fn lower_value_block(
 ) -> Result<bool, BuildError> {
     let (statements, tail) =
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let loop_targets = context.active_loop_targets.last().copied();
     if StatementLowerer::new(context)
-        .lower(&statements, scope)
+        .lower_in_context(&statements, loop_targets, scope)
         .map_err(|error| error.context("lower value block statements"))?
     {
         return Ok(true);
@@ -1496,7 +1584,29 @@ pub(super) fn lower_value_block(
     let returns = preserve_explicit_return && tail.is_explicit_return();
     if returns
         && tail.expression().is_some_and(|expression| {
-            super::coverage::failure_value_is_supported(expression, context.semantic)
+            matches!(expression.without_groups(), Expr::NoneLiteral(_))
+                && context.outcome_contract.as_ref().is_some_and(|contract| {
+                    contract
+                        .layers
+                        .contains(&crate::outcomes::OutcomeLayer::Optional)
+                })
+        })
+    {
+        context.lower_direct_outcome_return(
+            tail.expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            scope,
+        )?;
+        return Ok(true);
+    }
+    if returns
+        && context.outcome_contract.as_ref().is_some_and(|contract| {
+            contract
+                .layers
+                .contains(&crate::outcomes::OutcomeLayer::Fallible)
+        })
+        && tail.expression().is_some_and(|expression| {
+            super::source_model::failure_value_is_supported(expression, context.semantic)
         })
     {
         context.lower_failure_return(
@@ -1516,13 +1626,42 @@ pub(super) fn lower_value_block(
     } else {
         (destination, ty, representation)
     };
-    if representation == crate::mir::ValueRepresentation::Unit && tail.expression().is_none() {
-        if returns {
-            context.control_flow.terminate(Terminator::Return)?;
-        }
-        return Ok(returns);
+    if representation == crate::mir::ValueRepresentation::Unit && !returns {
+        let effect = match tail {
+            super::source_model::ScalarTail::Conditional(if_) => Some(ScalarStatement::If(if_)),
+            super::source_model::ScalarTail::Expression(Expr::If(if_)) => {
+                Some(ScalarStatement::If(if_))
+            }
+            super::source_model::ScalarTail::Expression(Expr::IfIs(if_is)) => {
+                Some(ScalarStatement::IfIs(if_is))
+            }
+            super::source_model::ScalarTail::Expression(Expr::Match(match_)) => {
+                Some(ScalarStatement::Match(match_))
+            }
+            super::source_model::ScalarTail::Expression(expression) => {
+                Some(ScalarStatement::Expression(expression))
+            }
+            super::source_model::ScalarTail::ImplicitUnit(_)
+            | super::source_model::ScalarTail::UnitReturn(_)
+            | super::source_model::ScalarTail::Return(_) => None,
+        };
+        return effect.map_or(Ok(false), |effect| {
+            StatementLowerer::new(context).lower_in_context(&[effect], loop_targets, scope)
+        });
     }
     if let Some(conditional) = tail.conditional() {
+        if preserve_explicit_return
+            && conditional.else_block.as_ref().is_some_and(|else_block| {
+                super::expressions::block_exits_function(context, &conditional.then_block)
+                    && super::expressions::block_exits_function(context, else_block)
+            })
+        {
+            return StatementLowerer::new(context).lower_in_context(
+                &[ScalarStatement::If(conditional)],
+                loop_targets,
+                scope,
+            );
+        }
         super::expressions::lower_conditional_to_place(
             context,
             destination,
@@ -1531,6 +1670,12 @@ pub(super) fn lower_value_block(
             representation,
             scope,
         )?;
+    } else if representation == crate::mir::ValueRepresentation::Unit && tail.expression().is_none()
+    {
+        if returns {
+            context.control_flow.terminate(Terminator::Return)?;
+        }
+        return Ok(returns);
     } else {
         context
             .lower_value_to_place(

@@ -34,6 +34,8 @@ pub(crate) enum ValidationError {
     },
     InvalidProjectionElement {
         projection: ProjectionPathId,
+        parent_representation: ValueRepresentation,
+        element: ProjectionElement,
     },
     InvalidProjectionIndex {
         projection: ProjectionPathId,
@@ -912,58 +914,6 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     }
                     Some(*result_ty)
                 }
-                super::model::Rvalue::ViewIndex {
-                    source,
-                    source_ty,
-                    kind,
-                    index,
-                    index_ty,
-                    element_ty,
-                    element_scalar,
-                } => {
-                    validate_operand_representation(
-                        body,
-                        block_id,
-                        OperandLocation::Statement(statement_index),
-                        source,
-                        ValueRepresentation::View(*kind),
-                        &mut errors,
-                    );
-                    let actual_source_ty = operand_type(
-                        body,
-                        block_id,
-                        OperandLocation::Statement(statement_index),
-                        source,
-                        &mut errors,
-                    );
-                    if let Some(actual) = actual_source_ty
-                        && actual != *source_ty
-                    {
-                        errors.push(ValidationError::AssignmentTypeMismatch {
-                            block: block_id,
-                            statement: statement_index,
-                            destination: *source_ty,
-                            value: actual,
-                        });
-                    }
-                    validate_operand(
-                        body,
-                        block_id,
-                        OperandLocation::Statement(statement_index),
-                        index,
-                        *index_ty,
-                        ScalarType::Usize,
-                        &mut errors,
-                    );
-                    if destination_representation != ValueRepresentation::Scalar(*element_scalar) {
-                        errors.push(ValidationError::AssignmentRequiresScalar {
-                            block: block_id,
-                            statement: statement_index,
-                            actual: destination_representation,
-                        });
-                    }
-                    Some(*element_ty)
-                }
                 super::model::Rvalue::Intrinsic {
                     arguments,
                     result_ty,
@@ -1626,24 +1576,51 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
                     && projection.ownership == OwnershipKind::Copy
                     && projection.drop_plan.is_none() => {}
             ProjectionElement::ErrorField(_) => {
-                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+                errors.push(ValidationError::InvalidProjectionElement {
+                    projection: id,
+                    parent_representation,
+                    element: projection.element.clone(),
+                });
             }
             ProjectionElement::Dereference
                 if parent_representation != ValueRepresentation::Borrow =>
             {
-                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+                errors.push(ValidationError::InvalidProjectionElement {
+                    projection: id,
+                    parent_representation,
+                    element: projection.element.clone(),
+                });
             }
             ProjectionElement::Dereference => {}
+            ProjectionElement::ViewIndex { .. }
+                if parent_representation == ValueRepresentation::View(super::ViewKind::Str)
+                    && projection.representation == ValueRepresentation::Scalar(ScalarType::U8)
+                    && projection.ownership == OwnershipKind::Copy
+                    && projection.drop_plan.is_none() => {}
             ProjectionElement::ViewIndex { .. }
                 if parent_representation == ValueRepresentation::View(super::ViewKind::Slice)
                     && matches!(
                         projection.representation,
-                        ValueRepresentation::Scalar(_) | ValueRepresentation::View(_)
+                        ValueRepresentation::Scalar(_)
+                            | ValueRepresentation::View(_)
+                            | ValueRepresentation::Aggregate
                     )
-                    && projection.ownership == OwnershipKind::Copy
-                    && projection.drop_plan.is_none() => {}
+                    && match projection.representation {
+                        ValueRepresentation::Aggregate => matches!(
+                            (projection.ownership, projection.drop_plan),
+                            (OwnershipKind::Copy, None) | (OwnershipKind::Move, Some(_))
+                        ),
+                        _ => {
+                            projection.ownership == OwnershipKind::Copy
+                                && projection.drop_plan.is_none()
+                        }
+                    } => {}
             ProjectionElement::ViewIndex { .. } => {
-                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+                errors.push(ValidationError::InvalidProjectionElement {
+                    projection: id,
+                    parent_representation,
+                    element: projection.element.clone(),
+                });
             }
             ProjectionElement::Field { .. } | ProjectionElement::Index { .. }
                 if matches!(
@@ -2413,6 +2390,7 @@ mod tests {
         let mut body = valid_body();
         let ty = body.locals[0].ty;
         let value = LocalId::from_index(1);
+        let condition = LocalId::from_index(2);
         body.locals.push(Local::scalar(
             ty,
             ScalarType::I32,
@@ -2420,16 +2398,19 @@ mod tests {
             LocalOrigin::Desugared(span()),
             body.root_scope,
         ));
+        body.locals.push(Local::scalar(
+            ty,
+            ScalarType::Bool,
+            LocalStorage::Parameter { ordinal: 0 },
+            LocalOrigin::CallableReceiver(ExprId::from_index(0)),
+            body.root_scope,
+        ));
         body.blocks = vec![
             BasicBlock {
                 scope: body.root_scope,
                 statements: Vec::new(),
                 terminator: Terminator::Switch {
-                    condition: Operand::Constant(Constant {
-                        ty,
-                        scalar: ScalarType::Bool,
-                        value: 1,
-                    }),
+                    condition: Operand::Copy(Place::local(condition)),
                     then_target: BasicBlockId::from_index(1),
                     else_target: BasicBlockId::from_index(2),
                     join_target: Some(BasicBlockId::from_index(3)),

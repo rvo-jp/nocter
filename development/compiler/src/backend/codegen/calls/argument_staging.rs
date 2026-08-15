@@ -27,6 +27,12 @@ impl EntryEmitter {
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
                     abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
+                ScalarArgument::Integer(_, value) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
+                    self.emit_usize_value_to_x(value, XReg::X16)?;
+                    self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
+                }
                 ScalarArgument::Bool(value) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_bool_value_to_w(value, WReg::W16)?;
@@ -121,6 +127,7 @@ impl EntryEmitter {
                     abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::Usize(_)
+                | ScalarArgument::Integer(_, _)
                 | ScalarArgument::Borrow(_)
                 | ScalarArgument::AggregateIndirect(_) => {
                     let slot = staging_slot(frame, abi_word_index)?;

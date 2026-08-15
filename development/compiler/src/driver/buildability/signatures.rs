@@ -47,7 +47,7 @@ pub(super) fn callable_function_signature_issues(
 }
 
 pub(super) fn callable_method_signature_issues(
-    method: &MethodDecl,
+    method: &CallableDecl,
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
@@ -115,10 +115,7 @@ where
     }
 
     non_root_error_constructor_signature(function, return_type, root_source, resolved, resolver)
-        || (function.parameters.parameters.is_empty()
-            && function.body.as_ref().is_some_and(|body| {
-                static_error_payload_body_is_buildable(body, root_source, resolved, resolver)
-            }))
+        || (function.parameters.parameters.is_empty() && function.body.is_some())
 }
 
 pub(super) fn non_root_error_constructor_signature<'a, F>(
@@ -142,130 +139,6 @@ where
             resolved,
             resolver,
         )
-}
-
-pub(super) fn static_error_payload_body_is_buildable<'a, F>(
-    body: &Block,
-    root_source: SourceId,
-    resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    let mut runtime_statements = body
-        .statements
-        .iter()
-        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));
-    let Some(Stmt::Return(statement)) = runtime_statements.next() else {
-        return false;
-    };
-    if runtime_statements.next().is_some() {
-        return false;
-    }
-    let Some(expression) = statement.expression.as_ref() else {
-        return false;
-    };
-    static_error_payload_expression_is_buildable(expression, root_source, resolved, resolver)
-}
-
-pub(super) fn static_error_payload_expression_is_buildable<'a, F>(
-    expression: &Expr,
-    root_source: SourceId,
-    resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    match expression {
-        Expr::Group(group) => static_error_payload_expression_is_buildable(
-            &group.expression,
-            root_source,
-            resolved,
-            resolver,
-        ),
-        Expr::Call(call) => {
-            error_constructor_call_is_buildable(call, root_source, resolved, resolver)
-                && call.arguments.len() == 2
-                && call
-                    .arguments
-                    .iter()
-                    .all(static_error_payload_string_expression_is_buildable)
-        }
-        _ => false,
-    }
-}
-
-pub(super) fn static_error_payload_string_expression_is_buildable(expression: &Expr) -> bool {
-    match expression {
-        Expr::StringLiteral(_) => true,
-        Expr::Group(group) => {
-            static_error_payload_string_expression_is_buildable(&group.expression)
-        }
-        _ => false,
-    }
-}
-
-pub(super) fn error_constructor_call_is_buildable<'a, F>(
-    call: &CallExpr,
-    root_source: SourceId,
-    resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    if let Some(symbol) = resolved.symbol_for_call(call)
-        && symbol.declaration_span.source != root_source
-        && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
-    {
-        return error_constructor_signature_is_buildable_with_resolver(
-            signature.parameters.iter().map(|parameter| &parameter.ty),
-            &signature.return_type,
-            resolved,
-            resolver,
-        );
-    }
-
-    if let Some((owner, function)) = resolved.associated_function_for_call(call)
-        && function.name_span.source != root_source
-    {
-        let builtin_error_self = resolved.builtin_owner_for_symbol(owner)
-            == Some(crate::builtin_types::BuiltinTypeOwner::Error);
-        if builtin_error_self
-            && matches!(
-                &function.signature.return_type,
-                TypeExpr::Reference(reference) if reference.name == "Self"
-            )
-        {
-            return error_constructor_signature_is_buildable_with_resolver(
-                function
-                    .signature
-                    .parameters
-                    .iter()
-                    .map(|parameter| &parameter.ty),
-                &TypeExpr::Reference(TypeReference {
-                    span: function.signature.return_type.span(),
-                    name: "error".to_string(),
-                }),
-                resolved,
-                resolver,
-            );
-        }
-        return error_constructor_signature_is_buildable_with_resolver(
-            function
-                .signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.ty),
-            &function.signature.return_type,
-            resolved,
-            resolver,
-        );
-    }
-
-    false
 }
 
 pub(super) fn error_constructor_signature_is_buildable_with_resolver<'a, 't, F, I>(

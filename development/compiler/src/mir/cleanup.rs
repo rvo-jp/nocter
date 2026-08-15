@@ -260,38 +260,23 @@ fn cleanup_edge(
         |place| analysis.initialized_on_edge(body, from, target, place),
         |loan| loans.definitely_active_at_exit(from, loan),
     );
-    if body
-        .blocks
-        .get(target.index())
-        .is_some_and(|block| is_terminal_exit(&block.terminator))
-    {
-        actions.extend(
-            conditional_terminal_edge_places(body, analysis, from, target, &exited)
-                .into_iter()
-                .map(CleanupAction::Drop),
-        );
-    }
+    // A merge keeps only values initialized on every incoming edge.  Any
+    // owned value initialized solely on this edge becomes unreachable after
+    // the merge and must be consumed here, regardless of whether the target
+    // exits immediately or continues through more CFG nodes.
+    actions.extend(
+        conditional_edge_places(body, analysis, from, source_scope, target, &exited)
+            .into_iter()
+            .map(CleanupAction::Drop),
+    );
     prepend_cleanup_chain(body, actions, target)
 }
 
-fn is_terminal_exit(terminator: &Terminator) -> bool {
-    matches!(
-        terminator,
-        Terminator::Return
-            | Terminator::ReturnOutcome { .. }
-            | Terminator::ReturnFailure { .. }
-            | Terminator::ReturnOutcomeSuccess { .. }
-            | Terminator::ReturnOptionalNone
-            | Terminator::ReturnValue { .. }
-            | Terminator::PropagateFailure
-            | Terminator::Trap
-    )
-}
-
-fn conditional_terminal_edge_places(
+fn conditional_edge_places(
     body: &Body,
     analysis: &InitializationAnalysis,
     from: BasicBlockId,
+    source_scope: ScopeId,
     target: BasicBlockId,
     exited: &[ScopeId],
 ) -> Vec<Place> {
@@ -304,6 +289,7 @@ fn conditional_terminal_edge_places(
         let id = LocalId::from_index(index);
         if id == body.return_local
             || exited.contains(&local.scope)
+            || !super::scopes::contains(&body.scopes, local.scope, source_scope)
             || local.representation != ValueRepresentation::Aggregate
             || local.ownership != OwnershipKind::Move
         {
@@ -419,7 +405,11 @@ fn cleanup_actions(
                 .iter()
                 .rev()
                 .filter(|loan| {
-                    loan.lifetime == LoanLifetime::Scope && loan.scope == *scope && active(loan.id)
+                    loan.lifetime == LoanLifetime::Scope
+                        && loan.scope == *scope
+                        && active(loan.id)
+                        && body.locals[loan.destination.index()].storage
+                            != super::LocalStorage::Return
                 })
                 .map(|loan| CleanupAction::EndLoan(loan.id)),
         );

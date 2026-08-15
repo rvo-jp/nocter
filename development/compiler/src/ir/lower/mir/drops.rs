@@ -15,7 +15,6 @@ pub(super) fn lower_drop(
     place: Place,
     plan: DropPlanId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let range = super::aggregate_range(place, 0, context)?;
     let ty = place
         .projection
         .map_or(context.body.locals[place.local.index()].ty, |projection| {
@@ -25,6 +24,19 @@ pub(super) fn lower_drop(
         .typed_hir
         .type_expr_by_id(ty)
         .ok_or_else(|| invalid_mir_diagnostics("drop root type is missing"))?;
+    if let Some((source, index)) = super::view_index_projection(place, context)? {
+        let value = aggregate_abi_value(ty, context)?;
+        let temporary = AggregateLocation::Slot(super::temporary_aggregate_slot(context));
+        let mut instructions = vec![Instruction::CopySliceElementToAggregate {
+            destination: temporary,
+            source,
+            index,
+            layout: value.layout,
+        }];
+        instructions.extend(lower_plan(context, temporary, 0, ty, plan)?);
+        return Ok(instructions);
+    }
+    let range = super::aggregate_range(place, 0, context)?;
     match range.index.as_ref() {
         Some(index) => lower_indexed_plan(context, range.location, range.offset, index, ty, plan),
         None => lower_plan(context, range.location, range.offset, ty, plan),
@@ -223,50 +235,20 @@ pub(super) fn lower_pointer_drop(
     ty: crate::semantic::TyId,
     plan: DropPlanId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let plan = context.body.drop_plans.get(plan.index()).ok_or_else(|| {
-        invalid_mir_diagnostics("pointer drop references a missing semantic plan")
-    })?;
-    let DropPlan::Direct { destructor } = plan else {
-        return Err(invalid_mir_diagnostics(
-            "pointer drop currently requires one direct semantic destructor",
-        ));
-    };
     let ty = context
         .typed_hir
         .type_expr_by_id(ty)
         .ok_or_else(|| invalid_mir_diagnostics("pointer drop type is missing"))?;
-    let name = context
-        .function_names
-        .name_for_drop(*destructor, ty)
-        .ok_or_else(|| invalid_mir_diagnostics("pointer drop target has no runtime name"))?
-        .clone();
-    let source = context
-        .resolved
-        .semantic_db
-        .definition_anchor(*destructor)
-        .ok_or_else(|| invalid_mir_diagnostics("pointer drop target has no source anchor"))?
-        .source;
-    let target = super::super::call_target_for_source(source, context.root_source, name);
-    let UsizeValue::Location(pointer) = pointer else {
-        return Err(invalid_mir_diagnostics(
-            "pointer drop pointer must have addressable machine storage",
-        ));
-    };
-    let UsizeValue::Location(offset) = offset else {
-        return Err(invalid_mir_diagnostics(
-            "pointer drop offset must have addressable machine storage",
-        ));
-    };
-    Ok(vec![Instruction::CallVoid {
-        target,
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::PointerOffset {
-                pointer,
-                offset,
-                field_offset: 0,
-            },
-        })],
-    }])
+    let value = aggregate_abi_value(ty, context)?;
+    let temporary = AggregateLocation::Slot(super::temporary_aggregate_slot(context));
+    let mut instructions = vec![Instruction::CopyPointerToAggregate {
+        destination: temporary,
+        pointer,
+        offset,
+        layout: value.layout,
+    }];
+    instructions.extend(lower_plan(context, temporary, 0, ty, plan)?);
+    Ok(instructions)
 }
 
 fn lower_plan(

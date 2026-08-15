@@ -101,8 +101,11 @@ impl IntegerType {
         }
     }
 
-    pub(crate) const fn legacy_ir_type(self) -> bool {
-        matches!(self, Self::I32 | Self::U8 | Self::Usize)
+    /// Encodes an in-range negative literal magnitude without executing a
+    /// runtime subtraction that would overflow for the signed minimum value.
+    pub(crate) const fn negated_magnitude_word(self, magnitude: u64) -> u64 {
+        let bits = 0_u64.wrapping_sub(magnitude) & self.mask();
+        self.canonical_word(bits)
     }
 }
 
@@ -140,5 +143,22 @@ mod tests {
             u32::MAX as u64
         );
         assert_eq!(IntegerType::I64.canonical_word(u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn negated_magnitude_words_include_signed_minimums() {
+        assert_eq!(IntegerType::I8.negated_magnitude_word(1), u64::MAX);
+        assert_eq!(
+            IntegerType::I8.negated_magnitude_word(128),
+            0xffff_ffff_ffff_ff80
+        );
+        assert_eq!(
+            IntegerType::I32.negated_magnitude_word(1_u64 << 31),
+            0xffff_ffff_8000_0000
+        );
+        assert_eq!(
+            IntegerType::I64.negated_magnitude_word(1_u64 << 63),
+            0x8000_0000_0000_0000
+        );
     }
 }

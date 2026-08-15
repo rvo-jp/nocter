@@ -945,6 +945,7 @@ pub(super) fn record_scalar_argument(
         ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
         ScalarArgument::U8(value) => record_u8_value(value, highest_local_index),
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
+        ScalarArgument::Integer(_, value) => record_usize_value(value, highest_local_index),
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
         ScalarArgument::Str(value) => record_str_value(value, highest_local_index),
         ScalarArgument::Slice(value) => record_slice_value(value, highest_local_index),
@@ -972,12 +973,6 @@ pub(super) fn record_borrow_source(source: BorrowSource, highest_local_index: &m
         }
         BorrowSource::AggregateIndex { index, .. } => {
             record_slice_element_index(index, highest_local_index);
-        }
-        BorrowSource::PointerOffset {
-            pointer, offset, ..
-        } => {
-            record_usize_location(pointer, highest_local_index);
-            record_usize_location(offset, highest_local_index);
         }
         BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. }
@@ -1007,9 +1002,6 @@ pub(super) fn record_u8_value(value: &U8Value, highest_local_index: &mut Option<
         U8Value::Location(location) => record_u8_location(*location, highest_local_index),
         U8Value::StrIndex { source, index } => {
             record_str_location(*source, highest_local_index);
-            record_usize_value(index, highest_local_index);
-        }
-        U8Value::StaticStrIndex { index, .. } => {
             record_usize_value(index, highest_local_index);
         }
         U8Value::SliceIndex { source, index } => {

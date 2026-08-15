@@ -3,7 +3,7 @@
 use crate::ast::canonical_type_expr;
 use crate::typecheck::TypecheckCoercionPlan;
 
-pub(super) fn coercion_symbol_name(plan: &TypecheckCoercionPlan) -> String {
+pub(crate) fn coercion_symbol_name(plan: &TypecheckCoercionPlan) -> String {
     debug_assert!(plan.def_id.is_some());
     format!(
         "{}.__nocter$coerce${}",

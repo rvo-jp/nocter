@@ -37,9 +37,6 @@ pub(super) fn record_u8_value_parameter_spill_requests(
             record_str_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
         }
-        U8Value::StaticStrIndex { index, .. } => {
-            record_usize_value_parameter_spill_requests(index, requests);
-        }
         U8Value::SliceIndex { source, index } => {
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
@@ -256,16 +253,6 @@ pub(super) fn record_borrow_source_parameter_spill_request(
                 requests.insert(index);
             }
             record_slice_element_index_parameter_spill_request(index, requests);
-        }
-        BorrowSource::PointerOffset {
-            pointer, offset, ..
-        } => {
-            if let UsizeLocation::Parameter(index) = pointer {
-                requests.insert(index);
-            }
-            if let UsizeLocation::Parameter(index) = offset {
-                requests.insert(index);
-            }
         }
         BorrowSource::BorrowLocalField { pointer, .. } => {
             if let UsizeLocation::Parameter(index) = pointer {

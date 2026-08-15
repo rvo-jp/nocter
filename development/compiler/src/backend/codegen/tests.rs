@@ -177,6 +177,17 @@ fn encoded_mov_w(destination: WReg, source: WReg) -> [u8; 4] {
     encoded_instruction(encoder)
 }
 
+fn encoded_bfi_x(
+    destination: XReg,
+    source: XReg,
+    least_significant_bit: u32,
+    width: u32,
+) -> [u8; 4] {
+    let mut encoder = Encoder::new();
+    encoder.emit_bfi_x(destination, source, least_significant_bit, width);
+    encoded_instruction(encoder)
+}
+
 fn encoded_lsl_x_imm(destination: XReg, source: XReg, shift: u32) -> [u8; 4] {
     let mut encoder = Encoder::new();
     encoder.emit_lsl_x_imm(destination, source, shift);

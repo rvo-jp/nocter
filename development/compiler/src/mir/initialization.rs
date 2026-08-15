@@ -240,16 +240,12 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     body,
                     &mut errors,
                 );
-                edge_states.insert((block_id, *then_target), initialized.clone());
-                edge_states.insert((block_id, *else_target), initialized.clone());
-                merge_entry(
-                    &mut entries,
-                    &mut queue,
-                    *then_target,
-                    initialized.clone(),
-                    body,
-                );
-                merge_entry(&mut entries, &mut queue, *else_target, initialized, body);
+                for target in
+                    super::control_flow::switch_targets(condition, *then_target, *else_target)
+                {
+                    edge_states.insert((block_id, target), initialized.clone());
+                    merge_entry(&mut entries, &mut queue, target, initialized.clone(), body);
+                }
             }
             crate::mir::Terminator::Call {
                 arguments,
@@ -478,7 +474,6 @@ fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
         Rvalue::Binary { left, right, .. }
         | Rvalue::Compare { left, right, .. }
         | Rvalue::ViewCompare { left, right, .. } => Box::new([left, right].into_iter()),
-        Rvalue::ViewIndex { source, index, .. } => Box::new([source, index].into_iter()),
         Rvalue::Intrinsic { arguments, .. } => {
             Box::new(arguments.iter().map(|argument| &argument.operand))
         }

@@ -1,34 +1,5 @@
 use super::*;
 
-pub(in crate::driver::buildability) fn binding_type_expr_with_substitutions(
-    statement: &BindingStmt,
-    resolved: &ResolveOutput,
-    typed_hir: &TypedHir,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> Option<TypeExpr> {
-    statement
-        .ty
-        .clone()
-        .or_else(|| {
-            resolved
-                .local_symbol_id_at_name_span(statement.name_span)
-                .and_then(|symbol| typed_hir.binding_type_expr(symbol))
-                .cloned()
-        })
-        .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
-}
-pub(in crate::driver::buildability) fn local_identifier_type_expr_with_substitutions(
-    identifier: &IdentifierExpr,
-    resolved: &ResolveOutput,
-    typed_hir: &TypedHir,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> Option<TypeExpr> {
-    let symbol = resolved.local_symbol_for_identifier(identifier)?;
-    typed_hir
-        .binding_type_expr(symbol.id)
-        .cloned()
-        .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
-}
 pub(in crate::driver::buildability) fn resolved_for_type_expr<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,

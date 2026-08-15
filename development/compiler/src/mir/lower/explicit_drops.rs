@@ -9,7 +9,8 @@ pub(super) fn is_supported(statement: &DropStmt, semantic: SemanticInputs<'_>) -
         .local_symbol_id_for_reference_span(statement.name_span)
         .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol))
         .is_some_and(|ty| {
-            crate::typecheck::type_expr_is_copy(ty, semantic.resolved) == Some(false)
+            super::super::drop_plans::is_copy(ty, semantic.resolved, semantic.resolved_sources)
+                == Some(false)
                 && super::super::drop_plans::is_supported(
                     ty,
                     semantic.resolved,

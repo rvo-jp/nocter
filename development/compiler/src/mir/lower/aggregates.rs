@@ -4,7 +4,7 @@
 //! only layer that projects those paths onto a concrete layout.
 
 use super::context::LoweringContext;
-use super::coverage::{known_expression_type, scalar_expression_is_supported, scalar_type};
+use super::source_model::{known_expression_type, scalar_expression_is_supported, scalar_type};
 use super::{BuildError, SemanticInputs};
 use crate::abi::AbiType;
 use crate::ast::Expr;
@@ -150,7 +150,7 @@ fn value_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<
         _ => None,
     };
     if let Some(representation) = view_representation {
-        return super::coverage::value_expression_is_supported(
+        return super::source_model::value_expression_is_supported(
             expression,
             representation,
             semantic,
@@ -159,13 +159,13 @@ fn value_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<
     if matches!(
         abi,
         AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
-    ) && (super::coverage::aggregate_operand_is_supported(
+    ) && (super::source_model::aggregate_operand_is_supported(
         expression,
         semantic.resolved,
         semantic.resolved_sources,
         semantic.typed_hir,
     ) || matches!(expression.without_groups(), Expr::Call(_))
-        && super::coverage::value_expression_is_supported(
+        && super::source_model::value_expression_is_supported(
             expression,
             crate::mir::ValueRepresentation::Aggregate,
             semantic,
@@ -199,7 +199,7 @@ pub(super) fn lower_literal(
         semantic.resolved,
         |source| semantic.resolver_for(source),
     )
-    .map_err(|_| BuildError::UnsupportedClaimedExpression)?
+    .map_err(|_| BuildError::UnsupportedClaimedExpression.context("resolve aggregate ABI"))?
     .ty;
     if let Expr::Closure(closure) = expression.without_groups() {
         return lower_closure(context, destination, closure, &abi, scope);
@@ -252,7 +252,8 @@ pub(super) fn lower_literal(
             expression.without_groups(),
             &abi,
             scope,
-        )?;
+        )
+        .map_err(|error| error.context("lower staged aggregate"))?;
         return Ok(());
     };
     let origin = context
@@ -360,8 +361,11 @@ fn lower_closure(
                 }
             }
             crate::ast::ClosureCaptureMode::Move => {
-                if crate::typecheck::type_expr_is_copy(&capture_ty.ty, context.semantic.resolved)
-                    == Some(true)
+                if super::super::drop_plans::is_copy(
+                    &capture_ty.ty,
+                    context.semantic.resolved,
+                    context.semantic.resolved_sources,
+                ) == Some(true)
                 {
                     crate::mir::Operand::Copy(source)
                 } else {
@@ -408,13 +412,24 @@ fn lower_staged_aggregate(
                     .get(index)
                     .and_then(|field| u32::try_from(field.offset).ok())
                     .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                let child = push_construction_projection(
-                    context,
-                    base,
-                    parent,
-                    crate::mir::ProjectionElement::Field { offset },
-                    &field.value,
-                )?;
+                let element = crate::mir::ProjectionElement::Field { offset };
+                let child = if let Some(field_ty) = context
+                    .semantic
+                    .typed_hir
+                    .field_type_expr(field.name_span)
+                    .cloned()
+                {
+                    push_projection_for_type(context, base, parent, element, &field_ty)?
+                } else {
+                    push_construction_projection(
+                        context,
+                        base,
+                        parent,
+                        element,
+                        &field.value,
+                        &fields[index].ty,
+                    )?
+                };
                 lower_staged_value(context, base, child, &field.value, &fields[index].ty, scope)
                     .map_err(|error| error.context("lower aggregate field"))?;
                 children.push(child);
@@ -456,6 +471,7 @@ fn lower_staged_aggregate(
                         stride,
                     },
                     value,
+                    element,
                 )?;
                 lower_staged_value(context, base, child, value, element, scope)
                     .map_err(|error| error.context("lower aggregate element"))?;
@@ -463,7 +479,11 @@ fn lower_staged_aggregate(
             }
             children
         }
-        _ => return Err(BuildError::UnsupportedClaimedExpression),
+        _ => {
+            return Err(
+                BuildError::UnsupportedClaimedExpression.context("match aggregate literal to ABI")
+            );
+        }
     };
     let origin = context
         .semantic
@@ -564,7 +584,10 @@ fn lower_staged_value(
                 | Expr::TypedSequenceLiteral(_)
                 | Expr::TypedStringLiteral(_)
                 | Expr::InterpolatedString(_)
-        ) {
+        ) || context.type_has_outcome_layers(ty)
+            || matches!(expression.without_groups(), Expr::Member(member)
+            if context.semantic.typed_hir.enum_variant_target(member.member_span).is_some())
+        {
             let origin = context
                 .semantic
                 .typed_hir
@@ -588,7 +611,7 @@ fn lower_staged_value(
             }
         } else if let Expr::Member(member) = expression.without_groups()
             && super::projections::aggregate_value_field_is_supported(member, context.semantic)
-            && !super::coverage::aggregate_operand_is_supported(
+            && !super::source_model::aggregate_operand_is_supported(
                 expression,
                 context.semantic.resolved,
                 context.semantic.resolved_sources,
@@ -627,10 +650,17 @@ fn push_construction_projection(
     parent: Option<crate::mir::ProjectionPathId>,
     element: crate::mir::ProjectionElement,
     expression: &Expr,
+    abi: &AbiType,
 ) -> Result<crate::mir::ProjectionPathId, BuildError> {
     let ty =
-        super::coverage::conversion_plan_for_expression(expression, context.semantic.typed_hir)
-            .and_then(|conversion| context.semantic.typed_hir.type_id(&conversion.target_ty))
+        super::storage_types::scalar_type_id_from_abi(abi, expression.span(), context.semantic)
+            .or_else(|| {
+                super::source_model::conversion_plan_for_expression(
+                    expression,
+                    context.semantic.typed_hir,
+                )
+                .and_then(|conversion| context.semantic.typed_hir.type_id(&conversion.target_ty))
+            })
             .or_else(|| known_expression_type(expression, context.semantic.typed_hir))
             .ok_or(BuildError::MissingTypedExpression)?;
     let type_expr = context
@@ -664,10 +694,13 @@ fn push_projection(
     ty: crate::semantic::TyId,
     type_expr: &crate::ast::TypeExpr,
 ) -> Result<crate::mir::ProjectionPathId, BuildError> {
-    let representation = super::coverage::value_representation(ty, context.semantic)
+    let representation = super::source_model::value_representation(ty, context.semantic)
         .unwrap_or(crate::mir::ValueRepresentation::Aggregate);
-    let ownership = if crate::typecheck::type_expr_is_copy(type_expr, context.semantic.resolved)
-        == Some(true)
+    let ownership = if super::super::drop_plans::is_copy(
+        type_expr,
+        context.semantic.resolved,
+        context.semantic.resolved_sources,
+    ) == Some(true)
     {
         crate::mir::OwnershipKind::Copy
     } else if let crate::ast::TypeExpr::Borrow(borrow) = type_expr {
@@ -729,10 +762,33 @@ fn lower_literal_leaves(
 
     let ty = known_expression_type(expression, context.semantic.typed_hir)
         .ok_or(BuildError::MissingTypedExpression)?;
-    if let Some(representation) = super::coverage::value_representation(ty, context.semantic)
+    if let Some(representation) = super::source_model::value_representation(ty, context.semantic)
         && representation != crate::mir::ValueRepresentation::Aggregate
     {
-        let argument = context.lower_call_argument(expression, scope)?;
+        let mut argument = context.lower_call_argument(expression, scope)?;
+        if matches!(
+            argument.representation,
+            crate::mir::ValueRepresentation::View(_)
+        ) && matches!(argument.operand, crate::mir::Operand::StaticStr { .. })
+        {
+            let origin = context
+                .semantic
+                .typed_hir
+                .expression(expression.span())
+                .map_or(
+                    crate::mir::LocalOrigin::Desugared(expression.span()),
+                    |expression| crate::mir::LocalOrigin::Temporary(expression.id),
+                );
+            let local = context.local_for_type(argument.ty, origin, scope)?;
+            context
+                .control_flow
+                .push_statement(crate::mir::Statement::Assign {
+                    destination: crate::mir::Place::local(local),
+                    value: crate::mir::Rvalue::Use(argument.operand),
+                    origin: crate::mir::Origin::Desugared(expression.span()),
+                })?;
+            argument.operand = crate::mir::Operand::Copy(crate::mir::Place::local(local));
+        }
         leaves.push(AggregateLeaf {
             path: path.clone(),
             ty: argument.ty,

@@ -287,7 +287,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_imported_readwrite_borrow_alias_unsupported_argument_before_ir_lowering() {
+fn build_command_lowers_imported_readwrite_borrow_alias_argument_through_mir() {
     let project =
         TempProject::new("cli-build-imported-readwrite-borrow-alias-unsupported-argument");
     project.write_source(
@@ -318,28 +318,7 @@ func main(): void {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("read-write borrow call arguments from unsupported expressions"),
-        "expected read-write borrow argument diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("9 |     touch(&+pair.values[0])"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
@@ -382,7 +361,7 @@ fn build_command_reports_compile_diagnostics_without_output() {
 }
 
 #[test]
-fn build_command_rejects_ignored_unsupported_method_call_expression_statement_before_ir_lowering() {
+fn build_command_lowers_ignored_method_call_expression_statement_through_mir() {
     let project = TempProject::new("cli-build-ignored-unsupported-method-call-statement");
     let source = project.write_source(
         "ignored_unsupported_method_call_statement.nct",
@@ -407,24 +386,7 @@ func main(): void {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("13 |     box.borrow_self()"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "method expression statement should be rejected before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
@@ -468,7 +430,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_rejects_terminal_if_inside_catch_block_before_ir_lowering() {
+fn build_command_lowers_terminal_if_inside_catch_block_through_mir() {
     let project = TempProject::new("cli-build-terminal-if-inside-catch-block");
     project.write_nocter_home_file(
         "std/error/index.nct",
@@ -501,25 +463,7 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`catch` blocks outside supported runtime control flow"),
-        "expected catch block construct, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "catch block should be rejected before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 1);
 }
 
 #[test]
@@ -932,7 +876,7 @@ func consume(texts: [Text; 1]): void {
 }
 
 #[test]
-fn build_command_reports_unsupported_fixed_array_literal_field_before_ir_lowering() {
+fn build_command_lowers_fixed_array_literal_field_through_checked_mir() {
     let project = TempProject::new("cli-build-unsupported-fixed-array-literal-field-boundary");
     let source = project.write_source(
         "unsupported_fixed_array_literal_field_boundary.nct",
@@ -953,33 +897,8 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("field member values outside supported scalar/view or aggregate types"),
-        "expected unsupported field member diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("11 |     return bag.texts[0].value"),
-        "expected field member source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("the native compiler cannot lower array literals yet"),
-        "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -1149,7 +1068,7 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
-fn build_command_reports_owned_payload_move_binding_without_direct_drop() {
+fn build_command_lowers_owned_payload_move_binding_without_direct_drop() {
     let project = TempProject::new("cli-build-payload-move-binding-without-direct-drop");
     let source = project.write_source(
         "payload_move_binding_without_direct_drop.nct",
@@ -1174,29 +1093,7 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("owned recursively droppable aggregate types in `match`"),
-        "expected payload binding boundary, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("Result.ok(detail)"),
-        "expected binding source span, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
@@ -1512,7 +1409,7 @@ fn build_command_reports_missing_interpolation_runtime_before_ir_lowering() {
 }
 
 #[test]
-fn build_command_reports_non_copy_aggregate_slice_index_before_ir_lowering() {
+fn build_command_rejects_copying_a_move_only_slice_element() {
     let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-boundary");
     let source = project.write_source(
         "index.nct",
@@ -1542,19 +1439,11 @@ func source(): &[Text] {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        "expected source capability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("slice indexing outside scalar, `&str`, and copy aggregate elements"),
-        "expected slice indexing diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     let first = view[0]"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        stderr.contains("add a `copy` element constraint"),
+        "expected move-only slice guidance, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -1563,7 +1452,7 @@ func source(): &[Text] {
 }
 
 #[test]
-fn build_command_reports_non_copy_aggregate_slice_index_assignment_before_ir_lowering() {
+fn build_command_lowers_non_copy_aggregate_slice_index_assignment_through_checked_mir() {
     let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-assignment-boundary");
     let source = project.write_source(
         "index.nct",
@@ -1590,32 +1479,12 @@ func source(): &+[Text] {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("index assignment targets outside supported slice values"),
-        "expected slice assignment diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     view[0] = Text { len: 42 }"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_null_from_addr_before_ir_lowering() {
+fn build_command_lowers_null_from_addr_through_mir() {
     let project = TempProject::new("cli-build-null-from-addr-boundary");
     project.write_nocter_home_file(
         "std/ptr/index.nct",
@@ -1647,32 +1516,11 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("null raw pointer construction"),
-        "expected null pointer diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 |     return slice_from_raw_parts_mut(from_addr(0), 0)"),
-        "expected std source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_reports_cast_null_from_addr_before_ir_lowering() {
+fn build_command_lowers_cast_null_from_addr_through_mir() {
     let project = TempProject::new("cli-build-cast-null-from-addr-boundary");
     project.write_nocter_home_file(
         "std/ptr/index.nct",
@@ -1704,28 +1552,7 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("null raw pointer construction"),
-        "expected null pointer diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 |     return slice_from_raw_parts_mut(from_addr(0 as usize), 0)"),
-        "expected std source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
@@ -1882,7 +1709,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_static_error_payload_helper_with_argument_before_ir_lowering() {
+fn build_command_reports_static_error_payload_helper_with_argument_from_checked_mir() {
     let project = TempProject::new("cli-build-static-error-payload-helper-argument-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
@@ -1918,19 +1745,11 @@ func dynamic_message(): &str {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        "expected MIR buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the supported runtime ABI"),
-        "expected return type diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 | func app_failed(message: &str): error {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        stderr.contains("error-returning helpers with runtime arguments"),
+        "expected runtime error helper boundary, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -1939,7 +1758,7 @@ func dynamic_message(): &str {
 }
 
 #[test]
-fn build_command_reports_imported_error_constructor_with_non_str_payload_before_ir_lowering() {
+fn build_command_reports_imported_error_constructor_with_non_str_payload_from_checked_mir() {
     let project = TempProject::new("cli-build-imported-error-constructor-non-str-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
@@ -1976,19 +1795,11 @@ func main(): i32! {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        "expected MIR buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the supported runtime ABI"),
-        "expected return type diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("1 | pub func app_failed(code: i32, message: i32): error {"),
-        "expected source line from imported helper, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        stderr.contains("error constructors with non-`&str` payloads"),
+        "expected error payload boundary, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -1997,7 +1808,7 @@ func main(): i32! {
 }
 
 #[test]
-fn build_command_reports_error_return_method_helper_before_ir_lowering() {
+fn build_command_reports_error_return_method_helper_from_checked_mir() {
     let project = TempProject::new("cli-build-error-return-method-helper-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
@@ -2036,19 +1847,11 @@ func main(): i32! {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        "expected MIR buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("method return types outside the supported runtime ABI"),
-        "expected method return type diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     method &self.app_failed(): error {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        stderr.contains("error-returning method calls in failure positions"),
+        "expected error method boundary, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -2057,7 +1860,7 @@ func main(): i32! {
 }
 
 #[test]
-fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
+fn build_command_reports_dynamic_error_return_helper_from_checked_mir() {
     let project = TempProject::new("cli-build-dynamic-error-return-helper-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
@@ -2093,19 +1896,11 @@ func dynamic_message(): &str {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        "expected MIR buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the supported runtime ABI"),
-        "expected return type diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 | func app_failed(message: &str): error {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        stderr.contains("error-returning helpers with runtime arguments"),
+        "expected runtime error helper boundary, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),

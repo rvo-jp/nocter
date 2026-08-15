@@ -3,7 +3,7 @@
 //! Captures are semantic places projected from the environment receiver. No
 //! synthetic method declaration or capture binding is created.
 
-use super::coverage::*;
+use super::source_model::*;
 use super::{BuildError, BuildInputs, SemanticInputs, build_prepared_body, type_representation};
 use crate::ast::{ClosureCaptureMode, ClosureExpr, MethodReceiverMode, TypeExpr};
 use crate::mir::{
@@ -12,36 +12,32 @@ use crate::mir::{
 };
 use std::collections::HashMap;
 
-pub(crate) fn try_build_closure_body(
+pub(crate) fn build_closure_body(
     expression: &ClosureExpr,
     closure_ty: &crate::ast::ClosureTypeExpr,
     receiver_mode: MethodReceiverMode,
     return_representation: ValueRepresentation,
     return_mode: ReturnMode,
     inputs: BuildInputs<'_>,
-) -> Option<Result<crate::mir::Body, BuildError>> {
+) -> Result<crate::mir::Body, BuildError> {
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
         resolved_sources: inputs.resolved_sources,
         typed_hir: inputs.typed_hir,
     };
-    let (source_statements, tail) = scalar_body_parts(&expression.body)?;
-    let contextual_return_ty = tail.result_type(inputs.typed_hir)?;
-    if value_representation(contextual_return_ty, semantic) != Some(return_representation)
-        || !source_statements
-            .iter()
-            .all(|statement| statement.is_supported(semantic))
-        || !(tail.expression().is_some_and(|value| {
-            value_expression_is_supported(value, return_representation, semantic)
-                || return_mode == ReturnMode::Fallible
-                    && failure_value_is_supported(value, semantic)
-        }) || tail.conditional().is_some_and(|conditional| {
-            value_conditional_is_supported(conditional, return_representation, semantic)
-        }))
-        || expression.parameters.len() != closure_ty.parameters.len()
-        || expression.captures.len() != closure_ty.captures.len()
-    {
-        return None;
+    let (source_statements, tail) =
+        scalar_body_parts(&expression.body).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let contextual_return_ty = tail
+        .result_type(inputs.typed_hir)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    if value_representation(contextual_return_ty, semantic) != Some(return_representation) {
+        return Err(BuildError::ClosurePreparation("return representation"));
+    }
+    if expression.parameters.len() != closure_ty.parameters.len() {
+        return Err(BuildError::ClosurePreparation("parameter arity"));
+    }
+    if expression.captures.len() != closure_ty.captures.len() {
+        return Err(BuildError::ClosurePreparation("capture arity"));
     }
     let return_ty = tail
         .expression()
@@ -49,7 +45,7 @@ pub(crate) fn try_build_closure_body(
         .filter(|ty| value_representation(*ty, semantic) == Some(return_representation))
         .unwrap_or(contextual_return_ty);
 
-    Some((|| {
+    (|| {
         let source_body = inputs
             .semantic_db
             .body_at(expression.body.span)
@@ -170,10 +166,11 @@ pub(crate) fn try_build_closure_body(
             drop_plans,
             projections,
             prologue,
+            None,
         )
         .map_err(|error| BuildError::ClosureBody(Box::new(error)))?;
         Ok(body)
-    })())
+    })()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -191,7 +188,12 @@ fn local_contract(
         OwnershipKind::Borrowed {
             readwrite: borrow.is_readwrite,
         }
-    } else if crate::typecheck::type_expr_is_copy(type_expr, semantic.resolved) == Some(true) {
+    } else if super::super::drop_plans::is_copy(
+        type_expr,
+        semantic.resolved,
+        semantic.resolved_sources,
+    ) == Some(true)
+    {
         OwnershipKind::Copy
     } else {
         OwnershipKind::Move
@@ -272,8 +274,11 @@ fn prepare_capture_places(
             ClosureCaptureMode::ReadonlyBorrow => OwnershipKind::Borrowed { readwrite: false },
             ClosureCaptureMode::ReadwriteBorrow => OwnershipKind::Borrowed { readwrite: true },
             ClosureCaptureMode::Move
-                if crate::typecheck::type_expr_is_copy(&capture_ty.ty, semantic.resolved)
-                    == Some(true) =>
+                if super::super::drop_plans::is_copy(
+                    &capture_ty.ty,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                ) == Some(true) =>
             {
                 OwnershipKind::Copy
             }

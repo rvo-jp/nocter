@@ -1197,7 +1197,7 @@ fn returns_hover_for_identifier() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nlet answer\n```")
+        json!("```nocter\nlet answer: i32\n```")
     );
     assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
     assert_eq!(response["result"]["range"]["start"]["character"], json!(8));

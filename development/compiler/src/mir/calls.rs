@@ -127,6 +127,25 @@ pub(crate) struct CallInstanceKey {
 }
 
 impl CallInstanceKey {
+    pub(crate) fn with_unqualified_receiver(&self) -> Self {
+        let mut key = self.clone();
+        key.receiver = key
+            .receiver
+            .map(|receiver| unqualified_type_name(&receiver));
+        key
+    }
+
+    /// Produces the receiver-specialized identity shared by owner-generic
+    /// protocol calls whose type arguments are already determined by the
+    /// receiver.  Name indexes may use this only as an ambiguity-checked
+    /// fallback: independently generic methods can still have several runtime
+    /// instances for the same definition and receiver.
+    pub(crate) fn without_type_arguments(&self) -> Self {
+        let mut key = self.clone();
+        key.type_arguments.clear();
+        key
+    }
+
     pub(crate) fn from_types<'a>(
         definition: DefId,
         receiver: Option<&crate::ast::TypeExpr>,
@@ -243,4 +262,21 @@ impl CallInstanceKey {
             }
         }
     }
+}
+
+pub(crate) fn runtime_name_with_unqualified_receiver(name: &str) -> String {
+    let Some((receiver, member)) = name.rsplit_once('.') else {
+        return name.to_string();
+    };
+    if !receiver.contains('<') {
+        return name.to_string();
+    }
+    format!("{}.{}", unqualified_type_name(receiver), member)
+}
+
+fn unqualified_type_name(name: &str) -> String {
+    let name_end = name.find('<').unwrap_or(name.len());
+    let (head, suffix) = name.split_at(name_end);
+    let short = head.rsplit(['.', '/']).next().unwrap_or(head);
+    format!("{short}{suffix}")
 }

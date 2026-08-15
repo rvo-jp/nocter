@@ -41,9 +41,7 @@ pub(super) fn lower_to_place(
                 if let Some(spread) = crate::typecheck::sequence_spread(element) {
                     let plan = context
                         .semantic
-                        .typed_hir
                         .sequence_spread_plan(spread.span)
-                        .cloned()
                         .ok_or(BuildError::MissingCallTarget)?;
                     let iterator_ty = context
                         .semantic

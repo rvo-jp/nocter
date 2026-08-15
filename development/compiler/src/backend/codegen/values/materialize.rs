@@ -83,14 +83,17 @@ impl EntryEmitter {
                 }
             }
             UsizeValue::U8ZeroExtend(value) => {
-                self.emit_u8_value_to_w(value, WReg::W16)?;
-                if destination != XReg::X16 {
+                if let Some(destination) = w_reg_for_x_reg(destination) {
+                    self.emit_u8_value_to_w(value, destination)?;
+                } else {
+                    self.emit_u8_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_mov_x(destination, XReg::X16);
                 }
             }
             UsizeValue::I32SignExtend(value) => {
-                self.emit_i32_value_to_w(value, WReg::W16)?;
-                self.encoder.emit_sxtw_x_w(destination, WReg::W16);
+                let source = w_reg_for_x_reg(destination).unwrap_or(WReg::W16);
+                self.emit_i32_value_to_w(value, source)?;
+                self.encoder.emit_sxtw_x_w(destination, source);
             }
             UsizeValue::StrPointer(location) => {
                 if let StrLocation::Parameter(index) = *location {
@@ -214,14 +217,6 @@ impl EntryEmitter {
                 }
                 let (ptr, len) = self.str_location_registers(*source)?;
                 self.emit_checked_byte_load(destination, ptr, len, index)?;
-            }
-            U8Value::StaticStrIndex { bytes, index } => {
-                self.emit_usize_value_to_x(index, XReg::X16)?;
-                emit_mov_u64_to_x(&mut self.encoder, XReg::X17, bytes.len() as u64);
-                self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
-                self.emit_static_data_address(XReg::X17, bytes);
-                self.encoder
-                    .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
             }
             U8Value::SliceIndex { source, index } => {
                 if let SliceLocation::Parameter(parameter_index) = *source {

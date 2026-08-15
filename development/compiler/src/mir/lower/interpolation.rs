@@ -6,7 +6,7 @@
 
 use super::BuildError;
 use super::context::LoweringContext;
-use super::coverage::value_representation;
+use super::source_model::value_representation;
 use crate::ast::{Expr, InterpolatedStringExpr, InterpolatedStringPart, MethodReceiverMode};
 use crate::mir::{
     CallArgument, LocalId, LocalOrigin, LocalStorage, Operand, Place, Rvalue, ScopeId, Statement,

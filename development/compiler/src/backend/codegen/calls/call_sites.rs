@@ -40,6 +40,10 @@ impl EntryEmitter {
         }
 
         if let Some(frame) = frame {
+            // AArch64 passes an indirect aggregate return destination in x8.
+            // Earlier calls and argument materialization may clobber it, so a
+            // tail call must forward the caller's saved destination explicitly.
+            self.emit_indirect_return_pointer_to_x8(Some(frame));
             self.emit_epilogue(frame);
         }
 

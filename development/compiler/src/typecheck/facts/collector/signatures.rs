@@ -158,6 +158,7 @@ impl TypedHirBuilder<'_> {
             Item::Destruct(destruct) => {
                 self.collect_generic_param_type_references(&destruct.generics);
                 self.collect_type_expr_references(&destruct.target_ty);
+                self.intern_compiler_type_tree(&destruct.binding.ty);
             }
             Item::Conformance(conformance) => {
                 self.collect_generic_param_type_references(&conformance.generics);
@@ -244,6 +245,7 @@ impl TypedHirBuilder<'_> {
     ) {
         self.collect_generic_param_type_references(&method.generics);
         self.collect_where_clause_type_references(method.requirements.as_ref());
+        self.intern_compiler_type_tree(&method.receiver.implicit_parameter().ty);
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
     }
@@ -377,6 +379,14 @@ impl TypedHirBuilder<'_> {
     ) {
         let scalar = crate::typecheck::checked_scalar_type_for_type_expr(ty, self.resolved);
         self.facts.intern_type_identity(ty.clone(), scalar);
+        if let Some(normalized) =
+            crate::typecheck::normalize_associated_type_expr(ty, self.resolved)
+            && crate::ast::canonical_type_expr(&normalized) != crate::ast::canonical_type_expr(ty)
+        {
+            let scalar =
+                crate::typecheck::checked_scalar_type_for_type_expr(&normalized, self.resolved);
+            self.facts.intern_type_identity(normalized, scalar);
+        }
         match ty {
             TypeExpr::Callable(callable) => {
                 for parameter in &callable.parameters {

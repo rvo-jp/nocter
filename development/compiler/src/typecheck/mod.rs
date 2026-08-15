@@ -80,20 +80,17 @@ pub(crate) use facts::{
     TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckComparisonPlan, TypecheckConversionKind,
     TypecheckConversionPlan, TypecheckIndexAccess, TypecheckIndexPlan, TypecheckIndexProjection,
-    TypecheckInterpolationPart, TypecheckInterpolationPlan, TypecheckMethodReceiverKind,
-    TypecheckPayloadBindingMode, TypecheckProtocolMethod, TypecheckScalarViewKind,
-    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, TypedHir,
-    drop_type_specialization_from_self_ty, type_expr_presentation_label,
-    type_symbol_presentation_label,
+    TypecheckInterpolationPart, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckProtocolMethod, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind, TypedHir, drop_type_specialization_from_self_ty,
+    type_expr_presentation_label, type_symbol_presentation_label,
 };
 pub(crate) use indexing::specialize_index_plan_across_resolvers;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{enum_variant_member_label, field_member_label};
-pub(crate) use operators::{
-    comparison_semantics, specialize_comparison_plan, synthetic_comparison_runtime_call,
-};
+pub(crate) use operators::specialize_comparison_plan;
 pub(crate) use output::TypecheckOutput;
 pub(crate) use type_expr::type_expr_borrow_readwrite;
 pub(crate) use typed_hir::{CheckedScalarType, PartialSemantic, TypedExpression};

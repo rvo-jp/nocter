@@ -108,6 +108,13 @@ impl TypedExpressionArena {
             ("i32", CheckedScalarType::Integer(IntegerType::I32)),
             ("u8", CheckedScalarType::Integer(IntegerType::U8)),
             ("usize", CheckedScalarType::Integer(IntegerType::Usize)),
+            ("i8", CheckedScalarType::Integer(IntegerType::I8)),
+            ("i16", CheckedScalarType::Integer(IntegerType::I16)),
+            ("i64", CheckedScalarType::Integer(IntegerType::I64)),
+            ("isize", CheckedScalarType::Integer(IntegerType::Isize)),
+            ("u16", CheckedScalarType::Integer(IntegerType::U16)),
+            ("u32", CheckedScalarType::Integer(IntegerType::U32)),
+            ("u64", CheckedScalarType::Integer(IntegerType::U64)),
         ] {
             arena.intern_type(
                 TypeExpr::Reference(crate::ast::TypeReference {
@@ -220,6 +227,54 @@ impl TypedExpressionArena {
         self.scalar_types.push(scalar);
         self.type_ids.insert(key, id);
         id
+    }
+
+    pub(super) fn intern_type_tree(&mut self, ty: TypeExpr) {
+        match &ty {
+            TypeExpr::Callable(callable) => {
+                for parameter in &callable.parameters {
+                    self.intern_type_tree(parameter.ty.clone());
+                }
+                self.intern_type_tree((*callable.return_type).clone());
+            }
+            TypeExpr::Closure(closure) => {
+                for capture in &closure.captures {
+                    self.intern_type_tree(capture.ty.clone());
+                }
+                for parameter in &closure.parameters {
+                    self.intern_type_tree(parameter.clone());
+                }
+                self.intern_type_tree((*closure.return_type).clone());
+            }
+            TypeExpr::Opaque(opaque) => {
+                self.intern_type_tree((*opaque.interface).clone());
+                for binding in &opaque.associated_bindings {
+                    self.intern_type_tree(binding.value.clone());
+                }
+                if let Some(witness) = &opaque.witness {
+                    self.intern_type_tree((**witness).clone());
+                }
+            }
+            TypeExpr::Generic(generic) => {
+                for argument in &generic.arguments {
+                    self.intern_type_tree(argument.clone());
+                }
+            }
+            TypeExpr::Projection(projection) => {
+                self.intern_type_tree((*projection.base).clone());
+            }
+            TypeExpr::Pointer(pointer) => self.intern_type_tree((*pointer.inner).clone()),
+            TypeExpr::Borrow(borrow) => self.intern_type_tree((*borrow.inner).clone()),
+            TypeExpr::View(view) => self.intern_type_tree((*view.element).clone()),
+            TypeExpr::Array(array) => self.intern_type_tree((*array.element).clone()),
+            TypeExpr::Optional(optional) => self.intern_type_tree((*optional.inner).clone()),
+            TypeExpr::Fallible(fallible) => {
+                self.intern_type_tree((*fallible.success).clone());
+                self.intern_type_tree((*fallible.error).clone());
+            }
+            TypeExpr::Reference(_) => {}
+        }
+        self.intern_type(ty, None);
     }
 
     pub(super) fn expression_id_at(&self, span: ByteSpan) -> Option<ExprId> {

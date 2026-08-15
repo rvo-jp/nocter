@@ -1,5 +1,8 @@
-//! MIR-to-machine-IR lowering. This module grows only after the corresponding
-//! AST-driven lowering family has been removed from its production route.
+//! Projection of validated MIR into machine IR.
+//!
+//! Source blocks appear only in the cache/construction facade at this module's
+//! boundary. The projector below consumes `Body` and never reconstructs
+//! execution semantics from source expressions or statements.
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -50,7 +53,7 @@ fn success_return_instruction(body: &Body) -> Instruction {
     }
 }
 
-pub(super) fn try_lower_body(
+pub(super) fn lower_body(
     cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
     parameters: &[crate::ast::Parameter],
@@ -67,32 +70,38 @@ pub(super) fn try_lower_body(
     parameter_slots: &super::context::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
-) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    let specialized_hir = (!substitutions.is_empty()).then(|| typed_hir.specialized(substitutions));
-    let typed_hir = specialized_hir.as_ref().unwrap_or(typed_hir);
-    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)?;
-    let body_id = resolved.semantic_db.body_at(body.span)?;
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let specialized_hir =
+        crate::mir::prepare_typed_hir(typed_hir, substitutions, parameters, return_type_expr, None);
+    let typed_hir = &specialized_hir;
+    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
+        .ok_or_else(|| {
+            unsupported_mir_boundary(sources, body.span, function_name, "return type")
+        })?;
+    let body_id = resolved.semantic_db.body_at(body.span).ok_or_else(|| {
+        unsupported_mir_boundary(sources, body.span, function_name, "source body identity")
+    })?;
     let parameter_projection =
-        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
-    let mir_body = cache
-        .get_or_build_specialized(body.span.source, body_id, substitutions, || {
-            crate::mir::try_build_body_with_return_mode(
-                body,
-                parameters,
-                return_representation,
-                return_mode,
-                crate::mir::BuildInputs {
-                    semantic_db: &resolved.semantic_db,
-                    resolved,
-                    resolved_sources,
-                    typed_hir,
-                    declared_return_ty: typed_hir.type_id(return_type_expr),
-                    outcome_layers: outcome_layers.clone(),
-                },
-            )
-        })
-        .unwrap_or(Err(crate::mir::BuildError::MissingSourceBody));
-    Some(lower_cached_body(
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots).ok_or_else(
+            || unsupported_mir_boundary(sources, body.span, function_name, "parameter projection"),
+        )?;
+    let mir_body = cache.get_or_build_specialized(body.span.source, body_id, substitutions, || {
+        crate::mir::build_body_with_return_mode(
+            body,
+            parameters,
+            return_representation,
+            return_mode,
+            crate::mir::BuildInputs {
+                semantic_db: &resolved.semantic_db,
+                resolved,
+                resolved_sources,
+                typed_hir,
+                declared_return_ty: typed_hir.type_id(return_type_expr),
+                outcome_layers: outcome_layers.clone(),
+            },
+        )
+    });
+    lower_cached_body(
         mir_body,
         return_type,
         resolved,
@@ -106,11 +115,91 @@ pub(super) fn try_lower_body(
         root_source,
         sources,
         body.span,
-    ))
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn try_lower_closure_body(
+pub(super) fn lower_literal_body(
+    cache: &crate::mir::BodyCache,
+    body: &crate::ast::Block,
+    parameters: &[crate::ast::Parameter],
+    return_type_expr: &crate::ast::TypeExpr,
+    return_type: &Type,
+    literal_pack: crate::mir::LiteralPackInput,
+    literal_instance: crate::mir::CallInstanceKey,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+    substitutions: &std::collections::HashMap<String, crate::ast::TypeExpr>,
+    function_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    error_payloads: &super::context::ErrorPayloads,
+    parameter_slots: &super::context::LoweringParameterSlots,
+    root_source: SourceId,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let specialized_hir = crate::mir::prepare_typed_hir(
+        typed_hir,
+        substitutions,
+        parameters,
+        return_type_expr,
+        Some(&literal_pack),
+    );
+    let typed_hir = &specialized_hir;
+    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
+        .ok_or_else(|| {
+            unsupported_mir_boundary(sources, body.span, function_name, "return type")
+        })?;
+    let body_id = resolved.semantic_db.body_at(body.span).ok_or_else(|| {
+        unsupported_mir_boundary(sources, body.span, function_name, "source body identity")
+    })?;
+    let parameter_projection =
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots).ok_or_else(
+            || unsupported_mir_boundary(sources, body.span, function_name, "parameter projection"),
+        )?;
+    let mir_body = cache.get_or_build_literal_specialized(
+        body.span.source,
+        body_id,
+        substitutions,
+        literal_instance,
+        || {
+            crate::mir::build_literal_body(
+                body,
+                parameters,
+                return_representation,
+                return_mode,
+                crate::mir::BuildInputs {
+                    semantic_db: &resolved.semantic_db,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                    declared_return_ty: typed_hir.type_id(return_type_expr),
+                    outcome_layers: outcome_layers.clone(),
+                },
+                literal_pack,
+            )
+        },
+    );
+    lower_cached_body(
+        mir_body,
+        return_type,
+        resolved,
+        resolved_sources,
+        typed_hir,
+        function_name,
+        function_signatures,
+        function_names,
+        error_payloads,
+        parameter_projection,
+        root_source,
+        sources,
+        body.span,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_closure_body(
     cache: &crate::mir::BodyCache,
     expression: &crate::ast::ClosureExpr,
     closure_ty: &crate::ast::ClosureTypeExpr,
@@ -127,15 +216,40 @@ pub(super) fn try_lower_closure_body(
     parameter_slots: &super::context::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
-) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)?;
-    let body_id = resolved.semantic_db.body_at(expression.body.span)?;
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (return_representation, return_mode, outcome_layers) = return_contract(return_type)
+        .ok_or_else(|| {
+            unsupported_mir_boundary(sources, expression.body.span, function_name, "return type")
+        })?;
+    let body_id = resolved
+        .semantic_db
+        .body_at(expression.body.span)
+        .ok_or_else(|| {
+            unsupported_mir_boundary(
+                sources,
+                expression.body.span,
+                function_name,
+                "source body identity",
+            )
+        })?;
     let parameter_projection =
-        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots).ok_or_else(
+            || {
+                unsupported_mir_boundary(
+                    sources,
+                    expression.body.span,
+                    function_name,
+                    "parameter projection",
+                )
+            },
+        )?;
     let substitutions = std::collections::HashMap::new();
-    let mir_body = cache
-        .get_or_build_specialized(expression.body.span.source, body_id, &substitutions, || {
-            crate::mir::try_build_closure_body(
+    let mir_body = cache.get_or_build_specialized(
+        expression.body.span.source,
+        body_id,
+        &substitutions,
+        || {
+            crate::mir::build_closure_body(
                 expression,
                 closure_ty,
                 receiver_mode,
@@ -150,9 +264,9 @@ pub(super) fn try_lower_closure_body(
                     outcome_layers: outcome_layers.clone(),
                 },
             )
-        })
-        .unwrap_or(Err(crate::mir::BuildError::MissingSourceBody));
-    Some(lower_cached_body(
+        },
+    );
+    lower_cached_body(
         mir_body,
         return_type,
         resolved,
@@ -166,7 +280,23 @@ pub(super) fn try_lower_closure_body(
         root_source,
         sources,
         expression.body.span,
-    ))
+    )
+}
+
+fn unsupported_mir_boundary(
+    sources: &SourceMap,
+    span: ByteSpan,
+    function_name: &str,
+    boundary: &str,
+) -> Vec<Diagnostic> {
+    attach_primary_span(
+        vec![Diagnostic::error(
+            "E8000",
+            format!("compiler could not construct MIR for `{function_name}`: missing {boundary}"),
+        )],
+        sources,
+        span,
+    )
 }
 
 fn return_contract(
@@ -184,7 +314,7 @@ fn return_contract(
     };
     let success = return_type.success_type();
     let representation = match success {
-        Type::Void => crate::mir::ValueRepresentation::Unit,
+        Type::Void | Type::Never => crate::mir::ValueRepresentation::Unit,
         Type::I32 => crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
         Type::U8 => crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
         Type::Usize => crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
@@ -242,7 +372,7 @@ fn lower_cached_body(
         Err(error) => Err(attach_primary_span(
             vec![Diagnostic::error(
                 "E8000",
-                format!("compiler could not construct MIR: {error:?}"),
+                format!("compiler could not construct MIR for `{function_name}`: {error:?}"),
             )],
             sources,
             span,
@@ -295,6 +425,7 @@ fn lower_scalar_body(
                 loop_.condition,
                 loop_.body,
                 loop_.exit,
+                loop_.continue_target,
                 &mut visited,
             )?;
             let body_instructions = loops::lower_linear_loop_body(
@@ -764,11 +895,11 @@ fn validate_outcome_call_return_type(
     if success.as_ref() != &expected {
         return Err(invalid_mir_diagnostics(format!(
             "outcome call to `{callee_name}` returns `{}` but its MIR destination is `{}`",
-            super::expressions::describe_type(success),
-            super::expressions::describe_type(&expected),
+            super::call_abi::describe_type(success),
+            super::call_abi::describe_type(&expected),
         )));
     }
-    super::expressions::validate_known_call_success_return_passing(
+    super::call_abi::validate_success_return_passing(
         function_signatures.success_return_passing(target),
         callee_name,
         &expected,
@@ -788,7 +919,7 @@ fn validate_outcome_effect_call_return_type(
     }
     Err(invalid_mir_diagnostics(format!(
         "outcome effect call to `{callee_name}` returns `{}` instead of `void!`",
-        super::expressions::describe_type(return_type),
+        super::call_abi::describe_type(return_type),
     )))
 }
 
@@ -1056,26 +1187,21 @@ fn lower_branch(
                 else_target,
                 join_target,
             } => {
-                let branch_join = join_target.or(join).ok_or_else(|| {
-                    invalid_mir_diagnostics(
-                        "nested scalar conditional branches do not have a structured exit",
-                    )
-                })?;
+                let branch_join = join_target.or(join);
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, context)?,
-                    then_instructions: lower_branch_to_join(
-                        context,
-                        *then_target,
-                        branch_join,
-                        visited,
-                    )?,
-                    else_instructions: lower_branch_to_join(
-                        context,
-                        *else_target,
-                        branch_join,
-                        visited,
-                    )?,
+                    then_instructions: match branch_join {
+                        Some(join) => lower_branch_to_join(context, *then_target, join, visited)?,
+                        None => lower_branch_to_terminal(context, *then_target, visited)?,
+                    },
+                    else_instructions: match branch_join {
+                        Some(join) => lower_branch_to_join(context, *else_target, join, visited)?,
+                        None => lower_branch_to_terminal(context, *else_target, visited)?,
+                    },
                 });
+                let Some(branch_join) = branch_join else {
+                    return Ok(instructions);
+                };
                 current = branch_join;
             }
             Terminator::Return => {
@@ -1336,16 +1462,16 @@ fn lower_returning_call(
             _ => {
                 return Err(invalid_mir_diagnostics(format!(
                     "aggregate MIR destination received `{}` from `{callee_name}`",
-                    super::expressions::describe_type(return_type)
+                    super::call_abi::describe_type(return_type)
                 )));
             }
         };
-        super::expressions::validate_known_call_success_return_passing(
+        super::call_abi::validate_success_return_passing(
             function_signatures.success_return_passing(&target),
             callee_name,
             return_type,
         )?;
-        return Ok(super::aggregates::aggregate_call_instruction(
+        return Ok(super::call_abi::aggregate_call_instruction(
             return_type,
             aggregate_location(destination, context)?,
             target,
@@ -1354,7 +1480,7 @@ fn lower_returning_call(
         ));
     }
     if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) {
-        super::expressions::validate_known_call_success_return_passing(
+        super::call_abi::validate_success_return_passing(
             context.function_signatures.success_return_passing(&target),
             callee_name,
             &Type::Str,
@@ -1398,7 +1524,7 @@ fn lower_returning_call(
         });
     }
     let scalar = local_scalar(context.body, destination.local)?;
-    super::expressions::validate_known_call_success_return_passing(
+    super::call_abi::validate_success_return_passing(
         function_signatures.success_return_passing(&target),
         callee_name,
         &scalar_ir_type(scalar),
@@ -1527,12 +1653,12 @@ fn lower_outcome_call(
                 "outcome call to `{callee_name}` has a non-aggregate success type"
             )));
         }
-        super::expressions::validate_known_call_success_return_passing(
+        super::call_abi::validate_success_return_passing(
             context.function_signatures.success_return_passing(&target),
             callee_name,
             success,
         )?;
-        return Ok(super::aggregates::fallible_aggregate_call_instruction(
+        return Ok(super::call_abi::fallible_aggregate_call_instruction(
             success,
             aggregate_location(destination, context)?,
             target,
@@ -1564,6 +1690,11 @@ fn lower_outcome_call(
             arguments,
             failure_mode,
         });
+    }
+    if representation == crate::mir::ValueRepresentation::Error {
+        return Err(invalid_mir_diagnostics(format!(
+            "outcome call to `{callee_name}` targets logical error local {destination:?}"
+        )));
     }
     let scalar = local_scalar(context.body, destination.local)?;
     validate_outcome_call_return_type(&target, callee_name, scalar, context.function_signatures)?;
@@ -1759,7 +1890,7 @@ fn validate_never_call_return_type(
     }
     Err(invalid_mir_diagnostics(format!(
         "call to `{callee_name}` has a non-returning continuation but returns `{}`",
-        super::expressions::describe_type(callee_return_type),
+        super::call_abi::describe_type(callee_return_type),
     )))
 }
 
@@ -1778,6 +1909,9 @@ fn lower_call_target(
             ))
         })?
         .clone();
+    if let Some(target) = function_names.target_alias(&name) {
+        return Ok((target.clone(), name));
+    }
     let source = match &callee.callable {
         crate::mir::CallableIdentity::Intrinsic(intrinsic) => {
             return Err(invalid_mir_diagnostics(format!(
@@ -1824,8 +1958,8 @@ fn validate_tail_call_return_type(
         "E8006",
         format!(
             "native lowering cannot lower tail call from function `{function_name}` returning `{}` to function `{callee_name}` returning `{}`",
-            super::expressions::describe_type(return_type),
-            super::expressions::describe_type(callee_return_type),
+            super::call_abi::describe_type(return_type),
+            super::call_abi::describe_type(callee_return_type),
         ),
     )])
 }
@@ -1843,7 +1977,7 @@ fn validate_effect_call_return_type(
     }
     Err(invalid_mir_diagnostics(format!(
         "effect call to `{callee_name}` returns `{}` instead of `void`",
-        super::expressions::describe_type(callee_return_type),
+        super::call_abi::describe_type(callee_return_type),
     )))
 }
 
@@ -1862,7 +1996,10 @@ fn lower_call_argument(
             ScalarArgument::Usize(lower_usize_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
-            ScalarArgument::Usize(lower_integer_operand(&argument.operand, kind, context)?)
+            ScalarArgument::Integer(
+                kind,
+                lower_integer_operand(&argument.operand, kind, context)?,
+            )
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
             ScalarArgument::Bool(lower_bool_operand(&argument.operand, context)?)
@@ -2176,10 +2313,7 @@ fn lower_statements(
                 continue;
             }
             instructions.push(Instruction::SetUsizeFromBorrow {
-                destination: UsizeLocation::Local(machine_local_index(
-                    body,
-                    declaration.destination,
-                )),
+                destination: usize_location(&Place::local(declaration.destination), context)?,
                 source: lower_borrow_source(declaration.source, context)?,
             });
             continue;
@@ -2432,6 +2566,72 @@ fn lower_statements(
                 .and_then(|projection| body.projections.get(projection.index()))
                 .map_or(body.locals[destination.local.index()].ty, |path| path.ty);
             let layout = aggregate_local_abi_value(destination_ty, context)?.layout;
+            let destination_view_index = view_index_projection(*destination, context)?;
+            let source_view_index = view_index_projection(*source, context)?;
+            match (destination_view_index, source_view_index) {
+                (Some((destination, index)), None) if source.projection.is_none() => {
+                    instructions.push(Instruction::CopyAggregateToSliceElement {
+                        destination,
+                        index,
+                        source: aggregate_location(source, context)?,
+                        layout,
+                    });
+                    continue;
+                }
+                (None, Some((source, index))) if destination.projection.is_none() => {
+                    instructions.push(Instruction::CopySliceElementToAggregate {
+                        destination: aggregate_location(destination, context)?,
+                        source,
+                        index,
+                        layout,
+                    });
+                    continue;
+                }
+                (Some(_), Some(_)) => {
+                    return Err(invalid_mir_diagnostics(
+                        "slice-element aggregate assignment requires explicit staging",
+                    ));
+                }
+                _ => {}
+            }
+            let destination_pointer = destination
+                .projection
+                .map(|projection| {
+                    dereferenced_pointer(body, destination.local, projection, context)
+                })
+                .transpose()?
+                .flatten();
+            let source_pointer = source
+                .projection
+                .map(|projection| dereferenced_pointer(body, source.local, projection, context))
+                .transpose()?
+                .flatten();
+            match (destination_pointer, source_pointer) {
+                (Some((pointer, offset)), None) if source.projection.is_none() => {
+                    instructions.push(Instruction::CopyAggregateToPointer {
+                        pointer,
+                        offset: UsizeValue::Const(u64::from(offset)),
+                        source: aggregate_location(source, context)?,
+                        layout,
+                    });
+                    continue;
+                }
+                (None, Some((pointer, offset))) if destination.projection.is_none() => {
+                    instructions.push(Instruction::CopyPointerToAggregate {
+                        destination: aggregate_location(destination, context)?,
+                        pointer,
+                        offset: UsizeValue::Const(u64::from(offset)),
+                        layout,
+                    });
+                    continue;
+                }
+                (Some(_), Some(_)) => {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate pointer-to-pointer assignment requires explicit staging",
+                    ));
+                }
+                _ => {}
+            }
             if destination.projection.is_some() || source.projection.is_some() {
                 let destination_range = aggregate_range(*destination, 0, context)?;
                 let source_range = aggregate_range(*source, 0, context)?;
@@ -2545,6 +2745,20 @@ fn lower_statements(
                 continue;
             }
             let value = lower_str_operand(operand, context)?;
+            if let Some((destination, index)) = view_index_projection(*destination, context)? {
+                let index = match index {
+                    crate::ir::SliceElementIndex::Const(value) => UsizeValue::Const(value),
+                    crate::ir::SliceElementIndex::Location(location) => {
+                        UsizeValue::Location(location)
+                    }
+                };
+                instructions.push(Instruction::StoreStrToSliceIndex {
+                    destination,
+                    index,
+                    value,
+                });
+                continue;
+            }
             if let Some(projection) = destination.projection {
                 let StrValue::Location(source) = value else {
                     return Err(invalid_mir_diagnostics(
@@ -2646,7 +2860,12 @@ fn lower_statements(
             instructions.push(aggregate_scalar_store(destination, operand, context)?);
             continue;
         }
-        match local_scalar(body, destination.local)? {
+        let destination_scalar = local_scalar(body, destination.local).map_err(|_| {
+            invalid_mir_diagnostics(format!(
+                "scalar MIR assignment targets non-scalar place {destination:?}: {value:?}"
+            ))
+        })?;
+        match destination_scalar {
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
@@ -2686,11 +2905,30 @@ fn lower_statements(
                         operator: UnaryOperator::Negate,
                         operand,
                         ..
-                    } => instructions.push(Instruction::SubtractI32 {
-                        destination,
-                        left: I32Value::Const(0),
-                        right: lower_i32_operand(operand, context)?,
-                    }),
+                    } => {
+                        if let Operand::Constant(constant) = operand {
+                            let magnitude = i64::try_from(constant.value).map_err(|_| {
+                                invalid_mir_diagnostics(
+                                    "negated i32 constant is outside its runtime representation",
+                                )
+                            })?;
+                            let value = i32::try_from(-magnitude).map_err(|_| {
+                                invalid_mir_diagnostics(
+                                    "negated i32 constant is outside its runtime representation",
+                                )
+                            })?;
+                            instructions.push(Instruction::SetI32 {
+                                destination,
+                                value: I32Value::Const(value),
+                            });
+                        } else {
+                            instructions.push(Instruction::SubtractI32 {
+                                destination,
+                                left: I32Value::Const(0),
+                                right: lower_i32_operand(operand, context)?,
+                            });
+                        }
+                    }
                     Rvalue::Unary { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "i32 scalar route received a non-numeric unary operation",
@@ -2710,23 +2948,6 @@ fn lower_statements(
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "i32 scalar route received a comparison result",
-                        ));
-                    }
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Slice,
-                        index,
-                        ..
-                    } => {
-                        let (source, index) = lower_slice_index(source, index, context)?;
-                        instructions.push(Instruction::SetI32 {
-                            destination,
-                            value: I32Value::SliceIndex { source, index },
-                        });
-                    }
-                    Rvalue::ViewIndex { .. } => {
-                        return Err(invalid_mir_diagnostics(
-                            "i32 scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -2803,27 +3024,6 @@ fn lower_statements(
                             "u8 scalar route received a comparison result",
                         ));
                     }
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Str,
-                        index,
-                        ..
-                    } => instructions.push(Instruction::SetU8 {
-                        destination,
-                        value: lower_str_index(source, index, context)?,
-                    }),
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Slice,
-                        index,
-                        ..
-                    } => {
-                        let (source, index) = lower_slice_index(source, index, context)?;
-                        instructions.push(Instruction::SetU8 {
-                            destination,
-                            value: U8Value::SliceIndex { source, index },
-                        });
-                    }
                     Rvalue::ViewCast { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "u8 scalar route received a view coercion",
@@ -2887,26 +3087,6 @@ fn lower_statements(
                             "usize scalar route received a comparison result",
                         ));
                     }
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Slice,
-                        index,
-                        ..
-                    } => {
-                        let (source, index) = lower_slice_index(source, index, context)?;
-                        instructions.push(Instruction::SetUsize {
-                            destination,
-                            value: UsizeValue::SliceIndex {
-                                source,
-                                index: Box::new(index),
-                            },
-                        });
-                    }
-                    Rvalue::ViewIndex { .. } => {
-                        return Err(invalid_mir_diagnostics(
-                            "usize scalar route received an invalid view index result",
-                        ));
-                    }
                     Rvalue::ViewCast { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "usize scalar route received a view coercion",
@@ -2953,13 +3133,27 @@ fn lower_statements(
                         operator: UnaryOperator::Negate,
                         operand,
                         ..
-                    } if kind.is_signed() => instructions.push(Instruction::IntegerBinary {
-                        kind,
-                        operator: IntegerBinaryOperator::Subtract,
-                        destination,
-                        left: UsizeValue::Const(0),
-                        right: lower_integer_operand(operand, kind, context)?,
-                    }),
+                    } if kind.is_signed() => {
+                        if let Operand::Constant(constant) = operand {
+                            let magnitude = u64::try_from(constant.value).map_err(|_| {
+                                invalid_mir_diagnostics(
+                                    "negated integer constant is outside its runtime representation",
+                                )
+                            })?;
+                            instructions.push(Instruction::SetUsize {
+                                destination,
+                                value: UsizeValue::Const(kind.negated_magnitude_word(magnitude)),
+                            });
+                        } else {
+                            instructions.push(Instruction::IntegerBinary {
+                                kind,
+                                operator: IntegerBinaryOperator::Subtract,
+                                destination,
+                                left: UsizeValue::Const(0),
+                                right: lower_integer_operand(operand, kind, context)?,
+                            });
+                        }
+                    }
                     Rvalue::Unary { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "integer scalar route received an invalid unary operation",
@@ -2980,27 +3174,6 @@ fn lower_statements(
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "integer scalar route received a comparison result",
-                        ));
-                    }
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Slice,
-                        index,
-                        ..
-                    } => {
-                        let (source, index) = lower_slice_index(source, index, context)?;
-                        instructions.push(Instruction::SetUsize {
-                            destination,
-                            value: UsizeValue::IntegerSliceIndex {
-                                kind,
-                                source,
-                                index: Box::new(index),
-                            },
-                        });
-                    }
-                    Rvalue::ViewIndex { .. } => {
-                        return Err(invalid_mir_diagnostics(
-                            "integer scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -3107,23 +3280,6 @@ fn lower_statements(
                     Rvalue::ViewCompare { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "boolean scalar route received an unsupported view comparison",
-                        ));
-                    }
-                    Rvalue::ViewIndex {
-                        source,
-                        kind: crate::mir::ViewKind::Slice,
-                        index,
-                        ..
-                    } => {
-                        let (source, index) = lower_slice_index(source, index, context)?;
-                        instructions.push(Instruction::SetBool {
-                            destination,
-                            value: BoolValue::SliceIndex { source, index },
-                        });
-                    }
-                    Rvalue::ViewIndex { .. } => {
-                        return Err(invalid_mir_diagnostics(
-                            "boolean scalar route received an invalid view index result",
                         ));
                     }
                     Rvalue::ViewCast { .. } => {
@@ -3357,27 +3513,6 @@ fn lower_stored_outcome_construction(
         _ => unreachable!("caller filters stored outcome construction rvalues"),
     }
     Ok(())
-}
-
-fn lower_str_index(
-    source: &Operand,
-    index: &Operand,
-    context: &BackendContext<'_>,
-) -> Result<U8Value, Vec<Diagnostic>> {
-    let index = lower_usize_operand(index, context)?;
-    match source {
-        Operand::StaticStr { bytes, .. } => Ok(U8Value::StaticStrIndex {
-            bytes: bytes.clone(),
-            index,
-        }),
-        Operand::Copy(place) | Operand::Move(place) => Ok(U8Value::StrIndex {
-            source: str_location(place, context)?,
-            index,
-        }),
-        Operand::Constant(_) => Err(invalid_mir_diagnostics(
-            "scalar constant used as a string-view index source",
-        )),
-    }
 }
 
 fn lower_stored_borrow_pointer(
@@ -3849,6 +3984,11 @@ fn lower_borrow_source(
     place: Place,
     context: &BackendContext<'_>,
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
+    if place.projection.is_none()
+        && let Some(source) = storage::inlined_borrow_source(context.body, place.local)
+    {
+        return lower_borrow_source(source, context);
+    }
     if let Some(projection) = place.projection {
         let contract = context
             .body
@@ -3881,6 +4021,42 @@ fn lower_borrow_source(
                 crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
                     crate::ir::SliceElementAddressKind::Bool
                 }
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+                    crate::ir::SliceElementAddressKind::Str
+                }
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+                | crate::mir::ValueRepresentation::Borrow
+                | crate::mir::ValueRepresentation::Aggregate => {
+                    let type_expr =
+                        context
+                            .typed_hir
+                            .type_expr_by_id(contract.ty)
+                            .ok_or_else(|| {
+                                invalid_mir_diagnostics(
+                                    "slice-view index borrow element type is missing",
+                                )
+                            })?;
+                    let abi = crate::abi::abi_value_from_type_expr_with_resolver(
+                        type_expr,
+                        context.resolved,
+                        |source| context.resolved_sources.get(&source).copied(),
+                    )
+                    .map_err(|_| {
+                        invalid_mir_diagnostics(
+                            "slice-view index borrow element ABI is unavailable",
+                        )
+                    })?;
+                    let stride = crate::abi::layout_of(&abi.ty)
+                        .ok()
+                        .and_then(|layout| u32::try_from(layout.size).ok())
+                        .filter(|stride| *stride != 0)
+                        .ok_or_else(|| {
+                            invalid_mir_diagnostics(
+                                "slice-view index borrow element stride is invalid",
+                            )
+                        })?;
+                    crate::ir::SliceElementAddressKind::Aggregate { stride }
+                }
                 _ => {
                     return Err(invalid_mir_diagnostics(
                         "slice-view index borrow has an unsupported element representation",
@@ -3898,6 +4074,16 @@ fn lower_borrow_source(
                 element,
             });
         }
+        if let Some((pointer, offset)) =
+            dereferenced_pointer(context.body, place.local, projection, context)?
+        {
+            let UsizeValue::Location(pointer) = pointer else {
+                return Err(invalid_mir_diagnostics(
+                    "dereferenced MIR borrow is not backed by a pointer location",
+                ));
+            };
+            return Ok(crate::ir::BorrowSource::BorrowLocalField { pointer, offset });
+        }
         let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
         let local = &context.body.locals[place.local.index()];
         if let AggregateBorrowProjection::Index {
@@ -3907,9 +4093,13 @@ fn lower_borrow_source(
             stride,
         } = projection
         {
-            if local.representation != crate::mir::ValueRepresentation::Aggregate {
+            if !matches!(
+                local.representation,
+                crate::mir::ValueRepresentation::Aggregate
+                    | crate::mir::ValueRepresentation::Borrow
+            ) {
                 return Err(invalid_mir_diagnostics(
-                    "indexed MIR loan base is not aggregate storage",
+                    "indexed MIR loan base is not aggregate or borrowed storage",
                 ));
             }
             return Ok(crate::ir::BorrowSource::AggregateIndex {
@@ -4127,6 +4317,16 @@ fn aggregate_borrow_projection(
         projection = parent;
     }
     elements.reverse();
+    if matches!(
+        elements.first(),
+        Some(crate::mir::ProjectionElement::Dereference)
+    ) && body
+        .locals
+        .get(base.index())
+        .is_some_and(|local| local.representation == crate::mir::ValueRepresentation::Borrow)
+    {
+        elements.remove(0);
+    }
 
     let mut offset = 0u32;
     let mut index = None;
@@ -4375,6 +4575,25 @@ fn aggregate_scalar_load(
         .filter(|projection| projection.base == place.local)
         .ok_or_else(|| invalid_mir_diagnostics("scalar load projection is missing"))?;
     if let crate::mir::ProjectionElement::ViewIndex { index } = &projection_contract.element {
+        if projection_contract.parent.is_none()
+            && context.body.locals[place.local.index()].representation
+                == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str)
+            && projection_contract.representation
+                == crate::mir::ValueRepresentation::Scalar(crate::mir::ScalarType::U8)
+        {
+            let ScalarDestination::U8(destination) = destination else {
+                return Err(invalid_mir_diagnostics(
+                    "string-view index load does not target a u8 value",
+                ));
+            };
+            return Ok(Some(Instruction::SetU8 {
+                destination,
+                value: U8Value::StrIndex {
+                    source: str_location(&Place::local(place.local), context)?,
+                    index: lower_direct_usize_index(index, context)?,
+                },
+            }));
+        }
         if projection_contract.parent.is_some()
             || context.body.locals[place.local.index()].representation
                 != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
@@ -4571,9 +4790,10 @@ fn dereferenced_pointer(
             offset: field_offset,
         } = element
         else {
-            return Err(invalid_mir_diagnostics(
-                "dereferenced MIR place contains an unsupported projection",
-            ));
+            // Dynamic indexes and other structured paths use the general
+            // aggregate projection with `AggregateLocation::Borrow`. This
+            // helper is only the direct constant-field fast path.
+            return Ok(None);
         };
         offset = offset
             .checked_add(*field_offset)
@@ -4593,6 +4813,54 @@ fn lower_direct_usize_index(
             "MIR index operand did not lower to a direct usize value",
         )),
     }
+}
+
+pub(super) fn view_index_projection(
+    place: Place,
+    context: &BackendContext<'_>,
+) -> Result<Option<(SliceLocation, crate::ir::SliceElementIndex)>, Vec<Diagnostic>> {
+    let Some(projection) = place.projection else {
+        return Ok(None);
+    };
+    let contract = context
+        .body
+        .projections
+        .get(projection.index())
+        .filter(|contract| contract.base == place.local)
+        .ok_or_else(|| invalid_mir_diagnostics("slice-view projection is missing"))?;
+    let crate::mir::ProjectionElement::ViewIndex { index } = &contract.element else {
+        return Ok(None);
+    };
+    if contract.parent.is_some()
+        || context.body.locals[place.local.index()].representation
+            != crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Slice)
+    {
+        return Err(invalid_mir_diagnostics(
+            "slice-view aggregate projection has an invalid base",
+        ));
+    }
+    let index = match lower_direct_usize_index(index, context)? {
+        UsizeValue::Const(value) => crate::ir::SliceElementIndex::Const(value),
+        UsizeValue::Location(location) => crate::ir::SliceElementIndex::Location(location),
+        _ => unreachable!("direct index validation accepts only constants and places"),
+    };
+    Ok(Some((
+        slice_location(&Place::local(place.local), context)?,
+        index,
+    )))
+}
+
+pub(super) fn temporary_aggregate_slot(context: &BackendContext<'_>) -> usize {
+    context.parameters.first_local_aggregate_slot()
+        + context
+            .body
+            .locals
+            .iter()
+            .filter(|local| {
+                local.storage == LocalStorage::Local
+                    && local.representation == crate::mir::ValueRepresentation::Aggregate
+            })
+            .count()
 }
 
 pub(super) fn aggregate_range(
@@ -4680,6 +4948,17 @@ fn load_projected_aggregate_usize(
     additional_offset: u32,
     context: &BackendContext<'_>,
 ) -> Result<Instruction, Vec<Diagnostic>> {
+    if let Some((pointer, offset)) = dereferenced_pointer(context.body, base, projection, context)?
+    {
+        let offset = offset
+            .checked_add(additional_offset)
+            .ok_or_else(|| invalid_mir_diagnostics("dereferenced field offset overflowed"))?;
+        return Ok(Instruction::LoadUsizeFromPointer {
+            destination,
+            pointer,
+            offset: UsizeValue::Const(u64::from(offset)),
+        });
+    }
     let source = aggregate_location(&Place::local(base), context)?;
     Ok(
         match aggregate_borrow_projection(context.body, base, projection)? {
@@ -5042,7 +5321,13 @@ fn machine_local_index(body: &Body, local: LocalId) -> usize {
 fn local_scalar(body: &Body, local: LocalId) -> Result<ScalarType, Vec<Diagnostic>> {
     body.locals[local.index()]
         .scalar_type()
-        .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received a non-scalar local"))
+        .ok_or_else(|| {
+            invalid_mir_diagnostics(format!(
+                "scalar MIR lowering received non-scalar local {local:?} with representation {:?} and type {:?}",
+                body.locals[local.index()].representation,
+                body.locals[local.index()].ty,
+            ))
+        })
 }
 
 fn lower_cast_to_i32(
@@ -5647,6 +5932,12 @@ fn lower_intrinsic_effect(
                     offset: offset.clone(),
                     value: value.clone(),
                 },
+                ScalarArgument::Integer(kind, value) => Instruction::StoreIntegerToPointer {
+                    kind: *kind,
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
                 ScalarArgument::Bool(value) => Instruction::StoreBoolToPointer {
                     pointer: pointer.clone(),
                     offset: offset.clone(),
@@ -5721,19 +6012,6 @@ fn lower_slice_operand(
             "non-slice value used as a slice-view operand",
         )),
     }
-}
-
-fn lower_slice_index(
-    source: &Operand,
-    index: &Operand,
-    context: &BackendContext<'_>,
-) -> Result<(SliceLocation, UsizeValue), Vec<Diagnostic>> {
-    let SliceValue::Location(source) = lower_slice_operand(source, context)? else {
-        return Err(invalid_mir_diagnostics(
-            "slice index source is not backed by a slice location",
-        ));
-    };
-    Ok((source, lower_usize_operand(index, context)?))
 }
 
 fn slice_location(

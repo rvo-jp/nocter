@@ -39,6 +39,15 @@ pub(crate) fn exited_scopes(scopes: &[Scope], from: ScopeId, to: ScopeId) -> Opt
     None
 }
 
+/// Returns whether `ancestor` contains `scope`, including equality.
+///
+/// Cleanup construction uses this to distinguish a value that is genuinely
+/// live in the source block's lexical scope from stale pre-cleanup dataflow
+/// state carried across an edge that already left the value's scope.
+pub(crate) fn contains(scopes: &[Scope], ancestor: ScopeId, scope: ScopeId) -> bool {
+    ancestors(scopes, scope).is_some_and(|mut scopes| scopes.any(|item| item == ancestor))
+}
+
 fn ancestors(scopes: &[Scope], start: ScopeId) -> Option<impl Iterator<Item = ScopeId> + '_> {
     scopes.get(start.index())?;
     let mut next = Some(start);
@@ -89,5 +98,30 @@ mod tests {
             exited_scopes(&tree(), ScopeId::from_index(0), ScopeId::from_index(2)),
             Some(Vec::new())
         );
+    }
+
+    #[test]
+    fn reports_lexical_scope_containment() {
+        let scopes = tree();
+        assert!(contains(
+            &scopes,
+            ScopeId::from_index(0),
+            ScopeId::from_index(2)
+        ));
+        assert!(contains(
+            &scopes,
+            ScopeId::from_index(2),
+            ScopeId::from_index(2)
+        ));
+        assert!(!contains(
+            &scopes,
+            ScopeId::from_index(2),
+            ScopeId::from_index(1)
+        ));
+        assert!(!contains(
+            &scopes,
+            ScopeId::from_index(1),
+            ScopeId::from_index(3)
+        ));
     }
 }

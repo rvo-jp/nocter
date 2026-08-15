@@ -20,9 +20,7 @@ pub(super) fn lower(
 ) -> Result<(), BuildError> {
     let plan = context
         .semantic
-        .typed_hir
         .collection_for_plan(statement.span)
-        .cloned()
         .ok_or(BuildError::MissingCallTarget)?;
     let iterator_ty = context
         .semantic
@@ -51,11 +49,13 @@ pub(super) fn lower(
         .id;
 
     let loop_scope = context.child_scope(parent_scope, statement.span);
-    let iterator = context.aggregate_temporary(
-        iterator_ty,
-        LocalOrigin::Desugared(statement.source.span()),
-        loop_scope,
-    )?;
+    let iterator = context
+        .aggregate_temporary(
+            iterator_ty,
+            LocalOrigin::Desugared(statement.source.span()),
+            loop_scope,
+        )
+        .map_err(|error| error.context("allocate iterator local"))?;
     materialize_iterator(
         context,
         iterator,
@@ -64,7 +64,8 @@ pub(super) fn lower(
         statement,
         loop_scope,
         source_origin,
-    )?;
+    )
+    .map_err(|error| error.context("materialize collection iterator"))?;
 
     let iteration_scope = context.child_scope(loop_scope, statement.body.span);
     let item_symbol = context
@@ -72,16 +73,19 @@ pub(super) fn lower(
         .resolved
         .local_symbol_id_at_name_span(statement.name_span)
         .ok_or(BuildError::MissingLocalSymbol)?;
-    let item =
-        context.local_for_type(item_ty, LocalOrigin::Binding(item_symbol), iteration_scope)?;
+    let item = context
+        .local_for_type(item_ty, LocalOrigin::Binding(item_symbol), iteration_scope)
+        .map_err(|error| error.context("allocate iteration item local"))?;
     context
         .places_by_symbol
         .insert(item_symbol, Place::local(item));
-    let outcome = context.aggregate_temporary(
-        optional_ty,
-        LocalOrigin::Desugared(statement.span),
-        loop_scope,
-    )?;
+    let outcome = context
+        .aggregate_temporary(
+            optional_ty,
+            LocalOrigin::Desugared(statement.span),
+            loop_scope,
+        )
+        .map_err(|error| error.context("allocate iterator step outcome local"))?;
 
     let step_scope = context.child_scope(loop_scope, statement.name_span);
     let header = context.control_flow.reserve_block(step_scope);
@@ -98,8 +102,10 @@ pub(super) fn lower(
         &plan.step,
         step_scope,
         Origin::Desugared(statement.name_span),
-    )?;
-    let step_instance = protocol_instance(context, &plan.step)?;
+    )
+    .map_err(|error| error.context("lower iterator step receiver"))?;
+    let step_instance = protocol_instance(context, &plan.step)
+        .map_err(|error| error.context("resolve iterator step instance"))?;
     context.control_flow.emit_returning_call(
         source_origin,
         step_instance,
@@ -124,21 +130,23 @@ pub(super) fn lower(
     })?;
 
     context.control_flow.select_block(body)?;
-    let body_statements = super::coverage::scalar_loop_block_statements(
+    let body_statements = super::source_model::scalar_loop_block_statements(
         &statement.body,
         context.semantic.resolved,
         context.semantic.resolved_sources,
         context.semantic.typed_hir,
     )
     .ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let exits = StatementLowerer::new(context).lower_in_context(
-        &body_statements,
-        Some(LoopTargets {
-            break_target: exit,
-            continue_target: header,
-        }),
-        iteration_scope,
-    )?;
+    let exits = StatementLowerer::new(context)
+        .lower_in_context(
+            &body_statements,
+            Some(LoopTargets {
+                break_target: exit,
+                continue_target: header,
+            }),
+            iteration_scope,
+        )
+        .map_err(|error| error.context("lower collection-for body"))?;
     if !exits {
         context
             .control_flow
@@ -213,8 +221,10 @@ fn materialize_iterator(
                 &statement.source,
                 scope,
                 Origin::Expression(origin),
-            )?;
-            let instance = protocol_instance(context, conversion)?;
+            )
+            .map_err(|error| error.context("lower iterator conversion receiver"))?;
+            let instance = protocol_instance(context, conversion)
+                .map_err(|error| error.context("resolve iterator conversion instance"))?;
             context
                 .control_flow
                 .emit_returning_call(origin, instance, vec![receiver], destination)
@@ -236,7 +246,7 @@ fn protocol_expression_receiver(
     }
 }
 
-fn protocol_local_receiver(
+pub(super) fn protocol_local_receiver(
     context: &mut LoweringContext<'_>,
     local: LocalId,
     method: &crate::typecheck::TypecheckProtocolMethod,
@@ -269,7 +279,7 @@ fn protocol_local_receiver(
     }
 }
 
-fn protocol_instance(
+pub(super) fn protocol_instance(
     context: &LoweringContext<'_>,
     method: &crate::typecheck::TypecheckProtocolMethod,
 ) -> Result<crate::mir::CallInstance, BuildError> {

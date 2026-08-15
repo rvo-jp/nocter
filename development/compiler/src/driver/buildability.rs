@@ -1,36 +1,25 @@
-use crate::abi::{
-    AbiType, AbiValue, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
-};
+use crate::abi::{AbiType, AbiValue, abi_value_from_type_expr_with_resolver};
 use crate::analysis::{
     CompileUnitAnalysis, FileAnalysis,
     call_specializations::{collect_call_specializations, method_owner_substitutions_for_self_ty},
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DestructDecl, Expr,
-    ForRangeStmt, FunctionDecl, IdentifierExpr, Item, MemberExpr, MethodDecl, MethodOwnerDecl,
-    OtherwiseExpr, Parameter, PayloadEnumPatternTargetShape, Stmt, StructLiteralField,
-    SwitchPayloadPattern, TypeExpr, TypeReference, UnaryOperator, canonical_type_expr,
-    substitute_type_expr_parameters,
+    Block, CallableDecl, DestructDecl, FunctionDecl, Item, MethodOwnerDecl, Parameter, TypeExpr,
+    TypeReference, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
-use crate::integer::IntegerType;
-use crate::ir::CallTarget;
-use crate::literals::decode_integer_literal_value;
+use crate::ir::{CallTarget, coercion_symbol_name};
 use crate::outcomes::outcome_shape_with_resolver;
-use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
+use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{
-    FunctionCallSpecialization, MethodCallSpecialization, TypecheckMethodReceiverKind,
-    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind, TypedHir,
-};
+use crate::typecheck::{MethodCallSpecialization, TypedHir};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::Path;
 
 use crate::test_entry::TestDeclarationId;
 
-pub(super) fn v0_buildability_diagnostics(
+pub(super) fn native_buildability_diagnostics(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
 ) -> Vec<Diagnostic> {
@@ -39,7 +28,6 @@ pub(super) fn v0_buildability_diagnostics(
     };
 
     let root_source = root.ast.span.source;
-    let nocter_home = analysis.nocter_home.as_deref();
     let index = CallableIndex::new(analysis, root_source);
     let mut queue = VecDeque::from([CallTarget::same_file(DEFAULT_ENTRY_NAME)]);
     let mut seen = HashSet::new();
@@ -59,7 +47,6 @@ pub(super) fn v0_buildability_diagnostics(
             root_source,
             &index.names,
             &index.resolved_sources,
-            nocter_home,
             &mut queue,
             &mut diagnostics,
         );
@@ -68,7 +55,7 @@ pub(super) fn v0_buildability_diagnostics(
     diagnostics
 }
 
-pub(super) fn v0_test_buildability_diagnostics(
+pub(super) fn native_test_buildability_diagnostics(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     test: &TestDeclarationId,
@@ -90,7 +77,6 @@ pub(super) fn v0_test_buildability_diagnostics(
     };
 
     let root_source = root.ast.span.source;
-    let nocter_home = analysis.nocter_home.as_deref();
     let index = CallableIndex::new(analysis, root_source);
     let callable = IndexedCallable::new_test(test_decl, root);
     let mut queue = VecDeque::new();
@@ -102,7 +88,6 @@ pub(super) fn v0_test_buildability_diagnostics(
         root_source,
         &index.names,
         &index.resolved_sources,
-        nocter_home,
         &mut queue,
         &mut diagnostics,
     );
@@ -121,7 +106,6 @@ pub(super) fn v0_test_buildability_diagnostics(
             root_source,
             &index.names,
             &index.resolved_sources,
-            nocter_home,
             &mut queue,
             &mut diagnostics,
         );
@@ -141,6 +125,9 @@ type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
 struct CallableNames {
     definitions: HashMap<DefId, String>,
     instances: HashMap<crate::mir::CallInstanceKey, String>,
+    unqualified_receiver_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
+    receiver_determined_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
+    unqualified_receiver_determined_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
 }
 
 impl CallableNames {
@@ -149,6 +136,22 @@ impl CallableNames {
     }
 
     fn insert_instance(&mut self, instance: crate::mir::CallInstanceKey, name: String) {
+        let unqualified = instance.with_unqualified_receiver();
+        insert_unique_name(
+            &mut self.unqualified_receiver_instances,
+            unqualified.clone(),
+            &name,
+        );
+        insert_unique_name(
+            &mut self.receiver_determined_instances,
+            instance.without_type_arguments(),
+            &name,
+        );
+        insert_unique_name(
+            &mut self.unqualified_receiver_determined_instances,
+            unqualified.without_type_arguments(),
+            &name,
+        );
         self.instances.insert(instance, name);
     }
 
@@ -161,17 +164,141 @@ impl CallableNames {
         instance: &crate::mir::CallInstance,
         typed_hir: &TypedHir,
     ) -> Option<&String> {
-        if instance.receiver.is_none()
-            && instance.type_arguments.is_empty()
-            && let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
+        if let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
+            && let Some(name) = self.get(definition)
         {
-            return self.get(definition);
+            return Some(name);
         }
-        self.instances
-            .get(&crate::mir::CallInstanceKey::from_instance(
-                instance, typed_hir,
-            )?)
+        let key = crate::mir::CallInstanceKey::from_instance(instance, typed_hir);
+        key.as_ref()
+            .and_then(|key| self.instances.get(key))
+            .or_else(|| {
+                key.as_ref()
+                    .map(|key| key.with_unqualified_receiver())
+                    .and_then(|key| self.unqualified_receiver_instances.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| {
+                key.as_ref()
+                    .map(crate::mir::CallInstanceKey::without_type_arguments)
+                    .and_then(|key| self.receiver_determined_instances.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| {
+                key.as_ref()
+                    .map(crate::mir::CallInstanceKey::with_unqualified_receiver)
+                    .map(|key| key.without_type_arguments())
+                    .and_then(|key| self.unqualified_receiver_determined_instances.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| match instance.callable {
+                crate::mir::CallableIdentity::Definition(definition) => self.get(&definition),
+                _ => None,
+            })
     }
+}
+
+fn insert_unique_name<K: std::hash::Hash + Eq>(
+    names: &mut HashMap<K, Option<String>>,
+    key: K,
+    name: &str,
+) {
+    names
+        .entry(key)
+        .and_modify(|existing| {
+            if existing.as_deref() != Some(name) {
+                *existing = None;
+            }
+        })
+        .or_insert_with(|| Some(name.to_string()));
+}
+
+fn index_typed_hir_callable_names(
+    names: &mut CallableNames,
+    typed_hir: &TypedHir,
+    analysis: &CompileUnitAnalysis,
+) {
+    let canonical = |definition| analysis.callable_bodies.canonical_definition(definition);
+
+    for (_, fact) in typed_hir.callable_call_entries() {
+        names.insert_instance(
+            crate::mir::CallInstanceKey::from_callable_type(
+                &fact.specialization.callable_ty,
+                fact.specialization.capability,
+            ),
+            fact.specialization.target_name.clone(),
+        );
+    }
+    for specialization in typed_hir.method_call_specializations() {
+        let Some(arguments) = specialization.ordered_type_arguments() else {
+            continue;
+        };
+        names.insert_instance(
+            crate::mir::CallInstanceKey::from_types(
+                canonical(specialization.def_id),
+                Some(&specialization.self_ty),
+                arguments,
+            ),
+            specialization.target_name.clone(),
+        );
+    }
+    for plan in typed_hir.comparison_plans() {
+        if let Some(method) = &plan.method {
+            index_protocol_method_name(names, method, analysis);
+        }
+    }
+    for plan in typed_hir.index_plans() {
+        if let Some(method) = &plan.method {
+            index_protocol_method_name(names, method, analysis);
+        }
+    }
+    for (_, plan) in typed_hir.interpolation_plans() {
+        names.insert(
+            canonical(plan.constructor.definition),
+            plan.constructor.target_name.clone(),
+        );
+        for part in &plan.parts {
+            index_protocol_method_name(names, &part.formatter, analysis);
+        }
+    }
+    for (_, plan) in typed_hir.collection_for_plans() {
+        for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+            index_protocol_method_name(names, method, analysis);
+        }
+    }
+    for (_, plan) in typed_hir.sequence_spread_plans() {
+        for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
+            index_protocol_method_name(names, method, analysis);
+        }
+    }
+    for (_, plan) in typed_hir.coercion_plans() {
+        let Some(definition) = plan.def_id else {
+            continue;
+        };
+        names.insert_instance(
+            crate::mir::CallInstanceKey::from_types(
+                canonical(definition),
+                Some(&plan.self_ty),
+                std::iter::empty(),
+            ),
+            crate::ir::coercion_symbol_name(plan),
+        );
+    }
+}
+
+fn index_protocol_method_name(
+    names: &mut CallableNames,
+    method: &crate::typecheck::TypecheckProtocolMethod,
+    analysis: &CompileUnitAnalysis,
+) {
+    names.insert_instance(
+        crate::mir::CallInstanceKey::from_types(
+            analysis.callable_bodies.canonical_definition(method.def_id),
+            Some(&method.self_ty),
+            std::iter::empty(),
+        ),
+        method.target_name.clone(),
+    );
 }
 
 impl<'a> CallableIndex<'a> {
@@ -249,21 +376,36 @@ impl<'a> CallableIndex<'a> {
                         }
                     }
                     Item::Function(_) => {}
-                    Item::Instance(_) | Item::Conformance(_) => {
+                    Item::Instance(instance) => {
                         let owner = item.method_owner().expect("matched method owner");
                         let Some(type_name) = declaration_target_type_name(owner.target_ty())
                         else {
                             continue;
                         };
-                        for method in owner.methods() {
+                        let callables = instance
+                            .named_methods()
+                            .map(|method| {
+                                (&method.callable, method.name_span, method.name.as_str())
+                            })
+                            .chain(instance.operators().map(|operator| {
+                                (
+                                    operator.callable(),
+                                    operator.anchor_span(),
+                                    crate::semantic::OperatorCallableKind::from_declaration(
+                                        operator,
+                                    )
+                                    .lookup_name(),
+                                )
+                            }));
+                        for (method, anchor, method_name) in callables {
                             if method.body.is_some() && owner.generics().parameters.is_empty() {
                                 let Some(body) = method.body.as_ref() else {
                                     continue;
                                 };
                                 let (definition, declaration) =
-                                    canonical_callable_definition(analysis, method.name_span);
+                                    canonical_callable_definition(analysis, anchor);
                                 let declaration_source = declaration.source;
-                                let name = method_target_name(type_name, &method.name);
+                                let name = method_target_name(type_name, method_name);
                                 let target = call_target_for_source(
                                     declaration_source,
                                     root_source,
@@ -286,7 +428,7 @@ impl<'a> CallableIndex<'a> {
                                     continue;
                                 };
                                 let (def_id, declaration) =
-                                    canonical_callable_definition(analysis, method.name_span);
+                                    canonical_callable_definition(analysis, anchor);
                                 let declaration_source = declaration.source;
                                 for specialization in call_specializations
                                     .methods
@@ -323,6 +465,129 @@ impl<'a> CallableIndex<'a> {
                                             body,
                                             owner.target_ty(),
                                             substitutions,
+                                            file,
+                                            &resolved_sources,
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        for entry in instance.coercions() {
+                            let callable = entry.callable();
+                            if callable.body.is_none() {
+                                continue;
+                            }
+                            let (definition, declaration) =
+                                canonical_callable_definition(analysis, entry.as_span);
+                            for plan in call_specializations
+                                .coercions
+                                .get(&definition)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let name = coercion_symbol_name(plan);
+                                if let Some(definition) = plan.def_id {
+                                    names.insert_instance(
+                                        crate::mir::CallInstanceKey::from_types(
+                                            analysis
+                                                .callable_bodies
+                                                .canonical_definition(definition),
+                                            Some(&plan.self_ty),
+                                            std::iter::empty(),
+                                        ),
+                                        name.clone(),
+                                    );
+                                }
+                                let target = call_target_for_source(
+                                    declaration.source,
+                                    root_source,
+                                    name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        callable,
+                                        callable
+                                            .body
+                                            .as_ref()
+                                            .expect("body-bearing coercion was checked"),
+                                        &plan.self_ty,
+                                        plan.substitutions.clone(),
+                                        file,
+                                        &resolved_sources,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    Item::Conformance(_) => {
+                        let owner = item.method_owner().expect("matched method owner");
+                        let Some(type_name) = declaration_target_type_name(owner.target_ty())
+                        else {
+                            continue;
+                        };
+                        for method in owner.methods() {
+                            if method.body.is_some() && owner.generics().parameters.is_empty() {
+                                let Some(body) = method.body.as_ref() else {
+                                    continue;
+                                };
+                                let (definition, declaration) =
+                                    canonical_callable_definition(analysis, method.name_span);
+                                let name = method_target_name(type_name, &method.name);
+                                let target = call_target_for_source(
+                                    declaration.source,
+                                    root_source,
+                                    name.clone(),
+                                );
+                                names.insert(definition, name);
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        &method.callable,
+                                        body,
+                                        owner.target_ty(),
+                                        HashMap::new(),
+                                        file,
+                                        &resolved_sources,
+                                    ),
+                                );
+                            } else if let Some(body) = method.body.as_ref() {
+                                let (definition, declaration) =
+                                    canonical_callable_definition(analysis, method.name_span);
+                                for specialization in call_specializations
+                                    .methods
+                                    .get(&definition)
+                                    .into_iter()
+                                    .flatten()
+                                {
+                                    if let Some(arguments) = specialization.ordered_type_arguments()
+                                    {
+                                        names.insert_instance(
+                                            crate::mir::CallInstanceKey::from_types(
+                                                definition,
+                                                Some(&specialization.self_ty),
+                                                arguments,
+                                            ),
+                                            specialization.target_name.clone(),
+                                        );
+                                    }
+                                    let target = call_target_for_source(
+                                        declaration.source,
+                                        root_source,
+                                        specialization.target_name.clone(),
+                                    );
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_method(
+                                            &method.callable,
+                                            body,
+                                            owner.target_ty(),
+                                            method_specialization_context_substitutions(
+                                                owner,
+                                                specialization,
+                                                &file.resolved,
+                                                &resolved_sources,
+                                            ),
                                             file,
                                             &resolved_sources,
                                         ),
@@ -508,6 +773,35 @@ impl<'a> CallableIndex<'a> {
                                     literal_instance_key(specialization),
                                     specialization.target_name.clone(),
                                 );
+                                for method in specialization
+                                    .pack_segments
+                                    .iter()
+                                    .filter_map(|segment| match segment {
+                                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                                            plan,
+                                            ..
+                                        } => Some(plan),
+                                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                                            ..
+                                        } => None,
+                                    })
+                                    .flat_map(|plan| {
+                                        plan.conversion
+                                            .iter()
+                                            .chain([&plan.exact_size, &plan.step])
+                                    })
+                                {
+                                    names.insert_instance(
+                                        crate::mir::CallInstanceKey::from_types(
+                                            file.resolved
+                                                .callable_bodies
+                                                .canonical_definition(method.def_id),
+                                            Some(&method.self_ty),
+                                            std::iter::empty(),
+                                        ),
+                                        method.target_name.clone(),
+                                    );
+                                }
                                 let target = call_target_for_source(
                                     declaration.source,
                                     root_source,
@@ -564,6 +858,7 @@ impl<'a> CallableIndex<'a> {
         }
 
         for file in &analysis.files {
+            index_typed_hir_callable_names(&mut names, &file.typed_hir, analysis);
             for (_, fact) in file.typed_hir.callable_call_entries() {
                 names.insert_instance(
                     crate::mir::CallInstanceKey::from_callable_type(
@@ -611,6 +906,7 @@ impl<'a> CallableIndex<'a> {
                 continue;
             }
             let specialized = callable.typed_hir.specialized(&callable.substitutions);
+            index_typed_hir_callable_names(&mut names, &specialized, analysis);
             for (_, fact) in specialized.callable_call_entries() {
                 names.insert_instance(
                     crate::mir::CallInstanceKey::from_callable_type(
@@ -618,6 +914,89 @@ impl<'a> CallableIndex<'a> {
                         fact.specialization.capability,
                     ),
                     fact.specialization.target_name.clone(),
+                );
+            }
+            for specialization in specialized.method_call_specializations() {
+                let Some(arguments) = specialization.ordered_type_arguments() else {
+                    continue;
+                };
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_types(
+                        analysis
+                            .callable_bodies
+                            .canonical_definition(specialization.def_id),
+                        Some(&specialization.self_ty),
+                        arguments,
+                    ),
+                    specialization.target_name.clone(),
+                );
+            }
+        }
+
+        for file in &analysis.files {
+            for specialization in file.typed_hir.method_call_specializations() {
+                let Some(arguments) = specialization.ordered_type_arguments() else {
+                    continue;
+                };
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_types(
+                        analysis
+                            .callable_bodies
+                            .canonical_definition(specialization.def_id),
+                        Some(&specialization.self_ty),
+                        arguments,
+                    ),
+                    specialization.target_name.clone(),
+                );
+            }
+        }
+
+        for specializations in call_specializations.methods.values() {
+            for specialization in specializations {
+                let Some(arguments) = specialization.ordered_type_arguments() else {
+                    continue;
+                };
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_types(
+                        analysis
+                            .callable_bodies
+                            .canonical_definition(specialization.def_id),
+                        Some(&specialization.self_ty),
+                        arguments,
+                    ),
+                    specialization.target_name.clone(),
+                );
+            }
+        }
+        for specializations in call_specializations.functions.values() {
+            for specialization in specializations {
+                let Some(arguments) = specialization.ordered_type_arguments() else {
+                    continue;
+                };
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_types(
+                        analysis
+                            .callable_bodies
+                            .canonical_definition(specialization.def_id),
+                        None,
+                        arguments,
+                    ),
+                    specialization.target_name.clone(),
+                );
+            }
+        }
+        for plans in call_specializations.coercions.values() {
+            for plan in plans {
+                let Some(definition) = plan.def_id else {
+                    continue;
+                };
+                names.insert_instance(
+                    crate::mir::CallInstanceKey::from_types(
+                        analysis.callable_bodies.canonical_definition(definition),
+                        Some(&plan.self_ty),
+                        std::iter::empty(),
+                    ),
+                    crate::ir::coercion_symbol_name(plan),
                 );
             }
         }
@@ -640,7 +1019,7 @@ impl<'a> CallableIndex<'a> {
                 let CallTarget::Imported { source, name } = candidate else {
                     return None;
                 };
-                (name == target_name
+                (call_target_names_match(name, target_name)
                     && self
                         .resolved_sources
                         .get(source)
@@ -651,10 +1030,18 @@ impl<'a> CallableIndex<'a> {
     }
 }
 
+fn call_target_names_match(left: &str, right: &str) -> bool {
+    left == right
+        || crate::mir::runtime_name_with_unqualified_receiver(left)
+            == crate::mir::runtime_name_with_unqualified_receiver(right)
+}
+
 struct IndexedCallable<'a> {
     span: ByteSpan,
     body: &'a Block,
-    mir_parameters: Option<&'a [Parameter]>,
+    mir_parameters: Option<Vec<Parameter>>,
+    literal_pack: Option<crate::mir::LiteralPackInput>,
+    literal_instance: Option<crate::mir::CallInstanceKey>,
     closure_mir: Option<ClosureMir<'a>>,
     return_type: Option<TypeExpr>,
     substitutions: HashMap<String, TypeExpr>,
@@ -681,7 +1068,9 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: test.span,
             body: &test.body,
-            mir_parameters: None,
+            mir_parameters: Some(Vec::new()),
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: None,
             return_type: Some(test.return_type()),
             substitutions: HashMap::new(),
@@ -718,7 +1107,9 @@ impl<'a> IndexedCallable<'a> {
                 .body
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
-            mir_parameters: Some(&function.parameters.parameters),
+            mir_parameters: Some(function.parameters.parameters.clone()),
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: None,
             return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
@@ -762,7 +1153,21 @@ impl<'a> IndexedCallable<'a> {
                 .body
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
-            mir_parameters: None,
+            mir_parameters: Some(
+                function
+                    .parameters
+                    .parameters
+                    .iter()
+                    .cloned()
+                    .map(|mut parameter| {
+                        parameter.ty =
+                            substitute_type_expr_parameters(&parameter.ty, &substitutions);
+                        parameter
+                    })
+                    .collect(),
+            ),
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: None,
             return_type: Some(return_type),
             substitutions,
@@ -773,7 +1178,7 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_method(
-        method: &'a MethodDecl,
+        method: &'a CallableDecl,
         body: &'a Block,
         self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
@@ -795,6 +1200,12 @@ impl<'a> IndexedCallable<'a> {
         ));
         let return_type =
             substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
+        let concrete_self_ty = substitute_type_expr_parameters(self_ty, &substitutions);
+        let mir_parameters = crate::callable_parameters::instance(
+            method,
+            &concrete_self_ty,
+            &contextual_substitutions,
+        );
         issues.extend(unsupported_outcome_return_type_issue(
             &return_type,
             method.return_type.span(),
@@ -805,7 +1216,9 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: method.span,
             body,
-            mir_parameters: None,
+            mir_parameters: Some(mir_parameters),
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: None,
             return_type: Some(return_type),
             substitutions: contextual_substitutions,
@@ -839,9 +1252,19 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: drop_.span,
             body: &drop_.body,
-            mir_parameters: None,
+            mir_parameters: Some(vec![Parameter {
+                span: drop_.binding.span,
+                name: drop_.binding.name.clone(),
+                name_span: drop_.binding.name_span,
+                ty: substitute_type_expr_parameters(&drop_.binding.ty, &contextual_substitutions),
+            }]),
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: None,
-            return_type: None,
+            return_type: Some(TypeExpr::Reference(TypeReference {
+                span: drop_.span,
+                name: "void".to_string(),
+            })),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typed_hir: &file.typed_hir,
@@ -867,6 +1290,8 @@ impl<'a> IndexedCallable<'a> {
             span: expression.span,
             body: &expression.body,
             mir_parameters: None,
+            literal_pack: None,
+            literal_instance: None,
             closure_mir: Some(ClosureMir {
                 expression,
                 plan: plan.clone(),
@@ -891,7 +1316,9 @@ impl<'a> IndexedCallable<'a> {
                 .body
                 .as_ref()
                 .expect("buildability indexes only body-bearing literals"),
-            mir_parameters: None,
+            mir_parameters: Some(literal_parameters(declaration, specialization)),
+            literal_pack: literal_pack_input(declaration, specialization),
+            literal_instance: Some(literal_instance_key(specialization)),
             closure_mir: None,
             return_type: Some(specialization.result_type.clone()),
             substitutions: specialization.substitutions.clone(),
@@ -900,6 +1327,78 @@ impl<'a> IndexedCallable<'a> {
             issues: Vec::new(),
         }
     }
+}
+
+fn literal_parameters(
+    declaration: &crate::ast::LiteralDecl,
+    specialization: &crate::analysis::literal_specializations::LiteralSpecialization,
+) -> Vec<Parameter> {
+    match specialization.shape {
+        crate::ast::LiteralShape::Sequence => specialization
+            .argument_types
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| Parameter {
+                span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.span),
+                name: crate::analysis::literal_specializations::literal_element_parameter_name(
+                    index,
+                ),
+                name_span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.name_span),
+                ty: ty.clone(),
+            })
+            .collect(),
+        crate::ast::LiteralShape::String => declaration
+            .parameters
+            .parameters
+            .iter()
+            .zip(&specialization.argument_types)
+            .map(|(parameter, ty)| Parameter {
+                span: parameter.span,
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: ty.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn literal_pack_input(
+    declaration: &crate::ast::LiteralDecl,
+    specialization: &crate::analysis::literal_specializations::LiteralSpecialization,
+) -> Option<crate::mir::LiteralPackInput> {
+    let capture = declaration.capture.as_ref()?;
+    let element_type = specialization.element_type.as_ref()?;
+    (specialization.shape == crate::ast::LiteralShape::Sequence).then(|| {
+        crate::mir::LiteralPackInput {
+            capture_name: capture.name.clone(),
+            capture_span: capture.span,
+            element_type: element_type.clone(),
+            segments: specialization
+                .pack_segments
+                .iter()
+                .map(|segment| match segment {
+                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                        parameter_index,
+                    } => crate::mir::LiteralPackInputSegment::Value {
+                        parameter_index: *parameter_index,
+                    },
+                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                        iterator_parameter_index,
+                        plan,
+                    } => crate::mir::LiteralPackInputSegment::Spread {
+                        parameter_index: *iterator_parameter_index,
+                        plan: plan.clone(),
+                    },
+                })
+                .collect(),
+        }
+    })
 }
 
 fn literal_instance_key(
@@ -941,22 +1440,14 @@ fn canonical_callable_definition(
 
 mod closures;
 mod diagnostics;
-mod fixed_arrays;
-mod runtime_support;
 mod signatures;
-mod statements;
 mod traversal;
 mod types;
-mod variants;
 
 use diagnostics::*;
-use fixed_arrays::*;
-use runtime_support::*;
 use signatures::*;
-use statements::*;
 use traversal::*;
 use types::*;
-use variants::*;
 
 #[cfg(test)]
 mod tests;

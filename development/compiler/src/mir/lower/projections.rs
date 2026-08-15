@@ -30,6 +30,17 @@ pub(super) fn scalar_value_field_is_supported(
     })
 }
 
+pub(super) fn field_value_type(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<crate::semantic::TyId> {
+    if let Some(parts) = field_path_parts(member, semantic, true) {
+        return parts.segments.last().map(|segment| segment.ty);
+    }
+    value_root_field_segments(member, semantic)
+        .and_then(|(_, segments)| segments.last().map(|segment| segment.ty))
+}
+
 pub(super) fn error_field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
     let Expr::Identifier(base) = member.object.without_groups() else {
         return false;
@@ -50,7 +61,7 @@ pub(super) fn error_field_is_supported(member: &MemberExpr, semantic: SemanticIn
                 crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
                 crate::typecheck::PartialSemantic::Error => None,
             })
-            .and_then(|ty| super::coverage::value_representation(ty, semantic))
+            .and_then(|ty| super::source_model::value_representation(ty, semantic))
             == Some(ValueRepresentation::View(crate::mir::ViewKind::Str))
 }
 
@@ -155,7 +166,7 @@ fn value_root_field_segments<'a>(
             crate::typecheck::PartialSemantic::Error => None,
         })
         .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))?;
-    Some((root, field_segments(root_ty, &members, semantic)?))
+    Some((root, field_segments(root_ty, &members, semantic, None)?))
 }
 
 pub(super) fn member_chain_root(member: &MemberExpr) -> &Expr {
@@ -287,9 +298,38 @@ fn lower_field_place_with_borrow_base(
 ) -> Result<(Place, ValueRepresentation), BuildError> {
     let parts = field_path_parts(member, semantic, allow_borrow_base)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let base_place = *places
+    let mut base_place = *places
         .get(&parts.base_symbol)
         .ok_or(BuildError::MissingLocalSymbol)?;
+    if let Some((ty, readwrite)) = parts.borrowed_base {
+        if base_place.projection.is_some() {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let id = projections
+            .iter()
+            .find(|projection| {
+                projection.base == base_place.local
+                    && projection.parent.is_none()
+                    && projection.element == ProjectionElement::Dereference
+                    && projection.ty == ty
+            })
+            .map(|projection| projection.id)
+            .unwrap_or_else(|| {
+                let id = ProjectionPathId::from_index(projections.len());
+                projections.push(ProjectionPath {
+                    id,
+                    base: base_place.local,
+                    parent: None,
+                    element: ProjectionElement::Dereference,
+                    ty,
+                    representation: ValueRepresentation::Aggregate,
+                    ownership: OwnershipKind::Borrowed { readwrite },
+                    drop_plan: None,
+                });
+                id
+            });
+        base_place = Place::projected(base_place.local, id);
+    }
     push_field_place(
         base_place,
         parts.segments,
@@ -313,7 +353,7 @@ pub(super) fn lower_field_place_from_value_root(
         .typed_hir
         .type_expr_by_id(root_ty)
         .ok_or(BuildError::MissingTypedExpression)?;
-    let segments = field_segments(root_ty, &members, semantic)
+    let segments = field_segments(root_ty, &members, semantic, None)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
     push_field_place(base_place, segments, semantic, projections, drop_plans)
 }
@@ -332,6 +372,11 @@ fn push_field_place(
     let base = base_place.local;
     let mut parent = base_place.projection;
     for segment in segments {
+        // Dereferencing a borrow controls access to the containing place; it
+        // does not change the ownership of the stored field. Keeping field
+        // ownership intrinsic lets replacement cleanup destroy a live owned
+        // value before assigning through a readwrite borrow.
+        let ownership = segment.ownership;
         let element = ProjectionElement::Field {
             offset: segment.offset,
         };
@@ -340,6 +385,7 @@ fn push_field_place(
                 && projection.parent == parent
                 && projection.element == element
                 && projection.ty == segment.ty
+                && projection.ownership == ownership
         }) {
             existing.id
         } else {
@@ -351,8 +397,8 @@ fn push_field_place(
                 element,
                 ty: segment.ty,
                 representation: segment.representation,
-                ownership: segment.ownership,
-                drop_plan: if segment.ownership == OwnershipKind::Move {
+                ownership,
+                drop_plan: if ownership == OwnershipKind::Move {
                     Some(
                         super::super::drop_plans::build(
                             &segment.type_expr,
@@ -382,6 +428,7 @@ fn push_field_place(
 
 struct FieldPathParts {
     base_symbol: LocalSymbolId,
+    borrowed_base: Option<(crate::semantic::TyId, bool)>,
     segments: Vec<FieldSegment>,
 }
 
@@ -402,13 +449,25 @@ fn field_path_parts(
     let base = collect_member_chain(member, &mut members)?;
     let base_symbol = semantic.resolved.local_symbol_for_identifier(base)?.id;
     let base_ty = semantic.typed_hir.binding_type_expr(base_symbol)?;
-    let layout_ty = match base_ty {
-        crate::ast::TypeExpr::Borrow(borrow) if allow_borrow_base => borrow.inner.as_ref(),
-        ty => ty,
+    let (layout_ty, borrowed_base) = match base_ty {
+        crate::ast::TypeExpr::Borrow(borrow) if allow_borrow_base => (
+            borrow.inner.as_ref(),
+            Some((
+                semantic.typed_hir.type_id(&borrow.inner)?,
+                borrow.is_readwrite,
+            )),
+        ),
+        ty => (ty, None),
     };
-    let segments = field_segments(layout_ty, &members, semantic)?;
+    let segments = field_segments(
+        layout_ty,
+        &members,
+        semantic,
+        borrowed_base.map(|(_, readwrite)| readwrite),
+    )?;
     Some(FieldPathParts {
         base_symbol,
+        borrowed_base,
         segments,
     })
 }
@@ -417,6 +476,7 @@ fn field_segments(
     layout_ty: &crate::ast::TypeExpr,
     members: &[&MemberExpr],
     semantic: SemanticInputs<'_>,
+    _borrowed_base: Option<bool>,
 ) -> Option<Vec<FieldSegment>> {
     let mut current = crate::abi::abi_value_from_type_expr_with_resolver(
         layout_ty,
@@ -440,15 +500,36 @@ fn field_segments(
         let ty = semantic
             .typed_hir
             .expression(member.span)
-            .and_then(|expression| {
-                expression.contextual_ty.or(match expression.ty {
-                    crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
-                    crate::typecheck::PartialSemantic::Error => None,
-                })
+            .and_then(|expression| match expression.ty {
+                // A projection describes the field's stored representation.
+                // Contextual types describe a conversion or outcome wrapper
+                // applied after the load and must not change its layout.
+                crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+                crate::typecheck::PartialSemantic::Error => None,
+            })
+            // Imported public fields can name a private alias that is absent
+            // from the importing source's type surface.  Their checked field
+            // target and ABI still determine a canonical scalar identity.
+            .or_else(|| {
+                super::storage_types::scalar_type_id_from_abi(
+                    &fields[field_index].ty,
+                    member.span,
+                    semantic,
+                )
             })?;
-        let representation = super::coverage::value_representation(ty, semantic)?;
+        let representation = super::source_model::value_representation(ty, semantic)?;
         let field_ty = semantic.typed_hir.type_expr_by_id(ty)?;
-        let ownership = if crate::typecheck::type_expr_is_copy(field_ty, semantic.resolved)? {
+        let ownership = if let Some(readwrite) = match field_ty {
+            crate::ast::TypeExpr::Borrow(borrow) => Some(borrow.is_readwrite),
+            _ => crate::typecheck::type_expr_borrow_readwrite(field_ty, semantic.resolved),
+        } {
+            OwnershipKind::Borrowed { readwrite }
+        } else if super::super::drop_plans::is_copy(
+            field_ty,
+            semantic.resolved,
+            semantic.resolved_sources,
+        ) == Some(true)
+        {
             OwnershipKind::Copy
         } else {
             OwnershipKind::Move

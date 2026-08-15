@@ -1072,6 +1072,9 @@ pub(super) fn record_scalar_argument_parameter_spill_requests(
         ScalarArgument::Usize(value) if include_value_parameters => {
             record_usize_value_parameter_spill_requests(value, requests);
         }
+        ScalarArgument::Integer(_, value) if include_value_parameters => {
+            record_usize_value_parameter_spill_requests(value, requests);
+        }
         ScalarArgument::Bool(value) if include_value_parameters => {
             record_bool_value_parameter_spill_requests(value, requests);
         }
@@ -1086,6 +1089,7 @@ pub(super) fn record_scalar_argument_parameter_spill_requests(
         | ScalarArgument::I32(_)
         | ScalarArgument::U8(_)
         | ScalarArgument::Usize(_)
+        | ScalarArgument::Integer(_, _)
         | ScalarArgument::Bool(_)
         | ScalarArgument::Str(_)
         | ScalarArgument::Slice(_) => {}

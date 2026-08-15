@@ -185,8 +185,21 @@ impl TypedHirBuilder<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
+        let returned_binding = direct_returned_binding_name(block);
         for statement in &block.statements {
-            self.collect_statement_facts(statement, environment, return_type);
+            if let Stmt::Binding(binding) = statement
+                && !binding_kind_is_mutable(binding.kind)
+                && returned_binding == Some(binding.name.as_str())
+            {
+                self.collect_binding_statement_facts(
+                    binding,
+                    environment,
+                    return_type,
+                    return_type,
+                );
+            } else {
+                self.collect_statement_facts(statement, environment, return_type);
+            }
         }
         if let Some(result) = &block.result {
             if let Some(return_type) = return_type {
@@ -201,4 +214,22 @@ impl TypedHirBuilder<'_> {
             }
         }
     }
+}
+
+fn direct_returned_binding_name(block: &Block) -> Option<&str> {
+    if let Some(Expr::Identifier(identifier)) = block.result.as_deref().map(Expr::without_groups) {
+        return Some(identifier.name.as_str());
+    }
+    let Stmt::Return(return_) = block
+        .statements
+        .iter()
+        .rev()
+        .find(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))?
+    else {
+        return None;
+    };
+    let Expr::Identifier(identifier) = return_.expression.as_ref()?.without_groups() else {
+        return None;
+    };
+    Some(identifier.name.as_str())
 }

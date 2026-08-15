@@ -2,9 +2,11 @@
 
 mod calls;
 mod cleanup;
+mod control_flow;
 mod dataflow;
 mod drop_obligations;
 mod drop_plans;
+mod error_values;
 mod ids;
 mod index;
 mod initialization;
@@ -18,8 +20,10 @@ mod return_preservation;
 mod scopes;
 mod validate;
 
+pub(crate) use calls::runtime_name_with_unqualified_receiver;
 pub(crate) use calls::{CallInstance, CallInstanceKey, CallableIdentity, LiteralSegment};
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
+pub(crate) use error_values::{StaticErrorPayload, static_error_payload};
 pub(crate) use ids::{
     AllocationOverrideId, BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId,
     ScopeId,
@@ -30,7 +34,8 @@ pub(crate) use locals::{
 };
 pub(crate) use lower::outcome_intrinsic_is_supported;
 pub(crate) use lower::{
-    BuildError, BuildInputs, try_build_body_with_return_mode, try_build_closure_body,
+    BuildError, BuildInputs, LiteralPackInput, LiteralPackInputSegment,
+    build_body_with_return_mode, build_closure_body, build_literal_body, prepare_typed_hir,
 };
 #[cfg(test)]
 pub(crate) use model::BasicBlock;

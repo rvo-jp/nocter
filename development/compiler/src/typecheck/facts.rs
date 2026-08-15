@@ -66,8 +66,7 @@ pub(crate) use model::{
     TypecheckConversionKind, TypecheckConversionPlan, TypecheckIndexAccess, TypecheckIndexPlan,
     TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
-    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
-    TypecheckSliceElementKind, TypedHir,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, TypedHir,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 

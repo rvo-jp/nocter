@@ -89,47 +89,13 @@ fn predecessors(body: &Body) -> Vec<Vec<BasicBlockId>> {
     let mut result = vec![Vec::new(); body.blocks.len()];
     for (index, block) in body.blocks.iter().enumerate() {
         let source = BasicBlockId::from_index(index);
-        for target in successors(&block.terminator) {
+        for target in super::control_flow::successors(&block.terminator) {
             if let Some(predecessors) = result.get_mut(target.index()) {
                 predecessors.push(source);
             }
         }
     }
     result
-}
-
-fn successors(terminator: &Terminator) -> Vec<BasicBlockId> {
-    match terminator {
-        Terminator::Goto { target } | Terminator::Drop { target, .. } => vec![*target],
-        Terminator::Switch {
-            then_target,
-            else_target,
-            ..
-        } => vec![*then_target, *else_target],
-        Terminator::Call { continuation, .. } => match continuation {
-            CallContinuation::Continue { target } | CallContinuation::Return { target, .. } => {
-                vec![*target]
-            }
-            CallContinuation::Outcome {
-                success, failure, ..
-            }
-            | CallContinuation::OutcomeEffect {
-                success, failure, ..
-            } => vec![*success, *failure],
-            CallContinuation::Never => Vec::new(),
-        },
-        Terminator::InspectOutcome {
-            success, failure, ..
-        } => vec![*success, *failure],
-        Terminator::Trap
-        | Terminator::PropagateFailure
-        | Terminator::ReturnOutcome { .. }
-        | Terminator::ReturnFailure { .. }
-        | Terminator::ReturnOutcomeSuccess { .. }
-        | Terminator::ReturnOptionalNone
-        | Terminator::ReturnValue { .. }
-        | Terminator::Return => Vec::new(),
-    }
 }
 
 fn block_defines_local(block: &super::model::BasicBlock, local: LocalId) -> bool {

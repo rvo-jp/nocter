@@ -188,13 +188,18 @@ impl EntryEmitter {
             let remaining = layout_size
                 .checked_sub(offset)
                 .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
-            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            let mut chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
             let absolute_source_offset = source_offset
                 .checked_add(offset)
                 .ok_or_else(|| aggregate_copy_diagnostic("source range offset overflows"))?;
             let absolute_destination_offset = destination_offset
                 .checked_add(offset)
                 .ok_or_else(|| aggregate_copy_diagnostic("destination range offset overflows"))?;
+            if matches!(destination, AggregateLocation::DirectReturn) {
+                let bytes_to_word_end = AGGREGATE_USIZE_STORE_BYTES
+                    - absolute_destination_offset % AGGREGATE_USIZE_STORE_BYTES;
+                chunk_bytes = chunk_bytes.min(bytes_to_word_end);
+            }
             self.emit_aggregate_copy_source_chunk_to_scratch(
                 source,
                 absolute_source_offset,
@@ -297,7 +302,9 @@ impl EntryEmitter {
                 self.emit_indirect_return_pointer_to_x8(Some(frame));
                 self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X8, offset, chunk_bytes)
             }
-            AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, chunk_bytes)
+            }
             AggregateLocation::Slot(destination_slot_index) => {
                 let destination_slot =
                     frame

@@ -1,4 +1,4 @@
-use super::buildability::{v0_buildability_diagnostics, v0_test_buildability_diagnostics};
+use super::buildability::{native_buildability_diagnostics, native_test_buildability_diagnostics};
 use crate::analysis::{analyze_executable_compile_unit, analyze_module_compile_unit};
 use crate::backend::{BuildRequest, build_executable, build_test};
 use crate::diagnostics::Diagnostic;
@@ -156,7 +156,7 @@ pub(super) fn build_package_test_to_path_with_target(
         };
     };
     let diagnostics = crate::timing::measure("buildability.test", || {
-        v0_test_buildability_diagnostics(&output.sources, analysis, test)
+        native_test_buildability_diagnostics(&output.sources, analysis, test)
     });
     if !diagnostics.is_empty() {
         return BuildOutput {
@@ -213,7 +213,7 @@ fn build_file_to_path_with_options(
     };
 
     let diagnostics = crate::timing::measure("buildability.executable", || {
-        v0_buildability_diagnostics(&output.sources, analysis)
+        native_buildability_diagnostics(&output.sources, analysis)
     });
     if !diagnostics.is_empty() {
         return BuildOutput {

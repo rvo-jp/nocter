@@ -72,6 +72,9 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
                 queue.push_back(PendingCallSpecialization::Coercion(plan));
             }
         }
+        for plan in file.typed_hir.comparison_plans() {
+            enqueue_comparison_specializations(analysis, plan, &HashMap::new(), &mut queue);
+        }
         for (_, plan) in file.typed_hir.interpolation_plans() {
             for part in &plan.parts {
                 let Some(specialization) =
@@ -198,9 +201,12 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
             }
             PendingCallSpecialization::Method(specialization) => {
                 let requested_name = specialization.target_name.clone();
+                let requested_definition = specialization.def_id;
                 let specialization =
                     redirect_interface_method_specialization(analysis, specialization);
-                if requested_name != specialization.target_name {
+                if requested_definition != specialization.def_id
+                    || requested_name != specialization.target_name
+                {
                     method_target_aliases.push(MethodTargetAlias {
                         requested_name,
                         declaration_span: specialization.declaration_span,
@@ -524,6 +530,11 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Coercion(plan));
         }
     }
+    for plan in file.typed_hir.comparison_plans() {
+        if span_contains(span, plan.call_span) {
+            enqueue_comparison_specializations(analysis, plan, context_substitutions, queue);
+        }
+    }
     for (call_span, fact) in file.typed_hir.callable_call_entries() {
         if !span_contains(span, call_span) {
             continue;
@@ -630,6 +641,49 @@ fn enqueue_call_specializations_from_span(
                 queue.push_back(PendingCallSpecialization::Method(specialization));
             }
         }
+    }
+}
+
+fn enqueue_comparison_specializations(
+    analysis: &CompileUnitAnalysis,
+    plan: &crate::typecheck::TypecheckComparisonPlan,
+    context_substitutions: &HashMap<String, TypeExpr>,
+    queue: &mut VecDeque<PendingCallSpecialization>,
+) {
+    let Some(mut plan) = plan.with_context_substitutions(context_substitutions) else {
+        return;
+    };
+    if plan.method.is_none() {
+        let Some(specialized) = analysis.files.iter().find_map(|candidate| {
+            crate::typecheck::specialize_comparison_plan(plan.clone(), &candidate.resolved)
+        }) else {
+            return;
+        };
+        plan = specialized;
+    }
+    for conversion in [
+        plan.left_conversion.as_ref(),
+        plan.right_conversion.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let crate::typecheck::TypecheckConversionKind::BorrowCoercion(coercion) = &conversion.kind
+        else {
+            continue;
+        };
+        if let Some(coercion) = coercion.with_context_substitutions(context_substitutions) {
+            queue.push_back(PendingCallSpecialization::Coercion(coercion));
+        }
+    }
+    let Some(method) = plan.method else {
+        return;
+    };
+    let Some(specialization) = protocol_method_call_specialization(analysis, &method) else {
+        return;
+    };
+    if let Some(specialization) = specialization.with_context_substitutions(context_substitutions) {
+        queue.push_back(PendingCallSpecialization::Method(specialization));
     }
 }
 

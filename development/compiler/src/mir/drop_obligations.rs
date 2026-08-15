@@ -167,8 +167,11 @@ pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
                 ..
             } => {
                 consume_operand_move(body, condition, &mut state);
-                merge_entry(&mut entries, &mut queue, *then_target, state.clone(), body);
-                merge_entry(&mut entries, &mut queue, *else_target, state, body);
+                for target in
+                    super::control_flow::switch_targets(condition, *then_target, *else_target)
+                {
+                    merge_entry(&mut entries, &mut queue, target, state.clone(), body);
+                }
             }
             Terminator::Call {
                 arguments,
@@ -251,8 +254,12 @@ pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
                     && owned_place(body, *place);
                 if external_projection {
                     // The caller owns a pointee reached through a readwrite
-                    // borrow, so its obligation is intentionally absent from
-                    // this body's local dataflow state.
+                    // borrow, so its obligation may be absent on entry. Once
+                    // this body has replaced that pointee, however, later
+                    // replacements are tracked locally. Clear any such state
+                    // without requiring it to be present.
+                    state.may_live.move_out(body, *place);
+                    state.must_live.move_out(body, *place);
                 } else if !owned_local(body, place.local) {
                     errors.insert(DropObligationError {
                         block: block_id,
@@ -420,10 +427,6 @@ fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState
         | Rvalue::ViewCompare { left, right, .. } => {
             consume_operand_move(body, left, state);
             consume_operand_move(body, right, state);
-        }
-        Rvalue::ViewIndex { source, index, .. } => {
-            consume_operand_move(body, source, state);
-            consume_operand_move(body, index, state);
         }
         Rvalue::Intrinsic { arguments, .. } => {
             for argument in arguments {
@@ -598,11 +601,7 @@ mod tests {
     fn branch_join_retains_a_maybe_live_obligation() {
         let mut body = body_with_owned_parameter(vec![
             block(Terminator::Switch {
-                condition: Operand::Constant(crate::mir::Constant {
-                    ty: TyId::from_index(1),
-                    scalar: ScalarType::Bool,
-                    value: 1,
-                }),
+                condition: Operand::Copy(Place::local(LocalId::from_index(2))),
                 then_target: BasicBlockId::from_index(1),
                 else_target: BasicBlockId::from_index(2),
                 join_target: Some(BasicBlockId::from_index(3)),
@@ -617,8 +616,13 @@ mod tests {
             }),
             block(Terminator::Return),
         ]);
-        // Keep a distinct checked boolean type in the body-local type arena.
-        body.locals[0].ty = TyId::from_index(1);
+        body.locals.push(crate::mir::Local::scalar(
+            TyId::from_index(1),
+            ScalarType::Bool,
+            LocalStorage::Parameter { ordinal: 1 },
+            LocalOrigin::CallableReceiver(crate::semantic::ExprId::from_index(0)),
+            body.root_scope,
+        ));
 
         assert!(validate(&body).iter().any(|error| {
             error.block == BasicBlockId::from_index(3)

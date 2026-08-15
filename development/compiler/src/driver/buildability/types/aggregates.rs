@@ -1,13 +1,50 @@
 use super::*;
 
-pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_value_for_sources(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, &source_resolver)
+fn fixed_array_element_abi_is_buildable(element: &AbiType) -> bool {
+    element.integer_type().is_some() || matches!(element, AbiType::Bool | AbiType::StrView)
 }
+
+fn payload_enum_variant_payloads_are_supported<'a, F>(
+    payloads: &[crate::resolve::ParameterSignature],
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    payloads.iter().all(|payload| {
+        let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
+        payload_enum_payload_type_is_supported(&ty, fallback_resolved, resolver)
+    })
+}
+
+fn payload_enum_payload_type_is_supported<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok()
+        && (type_expr_is_runtime_copy_value_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+            &mut HashSet::new(),
+        ) || type_expr_has_supported_recursive_drop_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+            &mut HashSet::new(),
+        ) || type_expr_is_supported_fixed_array_aggregate_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        ))
+}
+
 pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_value_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -39,14 +76,6 @@ pub(in crate::driver::buildability) fn abi_value_is_supported_aggregate_value(
     }
 }
 
-pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value_for_sources(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_supported_payload_enum_value_with_resolver(ty, fallback_resolved, &source_resolver)
-}
 pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value_with_resolver<
     'a,
     F,

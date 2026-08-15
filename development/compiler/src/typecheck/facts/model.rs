@@ -15,14 +15,12 @@ pub(crate) struct TypedHir {
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
     pub(super) conversion_plans: HashMap<ByteSpan, TypecheckConversionPlan>,
-    pub(super) binding_scalar_view_kinds: HashMap<LocalSymbolId, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<LocalSymbolId, bool>,
     pub(super) payload_binding_modes: HashMap<LocalSymbolId, TypecheckPayloadBindingMode>,
     pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
     pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
     pub(super) field_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
-    pub(super) field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) field_readonly: HashMap<ByteSpan, bool>,
     pub(super) function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) associated_function_targets: HashMap<ByteSpan, crate::semantic::DefId>,
@@ -32,14 +30,149 @@ pub(crate) struct TypedHir {
     pub(super) method_call_receiver_types: HashMap<ByteSpan, crate::semantic::TyId>,
     pub(super) generic_function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
-    pub(super) generic_method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
     pub(super) callable_calls: HashMap<ByteSpan, CallableCallFact>,
     pub(super) drop_type_specializations: Vec<DropTypeSpecialization>,
-    pub(super) field_drop_type_specializations: HashMap<ByteSpan, DropTypeSpecialization>,
 }
 
 impl TypedHir {
+    pub(crate) fn with_additional_types(
+        mut self,
+        types: impl IntoIterator<Item = TypeExpr>,
+    ) -> Self {
+        for ty in types {
+            self.expressions.intern_type_tree(ty);
+        }
+        self
+    }
+
+    /// Returns every type carried by a checked runtime plan.  These types are
+    /// semantic inputs to MIR even when no authored expression has that exact
+    /// type (for example, the synthesized borrow returned by a declared index
+    /// operator after generic substitution).
+    pub(crate) fn runtime_fact_types(&self) -> Vec<TypeExpr> {
+        fn conversion_types(plan: &TypecheckConversionPlan, types: &mut Vec<TypeExpr>) {
+            types.push(plan.source_ty.clone());
+            types.push(plan.target_ty.clone());
+            if let TypecheckConversionKind::BorrowCoercion(coercion) = &plan.kind {
+                types.push(coercion.self_ty.clone());
+                types.push(coercion.target_ty.clone());
+                types.extend(coercion.substitutions.values().cloned());
+            }
+        }
+        fn protocol_method_types(method: &TypecheckProtocolMethod, types: &mut Vec<TypeExpr>) {
+            types.push(method.self_ty.clone());
+            if method.receiver_mode != crate::ast::MethodReceiverMode::Owned {
+                types.push(TypeExpr::Borrow(crate::ast::BorrowType {
+                    span: method.self_ty.span(),
+                    is_readwrite: method.receiver_mode
+                        == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+                    inner: Box::new(method.self_ty.clone()),
+                }));
+            }
+        }
+
+        let mut types = self
+            .binding_type_exprs
+            .values()
+            .chain(self.field_type_exprs.values())
+            .cloned()
+            .collect::<Vec<_>>();
+        for fact in self.callable_calls.values() {
+            types.extend(
+                fact.signature
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.ty.clone()),
+            );
+            types.push(fact.signature.return_type.clone());
+        }
+        for plan in self.interpolation_plans.values() {
+            for part in &plan.parts {
+                types.push(part.accepted_type.clone());
+                protocol_method_types(&part.formatter, &mut types);
+            }
+        }
+        for plan in self.comparison_plans.values() {
+            types.extend([plan.left_ty.clone(), plan.right_ty.clone()]);
+            if let Some(method) = &plan.method {
+                protocol_method_types(method, &mut types);
+            }
+            for conversion in plan
+                .left_conversion
+                .iter()
+                .chain(plan.right_conversion.iter())
+            {
+                conversion_types(conversion, &mut types);
+            }
+        }
+        for plan in self.index_plans.values() {
+            types.extend([
+                plan.target_ty.clone(),
+                plan.index_ty.clone(),
+                plan.element_ty.clone(),
+                TypeExpr::Borrow(crate::ast::BorrowType {
+                    span: plan.expression_span,
+                    is_readwrite: plan.method.as_ref().is_some_and(|method| {
+                        method.receiver_mode == crate::ast::MethodReceiverMode::ReadwriteBorrow
+                    }),
+                    inner: Box::new(plan.element_ty.clone()),
+                }),
+            ]);
+            if let Some(method) = &plan.method {
+                protocol_method_types(method, &mut types);
+            }
+            if let Some(conversion) = &plan.conversion {
+                conversion_types(conversion, &mut types);
+            }
+        }
+        for plan in self.collection_for_plans.values() {
+            types.extend([
+                plan.source_type.clone(),
+                plan.iterator_type.clone(),
+                plan.item_type.clone(),
+            ]);
+            protocol_method_types(&plan.step, &mut types);
+            if let Some(conversion) = &plan.conversion {
+                protocol_method_types(conversion, &mut types);
+            }
+        }
+        for plan in self.sequence_spread_plans.values() {
+            types.extend([
+                plan.source_type.clone(),
+                plan.iterator_type.clone(),
+                plan.iterator_item_type.clone(),
+                plan.pack_item_type.clone(),
+            ]);
+            protocol_method_types(&plan.exact_size, &mut types);
+            protocol_method_types(&plan.step, &mut types);
+            if let Some(conversion) = &plan.conversion {
+                protocol_method_types(conversion, &mut types);
+            }
+        }
+        for plan in self.closure_plans.values() {
+            types.push(TypeExpr::Closure(plan.ty.clone()));
+        }
+        for plan in self.conversion_plans.values() {
+            conversion_types(plan, &mut types);
+        }
+        for specialization in self.function_call_specializations.values() {
+            types.extend(specialization.substitutions.values().cloned());
+        }
+        for specialization in self.method_call_specializations.values() {
+            types.push(specialization.self_ty.clone());
+            types.extend(specialization.substitutions.values().cloned());
+        }
+        for fact in self.callable_calls.values() {
+            types.push(fact.receiver_ty.clone());
+            types.push(fact.specialization.callable_ty.clone());
+        }
+        for specialization in &self.drop_type_specializations {
+            types.push(specialization.self_ty.clone());
+        }
+        types
+    }
+
     pub(crate) fn specialized(&self, substitutions: &HashMap<String, TypeExpr>) -> Self {
         if substitutions.is_empty() {
             return self.clone();
@@ -61,6 +194,54 @@ impl TypedHir {
             .method_call_receiver_types
             .into_iter()
             .map(|(span, ty)| (span, remap[ty.index()]))
+            .collect();
+        specialized.interpolation_plans = specialized
+            .interpolation_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
+            .collect();
+        specialized.comparison_plans = specialized
+            .comparison_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
+            .collect();
+        specialized.index_plans = specialized
+            .index_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
+            .collect();
+        specialized.collection_for_plans = specialized
+            .collection_for_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
+            .collect();
+        specialized.sequence_spread_plans = specialized
+            .sequence_spread_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
+            .collect();
+        specialized.conversion_plans = specialized
+            .conversion_plans
+            .into_iter()
+            .filter_map(|(span, plan)| {
+                plan.with_context_substitutions(substitutions)
+                    .map(|plan| (span, plan))
+            })
             .collect();
         specialized.function_call_specializations = specialized
             .function_call_specializations
@@ -85,6 +266,11 @@ impl TypedHir {
                 let specialization = fact
                     .specialization
                     .with_context_substitutions(substitutions)?;
+                for parameter in &mut fact.signature.parameters {
+                    parameter.ty = substitute_type_expr_parameters(&parameter.ty, substitutions);
+                }
+                fact.signature.return_type =
+                    substitute_type_expr_parameters(&fact.signature.return_type, substitutions);
                 fact.receiver_ty =
                     substitute_type_expr_parameters(&fact.receiver_ty, substitutions);
                 fact.specialization = specialization;
@@ -122,14 +308,12 @@ impl TypedHir {
             sequence_spread_plans: HashMap::new(),
             closure_plans: HashMap::new(),
             conversion_plans: HashMap::new(),
-            binding_scalar_view_kinds: HashMap::new(),
             binding_readonly: HashMap::new(),
             payload_binding_modes: HashMap::new(),
             type_occurrences: Vec::new(),
             generic_parameter_declarations: Vec::new(),
             field_targets: HashMap::new(),
             field_type_exprs: HashMap::new(),
-            field_scalar_view_kinds: HashMap::new(),
             field_readonly: HashMap::new(),
             function_call_targets: HashMap::new(),
             associated_function_targets: HashMap::new(),
@@ -139,11 +323,9 @@ impl TypedHir {
             method_call_receiver_types: HashMap::new(),
             generic_function_call_targets: HashMap::new(),
             function_call_specializations: HashMap::new(),
-            generic_method_call_targets: HashMap::new(),
             method_call_specializations: HashMap::new(),
             callable_calls: HashMap::new(),
             drop_type_specializations: Vec::new(),
-            field_drop_type_specializations: HashMap::new(),
         }
     }
 
@@ -331,13 +513,6 @@ impl TypedHir {
             .map(|(span, plan)| (*span, plan))
     }
 
-    pub(crate) fn binding_scalar_view_kind(
-        &self,
-        symbol: LocalSymbolId,
-    ) -> Option<TypecheckScalarViewKind> {
-        self.binding_scalar_view_kinds.get(&symbol).copied()
-    }
-
     pub(crate) fn binding_is_readonly(&self, symbol: LocalSymbolId) -> Option<bool> {
         self.binding_readonly.get(&symbol).copied()
     }
@@ -386,13 +561,6 @@ impl TypedHir {
 
     pub(crate) fn field_type_expr(&self, field_span: ByteSpan) -> Option<&TypeExpr> {
         self.field_type_exprs.get(&field_span)
-    }
-
-    pub(crate) fn field_scalar_view_kind(
-        &self,
-        member_span: ByteSpan,
-    ) -> Option<TypecheckScalarViewKind> {
-        self.field_scalar_view_kinds.get(&member_span).copied()
     }
 
     pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -463,13 +631,6 @@ impl TypedHir {
             .map(|(span, specialization)| (*span, specialization))
     }
 
-    pub(crate) fn generic_method_call_target(
-        &self,
-        member_span: ByteSpan,
-    ) -> Option<crate::semantic::DefId> {
-        self.generic_method_call_targets.get(&member_span).copied()
-    }
-
     pub(crate) fn method_call_specialization(
         &self,
         member_span: ByteSpan,
@@ -505,13 +666,6 @@ impl TypedHir {
         &self,
     ) -> impl Iterator<Item = &DropTypeSpecialization> + '_ {
         self.drop_type_specializations.iter()
-    }
-
-    pub(crate) fn field_drop_type_specialization(
-        &self,
-        member_span: ByteSpan,
-    ) -> Option<&DropTypeSpecialization> {
-        self.field_drop_type_specializations.get(&member_span)
     }
 
     pub(crate) fn associated_function_target(
@@ -868,16 +1022,6 @@ impl TypecheckCollectionForPlan {
 pub(crate) enum TypecheckPayloadBindingMode {
     Copy,
     Move,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TypecheckScalarViewKind {
-    I32,
-    U8,
-    Usize,
-    Bool,
-    Str,
-    Slice(TypecheckSliceElementKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

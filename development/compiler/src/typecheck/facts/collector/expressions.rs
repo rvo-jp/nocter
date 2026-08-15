@@ -384,24 +384,29 @@ impl TypedHirBuilder<'_> {
                         ),
                         Type::Parameter(_)
                     );
-                    if owner.kind == crate::resolve::TypeSymbolKind::Interface
+                    if (owner.kind == crate::resolve::TypeSymbolKind::Interface
                         || !resolved_method.signature.generic_parameters.is_empty()
-                        || receiver_is_bounded_parameter
-                    {
-                        self.facts
-                            .generic_method_call_targets
-                            .insert(method.member_span, method_definition);
-                        if let Some(specialization) = method_call_specialization(
+                        || receiver_is_bounded_parameter)
+                        && let Some(specialization) = method_call_specialization(
                             expression,
                             method,
                             resolved_method,
                             self.resolved,
                             environment,
-                        ) {
-                            self.facts
-                                .method_call_specializations
-                                .insert(method.member_span, specialization);
+                        )
+                    {
+                        // Runtime lowering keys specialized method bodies by
+                        // their concrete receiver identity.  Intern the
+                        // complete specialization contract before the HIR
+                        // arena is cloned and substituted so every later
+                        // consumer observes the same TyId universe.
+                        self.intern_compiler_type_tree(&specialization.self_ty);
+                        for ty in specialization.substitutions.values() {
+                            self.intern_compiler_type_tree(ty);
                         }
+                        self.facts
+                            .method_call_specializations
+                            .insert(method.member_span, specialization);
                     }
                     self.collect_expression_facts_in_context(
                         &method.object,
@@ -573,6 +578,12 @@ impl TypedHirBuilder<'_> {
                         self.intern_compiler_type_tree(&plan.iterator_type);
                         self.intern_compiler_type_tree(&plan.iterator_item_type);
                         self.intern_compiler_type_tree(&plan.pack_item_type);
+                        self.intern_compiler_type_tree(&crate::ast::TypeExpr::Optional(
+                            crate::ast::OptionalType {
+                                span: spread.span,
+                                inner: Box::new(plan.iterator_item_type.clone()),
+                            },
+                        ));
                         if let Some(conversion) = &plan.conversion {
                             self.intern_compiler_type_tree(&conversion.self_ty);
                             let receiver = match conversion.receiver_mode {
@@ -588,6 +599,19 @@ impl TypedHirBuilder<'_> {
                                 }
                             };
                             self.intern_compiler_type_tree(&receiver);
+                        }
+                        for method in [&plan.exact_size, &plan.step] {
+                            self.intern_compiler_type_tree(&method.self_ty);
+                            if method.receiver_mode != crate::ast::MethodReceiverMode::Owned {
+                                self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(
+                                    crate::ast::BorrowType {
+                                        span: spread.span,
+                                        is_readwrite: method.receiver_mode
+                                            == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+                                        inner: Box::new(method.self_ty.clone()),
+                                    },
+                                ));
+                            }
                         }
                         self.facts.sequence_spread_plans.insert(spread.span, plan);
                         self.record_drop_type_specialization(

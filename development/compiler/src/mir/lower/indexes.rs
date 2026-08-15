@@ -10,15 +10,37 @@ use crate::mir::{
 };
 
 pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> bool {
-    let Some(plan) = semantic.typed_hir.index_plan(index.span) else {
+    let Some(plan) = semantic.index_plan(index.span) else {
         return false;
     };
+    if plan.projection == crate::typecheck::TypecheckIndexProjection::Declared {
+        let object_supported = if let Some(conversion) = &plan.conversion {
+            super::source_model::coercion_expression_is_supported_with_explicit_plan(
+                &index.object,
+                conversion,
+                semantic,
+            )
+        } else {
+            super::borrows::source_place_is_supported(&index.object, semantic)
+        };
+        let method_supported = plan.method.as_ref().is_some_and(|method| {
+            super::storage_types::runtime_type_id_for_type_expr(&method.self_ty, semantic).is_some()
+        });
+        let element_supported = semantic.typed_hir.type_id(&plan.element_ty).is_some();
+        let index_supported = super::source_model::scalar_expression_is_supported(
+            &index.index,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        );
+        return method_supported && element_supported && object_supported && index_supported;
+    }
     if plan.projection == crate::typecheck::TypecheckIndexProjection::Slice {
         return view_is_supported(index, semantic)
             && semantic
                 .typed_hir
                 .type_id(&plan.element_ty)
-                .and_then(|ty| super::coverage::value_representation(ty, semantic))
+                .and_then(|ty| super::source_model::value_representation(ty, semantic))
                 .is_some();
     }
     if plan.projection != crate::typecheck::TypecheckIndexProjection::Array
@@ -31,12 +53,12 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
         return false;
     };
     let index_is_usize =
-        super::coverage::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
+        super::source_model::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
     let index_is_contextual_literal = matches!(index.index.without_groups(), Expr::IntegerLiteral(literal)
         if crate::literals::decode_integer_literal_value(&literal.value)
             .is_some_and(|value| u64::try_from(value).is_ok()));
     (index_is_usize || index_is_contextual_literal)
-        && super::coverage::scalar_expression_is_supported(
+        && super::source_model::scalar_expression_is_supported(
             &index.index,
             semantic.resolved,
             semantic.resolved_sources,
@@ -46,7 +68,7 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
 }
 
 pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> bool {
-    let Some(plan) = semantic.typed_hir.index_plan(index.span) else {
+    let Some(plan) = semantic.index_plan(index.span) else {
         return false;
     };
     let kind = match plan.projection {
@@ -58,8 +80,8 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
         .conversion
         .as_ref()
         .and_then(|conversion| semantic.typed_hir.type_id(&conversion.target_ty))
-        .or_else(|| super::coverage::handled_outcome_success_type(&index.object, semantic))
-        .or_else(|| super::coverage::known_expression_type(&index.object, semantic.typed_hir))
+        .or_else(|| super::source_model::handled_outcome_success_type(&index.object, semantic))
+        .or_else(|| super::source_model::known_expression_type(&index.object, semantic.typed_hir))
     else {
         return false;
     };
@@ -67,17 +89,25 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
         return false;
     };
     let index_is_usize =
-        super::coverage::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
+        super::source_model::scalar_type(index_ty, semantic.typed_hir) == Some(ScalarType::Usize);
     let index_is_contextual_literal = matches!(index.index.without_groups(), Expr::IntegerLiteral(literal)
         if crate::literals::decode_integer_literal_value(&literal.value)
             .is_some_and(|value| u64::try_from(value).is_ok()));
-    let conversion_supported = plan.conversion.is_none()
-        || super::coverage::coercion_expression_is_supported(&index.object, semantic);
+    let conversion_supported = plan.conversion.as_ref().is_none_or(|conversion| {
+        super::source_model::coercion_expression_is_supported_with_explicit_plan(
+            &index.object,
+            conversion,
+            semantic,
+        )
+    });
     conversion_supported
-        && super::coverage::value_representation(source_ty, semantic)
-            == Some(ValueRepresentation::View(kind))
+        && (plan.conversion.is_some()
+            && super::source_model::value_representation(source_ty, semantic)
+                == Some(ValueRepresentation::View(kind))
+            || plan.conversion.is_none()
+                && super::source_model::expression_view_kind(&index.object, semantic) == Some(kind))
         && (index_is_usize || index_is_contextual_literal)
-        && super::coverage::scalar_expression_is_supported(
+        && super::source_model::scalar_expression_is_supported(
             &index.index,
             semantic.resolved,
             semantic.resolved_sources,
@@ -90,16 +120,20 @@ pub(super) fn lower_place(
     index: &IndexExpr,
     scope: ScopeId,
 ) -> Result<(Place, ValueRepresentation), BuildError> {
-    if !is_supported(index, context.semantic) {
-        return Err(BuildError::UnsupportedClaimedExpression);
+    let view_supported = view_is_supported(index, context.semantic);
+    if !is_supported(index, context.semantic) && !view_supported {
+        return Err(BuildError::UnsupportedClaimedExpression.context("validate indexed place"));
+    }
+    if view_supported {
+        return lower_view_index_place(context, index, scope);
     }
     if context
         .semantic
-        .typed_hir
         .index_plan(index.span)
-        .is_some_and(|plan| plan.projection == crate::typecheck::TypecheckIndexProjection::Slice)
+        .is_some_and(|plan| plan.projection == crate::typecheck::TypecheckIndexProjection::Declared)
     {
-        return lower_view_index_place(context, index, scope);
+        return lower_declared_index_place(context, index, scope)
+            .map_err(|error| error.context("lower declared indexed place"));
     }
     let (base, parent) = lower_base(context, &index.object)?;
     let contract =
@@ -155,6 +189,119 @@ pub(super) fn lower_place(
     Ok((Place::projected(base, id), contract.representation))
 }
 
+fn lower_declared_index_place(
+    context: &mut LoweringContext<'_>,
+    index: &IndexExpr,
+    scope: ScopeId,
+) -> Result<(Place, ValueRepresentation), BuildError> {
+    let plan = context
+        .semantic
+        .index_plan(index.span)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let method = plan.method.ok_or(BuildError::MissingCallTarget)?;
+    let receiver = if let Some(conversion) = &plan.conversion {
+        let ty = context
+            .semantic
+            .typed_hir
+            .type_id(&conversion.target_ty)
+            .ok_or(BuildError::MissingMethodReceiverType)?;
+        let local = context.local_for_type(
+            ty,
+            crate::mir::LocalOrigin::Desugared(index.object.span()),
+            scope,
+        )?;
+        context.lower_planned_coercion_to_local(local, &index.object, conversion, scope)?;
+        crate::mir::CallArgument {
+            operand: Operand::Copy(Place::local(local)),
+            ty,
+            representation: ValueRepresentation::Borrow,
+        }
+    } else {
+        context
+            .lower_protocol_receiver(
+                &method,
+                &index.object,
+                scope,
+                crate::mir::Origin::Desugared(index.object.span()),
+            )
+            .map_err(|error| error.context("lower declared index receiver"))?
+    };
+    let index_argument = context
+        .lower_call_argument(&index.index, scope)
+        .map_err(|error| error.context("lower declared index argument"))?;
+    let element_ty = context
+        .semantic
+        .typed_hir
+        .type_id(&plan.element_ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let representation = super::source_model::value_representation(element_ty, context.semantic)
+        .ok_or(BuildError::UnsupportedClaimedExpression)
+        .map_err(|error| error.context("resolve declared index element representation"))?;
+    let readwrite = method.receiver_mode == crate::ast::MethodReceiverMode::ReadwriteBorrow;
+    let result_type = crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+        span: index.span,
+        is_readwrite: readwrite,
+        inner: Box::new(plan.element_ty.clone()),
+    });
+    let result_ty = context
+        .semantic
+        .typed_hir
+        .type_id(&result_type)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let result = LocalId::from_index(context.locals.len());
+    context.locals.push(crate::mir::Local::borrow(
+        result_ty,
+        readwrite,
+        crate::mir::LocalStorage::Local,
+        crate::mir::LocalOrigin::Desugared(index.span),
+        scope,
+    ));
+    let receiver_ty =
+        super::storage_types::runtime_type_id_for_type_expr(&method.self_ty, context.semantic)
+            .ok_or(BuildError::MissingSpecializedReceiverType)?;
+    let origin = context
+        .semantic
+        .typed_hir
+        .expression(index.span)
+        .ok_or(BuildError::MissingTypedExpression)?
+        .id;
+    context.control_flow.emit_returning_call(
+        origin,
+        crate::mir::CallInstance::specialized(
+            context
+                .semantic
+                .resolved
+                .callable_bodies
+                .canonical_definition(method.def_id),
+            Some(receiver_ty),
+            Vec::new(),
+        ),
+        vec![receiver, index_argument],
+        result,
+    )?;
+    let projection = ProjectionPathId::from_index(context.projections.len());
+    context.projections.push(ProjectionPath {
+        id: projection,
+        base: result,
+        parent: None,
+        element: ProjectionElement::Dereference,
+        ty: element_ty,
+        representation,
+        ownership: if super::super::drop_plans::is_copy(
+            &plan.element_ty,
+            context.semantic.resolved,
+            context.semantic.resolved_sources,
+        ) == Some(true)
+        {
+            OwnershipKind::Copy
+        } else {
+            OwnershipKind::Move
+        },
+        drop_plan: None,
+    });
+    Ok((Place::projected(result, projection), representation))
+}
+
 fn lower_view_index_place(
     context: &mut LoweringContext<'_>,
     index: &IndexExpr,
@@ -162,22 +309,65 @@ fn lower_view_index_place(
 ) -> Result<(Place, ValueRepresentation), BuildError> {
     let plan = context
         .semantic
-        .typed_hir
         .index_plan(index.span)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let kind = match plan.projection {
+        crate::typecheck::TypecheckIndexProjection::Str => crate::mir::ViewKind::Str,
+        crate::typecheck::TypecheckIndexProjection::Slice => crate::mir::ViewKind::Slice,
+        _ => return Err(BuildError::UnsupportedClaimedExpression),
+    };
     let source_ty = plan
         .conversion
         .as_ref()
         .and_then(|conversion| context.semantic.typed_hir.type_id(&conversion.target_ty))
-        .or_else(|| super::coverage::handled_outcome_success_type(&index.object, context.semantic))
         .or_else(|| {
-            super::coverage::known_expression_type(&index.object, context.semantic.typed_hir)
+            super::source_model::handled_outcome_success_type(&index.object, context.semantic)
         })
+        .or_else(|| super::source_model::expression_value_type(&index.object, context.semantic))
         .ok_or(BuildError::MissingTypedExpression)?;
-    let Operand::Copy(source) =
-        context.lower_view_operand(&index.object, source_ty, crate::mir::ViewKind::Slice, scope)?
-    else {
-        return Err(BuildError::UnsupportedClaimedExpression);
+    let source = if let Some(conversion) = &plan.conversion {
+        let local = context.local_for_type(
+            source_ty,
+            crate::mir::LocalOrigin::Desugared(index.object.span()),
+            scope,
+        )?;
+        context
+            .lower_planned_coercion_to_local(local, &index.object, conversion, scope)
+            .map_err(|error| error.context("lower indexed view conversion"))?;
+        Place::local(local)
+    } else {
+        let operand = context
+            .lower_view_operand(&index.object, source_ty, kind, scope)
+            .map_err(|error| error.context("lower indexed view source"))?;
+        match operand {
+            Operand::Copy(source) => source,
+            operand => {
+                let origin = context
+                    .semantic
+                    .typed_hir
+                    .expression(index.object.span())
+                    .map_or(
+                        crate::mir::LocalOrigin::Desugared(index.object.span()),
+                        |expression| crate::mir::LocalOrigin::Temporary(expression.id),
+                    );
+                let local = LocalId::from_index(context.locals.len());
+                context.locals.push(crate::mir::Local::view(
+                    source_ty,
+                    kind,
+                    crate::mir::LocalStorage::Local,
+                    origin,
+                    scope,
+                ));
+                context
+                    .control_flow
+                    .push_statement(crate::mir::Statement::Assign {
+                        destination: Place::local(local),
+                        value: crate::mir::Rvalue::Use(operand),
+                        origin: crate::mir::Origin::Desugared(index.object.span()),
+                    })?;
+                Place::local(local)
+            }
+        }
     };
     let checked_index_ty = context
         .semantic
@@ -185,7 +375,7 @@ fn lower_view_index_place(
         .type_id(&plan.index_ty)
         .ok_or(BuildError::MissingTypedExpression)?;
     let (index_ty, index_scalar) =
-        if super::coverage::scalar_type(checked_index_ty, context.semantic.typed_hir)
+        if super::source_model::scalar_type(checked_index_ty, context.semantic.typed_hir)
             == Some(ScalarType::Usize)
         {
             (checked_index_ty, ScalarType::Usize)
@@ -204,14 +394,42 @@ fn lower_view_index_place(
         } else {
             return Err(BuildError::UnsupportedClaimedExpression);
         };
-    let index_operand = context.lower_operand(&index.index, index_ty, index_scalar, scope)?;
+    let index_operand = context
+        .lower_operand(&index.index, index_ty, index_scalar, scope)
+        .map_err(|error| error.context("lower indexed view offset"))?;
     let ty = context
         .semantic
         .typed_hir
         .type_id(&plan.element_ty)
         .ok_or(BuildError::MissingTypedExpression)?;
-    let representation = super::coverage::value_representation(ty, context.semantic)
+    let representation = super::source_model::value_representation(ty, context.semantic)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let ownership = if representation == ValueRepresentation::Aggregate
+        && super::super::drop_plans::is_copy(
+            &plan.element_ty,
+            context.semantic.resolved,
+            context.semantic.resolved_sources,
+        ) != Some(true)
+    {
+        OwnershipKind::Move
+    } else {
+        OwnershipKind::Copy
+    };
+    let drop_plan =
+        if representation == ValueRepresentation::Aggregate && ownership == OwnershipKind::Move {
+            Some(
+                super::super::drop_plans::build(
+                    &plan.element_ty,
+                    context.semantic.resolved,
+                    context.semantic.resolved_sources,
+                    context.semantic.typed_hir,
+                    &mut context.drop_plans,
+                )
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            )
+        } else {
+            None
+        };
     let id = ProjectionPathId::from_index(context.projections.len());
     context.projections.push(ProjectionPath {
         id,
@@ -222,8 +440,8 @@ fn lower_view_index_place(
         },
         ty,
         representation,
-        ownership: OwnershipKind::Copy,
-        drop_plan: None,
+        ownership,
+        drop_plan,
     });
     Ok((Place::projected(source.local, id), representation))
 }
@@ -234,7 +452,7 @@ fn base_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
             .resolved
             .local_symbol_for_identifier(identifier)
             .is_some(),
-        Expr::Member(member) => super::projections::owned_field_is_supported(member, semantic),
+        Expr::Member(member) => super::projections::field_is_supported(member, semantic),
         _ => false,
     }
 }
@@ -257,7 +475,7 @@ fn lower_base(
             Ok((place.local, place.projection))
         }
         Expr::Member(member) => {
-            let (place, representation) = super::projections::lower_field_place(
+            let (place, representation) = super::projections::lower_borrow_field_place(
                 member,
                 context.semantic,
                 &context.places_by_symbol,
@@ -283,7 +501,7 @@ struct ArrayContract {
 }
 
 fn array_contract(index: &IndexExpr, semantic: SemanticInputs<'_>) -> Option<ArrayContract> {
-    let plan = semantic.typed_hir.index_plan(index.span)?;
+    let plan = semantic.index_plan(index.span)?;
     let abi =
         abi_value_from_type_expr_with_resolver(&plan.target_ty, semantic.resolved, |source| {
             semantic.resolver_for(source)
@@ -294,10 +512,12 @@ fn array_contract(index: &IndexExpr, semantic: SemanticInputs<'_>) -> Option<Arr
     };
     let stride = u32::try_from(array_element_stride(&element).ok()?).ok()?;
     let ty = semantic.typed_hir.type_id(&plan.element_ty)?;
-    let representation = super::coverage::scalar_type(ty, semantic.typed_hir)
-        .map(ValueRepresentation::Scalar)
-        .unwrap_or(ValueRepresentation::Aggregate);
-    let ownership = if crate::typecheck::type_expr_is_copy(&plan.element_ty, semantic.resolved)? {
+    let representation = super::source_model::value_representation(ty, semantic)?;
+    let ownership = if super::super::drop_plans::is_copy(
+        &plan.element_ty,
+        semantic.resolved,
+        semantic.resolved_sources,
+    )? {
         OwnershipKind::Copy
     } else {
         OwnershipKind::Move

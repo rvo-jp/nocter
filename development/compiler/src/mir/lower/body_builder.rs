@@ -98,21 +98,6 @@ impl ControlFlowBuilder {
         Ok(())
     }
 
-    pub(super) fn discard_last_reserved_block(
-        &mut self,
-        block: BasicBlockId,
-    ) -> Result<(), BuildError> {
-        if self.current.is_some()
-            || block.index() + 1 != self.blocks.len()
-            || self.blocks[block.index()].terminator.is_some()
-            || !self.blocks[block.index()].statements.is_empty()
-        {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        }
-        self.blocks.pop();
-        Ok(())
-    }
-
     pub(super) fn current_block(&self) -> Result<BasicBlockId, BuildError> {
         self.current.ok_or(BuildError::MissingOpenBlock)
     }

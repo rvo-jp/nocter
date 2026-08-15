@@ -432,6 +432,7 @@ pub(crate) enum Instruction {
         index: UsizeValue,
         value: BoolValue,
     },
+    #[allow(dead_code)]
     StoreStrToSliceIndex {
         destination: SliceLocation,
         index: UsizeValue,
@@ -667,6 +668,7 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         failure_mode: OutcomeFailureMode,
     },
+    #[allow(dead_code)]
     CallComposedOutcome {
         destination: ComposedOutcomeDestination,
         target: CallTarget,
@@ -840,10 +842,6 @@ pub(crate) enum U8Value {
         source: StrLocation,
         index: UsizeValue,
     },
-    StaticStrIndex {
-        bytes: Vec<u8>,
-        index: UsizeValue,
-    },
     SliceIndex {
         source: SliceLocation,
         index: UsizeValue,
@@ -887,6 +885,7 @@ pub(crate) enum ScalarArgument {
     I32(I32Value),
     U8(U8Value),
     Usize(UsizeValue),
+    Integer(IntegerType, UsizeValue),
     Bool(BoolValue),
     Str(StrValue),
     Slice(SliceValue),
@@ -901,6 +900,7 @@ impl ScalarArgument {
             Self::I32(_)
             | Self::U8(_)
             | Self::Usize(_)
+            | Self::Integer(_, _)
             | Self::Bool(_)
             | Self::Borrow(_)
             | Self::AggregateIndirect(_) => 1,
@@ -982,11 +982,6 @@ pub(crate) enum BorrowSource {
         parameter_index: usize,
         offset: u32,
     },
-    PointerOffset {
-        pointer: UsizeLocation,
-        offset: UsizeLocation,
-        field_offset: u32,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1061,6 +1056,7 @@ pub(crate) enum BoolValue {
         index: UsizeValue,
     },
     Not(Box<BoolValue>),
+    #[allow(dead_code)]
     Logical {
         operator: BoolLogicalOperator,
         left: Box<BoolValue>,
@@ -1095,6 +1091,7 @@ pub(crate) enum BoolValue {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum BoolLogicalOperator {
     And,
     Or,

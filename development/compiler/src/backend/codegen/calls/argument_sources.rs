@@ -115,25 +115,6 @@ impl EntryEmitter {
                     Some(frame),
                 );
             }
-            BorrowSource::PointerOffset {
-                pointer,
-                offset,
-                field_offset,
-            } => {
-                self.emit_usize_value_to_x(&UsizeValue::Location(pointer), register)?;
-                let scratch = if register == XReg::X16 {
-                    XReg::X17
-                } else {
-                    XReg::X16
-                };
-                self.emit_usize_value_to_x(&UsizeValue::Location(offset), scratch)?;
-                self.encoder.emit_add_x(register, register, scratch);
-                if field_offset != 0 {
-                    self.encoder
-                        .emit_add_x_imm(register, register, field_offset);
-                }
-                return Ok(());
-            }
             BorrowSource::I32(I32Location::Return)
             | BorrowSource::U8(U8Location::Return)
             | BorrowSource::Usize(UsizeLocation::Return)
@@ -237,6 +218,7 @@ impl EntryEmitter {
             self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
             return Ok(());
         }
+        let whole_slot = matches!(source, AggregateArgumentSource::Slot(_));
         let (slot_index, field_offset) = match source {
             AggregateArgumentSource::Slot(slot_index) => (slot_index, 0),
             AggregateArgumentSource::SlotField { slot_index, offset } => (slot_index, offset),
@@ -257,7 +239,7 @@ impl EntryEmitter {
         if field_offset
             .checked_add(layout_size)
             .is_none_or(|end| end > slot.size())
-            || (field_offset == 0 && slot.size() != layout_size)
+            || (whole_slot && slot.size() != layout_size)
         {
             return Err(vec![Diagnostic::error(
                 "E9005",

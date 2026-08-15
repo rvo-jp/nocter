@@ -157,6 +157,24 @@ fn storage_for_name(
                 }
             },
         })
+        .or_else(|| {
+            slots
+                .outcomes
+                .iter()
+                .find(|parameter| parameter.name == name)
+                .map(|parameter| ParameterStorage::Aggregate {
+                    slot_index: parameter.slot_index,
+                    layout: parameter.storage.layout,
+                    classification: match parameter.source {
+                        super::super::context::AggregateParameterSource::Indirect { .. } => {
+                            ValueClassification::Indirect
+                        }
+                        super::super::context::AggregateParameterSource::Direct {
+                            words, ..
+                        } => ValueClassification::Direct { words },
+                    },
+                })
+        })
 }
 
 fn named_word(words: &[Option<String>], name: &str) -> Option<usize> {
@@ -208,6 +226,36 @@ mod tests {
         assert_eq!(
             projection.get(0),
             Some(ParameterStorage::U8 { abi_index: 0 })
+        );
+    }
+
+    #[test]
+    fn stored_outcome_parameter_uses_aggregate_staging_slot() {
+        let mut slots = super::super::super::context::LoweringParameterSlots::default();
+        let layout = crate::outcomes::storage::outcome_storage_layout(
+            &[crate::outcomes::OutcomeLayer::Optional],
+            ValueLayout::new(4, 4),
+        );
+        slots
+            .outcomes
+            .push(super::super::super::context::LoweringOutcomeParameter {
+                name: "value".to_string(),
+                storage: layout.clone(),
+                slot_index: 0,
+                source: super::super::super::context::AggregateParameterSource::Indirect {
+                    parameter_index: 0,
+                },
+            });
+
+        let projection = ParameterProjection::from_slots(&[parameter("value")], &slots).unwrap();
+
+        assert_eq!(
+            projection.get(0),
+            Some(ParameterStorage::Aggregate {
+                slot_index: 0,
+                layout: layout.layout,
+                classification: ValueClassification::Indirect,
+            })
         );
     }
 }

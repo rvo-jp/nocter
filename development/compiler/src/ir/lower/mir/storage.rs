@@ -154,15 +154,20 @@ pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
     let Some(declaration) = body.locals.get(local.index()) else {
         return false;
     };
-    declaration.storage == LocalStorage::Local
-        && declaration.representation == ValueRepresentation::Borrow
-        && matches!(declaration.origin, LocalOrigin::Temporary(_))
+    matches!(
+        declaration.storage,
+        LocalStorage::Local | LocalStorage::Return
+    ) && declaration.representation == ValueRepresentation::Borrow
+        && matches!(
+            declaration.origin,
+            LocalOrigin::Temporary(_) | LocalOrigin::Return
+        )
         && local_definition_count(body, local) == 1
         && local_use_count(body, local) == 1
-        && borrow_temporary_is_argument(body, local)
+        && borrow_value_has_direct_consumer(body, local)
 }
 
-fn borrow_temporary_is_argument(body: &Body, local: LocalId) -> bool {
+fn borrow_value_has_direct_consumer(body: &Body, local: LocalId) -> bool {
     body.blocks.iter().any(|block| {
         matches!(
             &block.terminator,
@@ -172,6 +177,15 @@ fn borrow_temporary_is_argument(body: &Body, local: LocalId) -> bool {
                     Operand::Copy(place) | Operand::Move(place)
                         if place == crate::mir::Place::local(local)
                 ))
+        ) || matches!(
+            &block.terminator,
+            crate::mir::Terminator::ReturnOutcomeSuccess { source }
+                | crate::mir::Terminator::ReturnValue { source }
+                if matches!(
+                    source,
+                    Operand::Copy(place) | Operand::Move(place)
+                        if *place == crate::mir::Place::local(local)
+                )
         ) || block.statements.iter().any(|statement| {
             matches!(
                 statement,
@@ -404,9 +418,6 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
         | Rvalue::Compare { left, right, .. }
         | Rvalue::ViewCompare { left, right, .. } => {
             operand_use_count(left, local) + operand_use_count(right, local)
-        }
-        Rvalue::ViewIndex { source, index, .. } => {
-            operand_use_count(source, local) + operand_use_count(index, local)
         }
         Rvalue::Intrinsic { arguments, .. } => arguments
             .iter()

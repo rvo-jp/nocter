@@ -265,11 +265,6 @@ fn validate_aggregate_copy_destination_range(
             )
         }
         AggregateLocation::DirectReturn => {
-            if !matches!(destination_offset, 0 | AGGREGATE_USIZE_STORE_BYTES) {
-                return Err(aggregate_copy_diagnostic(
-                    "direct aggregate return range offset must be 0 or 8",
-                ));
-            }
             let range_end = destination_offset.checked_add(layout_size).ok_or_else(|| {
                 aggregate_copy_diagnostic("direct aggregate return range end overflows")
             })?;

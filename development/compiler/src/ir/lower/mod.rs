@@ -1,30 +1,14 @@
-mod aggregates;
-mod allocation_contexts;
-mod bindings;
+mod call_abi;
 mod closures;
 mod coercion_symbols;
-mod collection_for;
+pub(crate) use coercion_symbols::coercion_symbol_name;
 mod context;
-mod control_flow;
 mod entry;
 mod errors;
-mod expressions;
 mod functions;
-mod imported_calls;
-mod interpolation;
-mod literal_pack_lengths;
-mod literal_packs;
-mod literals;
 mod mir;
-mod outcome_propagation;
-mod outcome_values;
 mod reachability;
-mod regions;
-mod typed_literals;
 mod types;
-
-#[cfg(test)]
-mod tests;
 
 use super::{CallTarget, Function, IrModule};
 use crate::abi::{
@@ -38,7 +22,7 @@ use crate::analysis::{
 };
 use crate::ast::{
     CallableDecl, DestructDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape,
-    MethodDecl, Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr,
+    MethodDecl, Parameter, TypeExpr, TypeReference, canonical_type_expr,
     substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
@@ -54,7 +38,6 @@ use crate::typecheck::TypedHir;
 use context::{
     ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures, ResolvedSources,
 };
-use imported_calls::{imported_call_diagnostics, imported_call_diagnostics_for_block};
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
 use types::{
@@ -132,35 +115,9 @@ fn lower_process_entry(
     });
 
     let function_index = FunctionIndex::new(analysis, root.ast.span.source);
-    let diagnostics = match selected_test {
-        Some(test) => imported_call_diagnostics_for_block(
-            sources,
-            &test.body,
-            root.ast.span.source,
-            &root.resolved,
-        ),
-        None => imported_call_diagnostics(
-            sources,
-            entry_definition.expect("executable entry was validated").1,
-            entry_definition
-                .expect("executable entry was validated")
-                .0
-                .ast
-                .span
-                .source,
-            &entry_definition
-                .expect("executable entry was validated")
-                .0
-                .resolved,
-        ),
-    };
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-
     let function_signatures = function_index.signatures();
     let function_names = function_index.names();
-    let error_payloads = function_index.error_payloads(root.ast.span.source);
+    let error_payloads = function_index.error_payloads(&analysis.mir_bodies);
     let resolved_sources = function_index.resolved_sources();
     let selected_target = test.map_or_else(
         || CallTarget::same_file(DEFAULT_ENTRY_NAME),
@@ -284,11 +241,6 @@ fn lower_reachable_functions(
                 ),
             )]);
         };
-        let diagnostics = function.imported_call_diagnostics(sources, root_source);
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
-
         let function = function.lower(
             target,
             sources,
@@ -779,23 +731,31 @@ impl<'a> FunctionIndex<'a> {
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
-        self.definitions.get(target).or_else(|| {
-            let (target_source, target_name) = match target {
-                CallTarget::SameFile(name) => (self.root_source, name),
-                CallTarget::Imported { source, name } => (*source, name),
-            };
-            self.definitions.iter().find_map(|(candidate, callable)| {
-                let CallTarget::Imported { source, name } = candidate else {
-                    return None;
-                };
-                (name == target_name
-                    && self
-                        .resolved_sources
-                        .get(source)
-                        .is_some_and(|resolved| resolved.module_source(*source) == target_source))
-                .then_some(callable)
+        self.definitions
+            .get(target)
+            .or_else(|| {
+                let requested_name = call_target_name(target);
+                self.method_target_aliases
+                    .iter()
+                    .find(|(requested, _)| requested == requested_name)
+                    .and_then(|(_, canonical)| self.definitions.get(canonical))
             })
-        })
+            .or_else(|| {
+                let (target_source, target_name) = match target {
+                    CallTarget::SameFile(name) => (self.root_source, name),
+                    CallTarget::Imported { source, name } => (*source, name),
+                };
+                self.definitions.iter().find_map(|(candidate, callable)| {
+                    let CallTarget::Imported { source, name } = candidate else {
+                        return None;
+                    };
+                    (call_target_names_match(name, target_name)
+                        && self.resolved_sources.get(source).is_some_and(|resolved| {
+                            resolved.module_source(*source) == target_source
+                        }))
+                    .then_some(callable)
+                })
+            })
     }
 
     fn signatures(&self) -> FunctionSignatures {
@@ -939,6 +899,36 @@ impl<'a> FunctionIndex<'a> {
                         })
                 }))
                 .chain(self.definitions.values().flat_map(|function| {
+                    let typed_hir = function
+                        .mir_substitutions()
+                        .filter(|substitutions| !substitutions.is_empty())
+                        .map(|substitutions| function.typed_hir.specialized(substitutions));
+                    let typed_hir = typed_hir.as_ref().unwrap_or(function.typed_hir);
+                    typed_hir
+                        .comparison_plans()
+                        .filter_map(|plan| {
+                            let plan = if plan.method.is_some() {
+                                Some(plan.clone())
+                            } else {
+                                crate::typecheck::specialize_comparison_plan(
+                                    plan.clone(),
+                                    function.resolved,
+                                )
+                            }?;
+                            let method = plan.method?;
+                            Some((
+                                crate::mir::CallInstanceKey::from_types(
+                                    self.callable_bodies
+                                        .canonical_definition(method.def_id),
+                                    Some(&method.self_ty),
+                                    std::iter::empty(),
+                                ),
+                                method.target_name,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
                     function.typed_hir.callable_call_entries().map(|(_, fact)| {
                         (
                             crate::mir::CallInstanceKey::from_callable_type(
@@ -950,8 +940,12 @@ impl<'a> FunctionIndex<'a> {
                     })
                 }))
                 .chain(self.definitions.values().flat_map(|function| {
-                    function
-                        .typed_hir
+                    let typed_hir = function
+                        .mir_substitutions()
+                        .filter(|substitutions| !substitutions.is_empty())
+                        .map(|substitutions| function.typed_hir.specialized(substitutions));
+                    let typed_hir = typed_hir.as_ref().unwrap_or(function.typed_hir);
+                    typed_hir
                         .interpolation_plans()
                         .flat_map(|(_, plan)| plan.parts.iter())
                         .map(|part| {
@@ -965,10 +959,15 @@ impl<'a> FunctionIndex<'a> {
                                 part.formatter.target_name.clone(),
                             )
                         })
+                        .collect::<Vec<_>>()
                 }))
                 .chain(self.definitions.values().flat_map(|function| {
-                    function
-                        .typed_hir
+                    let typed_hir = function
+                        .mir_substitutions()
+                        .filter(|substitutions| !substitutions.is_empty())
+                        .map(|substitutions| function.typed_hir.specialized(substitutions));
+                    let typed_hir = typed_hir.as_ref().unwrap_or(function.typed_hir);
+                    typed_hir
                         .collection_for_plans()
                         .flat_map(|(_, plan)| {
                             plan.conversion.iter().chain(std::iter::once(&plan.step))
@@ -983,6 +982,63 @@ impl<'a> FunctionIndex<'a> {
                                 method.target_name.clone(),
                             )
                         })
+                        .collect::<Vec<_>>()
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    let typed_hir = function
+                        .mir_substitutions()
+                        .filter(|substitutions| !substitutions.is_empty())
+                        .map(|substitutions| function.typed_hir.specialized(substitutions));
+                    let typed_hir = typed_hir.as_ref().unwrap_or(function.typed_hir);
+                    typed_hir
+                        .sequence_spread_plans()
+                        .flat_map(|(_, plan)| {
+                            plan.conversion.iter().chain([&plan.exact_size, &plan.step])
+                        })
+                        .map(|method| {
+                            (
+                                crate::mir::CallInstanceKey::from_types(
+                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    Some(&method.self_ty),
+                                    std::iter::empty(),
+                                ),
+                                method.target_name.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    let IndexedDeclaration::Literal { specialization, .. } =
+                        &function.declaration
+                    else {
+                        return Vec::new();
+                    };
+                    specialization
+                        .pack_segments
+                        .iter()
+                        .filter_map(|segment| match segment {
+                            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                                plan,
+                                ..
+                            } => Some(plan),
+                            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                                ..
+                            } => None,
+                        })
+                        .flat_map(|plan| {
+                            plan.conversion.iter().chain([&plan.exact_size, &plan.step])
+                        })
+                        .map(|method| {
+                            (
+                                crate::mir::CallInstanceKey::from_types(
+                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    Some(&method.self_ty),
+                                    std::iter::empty(),
+                                ),
+                                method.target_name.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
                 }))
                 .collect(),
             self.definitions
@@ -994,20 +1050,16 @@ impl<'a> FunctionIndex<'a> {
                     Some((definition, ty.clone(), name))
                 })
                 .collect(),
-            self.definitions
-                .keys()
-                .map(|target| (call_target_name(target).to_string(), target.clone()))
-                .chain(self.method_target_aliases.iter().cloned())
-                .collect(),
+            self.method_target_aliases.clone(),
         )
     }
 
-    fn error_payloads(&self, root_source: SourceId) -> ErrorPayloads {
+    fn error_payloads(&self, mir_bodies: &crate::mir::BodyCache) -> ErrorPayloads {
         self.definitions
             .iter()
             .filter_map(|(target, function)| {
                 function
-                    .static_error_payload(root_source)
+                    .static_error_payload(mir_bodies, self.semantic_db)
                     .map(|payload| (target.clone(), payload))
             })
             .collect()
@@ -1169,59 +1221,14 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
-    fn imported_call_diagnostics(
+    fn static_error_payload(
         &self,
-        sources: &SourceMap,
-        root_source: SourceId,
-    ) -> Vec<Diagnostic> {
-        match &self.declaration {
-            IndexedDeclaration::Function { declaration, .. } => {
-                imported_call_diagnostics(sources, declaration, root_source, self.resolved)
-            }
-            IndexedDeclaration::Drop { declaration, .. } => {
-                imported_calls::imported_call_diagnostics_for_block(
-                    sources,
-                    &declaration.body,
-                    root_source,
-                    self.resolved,
-                )
-            }
-            IndexedDeclaration::Method { declaration, .. } => declaration
-                .body
-                .as_ref()
-                .map(|body| {
-                    imported_calls::imported_call_diagnostics_for_block(
-                        sources,
-                        body,
-                        root_source,
-                        self.resolved,
-                    )
-                })
-                .unwrap_or_default(),
-            IndexedDeclaration::Literal { declaration, .. } => {
-                declaration.body.as_ref().map_or_else(Vec::new, |body| {
-                    imported_calls::imported_call_diagnostics_for_block(
-                        sources,
-                        body,
-                        root_source,
-                        self.resolved,
-                    )
-                })
-            }
-            IndexedDeclaration::Closure { expression, .. } => {
-                imported_calls::imported_call_diagnostics_for_block(
-                    sources,
-                    &expression.body,
-                    root_source,
-                    self.resolved,
-                )
-            }
-        }
-    }
-
-    fn static_error_payload(&self, root_source: SourceId) -> Option<errors::ErrorPayload> {
+        mir_bodies: &crate::mir::BodyCache,
+        semantic_db: &crate::semantic::SemanticDb,
+    ) -> Option<errors::ErrorPayload> {
         let IndexedDeclaration::Function {
             declaration: function,
+            substitutions,
             ..
         } = &self.declaration
         else {
@@ -1230,22 +1237,12 @@ impl<'a> IndexedCallable<'a> {
         if !function.parameters.parameters.is_empty() {
             return None;
         }
-        let mut runtime_statements = function
-            .body
-            .as_ref()?
-            .statements
-            .iter()
-            .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));
-        let Some(Stmt::Return(statement)) = runtime_statements.next() else {
-            return None;
-        };
-        if runtime_statements.next().is_some() {
-            return None;
-        };
-        let expression = statement.expression.as_ref()?;
-        errors::lower_error_payload(expression, self.resolved, root_source, None)
-            .ok()
-            .flatten()
+        let source_body = function.body.as_ref()?;
+        let body_id = semantic_db.body_at(source_body.span)?;
+        let body = mir_bodies
+            .get_specialized(source_body.span.source, body_id, substitutions)?
+            .ok()?;
+        crate::mir::static_error_payload(&body).map(Into::into)
     }
 
     fn lower(
@@ -1291,6 +1288,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name.clone(),
                 sources,
+                mir_bodies,
                 target,
                 function_signatures,
                 function_names,
@@ -1312,6 +1310,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name.clone(),
                 sources,
+                mir_bodies,
                 target,
                 function_signatures,
                 function_names,
@@ -1328,6 +1327,7 @@ impl<'a> IndexedCallable<'a> {
                 declaration,
                 specialization,
                 sources,
+                mir_bodies,
                 target,
                 function_signatures,
                 function_names,
@@ -1908,6 +1908,12 @@ fn call_target_name(target: &CallTarget) -> &str {
     match target {
         CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => name,
     }
+}
+
+fn call_target_names_match(left: &str, right: &str) -> bool {
+    left == right
+        || crate::mir::runtime_name_with_unqualified_receiver(left)
+            == crate::mir::runtime_name_with_unqualified_receiver(right)
 }
 
 fn method_target_name(type_name: &str, method_name: &str) -> String {

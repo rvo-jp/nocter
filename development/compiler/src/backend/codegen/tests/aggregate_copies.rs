@@ -109,7 +109,7 @@ fn aggregate_range_copy_from_stack_passed_direct_parameter_after_call_uses_spill
     ));
     assert!(contains_instruction(
         &code.text,
-        encoded_mov_x(XReg::X1, XReg::X16)
+        encoded_bfi_x(XReg::X1, XReg::X16, 0, 8)
     ));
 }
 
@@ -298,7 +298,7 @@ fn aggregate_range_copy_to_direct_return_second_word_is_allowed() {
     ));
     assert!(contains_instruction(
         &code.text,
-        encoded_mov_x(XReg::X1, XReg::X16)
+        encoded_bfi_x(XReg::X1, XReg::X16, 0, 8)
     ));
 }
 

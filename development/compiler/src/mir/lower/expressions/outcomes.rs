@@ -201,7 +201,7 @@ pub(in crate::mir::lower) fn lower_unit_catch(
     catch: &crate::ast::CatchExpr,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
-    let ty = super::super::coverage::handled_outcome_success_type(
+    let ty = super::super::source_model::handled_outcome_success_type(
         &Expr::Catch(catch.clone()),
         context.semantic,
     )
@@ -456,14 +456,14 @@ fn outcome_source_type(
     expression: &Expr,
 ) -> Option<crate::semantic::TyId> {
     match expression.without_groups() {
-        Expr::Call(call) => super::super::coverage::call_result_type(call, context.semantic),
+        Expr::Call(call) => super::super::source_model::call_result_type(call, context.semantic),
         Expr::Identifier(identifier) => context
             .semantic
             .resolved
             .local_symbol_for_identifier(identifier)
             .and_then(|symbol| context.semantic.typed_hir.binding_type_expr(symbol.id))
             .and_then(|ty| context.semantic.typed_hir.type_id(ty)),
-        _ => super::super::coverage::intrinsic_expression_type(
+        _ => super::super::source_model::intrinsic_expression_type(
             expression.span(),
             context.semantic.typed_hir,
         ),

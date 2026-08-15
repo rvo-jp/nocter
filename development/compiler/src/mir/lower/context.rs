@@ -19,6 +19,8 @@ pub(super) struct LoweringContext<'a> {
     pub(super) drop_plans: Vec<DropPlan>,
     pub(super) control_flow: ControlFlowBuilder,
     pub(super) loop_regions: Vec<LoopRegion>,
+    pub(super) active_loop_targets: Vec<super::statements::LoopTargets>,
+    pub(super) literal_pack: Option<super::literal_packs::PreparedLiteralPack>,
     pub(super) loans: Vec<Loan>,
     pub(super) allocation_regions: Vec<AllocationRegion>,
     pub(super) allocation_overrides: Vec<AllocationContextOverride>,
@@ -62,6 +64,8 @@ impl<'a> LoweringContext<'a> {
             drop_plans,
             control_flow: ControlFlowBuilder::new(root_scope),
             loop_regions: Vec::new(),
+            active_loop_targets: Vec::new(),
+            literal_pack: None,
             loans: Vec::new(),
             allocation_regions: Vec::new(),
             allocation_overrides: Vec::new(),
@@ -85,13 +89,17 @@ impl<'a> LoweringContext<'a> {
         origin: crate::mir::LocalOrigin,
         scope: ScopeId,
     ) -> Result<LocalId, BuildError> {
+        let ty = super::storage_types::normalized_storage_type(ty, self.semantic);
         let type_expr = self
             .semantic
             .typed_hir
             .type_expr_by_id(ty)
             .ok_or(BuildError::MissingTypedExpression)?;
-        let ownership = if crate::typecheck::type_expr_is_copy(type_expr, self.semantic.resolved)
-            == Some(true)
+        let ownership = if super::super::drop_plans::is_copy(
+            type_expr,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+        ) == Some(true)
         {
             crate::mir::OwnershipKind::Copy
         } else {
@@ -127,7 +135,8 @@ impl<'a> LoweringContext<'a> {
         origin: crate::mir::LocalOrigin,
         scope: ScopeId,
     ) -> Result<LocalId, BuildError> {
-        let representation = super::coverage::value_representation(ty, self.semantic)
+        let ty = super::storage_types::normalized_storage_type(ty, self.semantic);
+        let representation = super::source_model::value_representation(ty, self.semantic)
             .ok_or(BuildError::MissingTypedExpression)?;
         if representation == crate::mir::ValueRepresentation::Aggregate {
             return self.aggregate_temporary(ty, origin, scope);

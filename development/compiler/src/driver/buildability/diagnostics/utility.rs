@@ -1,12 +1,5 @@
 use super::*;
 
-pub(in crate::driver::buildability) fn unwrap_group_expr(expression: &Expr) -> &Expr {
-    match expression {
-        Expr::Group(group) => unwrap_group_expr(&group.expression),
-        _ => expression,
-    }
-}
-
 pub(in crate::driver::buildability) fn unsupported_native_build_diagnostic(
     sources: &SourceMap,
     span: ByteSpan,
@@ -20,21 +13,6 @@ pub(in crate::driver::buildability) fn unsupported_native_build_diagnostic(
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(help.to_string());
     diagnostic
-}
-
-pub(in crate::driver::buildability) fn unsupported_payload_binding_diagnostic(
-    sources: &SourceMap,
-    span: ByteSpan,
-    control: &str,
-) -> Diagnostic {
-    unsupported_native_build_diagnostic(
-        sources,
-        span,
-        &format!(
-            "payload bindings outside runtime scalar/view, copy aggregate, and owned recursively droppable aggregate types in {control}"
-        ),
-        "bind an `i32`, `u8`, `usize`, `bool`, `&str`, slice view, or copy aggregate payload; move an owned aggregate with runtime-supported recursive drop glue; or use `_` to discard other payloads",
-    )
 }
 
 pub(in crate::driver::buildability) fn call_target_for_source(

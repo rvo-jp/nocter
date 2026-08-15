@@ -1,103 +1,63 @@
-use crate::abi::{
-    AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver,
-    array_element_stride, layout_of, layout_struct,
-};
-use crate::ast::{
-    CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, canonical_type_expr,
-    substitute_type_expr_parameters,
-};
-use crate::diagnostics::Diagnostic;
+//! Runtime names, call signatures, and parameter ABI storage used by MIR projection.
+
+use crate::abi::{ReturnPassing, ValueLayout};
+use crate::ast::TypeExpr;
 use crate::integer::IntegerType;
-use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, CallTarget, I32Location, Instruction,
-    SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
-};
+use crate::ir::{CallTarget, Type};
 use crate::outcomes::storage::OutcomeStorageLayout;
-use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::semantic::DefId;
-use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::{
-    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind, TypedHir,
-};
-use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use crate::typecheck::{TypecheckSliceElementKind, TypedHir};
+use std::collections::HashMap;
 
 use super::errors::ErrorPayload;
-use super::types::type_expr_with_self_type;
 
 pub(super) type ErrorPayloads = HashMap<CallTarget, ErrorPayload>;
 pub(super) type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
 
-pub(super) struct LoweringContext<'a> {
-    function_name: String,
-    return_type: Type,
-    function_return_type: Type,
-    function_return_type_expr: Option<TypeExpr>,
-    function_returns_optional: bool,
-    function_signatures: FunctionSignatures,
-    call_resolution: Option<CallResolution<'a>>,
-    function_names: FunctionNames,
-    generic_substitutions: HashMap<String, TypeExpr>,
-    literal_pack: Option<LiteralPackLowering>,
-    i32_parameters: Vec<Option<String>>,
-    u8_parameters: Vec<Option<String>>,
-    usize_parameters: Vec<Option<String>>,
-    integer_parameters: Vec<Option<(String, IntegerType)>>,
-    bool_parameters: Vec<Option<String>>,
-    str_parameters: Vec<Option<String>>,
-    slice_parameters: Vec<Option<SliceBinding>>,
-    error_parameters: Vec<Option<String>>,
-    reserved_local_abi_words: usize,
-    locals: Vec<LocalBinding>,
-    aggregate_fields: HashMap<usize, Vec<AggregateField>>,
-    closure_capture_fields: HashMap<String, AggregateFieldAccess>,
-    temporary_aggregate_drops: Vec<PendingAggregateDrop>,
-    pub(in crate::ir::lower) region_cleanups: Vec<super::regions::RegionCleanup>,
-    pub(in crate::ir::lower) allocation_context_restores:
-        Vec<super::allocation_contexts::AllocationContextRestore>,
-    borrow_parameters: Vec<BorrowParameter>,
-    aggregate_borrows: Vec<AggregateBorrowParameter>,
-    aggregate_local_borrow_fields: HashMap<String, Vec<AggregateField>>,
-    error_payloads: ErrorPayloads,
-    next_aggregate_slot_index: Rc<Cell<usize>>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SliceTypeInfo {
+    pub(super) element_kind: TypecheckSliceElementKind,
+    pub(super) element_type: Option<TypeExpr>,
 }
 
-impl<'a> Clone for LoweringContext<'a> {
-    fn clone(&self) -> Self {
-        Self {
-            function_name: self.function_name.clone(),
-            return_type: self.return_type.clone(),
-            function_return_type: self.function_return_type.clone(),
-            function_return_type_expr: self.function_return_type_expr.clone(),
-            function_returns_optional: self.function_returns_optional,
-            function_signatures: self.function_signatures.clone(),
-            call_resolution: self.call_resolution.clone(),
-            function_names: self.function_names.clone(),
-            generic_substitutions: self.generic_substitutions.clone(),
-            literal_pack: self.literal_pack.clone(),
-            i32_parameters: self.i32_parameters.clone(),
-            u8_parameters: self.u8_parameters.clone(),
-            usize_parameters: self.usize_parameters.clone(),
-            integer_parameters: self.integer_parameters.clone(),
-            bool_parameters: self.bool_parameters.clone(),
-            str_parameters: self.str_parameters.clone(),
-            slice_parameters: self.slice_parameters.clone(),
-            error_parameters: self.error_parameters.clone(),
-            reserved_local_abi_words: self.reserved_local_abi_words,
-            locals: self.locals.clone(),
-            aggregate_fields: self.aggregate_fields.clone(),
-            closure_capture_fields: self.closure_capture_fields.clone(),
-            temporary_aggregate_drops: self.temporary_aggregate_drops.clone(),
-            region_cleanups: self.region_cleanups.clone(),
-            allocation_context_restores: self.allocation_context_restores.clone(),
-            borrow_parameters: self.borrow_parameters.clone(),
-            aggregate_borrows: self.aggregate_borrows.clone(),
-            aggregate_local_borrow_fields: self.aggregate_local_borrow_fields.clone(),
-            error_payloads: self.error_payloads.clone(),
-            next_aggregate_slot_index: self.next_aggregate_slot_index.clone(),
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SliceBinding {
+    pub(super) name: String,
+    pub(super) info: SliceTypeInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct BorrowParameter {
+    pub(super) name: String,
+    pub(super) parameter_index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AggregateBorrowParameter {
+    pub(super) name: String,
+    pub(super) parameter_index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AggregateParameterSource {
+    Indirect { parameter_index: usize },
+    Direct { start_index: usize, words: usize },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LoweringAggregateParameter {
+    pub(super) name: String,
+    pub(super) layout: ValueLayout,
+    pub(super) slot_index: usize,
+    pub(super) source: AggregateParameterSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LoweringOutcomeParameter {
+    pub(super) name: String,
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) slot_index: usize,
+    pub(super) source: AggregateParameterSource,
 }
 
 #[derive(Default)]
@@ -114,36 +74,6 @@ pub(super) struct LoweringParameterSlots {
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
     pub(super) outcomes: Vec<LoweringOutcomeParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct LoweringOutcomeParameter {
-    pub(super) name: String,
-    pub(super) storage: OutcomeStorageLayout,
-    pub(super) payload_type: Type,
-    pub(super) slot_index: usize,
-    pub(super) source: AggregateParameterSource,
-    pub(super) is_copy: bool,
-    pub(super) drop_kind: Option<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct LiteralPackLowering {
-    pub(super) capture_name: String,
-    pub(super) segments: Vec<LiteralPackLoweringSegment>,
-    pub(super) element_type: TypeExpr,
-    pub(super) runtime_length_name: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum LiteralPackLoweringSegment {
-    Value {
-        parameter_name: String,
-    },
-    Spread {
-        iterator_parameter_name: String,
-        plan: crate::typecheck::TypecheckSequenceSpreadPlan,
-    },
 }
 
 impl LoweringParameterSlots {
@@ -179,26 +109,26 @@ impl LoweringParameterSlots {
         element_kind: TypecheckSliceElementKind,
         element_type: Option<TypeExpr>,
     ) {
-        let info = SliceTypeInfo {
-            element_kind,
-            element_type,
-        };
         self.push_abi_word(
             None,
             None,
             None,
             None,
             None,
-            Some(SliceBinding { name, info }),
+            Some(SliceBinding {
+                name,
+                info: SliceTypeInfo {
+                    element_kind,
+                    element_type,
+                },
+            }),
             None,
         );
     }
 
     pub(super) fn push_error_parameter(&mut self, name: String) {
         self.push_abi_word(None, None, None, None, None, None, Some(name));
-        self.push_empty_abi_word();
-        self.push_empty_abi_word();
-        self.push_empty_abi_word();
+        self.reserve_empty_abi_words(3);
     }
 
     pub(super) fn push_empty_abi_word(&mut self) {
@@ -206,21 +136,14 @@ impl LoweringParameterSlots {
     }
 
     pub(super) fn reserve_empty_abi_words(&mut self, words: usize) -> usize {
-        let start_index = self.next_parameter_index();
+        let start = self.next_parameter_index();
         for _ in 0..words {
             self.push_empty_abi_word();
         }
-        start_index
+        start
     }
 
     pub(super) fn parameter_abi_word_count(&self) -> usize {
-        debug_assert_eq!(self.i32.len(), self.u8.len());
-        debug_assert_eq!(self.i32.len(), self.usize.len());
-        debug_assert_eq!(self.i32.len(), self.integer.len());
-        debug_assert_eq!(self.i32.len(), self.bool.len());
-        debug_assert_eq!(self.i32.len(), self.str.len());
-        debug_assert_eq!(self.i32.len(), self.slice.len());
-        debug_assert_eq!(self.i32.len(), self.error.len());
         self.i32.len()
     }
 
@@ -228,6 +151,7 @@ impl LoweringParameterSlots {
         self.i32.len()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_abi_word(
         &mut self,
         i32_name: Option<String>,
@@ -249,97 +173,16 @@ impl LoweringParameterSlots {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct LoweringAggregateParameter {
-    pub(super) name: String,
-    pub(super) layout: ValueLayout,
-    pub(super) slot_index: usize,
-    pub(super) source: AggregateParameterSource,
-    pub(super) is_copy: bool,
-    pub(super) drop_kind: Option<AggregateDrop>,
-    pub(super) fields: Vec<AggregateField>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum AggregateParameterSource {
-    Indirect { parameter_index: usize },
-    Direct { start_index: usize, words: usize },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct AggregateBorrowParameter {
-    pub(super) name: String,
-    pub(super) layout: ValueLayout,
-    pub(super) parameter_index: usize,
-    pub(super) is_readwrite: bool,
-    pub(super) fields: Vec<AggregateField>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct BorrowParameter {
-    pub(super) name: String,
-    pub(super) inner: Type,
-    pub(super) parameter_index: usize,
-    pub(super) is_readwrite: bool,
-}
-
-mod call_resolution;
-mod call_targets;
-mod construction;
-mod drop_glue;
-mod drop_obligation;
-mod drop_queries;
-mod enum_variants;
-mod locals;
-mod outcome_values;
-mod type_queries;
-
-use call_targets::UniqueCallTargets;
-pub(super) use drop_glue::{
-    aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
-    drop_glue_for_type_expr_with_resolver, outcome_drop_for_type_expr_with_resolver,
-    outcome_drop_for_type_expr_with_resolver_ref,
-};
-pub(super) use drop_obligation::{
-    ArrayElementDropState, DropObligation, PayloadFieldDropState, StructFieldDropState,
-};
-
-fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
-    if source == root_source {
-        CallTarget::same_file(name)
-    } else {
-        CallTarget::imported(source, name)
-    }
-}
-
-fn std_os_imported_primitive_name(name: &str) -> bool {
-    matches!(
-        name,
-        "syscall0"
-            | "syscall1"
-            | "syscall2"
-            | "syscall3"
-            | "syscall4"
-            | "syscall5"
-            | "syscall6"
-            | "trap"
-    )
-}
-
-#[derive(Clone)]
-struct CallResolution<'a> {
-    root_source: SourceId,
-    resolved: &'a ResolveOutput,
-    typed_hir: &'a TypedHir,
-    resolved_sources: ResolvedSources<'a>,
-}
-
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
     by_definition: HashMap<DefId, String>,
     by_instance: HashMap<crate::mir::CallInstanceKey, String>,
+    by_unqualified_receiver_instance: HashMap<crate::mir::CallInstanceKey, Option<String>>,
+    by_receiver_determined_instance: HashMap<crate::mir::CallInstanceKey, Option<String>>,
+    by_unqualified_receiver_determined_instance:
+        HashMap<crate::mir::CallInstanceKey, Option<String>>,
     drops_by_definition_and_type: HashMap<(DefId, String), String>,
-    unique_targets: UniqueCallTargets,
+    target_aliases: HashMap<String, CallTarget>,
 }
 
 impl FunctionNames {
@@ -347,20 +190,44 @@ impl FunctionNames {
         functions: Vec<(DefId, String)>,
         instances: Vec<(crate::mir::CallInstanceKey, String)>,
         drops: Vec<(DefId, TypeExpr, String)>,
-        targets: Vec<(String, CallTarget)>,
+        target_aliases: Vec<(String, CallTarget)>,
     ) -> Self {
+        let mut by_unqualified_receiver_instance = HashMap::new();
+        let mut by_receiver_determined_instance = HashMap::new();
+        let mut by_unqualified_receiver_determined_instance = HashMap::new();
+        for (key, name) in &instances {
+            let normalized = key.with_unqualified_receiver();
+            insert_unique_name(
+                &mut by_unqualified_receiver_instance,
+                normalized.clone(),
+                name,
+            );
+            insert_unique_name(
+                &mut by_receiver_determined_instance,
+                key.without_type_arguments(),
+                name,
+            );
+            insert_unique_name(
+                &mut by_unqualified_receiver_determined_instance,
+                normalized.without_type_arguments(),
+                name,
+            );
+        }
         Self {
             by_definition: functions.into_iter().collect(),
             by_instance: instances.into_iter().collect(),
+            by_unqualified_receiver_instance,
+            by_receiver_determined_instance,
+            by_unqualified_receiver_determined_instance,
             drops_by_definition_and_type: drops
                 .into_iter()
                 .map(|(definition, ty, name)| ((definition, drop_type_key(&ty)), name))
                 .collect(),
-            unique_targets: UniqueCallTargets::new(targets),
+            target_aliases: target_aliases.into_iter().collect(),
         }
     }
 
-    pub(in crate::ir::lower) fn name_for_definition(&self, definition: DefId) -> Option<&String> {
+    fn name_for_definition(&self, definition: DefId) -> Option<&String> {
         self.by_definition.get(&definition)
     }
 
@@ -369,31 +236,69 @@ impl FunctionNames {
         instance: &crate::mir::CallInstance,
         typed_hir: &TypedHir,
     ) -> Option<&String> {
-        if instance.receiver.is_none()
-            && instance.type_arguments.is_empty()
-            && let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
+        if let crate::mir::CallableIdentity::Definition(definition) = instance.callable
+            && let Some(name) = self.name_for_definition(definition)
         {
-            return self.name_for_definition(*definition);
+            return Some(name);
         }
-        self.by_instance
-            .get(&crate::mir::CallInstanceKey::from_instance(
-                instance, typed_hir,
-            )?)
+        let key = crate::mir::CallInstanceKey::from_instance(instance, typed_hir);
+        key.as_ref()
+            .and_then(|key| self.by_instance.get(key))
+            .or_else(|| {
+                key.as_ref()
+                    .map(crate::mir::CallInstanceKey::with_unqualified_receiver)
+                    .and_then(|key| self.by_unqualified_receiver_instance.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| {
+                key.as_ref()
+                    .map(crate::mir::CallInstanceKey::without_type_arguments)
+                    .and_then(|key| self.by_receiver_determined_instance.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| {
+                key.as_ref()
+                    .map(crate::mir::CallInstanceKey::with_unqualified_receiver)
+                    .map(|key| key.without_type_arguments())
+                    .and_then(|key| self.by_unqualified_receiver_determined_instance.get(&key))
+                    .and_then(Option::as_ref)
+            })
+            .or_else(|| match instance.callable {
+                crate::mir::CallableIdentity::Definition(definition) => {
+                    self.name_for_definition(definition)
+                }
+                _ => None,
+            })
     }
 
     pub(in crate::ir::lower) fn name_for_drop(
         &self,
         definition: DefId,
-        ty: &crate::ast::TypeExpr,
+        ty: &TypeExpr,
     ) -> Option<&String> {
         self.drops_by_definition_and_type
             .get(&(definition, drop_type_key(ty)))
             .or_else(|| self.name_for_definition(definition))
     }
 
-    fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {
-        self.unique_targets.get(name)
+    pub(in crate::ir::lower) fn target_alias(&self, name: &str) -> Option<&CallTarget> {
+        self.target_aliases.get(name)
     }
+}
+
+fn insert_unique_name<K: std::hash::Hash + Eq>(
+    names: &mut HashMap<K, Option<String>>,
+    key: K,
+    name: &str,
+) {
+    names
+        .entry(key)
+        .and_modify(|existing| {
+            if existing.as_deref() != Some(name) {
+                *existing = None;
+            }
+        })
+        .or_insert_with(|| Some(name.to_string()));
 }
 
 fn drop_type_key(ty: &TypeExpr) -> String {
@@ -423,65 +328,14 @@ pub(super) struct FunctionSignatures {
 }
 
 impl FunctionSignatures {
-    #[cfg(test)]
-    pub(super) fn new(return_types: HashMap<String, Type>) -> Self {
-        Self {
-            signatures: return_types
-                .into_iter()
-                .map(|(name, return_type)| {
-                    (
-                        CallTarget::same_file(name),
-                        FunctionSignature {
-                            return_type,
-                            parameter_types: None,
-                            parameter_abi_word_count: None,
-                            success_return_passing: None,
-                        },
-                    )
-                })
-                .collect(),
-        }
-    }
-
     pub(super) fn from_call_targets(signatures: HashMap<CallTarget, FunctionSignature>) -> Self {
         Self { signatures }
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_test_overrides(mut self, overrides: Self) -> Self {
-        for (target, override_) in overrides.signatures {
-            let Some(signature) = self.signatures.get_mut(&target) else {
-                self.signatures.insert(target, override_);
-                continue;
-            };
-            signature.return_type = override_.return_type;
-            signature.success_return_passing = override_.success_return_passing;
-            if override_.parameter_types.is_some() {
-                signature.parameter_types = override_.parameter_types;
-                signature.parameter_abi_word_count = override_.parameter_abi_word_count;
-            } else if override_.parameter_abi_word_count.is_some() {
-                signature.parameter_abi_word_count = override_.parameter_abi_word_count;
-            }
-        }
-        self
     }
 
     pub(super) fn return_type(&self, target: &CallTarget) -> Option<&Type> {
         self.signatures
             .get(target)
             .map(|signature| &signature.return_type)
-    }
-
-    pub(super) fn parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
-        self.signatures
-            .get(target)
-            .and_then(|signature| signature.parameter_types.as_deref())
-    }
-
-    pub(super) fn parameter_abi_word_count(&self, target: &CallTarget) -> Option<usize> {
-        self.signatures
-            .get(target)
-            .and_then(|signature| signature.parameter_abi_word_count)
     }
 
     pub(super) fn success_return_passing(&self, target: &CallTarget) -> Option<ReturnPassing> {
@@ -497,245 +351,4 @@ pub(super) struct FunctionSignature {
     pub(super) parameter_types: Option<Vec<Type>>,
     pub(super) parameter_abi_word_count: Option<usize>,
     pub(super) success_return_passing: Option<ReturnPassing>,
-}
-
-#[derive(Clone)]
-struct LocalBinding {
-    name: String,
-    kind: LocalKind,
-    index: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SliceBinding {
-    pub(super) name: String,
-    pub(super) info: SliceTypeInfo,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SliceTypeInfo {
-    pub(super) element_kind: TypecheckSliceElementKind,
-    pub(super) element_type: Option<TypeExpr>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct AggregateLocal {
-    pub(super) slot_index: usize,
-    pub(super) layout: ValueLayout,
-    pub(super) is_copy: bool,
-    pub(super) drop_kind: Option<AggregateDrop>,
-    pub(super) runtime_live: Option<BoolLocation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct OutcomeLocal {
-    pub(super) slot_index: usize,
-    pub(super) storage: OutcomeStorageLayout,
-    pub(super) payload_type: Type,
-    pub(super) is_copy: bool,
-    pub(super) is_live: bool,
-    pub(super) drop_obligation: DropObligation,
-    pub(super) drop_kind: Option<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PendingAggregateDrop {
-    pub(super) name: String,
-    pub(super) slot_index: usize,
-    pub(super) layout: ValueLayout,
-    pub(super) drop_kind: AggregateDrop,
-    pub(super) obligation: DropObligation,
-    pub(super) runtime_live: Option<BoolLocation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum AggregateDrop {
-    Direct(DropGlue),
-    Struct(StructDrop),
-    Array(ArrayDrop),
-    PayloadEnum(PayloadEnumDrop),
-    Outcome(OutcomeDrop),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct OutcomeDrop {
-    pub(super) storage: OutcomeStorageLayout,
-    pub(super) payload: Box<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ArrayDrop {
-    pub(super) length: u64,
-    pub(super) stride: u64,
-    pub(super) element_layout: ValueLayout,
-    pub(super) element_drop_kind: Box<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct StructDrop {
-    pub(super) direct: Option<DropGlue>,
-    pub(super) fields: Vec<StructDropField>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct StructDropField {
-    pub(super) offset: u32,
-    pub(super) layout: ValueLayout,
-    pub(super) drop_kind: Box<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct DropGlue {
-    pub(super) target: CallTarget,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PayloadEnumDrop {
-    pub(super) variants: Vec<PayloadEnumDropVariant>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PayloadEnumDropVariant {
-    pub(super) tag: u8,
-    pub(super) fields: Vec<PayloadEnumDropField>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PayloadEnumDropField {
-    pub(super) payload_offset: u32,
-    pub(super) payload_layout: ValueLayout,
-    pub(super) drop_kind: Box<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct AggregateField {
-    pub(super) name: String,
-    pub(super) offset: u32,
-    pub(super) kind: AggregateFieldKind,
-    pub(super) is_copy: bool,
-    pub(super) drop_kind: Option<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct AggregateFieldAccess {
-    pub(super) source: AggregateLocation,
-    pub(super) offset: u32,
-    pub(super) kind: AggregateFieldKind,
-    pub(super) is_readwrite: bool,
-    pub(super) is_copy: bool,
-    pub(super) drop_kind: Option<AggregateDrop>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum AggregateFieldKind {
-    I8,
-    I16,
-    I32,
-    I64,
-    Isize,
-    U16,
-    U32,
-    U64,
-    U8,
-    Usize,
-    Bool,
-    Borrow {
-        is_readwrite: bool,
-        inner: Type,
-    },
-    Str,
-    Slice(SliceTypeInfo),
-    Array {
-        layout: ValueLayout,
-        element: crate::abi::AbiType,
-        length: u64,
-        stride: u32,
-    },
-    Aggregate {
-        layout: ValueLayout,
-        fields: Vec<AggregateField>,
-    },
-    Outcome {
-        storage: OutcomeStorageLayout,
-        payload_type: Type,
-    },
-}
-
-impl AggregateFieldKind {
-    pub(super) fn integer_type(&self) -> Option<IntegerType> {
-        match self {
-            Self::I8 => Some(IntegerType::I8),
-            Self::I16 => Some(IntegerType::I16),
-            Self::I32 => Some(IntegerType::I32),
-            Self::I64 => Some(IntegerType::I64),
-            Self::Isize => Some(IntegerType::Isize),
-            Self::U8 => Some(IntegerType::U8),
-            Self::U16 => Some(IntegerType::U16),
-            Self::U32 => Some(IntegerType::U32),
-            Self::U64 => Some(IntegerType::U64),
-            Self::Usize => Some(IntegerType::Usize),
-            _ => None,
-        }
-    }
-
-    pub(super) fn copy_aggregate_layout(&self) -> Option<ValueLayout> {
-        match self {
-            AggregateFieldKind::Array { layout, .. }
-            | AggregateFieldKind::Aggregate { layout, .. } => Some(*layout),
-            AggregateFieldKind::Outcome { storage, .. } => Some(storage.layout),
-            _ => None,
-        }
-    }
-
-    pub(super) fn copy_aggregate_layout_and_fields(
-        &self,
-    ) -> Option<(ValueLayout, Vec<AggregateField>)> {
-        match self {
-            AggregateFieldKind::Array { layout, .. } => Some((*layout, Vec::new())),
-            AggregateFieldKind::Aggregate { layout, fields } => Some((*layout, fields.clone())),
-            AggregateFieldKind::Outcome { .. } => None,
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum LocalKind {
-    I32,
-    U8,
-    Usize,
-    Integer(IntegerType),
-    Borrow {
-        is_readwrite: bool,
-        inner: Type,
-    },
-    Bool,
-    Str,
-    Slice(SliceTypeInfo),
-    Error,
-    Aggregate {
-        layout: ValueLayout,
-        slot_index: usize,
-        is_copy: bool,
-        drop_obligation: DropObligation,
-        drop_kind: Option<AggregateDrop>,
-        runtime_live: Option<BoolLocation>,
-    },
-    Outcome(OutcomeLocal),
-}
-
-impl LocalKind {
-    fn abi_word_count(&self) -> usize {
-        match self {
-            Self::I32
-            | Self::U8
-            | Self::Usize
-            | Self::Integer(_)
-            | Self::Borrow { .. }
-            | Self::Bool => 1,
-            Self::Str | Self::Slice(_) => 2,
-            Self::Error => 4,
-            Self::Aggregate { .. } | Self::Outcome(_) => 0,
-        }
-    }
 }

@@ -10,7 +10,6 @@ use crate::mir::{
 
 pub(super) struct EnteredRegion {
     pub(super) scope: ScopeId,
-    pub(super) exit: crate::mir::BasicBlockId,
 }
 
 pub(super) fn enter(
@@ -47,7 +46,6 @@ pub(super) fn enter(
         .ok_or(BuildError::MissingTypedExpression)?;
     let scope = context.child_scope(parent_scope, statement.body.span);
     let body = context.control_flow.reserve_block(scope);
-    let exit = context.control_flow.reserve_block(parent_scope);
     context
         .control_flow
         .terminate(crate::mir::Terminator::Goto { target: body })?;
@@ -104,5 +102,5 @@ pub(super) fn enter(
             region,
             origin: Origin::Desugared(statement.keyword_span),
         })?;
-    Ok(EnteredRegion { scope, exit })
+    Ok(EnteredRegion { scope })
 }

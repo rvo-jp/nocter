@@ -74,7 +74,7 @@ pub(super) fn analyze(body: &Body) -> LoanAnalysis {
             };
         }
         exits[block_id.index()] = Some(active.clone());
-        for target in successors(&block.terminator) {
+        for target in super::control_flow::successors(&block.terminator) {
             let Some(entry) = entries.get_mut(target.index()) else {
                 continue;
             };
@@ -91,40 +91,6 @@ pub(super) fn analyze(body: &Body) -> LoanAnalysis {
         }
     }
     LoanAnalysis { exits }
-}
-
-fn successors(terminator: &Terminator) -> Vec<BasicBlockId> {
-    match terminator {
-        Terminator::Goto { target } | Terminator::Drop { target, .. } => vec![*target],
-        Terminator::Switch {
-            then_target,
-            else_target,
-            ..
-        } => vec![*then_target, *else_target],
-        Terminator::Call { continuation, .. } => match continuation {
-            CallContinuation::Continue { target } | CallContinuation::Return { target, .. } => {
-                vec![*target]
-            }
-            CallContinuation::Outcome {
-                success, failure, ..
-            }
-            | CallContinuation::OutcomeEffect {
-                success, failure, ..
-            } => vec![*success, *failure],
-            CallContinuation::Never => Vec::new(),
-        },
-        Terminator::InspectOutcome {
-            success, failure, ..
-        } => vec![*success, *failure],
-        Terminator::Trap
-        | Terminator::PropagateFailure
-        | Terminator::ReturnOutcome { .. }
-        | Terminator::ReturnFailure { .. }
-        | Terminator::ReturnOutcomeSuccess { .. }
-        | Terminator::ReturnOptionalNone
-        | Terminator::ReturnValue { .. }
-        | Terminator::Return => Vec::new(),
-    }
 }
 
 pub(super) fn validate(body: &Body) -> Vec<LoanError> {
@@ -230,8 +196,11 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 ..
             } => {
                 reject_operand_move(body, block_id, condition, &state, &mut errors);
-                merge_entry(&mut entries, &mut queue, *then_target, state.clone());
-                merge_entry(&mut entries, &mut queue, *else_target, state);
+                for target in
+                    super::control_flow::switch_targets(condition, *then_target, *else_target)
+                {
+                    merge_entry(&mut entries, &mut queue, target, state.clone());
+                }
             }
             Terminator::Call {
                 arguments,
@@ -421,10 +390,6 @@ fn reject_rvalue_moves(
             reject_operand_move(body, block, left, state, errors);
             reject_operand_move(body, block, right, state, errors);
         }
-        Rvalue::ViewIndex { source, index, .. } => {
-            reject_operand_move(body, block, source, state, errors);
-            reject_operand_move(body, block, index, state, errors);
-        }
         Rvalue::Intrinsic { arguments, .. } => {
             for argument in arguments {
                 reject_operand_move(body, block, &argument.operand, state, errors);
@@ -492,6 +457,7 @@ fn reject_live_at_exit(
     for index in 0..body.loans.len() {
         let id = LoanId::from_index(index);
         if state.may_active.contains(id)
+            && body.loans[index].lifetime != super::LoanLifetime::Return
             && body.locals[body.loans[index].destination.index()].storage
                 != super::LocalStorage::Return
         {

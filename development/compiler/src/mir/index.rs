@@ -6,7 +6,7 @@ use crate::source::SourceId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-type CachedBody = Option<Result<Body, BuildError>>;
+type CachedBody = Result<Body, BuildError>;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BodyCache {
@@ -18,6 +18,7 @@ struct BodyInstanceKey {
     source: SourceId,
     body: BodyId,
     substitutions: Vec<(String, String)>,
+    callable: Option<crate::mir::CallInstanceKey>,
 }
 
 impl BodyInstanceKey {
@@ -35,11 +36,36 @@ impl BodyInstanceKey {
             source,
             body,
             substitutions,
+            callable: None,
         }
+    }
+
+    fn literal(
+        source: SourceId,
+        body: BodyId,
+        substitutions: &HashMap<String, crate::ast::TypeExpr>,
+        callable: crate::mir::CallInstanceKey,
+    ) -> Self {
+        let mut key = Self::new(source, body, substitutions);
+        key.callable = Some(callable);
+        key
     }
 }
 
 impl BodyCache {
+    pub(crate) fn get_specialized(
+        &self,
+        source: SourceId,
+        id: BodyId,
+        substitutions: &HashMap<String, crate::ast::TypeExpr>,
+    ) -> Option<CachedBody> {
+        self.entries
+            .lock()
+            .expect("MIR body cache lock must not be poisoned")
+            .get(&BodyInstanceKey::new(source, id, substitutions))
+            .cloned()
+    }
+
     pub(crate) fn get_or_build_specialized(
         &self,
         source: SourceId,
@@ -60,27 +86,33 @@ impl BodyCache {
         body
     }
 
+    pub(crate) fn get_or_build_literal_specialized(
+        &self,
+        source: SourceId,
+        id: BodyId,
+        substitutions: &HashMap<String, crate::ast::TypeExpr>,
+        callable: crate::mir::CallInstanceKey,
+        build: impl FnOnce() -> CachedBody,
+    ) -> CachedBody {
+        let mut entries = self
+            .entries
+            .lock()
+            .expect("MIR body cache lock must not be poisoned");
+        let key = BodyInstanceKey::literal(source, id, substitutions, callable);
+        if let Some(cached) = entries.get(&key) {
+            return cached.clone();
+        }
+        let body = build();
+        entries.insert(key, body.clone());
+        body
+    }
+
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries
             .lock()
             .expect("MIR body cache lock must not be poisoned")
             .len()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn cached_specialized(
-        &self,
-        source: SourceId,
-        id: BodyId,
-        substitutions: &HashMap<String, crate::ast::TypeExpr>,
-    ) -> Option<Result<Body, BuildError>> {
-        self.entries
-            .lock()
-            .expect("MIR body cache lock must not be poisoned")
-            .get(&BodyInstanceKey::new(source, id, substitutions))
-            .cloned()
-            .flatten()
     }
 }
 
@@ -125,6 +157,30 @@ mod tests {
         assert_ne!(
             BodyInstanceKey::new(SourceId::new(3), body, &first),
             BodyInstanceKey::new(source, body, &first)
+        );
+    }
+
+    #[test]
+    fn literal_instance_is_part_of_the_body_cache_identity() {
+        let body = BodyId::from_index(7);
+        let source = SourceId::new(2);
+        let substitutions = HashMap::from([("T".to_string(), named_type("i32"))]);
+        let definition = crate::semantic::DefId::from_index(3);
+        let empty = crate::mir::CallInstanceKey::from_literal_types(
+            definition,
+            crate::ast::LiteralShape::Sequence,
+            &named_type("Vec"),
+            std::iter::empty(),
+        );
+        let populated = crate::mir::CallInstanceKey::from_literal_types(
+            definition,
+            crate::ast::LiteralShape::Sequence,
+            &named_type("Vec"),
+            [(None, None), (None, None)],
+        );
+        assert_ne!(
+            BodyInstanceKey::literal(source, body, &substitutions, empty),
+            BodyInstanceKey::literal(source, body, &substitutions, populated),
         );
     }
 }

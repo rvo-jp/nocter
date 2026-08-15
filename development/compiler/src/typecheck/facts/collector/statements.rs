@@ -24,7 +24,7 @@ impl TypedHirBuilder<'_> {
                 }
             }
             Stmt::Binding(statement) => {
-                self.collect_binding_statement_facts(statement, environment, return_type)
+                self.collect_binding_statement_facts(statement, environment, return_type, None)
             }
             Stmt::Assignment(statement) => {
                 self.collect_expression_facts_in_context(
@@ -260,11 +260,16 @@ impl TypedHirBuilder<'_> {
         statement: &BindingStmt,
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
+        inferred_expected: Option<&Type>,
     ) {
-        let expected_initializer_type = statement.ty.as_ref().map(|ty| {
-            self.collect_type_expr_references(ty);
-            type_expr_to_type_in_environment(ty, self.resolved, environment)
-        });
+        let expected_initializer_type = statement
+            .ty
+            .as_ref()
+            .map(|ty| {
+                self.collect_type_expr_references(ty);
+                type_expr_to_type_in_environment(ty, self.resolved, environment)
+            })
+            .or_else(|| inferred_expected.cloned());
         if let Some(expected) = &expected_initializer_type {
             self.collect_expression_facts_with_expected(
                 &statement.initializer,
@@ -281,8 +286,14 @@ impl TypedHirBuilder<'_> {
         }
         let initializer_type = expression_type(&statement.initializer, self.resolved, environment);
 
-        let binding_type =
-            continuing_binding_type(statement, initializer_type, self.resolved, environment);
+        let binding_type = if statement.ty.is_none()
+            && initializer_type.is_unknown_or_unresolved()
+            && let Some(expected) = inferred_expected
+        {
+            expected.clone()
+        } else {
+            continuing_binding_type(statement, initializer_type, self.resolved, environment)
+        };
         let is_mutable = binding_kind_is_mutable(statement.kind);
         self.record_binding(statement.name_span, &binding_type, is_mutable);
         if let Some(ty) = &statement.ty {

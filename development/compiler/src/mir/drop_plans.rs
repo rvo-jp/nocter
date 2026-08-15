@@ -69,6 +69,14 @@ pub(super) fn is_supported(
     build(ty, fallback, sources, typed_hir, &mut Vec::new()).is_some()
 }
 
+pub(super) fn is_copy(
+    ty: &TypeExpr,
+    fallback: &ResolveOutput,
+    sources: &ResolvedSources<'_>,
+) -> Option<bool> {
+    crate::typecheck::type_expr_is_copy(ty, resolver_for(ty, fallback, sources))
+}
+
 fn build_inner(
     ty: &TypeExpr,
     fallback: &ResolveOutput,
@@ -203,9 +211,8 @@ fn build_inner(
                 )
             }
         }
-        TypeExpr::Callable(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) | TypeExpr::View(_) => {
-            None
-        }
+        TypeExpr::Borrow(_) => push(plans, DropPlan::Noop),
+        TypeExpr::Callable(_) | TypeExpr::Pointer(_) | TypeExpr::View(_) => None,
     }
 }
 

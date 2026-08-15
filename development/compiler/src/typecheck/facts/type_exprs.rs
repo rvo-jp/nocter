@@ -211,24 +211,6 @@ pub(super) fn type_reference(name: impl Into<String>, span: ByteSpan) -> TypeExp
     })
 }
 
-pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
-    match ty {
-        Type::I32 => Some(TypecheckScalarViewKind::I32),
-        Type::Primitive(name) => match IntegerType::from_name(name) {
-            Some(IntegerType::U8) => Some(TypecheckScalarViewKind::U8),
-            Some(IntegerType::Usize) => Some(TypecheckScalarViewKind::Usize),
-            Some(_) => Some(TypecheckScalarViewKind::Usize),
-            None if name == "bool" => Some(TypecheckScalarViewKind::Bool),
-            None => None,
-        },
-        Type::Str => Some(TypecheckScalarViewKind::Str),
-        Type::View { element, .. } => {
-            Some(TypecheckScalarViewKind::Slice(slice_element_kind(element)))
-        }
-        _ => None,
-    }
-}
-
 pub(in crate::typecheck) fn checked_scalar_type(
     ty: &Type,
 ) -> Option<crate::typecheck::CheckedScalarType> {
@@ -240,20 +222,5 @@ pub(in crate::typecheck) fn checked_scalar_type(
             .map(crate::typecheck::CheckedScalarType::Integer)
             .or_else(|| (name == "bool").then_some(crate::typecheck::CheckedScalarType::Bool)),
         _ => None,
-    }
-}
-
-pub(super) fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
-    match element {
-        Type::I32 => TypecheckSliceElementKind::I32,
-        Type::Primitive(name) => match IntegerType::from_name(name) {
-            Some(IntegerType::U8) => TypecheckSliceElementKind::U8,
-            Some(IntegerType::Usize) => TypecheckSliceElementKind::Usize,
-            Some(kind) => TypecheckSliceElementKind::Integer(kind),
-            None if name == "bool" => TypecheckSliceElementKind::Bool,
-            None => TypecheckSliceElementKind::Other,
-        },
-        Type::Str => TypecheckSliceElementKind::Str,
-        _ => TypecheckSliceElementKind::Other,
     }
 }

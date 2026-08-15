@@ -1,5 +1,4 @@
-//! Minimal executable MIR model. New execution forms extend this model before
-//! their AST-driven lowering path is removed.
+//! Checked executable MIR shared by buildability and machine-IR projection.
 
 use super::ids::{
     AllocationOverrideId, BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId,
@@ -34,6 +33,7 @@ pub(crate) struct OutcomeContract {
     pub(crate) layers: Vec<crate::outcomes::OutcomeLayer>,
     pub(crate) payload_ty: TyId,
     pub(crate) payload_representation: ValueRepresentation,
+    pub(crate) payload_borrow_readwrite: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +107,9 @@ pub(crate) enum BorrowKind {
 pub(crate) enum LoanLifetime {
     Scope,
     Call,
+    /// The loan is transferred through a function return. Cleanup must retain
+    /// it until the return operand has been materialized by the backend.
+    Return,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,15 +284,6 @@ pub(crate) enum Rvalue {
         kind: ViewKind,
         result_ty: TyId,
     },
-    ViewIndex {
-        source: Operand,
-        source_ty: TyId,
-        kind: super::ViewKind,
-        index: Operand,
-        index_ty: TyId,
-        element_ty: TyId,
-        element_scalar: ScalarType,
-    },
     Intrinsic {
         intrinsic: crate::intrinsics::IntrinsicId,
         arguments: Vec<CallArgument>,
@@ -323,15 +317,8 @@ pub(crate) enum UnaryOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Operand {
     Constant(Constant),
-    StaticStr {
-        ty: TyId,
-        bytes: Vec<u8>,
-    },
+    StaticStr { ty: TyId, bytes: Vec<u8> },
     Copy(Place),
-    #[allow(
-        dead_code,
-        reason = "owned aggregate lowering will construct move operands next"
-    )]
     Move(Place),
 }
 

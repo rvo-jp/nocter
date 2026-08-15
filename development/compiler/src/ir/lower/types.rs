@@ -89,131 +89,6 @@ pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> Typ
     }
 }
 
-pub(super) fn return_type_expr_is_top_level_optional(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> bool {
-    return_type_expr_is_top_level_optional_with_resolver(ty, resolved, |_| Some(resolved))
-}
-
-pub(super) fn return_type_expr_has_optional_layer(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    return_type_expr_has_optional_layer_with_resolver(ty, resolved, |_| Some(resolved))
-}
-
-pub(super) fn return_type_expr_has_optional_layer_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    outcome_shape_with_resolver(ty, fallback_resolved, resolver)
-        .layers
-        .contains(&OutcomeLayer::Optional)
-}
-
-pub(super) fn return_type_expr_is_top_level_optional_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: F,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    return_type_expr_is_top_level_optional_inner(
-        ty,
-        fallback_resolved,
-        &resolver,
-        &mut HashSet::new(),
-    )
-}
-
-pub(super) fn top_level_optional_success_abi_value_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: F,
-) -> Option<AbiValue>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    top_level_optional_success_abi_value_inner(
-        ty,
-        fallback_resolved,
-        &resolver,
-        &mut HashSet::new(),
-    )
-}
-
-fn top_level_optional_success_abi_value_inner<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-    resolving_names: &mut HashSet<String>,
-) -> Option<AbiValue>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    match ty {
-        TypeExpr::Optional(optional) => {
-            abi_value_from_type_expr_with_resolver(&optional.inner, fallback_resolved, resolver)
-                .ok()
-        }
-        TypeExpr::Reference(reference) => {
-            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
-            let target = symbol.alias_target.as_ref()?;
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return None;
-            }
-            let result = top_level_optional_success_abi_value_inner(
-                target,
-                fallback_resolved,
-                resolver,
-                resolving_names,
-            );
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => None,
-    }
-}
-
-fn return_type_expr_is_top_level_optional_inner<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-    resolving_names: &mut HashSet<String>,
-) -> bool
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    match ty {
-        TypeExpr::Optional(_) => true,
-        TypeExpr::Reference(reference) => {
-            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
-                return false;
-            };
-            let Some(target) = &symbol.alias_target else {
-                return false;
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let result = return_type_expr_is_top_level_optional_inner(
-                target,
-                fallback_resolved,
-                resolver,
-                resolving_names,
-            );
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => false,
-    }
-}
-
 pub(super) fn return_type_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -389,24 +264,6 @@ where
     aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)
 }
 
-pub(super) fn scalar_or_view_type_from_type_expr(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Type> {
-    scalar_or_view_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
-}
-
-pub(super) fn scalar_or_view_type_from_type_expr_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: F,
-) -> Option<Type>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, &resolver)
-}
-
 fn scalar_or_view_type_from_type_expr_inner<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -430,13 +287,6 @@ where
         AbiType::Bool => Some(Type::Bool),
         _ => None,
     }
-}
-
-pub(super) fn view_element_type_from_type_expr(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Type> {
-    view_element_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
 pub(super) fn view_element_type_from_type_expr_with_resolver<'a, F>(

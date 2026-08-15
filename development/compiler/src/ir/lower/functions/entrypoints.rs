@@ -4,6 +4,7 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     literal: &LiteralDecl,
     specialization: &LiteralSpecialization,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -47,83 +48,103 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     .map_err(|diagnostics| {
         attach_primary_span_if_absent(diagnostics, sources, literal.return_type.span())
     })?;
-    let mut context = LoweringContext::new(
-        name.clone(),
-        return_type.success_type().clone(),
-        function_signatures,
-        parameter_slots,
-    )
-    .with_function_return_type(return_type.clone())
-    .with_function_return_type_expr(specialization.result_type.clone())
-    .with_function_returns_optional(false)
-    .with_call_resolution(
-        root_source,
-        resolved,
-        typed_hir,
-        function_names,
-        resolved_sources,
-    )
-    .with_generic_substitutions(specialization.substitutions.clone())
-    .with_error_payloads(error_payloads);
-    if let (LiteralShape::Sequence, Some(capture), Some(element_type)) = (
+    let literal_pack = match (
         literal.shape,
         literal.capture.as_ref(),
         specialization.element_type.as_ref(),
     ) {
-        context = context.with_literal_pack(LiteralPackLowering {
-            capture_name: capture.name.clone(),
-            runtime_length_name: specialization
-                .pack_segments
-                .iter()
-                .any(|segment| {
-                    matches!(
-                        segment,
-                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread { .. }
-                    )
-                })
-                .then(|| {
-                    super::super::literal_pack_lengths::runtime_length_name(&capture.name)
-                }),
-            segments: specialization
-                .pack_segments
-                .iter()
-                .map(|segment| match segment {
-                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
-                        parameter_index,
-                    } => LiteralPackLoweringSegment::Value {
-                        parameter_name: literal_element_parameter_name(*parameter_index),
-                    },
-                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
-                        iterator_parameter_index,
-                        plan,
-                    } => LiteralPackLoweringSegment::Spread {
-                        iterator_parameter_name: literal_element_parameter_name(
-                            *iterator_parameter_index,
-                        ),
-                        plan: plan.clone(),
-                    },
-                })
-                .collect(),
-            element_type: element_type.clone(),
-        });
-    }
-
+        (LiteralShape::Sequence, Some(capture), Some(element_type)) => {
+            Some(crate::mir::LiteralPackInput {
+                capture_name: capture.name.clone(),
+                capture_span: capture.span,
+                element_type: element_type.clone(),
+                segments: specialization
+                    .pack_segments
+                    .iter()
+                    .map(|segment| match segment {
+                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                            parameter_index,
+                        } => crate::mir::LiteralPackInputSegment::Value {
+                            parameter_index: *parameter_index,
+                        },
+                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                            iterator_parameter_index,
+                            plan,
+                        } => crate::mir::LiteralPackInputSegment::Spread {
+                            parameter_index: *iterator_parameter_index,
+                            plan: plan.clone(),
+                        },
+                    })
+                    .collect(),
+            })
+        }
+        _ => None,
+    };
+    let mir_instructions = if let Some(literal_pack) = literal_pack {
+        let literal_instance = crate::mir::CallInstanceKey::from_literal_types(
+            specialization.def_id,
+            specialization.shape,
+            &specialization.result_type,
+            specialization.pack_segments.iter().map(|segment| {
+                match segment {
+                crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                    ..
+                } => (None, None),
+                crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                    plan,
+                    ..
+                } => (Some(plan.mode), Some(&plan.iterator_type)),
+            }
+            }),
+        );
+        super::super::mir::lower_literal_body(
+            mir_bodies,
+            literal
+                .body
+                .as_ref()
+                .expect("literal index contains only body-bearing declarations"),
+            &parameters,
+            &specialization.result_type,
+            &return_type,
+            literal_pack,
+            literal_instance,
+            resolved,
+            &resolved_sources,
+            typed_hir,
+            &specialization.substitutions,
+            &name,
+            &function_signatures,
+            &function_names,
+            &error_payloads,
+            &parameter_slots,
+            root_source,
+            sources,
+        )
+    } else {
+        super::super::mir::lower_body(
+            mir_bodies,
+            literal
+                .body
+                .as_ref()
+                .expect("literal index contains only body-bearing declarations"),
+            &parameters,
+            &specialization.result_type,
+            &return_type,
+            resolved,
+            &resolved_sources,
+            typed_hir,
+            &specialization.substitutions,
+            &name,
+            &function_signatures,
+            &function_names,
+            &error_payloads,
+            &parameter_slots,
+            root_source,
+            sources,
+        )
+    };
     let mut instructions = parameter_setup;
-    instructions.extend(
-        super::super::literal_pack_lengths::lower_runtime_length_initialization(&mut context)?,
-    );
-    instructions.extend(lower_callable_body(
-        &name,
-        literal
-            .body
-            .as_ref()
-            .expect("literal index contains only body-bearing declarations"),
-        &return_type,
-        root_source,
-        resolved,
-        sources,
-        &mut context,
-    )?);
+    instructions.extend(mir_instructions?);
     Ok(Function {
         name,
         target,
@@ -246,12 +267,11 @@ pub(in crate::ir::lower) fn lower_function<'a>(
                 ));
             }
         };
-    let success_type = return_type.success_type().clone();
     let body = function
         .body
         .as_ref()
         .expect("function index contains only body-bearing declarations");
-    if let Some(mir_instructions) = super::super::mir::try_lower_body(
+    let mir_instructions = super::super::mir::lower_body(
         mir_bodies,
         body,
         &parameters,
@@ -268,48 +288,9 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         &parameter_slots,
         root_source,
         sources,
-    ) {
-        let mut instructions = parameter_setup;
-        instructions.extend(mir_instructions?);
-        return Ok(Function {
-            name,
-            target,
-            return_type,
-            instructions,
-        });
-    }
-    let mut context = LoweringContext::new(
-        name.clone(),
-        success_type,
-        function_signatures,
-        parameter_slots,
-    )
-    .with_function_return_type(return_type.clone())
-    .with_function_return_type_expr(return_type_expr.clone())
-    .with_function_returns_optional(return_type_expr_has_optional_layer_with_resolver(
-        &return_type_expr,
-        resolved,
-        |source| resolved_sources.get(&source).copied(),
-    ))
-    .with_call_resolution(
-        root_source,
-        resolved,
-        typed_hir,
-        function_names,
-        resolved_sources,
-    )
-    .with_generic_substitutions(contextual_substitutions)
-    .with_error_payloads(error_payloads);
+    )?;
     let mut instructions = parameter_setup;
-    instructions.extend(lower_callable_body(
-        &function.name,
-        body,
-        &return_type,
-        root_source,
-        resolved,
-        sources,
-        &mut context,
-    )?);
+    instructions.extend(mir_instructions);
 
     Ok(Function {
         name,
@@ -325,6 +306,7 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -334,13 +316,21 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
+    let concrete_self_ty = substitute_type_expr_parameters(self_ty, substitutions);
+    let mut contextual_substitutions = substitutions.clone();
+    contextual_substitutions.insert("Self".to_string(), concrete_self_ty);
+    crate::typecheck::extend_associated_type_substitutions_with_resolver(
+        &mut contextual_substitutions,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
+    );
     let binding = Parameter {
         span: drop_.binding.span,
         name: drop_.binding.name.clone(),
         name_span: drop_.binding.name_span,
         ty: substitute_type_expr_parameters(
             &type_expr_with_self_type(&drop_.binding.ty, self_ty),
-            substitutions,
+            &contextual_substitutions,
         ),
     };
     let parameters = lower_scalar_parameters(
@@ -363,33 +353,27 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
     .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameters);
     let return_type = Type::Void;
-    let mut context = LoweringContext::new(
-        name.clone(),
-        return_type.clone(),
-        function_signatures,
-        parameters,
-    )
-    .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(false)
-    .with_call_resolution(
-        root_source,
-        resolved,
-        typed_hir,
-        function_names,
-        resolved_sources,
-    )
-    .with_generic_substitutions(substitutions.clone())
-    .with_error_payloads(error_payloads);
-    let mut instructions = parameter_setup;
-    instructions.extend(lower_callable_body(
-        &name,
+    let return_type_expr = void_type_expr(drop_.span);
+    let mir_instructions = super::super::mir::lower_body(
+        mir_bodies,
         &drop_.body,
+        std::slice::from_ref(&binding),
+        &return_type_expr,
         &return_type,
-        root_source,
         resolved,
+        &resolved_sources,
+        typed_hir,
+        &contextual_substitutions,
+        &name,
+        &function_signatures,
+        &function_names,
+        &error_payloads,
+        &parameters,
+        root_source,
         sources,
-        &mut context,
-    )?);
+    )?;
+    let mut instructions = parameter_setup;
+    instructions.extend(mir_instructions);
 
     Ok(Function {
         name,
@@ -405,6 +389,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -420,6 +405,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
         substitutions,
         name,
         sources,
+        mir_bodies,
         target,
         function_signatures,
         function_names,
@@ -428,7 +414,6 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
         typed_hir,
         resolved_sources,
         error_payloads,
-        |_| Ok(Vec::new()),
     )
 }
 
@@ -439,6 +424,7 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -447,7 +433,6 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
     typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
-    prologue: impl FnOnce(&mut LoweringContext<'a>) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Function, Vec<Diagnostic>> {
     let Some(body) = &method.body else {
         return Err(attach_primary_span_if_absent(
@@ -503,40 +488,26 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
                 ));
             }
         };
-    let success_type = return_type.success_type().clone();
-    let mut context = LoweringContext::new(
-        name.clone(),
-        success_type,
-        function_signatures,
-        parameter_slots,
-    )
-    .with_function_return_type(return_type.clone())
-    .with_function_return_type_expr(return_type_expr.clone())
-    .with_function_returns_optional(return_type_expr_has_optional_layer_with_resolver(
-        &return_type_expr,
-        resolved,
-        |source| resolved_sources.get(&source).copied(),
-    ))
-    .with_call_resolution(
-        root_source,
-        resolved,
-        typed_hir,
-        function_names,
-        resolved_sources,
-    )
-    .with_generic_substitutions(contextual_substitutions)
-    .with_error_payloads(error_payloads);
-    let mut instructions = parameter_setup;
-    instructions.extend(prologue(&mut context)?);
-    instructions.extend(lower_callable_body(
-        &name,
+    let mir_instructions = super::super::mir::lower_body(
+        mir_bodies,
         body,
+        &parameters,
+        &return_type_expr,
         &return_type,
-        root_source,
         resolved,
+        &resolved_sources,
+        typed_hir,
+        &contextual_substitutions,
+        &name,
+        &function_signatures,
+        &function_names,
+        &error_payloads,
+        &parameter_slots,
+        root_source,
         sources,
-        &mut context,
-    )?);
+    )?;
+    let mut instructions = parameter_setup;
+    instructions.extend(mir_instructions);
 
     Ok(Function {
         name,
