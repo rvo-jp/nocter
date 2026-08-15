@@ -391,6 +391,13 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CopyAggregateProjected {
+                destination,
+                source,
+                layout,
+            } => {
+                self.emit_copy_aggregate_projected(destination, source, *layout, frame)?;
+            }
             Instruction::CopySliceElementToAggregate {
                 destination,
                 source,

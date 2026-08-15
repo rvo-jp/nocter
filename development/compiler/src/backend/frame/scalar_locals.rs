@@ -31,6 +31,18 @@ pub(super) fn record_instruction_scalar_locals(
         | Instruction::Break
         | Instruction::Continue
         | Instruction::Return => {}
+        Instruction::CopyAggregateProjected {
+            destination,
+            source,
+            ..
+        } => {
+            if let Some(index) = &destination.index {
+                record_usize_value(&index.value, highest_local_index);
+            }
+            if let Some(index) = &source.index {
+                record_usize_value(&index.value, highest_local_index);
+            }
+        }
         Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }

@@ -72,7 +72,9 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             }
             Ok(())
         }
-        Instruction::CopyAggregateRange { .. } => Ok(()),
+        Instruction::CopyAggregateRange { .. } | Instruction::CopyAggregateProjected { .. } => {
+            Ok(())
+        }
         Instruction::CallStoredOutcome {
             destination,
             storage,

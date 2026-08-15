@@ -223,7 +223,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                 retain_owned_aggregate_argument(
                     &mut evaluation,
                     parameter_type_expr.as_ref(),
-                    source,
+                    source.clone(),
                     parameter_type,
                     callee_name,
                 )?;
@@ -302,7 +302,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                 retain_owned_aggregate_argument(
                     &mut evaluation,
                     parameter_type_expr.as_ref(),
-                    source,
+                    source.clone(),
                     parameter_type,
                     callee_name,
                 )?;
@@ -355,6 +355,7 @@ fn retain_owned_aggregate_argument(
     let slot_index = match source {
         AggregateArgumentSource::Slot(slot_index) => slot_index,
         AggregateArgumentSource::SlotField { .. } => return Ok(()),
+        AggregateArgumentSource::SlotIndex { .. } => return Ok(()),
     };
     if evaluation
         .context()

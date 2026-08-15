@@ -181,6 +181,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
+        | Instruction::CopyAggregateProjected { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::ReturnStoredOutcome { .. }
         | Instruction::SetI32 { .. }

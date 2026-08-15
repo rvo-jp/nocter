@@ -164,6 +164,23 @@ impl EntryEmitter {
                 self.encoder.emit_add_x_imm(register, register, offset);
                 Ok(())
             }
+            AggregateArgumentSource::SlotIndex {
+                slot_index,
+                base_offset,
+                index,
+                length,
+                stride,
+                access_bytes,
+            } => self.emit_checked_aggregate_index_address_to_x(
+                AggregateLocation::Slot(slot_index),
+                base_offset,
+                &index,
+                length,
+                stride,
+                access_bytes,
+                register,
+                Some(frame),
+            ),
         }
     }
 
@@ -175,9 +192,55 @@ impl EntryEmitter {
         staging_slot: ArgumentStagingSlot,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let AggregateArgumentSource::SlotIndex {
+            slot_index,
+            base_offset,
+            index,
+            length,
+            stride,
+            ..
+        } = source
+        {
+            let layout_size = u32::try_from(layout.size).map_err(|_| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate argument size exceeds u32 range",
+                )]
+            })?;
+            self.emit_checked_aggregate_index_address_to_x(
+                AggregateLocation::Slot(slot_index),
+                base_offset,
+                &index,
+                length,
+                stride,
+                layout_size,
+                XReg::X17,
+                Some(frame),
+            )?;
+            let offset = u32::try_from(word_index)
+                .ok()
+                .and_then(|word| word.checked_mul(8))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        "direct aggregate argument word offset overflows",
+                    )]
+                })?;
+            let remaining = layout_size.checked_sub(offset).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate argument word exceeds layout",
+                )]
+            })?;
+            let chunk = direct_aggregate_chunk_bytes(remaining, "direct aggregate argument")?;
+            self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X17, offset, chunk)?;
+            self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
+            return Ok(());
+        }
         let (slot_index, field_offset) = match source {
             AggregateArgumentSource::Slot(slot_index) => (slot_index, 0),
             AggregateArgumentSource::SlotField { slot_index, offset } => (slot_index, offset),
+            AggregateArgumentSource::SlotIndex { .. } => unreachable!("handled above"),
         };
         let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
             vec![Diagnostic::error(

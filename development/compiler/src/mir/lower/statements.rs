@@ -227,7 +227,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     scope,
                                 )?;
                             }
-                            Expr::Member(_) | Expr::Identifier(_) | Expr::Unary(_) => {
+                            Expr::Member(_)
+                            | Expr::Identifier(_)
+                            | Expr::Unary(_)
+                            | Expr::Index(_) => {
                                 let origin = self
                                     .context
                                     .semantic
@@ -699,7 +702,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             self.context.semantic,
                         )
                     {
-                        let source = self.context.lower_aggregate_operand(expression)?;
+                        let source = self.context.lower_aggregate_operand(expression, scope)?;
                         self.context
                             .control_flow
                             .terminate(Terminator::ReturnOutcome { source })?;
@@ -915,7 +918,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 self.context.semantic.typed_hir,
             )
         {
-            let operand = self.context.lower_aggregate_operand(&assignment.value)?;
+            let operand = self
+                .context
+                .lower_aggregate_operand(&assignment.value, scope)?;
             return self.context.control_flow.push_statement(Statement::Assign {
                 destination,
                 value: Rvalue::Use(operand),

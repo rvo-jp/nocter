@@ -739,11 +739,13 @@ func main(): i32 {
                         ..
                     } if matches!(
                         leaves.as_slice(),
-                        [crate::mir::AggregateLeaf { path, .. }]
-                            if path == &[
-                                crate::mir::AggregateElement::VariantPayload(0),
-                                crate::mir::AggregateElement::Field(0),
-                            ]
+                        [crate::mir::AggregateLeaf {
+                            path,
+                            operand: Operand::Move(place),
+                            ..
+                        }]
+                            if path == &[crate::mir::AggregateElement::VariantPayload(0)]
+                                && place.projection.is_none()
                     )
                 )
             }))

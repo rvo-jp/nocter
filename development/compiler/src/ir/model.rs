@@ -299,6 +299,11 @@ pub(crate) enum Instruction {
         source_offset: u32,
         layout: ValueLayout,
     },
+    CopyAggregateProjected {
+        destination: AggregateRange,
+        source: AggregateRange,
+        layout: ValueLayout,
+    },
     CopySliceElementToAggregate {
         destination: AggregateLocation,
         source: SliceLocation,
@@ -787,6 +792,20 @@ pub(crate) enum AggregateLocation {
     Borrow(UsizeLocation),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AggregateRange {
+    pub(crate) location: AggregateLocation,
+    pub(crate) offset: u32,
+    pub(crate) index: Option<AggregateIndex>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AggregateIndex {
+    pub(crate) value: UsizeValue,
+    pub(crate) length: u64,
+    pub(crate) stride: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum I32Location {
     Return,
@@ -907,10 +926,21 @@ pub(crate) struct DirectAggregateArgument {
     pub(crate) words: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AggregateArgumentSource {
     Slot(usize),
-    SlotField { slot_index: usize, offset: u32 },
+    SlotField {
+        slot_index: usize,
+        offset: u32,
+    },
+    SlotIndex {
+        slot_index: usize,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+        access_bytes: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

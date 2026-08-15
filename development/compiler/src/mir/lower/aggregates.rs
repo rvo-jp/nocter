@@ -603,7 +603,7 @@ fn lower_staged_value(
             )?;
             crate::mir::Operand::Copy(source)
         } else {
-            context.lower_aggregate_operand(expression)?
+            context.lower_aggregate_operand(expression, scope)?
         };
         let origin = context
             .semantic
@@ -742,6 +742,28 @@ fn lower_literal_leaves(
         return Ok(());
     }
 
+    // An owned aggregate nested in a variant is evaluated into its own MIR
+    // local before later payload expressions. Flattening the literal directly
+    // into the eventual variant rvalue would make an earlier owned value
+    // invisible to initialization analysis if a later expression branches or
+    // fails.
+    if matches!(
+        abi,
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
+    ) {
+        let argument = context.lower_call_argument(expression, scope)?;
+        if argument.representation != crate::mir::ValueRepresentation::Aggregate {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        leaves.push(AggregateLeaf {
+            path: path.clone(),
+            ty: argument.ty,
+            representation: argument.representation,
+            operand: argument.operand,
+        });
+        return Ok(());
+    }
+
     match (expression.without_groups(), abi) {
         (Expr::StructLiteral(literal), AbiType::Struct(fields)) => {
             for field in &literal.fields {
@@ -770,22 +792,6 @@ fn lower_literal_leaves(
                 lower_literal_leaves(context, value, element, scope, path, leaves)?;
                 path.pop();
             }
-        }
-        _ if matches!(
-            abi,
-            AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
-        ) =>
-        {
-            let argument = context.lower_call_argument(expression, scope)?;
-            if argument.representation != crate::mir::ValueRepresentation::Aggregate {
-                return Err(BuildError::UnsupportedClaimedExpression);
-            }
-            leaves.push(AggregateLeaf {
-                path: path.clone(),
-                ty: argument.ty,
-                representation: argument.representation,
-                operand: argument.operand,
-            });
         }
         _ => return Err(BuildError::UnsupportedClaimedExpression),
     }

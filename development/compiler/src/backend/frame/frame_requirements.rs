@@ -111,6 +111,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
+        | Instruction::CopyAggregateProjected { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateInteger { .. }
         | Instruction::StoreAggregateIntegerIndexed { .. }
@@ -279,7 +280,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
             matches!(destination, AggregateLocation::Slot(_))
                 || matches!(source, AggregateLocation::Slot(_))
         }
-        Instruction::CopyAggregateRange { .. } => true,
+        Instruction::CopyAggregateRange { .. } | Instruction::CopyAggregateProjected { .. } => true,
         Instruction::StoreAggregateUsize { destination, .. }
         | Instruction::StoreAggregateInteger { destination, .. }
         | Instruction::StoreAggregateIntegerIndexed { destination, .. }

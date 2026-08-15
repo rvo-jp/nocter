@@ -555,7 +555,8 @@ impl LoweringContext<'_> {
                         self.semantic.resolved_sources,
                         self.semantic.typed_hir,
                     ) {
-                        let Operand::Copy(source) = self.lower_aggregate_operand(expression)?
+                        let Operand::Copy(source) =
+                            self.lower_aggregate_operand(expression, scope)?
                         else {
                             return Err(BuildError::UnsupportedClaimedExpression);
                         };
@@ -580,14 +581,14 @@ impl LoweringContext<'_> {
                         ),
                     })
                 }
-                Expr::Identifier(_) | Expr::Unary(_) => {
+                Expr::Identifier(_) | Expr::Unary(_) | Expr::Index(_) => {
                     let source = self
                         .semantic
                         .typed_hir
                         .expression(expression.span())
                         .ok_or(BuildError::MissingTypedExpression)?
                         .id;
-                    let operand = self.lower_aggregate_operand(expression)?;
+                    let operand = self.lower_aggregate_operand(expression, scope)?;
                     self.control_flow.push_statement(Statement::Assign {
                         destination: Place::local(destination),
                         value: Rvalue::Use(operand),
@@ -1605,12 +1606,53 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Aggregate,
             });
         }
-        let operand = self.lower_aggregate_operand(argument)?;
+        let operand = self.lower_aggregate_operand(argument, scope)?;
+        let operand = match &operand {
+            Operand::Copy(place) | Operand::Move(place) if self.place_has_runtime_index(*place) => {
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(argument.span())
+                    .map_or(LocalOrigin::Desugared(argument.span()), |expression| {
+                        LocalOrigin::Temporary(expression.id)
+                    });
+                let local = self.aggregate_temporary(ty, origin, scope)?;
+                self.control_flow.push_statement(Statement::Assign {
+                    destination: Place::local(local),
+                    value: Rvalue::Use(operand),
+                    origin: crate::mir::Origin::Desugared(argument.span()),
+                })?;
+                if self.locals[local.index()].ownership == crate::mir::OwnershipKind::Move {
+                    Operand::Move(Place::local(local))
+                } else {
+                    Operand::Copy(Place::local(local))
+                }
+            }
+            _ => operand,
+        };
         Ok(CallArgument {
             operand,
             ty,
             representation: crate::mir::ValueRepresentation::Aggregate,
         })
+    }
+
+    fn place_has_runtime_index(&self, place: Place) -> bool {
+        let Some(mut projection) = place.projection else {
+            return false;
+        };
+        loop {
+            let Some(path) = self.projections.get(projection.index()) else {
+                return false;
+            };
+            if matches!(path.element, crate::mir::ProjectionElement::Index { .. }) {
+                return true;
+            }
+            let Some(parent) = path.parent else {
+                return false;
+            };
+            projection = parent;
+        }
     }
 
     fn lower_method_receiver(
@@ -1866,6 +1908,7 @@ impl LoweringContext<'_> {
     pub(super) fn lower_aggregate_operand(
         &mut self,
         expression: &Expr,
+        scope: ScopeId,
     ) -> Result<Operand, BuildError> {
         if !super::coverage::aggregate_operand_is_supported(
             expression,
@@ -1909,6 +1952,13 @@ impl LoweringContext<'_> {
                         &mut self.projections,
                         &self.drop_plans,
                     )?;
+                }
+                place
+            }
+            Expr::Index(index) => {
+                let (place, representation) = super::indexes::lower_place(self, index, scope)?;
+                if representation != crate::mir::ValueRepresentation::Aggregate {
+                    return Err(BuildError::UnsupportedClaimedExpression);
                 }
                 place
             }

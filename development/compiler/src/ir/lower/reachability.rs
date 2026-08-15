@@ -187,6 +187,7 @@ fn collect_reachable_call_targets(
             | Instruction::LoadAggregateBoolIndexed { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::CopyAggregateRange { .. }
+            | Instruction::CopyAggregateProjected { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::ReturnOutcomeSuccess

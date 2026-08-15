@@ -85,6 +85,20 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. } => false,
+        Instruction::CopyAggregateProjected {
+            destination,
+            source,
+            ..
+        } => {
+            destination
+                .index
+                .as_ref()
+                .is_some_and(|index| usize_value_uses_process_arguments(&index.value))
+                || source
+                    .index
+                    .as_ref()
+                    .is_some_and(|index| usize_value_uses_process_arguments(&index.value))
+        }
         Instruction::LoadAggregateUsizeIndexed { index, .. }
         | Instruction::LoadAggregateIntegerIndexed { index, .. }
         | Instruction::LoadAggregateI32Indexed { index, .. }

@@ -462,6 +462,7 @@ fn build_prepared_body(
             let source = context.lower_aggregate_operand(
                 tail.expression()
                     .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                root_scope,
             )?;
             context
                 .control_flow
@@ -559,7 +560,7 @@ fn build_prepared_body(
                                 Ok(crate::abi::AbiType::Outcome { .. })
                             );
                     if returns_stored_outcome {
-                        let source = context.lower_aggregate_operand(expression)?;
+                        let source = context.lower_aggregate_operand(expression, root_scope)?;
                         context
                             .control_flow
                             .terminate(Terminator::ReturnOutcome { source })?;

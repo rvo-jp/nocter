@@ -1,6 +1,115 @@
 use super::*;
+use crate::ir::AggregateRange;
 
 impl EntryEmitter {
+    pub(in crate::backend::codegen) fn emit_copy_aggregate_projected(
+        &mut self,
+        destination: &AggregateRange,
+        source: &AggregateRange,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "projected aggregate copy emission requires a stack frame",
+            )]);
+        };
+        let size = u32::try_from(layout.size)
+            .map_err(|_| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        self.emit_aggregate_range_address(source, size, XReg::X17, frame)?;
+        // Computing an indexed destination uses X17 as an internal scratch
+        // register. Keep the already-computed source address outside that
+        // helper's scratch set until both addresses are available.
+        self.encoder.emit_mov_x(XReg::X14, XReg::X17);
+        self.emit_aggregate_range_address(destination, size, XReg::X8, frame)?;
+        let mut offset = 0u32;
+        while offset < size {
+            let chunk = aggregate_copy_chunk_bytes(size - offset)?;
+            self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X14, offset, chunk)?;
+            self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X8, offset, chunk)?;
+            offset = offset
+                .checked_add(chunk)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_range_address(
+        &mut self,
+        range: &AggregateRange,
+        access_bytes: u32,
+        destination: XReg,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(index) = &range.index {
+            return self.emit_checked_aggregate_index_address_to_x(
+                range.location,
+                range.offset,
+                &index.value,
+                index.length,
+                index.stride,
+                access_bytes,
+                destination,
+                Some(frame),
+            );
+        }
+        match range.location {
+            AggregateLocation::Slot(slot_index) => {
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("aggregate copy slot {slot_index} is not reserved"),
+                    )]
+                })?;
+                let end = u64::from(range.offset)
+                    .checked_add(u64::from(access_bytes))
+                    .ok_or_else(|| aggregate_copy_diagnostic("aggregate copy range overflows"))?;
+                if end > u64::from(slot.size()) {
+                    return Err(aggregate_copy_diagnostic(
+                        "projected aggregate copy exceeds its slot",
+                    ));
+                }
+                let offset = slot
+                    .offset()
+                    .checked_add(range.offset)
+                    .ok_or_else(|| aggregate_copy_diagnostic("aggregate stack offset overflows"))?;
+                self.encoder.emit_add_x_sp_imm(destination, offset);
+                Ok(())
+            }
+            AggregateLocation::Parameter(index) => {
+                self.emit_parameter_word_to_x(index, destination)?;
+                if range.offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(destination, destination, range.offset);
+                }
+                Ok(())
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), destination)?;
+                if range.offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(destination, destination, range.offset);
+                }
+                Ok(())
+            }
+            AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(Some(frame));
+                if destination != XReg::X8 {
+                    self.encoder.emit_mov_x(destination, XReg::X8);
+                }
+                if range.offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(destination, destination, range.offset);
+                }
+                Ok(())
+            }
+            AggregateLocation::DirectReturn | AggregateLocation::DirectParameter { .. } => Err(
+                aggregate_copy_diagnostic("projected aggregate copy requires addressable storage"),
+            ),
+        }
+    }
+
     pub(in crate::backend::codegen) fn emit_copy_aggregate(
         &mut self,
         destination: AggregateLocation,

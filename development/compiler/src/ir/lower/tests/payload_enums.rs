@@ -580,38 +580,20 @@ func main(): i32! {
         })
         .expect("expected current array element cleanup");
 
-    let current_cleanup = cleanup.iter().find_map(|instruction| match instruction {
-        Instruction::If {
-            condition:
-                BoolValue::UsizeComparison {
-                    operator: I32ComparisonOperator::Equal,
-                    right: UsizeValue::Const(1),
-                    ..
-                },
-            then_instructions,
-            ..
-        } => Some(then_instructions),
-        _ => None,
-    });
-    assert!(
-        current_cleanup
-            .is_some_and(|instructions| { contains_slot_field_drop(instructions, 0, 16) }),
-        "{main:?}"
-    );
     assert!(
         cleanup.iter().any(|instruction| matches!(
             instruction,
-            Instruction::If {
-                condition: BoolValue::UsizeComparison {
-                    operator: I32ComparisonOperator::Greater,
-                    right: UsizeValue::Const(0),
-                    ..
-                },
-                ..
-            }
+            Instruction::CallVoid { arguments, .. }
+                if matches!(
+                    arguments.as_slice(),
+                    [ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(_),
+                    })]
+                )
         )),
         "{main:?}"
     );
+    assert!(contains_slot_field_drop(cleanup, 0, 4), "{main:?}");
 }
 
 fn contains_slot_field_drop(

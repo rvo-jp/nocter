@@ -720,6 +720,19 @@ pub(super) fn aggregate_operand_is_supported(
             known_expression_type(expression, typed_hir)
                 .and_then(|ty| typed_hir.type_expr_by_id(ty))
         }
+        Expr::Index(index)
+            if super::indexes::is_supported(
+                index,
+                SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            ) =>
+        {
+            known_expression_type(expression, typed_hir)
+                .and_then(|ty| typed_hir.type_expr_by_id(ty))
+        }
         _ => None,
     };
     let Some(ty) = ty else { return false };
@@ -2650,6 +2663,7 @@ pub(super) fn value_expression_is_supported(
                 semantic.resolved_sources,
                 semantic.typed_hir,
             ),
+            Expr::Index(index) => super::indexes::is_supported(index, semantic),
             Expr::Identifier(_) | Expr::Unary(_) => aggregate_operand_is_supported(
                 expression,
                 semantic.resolved,

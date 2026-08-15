@@ -495,6 +495,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::LoadAggregateBoolIndexed { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::CopyAggregateRange { .. }
+            | Instruction::CopyAggregateProjected { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::CheckFailure { .. }

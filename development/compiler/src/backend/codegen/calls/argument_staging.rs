@@ -63,7 +63,7 @@ impl EntryEmitter {
                 ScalarArgument::AggregateIndirect(argument) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_aggregate_argument_source_address_to_x(
-                        argument.source,
+                        argument.source.clone(),
                         XReg::X16,
                         frame,
                     )?;
@@ -85,7 +85,7 @@ impl EntryEmitter {
                         )?;
                         let slot = staging_slot(frame, register_index)?;
                         self.emit_direct_aggregate_argument_word_to_staging_slot(
-                            argument.source,
+                            argument.source.clone(),
                             argument.layout,
                             word_index,
                             slot,

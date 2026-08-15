@@ -766,6 +766,10 @@ fn lower_readonly_temporary_borrow_source(
                     instructions,
                     BorrowSource::AggregateSlotField { slot_index, offset },
                 )),
+                AggregateArgumentSource::SlotIndex { .. } => Err(vec![Diagnostic::error(
+                    "E8008",
+                    "indexed aggregate borrow arguments require checked MIR",
+                )]),
             }
         }
         _ => Err(unsupported_borrow_argument_diagnostic(

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::{AggregateIndex, AggregateRange};
 
 #[test]
 fn aggregate_range_copy_from_stack_passed_direct_parameter_reads_unaligned_bytes() {
@@ -402,6 +403,57 @@ fn aggregate_copy_from_slot_to_slot_copies_words_between_stack_slots() {
     assert!(contains_instruction(
         &code.text,
         encoded_str_x_sp(XReg::X16, 16)
+    ));
+}
+
+#[test]
+fn projected_aggregate_copy_preserves_both_checked_index_addresses() {
+    let element = ValueLayout::new(4, 4);
+    let array = ValueLayout::new(8, 4);
+    let module = IrModule::new(vec![Function {
+        name: "main".to_string(),
+        target: CallTarget::same_file("main"),
+        return_type: Type::I32,
+        instructions: vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: array,
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: array,
+            },
+            Instruction::CopyAggregateProjected {
+                destination: AggregateRange {
+                    location: AggregateLocation::Slot(0),
+                    offset: 0,
+                    index: Some(AggregateIndex {
+                        value: UsizeValue::Const(0),
+                        length: 2,
+                        stride: 4,
+                    }),
+                },
+                source: AggregateRange {
+                    location: AggregateLocation::Slot(1),
+                    offset: 0,
+                    index: Some(AggregateIndex {
+                        value: UsizeValue::Const(1),
+                        length: 2,
+                        stride: 4,
+                    }),
+                },
+                layout: element,
+            },
+            set_return_i32(0),
+            Instruction::Return,
+        ],
+    }]);
+
+    let code = generate_arm64_darwin_entry(&module).unwrap();
+
+    assert!(contains_instruction(
+        &code.text,
+        encoded_mov_x(XReg::X14, XReg::X17)
     ));
 }
 

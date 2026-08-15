@@ -866,6 +866,32 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 );
             }
         }
+        Instruction::CopyAggregateProjected {
+            destination,
+            source,
+            layout,
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    destination.location,
+                    destination.offset,
+                    layout.size,
+                    requests,
+                );
+                record_aggregate_location_parameter_spill_request(
+                    source.location,
+                    source.offset,
+                    layout.size,
+                    requests,
+                );
+                if let Some(index) = &destination.index {
+                    record_usize_value_parameter_spill_requests(&index.value, requests);
+                }
+                if let Some(index) = &source.index {
+                    record_usize_value_parameter_spill_requests(&index.value, requests);
+                }
+            }
+        }
         Instruction::SetI32 { value, .. } => {
             if include_value_parameters {
                 record_i32_value_parameter_spill_requests(value, requests);

@@ -465,6 +465,7 @@ fn aggregate_call_argument_slots(instruction: &Instruction) -> HashSet<usize> {
         .filter_map(|source| match source {
             AggregateArgumentSource::Slot(slot) => Some(*slot),
             AggregateArgumentSource::SlotField { .. } => None,
+            AggregateArgumentSource::SlotIndex { .. } => None,
         })
         .collect()
 }
