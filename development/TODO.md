@@ -2,29 +2,14 @@
 
 ## Current Task
 
-v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The production MIR route now owns
-the scalar control-flow subset described below, nested value/recovery blocks, scalar borrow
-bindings and lexical loan endings, borrow-parameter forwarding, copy aggregate call-result locals,
-fields, forwarding, fixed-array index loans, payload-variant construction, and active-tag cleanup
-for enums and outcomes. One construction context owns mutable MIR state and one backend
-context projects the checked body. MIR construction and validation are authoritative after route
-selection; buildability and machine-IR lowering consume the same retained body and identity-backed
-call edges. Call edges now retain a semantic callable instance: canonical declaration identity,
-an optional concrete receiver type, and ordered concrete type arguments. Generic calls no longer
-collapse multiple runtime specializations into one `DefId -> name` entry, and buildability and
-machine lowering project the same instance key. Stored outcome call results now use checked
-aggregate MIR locals and single-layer
-inspection uses one semantic MIR terminator shared by initialization, ownership, loan, cleanup, and
-backend projection. Recursive machine layout remains backend-only. Optional and composed stored
-values also forward through an ownership-aware MIR return edge, and `error.new` failure returns use
-logical string-view operands. The next boundary is composed and aggregate payload inspection plus
-fallible stored forwarding and forwarded or nested failure-value returns; do not put tag or
-payload offsets in MIR. After that, expand closures, typed literals, interpolation,
-expansion, and iteration until the AST lowering/buildability routes can be deleted. Do not add
-language features or standard-library APIs during the migration. The
-v0.13.0 tag, archive, release notes, and qualification record are immutable.
+v0.14.0 Phases 0 through 3 are complete. Checked MIR is now the sole production execution model:
+buildability constructs and validates reachable specialized bodies, and machine-IR lowering
+projects the same retained bodies. The temporary feature routers and AST-driven body
+buildability/lowering families have been deleted. Phase 4 backend convergence is next; it should
+reduce projection duplication without changing language behavior or the published v0.13.0
+artifacts.
 
-## Active v0.14.0 Phase 3 MIR Checkpoint
+## Completed v0.14.0 Phase 3 MIR Checkpoint
 
 - MIR body-local identities, places, checked scalar locals, operands, arithmetic and comparison
   rvalues, basic blocks, `Goto`, `Switch`, direct `Call`, and `Return` are implemented and
@@ -33,8 +18,8 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   `TyId` and its checked scalar representation
 - typed expressions retain intrinsic and contextual `TyId` separately, so lowering consumes the
   checked effective type without rewriting the expression's authored type
-- entry and ordinary functions share one route selector; selected MIR failures never fall back to
-  AST lowering
+- entry and ordinary functions share the checked MIR construction boundary; MIR failures never
+  fall back to AST lowering
 - scalar `if` expressions and terminal `if` statements produce the same diamond and return join
 - one compile-unit cache retains checked MIR for buildability and lowering; MIR-routed bodies bypass
   AST buildability traversal, and calls carry canonical `DefId` targets plus explicit returning or
@@ -224,14 +209,16 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - expression-valued conditional construction is representation-independent; scalar, string-view,
   and aggregate branches use the same destination-and-join CFG builder, including leading effects
   and branch-local or shared ownership cleanup
-- the next checkpoint migrates stored optional/fallible values, failure-value returns, and the
-  remaining advanced-expression families
+- stored optional/fallible values, failure-value returns, closures, literals, interpolation,
+  expansion, and iteration all use the checked MIR route
 - value blocks retain whether their tail is an implicit value or an explicit `return`; terminal
   recovery branches write return storage and exit, while value fallbacks assign the call
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,667 library tests pass at this checkpoint
+- static error-helper payloads are derived from checked MIR, eliminating the last AST body-pattern
+  exception in buildability and machine projection
+- all 2,028 library tests and 223 distributed installed-home tests pass at completion
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 
@@ -869,5 +856,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan the next v0.13.0 phase before implementation. Do not alter the published v0.12.0 archive,
-tag, or qualification evidence; published artifacts remain immutable.
+Plan v0.14.0 Phase 4 backend convergence before implementation. Do not alter published release
+archives, tags, release notes, or qualification evidence; published artifacts remain immutable.

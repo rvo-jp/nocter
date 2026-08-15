@@ -12,8 +12,8 @@ graph. Definitions were variously identified by a `ByteSpan`, canonical type str
 synthetic method name, resolver-local `SymbolId`, or stable editor span. Phase 0 replaced source
 declaration and body equality with a compile-unit identity domain. Phase 1 made type checking own
 an error-tolerant typed result. Phase 2 moved editor projection and the remaining type-occurrence
-and binding identity to semantic indexes. Phase 3 replaces AST-shaped control-flow lowering with
-MIR.
+and binding identity to semantic indexes. Phase 3 replaced AST-shaped control-flow lowering with
+checked MIR.
 
 The migration makes identity and semantic ownership explicit. It does not hide the existing split
 behind more helper functions.
@@ -132,7 +132,8 @@ Divergence is retained independently from contextual type. A call returning `nev
 scalar return context, but its MIR continuation is still non-returning. MIR construction therefore
 does not inspect a type alias or compare an authored type name with the string `never`.
 
-Phase 3 constructs checked MIR once per `BodyId` and retains it in the compile-unit analysis.
+Phase 3 constructs checked MIR once per specialized `BodyId` and retains it in compile-unit
+analysis.
 Buildability follows `DefId` call edges in that body, while machine-IR lowering consumes the same
 validated object. Returning calls identify their result place and successor block; non-returning
 calls have no fabricated destination or successor. A trapping fallible call identifies distinct

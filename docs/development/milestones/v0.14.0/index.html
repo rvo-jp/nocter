@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.14.0 Semantic Architecture Migration - Nocter</title>
-    <meta name="description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
+    <meta name="description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0/">
@@ -13,19 +13,19 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta property="og:description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
+    <meta property="og:description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-14">
+    <meta property="article:modified_time" content="2026-08-15">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
+    <meta name="twitter:description" content="Status: Phases 0 through 3 complete. Phase 4 is next.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-14","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 3 complete. Phase 4 is next.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -138,7 +138,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
+                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 3 complete. Phase 4 is next.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
   semantic identities by inventing source names or treating byte ranges as identifiers.</li><li>Each compile-unit definition, body, expression, type, requirement, intrinsic, and monomorphized
   item receives a typed ID from one semantic database.</li><li>A span is location metadata owned by the database. It may diagnose or navigate an ID, but map
   equality on spans must not decide whether two semantic entities are identical.</li><li>The checker produces the semantic result consumed by ownership, provenance, LSP, specialization,
@@ -218,7 +218,7 @@ InstanceMember::Coercion(CoercionDecl)
    <code>catch</code>, and <code>otherwise</code> without terminal/nonterminal lowering variants.</li><li>Add aggregate places and projections, moves, borrows, loans, initialization/drop flags, and
    explicit cleanup edges. Migrate records, variants, arrays, fields, indexing, and destructors.</li><li>Migrate regions, closures, typed literals, interpolation, collection expansion, and iteration.
    Lower MIR to the existing machine IR and delete each AST-driven lowering family when its MIR
-   route becomes authoritative.</li></ol><h3 id="implemented-checkpoint">Implemented Checkpoint</h3><ul><li><code>mir</code> owns body-local <code>LocalId</code>, <code>BasicBlockId</code>, and <code>ScopeId</code> domains, typed scalar locals,
+   route becomes authoritative.</li></ol><h3 id="completion-record-4">Completion Record</h3><ul><li><code>mir</code> owns body-local <code>LocalId</code>, <code>BasicBlockId</code>, and <code>ScopeId</code> domains, typed scalar locals,
   places, constants, copy operands, arithmetic and comparison rvalues, assignments, <code>Goto</code>,
   <code>Switch</code>, direct <code>Call</code>, failure propagation, loops, and <code>Return</code>.</li><li>MIR locals retain <code>LocalSymbolId</code> for parameters and bindings, <code>ExprId</code> for temporaries, <code>TyId</code>
   for checked type equality, and independent checked representation, ownership, logical-storage,
@@ -277,10 +277,8 @@ InstanceMember::Coercion(CoercionDecl)
   blocks or flattening outcome success and failure into one state.</li><li>Cleanup selects whole owned roots when available and maximal remaining owned projections after a
   partial move. This prevents both whole-value destruction of moved storage and loss of sibling
   field destructors.</li><li>Primitive lowering now uses a closed <code>IntrinsicId</code> after resolution. Pointer, view, process,
-  allocation, I/O, and syscall operations no longer select backend behavior with string equality.</li><li>Nongeneric scalar functions route through MIR when their bodies contain supported parameters,
-  bindings, assignments, arithmetic, and value or terminal conditionals. Once selected, MIR
-  construction or validation failure is authoritative; the route does not fall back to the
-  AST-driven lowerer.</li><li>Value <code>if</code> and terminal <code>if</code> normalize to the same control-flow diamond with one return join.
+  allocation, I/O, and syscall operations no longer select backend behavior with string equality.</li><li>Every executable body is built and validated through MIR. A construction or validation failure
+  is authoritative; no AST-driven buildability or machine-IR fallback remains.</li><li>Value <code>if</code> and terminal <code>if</code> normalize to the same control-flow diamond with one return join.
   The same conditional builder handles nested values inside arithmetic and call arguments, assigns
   both child scopes into one destination place, and rejoins in the parent scope. Nested scalar
   evaluation uses explicit MIR temporaries, so evaluation order is not reconstructed by backend
@@ -294,7 +292,7 @@ InstanceMember::Coercion(CoercionDecl)
   edge; late machine-storage projection expands that value into code and message views. Named
   catches use typed <code>BuiltinErrorField</code> projections for code and message views, so those views may
   flow into ordinary call arguments without exposing their machine offsets. Returning the complete
-  error payload remains on the legacy route until MIR owns failure-return values.</li><li><code>str</code> is the first nonnumeric MIR view representation. String literals, source parameters,
+  error payload uses the same logical MIR value and typed projections as failure returns.</li><li><code>str</code> is the first nonnumeric MIR view representation. String literals, source parameters,
   ordinary calls, aliases, and returns keep logical locals while late storage projection assigns
   their two ABI words; pointer borrows and string views are no longer conflated.</li><li>Boolean <code>&amp;&amp;</code> and <code>||</code> normalize to a MIR switch, a selected right-hand or constant
   short-circuit path, and one join. Right-hand calls and failures therefore cannot be evaluated by
@@ -310,19 +308,16 @@ InstanceMember::Coercion(CoercionDecl)
   parallel state references through every recursive lowering call.</li><li>Scalar value blocks use one statement-plus-tail normalization path in conditional branches and
   outcome recovery. Leading bindings and nested conditionals no longer fall back to an AST route;
   backend structuring discovers the nearest shared MIR join recursively rather than requiring a
-  one-block failure path.</li><li>Outcome recovery enters that value-block route only when the fallback has an implicit result.
-  A fallback whose last statement is an explicit <code>return</code> remains on the terminal AST route until
-  MIR models terminal recovery directly, so an explicit function exit cannot be misclassified as
-  a value assigned at the recovery join.</li><li>Backend projection preserves one return after a shared terminal join. Redundant tests that fixed
+  one-block failure path.</li><li>Outcome recovery distinguishes implicit values from explicit returns in MIR. An explicit return
+  writes function return storage and exits instead of being assigned at the recovery join.</li><li>Backend projection preserves one return after a shared terminal join. Redundant tests that fixed
   legacy AST-lowering temporary numbers or nested instruction shape were removed; MIR construction
   tests retain short-circuit and evaluation-order semantics, while representative backend tests
   retain the projection boundary.</li><li><code>Drop</code> now names a body-local semantic destruction plan. Plans contain destructor <code>DefId</code>s and
   recursive struct or fixed-array structure, never linker names or machine-IR call targets.
-  Backend projection alone selects runtime symbols and ABI offsets.</li><li>Owned aggregate parameters enter the MIR route, receive path-sensitive cleanup edges, and lower
+  Backend projection alone selects runtime symbols and ABI offsets.</li><li>Owned aggregate parameters enter MIR, receive path-sensitive cleanup edges, and lower
   direct, recursively contained, and reverse-order array element destruction from those plans.
   A move-only type with no runtime destructor retains a no-op plan so ownership consumption is not
-  confused with emitted cleanup code. Payload enums and outcome storage remain outside this
-  checkpoint rather than receiving an incomplete plan.</li><li>MIR validation rejects missing or mismatched local/projection plans, invalid terminator plan
+  confused with emitted cleanup code. Payload enums and outcome storage use the same plan domain.</li><li>MIR validation rejects missing or mismatched local/projection plans, invalid terminator plan
   references, and forward or cyclic plan references.</li><li>Scalar-field struct literals now use an aggregate MIR rvalue. Construction reserves its checked
   ABI slot, stores fields in resolved declaration order, activates the ownership obligation, and
   reaches the same semantic cleanup plan as owned parameters. Branch and loop structuring follow
@@ -374,8 +369,16 @@ InstanceMember::Coercion(CoercionDecl)
   outcome ABI unpacking. Whole-place aggregate copies use the same checked local/location boundary.</li><li>Static and evaluated <code>error.new(code, message)</code> failure returns now terminate MIR with logical
   string-view operands. Evaluation order, initialization, loans, and cleanup are checked before
   backend projection emits <code>ReturnFallibleFailure</code>; the backend no longer parses constructor AST
-  for this route.</li><li>The current checkpoint passes 2,670 library tests, formatting, and warnings-denied Clippy.</li></ul><p>The remaining Phase 3 boundary is substantial: composed and aggregate stored-outcome inspection, fallible stored-outcome forwarding, forwarded failure values and failure returns inside nested handlers, closure values and calls, typed literals, interpolation, collection expansion, and iteration still use their existing AST-driven routes.</p><p>The migration may use an explicit feature router while coverage is incomplete. A construct routed to MIR must never fall back after a MIR error, and its old construct-specific route is removed in the same checkpoint. Differential tests may compare routes during a checkpoint; two production authorities may not remain afterward.</p><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 4 — Backend Convergence:</strong> lower MIR to machine IR, replace string primitive dispatch
-  with <code>IntrinsicId</code>, unify integer execution paths, and retire AST-shape buildability checks.</li><li><strong>Phase 5 — Stabilization:</strong> remove migration adapters, narrow lint exceptions, consolidate tests
+  for this route.</li><li>Buildability now walks reachable MIR call instances and validates the retained body used by
+  machine-IR projection. Static error helpers are classified from checked MIR rather than by a
+  special AST body parser.</li><li>Closures, typed literals, interpolation, expansion, iteration, composed outcomes, aggregate
+  indexing, and specialized calls all use the same production MIR route.</li><li>The temporary feature routers and AST-driven buildability and lowering families were deleted.
+  Machine-IR projection reads checked MIR and uses source blocks only at the separate cache/build
+  boundary; it never inspects source expressions or statements for execution semantics.</li><li>The complete verification matrix passes after the migration, including 2,028 library tests and
+  223 distributed installed-home tests, formatting, warnings-denied Clippy, documentation
+  generation, and diff checks.</li></ul><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 4 — Backend Convergence:</strong> replace string-based primitive dispatch with <code>IntrinsicId</code>,
+  centralize checked-type-to-ABI projection, unify duplicated integer and aggregate projection
+  paths, and remove backend adapters that restate MIR contracts.</li><li><strong>Phase 5 — Stabilization:</strong> remove migration adapters, narrow lint exceptions, consolidate tests
   around the new boundaries, qualify, and publish v0.14.0.</li></ul>
             </div>
         </main>
