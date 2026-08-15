@@ -91,5 +91,10 @@ pub(in crate::typecheck::returns) fn define_collection_iteration_item_provenance
         || item_provenance
             .as_ref()
             .is_some_and(ValueProvenance::has_storage_dependency);
-    borrow_provenance.define_binding(statement.name_span, contains_storage, item_provenance);
+    borrow_provenance.define_binding_at(
+        resolved,
+        statement.name_span,
+        contains_storage,
+        item_provenance,
+    );
 }

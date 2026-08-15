@@ -88,7 +88,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
     borrow_provenance: &ProvenanceEnvironment,
 ) -> Option<ValueProvenance> {
     let local_symbol = resolved.local_symbol_for_identifier(identifier)?;
-    if let Some(provenance) = borrow_provenance.get(local_symbol.name_span) {
+    if let Some(provenance) = borrow_provenance.get(local_symbol.id) {
         return Some(provenance.clone());
     }
 

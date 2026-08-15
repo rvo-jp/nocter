@@ -27,5 +27,10 @@ pub(in crate::typecheck::returns) fn define_literal_pack_item_provenance(
     } else {
         None
     };
-    borrow_provenance.define_binding(statement.name_span, contains_storage, provenance);
+    borrow_provenance.define_binding_at(
+        resolved,
+        statement.name_span,
+        contains_storage,
+        provenance,
+    );
 }

@@ -976,7 +976,8 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     crate::typecheck::regions::region_id(statement),
                     format!("region `{}`", statement.name),
                 );
-                body_provenance.define_binding(
+                body_provenance.define_binding_at(
+                    resolved,
                     statement.name_span,
                     true,
                     Some(ValueProvenance::region(

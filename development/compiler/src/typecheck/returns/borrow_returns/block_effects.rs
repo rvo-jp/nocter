@@ -76,7 +76,8 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                 binding_type.clone(),
                 binding_kind_is_mutable(statement.kind),
             );
-            borrow_provenance.define_binding(
+            borrow_provenance.define_binding_at(
+                resolved,
                 statement.name_span,
                 type_contains_borrow_like(&binding_type, resolved)
                     || provenance
@@ -98,7 +99,8 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                     summaries,
                 );
                 if let Some(symbol) = resolved.local_symbol_for_identifier(identifier) {
-                    borrow_provenance.define_binding(
+                    borrow_provenance.define_binding_at(
+                        resolved,
                         symbol.name_span,
                         type_contains_borrow_like(target_type, resolved)
                             || provenance
@@ -122,7 +124,7 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                     value_provenance,
                 ) {
                     let mut next = borrow_provenance
-                        .get(symbol.name_span)
+                        .get(symbol.id)
                         .cloned()
                         .unwrap_or_else(|| {
                             if matches!(symbol.kind, LocalSymbolKind::Parameter) {
@@ -135,7 +137,12 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                             }
                         });
                     next.merge(&value_provenance);
-                    borrow_provenance.define_binding(symbol.name_span, true, Some(next));
+                    borrow_provenance.define_binding_at(
+                        resolved,
+                        symbol.name_span,
+                        true,
+                        Some(next),
+                    );
                 }
             }
         }
@@ -339,7 +346,8 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                 crate::typecheck::regions::region_id(statement),
                 format!("region `{}`", statement.name),
             );
-            body_provenance.define_binding(
+            body_provenance.define_binding_at(
+                resolved,
                 statement.name_span,
                 true,
                 Some(ValueProvenance::region(
@@ -426,7 +434,7 @@ pub(in crate::typecheck::returns) fn define_payload_borrow_return_binding(
     summaries: &CallableProvenanceSummaries,
 ) {
     let Some(binding_type) = payload_environment.get(&binding.name) else {
-        borrow_provenance.define_binding(binding.span, false, None);
+        borrow_provenance.define_binding_at(resolved, binding.span, false, None);
         return;
     };
     let contains_borrow_like = type_contains_borrow_like(binding_type, resolved);
@@ -441,5 +449,10 @@ pub(in crate::typecheck::returns) fn define_payload_borrow_return_binding(
             summaries,
         )
     });
-    borrow_provenance.define_binding(binding.span, contains_borrow_like, provenance.flatten());
+    borrow_provenance.define_binding_at(
+        resolved,
+        binding.span,
+        contains_borrow_like,
+        provenance.flatten(),
+    );
 }

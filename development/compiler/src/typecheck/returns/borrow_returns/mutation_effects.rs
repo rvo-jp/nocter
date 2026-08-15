@@ -103,7 +103,10 @@ fn retain_input_mutation(
     summaries: &mut CallableProvenanceSummaries,
     callable: CallableId,
 ) {
-    let Some(provenance) = environment.get(input_span).cloned() else {
+    let Some(symbol) = resolved.local_symbol_id_at_name_span(input_span) else {
+        return;
+    };
+    let Some(provenance) = environment.get(symbol).cloned() else {
         return;
     };
     let retained = provenance.retain_only_result_allocations();
@@ -184,18 +187,15 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
         ) else {
             continue;
         };
-        let mut next = provenance
-            .get(symbol.name_span)
-            .cloned()
-            .unwrap_or_else(|| {
-                if matches!(symbol.kind, LocalSymbolKind::Parameter) {
-                    ValueProvenance::input(InputId::resolved_at(resolved, symbol.name_span))
-                } else {
-                    ValueProvenance::Independent
-                }
-            });
+        let mut next = provenance.get(symbol.id).cloned().unwrap_or_else(|| {
+            if matches!(symbol.kind, LocalSymbolKind::Parameter) {
+                ValueProvenance::input(InputId::resolved_at(resolved, symbol.name_span))
+            } else {
+                ValueProvenance::Independent
+            }
+        });
         next.merge(&instantiated);
-        provenance.define_binding(symbol.name_span, true, Some(next));
+        provenance.define_binding_at(resolved, symbol.name_span, true, Some(next));
     }
 }
 

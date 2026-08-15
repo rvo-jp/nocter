@@ -2,7 +2,7 @@ use crate::semantic::DefId;
 use crate::source::ByteSpan;
 use crate::typecheck::model::Type;
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(in crate::typecheck) struct CallableId(DefId);
@@ -481,8 +481,8 @@ impl LexicalRegionTree {
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::typecheck) struct ProvenanceEnvironment {
-    bindings: HashMap<ByteSpan, ValueProvenance>,
-    known_bindings: HashSet<ByteSpan>,
+    bindings: HashMap<crate::resolve::LocalSymbolId, ValueProvenance>,
+    binding_locations: HashMap<crate::resolve::LocalSymbolId, ByteSpan>,
     current_region: Option<(RegionId, String)>,
 }
 
@@ -498,33 +498,45 @@ impl ProvenanceEnvironment {
             .unwrap_or_else(ValueProvenance::current_allocation_context)
     }
 
-    pub(in crate::typecheck) fn get(&self, binding: ByteSpan) -> Option<&ValueProvenance> {
+    pub(in crate::typecheck) fn get(
+        &self,
+        binding: crate::resolve::LocalSymbolId,
+    ) -> Option<&ValueProvenance> {
         self.bindings.get(&binding)
     }
 
-    pub(in crate::typecheck) fn define_binding(
+    pub(in crate::typecheck) fn define_binding_at(
         &mut self,
+        resolved: &crate::resolve::ResolveOutput,
         binding: ByteSpan,
         contains_storage: bool,
         provenance: Option<ValueProvenance>,
     ) {
-        self.known_bindings.insert(binding);
+        let Some(symbol) = resolved.local_symbol_id_at_name_span(binding) else {
+            return;
+        };
+        self.binding_locations.insert(symbol, binding);
         if contains_storage {
             if let Some(provenance) = provenance {
-                self.bindings.insert(binding, provenance);
+                self.bindings.insert(symbol, provenance);
             } else {
-                self.bindings.remove(&binding);
+                self.bindings.remove(&symbol);
             }
         } else {
-            self.bindings.remove(&binding);
+            self.bindings.remove(&symbol);
         }
     }
 
     pub(in crate::typecheck) fn join_reachable(&mut self, states: &[ProvenanceEnvironment]) {
         let mut joined = HashMap::new();
-        let mut known = self.known_bindings.clone();
+        let mut locations = self.binding_locations.clone();
         for state in states {
-            known.extend(state.known_bindings.iter().copied());
+            locations.extend(
+                state
+                    .binding_locations
+                    .iter()
+                    .map(|(id, span)| (*id, *span)),
+            );
             for (binding, provenance) in &state.bindings {
                 joined
                     .entry(*binding)
@@ -533,11 +545,11 @@ impl ProvenanceEnvironment {
             }
         }
         self.bindings = joined;
-        self.known_bindings = known;
+        self.binding_locations = locations;
     }
 
     pub(in crate::typecheck) fn update_existing_from(&mut self, state: &ProvenanceEnvironment) {
-        for binding in self.known_bindings.clone() {
+        for binding in self.binding_locations.keys().copied().collect::<Vec<_>>() {
             if let Some(next) = state.bindings.get(&binding) {
                 self.bindings.insert(binding, next.clone());
             } else {
@@ -551,13 +563,15 @@ impl ProvenanceEnvironment {
         state: &'a ProvenanceEnvironment,
         region: RegionId,
     ) -> Option<(ByteSpan, &'a str)> {
-        self.known_bindings.iter().find_map(|binding| {
-            state
-                .bindings
-                .get(binding)?
-                .first_region_origin(|candidate| candidate == region)
-                .map(|(_, description)| (*binding, description))
-        })
+        self.binding_locations
+            .iter()
+            .find_map(|(binding, location)| {
+                state
+                    .bindings
+                    .get(binding)?
+                    .first_region_origin(|candidate| candidate == region)
+                    .map(|(_, description)| (*location, description))
+            })
     }
 }
 
@@ -793,6 +807,26 @@ mod tests {
 
         assert!(tree.is_same_or_nested_within(inner, outer));
         assert!(!tree.is_same_or_nested_within(sibling, outer));
+    }
+
+    #[test]
+    fn provenance_bindings_do_not_merge_distinct_local_symbols() {
+        let first = crate::resolve::LocalSymbolId::for_test(1);
+        let second = crate::resolve::LocalSymbolId::for_test(2);
+        let mut environment = ProvenanceEnvironment::default();
+        environment
+            .bindings
+            .insert(first, ValueProvenance::static_storage());
+        environment.bindings.insert(
+            second,
+            ValueProvenance::scope(span(7), "shadowed binding".into()),
+        );
+
+        assert_eq!(
+            environment.get(first),
+            Some(&ValueProvenance::static_storage())
+        );
+        assert_ne!(environment.get(first), environment.get(second));
     }
 
     #[test]

@@ -63,7 +63,8 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 binding_type.clone(),
                 binding_kind_is_mutable(statement.kind),
             );
-            borrow_provenance.define_binding(
+            borrow_provenance.define_binding_at(
+                resolved,
                 statement.name_span,
                 type_contains_borrow_like(&binding_type, resolved)
                     || provenance
@@ -105,7 +106,8 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                     summaries,
                 );
                 if let Some(symbol) = resolved.local_symbol_for_identifier(identifier) {
-                    borrow_provenance.define_binding(
+                    borrow_provenance.define_binding_at(
+                        resolved,
                         symbol.name_span,
                         type_contains_borrow_like(target_type, resolved)
                             || provenance
@@ -432,7 +434,8 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 crate::typecheck::regions::region_id(statement),
                 format!("region `{}`", statement.name),
             );
-            body_borrow_provenance.define_binding(
+            body_borrow_provenance.define_binding_at(
+                resolved,
                 statement.name_span,
                 true,
                 Some(ValueProvenance::region(
