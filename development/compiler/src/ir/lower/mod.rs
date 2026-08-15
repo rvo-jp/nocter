@@ -7,6 +7,7 @@ mod entry;
 mod errors;
 mod functions;
 mod mir;
+mod parameter_slots;
 mod reachability;
 mod types;
 

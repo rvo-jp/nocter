@@ -6,7 +6,7 @@
 
 use crate::ast::Parameter;
 
-pub(super) use super::super::context::ParameterStorage;
+pub(super) use super::super::parameter_slots::ParameterStorage;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ParameterProjection {
@@ -17,7 +17,7 @@ pub(super) struct ParameterProjection {
 impl ParameterProjection {
     pub(super) fn from_slots(
         parameters: &[Parameter],
-        slots: &super::super::context::LoweringParameterSlots,
+        slots: &super::super::parameter_slots::LoweringParameterSlots,
     ) -> Option<Self> {
         if parameters.len() != slots.source_storage().len() {
             return None;
@@ -72,9 +72,9 @@ mod tests {
 
     #[test]
     fn scalar_parameter_uses_abi_word_position_not_source_ordinal() {
-        let mut slots = super::super::super::context::LoweringParameterSlots::default();
+        let mut slots = super::super::super::parameter_slots::LoweringParameterSlots::default();
         slots.push_empty_abi_word();
-        slots.push_i32_parameter("value".to_string());
+        slots.push_i32_parameter();
 
         let projection = ParameterProjection::from_slots(&[parameter("value")], &slots).unwrap();
 
@@ -86,8 +86,8 @@ mod tests {
 
     #[test]
     fn u8_parameter_uses_its_dedicated_abi_slot() {
-        let mut slots = super::super::super::context::LoweringParameterSlots::default();
-        slots.push_u8_parameter("value".to_string());
+        let mut slots = super::super::super::parameter_slots::LoweringParameterSlots::default();
+        slots.push_u8_parameter();
 
         let projection = ParameterProjection::from_slots(&[parameter("value")], &slots).unwrap();
 
@@ -99,21 +99,21 @@ mod tests {
 
     #[test]
     fn stored_outcome_parameter_uses_aggregate_staging_slot() {
-        let mut slots = super::super::super::context::LoweringParameterSlots::default();
+        let mut slots = super::super::super::parameter_slots::LoweringParameterSlots::default();
         let layout = crate::outcomes::storage::outcome_storage_layout(
             &[crate::outcomes::OutcomeLayer::Optional],
             ValueLayout::new(4, 4),
         );
-        slots
-            .outcomes
-            .push(super::super::super::context::LoweringOutcomeParameter {
+        slots.outcomes.push(
+            super::super::super::parameter_slots::LoweringOutcomeParameter {
                 name: "value".to_string(),
                 storage: layout.clone(),
                 slot_index: 0,
-                source: super::super::super::context::AggregateParameterSource::Indirect {
+                source: super::super::super::parameter_slots::AggregateParameterSource::Indirect {
                     parameter_index: 0,
                 },
-            });
+            },
+        );
         slots.push_source_storage(ParameterStorage::Aggregate {
             slot_index: 0,
             layout: layout.layout,

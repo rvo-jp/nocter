@@ -37,51 +37,39 @@ pub(in crate::ir::lower) fn lower_scalar_parameters(
             attach_primary_span_if_absent(diagnostics, sources, parameter.span)
         })? {
             ScalarParameterKind::I32 => {
-                slots.push_i32_parameter(parameter.name.clone());
+                slots.push_i32_parameter();
             }
             ScalarParameterKind::U8 => {
-                slots.push_u8_parameter(parameter.name.clone());
+                slots.push_u8_parameter();
             }
             ScalarParameterKind::Usize => {
-                slots.push_usize_parameter(parameter.name.clone());
+                slots.push_usize_parameter();
             }
             ScalarParameterKind::Integer(kind) => {
-                slots.push_integer_parameter(parameter.name.clone(), kind);
+                slots.push_integer_parameter(kind);
             }
             ScalarParameterKind::Bool => {
-                slots.push_bool_parameter(parameter.name.clone());
+                slots.push_bool_parameter();
             }
             ScalarParameterKind::Str => {
-                slots.push_str_parameter(parameter.name.clone());
+                slots.push_str_parameter();
                 slots.push_empty_abi_word();
             }
-            ScalarParameterKind::Slice(info) => {
-                slots.push_slice_parameter(
-                    parameter.name.clone(),
-                    info.element_kind,
-                    info.element_type,
-                );
+            ScalarParameterKind::Slice(_info) => {
+                slots.push_slice_parameter();
                 slots.push_empty_abi_word();
             }
             ScalarParameterKind::Error => {
-                slots.push_error_parameter(parameter.name.clone());
+                slots.push_error_parameter();
             }
             ScalarParameterKind::Borrow => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
-                slots.borrow_parameters.push(BorrowParameter {
-                    name: parameter.name.clone(),
-                    parameter_index,
-                });
                 slots.push_source_storage(ParameterStorage::Borrow {
                     abi_index: parameter_index,
                 });
             }
             ScalarParameterKind::BorrowAggregate { .. } => {
                 let parameter_index = slots.reserve_empty_abi_words(1);
-                slots.aggregate_borrows.push(AggregateBorrowParameter {
-                    name: parameter.name.clone(),
-                    parameter_index,
-                });
                 slots.push_source_storage(ParameterStorage::Borrow {
                     abi_index: parameter_index,
                 });

@@ -110,7 +110,7 @@ fn lower_entry_parts(
                 })
                 .collect::<Vec<_>>()
         })?;
-    let parameter_slots = super::context::LoweringParameterSlots::default();
+    let parameter_slots = super::parameter_slots::LoweringParameterSlots::default();
     let instructions = super::mir::lower_body(
         mir_bodies,
         body,

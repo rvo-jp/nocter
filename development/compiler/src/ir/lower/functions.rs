@@ -1,9 +1,9 @@
 //! Callable ABI projection and MIR-backed entry points.
 
-use super::context::{
-    AggregateBorrowParameter, AggregateParameterSource, BorrowParameter, ErrorPayloads,
-    FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringOutcomeParameter,
-    LoweringParameterSlots, ParameterStorage, ResolvedSources, SliceTypeInfo,
+use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, ResolvedSources};
+use super::parameter_slots::{
+    AggregateParameterSource, LoweringAggregateParameter, LoweringOutcomeParameter,
+    LoweringParameterSlots, ParameterStorage, SliceTypeInfo,
 };
 use super::types::{
     borrow_inner_type_with_resolver, borrow_type_from_type_expr,

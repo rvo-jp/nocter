@@ -70,7 +70,7 @@ pub(super) fn lower_body(
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
     error_payloads: &super::context::ErrorPayloads,
-    parameter_slots: &super::context::LoweringParameterSlots,
+    parameter_slots: &super::parameter_slots::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -139,7 +139,7 @@ pub(super) fn lower_literal_body(
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
     error_payloads: &super::context::ErrorPayloads,
-    parameter_slots: &super::context::LoweringParameterSlots,
+    parameter_slots: &super::parameter_slots::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -218,7 +218,7 @@ pub(super) fn lower_closure_body(
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
     error_payloads: &super::context::ErrorPayloads,
-    parameter_slots: &super::context::LoweringParameterSlots,
+    parameter_slots: &super::parameter_slots::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
