@@ -22,6 +22,7 @@ semantic_id!(BodyId);
 semantic_id!(ExprId);
 semantic_id!(StmtId);
 semantic_id!(SemanticSiteId);
+semantic_id!(MonoItemId);
 semantic_id!(OpaqueTypeId);
 semantic_id!(TyId);
 

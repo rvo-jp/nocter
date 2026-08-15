@@ -124,10 +124,7 @@ type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
 #[derive(Default)]
 struct CallableNames {
     definitions: HashMap<DefId, String>,
-    instances: HashMap<crate::mir::CallInstanceKey, String>,
-    unqualified_receiver_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
-    receiver_determined_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
-    unqualified_receiver_determined_instances: HashMap<crate::mir::CallInstanceKey, Option<String>>,
+    instances: crate::mir::MonoItemRegistry<String>,
 }
 
 impl CallableNames {
@@ -136,22 +133,6 @@ impl CallableNames {
     }
 
     fn insert_instance(&mut self, instance: crate::mir::CallInstanceKey, name: String) {
-        let unqualified = instance.with_unqualified_receiver();
-        insert_unique_name(
-            &mut self.unqualified_receiver_instances,
-            unqualified.clone(),
-            &name,
-        );
-        insert_unique_name(
-            &mut self.receiver_determined_instances,
-            instance.without_type_arguments(),
-            &name,
-        );
-        insert_unique_name(
-            &mut self.unqualified_receiver_determined_instances,
-            unqualified.without_type_arguments(),
-            &name,
-        );
         self.instances.insert(instance, name);
     }
 
@@ -164,53 +145,15 @@ impl CallableNames {
         instance: &crate::mir::CallInstance,
         typed_hir: &TypedHir,
     ) -> Option<&String> {
-        if let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
-            && let Some(name) = self.get(definition)
+        if instance.receiver.is_none()
+            && instance.type_arguments.is_empty()
+            && let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
         {
-            return Some(name);
+            return self.get(definition);
         }
         let key = crate::mir::CallInstanceKey::from_instance(instance, typed_hir);
-        key.as_ref()
-            .and_then(|key| self.instances.get(key))
-            .or_else(|| {
-                key.as_ref()
-                    .map(|key| key.with_unqualified_receiver())
-                    .and_then(|key| self.unqualified_receiver_instances.get(&key))
-                    .and_then(Option::as_ref)
-            })
-            .or_else(|| {
-                key.as_ref()
-                    .map(crate::mir::CallInstanceKey::without_type_arguments)
-                    .and_then(|key| self.receiver_determined_instances.get(&key))
-                    .and_then(Option::as_ref)
-            })
-            .or_else(|| {
-                key.as_ref()
-                    .map(crate::mir::CallInstanceKey::with_unqualified_receiver)
-                    .map(|key| key.without_type_arguments())
-                    .and_then(|key| self.unqualified_receiver_determined_instances.get(&key))
-                    .and_then(Option::as_ref)
-            })
-            .or_else(|| match instance.callable {
-                crate::mir::CallableIdentity::Definition(definition) => self.get(&definition),
-                _ => None,
-            })
+        self.instances.value_for(key.as_ref()?)
     }
-}
-
-fn insert_unique_name<K: std::hash::Hash + Eq>(
-    names: &mut HashMap<K, Option<String>>,
-    key: K,
-    name: &str,
-) {
-    names
-        .entry(key)
-        .and_modify(|existing| {
-            if existing.as_deref() != Some(name) {
-                *existing = None;
-            }
-        })
-        .or_insert_with(|| Some(name.to_string()));
 }
 
 fn index_typed_hir_callable_names(
@@ -1019,7 +962,7 @@ impl<'a> CallableIndex<'a> {
                 let CallTarget::Imported { source, name } = candidate else {
                     return None;
                 };
-                (call_target_names_match(name, target_name)
+                (name == target_name
                     && self
                         .resolved_sources
                         .get(source)
@@ -1028,12 +971,6 @@ impl<'a> CallableIndex<'a> {
             })
         })
     }
-}
-
-fn call_target_names_match(left: &str, right: &str) -> bool {
-    left == right
-        || crate::mir::runtime_name_with_unqualified_receiver(left)
-            == crate::mir::runtime_name_with_unqualified_receiver(right)
 }
 
 struct IndexedCallable<'a> {

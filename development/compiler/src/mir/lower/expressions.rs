@@ -2033,8 +2033,8 @@ impl LoweringContext<'_> {
         if super::source_model::expression_value_type(expression, self.semantic)
             .and_then(|source_ty| self.semantic.typed_hir.type_expr_by_id(source_ty))
             .is_some_and(|source_ty| {
-                crate::ast::canonical_type_expr(source_ty)
-                    == crate::ast::canonical_type_expr(&receiver_type)
+                crate::semantic::TypeIdentity::of(source_ty)
+                    == crate::semantic::TypeIdentity::of(&receiver_type)
             })
         {
             return self.lower_call_argument(expression, scope);

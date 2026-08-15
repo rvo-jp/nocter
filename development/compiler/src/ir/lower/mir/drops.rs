@@ -484,9 +484,9 @@ fn direct_drop(
     ty: &crate::ast::TypeExpr,
     destructor: crate::semantic::DefId,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let name = context
+    let target = context
         .function_names
-        .name_for_drop(destructor, ty)
+        .target_for_drop(destructor, ty)
         .ok_or_else(|| {
             invalid_mir_diagnostics(format!(
                 "drop target {destructor:?} for `{}` has no indexed runtime name",
@@ -494,13 +494,6 @@ fn direct_drop(
             ))
         })?
         .clone();
-    let source = context
-        .resolved
-        .semantic_db
-        .definition_anchor(destructor)
-        .ok_or_else(|| invalid_mir_diagnostics("drop target has no source anchor"))?
-        .source;
-    let target = super::super::call_target_for_source(source, context.root_source, name);
     let source = match (location, offset) {
         (AggregateLocation::Slot(slot_index), 0) => BorrowSource::AggregateSlot(slot_index),
         (AggregateLocation::Slot(slot_index), offset) => {
@@ -539,18 +532,11 @@ fn direct_indexed_drop(
     ty: &crate::ast::TypeExpr,
     destructor: crate::semantic::DefId,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let name = context
+    let target = context
         .function_names
-        .name_for_drop(destructor, ty)
+        .target_for_drop(destructor, ty)
         .ok_or_else(|| invalid_mir_diagnostics("indexed drop target has no runtime name"))?
         .clone();
-    let source = context
-        .resolved
-        .semantic_db
-        .definition_anchor(destructor)
-        .ok_or_else(|| invalid_mir_diagnostics("indexed drop target has no source anchor"))?
-        .source;
-    let target = super::super::call_target_for_source(source, context.root_source, name);
     let index_value = match &index.value {
         UsizeValue::Const(value) => SliceElementIndex::Const(*value),
         UsizeValue::Location(location) => SliceElementIndex::Location(*location),

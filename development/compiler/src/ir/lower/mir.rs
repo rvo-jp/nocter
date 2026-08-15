@@ -1826,49 +1826,21 @@ fn validate_never_call_return_type(
 
 fn lower_call_target(
     callee: &crate::mir::CallInstance,
-    resolved: &ResolveOutput,
+    _resolved: &ResolveOutput,
     typed_hir: &TypedHir,
     function_names: &super::context::FunctionNames,
-    root_source: SourceId,
+    _root_source: SourceId,
 ) -> Result<(crate::ir::CallTarget, String), Vec<Diagnostic>> {
-    let name = function_names
-        .name_for_instance(callee, typed_hir)
+    let target = function_names
+        .target_for_instance(callee, typed_hir)
         .ok_or_else(|| {
             invalid_mir_diagnostics(format!(
                 "call target has no indexed runtime name: {callee:?}"
             ))
         })?
         .clone();
-    if let Some(target) = function_names.target_alias(&name) {
-        return Ok((target.clone(), name));
-    }
-    let source = match &callee.callable {
-        crate::mir::CallableIdentity::Intrinsic(intrinsic) => {
-            return Err(invalid_mir_diagnostics(format!(
-                "intrinsic `{}` reached ordinary call-target lowering",
-                intrinsic.source_name()
-            )));
-        }
-        crate::mir::CallableIdentity::Definition(definition)
-        | crate::mir::CallableIdentity::Literal { definition, .. } => {
-            resolved
-                .semantic_db
-                .definition_anchor(*definition)
-                .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
-                .source
-        }
-        crate::mir::CallableIdentity::Value { ty, .. } => {
-            typed_hir
-                .type_expr_by_id(*ty)
-                .ok_or_else(|| invalid_mir_diagnostics("callable-value type is missing"))?
-                .span()
-                .source
-        }
-    };
-    Ok((
-        super::call_target_for_source(source, root_source, name.clone()),
-        name,
-    ))
+    let name = super::call_target_name(&target).to_string();
+    Ok((target, name))
 }
 
 fn validate_tail_call_return_type(

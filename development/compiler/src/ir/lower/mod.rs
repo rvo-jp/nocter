@@ -261,7 +261,6 @@ fn lower_reachable_functions(
 struct FunctionIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     resolved_sources: ResolvedSources<'a>,
-    method_target_aliases: Vec<(String, CallTarget)>,
     semantic_db: &'a crate::semantic::SemanticDb,
     callable_bodies: &'a crate::callable_bodies::CallableBodyIndex,
     root_source: SourceId,
@@ -706,24 +705,9 @@ impl<'a> FunctionIndex<'a> {
                 );
             }
         }
-        let method_target_aliases = call_specializations
-            .method_target_aliases
-            .iter()
-            .map(|alias| {
-                (
-                    alias.requested_name.clone(),
-                    call_target_for_source(
-                        alias.declaration_span.source,
-                        root_source,
-                        alias.target_name.clone(),
-                    ),
-                )
-            })
-            .collect();
         Self {
             definitions,
             resolved_sources,
-            method_target_aliases,
             semantic_db: &analysis.semantic_db,
             callable_bodies: &analysis.callable_bodies,
             root_source,
@@ -731,31 +715,23 @@ impl<'a> FunctionIndex<'a> {
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
-        self.definitions
-            .get(target)
-            .or_else(|| {
-                let requested_name = call_target_name(target);
-                self.method_target_aliases
-                    .iter()
-                    .find(|(requested, _)| requested == requested_name)
-                    .and_then(|(_, canonical)| self.definitions.get(canonical))
-            })
-            .or_else(|| {
-                let (target_source, target_name) = match target {
-                    CallTarget::SameFile(name) => (self.root_source, name),
-                    CallTarget::Imported { source, name } => (*source, name),
+        self.definitions.get(target).or_else(|| {
+            let (target_source, target_name) = match target {
+                CallTarget::SameFile(name) => (self.root_source, name),
+                CallTarget::Imported { source, name } => (*source, name),
+            };
+            self.definitions.iter().find_map(|(candidate, callable)| {
+                let CallTarget::Imported { source, name } = candidate else {
+                    return None;
                 };
-                self.definitions.iter().find_map(|(candidate, callable)| {
-                    let CallTarget::Imported { source, name } = candidate else {
-                        return None;
-                    };
-                    (call_target_names_match(name, target_name)
-                        && self.resolved_sources.get(source).is_some_and(|resolved| {
-                            resolved.module_source(*source) == target_source
-                        }))
-                    .then_some(callable)
-                })
+                (name == target_name
+                    && self
+                        .resolved_sources
+                        .get(source)
+                        .is_some_and(|resolved| resolved.module_source(*source) == target_source))
+                .then_some(callable)
             })
+        })
     }
 
     fn signatures(&self) -> FunctionSignatures {
@@ -789,29 +765,49 @@ impl<'a> FunctionIndex<'a> {
     }
 
     fn names(&self) -> FunctionNames {
+        let target_for_definition = |definition: DefId, name: String| {
+            let source = self
+                .semantic_db
+                .definition_anchor(definition)
+                .expect("runtime callable definition must have a source anchor")
+                .source;
+            call_target_for_source(source, self.root_source, name)
+        };
+        let target_for_type = |ty: &TypeExpr, name: String| {
+            call_target_for_source(ty.span().source, self.root_source, name)
+        };
         FunctionNames::from_index(
             self.definitions
-                .values()
-                .filter_map(|function| function.name_declaration())
-                .filter_map(|(span, name)| {
+                .iter()
+                .filter_map(|(target, function)| {
+                    function.name_declaration().map(|(span, _)| (target, span))
+                })
+                .filter_map(|(target, span)| {
                     let authored = self.semantic_db.definition_at(span)?;
                     let definition = self.callable_bodies.canonical_definition(authored);
-                    Some((definition, name))
+                    Some((definition, target.clone()))
                 })
                 .chain(self.definitions.values().flat_map(|function| {
                     function.typed_hir.interpolation_plans().map(|(_, plan)| {
+                        let definition = self
+                            .callable_bodies
+                            .canonical_definition(plan.constructor.definition);
                         (
-                            self.callable_bodies
-                                .canonical_definition(plan.constructor.definition),
-                            plan.constructor.target_name.clone(),
+                            definition,
+                            target_for_definition(
+                                definition,
+                                plan.constructor.target_name.clone(),
+                            ),
                         )
                     })
                 }))
                 .collect(),
             self.definitions
-                .values()
-                .filter_map(|function| {
-                    function.call_instance_name_declaration(self.semantic_db, self.callable_bodies)
+                .iter()
+                .filter_map(|(target, function)| {
+                    function
+                        .call_instance_name_declaration(self.semantic_db, self.callable_bodies)
+                        .map(|(key, _)| (key, target.clone()))
                 })
                 .chain(self.definitions.values().flat_map(|function| {
                     function
@@ -826,7 +822,10 @@ impl<'a> FunctionIndex<'a> {
                                 crate::mir::CallInstanceKey::from_types(
                                     definition, None, arguments,
                                 ),
-                                specialization.target_name.clone(),
+                                target_for_definition(
+                                    definition,
+                                    specialization.target_name.clone(),
+                                ),
                             ))
                         })
                 }))
@@ -849,7 +848,10 @@ impl<'a> FunctionIndex<'a> {
                                 crate::mir::CallInstanceKey::from_types(
                                     definition, None, arguments,
                                 ),
-                                specialization.target_name.clone(),
+                                target_for_definition(
+                                    definition,
+                                    specialization.target_name.clone(),
+                                ),
                             ))
                         })
                         .chain(typed_hir.method_call_specializations().filter_map(
@@ -864,7 +866,10 @@ impl<'a> FunctionIndex<'a> {
                                         Some(&specialization.self_ty),
                                         arguments,
                                     ),
-                                    specialization.target_name.clone(),
+                                    target_for_definition(
+                                        definition,
+                                        specialization.target_name.clone(),
+                                    ),
                                 ))
                             },
                         ))
@@ -874,7 +879,10 @@ impl<'a> FunctionIndex<'a> {
                                     &fact.specialization.callable_ty,
                                     fact.specialization.capability,
                                 ),
-                                fact.specialization.target_name.clone(),
+                                target_for_type(
+                                    &fact.specialization.callable_ty,
+                                    fact.specialization.target_name.clone(),
+                                ),
                             )
                         }))
                         .collect::<Vec<_>>()
@@ -894,7 +902,10 @@ impl<'a> FunctionIndex<'a> {
                                     Some(&specialization.self_ty),
                                     arguments,
                                 ),
-                                specialization.target_name.clone(),
+                                target_for_definition(
+                                    definition,
+                                    specialization.target_name.clone(),
+                                ),
                             ))
                         })
                 }))
@@ -916,14 +927,16 @@ impl<'a> FunctionIndex<'a> {
                                 )
                             }?;
                             let method = plan.method?;
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(method.def_id);
                             Some((
                                 crate::mir::CallInstanceKey::from_types(
-                                    self.callable_bodies
-                                        .canonical_definition(method.def_id),
+                                    definition,
                                     Some(&method.self_ty),
                                     std::iter::empty(),
                                 ),
-                                method.target_name,
+                                target_for_definition(definition, method.target_name),
                             ))
                         })
                         .collect::<Vec<_>>()
@@ -935,7 +948,10 @@ impl<'a> FunctionIndex<'a> {
                                 &fact.specialization.callable_ty,
                                 fact.specialization.capability,
                             ),
-                            fact.specialization.target_name.clone(),
+                            target_for_type(
+                                &fact.specialization.callable_ty,
+                                fact.specialization.target_name.clone(),
+                            ),
                         )
                     })
                 }))
@@ -949,14 +965,19 @@ impl<'a> FunctionIndex<'a> {
                         .interpolation_plans()
                         .flat_map(|(_, plan)| plan.parts.iter())
                         .map(|part| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(part.formatter.def_id);
                             (
                                 crate::mir::CallInstanceKey::from_types(
-                                    self.callable_bodies
-                                        .canonical_definition(part.formatter.def_id),
+                                    definition,
                                     Some(&part.formatter.self_ty),
                                     std::iter::empty(),
                                 ),
-                                part.formatter.target_name.clone(),
+                                target_for_definition(
+                                    definition,
+                                    part.formatter.target_name.clone(),
+                                ),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -973,13 +994,16 @@ impl<'a> FunctionIndex<'a> {
                             plan.conversion.iter().chain(std::iter::once(&plan.step))
                         })
                         .map(|method| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(method.def_id);
                             (
                                 crate::mir::CallInstanceKey::from_types(
-                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    definition,
                                     Some(&method.self_ty),
                                     std::iter::empty(),
                                 ),
-                                method.target_name.clone(),
+                                target_for_definition(definition, method.target_name.clone()),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -996,13 +1020,16 @@ impl<'a> FunctionIndex<'a> {
                             plan.conversion.iter().chain([&plan.exact_size, &plan.step])
                         })
                         .map(|method| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(method.def_id);
                             (
                                 crate::mir::CallInstanceKey::from_types(
-                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    definition,
                                     Some(&method.self_ty),
                                     std::iter::empty(),
                                 ),
-                                method.target_name.clone(),
+                                target_for_definition(definition, method.target_name.clone()),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -1029,28 +1056,34 @@ impl<'a> FunctionIndex<'a> {
                             plan.conversion.iter().chain([&plan.exact_size, &plan.step])
                         })
                         .map(|method| {
+                            let definition = self
+                                .callable_bodies
+                                .canonical_definition(method.def_id);
                             (
                                 crate::mir::CallInstanceKey::from_types(
-                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    definition,
                                     Some(&method.self_ty),
                                     std::iter::empty(),
                                 ),
-                                method.target_name.clone(),
+                                target_for_definition(definition, method.target_name.clone()),
                             )
                         })
                         .collect::<Vec<_>>()
                 }))
                 .collect(),
             self.definitions
-                .values()
-                .filter_map(|function| function.drop_name_declaration())
-                .filter_map(|(span, ty, name)| {
+                .iter()
+                .filter_map(|(target, function)| {
+                    function
+                        .drop_name_declaration()
+                        .map(|(span, ty, _)| (target, span, ty))
+                })
+                .filter_map(|(target, span, ty)| {
                     let authored = self.semantic_db.definition_at(span)?;
                     let definition = self.callable_bodies.canonical_definition(authored);
-                    Some((definition, ty.clone(), name))
+                    Some((definition, ty.clone(), target.clone()))
                 })
                 .collect(),
-            self.method_target_aliases.clone(),
         )
     }
 
@@ -1908,12 +1941,6 @@ fn call_target_name(target: &CallTarget) -> &str {
     match target {
         CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => name,
     }
-}
-
-fn call_target_names_match(left: &str, right: &str) -> bool {
-    left == right
-        || crate::mir::runtime_name_with_unqualified_receiver(left)
-            == crate::mir::runtime_name_with_unqualified_receiver(right)
 }
 
 fn method_target_name(type_name: &str, method_name: &str) -> String {

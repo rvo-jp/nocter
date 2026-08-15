@@ -17,7 +17,7 @@ pub(crate) struct BodyCache {
 struct BodyInstanceKey {
     source: SourceId,
     body: BodyId,
-    substitutions: Vec<(String, String)>,
+    substitutions: Vec<(String, crate::semantic::TypeIdentity)>,
     callable: Option<crate::mir::CallInstanceKey>,
 }
 
@@ -29,9 +29,9 @@ impl BodyInstanceKey {
     ) -> Self {
         let mut substitutions = substitutions
             .iter()
-            .map(|(parameter, ty)| (parameter.clone(), crate::ast::canonical_type_expr(ty)))
+            .map(|(parameter, ty)| (parameter.clone(), crate::semantic::TypeIdentity::of(ty)))
             .collect::<Vec<_>>();
-        substitutions.sort_unstable();
+        substitutions.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         Self {
             source,
             body,

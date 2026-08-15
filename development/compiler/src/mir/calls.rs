@@ -6,6 +6,7 @@
 //! capability. Only the machine backend projects either form to a symbol.
 
 use crate::semantic::{DefId, TyId};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum CallableIdentity {
@@ -99,13 +100,13 @@ impl CallInstance {
 enum CallableKey {
     Definition(DefId),
     Value {
-        ty: String,
+        ty: crate::semantic::TypeIdentity,
         capability: crate::ast::CallableCapability,
     },
     Literal {
         definition: DefId,
         shape: crate::ast::LiteralShape,
-        result: String,
+        result: crate::semantic::TypeIdentity,
         segments: Vec<LiteralSegmentKey>,
     },
 }
@@ -115,37 +116,18 @@ enum LiteralSegmentKey {
     Value,
     Spread {
         mode: crate::typecheck::TypecheckSequenceSpreadMode,
-        iterator: String,
+        iterator: crate::semantic::TypeIdentity,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct CallInstanceKey {
     callable: CallableKey,
-    receiver: Option<String>,
-    type_arguments: Vec<String>,
+    receiver: Option<crate::semantic::TypeIdentity>,
+    type_arguments: Vec<crate::semantic::TypeIdentity>,
 }
 
 impl CallInstanceKey {
-    pub(crate) fn with_unqualified_receiver(&self) -> Self {
-        let mut key = self.clone();
-        key.receiver = key
-            .receiver
-            .map(|receiver| unqualified_type_name(&receiver));
-        key
-    }
-
-    /// Produces the receiver-specialized identity shared by owner-generic
-    /// protocol calls whose type arguments are already determined by the
-    /// receiver.  Name indexes may use this only as an ambiguity-checked
-    /// fallback: independently generic methods can still have several runtime
-    /// instances for the same definition and receiver.
-    pub(crate) fn without_type_arguments(&self) -> Self {
-        let mut key = self.clone();
-        key.type_arguments.clear();
-        key
-    }
-
     pub(crate) fn from_types<'a>(
         definition: DefId,
         receiver: Option<&crate::ast::TypeExpr>,
@@ -153,10 +135,10 @@ impl CallInstanceKey {
     ) -> Self {
         Self {
             callable: CallableKey::Definition(definition),
-            receiver: receiver.map(crate::ast::canonical_type_expr),
+            receiver: receiver.map(crate::semantic::TypeIdentity::call_receiver),
             type_arguments: type_arguments
                 .into_iter()
-                .map(crate::ast::canonical_type_expr)
+                .map(crate::semantic::TypeIdentity::of)
                 .collect(),
         }
     }
@@ -167,7 +149,7 @@ impl CallInstanceKey {
     ) -> Self {
         Self {
             callable: CallableKey::Value {
-                ty: crate::ast::canonical_type_expr(ty),
+                ty: crate::semantic::TypeIdentity::of(ty),
                 capability,
             },
             receiver: None,
@@ -190,14 +172,14 @@ impl CallInstanceKey {
             callable: CallableKey::Literal {
                 definition,
                 shape,
-                result: crate::ast::canonical_type_expr(result),
+                result: crate::semantic::TypeIdentity::of(result),
                 segments: segments
                     .into_iter()
                     .map(|(mode, iterator)| match (mode, iterator) {
                         (None, None) => LiteralSegmentKey::Value,
                         (Some(mode), Some(iterator)) => LiteralSegmentKey::Spread {
                             mode,
-                            iterator: crate::ast::canonical_type_expr(iterator),
+                            iterator: crate::semantic::TypeIdentity::of(iterator),
                         },
                         _ => unreachable!("literal segment mode and iterator must agree"),
                     })
@@ -264,19 +246,86 @@ impl CallInstanceKey {
     }
 }
 
-pub(crate) fn runtime_name_with_unqualified_receiver(name: &str) -> String {
-    let Some((receiver, member)) = name.rsplit_once('.') else {
-        return name.to_string();
-    };
-    if !receiver.contains('<') {
-        return name.to_string();
-    }
-    format!("{}.{}", unqualified_type_name(receiver), member)
+/// Exact compile-unit registry for monomorphized callable identities.
+///
+/// A `MonoItemId` can only be obtained from a complete structural key. There
+/// is intentionally no operation that erases a receiver or type argument.
+#[derive(Debug, Clone)]
+pub(crate) struct MonoItemRegistry<T> {
+    ids: HashMap<CallInstanceKey, crate::semantic::MonoItemId>,
+    entries: Vec<(CallInstanceKey, T)>,
 }
 
-fn unqualified_type_name(name: &str) -> String {
-    let name_end = name.find('<').unwrap_or(name.len());
-    let (head, suffix) = name.split_at(name_end);
-    let short = head.rsplit(['.', '/']).next().unwrap_or(head);
-    format!("{short}{suffix}")
+impl<T> Default for MonoItemRegistry<T> {
+    fn default() -> Self {
+        Self {
+            ids: HashMap::new(),
+            entries: Vec::new(),
+        }
+    }
+}
+
+impl<T> MonoItemRegistry<T> {
+    pub(crate) fn from_entries(entries: impl IntoIterator<Item = (CallInstanceKey, T)>) -> Self {
+        let mut registry = Self::default();
+        for (key, value) in entries {
+            registry.insert(key, value);
+        }
+        registry
+    }
+
+    pub(crate) fn insert(&mut self, key: CallInstanceKey, value: T) -> crate::semantic::MonoItemId {
+        if let Some(id) = self.ids.get(&key) {
+            return *id;
+        }
+        let id = crate::semantic::MonoItemId::from_index(self.entries.len());
+        self.ids.insert(key.clone(), id);
+        self.entries.push((key, value));
+        id
+    }
+
+    pub(crate) fn resolve(&self, key: &CallInstanceKey) -> Option<crate::semantic::MonoItemId> {
+        self.ids.get(key).copied()
+    }
+
+    pub(crate) fn get(&self, id: crate::semantic::MonoItemId) -> Option<&T> {
+        self.entries.get(id.index()).map(|(_, value)| value)
+    }
+
+    pub(crate) fn value_for(&self, key: &CallInstanceKey) -> Option<&T> {
+        self.get(self.resolve(key)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{GenericType, TypeExpr, TypeReference};
+    use crate::source::{ByteSpan, SourceId};
+
+    fn reference(name: &str) -> TypeExpr {
+        TypeExpr::Reference(TypeReference {
+            span: ByteSpan::new(SourceId::new(0), 0, 1),
+            name: name.to_string(),
+        })
+    }
+
+    #[test]
+    fn registry_requires_an_exact_structured_instance_key() {
+        let definition = DefId::from_index(4);
+        let receiver = TypeExpr::Generic(GenericType {
+            span: ByteSpan::new(SourceId::new(0), 0, 1),
+            name: "package.Box".to_string(),
+            name_span: ByteSpan::new(SourceId::new(0), 0, 1),
+            arguments: vec![reference("i32")],
+        });
+        let key = CallInstanceKey::from_types(definition, Some(&receiver), [&reference("bool")]);
+        let different =
+            CallInstanceKey::from_types(definition, Some(&receiver), [&reference("usize")]);
+        let mut registry = MonoItemRegistry::default();
+        let id = registry.insert(key.clone(), "Box<bool>.call");
+        assert_eq!(registry.resolve(&key), Some(id));
+        assert_eq!(registry.value_for(&key), Some(&"Box<bool>.call"));
+        assert_eq!(registry.resolve(&different), None);
+    }
 }

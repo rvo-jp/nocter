@@ -19,14 +19,6 @@ pub(crate) struct CallSpecializations {
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<DefId, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<DefId, Vec<LiteralSpecialization>>,
-    pub(crate) method_target_aliases: Vec<MethodTargetAlias>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct MethodTargetAlias {
-    pub(crate) requested_name: String,
-    pub(crate) declaration_span: ByteSpan,
-    pub(crate) target_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,7 +42,6 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
     let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<DefId, Vec<DropSpecialization>> = HashMap::new();
-    let mut method_target_aliases = Vec::new();
     let mut queue = VecDeque::new();
     let literals = collect_literal_specializations(analysis);
 
@@ -200,19 +191,8 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
                 );
             }
             PendingCallSpecialization::Method(specialization) => {
-                let requested_name = specialization.target_name.clone();
-                let requested_definition = specialization.def_id;
                 let specialization =
                     redirect_interface_method_specialization(analysis, specialization);
-                if requested_definition != specialization.def_id
-                    || requested_name != specialization.target_name
-                {
-                    method_target_aliases.push(MethodTargetAlias {
-                        requested_name,
-                        declaration_span: specialization.declaration_span,
-                        target_name: specialization.target_name.clone(),
-                    });
-                }
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
@@ -312,7 +292,6 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
         coercions,
         drops,
         literals,
-        method_target_aliases,
     }
 }
 
