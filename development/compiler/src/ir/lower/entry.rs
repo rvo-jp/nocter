@@ -171,6 +171,7 @@ fn lower_entry_parts(
         name,
         &function_signatures,
         &function_names,
+        &error_payloads,
         &parameter_slots,
         root_source,
         sources,

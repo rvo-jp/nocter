@@ -184,24 +184,26 @@ impl LoweringContext<'_> {
                 .typed_hir
                 .type_expr_by_id(ty)
                 .ok_or(BuildError::MissingTypedExpression)?;
-            let plan = super::super::drop_plans::build(
-                ty,
-                self.semantic.resolved,
-                self.semantic.resolved_sources,
-                self.semantic.typed_hir,
-                &mut self.drop_plans,
-            )
-            .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let [pointer, offset] = arguments.as_slice() else {
-                return Err(BuildError::UnsupportedClaimedExpression);
-            };
-            self.control_flow.push_statement(Statement::DropAtPointer {
-                pointer: pointer.operand.clone(),
-                offset: offset.operand.clone(),
-                ty: type_arguments[0],
-                plan,
-                origin,
-            })?;
+            if crate::typecheck::type_expr_is_copy(ty, self.semantic.resolved) != Some(true) {
+                let plan = super::super::drop_plans::build(
+                    ty,
+                    self.semantic.resolved,
+                    self.semantic.resolved_sources,
+                    self.semantic.typed_hir,
+                    &mut self.drop_plans,
+                )
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                let [pointer, offset] = arguments.as_slice() else {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                };
+                self.control_flow.push_statement(Statement::DropAtPointer {
+                    pointer: pointer.operand.clone(),
+                    offset: offset.operand.clone(),
+                    ty: type_arguments[0],
+                    plan,
+                    origin,
+                })?;
+            }
         } else {
             self.control_flow.push_statement(Statement::Intrinsic {
                 intrinsic,
@@ -359,72 +361,7 @@ impl LoweringContext<'_> {
         if !super::coverage::failure_value_is_supported(expression, self.semantic) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        let (code, message) = match expression.without_groups() {
-            Expr::Call(call) => {
-                let mut operands = Vec::with_capacity(2);
-                for argument in &call.arguments {
-                    let ty = known_expression_type(argument, self.semantic.typed_hir)
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                    operands.push(self.lower_view_operand(
-                        argument,
-                        ty,
-                        crate::mir::ViewKind::Str,
-                        scope,
-                    )?);
-                }
-                let [code, message] = operands
-                    .try_into()
-                    .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
-                (code, message)
-            }
-            Expr::Identifier(identifier) => {
-                let symbol = self
-                    .semantic
-                    .resolved
-                    .local_symbol_for_identifier(identifier)
-                    .ok_or(BuildError::MissingLocalSymbol)?;
-                let place = *self
-                    .places_by_symbol
-                    .get(&symbol.id)
-                    .ok_or(BuildError::MissingLocalSymbol)?;
-                let representation = place.projection.map_or(
-                    self.locals[place.local.index()].representation,
-                    |projection| self.projections[projection.index()].representation,
-                );
-                if representation != crate::mir::ValueRepresentation::Error {
-                    return Err(BuildError::UnsupportedClaimedExpression);
-                }
-                let span = expression.span();
-                let str_ty = self
-                    .semantic
-                    .typed_hir
-                    .type_id(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
-                        span,
-                        is_readwrite: false,
-                        inner: Box::new(crate::ast::TypeExpr::Reference(
-                            crate::ast::TypeReference {
-                                span,
-                                name: "str".to_string(),
-                            },
-                        )),
-                    }))
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                let code = super::projections::push_error_field_place(
-                    place.local,
-                    crate::builtin_types::BuiltinErrorField::Code,
-                    str_ty,
-                    &mut self.projections,
-                );
-                let message = super::projections::push_error_field_place(
-                    place.local,
-                    crate::builtin_types::BuiltinErrorField::Message,
-                    str_ty,
-                    &mut self.projections,
-                );
-                (Operand::Copy(code), Operand::Copy(message))
-            }
-            _ => return Err(BuildError::UnsupportedClaimedExpression),
-        };
+        let (code, message) = self.lower_error_operands(expression, scope)?;
         self.control_flow
             .terminate(crate::mir::Terminator::ReturnFailure { code, message })
     }
@@ -868,19 +805,64 @@ impl LoweringContext<'_> {
     ) -> Result<(Operand, Operand), BuildError> {
         match expression.without_groups() {
             Expr::Call(call) => {
-                let [code, message] = call.arguments.as_slice() else {
-                    return Err(BuildError::UnsupportedClaimedExpression);
-                };
-                let code_ty = known_expression_type(code, self.semantic.typed_hir)
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                let message_ty = known_expression_type(message, self.semantic.typed_hir)
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                Ok((
-                    self.lower_view_operand(code, code_ty, crate::mir::ViewKind::Str, scope)
-                        .map_err(|error| error.context("lower error code"))?,
-                    self.lower_view_operand(message, message_ty, crate::mir::ViewKind::Str, scope)
+                if let Some([code, message]) =
+                    super::coverage::error_constructor_arguments(call, self.semantic)
+                {
+                    let code_ty = known_expression_type(code, self.semantic.typed_hir)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    let message_ty = known_expression_type(message, self.semantic.typed_hir)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    return Ok((
+                        self.lower_view_operand(code, code_ty, crate::mir::ViewKind::Str, scope)
+                            .map_err(|error| error.context("lower error code"))?,
+                        self.lower_view_operand(
+                            message,
+                            message_ty,
+                            crate::mir::ViewKind::Str,
+                            scope,
+                        )
                         .map_err(|error| error.context("lower error message"))?,
-                ))
+                    ));
+                }
+                let expression_fact = self
+                    .semantic
+                    .typed_hir
+                    .expression(expression.span())
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let return_ty = self
+                    .semantic
+                    .resolved
+                    .function_signature_for_call(call)
+                    .or_else(|| {
+                        self.semantic
+                            .resolved
+                            .associated_function_signature_for_call(call)
+                    })
+                    .map(|signature| &signature.return_type)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let ty = self
+                    .semantic
+                    .typed_hir
+                    .type_id(return_ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let temporary =
+                    self.local_for_type(ty, LocalOrigin::Temporary(expression_fact.id), scope)?;
+                if self.locals[temporary.index()].representation
+                    != crate::mir::ValueRepresentation::Error
+                {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+                if returns_never {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                self.control_flow.emit_returning_call(
+                    expression_fact.id,
+                    callee,
+                    arguments,
+                    temporary,
+                )?;
+                self.error_place_operands(Place::local(temporary), expression.span())
             }
             Expr::Identifier(identifier) => {
                 let symbol = self
@@ -892,38 +874,49 @@ impl LoweringContext<'_> {
                     .places_by_symbol
                     .get(&symbol.id)
                     .ok_or(BuildError::MissingLocalSymbol)?;
-                let span = expression.span();
-                let str_ty = self
-                    .semantic
-                    .typed_hir
-                    .type_id(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
-                        span,
-                        is_readwrite: false,
-                        inner: Box::new(crate::ast::TypeExpr::Reference(
-                            crate::ast::TypeReference {
-                                span,
-                                name: "str".to_string(),
-                            },
-                        )),
-                    }))
-                    .ok_or(BuildError::MissingTypedExpression)?;
-                Ok((
-                    Operand::Copy(super::projections::push_error_field_place(
-                        source.local,
-                        crate::builtin_types::BuiltinErrorField::Code,
-                        str_ty,
-                        &mut self.projections,
-                    )),
-                    Operand::Copy(super::projections::push_error_field_place(
-                        source.local,
-                        crate::builtin_types::BuiltinErrorField::Message,
-                        str_ty,
-                        &mut self.projections,
-                    )),
-                ))
+                self.error_place_operands(source, expression.span())
             }
             _ => Err(BuildError::UnsupportedClaimedExpression),
         }
+    }
+
+    fn error_place_operands(
+        &mut self,
+        source: Place,
+        span: crate::source::ByteSpan,
+    ) -> Result<(Operand, Operand), BuildError> {
+        if source.projection.is_some()
+            || self.locals[source.local.index()].representation
+                != crate::mir::ValueRepresentation::Error
+        {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let str_ty = self
+            .semantic
+            .typed_hir
+            .type_id(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+                span,
+                is_readwrite: false,
+                inner: Box::new(crate::ast::TypeExpr::Reference(crate::ast::TypeReference {
+                    span,
+                    name: "str".to_string(),
+                })),
+            }))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        Ok((
+            Operand::Copy(super::projections::push_error_field_place(
+                source.local,
+                crate::builtin_types::BuiltinErrorField::Code,
+                str_ty,
+                &mut self.projections,
+            )),
+            Operand::Copy(super::projections::push_error_field_place(
+                source.local,
+                crate::builtin_types::BuiltinErrorField::Message,
+                str_ty,
+                &mut self.projections,
+            )),
+        ))
     }
 
     fn lower_borrow_value_to_place_without_coercion(
@@ -1112,8 +1105,11 @@ impl LoweringContext<'_> {
             .typed_hir
             .expression(call.span)
             .is_some_and(|expression| expression.diverges);
-        if let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic)
-            .filter(|intrinsic| super::coverage::outcome_intrinsic_is_supported(*intrinsic))
+        if let Some(intrinsic) =
+            super::coverage::intrinsic_for_call(call, self.semantic).filter(|intrinsic| {
+                super::coverage::outcome_intrinsic_is_supported(*intrinsic)
+                    || super::coverage::never_intrinsic_is_supported(*intrinsic)
+            })
         {
             let arguments = call
                 .arguments
@@ -1667,6 +1663,19 @@ impl LoweringContext<'_> {
             .method_call_receiver_kind(member.member_span)
             .ok_or(BuildError::MissingCallTarget)?;
         if kind == crate::typecheck::TypecheckMethodReceiverKind::Owned {
+            let ty = known_expression_type(&member.object, self.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            if value_representation(ty, self.semantic)
+                == Some(crate::mir::ValueRepresentation::Aggregate)
+                && super::borrows::source_place_is_supported(&member.object, self.semantic)
+            {
+                let source = super::borrows::lower_source_place(self, &member.object, scope)?;
+                return Ok(CallArgument {
+                    operand: Operand::Move(source),
+                    ty,
+                    representation: crate::mir::ValueRepresentation::Aggregate,
+                });
+            }
             return self.lower_call_argument(&member.object, scope);
         }
         let readwrite = kind == crate::typecheck::TypecheckMethodReceiverKind::ReadwriteBorrow;
@@ -2065,11 +2074,15 @@ impl LoweringContext<'_> {
                     element_scalar: scalar,
                 }
             }
+            Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+                Rvalue::Use(self.lower_operand(&unary.operand, ty, scalar, scope)?)
+            }
             Expr::Unary(unary) => Rvalue::Unary {
                 operator: match unary.operator {
                     crate::ast::UnaryOperator::Negate => UnaryOperator::Negate,
                     crate::ast::UnaryOperator::LogicalNot => UnaryOperator::LogicalNot,
-                    crate::ast::UnaryOperator::Move | crate::ast::UnaryOperator::Spread => {
+                    crate::ast::UnaryOperator::Move => unreachable!("handled above"),
+                    crate::ast::UnaryOperator::Spread => {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     }
                 },

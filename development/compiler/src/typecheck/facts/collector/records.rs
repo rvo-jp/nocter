@@ -52,7 +52,11 @@ impl TypedHirBuilder<'_> {
             self.facts
                 .conversion_plans
                 .insert(expression.object.span(), conversion.clone());
+            self.intern_conversion_plan_types(conversion);
         }
+        self.intern_compiler_type_tree(&target_ty);
+        self.intern_compiler_type_tree(&index_ty);
+        self.intern_compiler_type_tree(&element_ty);
         self.facts.index_plans.insert(
             expression.span,
             TypecheckIndexPlan {
@@ -107,8 +111,24 @@ impl TypedHirBuilder<'_> {
             operator_span,
             selected,
         ) {
+            self.intern_conversion_plan_types(&plan);
             self.facts.conversion_plans.insert(expression_span, plan);
         }
+    }
+
+    fn intern_conversion_plan_types(&mut self, conversion: &TypecheckConversionPlan) {
+        self.intern_compiler_type_tree(&conversion.source_ty);
+        self.intern_compiler_type_tree(&conversion.target_ty);
+        let TypecheckConversionKind::BorrowCoercion(plan) = &conversion.kind else {
+            return;
+        };
+        self.intern_compiler_type_tree(&plan.self_ty);
+        self.intern_compiler_type_tree(&plan.target_ty);
+        self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+            span: conversion.expression_span,
+            is_readwrite: plan.receiver_mode == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+            inner: Box::new(plan.self_ty.clone()),
+        }));
     }
 
     pub(in crate::typecheck::facts::collector) fn record_interpolation_plan(

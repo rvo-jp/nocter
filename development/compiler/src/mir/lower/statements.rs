@@ -202,23 +202,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     scope,
                                 )?;
                             }
-                            Expr::Call(call) => {
-                                let source = self
-                                    .context
-                                    .semantic
-                                    .typed_hir
-                                    .expression(call.span)
-                                    .ok_or(BuildError::MissingTypedExpression)?
-                                    .id;
-                                let (callee, arguments, returns_never) =
-                                    self.context.lower_call(call, scope)?;
-                                if returns_never {
-                                    return Err(BuildError::UnsupportedClaimedExpression);
-                                }
-                                self.context
-                                    .control_flow
-                                    .emit_returning_call(source, callee, arguments, local)?;
-                            }
+                            Expr::Call(_) => self.context.lower_value_to_place(
+                                local,
+                                &binding.initializer,
+                                ty,
+                                crate::mir::ValueRepresentation::Aggregate,
+                                scope,
+                            )?,
                             Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Closure(_) => {
                                 super::aggregates::lower_literal(
                                     self.context,
@@ -292,8 +282,9 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.lower_value_assignment(assignment, scope)?;
                         continue;
                     }
-                    let (destination, ty, scalar) =
-                        self.lower_assignment_target(&assignment.target, scope)?;
+                    let (destination, ty, scalar) = self
+                        .lower_assignment_target(&assignment.target, scope)
+                        .map_err(|error| error.context("lower assignment target"))?;
                     if assignment.operator == crate::ast::AssignmentOperator::Assign {
                         if destination.projection.is_none() {
                             self.lower_value(
@@ -374,10 +365,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     false
                 }
                 ScalarStatement::While(statement) => {
-                    self.lower_while(statement, scope)?;
+                    self.lower_while(statement, scope)
+                        .map_err(|error| error.context("lower while statement"))?;
                     false
                 }
-                ScalarStatement::If(statement) => self.lower_if(statement, loop_targets, scope)?,
+                ScalarStatement::If(statement) => self
+                    .lower_if(statement, loop_targets, scope)
+                    .map_err(|error| error.context("lower if statement"))?,
                 ScalarStatement::IfIs(statement) => {
                     super::expressions::lower_if_is_statement(self.context, statement, scope)
                         .map_err(|error| error.context("lower if-is statement"))?
@@ -483,19 +477,24 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             continue;
                         }
                     };
-                    if matches!(kind, EffectKind::Plain)
-                        && self.context.lower_intrinsic_effect(
-                            call,
-                            self.context
-                                .semantic
-                                .typed_hir
-                                .expression(expression.span())
-                                .map_or(Origin::Desugared(expression.span()), |expression| {
-                                    Origin::Expression(expression.id)
-                                }),
-                            scope,
-                        )?
-                    {
+                    let lowered_intrinsic = if matches!(kind, EffectKind::Plain) {
+                        self.context
+                            .lower_intrinsic_effect(
+                                call,
+                                self.context
+                                    .semantic
+                                    .typed_hir
+                                    .expression(expression.span())
+                                    .map_or(Origin::Desugared(expression.span()), |expression| {
+                                        Origin::Expression(expression.id)
+                                    }),
+                                scope,
+                            )
+                            .map_err(|error| error.context("lower effect intrinsic"))?
+                    } else {
+                        false
+                    };
+                    if lowered_intrinsic {
                         continue;
                     }
                     let source = self
@@ -1059,12 +1058,15 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         let condition_ty =
             known_expression_type(&statement.condition, self.context.semantic.typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
-        let condition = self.context.lower_operand(
-            &statement.condition,
-            condition_ty,
-            ScalarType::Bool,
-            parent_scope,
-        )?;
+        let condition = self
+            .context
+            .lower_operand(
+                &statement.condition,
+                condition_ty,
+                ScalarType::Bool,
+                parent_scope,
+            )
+            .map_err(|error| error.context("lower if condition"))?;
         let condition_block = self.context.control_flow.current_block()?;
         self.context.control_flow.terminate(Terminator::Switch {
             condition,
@@ -1087,15 +1089,18 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             self.context.semantic.resolved_sources,
             self.context.semantic.typed_hir,
         )
-        .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        let exits_body = self.lower_in_context(
-            &body_statements,
-            Some(LoopTargets {
-                break_target: exit_target,
-                continue_target: condition_target,
-            }),
-            body_scope,
-        )?;
+        .ok_or(BuildError::UnsupportedClaimedExpression)
+        .map_err(|error| error.context("classify while body"))?;
+        let exits_body = self
+            .lower_in_context(
+                &body_statements,
+                Some(LoopTargets {
+                    break_target: exit_target,
+                    continue_target: condition_target,
+                }),
+                body_scope,
+            )
+            .map_err(|error| error.context("lower while body"))?;
         if !exits_body {
             self.context.control_flow.terminate(Terminator::Goto {
                 target: condition_target,
@@ -1113,12 +1118,15 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         let condition_ty =
             known_expression_type(&statement.condition, self.context.semantic.typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
-        let condition = self.context.lower_operand(
-            &statement.condition,
-            condition_ty,
-            ScalarType::Bool,
-            parent_scope,
-        )?;
+        let condition = self
+            .context
+            .lower_operand(
+                &statement.condition,
+                condition_ty,
+                ScalarType::Bool,
+                parent_scope,
+            )
+            .map_err(|error| error.context("lower if condition"))?;
         let then_scope = self
             .context
             .child_scope(parent_scope, statement.then_block.span);
@@ -1130,15 +1138,25 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         let then_target = self.context.control_flow.reserve_block(then_scope);
         let else_target = self.context.control_flow.reserve_block(else_scope);
         let join_target = self.context.control_flow.reserve_block(parent_scope);
-        let switch_block = self.context.control_flow.current_block()?;
-        self.context.control_flow.terminate(Terminator::Switch {
-            condition,
-            then_target,
-            else_target,
-            join_target: Some(join_target),
-        })?;
+        let switch_block = self
+            .context
+            .control_flow
+            .current_block()
+            .map_err(|error| error.context("select if source block"))?;
+        self.context
+            .control_flow
+            .terminate(Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+                join_target: Some(join_target),
+            })
+            .map_err(|error| error.context("terminate if source block"))?;
 
-        self.context.control_flow.select_block(then_target)?;
+        self.context
+            .control_flow
+            .select_block(then_target)
+            .map_err(|error| error.context("select then block"))?;
         let then_statements = scalar_linear_block_statements(
             &statement.then_block,
             self.context.semantic.resolved,
@@ -1146,15 +1164,24 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             self.context.semantic.typed_hir,
             loop_targets.is_some(),
         )
-        .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        let then_exits = self.lower_in_context(&then_statements, loop_targets, then_scope)?;
+        .ok_or(BuildError::UnsupportedClaimedExpression)
+        .map_err(|error| error.context("classify then block"))?;
+        let then_exits = self
+            .lower_in_context(&then_statements, loop_targets, then_scope)
+            .map_err(|error| error.context("lower then block"))?;
         if !then_exits {
-            self.context.control_flow.terminate(Terminator::Goto {
-                target: join_target,
-            })?;
+            self.context
+                .control_flow
+                .terminate(Terminator::Goto {
+                    target: join_target,
+                })
+                .map_err(|error| error.context("terminate then block"))?;
         }
 
-        self.context.control_flow.select_block(else_target)?;
+        self.context
+            .control_flow
+            .select_block(else_target)
+            .map_err(|error| error.context("select else block"))?;
         let else_statements = statement
             .else_block
             .as_ref()
@@ -1167,26 +1194,37 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     loop_targets.is_some(),
                 )
                 .ok_or(BuildError::UnsupportedClaimedExpression)
+                .map_err(|error| error.context("classify else block"))
             })
             .transpose()?
             .unwrap_or_default();
-        let else_exits = self.lower_in_context(&else_statements, loop_targets, else_scope)?;
+        let else_exits = self
+            .lower_in_context(&else_statements, loop_targets, else_scope)
+            .map_err(|error| error.context("lower else block"))?;
         if !else_exits {
-            self.context.control_flow.terminate(Terminator::Goto {
-                target: join_target,
-            })?;
+            self.context
+                .control_flow
+                .terminate(Terminator::Goto {
+                    target: join_target,
+                })
+                .map_err(|error| error.context("terminate else block"))?;
         }
 
         if then_exits && else_exits {
             self.context
                 .control_flow
-                .set_switch_join(switch_block, None)?;
+                .set_switch_join(switch_block, None)
+                .map_err(|error| error.context("remove terminal if join"))?;
             self.context
                 .control_flow
-                .discard_last_reserved_block(join_target)?;
+                .discard_last_reserved_block(join_target)
+                .map_err(|error| error.context("discard terminal if join block"))?;
             return Ok(true);
         }
-        self.context.control_flow.select_block(join_target)?;
+        self.context
+            .control_flow
+            .select_block(join_target)
+            .map_err(|error| error.context("select if join block"))?;
         Ok(false)
     }
 

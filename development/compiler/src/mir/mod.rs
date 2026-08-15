@@ -28,6 +28,7 @@ pub(crate) use index::BodyCache;
 pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation, ViewKind,
 };
+pub(crate) use lower::outcome_intrinsic_is_supported;
 pub(crate) use lower::{
     BuildError, BuildInputs, try_build_body_with_return_mode, try_build_closure_body,
 };

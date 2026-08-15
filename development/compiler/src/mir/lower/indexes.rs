@@ -14,8 +14,7 @@ pub(super) fn is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>) -> b
         return false;
     };
     if plan.projection == crate::typecheck::TypecheckIndexProjection::Slice {
-        return plan.conversion.is_none()
-            && view_is_supported(index, semantic)
+        return view_is_supported(index, semantic)
             && semantic
                 .typed_hir
                 .type_id(&plan.element_ty)
@@ -55,10 +54,11 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
         crate::typecheck::TypecheckIndexProjection::Slice => crate::mir::ViewKind::Slice,
         _ => return false,
     };
-    if plan.conversion.is_some() {
-        return false;
-    }
-    let Some(source_ty) = super::coverage::handled_outcome_success_type(&index.object, semantic)
+    let Some(source_ty) = plan
+        .conversion
+        .as_ref()
+        .and_then(|conversion| semantic.typed_hir.type_id(&conversion.target_ty))
+        .or_else(|| super::coverage::handled_outcome_success_type(&index.object, semantic))
         .or_else(|| super::coverage::known_expression_type(&index.object, semantic.typed_hir))
     else {
         return false;
@@ -71,8 +71,11 @@ pub(super) fn view_is_supported(index: &IndexExpr, semantic: SemanticInputs<'_>)
     let index_is_contextual_literal = matches!(index.index.without_groups(), Expr::IntegerLiteral(literal)
         if crate::literals::decode_integer_literal_value(&literal.value)
             .is_some_and(|value| u64::try_from(value).is_ok()));
-    super::coverage::value_representation(source_ty, semantic)
-        == Some(ValueRepresentation::View(kind))
+    let conversion_supported = plan.conversion.is_none()
+        || super::coverage::coercion_expression_is_supported(&index.object, semantic);
+    conversion_supported
+        && super::coverage::value_representation(source_ty, semantic)
+            == Some(ValueRepresentation::View(kind))
         && (index_is_usize || index_is_contextual_literal)
         && super::coverage::scalar_expression_is_supported(
             &index.index,
@@ -162,7 +165,11 @@ fn lower_view_index_place(
         .typed_hir
         .index_plan(index.span)
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let source_ty = super::coverage::handled_outcome_success_type(&index.object, context.semantic)
+    let source_ty = plan
+        .conversion
+        .as_ref()
+        .and_then(|conversion| context.semantic.typed_hir.type_id(&conversion.target_ty))
+        .or_else(|| super::coverage::handled_outcome_success_type(&index.object, context.semantic))
         .or_else(|| {
             super::coverage::known_expression_type(&index.object, context.semantic.typed_hir)
         })

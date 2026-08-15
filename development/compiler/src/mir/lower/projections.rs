@@ -437,16 +437,17 @@ fn field_segments(
         // successful projection identity.
         semantic.typed_hir.field_target(member.member_span)?;
         let offset = u32::try_from(layout_struct(fields).ok()?.fields[field_index].offset).ok()?;
-        let ty =
-            semantic
-                .typed_hir
-                .expression(member.span)
-                .and_then(|expression| match expression.ty {
+        let ty = semantic
+            .typed_hir
+            .expression(member.span)
+            .and_then(|expression| {
+                expression.contextual_ty.or(match expression.ty {
                     crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
                     crate::typecheck::PartialSemantic::Error => None,
-                })?;
+                })
+            })?;
         let representation = super::coverage::value_representation(ty, semantic)?;
-        let field_ty = semantic.typed_hir.field_type_expr(member.member_span)?;
+        let field_ty = semantic.typed_hir.type_expr_by_id(ty)?;
         let ownership = if crate::typecheck::type_expr_is_copy(field_ty, semantic.resolved)? {
             OwnershipKind::Copy
         } else {

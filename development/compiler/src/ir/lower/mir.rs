@@ -37,6 +37,7 @@ pub(super) struct BackendContext<'a> {
     typed_hir: &'a TypedHir,
     function_signatures: &'a super::context::FunctionSignatures,
     function_names: &'a super::context::FunctionNames,
+    error_payloads: &'a super::context::ErrorPayloads,
     parameters: parameters::ParameterProjection,
     root_source: SourceId,
 }
@@ -62,6 +63,7 @@ pub(super) fn try_lower_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    error_payloads: &super::context::ErrorPayloads,
     parameter_slots: &super::context::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
@@ -99,6 +101,7 @@ pub(super) fn try_lower_body(
         function_name,
         function_signatures,
         function_names,
+        error_payloads,
         parameter_projection,
         root_source,
         sources,
@@ -120,6 +123,7 @@ pub(super) fn try_lower_closure_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    error_payloads: &super::context::ErrorPayloads,
     parameter_slots: &super::context::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
@@ -157,6 +161,7 @@ pub(super) fn try_lower_closure_body(
         function_name,
         function_signatures,
         function_names,
+        error_payloads,
         parameter_projection,
         root_source,
         sources,
@@ -213,6 +218,7 @@ fn lower_cached_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    error_payloads: &super::context::ErrorPayloads,
     parameter_projection: parameters::ParameterProjection,
     root_source: SourceId,
     sources: &SourceMap,
@@ -228,6 +234,7 @@ fn lower_cached_body(
             function_name,
             function_signatures,
             function_names,
+            error_payloads,
             parameter_projection,
             root_source,
         )
@@ -252,6 +259,7 @@ fn lower_scalar_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    error_payloads: &super::context::ErrorPayloads,
     parameter_projection: parameters::ParameterProjection,
     root_source: SourceId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -264,6 +272,7 @@ fn lower_scalar_body(
         typed_hir,
         function_signatures,
         function_names,
+        error_payloads,
         parameters: parameter_projection,
         root_source,
     };
@@ -366,7 +375,9 @@ fn lower_scalar_body(
                 continuation,
                 ..
             } => {
-                if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable {
+                if let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable
+                    && crate::mir::outcome_intrinsic_is_supported(*intrinsic)
+                {
                     match continuation {
                         CallContinuation::Outcome {
                             destination,
@@ -424,6 +435,12 @@ fn lower_scalar_body(
                             ));
                         }
                     }
+                }
+                if matches!(continuation, CallContinuation::Never)
+                    && let Some(lowered) = lower_never_intrinsic_call(&context, callee, arguments)?
+                {
+                    instructions.extend(lowered);
+                    return Ok(instructions);
                 }
                 let (call_target, callee_name) =
                     lower_call_target(callee, resolved, typed_hir, function_names, root_source)?;
@@ -503,7 +520,7 @@ fn lower_scalar_body(
                             return Ok(instructions);
                         }
                         reserve_aggregate_destination(&context, destination, &mut instructions)?;
-                        instructions.push(lower_returning_call(
+                        instructions.extend(lower_returning_call_sequence(
                             &context,
                             destination,
                             call_target,
@@ -828,6 +845,10 @@ fn lower_branch(
                 continuation: CallContinuation::Never,
                 ..
             } => {
+                if let Some(lowered) = lower_never_intrinsic_call(context, callee, arguments)? {
+                    instructions.extend(lowered);
+                    return Ok(instructions);
+                }
                 let (call_target, callee_name) = lower_call_target(
                     callee,
                     context.resolved,
@@ -907,7 +928,7 @@ fn lower_branch(
                 )?;
                 let arguments = lower_call_arguments(arguments, context)?;
                 reserve_aggregate_destination(context, destination, &mut instructions)?;
-                instructions.push(lower_returning_call(
+                instructions.extend(lower_returning_call_sequence(
                     context,
                     destination,
                     call_target,
@@ -1385,6 +1406,44 @@ fn lower_returning_call(
     call_instruction(context, scalar, destination, target, arguments)
 }
 
+fn lower_returning_call_sequence(
+    context: &BackendContext<'_>,
+    destination: &Place,
+    target: crate::ir::CallTarget,
+    arguments: Vec<ScalarArgument>,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if context.body.locals[destination.local.index()].representation
+        == crate::mir::ValueRepresentation::Error
+    {
+        if !arguments.is_empty() {
+            return Err(invalid_mir_diagnostics(format!(
+                "static error helper `{callee_name}` unexpectedly has runtime arguments"
+            )));
+        }
+        let payload = context
+            .error_payloads
+            .get(&target)
+            .cloned()
+            .ok_or_else(|| {
+                invalid_mir_diagnostics(format!(
+                    "logical error call `{callee_name}` has no indexed static payload"
+                ))
+            })?;
+        let (code, message) = error_place_locations(*destination, context)?;
+        return Ok(payload.into_store_instructions(code, message));
+    }
+    Ok(vec![lower_returning_call(
+        context,
+        destination,
+        target,
+        arguments,
+        callee_name,
+        function_signatures,
+    )?])
+}
+
 fn reserve_aggregate_destination(
     context: &BackendContext<'_>,
     destination: &Place,
@@ -1558,6 +1617,36 @@ fn outcome_call_instruction(
             failure_mode,
         },
     })
+}
+
+fn lower_never_intrinsic_call(
+    context: &BackendContext<'_>,
+    callee: &crate::mir::CallInstance,
+    arguments: &[crate::mir::CallArgument],
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let crate::mir::CallableIdentity::Intrinsic(intrinsic) = &callee.callable else {
+        return Ok(None);
+    };
+    let arguments = lower_call_arguments(arguments, context)?;
+    let instruction = match (*intrinsic, arguments.as_slice()) {
+        (crate::intrinsics::IntrinsicId::AllocationAbortRaw, []) => Instruction::ProcessExit {
+            code: I32Value::Const(70),
+        },
+        (crate::intrinsics::IntrinsicId::ExitRaw, [ScalarArgument::I32(code)]) => {
+            Instruction::ProcessExit { code: code.clone() }
+        }
+        (
+            crate::intrinsics::IntrinsicId::Trap | crate::intrinsics::IntrinsicId::Unreachable,
+            [],
+        ) => Instruction::Trap,
+        _ => {
+            return Err(invalid_mir_diagnostics(format!(
+                "never intrinsic `{}` has an invalid checked MIR call shape",
+                intrinsic.source_name()
+            )));
+        }
+    };
+    Ok(Some(vec![instruction]))
 }
 
 pub(super) fn lower_outcome_intrinsic_call(
@@ -5453,6 +5542,34 @@ fn lower_intrinsic_assignment(
             pointer: pointer.clone(),
             len: len.clone(),
         },
+        (crate::intrinsics::IntrinsicId::Syscall(arity), arguments) => {
+            let (ScalarArgument::Usize(number), arguments) =
+                arguments.split_first().ok_or_else(invalid)?
+            else {
+                return Err(invalid());
+            };
+            if arguments.len() != usize::from(arity)
+                || arguments
+                    .iter()
+                    .any(|argument| !matches!(argument, ScalarArgument::Usize(_)))
+            {
+                return Err(invalid());
+            }
+            Instruction::DarwinSyscall {
+                destination: aggregate_location(destination, context)?,
+                arity,
+                number: number.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| {
+                        let ScalarArgument::Usize(value) = argument else {
+                            unreachable!("syscall arguments were validated above")
+                        };
+                        value.clone()
+                    })
+                    .collect(),
+            }
+        }
         _ => return Err(invalid()),
     };
     Ok(vec![instruction])
@@ -5470,6 +5587,18 @@ fn lower_intrinsic_effect(
         (crate::intrinsics::IntrinsicId::CloseFdRaw, [ScalarArgument::I32(fd)]) => {
             vec![Instruction::CloseFd { fd: fd.clone() }]
         }
+        (
+            crate::intrinsics::IntrinsicId::CopyStrToPtr,
+            [
+                ScalarArgument::Usize(pointer),
+                ScalarArgument::Usize(offset),
+                ScalarArgument::Str(text),
+            ],
+        ) => vec![Instruction::CopyStrToPointer {
+            pointer: pointer.clone(),
+            offset: offset.clone(),
+            text: text.clone(),
+        }],
         (
             crate::intrinsics::IntrinsicId::CopyPtrToPtr,
             [

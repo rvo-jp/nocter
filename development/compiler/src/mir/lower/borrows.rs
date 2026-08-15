@@ -51,7 +51,22 @@ pub(super) fn expression_is_supported(expression: &Expr, semantic: SemanticInput
         .typed_hir
         .coercion_plan(expression.span())
         .is_none()
-        && source_place_is_supported(&borrow.expression, semantic)
+        && (source_place_is_supported(&borrow.expression, semantic)
+            || !borrow.is_readwrite
+                && readonly_temporary_is_supported(&borrow.expression, semantic))
+}
+
+pub(super) fn readonly_temporary_is_supported(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(ty) = super::coverage::known_expression_type(expression, semantic.typed_hir) else {
+        return false;
+    };
+    let Some(representation) = super::coverage::value_representation(ty, semantic) else {
+        return false;
+    };
+    super::coverage::value_expression_is_supported(expression, representation, semantic)
 }
 
 pub(super) fn source_place_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
@@ -77,7 +92,7 @@ pub(super) fn lower_implicit_to_local(
     scope: ScopeId,
     origin: Origin,
 ) -> Result<(), BuildError> {
-    let source = lower_source_place(context, expression, scope)?;
+    let source = lower_source_or_readonly_temporary(context, expression, readwrite, scope)?;
     let loan = LoanId::from_index(context.loans.len());
     context.loans.push(Loan {
         id: loan,
@@ -180,7 +195,7 @@ pub(super) fn lower_to_local_without_coercion(
     if borrow.is_readwrite != readwrite {
         return Err(BuildError::UnsupportedClaimedExpression);
     }
-    let source = lower_source_place(context, &borrow.expression, scope)?;
+    let source = lower_source_or_readonly_temporary(context, &borrow.expression, readwrite, scope)?;
     let loan = LoanId::from_index(context.loans.len());
     context.loans.push(Loan {
         id: loan,
@@ -203,6 +218,36 @@ pub(super) fn lower_to_local_without_coercion(
     context
         .control_flow
         .push_statement(Statement::BeginLoan { loan, origin })
+}
+
+fn lower_source_or_readonly_temporary(
+    context: &mut LoweringContext<'_>,
+    expression: &Expr,
+    readwrite: bool,
+    scope: ScopeId,
+) -> Result<Place, BuildError> {
+    if source_place_is_supported(expression, context.semantic) {
+        return lower_source_place(context, expression, scope);
+    }
+    if readwrite || !readonly_temporary_is_supported(expression, context.semantic) {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    }
+    let typed = context
+        .semantic
+        .typed_hir
+        .expression(expression.span())
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let ty = match typed.ty {
+        crate::typecheck::PartialSemantic::Known(ty) => ty,
+        crate::typecheck::PartialSemantic::Error => {
+            return Err(BuildError::MissingTypedExpression);
+        }
+    };
+    let representation = super::coverage::value_representation(ty, context.semantic)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let local = context.local_for_type(ty, crate::mir::LocalOrigin::Temporary(typed.id), scope)?;
+    context.lower_value_to_place(local, expression, ty, representation, scope)?;
+    Ok(Place::local(local))
 }
 
 pub(super) fn lower_source_place(

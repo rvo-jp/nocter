@@ -1352,6 +1352,7 @@ impl<'a> IndexedCallable<'a> {
                 mir_bodies,
                 function_signatures,
                 function_names,
+                error_payloads,
                 root_source,
                 self.resolved,
                 self.typed_hir,

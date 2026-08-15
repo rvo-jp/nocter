@@ -330,6 +330,49 @@ pub(super) fn intrinsic_for_call(
 ) -> Option<crate::intrinsics::IntrinsicId> {
     let resolved = semantic.resolver_for(call.span.source)?;
     let symbol = resolved.symbol_for_call(call)?;
+    if [
+        Some(symbol.def_id),
+        semantic
+            .resolved
+            .semantic_db
+            .definition_at(symbol.declaration_span),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|definition| {
+        semantic
+            .resolved
+            .semantic_db
+            .definition(definition)
+            .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Primitive)
+    }) {
+        return crate::intrinsics::IntrinsicId::from_source_name(&symbol.name);
+    }
+    let target = match call.callee.without_groups() {
+        Expr::Identifier(identifier) => semantic.typed_hir.function_call_target(identifier.span),
+        Expr::Member(member) => semantic
+            .typed_hir
+            .function_call_target(member.member_span)
+            .or_else(|| {
+                semantic
+                    .typed_hir
+                    .associated_function_target(member.member_span)
+            })
+            .or_else(|| semantic.typed_hir.method_call_target(member.member_span)),
+        _ => None,
+    }
+    .map(|definition| {
+        semantic
+            .resolved
+            .callable_bodies
+            .canonical_definition(definition)
+    });
+    if target
+        .and_then(|definition| semantic.resolved.semantic_db.definition(definition))
+        .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Primitive)
+    {
+        return crate::intrinsics::IntrinsicId::from_source_name(&symbol.name);
+    }
     match symbol.kind {
         crate::resolve::SymbolKind::Primitive(_) | crate::resolve::SymbolKind::Imported(_) => {
             crate::intrinsics::IntrinsicId::from_source_name(&symbol.name)
@@ -366,6 +409,7 @@ pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrins
             | crate::intrinsics::IntrinsicId::SliceFromRawPartsMut
             | crate::intrinsics::IntrinsicId::SliceFromRawPartsValue
             | crate::intrinsics::IntrinsicId::SliceFromRawPartsValueMut
+            | crate::intrinsics::IntrinsicId::Syscall(_)
     )
 }
 
@@ -373,6 +417,7 @@ pub(super) fn effect_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrin
     matches!(
         intrinsic,
         crate::intrinsics::IntrinsicId::CloseFdRaw
+            | crate::intrinsics::IntrinsicId::CopyStrToPtr
             | crate::intrinsics::IntrinsicId::CopyPtrToPtr
             | crate::intrinsics::IntrinsicId::DropValueAtPtr
             | crate::intrinsics::IntrinsicId::StoreU8ToPtr
@@ -380,7 +425,7 @@ pub(super) fn effect_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrin
     )
 }
 
-pub(super) fn outcome_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
+pub(crate) fn outcome_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
     matches!(
         intrinsic,
         crate::intrinsics::IntrinsicId::OpenReadRaw
@@ -389,6 +434,16 @@ pub(super) fn outcome_intrinsic_is_supported(intrinsic: crate::intrinsics::Intri
             | crate::intrinsics::IntrinsicId::ReadBytesRaw
             | crate::intrinsics::IntrinsicId::WriteBytesRaw
             | crate::intrinsics::IntrinsicId::WriteTextRaw
+    )
+}
+
+pub(super) fn never_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
+    matches!(
+        intrinsic,
+        crate::intrinsics::IntrinsicId::AllocationAbortRaw
+            | crate::intrinsics::IntrinsicId::ExitRaw
+            | crate::intrinsics::IntrinsicId::Trap
+            | crate::intrinsics::IntrinsicId::Unreachable
     )
 }
 
@@ -591,7 +646,9 @@ fn method_receiver_is_supported(
         {
             return true;
         }
-        return super::borrows::source_place_is_supported(&member.object, semantic);
+        return super::borrows::source_place_is_supported(&member.object, semantic)
+            || kind == crate::typecheck::TypecheckMethodReceiverKind::ReadonlyBorrow
+                && super::borrows::readonly_temporary_is_supported(&member.object, semantic);
     }
     let Some(ty) = known_expression_type(&member.object, semantic.typed_hir) else {
         return false;
@@ -624,7 +681,10 @@ pub(super) fn borrow_argument_is_supported(
         || super::borrows::expression_is_supported(expression, semantic)
 }
 
-fn coercion_expression_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+pub(super) fn coercion_expression_is_supported(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
     let Some(conversion) = conversion_plan_for_expression(expression, semantic.typed_hir) else {
         return false;
     };
@@ -1490,19 +1550,7 @@ pub(super) fn scalar_loop_block_statements<'a>(
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> Option<Vec<ScalarStatement<'a>>> {
-    if block.result.is_some() {
-        return None;
-    }
-    let reachable = reachable_runtime_statements(block);
-    let mut statements = reachable
-        .statements
-        .iter()
-        .copied()
-        .map(scalar_statement)
-        .collect::<Option<Vec<_>>>()?;
-    truncate_unreachable_scalar_tail(&mut statements);
-    let _ = (resolved, resolved_sources, typed_hir);
-    Some(statements)
+    scalar_linear_block_statements(block, resolved, resolved_sources, typed_hir, true)
 }
 
 pub(super) fn scalar_body_parts(
@@ -1787,17 +1835,15 @@ pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticIn
     let Expr::Call(call) = expression.without_groups() else {
         return false;
     };
-    if known_expression_type(expression, semantic.typed_hir)
+    if intrinsic_expression_type(expression.span(), semantic.typed_hir)
+        .or_else(|| known_expression_type(expression, semantic.typed_hir))
         .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
         .is_some_and(|ty| type_expr_resolves_to_error(ty, semantic.resolved))
-        && call.arguments.len() == 2
     {
         return true;
     }
     if let Some(symbol) = semantic.resolved.symbol_for_call(call)
         && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
-        && signature.parameters.len() == 2
-        && call.arguments.len() == 2
         && type_expr_resolves_to_error(&signature.return_type, semantic.resolved)
     {
         return true;
@@ -1805,14 +1851,39 @@ pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticIn
     let Some((owner, function)) = semantic.resolved.associated_function_for_call(call) else {
         return false;
     };
-    if semantic.resolved.builtin_owner_for_symbol(owner)
-        != Some(crate::builtin_types::BuiltinTypeOwner::Error)
-        || function.signature.parameters.len() != 2
-        || call.arguments.len() != 2
-    {
-        return false;
-    }
-    true
+    semantic.resolved.builtin_owner_for_symbol(owner)
+        == Some(crate::builtin_types::BuiltinTypeOwner::Error)
+        && type_expr_resolves_to_error(&function.signature.return_type, semantic.resolved)
+}
+
+pub(super) fn error_constructor_arguments<'a>(
+    call: &'a crate::ast::CallExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<[&'a Expr; 2]> {
+    let signature_is_constructor = intrinsic_expression_type(call.span, semantic.typed_hir)
+        .and_then(|ty| semantic.typed_hir.type_expr_by_id(ty))
+        .is_some_and(|ty| type_expr_resolves_to_error(ty, semantic.resolved))
+        || semantic
+            .resolved
+            .function_signature_for_call(call)
+            .is_some_and(|signature| {
+                signature.parameters.len() == 2
+                    && type_expr_resolves_to_error(&signature.return_type, semantic.resolved)
+            })
+        || semantic
+            .resolved
+            .associated_function_for_call(call)
+            .is_some_and(|(owner, function)| {
+                semantic.resolved.builtin_owner_for_symbol(owner)
+                    == Some(crate::builtin_types::BuiltinTypeOwner::Error)
+                    && function.signature.parameters.len() == 2
+                    && type_expr_resolves_to_error(
+                        &function.signature.return_type,
+                        semantic.resolved,
+                    )
+            });
+    signature_is_constructor.then_some(())?;
+    call.arguments.iter().collect::<Vec<_>>().try_into().ok()
 }
 
 fn type_expr_resolves_to_error(ty: &crate::ast::TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -2280,9 +2351,15 @@ pub(super) fn comparison_operand_type(
     semantic: SemanticInputs<'_>,
 ) -> Option<(crate::semantic::TyId, super::ScalarType)> {
     let left_ty = known_expression_type(&binary.left, semantic.typed_hir)?;
-    let right_ty = known_expression_type(&binary.right, semantic.typed_hir)?;
     let left = value_scalar_type(left_ty, semantic)?;
+    if negated_integer_literal_fits(&binary.right, left) {
+        return Some((left_ty, left));
+    }
+    let right_ty = known_expression_type(&binary.right, semantic.typed_hir)?;
     let right = value_scalar_type(right_ty, semantic)?;
+    if negated_integer_literal_fits(&binary.left, right) {
+        return Some((right_ty, right));
+    }
     if left_ty == right_ty && left == right {
         return Some((left_ty, left));
     }
@@ -2293,6 +2370,27 @@ pub(super) fn comparison_operand_type(
         return Some((right_ty, right));
     }
     None
+}
+
+fn negated_integer_literal_fits(expression: &Expr, scalar: super::ScalarType) -> bool {
+    let Expr::Unary(unary) = expression.without_groups() else {
+        return false;
+    };
+    if unary.operator != crate::ast::UnaryOperator::Negate {
+        return false;
+    }
+    let Expr::IntegerLiteral(literal) = unary.operand.without_groups() else {
+        return false;
+    };
+    let Some(value) = decode_integer_literal_value(&literal.value) else {
+        return false;
+    };
+    let kind = match scalar {
+        super::ScalarType::I32 => crate::integer::IntegerType::I32,
+        super::ScalarType::Integer(kind) => kind,
+        super::ScalarType::U8 | super::ScalarType::Usize | super::ScalarType::Bool => return false,
+    };
+    kind.is_signed() && value <= u128::from((kind.mask() >> 1) + 1)
 }
 
 pub(super) fn view_comparison_is_supported(

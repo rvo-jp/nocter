@@ -180,10 +180,25 @@ fn enqueue_mir_call_targets(
     queue: &mut VecDeque<CallTarget>,
 ) -> Result<(), String> {
     for block in &body.blocks {
-        let crate::mir::Terminator::Call { ref callee, .. } = block.terminator else {
+        let crate::mir::Terminator::Call {
+            ref callee,
+            ref continuation,
+            ..
+        } = block.terminator
+        else {
             continue;
         };
         if matches!(callee.callable, crate::mir::CallableIdentity::Intrinsic(_)) {
+            continue;
+        }
+        if matches!(
+            continuation,
+            crate::mir::CallContinuation::Return { destination, .. }
+                if body.locals[destination.local.index()].representation
+                    == crate::mir::ValueRepresentation::Error
+        ) {
+            // Error-returning helper bodies are validated as static payloads and
+            // projected at the call site. They have no runtime callable edge.
             continue;
         }
         let name = names

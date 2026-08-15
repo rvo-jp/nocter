@@ -19,6 +19,7 @@ mod borrows;
 mod closures;
 mod context;
 mod coverage;
+pub(crate) use coverage::outcome_intrinsic_is_supported;
 mod explicit_drops;
 mod expressions;
 mod indexes;
