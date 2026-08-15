@@ -44,15 +44,36 @@ pub(super) fn conformance_method_for_interface<'a>(
     candidates.next().is_none().then_some(candidate.method)
 }
 
-pub(crate) fn conformance_method_for_interface_type_expr<'a>(
-    receiver: &TypeExpr,
-    interface_canonical_name: &str,
+pub(super) fn conformance_method_for_interface_definition<'a>(
+    receiver: &Type,
+    interface_definition: crate::semantic::DefId,
     method_name: &str,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a MethodSignature> {
-    conformance_method_for_interface(
+    let mut candidates = interface_method_candidates(receiver, resolved)
+        .into_iter()
+        .filter(|candidate| {
+            resolved
+                .semantic_db
+                .definition_at(candidate.contract.name_span)
+                .and_then(|definition| resolved.semantic_db.definition(definition))
+                .and_then(|definition| definition.owner)
+                == Some(interface_definition)
+                && candidate.method.name == method_name
+        });
+    let candidate = candidates.next()?;
+    candidates.next().is_none().then_some(candidate.method)
+}
+
+pub(crate) fn conformance_method_for_interface_definition_type_expr<'a>(
+    receiver: &TypeExpr,
+    interface_definition: crate::semantic::DefId,
+    method_name: &str,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a MethodSignature> {
+    conformance_method_for_interface_definition(
         &type_expr_to_type(receiver, resolved),
-        interface_canonical_name,
+        interface_definition,
         method_name,
         resolved,
     )

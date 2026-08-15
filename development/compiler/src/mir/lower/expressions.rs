@@ -1360,10 +1360,16 @@ impl LoweringContext<'_> {
                     };
                     (instance, None)
                 } else {
-                    let definition = self
-                        .semantic
-                        .typed_hir
-                        .method_call_target(member.member_span)
+                    let specialization =
+                        self.semantic.method_call_specialization(member.member_span);
+                    let definition = specialization
+                        .as_ref()
+                        .map(|specialization| specialization.def_id)
+                        .or_else(|| {
+                            self.semantic
+                                .typed_hir
+                                .method_call_target(member.member_span)
+                        })
                         .map(|definition| {
                             self.semantic
                                 .resolved
@@ -1371,11 +1377,7 @@ impl LoweringContext<'_> {
                                 .canonical_definition(definition)
                         })
                         .ok_or(BuildError::MissingCallTarget)?;
-                    let instance = if let Some(specialization) = self
-                        .semantic
-                        .typed_hir
-                        .method_call_specialization(member.member_span)
-                    {
+                    let instance = if let Some(specialization) = specialization.as_ref() {
                         let receiver = super::storage_types::runtime_type_id_for_type_expr(
                             &specialization.self_ty,
                             self.semantic,

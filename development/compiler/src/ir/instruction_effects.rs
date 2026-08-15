@@ -9,7 +9,8 @@ use super::{CallTarget, Instruction, OutcomeFailureMode, ScalarArgument};
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct InstructionEffects<'a> {
     call_target: Option<&'a CallTarget>,
-    call_argument_words: usize,
+    call_arguments: Option<&'a [ScalarArgument]>,
+    supplemental_call_argument_words: usize,
     nested: [Option<&'a [Instruction]>; 3],
 }
 
@@ -19,7 +20,11 @@ impl<'a> InstructionEffects<'a> {
     }
 
     pub(crate) fn call_argument_words(&self) -> usize {
-        self.call_argument_words
+        self.call_arguments.map_or(0, argument_words) + self.supplemental_call_argument_words
+    }
+
+    pub(crate) fn call_arguments(&self) -> Option<&[ScalarArgument]> {
+        self.call_arguments
     }
 
     fn nested(&self) -> [Option<&'a [Instruction]>; 3] {
@@ -66,7 +71,8 @@ impl Instruction {
             }
             | Self::TailCall { target, arguments } => InstructionEffects {
                 call_target: Some(target),
-                call_argument_words: argument_words(arguments),
+                call_arguments: Some(arguments),
+                supplemental_call_argument_words: 0,
                 nested: none,
             },
             Self::CallOutcomeI32 {
@@ -129,7 +135,8 @@ impl Instruction {
                 failure_mode,
             } => InstructionEffects {
                 call_target: Some(target),
-                call_argument_words: argument_words(arguments),
+                call_arguments: Some(arguments),
+                supplemental_call_argument_words: 0,
                 nested: [failure_instructions(failure_mode), None, None],
             },
             Self::CallComposedOutcome {
@@ -140,7 +147,8 @@ impl Instruction {
                 ..
             } => InstructionEffects {
                 call_target: Some(target),
-                call_argument_words: argument_words(arguments),
+                call_arguments: Some(arguments),
+                supplemental_call_argument_words: 0,
                 nested: [
                     failure_instructions(outer_mode),
                     failure_instructions(inner_mode),
@@ -153,7 +161,8 @@ impl Instruction {
                 ..
             } => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: [Some(then_instructions), Some(else_instructions), None],
             },
             Self::IfStoredOutcomeTag {
@@ -162,7 +171,8 @@ impl Instruction {
                 ..
             } => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: [Some(success_instructions), Some(outcome_instructions), None],
             },
             Self::CheckStoredFallible {
@@ -171,7 +181,8 @@ impl Instruction {
                 ..
             } => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: [
                     Some(success_instructions),
                     failure_instructions(failure_mode),
@@ -184,19 +195,22 @@ impl Instruction {
                 ..
             } => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: [Some(condition_instructions), Some(body_instructions), None],
             },
             Self::CheckFailure { failure_mode }
             | Self::ReadSlice { failure_mode, .. }
             | Self::OpenRead { failure_mode, .. } => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: [failure_instructions(failure_mode), None, None],
             },
             Self::DarwinSyscall { arguments, .. } => InstructionEffects {
                 call_target: None,
-                call_argument_words: arguments.len() + 1,
+                call_arguments: None,
+                supplemental_call_argument_words: arguments.len() + 1,
                 nested: none,
             },
             Self::ProcessExit { .. }
@@ -282,7 +296,8 @@ impl Instruction {
             | Self::Continue
             | Self::Return => InstructionEffects {
                 call_target: None,
-                call_argument_words: 0,
+                call_arguments: None,
+                supplemental_call_argument_words: 0,
                 nested: none,
             },
         }

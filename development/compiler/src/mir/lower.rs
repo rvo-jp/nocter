@@ -48,6 +48,35 @@ impl<'a> SemanticInputs<'a> {
         self.resolved_sources.get(&source).copied()
     }
 
+    fn method_call_specialization(
+        self,
+        span: crate::source::ByteSpan,
+    ) -> Option<crate::typecheck::MethodCallSpecialization> {
+        let specialization = self.typed_hir.method_call_specialization(span)?.clone();
+        Some(
+            crate::typecheck::specialize_method_dispatch_across_resolvers(
+                specialization,
+                self.resolved_sources
+                    .values()
+                    .copied()
+                    .chain(std::iter::once(self.resolved)),
+            ),
+        )
+    }
+
+    fn protocol_method(
+        self,
+        method: crate::typecheck::TypecheckProtocolMethod,
+    ) -> crate::typecheck::TypecheckProtocolMethod {
+        crate::typecheck::specialize_protocol_method_dispatch_across_resolvers(
+            method,
+            self.resolved_sources
+                .values()
+                .copied()
+                .chain(std::iter::once(self.resolved)),
+        )
+    }
+
     fn comparison_plan(
         self,
         expression_span: crate::source::ByteSpan,

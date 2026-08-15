@@ -722,6 +722,49 @@ func main(): i32 {
     assert_concrete_i32_pair_type_expr(facts.field_type_expr(member_span));
 }
 
+#[test]
+fn method_runtime_type_arguments_exclude_owner_parameters_without_losing_substitutions() {
+    let span = ByteSpan::new(crate::source::SourceId::new(0), 0, 1);
+    let reference = |name: &str| {
+        TypeExpr::Reference(crate::ast::TypeReference {
+            span,
+            name: name.to_string(),
+        })
+    };
+    let specialization = MethodCallSpecialization {
+        def_id: crate::semantic::DefId::from_index(1),
+        declaration_span: span,
+        method_name: "apply".to_string(),
+        target_name: "Box<T>.apply<U>".to_string(),
+        self_ty: TypeExpr::Generic(crate::ast::GenericType {
+            span,
+            name: "Box".to_string(),
+            name_span: span,
+            arguments: vec![reference("T")],
+        }),
+        generic_parameters: vec!["T".to_string(), "U".to_string()],
+        owner_generic_count: 1,
+        substitutions: HashMap::from([
+            ("T".to_string(), reference("T")),
+            ("U".to_string(), reference("U")),
+        ]),
+        free_type_parameters: HashSet::from(["T".to_string(), "U".to_string()]),
+    };
+    let specialized = specialization
+        .with_context_substitutions(&HashMap::from([
+            ("T".to_string(), reference("i32")),
+            ("U".to_string(), reference("bool")),
+        ]))
+        .expect("all method parameters are concrete");
+
+    assert_eq!(specialized.substitutions["T"], reference("i32"));
+    assert_eq!(specialized.substitutions["U"], reference("bool"));
+    assert_eq!(
+        specialized.ordered_type_arguments(),
+        Some(vec![&reference("bool")])
+    );
+}
+
 fn assert_concrete_i32_pair_type_expr(ty: Option<&TypeExpr>) {
     let Some(TypeExpr::Array(array)) = ty else {
         panic!("expected concrete fixed array field type expr");

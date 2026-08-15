@@ -83,11 +83,12 @@ pub(crate) use facts::{
     TypecheckInterpolationPart, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
     TypecheckProtocolMethod, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
     TypecheckSliceElementKind, TypedHir, drop_type_specialization_from_self_ty,
-    type_expr_presentation_label, type_symbol_presentation_label,
+    specialize_method_dispatch_across_resolvers,
+    specialize_protocol_method_dispatch_across_resolvers, type_expr_presentation_label,
+    type_symbol_presentation_label,
 };
 pub(crate) use indexing::specialize_index_plan_across_resolvers;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
-pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{enum_variant_member_label, field_member_label};
 pub(crate) use operators::specialize_comparison_plan;

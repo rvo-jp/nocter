@@ -24,10 +24,15 @@ impl FunctionNames {
         functions: Vec<(DefId, CallTarget)>,
         instances: Vec<(crate::mir::CallInstanceKey, CallTarget)>,
         drops: Vec<(DefId, TypeExpr, CallTarget)>,
+        indexed_targets: &std::collections::HashSet<CallTarget>,
     ) -> Self {
         Self {
             by_definition: functions.into_iter().collect(),
-            by_instance: crate::mir::MonoItemRegistry::from_entries(instances),
+            by_instance: crate::mir::MonoItemRegistry::from_entries(
+                instances
+                    .into_iter()
+                    .filter(|(_, target)| indexed_targets.contains(target)),
+            ),
             drops_by_definition_and_type: drops
                 .into_iter()
                 .map(|(definition, ty, name)| {

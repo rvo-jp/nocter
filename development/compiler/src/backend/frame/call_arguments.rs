@@ -6,7 +6,17 @@ use super::*;
 pub(super) fn max_call_argument_count(instructions: &[Instruction]) -> usize {
     let mut maximum = 0;
     crate::ir::visit_instruction_tree(instructions, &mut |instruction| {
-        maximum = maximum.max(instruction.effects().call_argument_words());
+        let effects = instruction.effects();
+        if let Some(arguments) = effects.call_arguments() {
+            debug_assert_eq!(
+                arguments
+                    .iter()
+                    .map(ScalarArgument::abi_word_count)
+                    .sum::<usize>(),
+                effects.call_argument_words(),
+            );
+        }
+        maximum = maximum.max(effects.call_argument_words());
     });
     maximum
 }

@@ -53,19 +53,6 @@ impl BodyInstanceKey {
 }
 
 impl BodyCache {
-    pub(crate) fn get_specialized(
-        &self,
-        source: SourceId,
-        id: BodyId,
-        substitutions: &HashMap<String, crate::ast::TypeExpr>,
-    ) -> Option<CachedBody> {
-        self.entries
-            .lock()
-            .expect("MIR body cache lock must not be poisoned")
-            .get(&BodyInstanceKey::new(source, id, substitutions))
-            .cloned()
-    }
-
     pub(crate) fn get_or_build_specialized(
         &self,
         source: SourceId,

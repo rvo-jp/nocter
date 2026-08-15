@@ -76,6 +76,10 @@ use hover_labels::*;
 pub(crate) use specializations::drop_type_specialization_from_self_ty;
 pub(crate) use specializations::method_target_name_from_self_ty;
 use specializations::*;
+pub(crate) use specializations::{
+    specialize_method_dispatch_across_resolvers,
+    specialize_protocol_method_dispatch_across_resolvers,
+};
 use type_exprs::*;
 use utility::*;
 

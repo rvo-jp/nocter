@@ -1085,6 +1085,7 @@ impl<'a> FunctionIndex<'a> {
                     Some((definition, ty.clone(), target.clone()))
                 })
                 .collect(),
+            &self.definitions.keys().cloned().collect(),
         )
     }
 
@@ -1093,7 +1094,7 @@ impl<'a> FunctionIndex<'a> {
             .iter()
             .filter_map(|(target, function)| {
                 function
-                    .static_error_payload(mir_bodies, self.semantic_db)
+                    .static_error_payload(mir_bodies, self.semantic_db, &self.resolved_sources)
                     .map(|payload| (target.clone(), payload))
             })
             .collect()
@@ -1259,6 +1260,7 @@ impl<'a> IndexedCallable<'a> {
         &self,
         mir_bodies: &crate::mir::BodyCache,
         semantic_db: &crate::semantic::SemanticDb,
+        resolved_sources: &ResolvedSources<'_>,
     ) -> Option<errors::ErrorPayload> {
         let IndexedDeclaration::Function {
             declaration: function,
@@ -1273,8 +1275,39 @@ impl<'a> IndexedCallable<'a> {
         }
         let source_body = function.body.as_ref()?;
         let body_id = semantic_db.body_at(source_body.span)?;
+        let specialized_return_type =
+            substitute_type_expr_parameters(&function.return_type, substitutions);
+        let return_contract = crate::mir::callable_return_contract(
+            &specialized_return_type,
+            self.resolved,
+            resolved_sources,
+        )?;
+        if return_contract.representation != crate::mir::ValueRepresentation::Error {
+            return None;
+        }
+        let typed_hir = crate::mir::prepare_typed_hir(
+            self.typed_hir,
+            substitutions,
+            &function.parameters.parameters,
+            &function.return_type,
+            None,
+        );
+        let declared_return_ty = typed_hir.type_id(&specialized_return_type)?;
         let body = mir_bodies
-            .get_specialized(source_body.span.source, body_id, substitutions)?
+            .get_or_build_specialized(source_body.span.source, body_id, substitutions, || {
+                crate::mir::build_body(
+                    source_body,
+                    &function.parameters.parameters,
+                    return_contract,
+                    crate::mir::BuildInputs {
+                        semantic_db,
+                        resolved: self.resolved,
+                        resolved_sources,
+                        typed_hir: &typed_hir,
+                        declared_return_ty,
+                    },
+                )
+            })
             .ok()?;
         crate::mir::static_error_payload(&body).map(Into::into)
     }

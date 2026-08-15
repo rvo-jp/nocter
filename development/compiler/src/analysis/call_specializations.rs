@@ -297,35 +297,20 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
 
 fn redirect_interface_method_specialization(
     analysis: &CompileUnitAnalysis,
-    mut specialization: MethodCallSpecialization,
+    specialization: MethodCallSpecialization,
 ) -> MethodCallSpecialization {
-    let Some((interface_name, method_name)) =
-        interface_method_identity(analysis, specialization.def_id)
-    else {
-        return specialization;
-    };
     if matches!(specialization.self_ty, TypeExpr::Closure(_)) {
         return specialization;
     }
-    let Some(file) = analysis
-        .file_by_source(specialization.self_ty.span().source)
-        .or_else(|| analysis.root_file())
-    else {
+    let original_definition = specialization.def_id;
+    let mut specialization = crate::typecheck::specialize_method_dispatch_across_resolvers(
+        specialization,
+        analysis.files.iter().map(|file| &file.resolved),
+    );
+    if specialization.def_id == original_definition {
         return specialization;
-    };
-    let Some(actual_method) = crate::typecheck::conformance_method_for_interface_type_expr(
-        &specialization.self_ty,
-        interface_name,
-        method_name,
-        &file.resolved,
-    ) else {
-        return specialization;
-    };
-    let Some(actual_definition) = analysis.semantic_db.definition_at(actual_method.name_span)
-    else {
-        return specialization;
-    };
-    let Some((_, owner)) = callable_owner_syntax(analysis, actual_definition) else {
+    }
+    let Some((_, owner)) = callable_owner_syntax(analysis, specialization.def_id) else {
         return specialization;
     };
     let Some(owner_substitutions) = method_owner_substitutions_for_declaration(
@@ -335,8 +320,6 @@ fn redirect_interface_method_specialization(
     ) else {
         return specialization;
     };
-    specialization.declaration_span = actual_method.name_span;
-    specialization.def_id = actual_definition;
     let runtime_self_ty = substitute_type_expr_parameters(&owner.target_ty, &owner_substitutions);
     specialization.target_name = format!(
         "{}.{}",
@@ -345,21 +328,6 @@ fn redirect_interface_method_specialization(
     );
     specialization.substitutions.extend(owner_substitutions);
     specialization
-}
-
-fn interface_method_identity(
-    analysis: &CompileUnitAnalysis,
-    definition: DefId,
-) -> Option<(&str, &str)> {
-    analysis.files.iter().find_map(|file| {
-        let crate::resolve::ResolvedDeclaration::Method(owner, method) =
-            file.resolved.declaration(definition)?
-        else {
-            return None;
-        };
-        (owner.kind == crate::resolve::TypeSymbolKind::Interface)
-            .then_some((owner.canonical_name.as_str(), method.name.as_str()))
-    })
 }
 
 enum PendingCallSpecialization {

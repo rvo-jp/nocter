@@ -138,10 +138,11 @@ fn lower_part(
         )?,
     };
     let output = borrow_output(context, destination, result_ty, part_scope, planned.span)?;
+    let formatter = context.semantic.protocol_method(planned.formatter.clone());
     let receiver_ty = context
         .semantic
         .typed_hir
-        .type_id(&planned.formatter.self_ty)
+        .type_id(&formatter.self_ty)
         .ok_or(BuildError::MissingSpecializedReceiverType)?;
     context.control_flow.emit_effect_call(
         origin,
@@ -150,7 +151,7 @@ fn lower_part(
                 .semantic
                 .resolved
                 .callable_bodies
-                .canonical_definition(planned.formatter.def_id),
+                .canonical_definition(formatter.def_id),
             Some(receiver_ty),
             Vec::new(),
         ),

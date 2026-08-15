@@ -173,6 +173,10 @@ fn index_typed_hir_callable_names(
         );
     }
     for specialization in typed_hir.method_call_specializations() {
+        let specialization = crate::typecheck::specialize_method_dispatch_across_resolvers(
+            specialization.clone(),
+            analysis.files.iter().map(|file| &file.resolved),
+        );
         let Some(arguments) = specialization.ordered_type_arguments() else {
             continue;
         };
@@ -186,8 +190,15 @@ fn index_typed_hir_callable_names(
         );
     }
     for plan in typed_hir.comparison_plans() {
-        if let Some(method) = &plan.method {
-            index_protocol_method_name(names, method, analysis);
+        let plan = if plan.method.is_some() {
+            Some(plan.clone())
+        } else {
+            analysis.files.iter().find_map(|file| {
+                crate::typecheck::specialize_comparison_plan(plan.clone(), &file.resolved)
+            })
+        };
+        if let Some(method) = plan.and_then(|plan| plan.method) {
+            index_protocol_method_name(names, &method, analysis);
         }
     }
     for plan in typed_hir.index_plans() {
@@ -205,11 +216,25 @@ fn index_typed_hir_callable_names(
         }
     }
     for (_, plan) in typed_hir.collection_for_plans() {
+        let plan = analysis
+            .files
+            .iter()
+            .find_map(|file| {
+                crate::typecheck::specialize_collection_plan(plan.clone(), &file.resolved)
+            })
+            .unwrap_or_else(|| plan.clone());
         for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
             index_protocol_method_name(names, method, analysis);
         }
     }
     for (_, plan) in typed_hir.sequence_spread_plans() {
+        let plan = analysis
+            .files
+            .iter()
+            .find_map(|file| {
+                crate::typecheck::specialize_sequence_spread_plan(plan.clone(), &file.resolved)
+            })
+            .unwrap_or_else(|| plan.clone());
         for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
             index_protocol_method_name(names, method, analysis);
         }
@@ -234,6 +259,10 @@ fn index_protocol_method_name(
     method: &crate::typecheck::TypecheckProtocolMethod,
     analysis: &CompileUnitAnalysis,
 ) {
+    let method = crate::typecheck::specialize_protocol_method_dispatch_across_resolvers(
+        method.clone(),
+        analysis.files.iter().map(|file| &file.resolved),
+    );
     names.insert_instance(
         crate::mir::CallInstanceKey::from_types(
             analysis.callable_bodies.canonical_definition(method.def_id),
@@ -802,47 +831,6 @@ impl<'a> CallableIndex<'a> {
 
         for file in &analysis.files {
             index_typed_hir_callable_names(&mut names, &file.typed_hir, analysis);
-            for (_, fact) in file.typed_hir.callable_call_entries() {
-                names.insert_instance(
-                    crate::mir::CallInstanceKey::from_callable_type(
-                        &fact.specialization.callable_ty,
-                        fact.specialization.capability,
-                    ),
-                    fact.specialization.target_name.clone(),
-                );
-            }
-            for (_, plan) in file.typed_hir.interpolation_plans() {
-                names.insert(
-                    analysis
-                        .callable_bodies
-                        .canonical_definition(plan.constructor.definition),
-                    plan.constructor.target_name.clone(),
-                );
-                for part in &plan.parts {
-                    names.insert_instance(
-                        crate::mir::CallInstanceKey::from_types(
-                            analysis
-                                .callable_bodies
-                                .canonical_definition(part.formatter.def_id),
-                            Some(&part.formatter.self_ty),
-                            std::iter::empty(),
-                        ),
-                        part.formatter.target_name.clone(),
-                    );
-                }
-            }
-            for (_, plan) in file.typed_hir.collection_for_plans() {
-                for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
-                    names.insert_instance(
-                        crate::mir::CallInstanceKey::from_types(
-                            analysis.callable_bodies.canonical_definition(method.def_id),
-                            Some(&method.self_ty),
-                            std::iter::empty(),
-                        ),
-                        method.target_name.clone(),
-                    );
-                }
-            }
         }
         for callable in definitions.values() {
             if callable.substitutions.is_empty() {
@@ -850,48 +838,6 @@ impl<'a> CallableIndex<'a> {
             }
             let specialized = callable.typed_hir.specialized(&callable.substitutions);
             index_typed_hir_callable_names(&mut names, &specialized, analysis);
-            for (_, fact) in specialized.callable_call_entries() {
-                names.insert_instance(
-                    crate::mir::CallInstanceKey::from_callable_type(
-                        &fact.specialization.callable_ty,
-                        fact.specialization.capability,
-                    ),
-                    fact.specialization.target_name.clone(),
-                );
-            }
-            for specialization in specialized.method_call_specializations() {
-                let Some(arguments) = specialization.ordered_type_arguments() else {
-                    continue;
-                };
-                names.insert_instance(
-                    crate::mir::CallInstanceKey::from_types(
-                        analysis
-                            .callable_bodies
-                            .canonical_definition(specialization.def_id),
-                        Some(&specialization.self_ty),
-                        arguments,
-                    ),
-                    specialization.target_name.clone(),
-                );
-            }
-        }
-
-        for file in &analysis.files {
-            for specialization in file.typed_hir.method_call_specializations() {
-                let Some(arguments) = specialization.ordered_type_arguments() else {
-                    continue;
-                };
-                names.insert_instance(
-                    crate::mir::CallInstanceKey::from_types(
-                        analysis
-                            .callable_bodies
-                            .canonical_definition(specialization.def_id),
-                        Some(&specialization.self_ty),
-                        arguments,
-                    ),
-                    specialization.target_name.clone(),
-                );
-            }
         }
 
         for specializations in call_specializations.methods.values() {

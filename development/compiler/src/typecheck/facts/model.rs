@@ -988,6 +988,7 @@ impl TypecheckProtocolMethod {
             method_name: self.method_name.clone(),
             target_name: self.target_name.clone(),
             self_ty: self.self_ty.clone(),
+            owner_generic_count: generic_parameters.len(),
             generic_parameters,
             substitutions,
             free_type_parameters: self.free_type_parameters.clone(),
@@ -1295,6 +1296,7 @@ pub(crate) struct MethodCallSpecialization {
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
     pub(super) generic_parameters: Vec<String>,
+    pub(super) owner_generic_count: usize,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
     pub(super) free_type_parameters: HashSet<String>,
 }
@@ -1334,6 +1336,7 @@ impl MethodCallSpecialization {
     pub(crate) fn ordered_type_arguments(&self) -> Option<Vec<&TypeExpr>> {
         self.generic_parameters
             .iter()
+            .skip(self.owner_generic_count)
             .map(|parameter| self.substitutions.get(parameter))
             .collect()
     }
@@ -1367,6 +1370,7 @@ impl MethodCallSpecialization {
             target_name,
             self_ty,
             generic_parameters: self.generic_parameters.clone(),
+            owner_generic_count: self.owner_generic_count,
             substitutions,
             free_type_parameters: HashSet::new(),
         })

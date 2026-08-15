@@ -128,8 +128,78 @@ pub(super) fn method_call_specialization(
         target_name: method_target_name_from_self_ty(&self_ty, &method.name),
         self_ty,
         generic_parameters: method.signature.generic_parameters.clone(),
+        owner_generic_count: method.owner_generic_count,
         substitutions,
         free_type_parameters,
+    })
+}
+
+/// Rebind an interface requirement selected for a generic receiver to the
+/// concrete conformance method selected after monomorphization.
+///
+/// Context substitution is deliberately resolver-free: it only rewrites
+/// types. Dispatch specialization is a separate semantic operation because it
+/// needs the complete compile-unit declaration graph.
+pub(crate) fn specialize_method_dispatch_across_resolvers<'a>(
+    mut specialization: MethodCallSpecialization,
+    resolvers: impl IntoIterator<Item = &'a ResolveOutput>,
+) -> MethodCallSpecialization {
+    let resolvers = resolvers.into_iter().collect::<Vec<_>>();
+    let Some((interface_definition, method_name)) =
+        interface_method_identity(specialization.def_id, resolvers.iter().copied())
+    else {
+        return specialization;
+    };
+    let Some((resolved, method)) = resolvers.iter().copied().find_map(|resolved| {
+        super::super::interface_methods::conformance_method_for_interface_definition_type_expr(
+            &specialization.self_ty,
+            interface_definition,
+            &method_name,
+            resolved,
+        )
+        .map(|method| (resolved, method))
+    }) else {
+        return specialization;
+    };
+    let Some(definition) = resolved.semantic_db.definition_at(method.name_span) else {
+        return specialization;
+    };
+    specialization.def_id = definition;
+    specialization.declaration_span = method.name_span;
+    specialization.target_name =
+        method_target_name_from_self_ty(&specialization.self_ty, &specialization.method_name);
+    specialization
+}
+
+pub(crate) fn specialize_protocol_method_dispatch_across_resolvers<'a>(
+    method: TypecheckProtocolMethod,
+    resolvers: impl IntoIterator<Item = &'a ResolveOutput>,
+) -> TypecheckProtocolMethod {
+    let specialization = method.as_method_call_specialization(Vec::new(), HashMap::new());
+    let specialization = specialize_method_dispatch_across_resolvers(specialization, resolvers);
+    TypecheckProtocolMethod {
+        def_id: specialization.def_id,
+        declaration_span: specialization.declaration_span,
+        target_name: specialization.target_name,
+        ..method
+    }
+}
+
+fn interface_method_identity<'a>(
+    definition: crate::semantic::DefId,
+    resolvers: impl IntoIterator<Item = &'a ResolveOutput>,
+) -> Option<(crate::semantic::DefId, String)> {
+    resolvers.into_iter().find_map(|resolved| {
+        let crate::resolve::ResolvedDeclaration::Method(owner, method) =
+            resolved.declaration(definition)?
+        else {
+            return None;
+        };
+        if owner.kind != crate::resolve::TypeSymbolKind::Interface {
+            return None;
+        }
+        let interface_definition = resolved.semantic_db.definition(definition)?.owner?;
+        Some((interface_definition, method.name.clone()))
     })
 }
 

@@ -283,6 +283,7 @@ pub(super) fn protocol_instance(
     context: &LoweringContext<'_>,
     method: &crate::typecheck::TypecheckProtocolMethod,
 ) -> Result<crate::mir::CallInstance, BuildError> {
+    let method = context.semantic.protocol_method(method.clone());
     let self_ty = context
         .semantic
         .typed_hir
