@@ -1,37 +1,38 @@
 use super::*;
-use crate::semantic::{ExprId, SemanticDb};
+use crate::semantic::{ExprId, SemanticDb, SemanticSiteId, StmtId};
 use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedExpression};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TypedHir {
     expressions: crate::typecheck::typed_hir::TypedExpressionArena,
+    sites: super::site_arena::SemanticSiteArena,
     pub(super) binding_type_labels: HashMap<LocalSymbolId, String>,
     pub(super) binding_type_exprs: HashMap<LocalSymbolId, TypeExpr>,
-    pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
-    pub(super) comparison_plans: HashMap<ByteSpan, TypecheckComparisonPlan>,
-    pub(super) index_plans: HashMap<ByteSpan, TypecheckIndexPlan>,
-    pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
-    pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
-    pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
-    pub(super) conversion_plans: HashMap<ByteSpan, TypecheckConversionPlan>,
+    pub(super) interpolation_plans: HashMap<ExprId, TypecheckInterpolationPlan>,
+    pub(super) comparison_plans: HashMap<ExprId, TypecheckComparisonPlan>,
+    pub(super) index_plans: HashMap<ExprId, TypecheckIndexPlan>,
+    pub(super) collection_for_plans: HashMap<StmtId, TypecheckCollectionForPlan>,
+    pub(super) sequence_spread_plans: HashMap<ExprId, TypecheckSequenceSpreadPlan>,
+    pub(super) closure_plans: HashMap<ExprId, TypecheckClosurePlan>,
+    pub(super) conversion_plans: HashMap<ExprId, TypecheckConversionPlan>,
     pub(super) binding_readonly: HashMap<LocalSymbolId, bool>,
     pub(super) payload_binding_modes: HashMap<LocalSymbolId, TypecheckPayloadBindingMode>,
     pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
     pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
-    pub(super) field_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
-    pub(super) field_readonly: HashMap<ByteSpan, bool>,
-    pub(super) function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) associated_function_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) enum_variant_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) method_call_receiver_kinds: HashMap<ByteSpan, TypecheckMethodReceiverKind>,
-    pub(super) method_call_receiver_types: HashMap<ByteSpan, crate::semantic::TyId>,
-    pub(super) generic_function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
-    pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
-    pub(super) method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
-    pub(super) callable_calls: HashMap<ByteSpan, CallableCallFact>,
+    pub(super) field_targets: HashMap<SemanticSiteId, crate::semantic::DefId>,
+    pub(super) field_type_exprs: HashMap<SemanticSiteId, TypeExpr>,
+    pub(super) field_readonly: HashMap<SemanticSiteId, bool>,
+    pub(super) function_call_targets: HashMap<SemanticSiteId, crate::semantic::DefId>,
+    pub(super) associated_function_targets: HashMap<SemanticSiteId, crate::semantic::DefId>,
+    pub(super) enum_variant_targets: HashMap<SemanticSiteId, crate::semantic::DefId>,
+    pub(super) method_call_targets: HashMap<SemanticSiteId, crate::semantic::DefId>,
+    pub(super) method_call_receiver_kinds: HashMap<SemanticSiteId, TypecheckMethodReceiverKind>,
+    pub(super) method_call_receiver_types: HashMap<SemanticSiteId, crate::semantic::TyId>,
+    pub(super) generic_function_call_targets: HashMap<ExprId, crate::semantic::DefId>,
+    pub(super) function_call_specializations: HashMap<ExprId, FunctionCallSpecialization>,
+    pub(super) method_call_specializations: HashMap<SemanticSiteId, MethodCallSpecialization>,
+    pub(super) callable_calls: HashMap<ExprId, CallableCallFact>,
     pub(super) drop_type_specializations: Vec<DropTypeSpecialization>,
 }
 
@@ -299,6 +300,7 @@ impl TypedHir {
                 semantic_db,
                 anchor,
             ),
+            sites: super::site_arena::SemanticSiteArena::default(),
             binding_type_labels: HashMap::new(),
             binding_type_exprs: HashMap::new(),
             interpolation_plans: HashMap::new(),
@@ -338,6 +340,22 @@ impl TypedHir {
     ) {
         self.expressions
             .record_type(expression_span, ty, scalar, diverges);
+    }
+
+    pub(super) fn expression_id(&self, span: ByteSpan) -> Option<ExprId> {
+        self.expressions.expression_id_at(span)
+    }
+
+    pub(super) fn statement_id(&self, span: ByteSpan) -> Option<StmtId> {
+        self.expressions.statement_id_at(span)
+    }
+
+    pub(super) fn intern_site(&mut self, span: ByteSpan) -> SemanticSiteId {
+        self.sites.intern(span)
+    }
+
+    fn site_id(&self, span: ByteSpan) -> Option<SemanticSiteId> {
+        self.sites.id(span)
     }
 
     pub(super) fn record_contextual_expression_type(
@@ -415,14 +433,16 @@ impl TypedHir {
         &self,
         expression_span: ByteSpan,
     ) -> Option<&TypecheckInterpolationPlan> {
-        self.interpolation_plans.get(&expression_span)
+        self.interpolation_plans
+            .get(&self.expression_id(expression_span)?)
     }
 
     pub(crate) fn comparison_plan(
         &self,
-        operator_span: ByteSpan,
+        expression_span: ByteSpan,
     ) -> Option<&TypecheckComparisonPlan> {
-        self.comparison_plans.get(&operator_span)
+        self.comparison_plans
+            .get(&self.expression_id(expression_span)?)
     }
 
     pub(crate) fn comparison_plans(&self) -> impl Iterator<Item = &TypecheckComparisonPlan> {
@@ -430,7 +450,7 @@ impl TypedHir {
     }
 
     pub(crate) fn index_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckIndexPlan> {
-        self.index_plans.get(&expression_span)
+        self.index_plans.get(&self.expression_id(expression_span)?)
     }
 
     pub(crate) fn index_plans(&self) -> impl Iterator<Item = &TypecheckIndexPlan> {
@@ -440,47 +460,62 @@ impl TypedHir {
     pub(crate) fn interpolation_plans(
         &self,
     ) -> impl Iterator<Item = (ByteSpan, &TypecheckInterpolationPlan)> {
-        self.interpolation_plans
-            .iter()
-            .map(|(span, plan)| (*span, plan))
+        self.interpolation_plans.iter().filter_map(|(id, plan)| {
+            self.expressions
+                .expression_span(*id)
+                .map(|span| (span, plan))
+        })
     }
 
     pub(crate) fn collection_for_plan(
         &self,
         statement_span: ByteSpan,
     ) -> Option<&TypecheckCollectionForPlan> {
-        self.collection_for_plans.get(&statement_span)
+        self.collection_for_plans
+            .get(&self.statement_id(statement_span)?)
     }
 
     pub(crate) fn collection_for_plans(
         &self,
-    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckCollectionForPlan)> {
-        self.collection_for_plans.iter()
+    ) -> impl Iterator<Item = (ByteSpan, &TypecheckCollectionForPlan)> {
+        self.collection_for_plans.iter().filter_map(|(id, plan)| {
+            self.expressions
+                .statement_span(*id)
+                .map(|span| (span, plan))
+        })
     }
 
     pub(crate) fn sequence_spread_plan(
         &self,
         spread_span: ByteSpan,
     ) -> Option<&TypecheckSequenceSpreadPlan> {
-        self.sequence_spread_plans.get(&spread_span)
+        self.sequence_spread_plans
+            .get(&self.expression_id(spread_span)?)
     }
 
     pub(crate) fn sequence_spread_plans(
         &self,
-    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckSequenceSpreadPlan)> {
-        self.sequence_spread_plans.iter()
+    ) -> impl Iterator<Item = (ByteSpan, &TypecheckSequenceSpreadPlan)> {
+        self.sequence_spread_plans.iter().filter_map(|(id, plan)| {
+            self.expressions
+                .expression_span(*id)
+                .map(|span| (span, plan))
+        })
     }
 
     pub(crate) fn closure_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckClosurePlan> {
-        self.closure_plans.get(&expression_span)
+        self.closure_plans
+            .get(&self.expression_id(expression_span)?)
     }
 
     pub(crate) fn coercion_plan(
         &self,
         expression_span: ByteSpan,
     ) -> Option<&TypecheckCoercionPlan> {
-        let TypecheckConversionKind::BorrowCoercion(plan) =
-            &self.conversion_plans.get(&expression_span)?.kind
+        let TypecheckConversionKind::BorrowCoercion(plan) = &self
+            .conversion_plans
+            .get(&self.expression_id(expression_span)?)?
+            .kind
         else {
             return None;
         };
@@ -490,11 +525,13 @@ impl TypedHir {
     pub(crate) fn coercion_plans(
         &self,
     ) -> impl Iterator<Item = (ByteSpan, &TypecheckCoercionPlan)> + '_ {
-        self.conversion_plans.iter().filter_map(|(span, plan)| {
+        self.conversion_plans.iter().filter_map(|(id, plan)| {
             let TypecheckConversionKind::BorrowCoercion(coercion) = &plan.kind else {
                 return None;
             };
-            Some((*span, coercion))
+            self.expressions
+                .expression_span(*id)
+                .map(|span| (span, coercion))
         })
     }
 
@@ -502,15 +539,18 @@ impl TypedHir {
         &self,
         expression_span: ByteSpan,
     ) -> Option<&TypecheckConversionPlan> {
-        self.conversion_plans.get(&expression_span)
+        self.conversion_plans
+            .get(&self.expression_id(expression_span)?)
     }
 
     pub(crate) fn conversion_plans(
         &self,
     ) -> impl Iterator<Item = (ByteSpan, &TypecheckConversionPlan)> + '_ {
-        self.conversion_plans
-            .iter()
-            .map(|(span, plan)| (*span, plan))
+        self.conversion_plans.iter().filter_map(|(id, plan)| {
+            self.expressions
+                .expression_span(*id)
+                .map(|span| (span, plan))
+        })
     }
 
     pub(crate) fn binding_is_readonly(&self, symbol: LocalSymbolId) -> Option<bool> {
@@ -544,77 +584,98 @@ impl TypedHir {
     }
 
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.method_call_targets.keys().copied()
+        self.method_call_targets
+            .keys()
+            .filter_map(|id| self.sites.span(*id))
     }
 
     pub(crate) fn field_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.field_targets.keys().copied()
+        self.field_targets
+            .keys()
+            .filter_map(|id| self.sites.span(*id))
     }
 
     pub(crate) fn field_is_readonly(&self, span: ByteSpan) -> Option<bool> {
-        self.field_readonly.get(&span).copied()
+        self.field_readonly.get(&self.site_id(span)?).copied()
     }
 
     pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<crate::semantic::DefId> {
-        self.field_targets.get(&member_span).copied()
+        self.field_targets.get(&self.site_id(member_span)?).copied()
     }
 
     pub(crate) fn field_type_expr(&self, field_span: ByteSpan) -> Option<&TypeExpr> {
-        self.field_type_exprs.get(&field_span)
+        self.field_type_exprs.get(&self.site_id(field_span)?)
     }
 
     pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.associated_function_targets.keys().copied()
+        self.associated_function_targets
+            .keys()
+            .filter_map(|id| self.sites.span(*id))
     }
 
     pub(crate) fn function_call_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.function_call_targets.keys().copied()
+        self.function_call_targets
+            .keys()
+            .filter_map(|id| self.sites.span(*id))
     }
 
     pub(crate) fn enum_variant_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.enum_variant_targets.keys().copied()
+        self.enum_variant_targets
+            .keys()
+            .filter_map(|id| self.sites.span(*id))
     }
 
     pub(crate) fn function_call_target(
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::semantic::DefId> {
-        self.function_call_targets.get(&member_span).copied()
+        self.function_call_targets
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 
     pub(crate) fn method_call_target(
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::semantic::DefId> {
-        self.method_call_targets.get(&member_span).copied()
+        self.method_call_targets
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 
     pub(crate) fn method_call_receiver_kind(
         &self,
         member_span: ByteSpan,
     ) -> Option<TypecheckMethodReceiverKind> {
-        self.method_call_receiver_kinds.get(&member_span).copied()
+        self.method_call_receiver_kinds
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 
     pub(crate) fn method_call_receiver_type(
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::semantic::TyId> {
-        self.method_call_receiver_types.get(&member_span).copied()
+        self.method_call_receiver_types
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 
     pub(crate) fn generic_function_call_target(
         &self,
         call_span: ByteSpan,
     ) -> Option<crate::semantic::DefId> {
-        self.generic_function_call_targets.get(&call_span).copied()
+        self.generic_function_call_targets
+            .get(&self.expression_id(call_span)?)
+            .copied()
     }
 
     pub(crate) fn function_call_specialization(
         &self,
         call_span: ByteSpan,
     ) -> Option<&FunctionCallSpecialization> {
-        self.function_call_specializations.get(&call_span)
+        self.function_call_specializations
+            .get(&self.expression_id(call_span)?)
     }
 
     pub(crate) fn function_call_specializations(
@@ -628,14 +689,19 @@ impl TypedHir {
     ) -> impl Iterator<Item = (ByteSpan, &FunctionCallSpecialization)> + '_ {
         self.function_call_specializations
             .iter()
-            .map(|(span, specialization)| (*span, specialization))
+            .filter_map(|(id, specialization)| {
+                self.expressions
+                    .expression_span(*id)
+                    .map(|span| (span, specialization))
+            })
     }
 
     pub(crate) fn method_call_specialization(
         &self,
         member_span: ByteSpan,
     ) -> Option<&MethodCallSpecialization> {
-        self.method_call_specializations.get(&member_span)
+        self.method_call_specializations
+            .get(&self.site_id(member_span)?)
     }
 
     pub(crate) fn method_call_specializations(
@@ -649,17 +715,23 @@ impl TypedHir {
     ) -> impl Iterator<Item = (ByteSpan, &MethodCallSpecialization)> + '_ {
         self.method_call_specializations
             .iter()
-            .map(|(span, specialization)| (*span, specialization))
+            .filter_map(|(id, specialization)| {
+                self.sites.span(*id).map(|span| (span, specialization))
+            })
     }
 
     pub(crate) fn callable_call(&self, call_span: ByteSpan) -> Option<&CallableCallFact> {
-        self.callable_calls.get(&call_span)
+        self.callable_calls.get(&self.expression_id(call_span)?)
     }
 
     pub(crate) fn callable_call_entries(
         &self,
     ) -> impl Iterator<Item = (ByteSpan, &CallableCallFact)> + '_ {
-        self.callable_calls.iter().map(|(span, fact)| (*span, fact))
+        self.callable_calls.iter().filter_map(|(id, fact)| {
+            self.expressions
+                .expression_span(*id)
+                .map(|span| (span, fact))
+        })
     }
 
     pub(crate) fn drop_type_specializations(
@@ -672,14 +744,18 @@ impl TypedHir {
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::semantic::DefId> {
-        self.associated_function_targets.get(&member_span).copied()
+        self.associated_function_targets
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 
     pub(crate) fn enum_variant_target(
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::semantic::DefId> {
-        self.enum_variant_targets.get(&member_span).copied()
+        self.enum_variant_targets
+            .get(&self.site_id(member_span)?)
+            .copied()
     }
 }
 

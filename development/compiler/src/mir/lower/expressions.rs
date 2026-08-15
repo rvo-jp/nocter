@@ -2275,7 +2275,7 @@ impl LoweringContext<'_> {
         if let Expr::Binary(binary) = expression
             && self
                 .semantic
-                .comparison_plan(binary.operator_span)
+                .comparison_plan(binary.span)
                 .is_some_and(|plan| plan.method.is_some())
         {
             return self
@@ -2609,7 +2609,7 @@ impl LoweringContext<'_> {
     ) -> Result<(), BuildError> {
         let plan = self
             .semantic
-            .comparison_plan(binary.operator_span)
+            .comparison_plan(binary.span)
             .ok_or(BuildError::MissingCallTarget)?;
         let method = plan.method.ok_or(BuildError::MissingCallTarget)?;
         let definition = self

@@ -49,16 +49,24 @@ impl TypedHirBuilder<'_> {
             )
         });
         if let Some(conversion) = &conversion {
+            let expression_id = self
+                .facts
+                .expression_id(expression.object.span())
+                .expect("index object must have an expression identity");
             self.facts
                 .conversion_plans
-                .insert(expression.object.span(), conversion.clone());
+                .insert(expression_id, conversion.clone());
             self.intern_conversion_plan_types(conversion);
         }
         self.intern_compiler_type_tree(&target_ty);
         self.intern_compiler_type_tree(&index_ty);
         self.intern_compiler_type_tree(&element_ty);
+        let expression_id = self
+            .facts
+            .expression_id(expression.span)
+            .expect("index expression must have an expression identity");
         self.facts.index_plans.insert(
-            expression.span,
+            expression_id,
             TypecheckIndexPlan {
                 expression_span: expression.span,
                 object_span: expression.object.span(),
@@ -112,7 +120,11 @@ impl TypedHirBuilder<'_> {
             selected,
         ) {
             self.intern_conversion_plan_types(&plan);
-            self.facts.conversion_plans.insert(expression_span, plan);
+            let expression_id = self
+                .facts
+                .expression_id(expression_span)
+                .expect("conversion source must have an expression identity");
+            self.facts.conversion_plans.insert(expression_id, plan);
         }
     }
 
@@ -201,8 +213,12 @@ impl TypedHirBuilder<'_> {
                 formatter,
             });
         }
+        let expression_id = self
+            .facts
+            .expression_id(expression.span)
+            .expect("interpolation must have an expression identity");
         self.facts.interpolation_plans.insert(
-            expression.span,
+            expression_id,
             TypecheckInterpolationPlan {
                 string_type_definition: runtime.string_type_definition,
                 constructor: runtime.constructor.clone(),
@@ -558,8 +574,9 @@ impl TypedHirBuilder<'_> {
             return;
         };
 
+        let site = self.facts.intern_site(member.member_span);
         self.facts.field_readonly.insert(
-            member.member_span,
+            site,
             !field_member_is_writable_place(member, self.resolved, environment),
         );
         let field_ty = struct_member_type(member, self.resolved, environment);
@@ -607,12 +624,13 @@ impl TypedHirBuilder<'_> {
             .semantic_db
             .definition_at(field.name_span)
             .expect("resolved field must have a semantic definition");
-        self.facts.field_targets.insert(span, definition);
+        let site = self.facts.intern_site(span);
+        self.facts.field_targets.insert(site, definition);
         let mut free_type_parameters = HashSet::new();
         if let Some(ty) =
             type_to_type_expr_allowing_parameters(field_ty, span, &mut free_type_parameters)
         {
-            self.facts.field_type_exprs.insert(span, ty);
+            self.facts.field_type_exprs.insert(site, ty);
         }
     }
 
@@ -626,7 +644,8 @@ impl TypedHirBuilder<'_> {
             .semantic_db
             .definition_at(variant.name_span)
             .expect("resolved variant must have a semantic definition");
-        self.facts.enum_variant_targets.insert(span, definition);
+        let site = self.facts.intern_site(span);
+        self.facts.enum_variant_targets.insert(site, definition);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_function_call_reference(
@@ -643,8 +662,7 @@ impl TypedHirBuilder<'_> {
             .semantic_db
             .definition_at(declaration_span)
             .expect("resolved function must have a semantic definition");
-        self.facts
-            .function_call_targets
-            .insert(name_span, definition);
+        let site = self.facts.intern_site(name_span);
+        self.facts.function_call_targets.insert(site, definition);
     }
 }

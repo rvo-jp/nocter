@@ -599,7 +599,7 @@ fn enqueue_call_specializations_from_span(
         }
     }
     for (statement_span, plan) in file.typed_hir.collection_for_plans() {
-        if !span_contains(span, *statement_span) {
+        if !span_contains(span, statement_span) {
             continue;
         }
         let Some(plan) = plan
@@ -620,7 +620,7 @@ fn enqueue_call_specializations_from_span(
         }
     }
     for (spread_span, plan) in file.typed_hir.sequence_spread_plans() {
-        if !span_contains(span, *spread_span) {
+        if !span_contains(span, spread_span) {
             continue;
         }
         let Some(plan) = plan

@@ -180,7 +180,11 @@ impl TypedHirBuilder<'_> {
                             ));
                         }
                     }
-                    self.facts.collection_for_plans.insert(statement.span, plan);
+                    let statement_id = self
+                        .facts
+                        .statement_id(statement.span)
+                        .expect("collection for must have a statement identity");
+                    self.facts.collection_for_plans.insert(statement_id, plan);
                 }
                 self.record_drop_type_specialization(
                     statement.source.span(),

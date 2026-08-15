@@ -47,6 +47,7 @@ mod collector;
 mod conversions;
 mod hover_labels;
 mod model;
+mod site_arena;
 mod specializations;
 mod type_exprs;
 mod utility;

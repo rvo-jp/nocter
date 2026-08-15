@@ -2,7 +2,7 @@
 
 use crate::ast::TypeExpr;
 use crate::integer::IntegerType;
-use crate::semantic::{BodyId, ExprId, SemanticDb, TyId};
+use crate::semantic::{BodyId, ExprId, SemanticDb, StmtId, TyId};
 use crate::source::ByteSpan;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -279,6 +279,22 @@ impl TypedExpressionArena {
 
     pub(super) fn expression_id_at(&self, span: ByteSpan) -> Option<ExprId> {
         self.semantic_db.expression_at(span)
+    }
+
+    pub(super) fn expression_span(&self, id: ExprId) -> Option<ByteSpan> {
+        self.semantic_db
+            .expression(id)
+            .map(|expression| expression.span)
+    }
+
+    pub(super) fn statement_id_at(&self, span: ByteSpan) -> Option<StmtId> {
+        self.semantic_db.statement_at(span)
+    }
+
+    pub(super) fn statement_span(&self, id: StmtId) -> Option<ByteSpan> {
+        self.semantic_db
+            .statement(id)
+            .map(|statement| statement.span)
     }
 
     pub(super) fn expression(&self, expression: ExprId) -> Option<&TypedExpression> {

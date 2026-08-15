@@ -215,11 +215,8 @@ impl TypedHirBuilder<'_> {
                             } else {
                                 expression.right.span()
                             };
-                            let semantic_left_conversion = self
-                                .facts
-                                .conversion_plans
-                                .get(&semantic_left_span)
-                                .cloned();
+                            let semantic_left_conversion =
+                                self.facts.conversion_plan(semantic_left_span).cloned();
                             let semantic_right_conversion = adjustment
                                 .as_ref()
                                 .and_then(|adjustment| adjustment.conversion.clone())
@@ -232,10 +229,7 @@ impl TypedHirBuilder<'_> {
                                     )
                                 })
                                 .or_else(|| {
-                                    self.facts
-                                        .conversion_plans
-                                        .get(&semantic_right_span)
-                                        .cloned()
+                                    self.facts.conversion_plan(semantic_right_span).cloned()
                                 });
                             let (left_conversion, right_conversion) = if semantics.reverse_operands
                             {
@@ -258,8 +252,12 @@ impl TypedHirBuilder<'_> {
                                     )
                                     .is_some_and(|adjustment| adjustment.implicit_readonly_borrow)
                                 });
+                            let expression_id = self
+                                .facts
+                                .expression_id(expression.span)
+                                .expect("comparison must have an expression identity");
                             self.facts.comparison_plans.insert(
-                                expression.operator_span,
+                                expression_id,
                                 TypecheckComparisonPlan {
                                     kind: semantics.kind,
                                     operator_span: expression.operator_span,
@@ -323,9 +321,10 @@ impl TypedHirBuilder<'_> {
                         .semantic_db
                         .definition_at(resolved_method.name_span)
                         .expect("resolved method must have a semantic definition");
+                    let method_site = self.facts.intern_site(method.member_span);
                     self.facts
                         .method_call_targets
-                        .insert(method.member_span, method_definition);
+                        .insert(method_site, method_definition);
                     if let Some(coercion) = selected_method.receiver_coercion {
                         let receiver_type =
                             expression_type(&method.object, self.resolved, environment);
@@ -350,7 +349,7 @@ impl TypedHirBuilder<'_> {
                     };
                     self.facts
                         .method_call_receiver_kinds
-                        .insert(method.member_span, kind);
+                        .insert(method_site, kind);
                     let source_receiver =
                         expression_type(&method.object, self.resolved, environment);
                     let self_receiver =
@@ -375,7 +374,7 @@ impl TypedHirBuilder<'_> {
                         let receiver_ty = self.facts.intern_type_identity(receiver_ty, None);
                         self.facts
                             .method_call_receiver_types
-                            .insert(method.member_span, receiver_ty);
+                            .insert(method_site, receiver_ty);
                     }
                     let receiver_is_bounded_parameter = matches!(
                         method_self_type_for_receiver_in_environment(
@@ -406,7 +405,7 @@ impl TypedHirBuilder<'_> {
                         }
                         self.facts
                             .method_call_specializations
-                            .insert(method.member_span, specialization);
+                            .insert(method_site, specialization);
                     }
                     self.collect_expression_facts_in_context(
                         &method.object,
@@ -422,9 +421,10 @@ impl TypedHirBuilder<'_> {
                         .semantic_db
                         .definition_at(resolved_function.name_span)
                         .expect("resolved associated function must have a semantic definition");
+                    let method_site = self.facts.intern_site(method.member_span);
                     self.facts
                         .associated_function_targets
-                        .insert(method.member_span, definition);
+                        .insert(method_site, definition);
                     self.record_generic_function_call_specialization(
                         expression,
                         resolved_function.name_span,
@@ -458,7 +458,11 @@ impl TypedHirBuilder<'_> {
                     {
                         self.facts
                             .intern_type_identity(fact.receiver_ty.clone(), None);
-                        self.facts.callable_calls.insert(expression.span, fact);
+                        let expression_id = self
+                            .facts
+                            .expression_id(expression.span)
+                            .expect("call must have an expression identity");
+                        self.facts.callable_calls.insert(expression_id, fact);
                     } else if let Some(symbol) = self.resolved.symbol_for_call(expression) {
                         match &symbol.kind {
                             SymbolKind::Function(signature) => {
@@ -613,7 +617,11 @@ impl TypedHirBuilder<'_> {
                                 ));
                             }
                         }
-                        self.facts.sequence_spread_plans.insert(spread.span, plan);
+                        let expression_id = self
+                            .facts
+                            .expression_id(spread.span)
+                            .expect("sequence spread must have an expression identity");
+                        self.facts.sequence_spread_plans.insert(expression_id, plan);
                         self.record_drop_type_specialization(
                             spread.span,
                             &resolution.iteration.iterator_type,
@@ -894,8 +902,12 @@ impl TypedHirBuilder<'_> {
                 inner: Box::new(closure_type.clone()),
             }));
         }
+        let expression_id = self
+            .facts
+            .expression_id(expression.span)
+            .expect("closure must have an expression identity");
         self.facts.closure_plans.insert(
-            expression.span,
+            expression_id,
             TypecheckClosurePlan {
                 expression_span: expression.span,
                 ty: ty.clone(),

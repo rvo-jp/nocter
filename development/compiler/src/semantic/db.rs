@@ -1,11 +1,12 @@
 //! Compile-unit definition and body identity.
 
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
-use super::{BodyId, DefId, ExprId, OpaqueTypeId};
+use super::{BodyId, DefId, ExprId, OpaqueTypeId, StmtId};
 use crate::ast::{
     AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, GenericParamList,
     ImportItem, InstanceMember, Item, LiteralDecl, OperatorDecl, ParameterList,
-    visit_block_expressions_without_nested_closures, visit_type_exprs,
+    visit_block_expressions_without_nested_closures,
+    visit_block_statements_without_nested_closures, visit_type_exprs,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -74,6 +75,13 @@ pub(crate) struct ExpressionDefinition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StatementDefinition {
+    pub(crate) id: StmtId,
+    pub(crate) body: BodyId,
+    pub(crate) span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpaqueTypeDefinition {
     pub(crate) id: OpaqueTypeId,
     pub(crate) owner: DefId,
@@ -89,6 +97,8 @@ pub(crate) struct SemanticDb {
     declaration_bodies_by_owner: HashMap<DefId, BodyId>,
     expressions: Vec<ExpressionDefinition>,
     expressions_by_location: HashMap<ByteSpan, ExprId>,
+    statements: Vec<StatementDefinition>,
+    statements_by_location: HashMap<ByteSpan, StmtId>,
     opaque_types: Vec<OpaqueTypeDefinition>,
     opaque_types_by_location: HashMap<ByteSpan, OpaqueTypeId>,
 }
@@ -205,6 +215,14 @@ impl SemanticDb {
         self.expressions.get(id.index())
     }
 
+    pub(crate) fn statement_at(&self, location: ByteSpan) -> Option<StmtId> {
+        self.statements_by_location.get(&location).copied()
+    }
+
+    pub(crate) fn statement(&self, id: StmtId) -> Option<&StatementDefinition> {
+        self.statements.get(id.index())
+    }
+
     pub(crate) fn opaque_type_at(&self, location: ByteSpan) -> Option<OpaqueTypeId> {
         self.opaque_types_by_location.get(&location).copied()
     }
@@ -225,6 +243,11 @@ impl SemanticDb {
     #[cfg(test)]
     pub(crate) fn expressions(&self) -> &[ExpressionDefinition] {
         &self.expressions
+    }
+
+    #[cfg(test)]
+    pub(crate) fn statements(&self) -> &[StatementDefinition] {
+        &self.statements
     }
 }
 
@@ -303,6 +326,18 @@ impl SemanticDbBuilder {
         id
     }
 
+    fn define_statement(&mut self, body: BodyId, span: ByteSpan) -> StmtId {
+        if let Some(existing) = self.db.statements_by_location.get(&span) {
+            return *existing;
+        }
+        let id = StmtId::from_index(self.db.statements.len());
+        self.db
+            .statements
+            .push(StatementDefinition { id, body, span });
+        self.db.statements_by_location.insert(span, id);
+        id
+    }
+
     fn collect_type_expr(&mut self, owner: DefId, ty: &crate::ast::TypeExpr) {
         visit_type_exprs(ty, &mut |ty| {
             let crate::ast::TypeExpr::Opaque(opaque) = ty else {
@@ -362,6 +397,7 @@ impl SemanticDbBuilder {
     fn collect_body(&mut self, owner: DefId, body: &Block) {
         self.collect_body_declarations(owner, body);
         let body_id = self.define_body(BodyKind::Declaration, owner, None, body.span, body.span);
+        self.collect_body_statements(body_id, body);
         self.collect_body_expressions(body_id, body);
         self.collect_closure_bodies(owner, body_id, body);
     }
@@ -373,6 +409,16 @@ impl SemanticDbBuilder {
         });
         for expression in expressions {
             self.define_expression(body_id, expression);
+        }
+    }
+
+    fn collect_body_statements(&mut self, body_id: BodyId, body: &Block) {
+        let mut statements = Vec::new();
+        visit_block_statements_without_nested_closures(body, &mut |statement| {
+            statements.push(statement.span())
+        });
+        for statement in statements {
+            self.define_statement(body_id, statement);
         }
     }
 
@@ -391,6 +437,7 @@ impl SemanticDbBuilder {
                 closure.span,
                 closure.body.span,
             );
+            self.collect_body_statements(body_id, &closure.body);
             self.collect_body_expressions(body_id, &closure.body);
             self.collect_closure_bodies(owner, body_id, &closure.body);
         }
@@ -767,6 +814,29 @@ instance Text {
         for definition in first.definitions() {
             assert_eq!(first.definition_at(definition.anchor), Some(definition.id));
             assert_eq!(second.definition_at(definition.anchor), Some(definition.id));
+        }
+    }
+
+    #[test]
+    fn assigns_statement_ids_in_body_source_order() {
+        let file = parse_file(
+            r#"func main(): void {
+    let value = 1
+    if true {
+        return
+    }
+    return
+}
+"#,
+        );
+        let db = SemanticDb::from_files(std::slice::from_ref(&file));
+        let statements = db.statements();
+        assert_eq!(statements.len(), 4);
+        for (index, statement) in statements.iter().enumerate() {
+            assert_eq!(statement.id, StmtId::from_index(index));
+            assert_eq!(db.statement_at(statement.span), Some(statement.id));
+            assert_eq!(db.statement(statement.id), Some(statement));
+            assert_eq!(statement.body, statements[0].body);
         }
     }
 

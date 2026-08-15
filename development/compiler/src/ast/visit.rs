@@ -123,6 +123,23 @@ pub(crate) fn visit_block_expressions_without_nested_closures<'a>(
     );
 }
 
+/// Visits statements owned by one callable body while treating nested closure
+/// bodies as separate callable boundaries.
+pub(crate) fn visit_block_statements_without_nested_closures<'a>(
+    block: &'a Block,
+    visitor: &mut impl FnMut(&'a Stmt),
+) {
+    visit_block_syntax_with_closure_policy(
+        block,
+        &mut |node| {
+            if let SyntaxNode::Statement(statement) = node {
+                visitor(statement);
+            }
+        },
+        false,
+    );
+}
+
 fn visit_block_syntax_with_closure_policy<'a>(
     block: &'a Block,
     visitor: &mut impl FnMut(SyntaxNode<'a>),

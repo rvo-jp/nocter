@@ -20,6 +20,8 @@ macro_rules! semantic_id {
 semantic_id!(DefId);
 semantic_id!(BodyId);
 semantic_id!(ExprId);
+semantic_id!(StmtId);
+semantic_id!(SemanticSiteId);
 semantic_id!(OpaqueTypeId);
 semantic_id!(TyId);
 

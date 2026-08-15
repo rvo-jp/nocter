@@ -50,9 +50,9 @@ impl<'a> SemanticInputs<'a> {
 
     fn comparison_plan(
         self,
-        operator_span: crate::source::ByteSpan,
+        expression_span: crate::source::ByteSpan,
     ) -> Option<crate::typecheck::TypecheckComparisonPlan> {
-        let plan = self.typed_hir.comparison_plan(operator_span)?.clone();
+        let plan = self.typed_hir.comparison_plan(expression_span)?.clone();
         if plan.method.is_some() {
             return Some(plan);
         }

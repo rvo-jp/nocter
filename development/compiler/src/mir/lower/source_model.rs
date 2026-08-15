@@ -1840,7 +1840,7 @@ pub(super) fn scalar_expression_is_supported(
                 typed_hir,
             };
             if semantic
-                .comparison_plan(binary.operator_span)
+                .comparison_plan(binary.span)
                 .is_some_and(|plan| plan.method.is_some())
             {
                 return scalar_comparison_is_supported(binary, semantic);
@@ -2468,7 +2468,7 @@ fn scalar_comparison_is_supported(
     let Some(operator) = mir_comparison_operator(binary.operator) else {
         return false;
     };
-    if let Some(plan) = semantic.comparison_plan(binary.operator_span)
+    if let Some(plan) = semantic.comparison_plan(binary.span)
         && plan.method.is_some()
     {
         return comparison_operand_is_supported(

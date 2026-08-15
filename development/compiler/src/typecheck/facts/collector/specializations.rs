@@ -14,6 +14,10 @@ impl TypedHirBuilder<'_> {
         if signature.generic_parameters.is_empty() {
             return;
         }
+        let expression_id = self
+            .facts
+            .expression_id(call.span)
+            .expect("generic call must have an expression identity");
         if report_unspecialized {
             let definition = self
                 .resolved
@@ -22,7 +26,7 @@ impl TypedHirBuilder<'_> {
                 .expect("resolved generic function must have a semantic definition");
             self.facts
                 .generic_function_call_targets
-                .insert(call.span, definition);
+                .insert(expression_id, definition);
         }
         if let Some(specialization) = function_call_specialization(
             call,
@@ -35,7 +39,7 @@ impl TypedHirBuilder<'_> {
         ) {
             self.facts
                 .function_call_specializations
-                .insert(call.span, specialization);
+                .insert(expression_id, specialization);
         }
     }
 
