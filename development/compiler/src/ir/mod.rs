@@ -2,8 +2,10 @@
 
 mod lower;
 pub(crate) use lower::coercion_symbol_name;
+mod instruction_effects;
 mod model;
 
+pub(crate) use instruction_effects::visit_instruction_tree;
 pub(crate) use lower::{lower_executable, lower_test};
 pub(crate) use model::{
     AggregateArgument, AggregateArgumentSource, AggregateIndex, AggregateLocation, AggregateRange,

@@ -341,7 +341,7 @@ pub(super) fn intrinsic_for_call(
 ) -> Option<crate::intrinsics::IntrinsicId> {
     let resolved = semantic.resolver_for(call.span.source)?;
     let symbol = resolved.symbol_for_call(call)?;
-    if [
+    if let Some(intrinsic) = [
         Some(symbol.def_id),
         semantic
             .resolved
@@ -350,14 +350,9 @@ pub(super) fn intrinsic_for_call(
     ]
     .into_iter()
     .flatten()
-    .any(|definition| {
-        semantic
-            .resolved
-            .semantic_db
-            .definition(definition)
-            .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Primitive)
-    }) {
-        return crate::intrinsics::IntrinsicId::from_source_name(&symbol.name);
+    .find_map(|definition| semantic.resolved.semantic_db.intrinsic(definition))
+    {
+        return Some(intrinsic);
     }
     let target = match call.callee.without_groups() {
         Expr::Identifier(identifier) => semantic.typed_hir.function_call_target(identifier.span),
@@ -378,18 +373,7 @@ pub(super) fn intrinsic_for_call(
             .callable_bodies
             .canonical_definition(definition)
     });
-    if target
-        .and_then(|definition| semantic.resolved.semantic_db.definition(definition))
-        .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Primitive)
-    {
-        return crate::intrinsics::IntrinsicId::from_source_name(&symbol.name);
-    }
-    match symbol.kind {
-        crate::resolve::SymbolKind::Primitive(_) | crate::resolve::SymbolKind::Imported(_) => {
-            crate::intrinsics::IntrinsicId::from_source_name(&symbol.name)
-        }
-        crate::resolve::SymbolKind::Function(_) | crate::resolve::SymbolKind::Type(_) => None,
-    }
+    target.and_then(|definition| semantic.resolved.semantic_db.intrinsic(definition))
 }
 
 pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {

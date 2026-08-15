@@ -36,7 +36,7 @@ fn builds_string_view_literal_return_without_abi_shaped_locals() {
             resolved: &file.resolved,
             resolved_sources: &resolved_sources,
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("string-view literal return must select MIR")
@@ -141,7 +141,7 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("fallible effect statements must select MIR")
@@ -201,7 +201,7 @@ func make(): Pair {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("aggregate literal returns must select MIR")
@@ -386,7 +386,7 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("composed stored outcomes must select MIR")
@@ -439,7 +439,7 @@ fn builds_stored_outcome_forwarding_as_an_owned_return_edge() {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("stored outcome forwarding must select MIR")
@@ -492,7 +492,7 @@ func choose(flag: bool): Pair {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("aggregate return conditionals must select MIR")
@@ -1064,7 +1064,7 @@ func run(): i32! {
             resolved: &file.resolved,
             resolved_sources: &resolved_sources,
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("partially initialized aggregate must select MIR")
@@ -3063,7 +3063,7 @@ func main(): i32! {
             resolved: &file.resolved,
             resolved_sources: &crate::resolve::ResolvedSources::new(),
             typed_hir: &file.typed_hir,
-            declared_return_ty: None,
+            declared_return_ty: file.typed_hir.type_id(&function.return_type).unwrap(),
         },
     )
     .expect("propagating scalar outcome calls must select MIR")
@@ -3083,7 +3083,10 @@ func main(): i32! {
         } if success == BasicBlockId::from_index(1) && failure == BasicBlockId::from_index(2)
     ));
     assert_eq!(body.blocks[2].terminator, Terminator::PropagateFailure);
-    assert_eq!(body.blocks[1].terminator, Terminator::Return);
+    assert!(matches!(
+        body.blocks[1].terminator,
+        Terminator::ReturnOutcomeSuccess { .. }
+    ));
     assert_eq!(validate(&body), Ok(()));
 }
 

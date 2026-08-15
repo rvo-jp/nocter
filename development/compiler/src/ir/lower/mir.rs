@@ -91,6 +91,9 @@ pub(super) fn lower_body(
         parameters::ParameterProjection::from_slots(parameters, parameter_slots).ok_or_else(
             || unsupported_mir_boundary(sources, body.span, function_name, "parameter projection"),
         )?;
+    let declared_return_ty = typed_hir.type_id(&specialized_return_type).ok_or_else(|| {
+        unsupported_mir_boundary(sources, body.span, function_name, "declared return type")
+    })?;
     let mir_body = cache.get_or_build_specialized(body.span.source, body_id, substitutions, || {
         crate::mir::build_body(
             body,
@@ -101,7 +104,7 @@ pub(super) fn lower_body(
                 resolved,
                 resolved_sources,
                 typed_hir,
-                declared_return_ty: typed_hir.type_id(&specialized_return_type),
+                declared_return_ty,
             },
         )
     });
@@ -165,6 +168,9 @@ pub(super) fn lower_literal_body(
         parameters::ParameterProjection::from_slots(parameters, parameter_slots).ok_or_else(
             || unsupported_mir_boundary(sources, body.span, function_name, "parameter projection"),
         )?;
+    let declared_return_ty = typed_hir.type_id(&specialized_return_type).ok_or_else(|| {
+        unsupported_mir_boundary(sources, body.span, function_name, "declared return type")
+    })?;
     let mir_body = cache.get_or_build_literal_specialized(
         body.span.source,
         body_id,
@@ -180,7 +186,7 @@ pub(super) fn lower_literal_body(
                     resolved,
                     resolved_sources,
                     typed_hir,
-                    declared_return_ty: typed_hir.type_id(&specialized_return_type),
+                    declared_return_ty,
                 },
                 literal_pack,
             )
@@ -253,6 +259,16 @@ pub(super) fn lower_closure_body(
             },
         )?;
     let substitutions = std::collections::HashMap::new();
+    let declared_return_ty = typed_hir
+        .type_id(closure_ty.return_type.as_ref())
+        .ok_or_else(|| {
+            unsupported_mir_boundary(
+                sources,
+                expression.body.span,
+                function_name,
+                "declared closure return type",
+            )
+        })?;
     let mir_body = cache.get_or_build_specialized(
         expression.body.span.source,
         body_id,
@@ -268,7 +284,7 @@ pub(super) fn lower_closure_body(
                     resolved,
                     resolved_sources,
                     typed_hir,
-                    declared_return_ty: typed_hir.type_id(closure_ty.return_type.as_ref()),
+                    declared_return_ty,
                 },
             )
         },

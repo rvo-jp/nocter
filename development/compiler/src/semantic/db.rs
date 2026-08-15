@@ -49,6 +49,9 @@ pub(crate) struct Definition {
     pub(crate) owner: Option<DefId>,
     pub(crate) anchor: ByteSpan,
     pub(crate) span: ByteSpan,
+    /// Closed compiler identity for a recognized primitive declaration.
+    /// Ordinary definitions and unknown primitive spellings carry no role.
+    pub(crate) intrinsic: Option<crate::intrinsics::IntrinsicId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +133,10 @@ impl SemanticDb {
 
     pub(crate) fn definition(&self, id: DefId) -> Option<&Definition> {
         self.definitions.get(id.index())
+    }
+
+    pub(crate) fn intrinsic(&self, id: DefId) -> Option<crate::intrinsics::IntrinsicId> {
+        self.definition(id)?.intrinsic
     }
 
     pub(crate) fn definition_containing(
@@ -275,6 +282,7 @@ impl SemanticDbBuilder {
             owner,
             anchor,
             span,
+            intrinsic: None,
         };
         self.db.definitions.push(definition);
         self.db.definitions_by_location.insert(anchor, id);
@@ -482,6 +490,8 @@ impl SemanticDbBuilder {
                     primitive.name_span,
                     primitive.span,
                 );
+                self.db.definitions[id.index()].intrinsic =
+                    crate::intrinsics::IntrinsicId::from_source_name(&primitive.name);
                 self.collect_generics(id, &primitive.generics);
                 self.collect_parameters(id, &primitive.parameters);
                 self.collect_type_expr(id, &primitive.return_type);
@@ -838,6 +848,19 @@ instance Text {
             assert_eq!(db.statement(statement.id), Some(statement));
             assert_eq!(statement.body, statements[0].body);
         }
+    }
+
+    #[test]
+    fn binds_recognized_primitive_names_to_closed_intrinsic_ids() {
+        let file = parse_file("primitive trap(): never\nprimitive application_primitive(): i32\n");
+        let db = SemanticDb::from_files(std::slice::from_ref(&file));
+        let definitions = db.definitions();
+
+        assert_eq!(
+            db.intrinsic(definitions[0].id),
+            Some(crate::intrinsics::IntrinsicId::Trap)
+        );
+        assert_eq!(db.intrinsic(definitions[1].id), None);
     }
 
     #[test]

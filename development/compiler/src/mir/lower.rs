@@ -164,7 +164,7 @@ pub(crate) struct BuildInputs<'a> {
     /// Declared callable result, including optional/fallible layers.  Expression
     /// facts carry the contextual success type, so the declaration is the
     /// authoritative source for the ABI outcome contract.
-    pub(crate) declared_return_ty: Option<crate::semantic::TyId>,
+    pub(crate) declared_return_ty: crate::semantic::TyId,
 }
 
 pub(crate) fn prepare_typed_hir(
@@ -251,6 +251,7 @@ fn try_build_scalar_body(
     typed_hir: &TypedHir,
 ) -> Option<Result<Body, BuildError>> {
     let resolved_sources = ResolvedSources::new();
+    let declared_return_ty = scalar_body_parts(block)?.1.result_type(typed_hir)?;
     try_build_scalar_body_with_return_mode(
         block,
         parameters,
@@ -261,7 +262,7 @@ fn try_build_scalar_body(
             resolved,
             resolved_sources: &resolved_sources,
             typed_hir,
-            declared_return_ty: None,
+            declared_return_ty,
         },
     )
 }
@@ -378,13 +379,13 @@ fn build_body_with_literal_pack(
         && return_representation != super::ValueRepresentation::Unit
     {
         source_model::terminal_return_type(block, inputs.typed_hir)
-            .or(inputs.declared_return_ty)
+            .or(Some(inputs.declared_return_ty))
             .ok_or(BuildError::MissingTypedExpression)?
     } else {
         tail.result_type(inputs.typed_hir)
             .ok_or(BuildError::MissingTypedExpression)?
     };
-    let declared_return_ty = inputs.declared_return_ty.unwrap_or(contextual_return_ty);
+    let declared_return_ty = inputs.declared_return_ty;
     let declared_payload_ty = inputs
         .typed_hir
         .type_expr_by_id(declared_return_ty)

@@ -158,7 +158,7 @@ pub(crate) fn build_closure_body(
             source_statements,
             tail,
             contextual_return_ty,
-            inputs.declared_return_ty.unwrap_or(contextual_return_ty),
+            inputs.declared_return_ty,
             &outcome_layers,
             return_ty,
             return_representation,

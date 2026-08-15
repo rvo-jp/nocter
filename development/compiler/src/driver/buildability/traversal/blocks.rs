@@ -24,6 +24,9 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     if let Some(closure) = &callable.closure_mir
         && let Some(return_contract) = callable_return_contract(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
+        && let Some(declared_return_ty) = callable
+            .typed_hir
+            .type_id(closure.plan.ty.return_type.as_ref())
     {
         let body = mir_bodies.get_or_build_specialized(
             callable.body.span.source,
@@ -40,10 +43,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                         resolved: callable.resolved,
                         resolved_sources,
                         typed_hir: callable.typed_hir,
-                        declared_return_ty: callable
-                            .return_type
-                            .as_ref()
-                            .and_then(|ty| callable.typed_hir.type_id(ty)),
+                        declared_return_ty,
                     },
                 )
             },
@@ -106,13 +106,20 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
             &specialized_return_type,
             literal_pack.as_ref(),
         );
+        let Some(declared_return_ty) = specialized_hir.type_id(&specialized_return_type) else {
+            diagnostics.push(
+                Diagnostic::error("E8000", "MIR build is missing the declared return type")
+                    .with_primary_span_if_absent(sources, callable.body.span),
+            );
+            return;
+        };
         let build = || {
             let inputs = crate::mir::BuildInputs {
                 semantic_db: &callable.resolved.semantic_db,
                 resolved: callable.resolved,
                 resolved_sources,
                 typed_hir: &specialized_hir,
-                declared_return_ty: specialized_hir.type_id(&specialized_return_type),
+                declared_return_ty,
             };
             if let Some(literal_pack) = literal_pack.clone() {
                 crate::mir::build_literal_body(
