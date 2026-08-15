@@ -28,13 +28,14 @@ Different domains are not interchangeable.
 | `DefId` | declaration kind, owner, visibility, source anchor | source slicing or display text |
 | `BodyId` | owning `DefId`, source body, parameters, root expression/block | callable naming |
 | `ExprId` | owning body and typed expression node | cross-generation edit identity |
+| `StmtId` | owning body and authored statement | control-flow or source-location equality |
 | `OpaqueTypeId` | one authored anonymous `some Interface` result | named-declaration lookup |
 | `TyId` | interned normalized semantic type | source spelling |
 
 `IntrinsicId` is the closed identity domain for compiler-recognized primitive operations; source
-names are converted once and never drive backend dispatch. `RequirementId` and `MonoItemId` remain
-planned domains. They are not introduced as empty wrappers before their phases can remove the
-corresponding old authority.
+names are converted once and never drive backend dispatch. `MonoItemId` identifies one exact
+structured callable specialization. `RequirementId` remains a planned domain and is not introduced
+as an empty wrapper before its phase can remove the corresponding old authority.
 
 `SourceId` continues to identify loaded source within a generation. `ByteSpan` continues to locate
 text. Neither is a declaration identity.
@@ -51,14 +52,16 @@ SemanticDb
   definitions: DefId -> Definition
   bodies:       BodyId -> BodyRecord
   expressions:  ExprId -> ExpressionRecord
-  locations:    DefId / BodyId / ExprId -> ByteSpan
+  statements:   StmtId -> StatementRecord
+  locations:    DefId / BodyId / ExprId / StmtId -> ByteSpan
 
 TypedHir
   typed expressions: ExprId -> PartialSemantic<TyId>
   types:             TyId -> normalized TypeExpr
   type occurrences: source occurrence -> DefId
   binding facts:    LocalSymbolId -> checked binding semantics
-  syntax facts:     source occurrence -> checked expression plan
+  expression facts: ExprId -> checked expression plan
+  statement facts:  StmtId -> checked statement plan
 ```
 
 ## Editor Projection

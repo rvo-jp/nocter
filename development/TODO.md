@@ -2,12 +2,11 @@
 
 ## Current Task
 
-v0.14.0 Phases 0 through 4 are complete. Checked MIR is the sole production execution model, and
-one checked type/ABI authority now feeds buildability, MIR return contracts, and body-local machine
-projection. Integer operations, aggregate scalar access, and source-ordinal parameter storage no
-longer have parallel backend classifiers. Phase 5 stabilization is next; it must remove remaining
-migration adapters, narrow lint exceptions, consolidate boundary tests, and qualify v0.14.0
-without changing language behavior or the published v0.13.0 artifacts.
+v0.14.0 Phases 0 through 4 are complete. Phase 5 semantic convergence is active. It removes
+span-keyed executable facts, rendered-type monomorphization keys and fallback selection, duplicate
+ownership inference, parallel ABI parameter arrays, generic instruction-analysis duplication, and
+optional production MIR contracts. It must preserve language behavior and the published v0.13.0
+artifacts. Phase 5 stops after complete verification; publication requires separate authorization.
 
 ## Completed v0.14.0 Phase 3 MIR Checkpoint
 
@@ -856,5 +855,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan v0.14.0 Phase 5 stabilization before implementation. Do not alter published release archives,
+Execute the v0.14.0 Phase 5 work order in the milestone. Do not alter published release archives,
 tags, release notes, or qualification evidence; published artifacts remain immutable.
