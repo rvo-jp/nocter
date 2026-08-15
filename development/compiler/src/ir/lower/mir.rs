@@ -21,6 +21,7 @@ use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
+mod aggregate_projection;
 mod control_flow;
 mod drops;
 mod integer_projection;
@@ -91,18 +92,16 @@ pub(super) fn lower_body(
             || unsupported_mir_boundary(sources, body.span, function_name, "parameter projection"),
         )?;
     let mir_body = cache.get_or_build_specialized(body.span.source, body_id, substitutions, || {
-        crate::mir::build_body_with_return_mode(
+        crate::mir::build_body(
             body,
             parameters,
-            return_contract.representation,
-            return_contract.mode,
+            return_contract,
             crate::mir::BuildInputs {
                 semantic_db: &resolved.semantic_db,
                 resolved,
                 resolved_sources,
                 typed_hir,
                 declared_return_ty: typed_hir.type_id(&specialized_return_type),
-                outcome_layers: return_contract.outcome_layers.clone(),
             },
         )
     });
@@ -175,15 +174,13 @@ pub(super) fn lower_literal_body(
             crate::mir::build_literal_body(
                 body,
                 parameters,
-                return_contract.representation,
-                return_contract.mode,
+                return_contract,
                 crate::mir::BuildInputs {
                     semantic_db: &resolved.semantic_db,
                     resolved,
                     resolved_sources,
                     typed_hir,
                     declared_return_ty: typed_hir.type_id(&specialized_return_type),
-                    outcome_layers: return_contract.outcome_layers.clone(),
                 },
                 literal_pack,
             )
@@ -265,15 +262,13 @@ pub(super) fn lower_closure_body(
                 expression,
                 closure_ty,
                 receiver_mode,
-                return_contract.representation,
-                return_contract.mode,
+                return_contract,
                 crate::mir::BuildInputs {
                     semantic_db: &resolved.semantic_db,
                     resolved,
                     resolved_sources,
                     typed_hir,
                     declared_return_ty: typed_hir.type_id(closure_ty.return_type.as_ref()),
-                    outcome_layers: return_contract.outcome_layers.clone(),
                 },
             )
         },
@@ -2332,14 +2327,18 @@ fn lower_statements(
                 )?;
                 match leaf.representation {
                     crate::mir::ValueRepresentation::Scalar(scalar) => {
-                        if !abi_type_matches_scalar(leaf_abi, scalar) {
+                        if !aggregate_projection::abi_matches_scalar(leaf_abi, scalar) {
                             return Err(invalid_mir_diagnostics(
                                 "variant MIR leaf scalar does not match its ABI projection",
                             ));
                         }
-                        instructions.push(store_aggregate_scalar(
-                            location,
-                            offset,
+                        instructions.push(aggregate_projection::store_scalar(
+                            &AggregateRange {
+                                location,
+                                offset,
+                                index: None,
+                            },
+                            0,
                             scalar,
                             &leaf.operand,
                             context,
@@ -3259,7 +3258,7 @@ fn lower_stored_outcome_construction(
     };
     let store_success_prefix = |through: usize, instructions: &mut Vec<Instruction>| {
         for layer in storage.layers.iter().take(through) {
-            instructions.push(store_aggregate_range_usize(
+            instructions.push(aggregate_projection::store_usize(
                 &destination_range,
                 checked_offset(layer.tag_offset, "tag")?,
                 UsizeValue::Const(0),
@@ -3277,7 +3276,7 @@ fn lower_stored_outcome_construction(
                     invalid_mir_diagnostics("none assigned to a non-optional outcome")
                 })?;
             store_success_prefix(layer_index, instructions)?;
-            instructions.push(store_aggregate_range_usize(
+            instructions.push(aggregate_projection::store_usize(
                 &destination_range,
                 checked_offset(storage.layers[layer_index].tag_offset, "tag")?,
                 UsizeValue::Const(1),
@@ -3293,7 +3292,7 @@ fn lower_stored_outcome_construction(
                 })?;
             store_success_prefix(layer_index, instructions)?;
             let layer = storage.layers[layer_index];
-            instructions.push(store_aggregate_range_usize(
+            instructions.push(aggregate_projection::store_usize(
                 &destination_range,
                 checked_offset(layer.tag_offset, "tag")?,
                 UsizeValue::Const(1),
@@ -3331,7 +3330,7 @@ fn lower_stored_outcome_construction(
                     UsizeValue::StrLen(message),
                 ),
             ] {
-                instructions.push(store_aggregate_range_usize(
+                instructions.push(aggregate_projection::store_usize(
                     &destination_range,
                     offset,
                     value,
@@ -3343,7 +3342,7 @@ fn lower_stored_outcome_construction(
             let offset = checked_offset(storage.payload_offset, "payload")?;
             match value.representation {
                 crate::mir::ValueRepresentation::Scalar(scalar) => {
-                    instructions.push(store_aggregate_range_scalar(
+                    instructions.push(aggregate_projection::store_scalar(
                         &destination_range,
                         offset,
                         scalar,
@@ -3358,12 +3357,12 @@ fn lower_stored_outcome_construction(
                             "stored outcome string was not materialized",
                         ));
                     };
-                    instructions.push(store_aggregate_range_usize(
+                    instructions.push(aggregate_projection::store_usize(
                         &destination_range,
                         offset,
                         UsizeValue::StrPointer(source),
                     )?);
-                    instructions.push(store_aggregate_range_usize(
+                    instructions.push(aggregate_projection::store_usize(
                         &destination_range,
                         offset + crate::abi::ABI_WORD_SIZE as u32,
                         UsizeValue::StrLen(source),
@@ -3377,19 +3376,19 @@ fn lower_stored_outcome_construction(
                             "stored outcome slice was not materialized",
                         ));
                     };
-                    instructions.push(store_aggregate_range_usize(
+                    instructions.push(aggregate_projection::store_usize(
                         &destination_range,
                         offset,
                         UsizeValue::SlicePointer(source),
                     )?);
-                    instructions.push(store_aggregate_range_usize(
+                    instructions.push(aggregate_projection::store_usize(
                         &destination_range,
                         offset + crate::abi::ABI_WORD_SIZE as u32,
                         UsizeValue::SliceLen(source),
                     )?);
                 }
                 crate::mir::ValueRepresentation::Borrow => {
-                    instructions.push(store_aggregate_range_usize(
+                    instructions.push(aggregate_projection::store_usize(
                         &destination_range,
                         offset,
                         lower_stored_borrow_pointer(&value.operand, context)?,
@@ -3763,139 +3762,6 @@ fn enum_variant_leaf_projection<'a>(
         .and_then(|offset| u32::try_from(offset).ok())
         .ok_or_else(|| invalid_mir_diagnostics("variant MIR leaf offset is invalid"))?;
     Ok((offset, leaf))
-}
-
-fn abi_type_matches_scalar(abi: &crate::abi::AbiType, scalar: ScalarType) -> bool {
-    match scalar {
-        ScalarType::I32 => *abi == crate::abi::AbiType::I32,
-        ScalarType::U8 => *abi == crate::abi::AbiType::U8,
-        ScalarType::Usize => *abi == crate::abi::AbiType::Usize,
-        ScalarType::Bool => *abi == crate::abi::AbiType::Bool,
-        ScalarType::Integer(kind) => abi.integer_type() == Some(kind),
-    }
-}
-
-fn store_aggregate_scalar(
-    destination: crate::ir::AggregateLocation,
-    offset: u32,
-    scalar: ScalarType,
-    operand: &Operand,
-    context: &BackendContext<'_>,
-) -> Result<Instruction, Vec<Diagnostic>> {
-    Ok(match scalar {
-        ScalarType::I32 => Instruction::StoreAggregateI32 {
-            destination,
-            offset,
-            value: lower_i32_operand(operand, context)?,
-        },
-        ScalarType::U8 => Instruction::StoreAggregateU8 {
-            destination,
-            offset,
-            value: lower_u8_operand(operand, context)?,
-        },
-        ScalarType::Usize => Instruction::StoreAggregateUsize {
-            destination,
-            offset,
-            value: lower_usize_operand(operand, context)?,
-        },
-        ScalarType::Integer(kind) => Instruction::StoreAggregateInteger {
-            kind,
-            destination,
-            offset,
-            value: lower_integer_operand(operand, kind, context)?,
-        },
-        ScalarType::Bool => Instruction::StoreAggregateBool {
-            destination,
-            offset,
-            value: lower_bool_operand(operand, context)?,
-        },
-    })
-}
-
-fn store_aggregate_range_usize(
-    range: &AggregateRange,
-    additional_offset: u32,
-    value: UsizeValue,
-) -> Result<Instruction, Vec<Diagnostic>> {
-    let offset = range
-        .offset
-        .checked_add(additional_offset)
-        .ok_or_else(|| invalid_mir_diagnostics("projected aggregate word offset overflowed"))?;
-    Ok(match &range.index {
-        None => Instruction::StoreAggregateUsize {
-            destination: range.location,
-            offset,
-            value,
-        },
-        Some(index) => Instruction::StoreAggregateUsizeIndexed {
-            destination: range.location,
-            base_offset: offset,
-            index: index.value.clone(),
-            length: index.length,
-            stride: index.stride,
-            value,
-        },
-    })
-}
-
-fn store_aggregate_range_scalar(
-    range: &AggregateRange,
-    additional_offset: u32,
-    scalar: ScalarType,
-    operand: &Operand,
-    context: &BackendContext<'_>,
-) -> Result<Instruction, Vec<Diagnostic>> {
-    let offset = range
-        .offset
-        .checked_add(additional_offset)
-        .ok_or_else(|| invalid_mir_diagnostics("projected aggregate scalar offset overflowed"))?;
-    let Some(index) = &range.index else {
-        return store_aggregate_scalar(range.location, offset, scalar, operand, context);
-    };
-    let index_value = index.value.clone();
-    Ok(match scalar {
-        ScalarType::I32 => Instruction::StoreAggregateI32Indexed {
-            destination: range.location,
-            base_offset: offset,
-            index: index_value,
-            length: index.length,
-            stride: index.stride,
-            value: lower_i32_operand(operand, context)?,
-        },
-        ScalarType::U8 => Instruction::StoreAggregateU8Indexed {
-            destination: range.location,
-            base_offset: offset,
-            index: index_value,
-            length: index.length,
-            stride: index.stride,
-            value: lower_u8_operand(operand, context)?,
-        },
-        ScalarType::Usize => Instruction::StoreAggregateUsizeIndexed {
-            destination: range.location,
-            base_offset: offset,
-            index: index_value,
-            length: index.length,
-            stride: index.stride,
-            value: lower_usize_operand(operand, context)?,
-        },
-        ScalarType::Integer(kind) => Instruction::StoreAggregateIntegerIndexed {
-            kind,
-            destination: range.location,
-            base_offset: offset,
-            index: index_value,
-            length: index.length,
-            stride: index.stride,
-            value: lower_integer_operand(operand, kind, context)?,
-        },
-        ScalarType::Bool => Instruction::StoreAggregateBoolIndexed {
-            destination: range.location,
-            base_offset: offset,
-            index: index_value,
-            length: index.length,
-            stride: index.stride,
-            value: lower_bool_operand(operand, context)?,
-        },
-    })
 }
 
 fn lower_borrow_source(
@@ -4414,62 +4280,28 @@ fn aggregate_scalar_store(
         });
     }
     let location = aggregate_location(&Place::local(destination.local), context)?;
-    match aggregate_borrow_projection(context.body, destination.local, projection_id)? {
-        AggregateBorrowProjection::Field { offset } => {
-            store_aggregate_scalar(location, offset, scalar, operand, context)
-        }
+    let range = match aggregate_borrow_projection(context.body, destination.local, projection_id)? {
+        AggregateBorrowProjection::Field { offset } => AggregateRange {
+            location,
+            offset,
+            index: None,
+        },
         AggregateBorrowProjection::Index {
             base_offset,
             index,
             length,
             stride,
-        } => {
-            let index = lower_direct_usize_index(&index, context)?;
-            Ok(match scalar {
-                ScalarType::I32 => Instruction::StoreAggregateI32Indexed {
-                    destination: location,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                    value: lower_i32_operand(operand, context)?,
-                },
-                ScalarType::U8 => Instruction::StoreAggregateU8Indexed {
-                    destination: location,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                    value: lower_u8_operand(operand, context)?,
-                },
-                ScalarType::Usize => Instruction::StoreAggregateUsizeIndexed {
-                    destination: location,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                    value: lower_usize_operand(operand, context)?,
-                },
-                ScalarType::Integer(kind) => Instruction::StoreAggregateIntegerIndexed {
-                    kind,
-                    destination: location,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                    value: lower_integer_operand(operand, kind, context)?,
-                },
-                ScalarType::Bool => Instruction::StoreAggregateBoolIndexed {
-                    destination: location,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                    value: lower_bool_operand(operand, context)?,
-                },
-            })
-        }
-    }
+        } => AggregateRange {
+            location,
+            offset: base_offset,
+            index: Some(AggregateIndex {
+                value: lower_direct_usize_index(&index, context)?,
+                length,
+                stride,
+            }),
+        },
+    };
+    aggregate_projection::store_scalar(&range, 0, scalar, operand, context)
 }
 
 fn aggregate_scalar_load(
@@ -4583,91 +4415,29 @@ fn aggregate_scalar_load(
             },
         }));
     }
-    let source = aggregate_location(&Place::local(place.local), context)?;
-    let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
-    Ok(Some(match projection {
-        AggregateBorrowProjection::Field { offset } => match destination {
-            ScalarDestination::I32(destination) => Instruction::LoadAggregateI32 {
-                destination,
-                source,
-                offset,
-            },
-            ScalarDestination::U8(destination) => Instruction::LoadAggregateU8 {
-                destination,
-                source,
-                offset,
-            },
-            ScalarDestination::Usize(destination) => Instruction::LoadAggregateUsize {
-                destination,
-                source,
-                offset,
-            },
-            ScalarDestination::Integer(kind, destination) => Instruction::LoadAggregateInteger {
-                kind,
-                destination,
-                source,
-                offset,
-            },
-            ScalarDestination::Bool(destination) => Instruction::LoadAggregateBool {
-                destination,
-                source,
-                offset,
-            },
+    let location = aggregate_location(&Place::local(place.local), context)?;
+    let range = match aggregate_borrow_projection(context.body, place.local, projection)? {
+        AggregateBorrowProjection::Field { offset } => AggregateRange {
+            location,
+            offset,
+            index: None,
         },
         AggregateBorrowProjection::Index {
             base_offset,
             index,
             length,
             stride,
-        } => {
-            let index = lower_direct_usize_index(&index, context)?;
-            match destination {
-                ScalarDestination::I32(destination) => Instruction::LoadAggregateI32Indexed {
-                    destination,
-                    source,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                },
-                ScalarDestination::U8(destination) => Instruction::LoadAggregateU8Indexed {
-                    destination,
-                    source,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                },
-                ScalarDestination::Usize(destination) => Instruction::LoadAggregateUsizeIndexed {
-                    destination,
-                    source,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                },
-                ScalarDestination::Integer(kind, destination) => {
-                    Instruction::LoadAggregateIntegerIndexed {
-                        kind,
-                        destination,
-                        source,
-                        base_offset,
-                        index,
-                        length,
-                        stride,
-                    }
-                }
-                ScalarDestination::Bool(destination) => Instruction::LoadAggregateBoolIndexed {
-                    destination,
-                    source,
-                    base_offset,
-                    index,
-                    length,
-                    stride,
-                },
-            }
-        }
-    }))
+        } => AggregateRange {
+            location,
+            offset: base_offset,
+            index: Some(AggregateIndex {
+                value: lower_direct_usize_index(&index, context)?,
+                length,
+                stride,
+            }),
+        },
+    };
+    Ok(Some(aggregate_projection::load_scalar(destination, &range)))
 }
 
 fn dereferenced_pointer(
@@ -4828,33 +4598,8 @@ fn store_projected_aggregate_usize(
     value: UsizeValue,
     context: &BackendContext<'_>,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let destination = aggregate_location(&Place::local(base), context)?;
-    Ok(
-        match aggregate_borrow_projection(context.body, base, projection)? {
-            AggregateBorrowProjection::Field { offset } => Instruction::StoreAggregateUsize {
-                destination,
-                offset: offset.checked_add(additional_offset).ok_or_else(|| {
-                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
-                })?,
-                value,
-            },
-            AggregateBorrowProjection::Index {
-                base_offset,
-                index,
-                length,
-                stride,
-            } => Instruction::StoreAggregateUsizeIndexed {
-                destination,
-                base_offset: base_offset.checked_add(additional_offset).ok_or_else(|| {
-                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
-                })?,
-                index: lower_direct_usize_index(&index, context)?,
-                length,
-                stride,
-                value,
-            },
-        },
-    )
+    let range = aggregate_range(Place::projected(base, projection), 0, context)?;
+    aggregate_projection::store_usize(&range, additional_offset, value)
 }
 
 fn load_projected_aggregate_usize(
@@ -4875,33 +4620,8 @@ fn load_projected_aggregate_usize(
             offset: UsizeValue::Const(u64::from(offset)),
         });
     }
-    let source = aggregate_location(&Place::local(base), context)?;
-    Ok(
-        match aggregate_borrow_projection(context.body, base, projection)? {
-            AggregateBorrowProjection::Field { offset } => Instruction::LoadAggregateUsize {
-                destination,
-                source,
-                offset: offset.checked_add(additional_offset).ok_or_else(|| {
-                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
-                })?,
-            },
-            AggregateBorrowProjection::Index {
-                base_offset,
-                index,
-                length,
-                stride,
-            } => Instruction::LoadAggregateUsizeIndexed {
-                destination,
-                source,
-                base_offset: base_offset.checked_add(additional_offset).ok_or_else(|| {
-                    invalid_mir_diagnostics("projected aggregate word offset overflowed")
-                })?,
-                index: lower_direct_usize_index(&index, context)?,
-                length,
-                stride,
-            },
-        },
-    )
+    let range = aggregate_range(Place::projected(base, projection), 0, context)?;
+    aggregate_projection::load_usize(destination, &range, additional_offset)
 }
 
 fn lower_comparison(

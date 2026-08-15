@@ -36,8 +36,8 @@ pub(crate) use locals::{
 };
 pub(crate) use lower::outcome_intrinsic_is_supported;
 pub(crate) use lower::{
-    BuildError, BuildInputs, LiteralPackInput, LiteralPackInputSegment,
-    build_body_with_return_mode, build_closure_body, build_literal_body, prepare_typed_hir,
+    BuildError, BuildInputs, LiteralPackInput, LiteralPackInputSegment, build_body,
+    build_closure_body, build_literal_body, prepare_typed_hir,
 };
 #[cfg(test)]
 pub(crate) use model::BasicBlock;

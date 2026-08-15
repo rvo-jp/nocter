@@ -165,7 +165,6 @@ pub(crate) struct BuildInputs<'a> {
     /// facts carry the contextual success type, so the declaration is the
     /// authoritative source for the ABI outcome contract.
     pub(crate) declared_return_ty: Option<crate::semantic::TyId>,
-    pub(crate) outcome_layers: Vec<crate::outcomes::OutcomeLayer>,
 }
 
 pub(crate) fn prepare_typed_hir(
@@ -263,7 +262,6 @@ fn try_build_scalar_body(
             resolved_sources: &resolved_sources,
             typed_hir,
             declared_return_ty: None,
-            outcome_layers: Vec::new(),
         },
     )
 }
@@ -276,11 +274,13 @@ fn try_build_scalar_body_with_return_mode(
     return_mode: ReturnMode,
     inputs: BuildInputs<'_>,
 ) -> Option<Result<Body, BuildError>> {
-    Some(build_body_with_return_mode(
+    Some(build_body(
         block,
         parameters,
-        super::ValueRepresentation::Scalar(return_scalar),
-        return_mode,
+        super::CallableReturnContract {
+            representation: super::ValueRepresentation::Scalar(return_scalar),
+            mode: return_mode,
+        },
         inputs,
     ))
 }
@@ -293,45 +293,37 @@ fn try_build_body_with_return_mode(
     return_mode: ReturnMode,
     inputs: BuildInputs<'_>,
 ) -> Option<Result<Body, BuildError>> {
-    Some(build_body_with_return_mode(
+    Some(build_body(
         block,
         parameters,
-        return_representation,
-        return_mode,
+        super::CallableReturnContract {
+            representation: return_representation,
+            mode: return_mode,
+        },
         inputs,
     ))
 }
 
-pub(crate) fn build_body_with_return_mode(
+pub(crate) fn build_body(
     block: &Block,
     parameters: &[Parameter],
-    return_representation: super::ValueRepresentation,
-    return_mode: ReturnMode,
+    return_contract: super::CallableReturnContract,
     inputs: BuildInputs<'_>,
 ) -> Result<Body, BuildError> {
-    build_body_with_literal_pack(
-        block,
-        parameters,
-        return_representation,
-        return_mode,
-        inputs,
-        None,
-    )
+    build_body_with_literal_pack(block, parameters, return_contract, inputs, None)
 }
 
 pub(crate) fn build_literal_body(
     block: &Block,
     parameters: &[Parameter],
-    return_representation: super::ValueRepresentation,
-    return_mode: ReturnMode,
+    return_contract: super::CallableReturnContract,
     inputs: BuildInputs<'_>,
     literal_pack: LiteralPackInput,
 ) -> Result<Body, BuildError> {
     build_body_with_literal_pack(
         block,
         parameters,
-        return_representation,
-        return_mode,
+        return_contract,
         inputs,
         Some(literal_pack),
     )
@@ -340,11 +332,14 @@ pub(crate) fn build_literal_body(
 fn build_body_with_literal_pack(
     block: &Block,
     parameters: &[Parameter],
-    return_representation: super::ValueRepresentation,
-    return_mode: ReturnMode,
+    return_contract: super::CallableReturnContract,
     inputs: BuildInputs<'_>,
     literal_pack: Option<LiteralPackInput>,
 ) -> Result<Body, BuildError> {
+    let super::CallableReturnContract {
+        representation: return_representation,
+        mode: return_mode,
+    } = return_contract;
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
         resolved_sources: inputs.resolved_sources,
@@ -497,17 +492,16 @@ fn build_body_with_literal_pack(
                 root_scope,
             ),
         };
-        let return_is_outcome = !inputs.outcome_layers.is_empty()
-            || inputs
-                .typed_hir
-                .type_expr_by_id(declared_return_ty)
-                .is_some_and(|ty| {
-                    !crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
-                        inputs.resolved_sources.get(&source).copied()
-                    })
-                    .layers
-                    .is_empty()
-                });
+        let return_is_outcome = inputs
+            .typed_hir
+            .type_expr_by_id(declared_return_ty)
+            .is_some_and(|ty| {
+                !crate::outcomes::outcome_shape_with_resolver(ty, inputs.resolved, |source| {
+                    inputs.resolved_sources.get(&source).copied()
+                })
+                .layers
+                .is_empty()
+            });
         if return_local_contract.ownership == OwnershipKind::Move && !return_is_outcome {
             let return_type_expr = inputs
                 .typed_hir
@@ -594,7 +588,6 @@ fn build_body_with_literal_pack(
             tail,
             contextual_return_ty,
             declared_return_ty,
-            &inputs.outcome_layers,
             return_ty,
             return_representation,
             return_mode,
@@ -617,7 +610,6 @@ fn build_prepared_body(
     tail: ScalarTail<'_>,
     _contextual_return_ty: crate::semantic::TyId,
     declared_return_ty: crate::semantic::TyId,
-    declared_outcome_layers: &[crate::outcomes::OutcomeLayer],
     return_ty: crate::semantic::TyId,
     return_representation: super::ValueRepresentation,
     return_mode: ReturnMode,
@@ -632,29 +624,8 @@ fn build_prepared_body(
 ) -> Result<Body, BuildError> {
     let return_local = LocalId::from_index(0);
     let root_scope = ScopeId::from_index(0);
-    let outcome_contract = if declared_outcome_layers.is_empty() {
-        outcome_contract(declared_return_ty, semantic)
-            .map_err(|error| error.context("build body outcome contract"))?
-    } else {
-        Some(super::OutcomeContract {
-            layers: declared_outcome_layers.to_vec(),
-            payload_ty: return_ty,
-            payload_representation: return_representation,
-            payload_borrow_readwrite: semantic
-                .typed_hir
-                .type_expr_by_id(declared_return_ty)
-                .map(|result| {
-                    crate::outcomes::outcome_shape_with_resolver(
-                        result,
-                        semantic.resolved,
-                        |source| semantic.resolver_for(source),
-                    )
-                    .payload
-                })
-                .as_ref()
-                .and_then(|payload| borrow_readwrite(payload, semantic.resolved)),
-        })
-    };
+    let outcome_contract = outcome_contract(declared_return_ty, semantic)
+        .map_err(|error| error.context("build body outcome contract"))?;
     let mut context = LoweringContext::new(
         semantic,
         outcome_contract.clone(),

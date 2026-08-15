@@ -8,7 +8,7 @@ use super::{BuildError, BuildInputs, SemanticInputs, build_prepared_body, type_r
 use crate::ast::{ClosureCaptureMode, ClosureExpr, MethodReceiverMode, TypeExpr};
 use crate::mir::{
     Local, LocalId, LocalOrigin, LocalStorage, OwnershipKind, Place, ProjectionElement,
-    ProjectionPath, ProjectionPathId, ReturnMode, ScopeId, ValueRepresentation,
+    ProjectionPath, ProjectionPathId, ScopeId, ValueRepresentation,
 };
 use std::collections::HashMap;
 
@@ -16,10 +16,13 @@ pub(crate) fn build_closure_body(
     expression: &ClosureExpr,
     closure_ty: &crate::ast::ClosureTypeExpr,
     receiver_mode: MethodReceiverMode,
-    return_representation: ValueRepresentation,
-    return_mode: ReturnMode,
+    return_contract: crate::mir::CallableReturnContract,
     inputs: BuildInputs<'_>,
 ) -> Result<crate::mir::Body, BuildError> {
+    let crate::mir::CallableReturnContract {
+        representation: return_representation,
+        mode: return_mode,
+    } = return_contract;
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
         resolved_sources: inputs.resolved_sources,
@@ -155,7 +158,6 @@ pub(crate) fn build_closure_body(
             tail,
             contextual_return_ty,
             inputs.declared_return_ty.unwrap_or(contextual_return_ty),
-            &inputs.outcome_layers,
             return_ty,
             return_representation,
             return_mode,

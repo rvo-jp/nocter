@@ -34,8 +34,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                     closure.expression,
                     &closure.plan.ty,
                     closure.receiver_mode,
-                    return_contract.representation,
-                    return_contract.mode,
+                    return_contract.clone(),
                     crate::mir::BuildInputs {
                         semantic_db: &callable.resolved.semantic_db,
                         resolved: callable.resolved,
@@ -45,7 +44,6 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                             .return_type
                             .as_ref()
                             .and_then(|ty| callable.typed_hir.type_id(ty)),
-                        outcome_layers: return_contract.outcome_layers.clone(),
                     },
                 )
             },
@@ -115,23 +113,20 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                 resolved_sources,
                 typed_hir: &specialized_hir,
                 declared_return_ty: specialized_hir.type_id(&specialized_return_type),
-                outcome_layers: return_contract.outcome_layers.clone(),
             };
             if let Some(literal_pack) = literal_pack.clone() {
                 crate::mir::build_literal_body(
                     callable.body,
                     &specialized_parameters,
-                    return_contract.representation,
-                    return_contract.mode,
+                    return_contract.clone(),
                     inputs,
                     literal_pack,
                 )
             } else {
-                crate::mir::build_body_with_return_mode(
+                crate::mir::build_body(
                     callable.body,
                     &specialized_parameters,
-                    return_contract.representation,
-                    return_contract.mode,
+                    return_contract.clone(),
                     inputs,
                 )
             }
