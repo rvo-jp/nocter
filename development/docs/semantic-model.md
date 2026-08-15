@@ -154,6 +154,53 @@ shared ABI authority and cached for one machine body. The callable return contra
 ordinal mapping, integer operator, and aggregate range are typed values; a backend consumer cannot
 reconstruct any of them from source names, parameter names, or a repeated AST type classification.
 
+## Phase 5 Convergence Boundary
+
+Phase 5 removes the remaining compatibility identities rather than adding another IR. Checked
+facts are keyed by `ExprId`, `StmtId`, `LocalSymbolId`, or `SemanticSiteId`; a source span enters
+those arenas only to locate an ID and leaves them only to render a diagnostic or editor range.
+Borrow-result provenance and source ownership use the same local-symbol domain, so shadowing does
+not depend on source names or byte positions.
+
+Concrete code selection is exact and structural:
+
+```text
+CallInstanceKey { callable identity, receiver TypeIdentity, argument TypeIdentity[] }
+    -> MonoItemRegistry
+    -> MonoItemId
+    -> linkage target
+```
+
+`TypeIdentity` contains no span or rendered source string. Linkage spelling and canonical type
+formatting remain output projections and cannot participate in registry lookup. There is no
+unqualified-receiver or missing-type-argument retry.
+
+Context substitution changes types but does not choose code. After substitution makes a receiver
+concrete, one compile-unit dispatch query replaces an interface requirement `DefId` with the
+selected conformance method `DefId`. The interface contract is itself matched by `DefId`, so
+resolver-relative import qualification and resolver iteration order cannot change dispatch.
+Instance-owner type arguments are represented by the receiver identity; only generic parameters
+declared by the method occupy the call's ordered type-argument vector.
+
+The ownership handoff has two non-overlapping authorities. Type checking accepts or rejects source
+copy/move intent, borrow capability, value category, and provenance. Finalized MIR verifies
+path-sensitive initialization, consumption, active loans, scope exits, cleanup, and destruction
+for executable code. A failure of the MIR verifier is an internal buildability failure, not a
+second source-language rule.
+
+At the machine boundary, source parameter ordinals project into one tagged ABI-word sequence and
+aggregate staging records. Generic instruction consumers use one exhaustive effect view for call
+targets, call operands, outgoing word requirements, nested branches and loops, and failure-handler
+bodies. Concrete emitters still match concrete instructions because instruction encoding is their
+responsibility.
+
+Primitive source declarations bind an optional `IntrinsicId` while `SemanticDb` is constructed.
+MIR receives that closed identity; it never converts a selected resolver name into backend
+behavior. Production MIR construction also receives a mandatory declared return `TyId`, keeping
+the callable outcome contract independent from the contextual type of its final expression.
+Compiler-known static error helpers obtain their payload from checked MIR through the same
+cache-or-build operation, rather than relying on an earlier reachability pass to populate a cache.
+
 ## Migration Enforcement
 
 - New semantic maps use typed IDs as keys. A new `HashMap<ByteSpan, SemanticFact>` requires a

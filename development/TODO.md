@@ -2,11 +2,21 @@
 
 ## Current Task
 
-v0.14.0 Phases 0 through 4 are complete. Phase 5 semantic convergence is active. It removes
-span-keyed executable facts, rendered-type monomorphization keys and fallback selection, duplicate
-ownership inference, parallel ABI parameter arrays, generic instruction-analysis duplication, and
-optional production MIR contracts. It must preserve language behavior and the published v0.13.0
-artifacts. Phase 5 stops after complete verification; publication requires separate authorization.
+v0.14.0 Phases 0 through 5 are complete. Phase 5 removed span-keyed executable facts,
+rendered-type monomorphization keys and fallback selection, duplicate local-identity inference,
+parallel ABI parameter arrays, repeated generic call/control instruction traversal, late primitive
+name dispatch, and optional production MIR contracts. The published v0.13.0 artifacts remain
+unchanged. Release qualification or publication requires separate authorization.
+
+## Phase 5 Completion Boundary
+
+- executable checked facts use `ExprId`, `StmtId`, `SemanticSiteId`, or `LocalSymbolId`
+- exact structural `CallInstanceKey` lookup produces `MonoItemId`; no less-specific retry exists
+- type checking owns source ownership/provenance acceptance and finalized MIR verifies CFG state
+- source parameters project through tagged ABI words and source-ordinal storage records
+- generic call reachability and outgoing-argument analysis share the exhaustive instruction view
+- primitive declarations bind `IntrinsicId` before MIR and production MIR requires return `TyId`
+- full verification closes Phase 5; release work remains out of scope until explicitly requested
 
 ## Completed v0.14.0 Phase 3 MIR Checkpoint
 
@@ -855,5 +865,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Execute the v0.14.0 Phase 5 work order in the milestone. Do not alter published release archives,
-tags, release notes, or qualification evidence; published artifacts remain immutable.
+Phase 5 is complete. The next work is an explicitly authorized v0.14.0 release-qualification
+phase: freeze the candidate commit, run clean packaging and extraction smoke tests, write the
+release record, and only then publish. Do not alter existing release archives, tags, release
+notes, or qualification evidence; published artifacts remain immutable.

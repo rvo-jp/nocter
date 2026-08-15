@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.14.0 Semantic Architecture Migration - Nocter</title>
-    <meta name="description" content="Status: Phases 0 through 4 complete. Phase 5 semantic convergence is in progress.">
+    <meta name="description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta property="og:description" content="Status: Phases 0 through 4 complete. Phase 5 semantic convergence is in progress.">
+    <meta property="og:description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0 through 4 complete. Phase 5 semantic convergence is in progress.">
+    <meta name="twitter:description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 4 complete. Phase 5 semantic convergence is in progress.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 5 complete. Release qualification has not started.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -138,7 +138,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 4 complete. Phase 5 semantic convergence is in progress.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
+                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 5 complete. Release qualification has not started.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
   semantic identities by inventing source names or treating byte ranges as identifiers.</li><li>Each compile-unit definition, body, expression, type, requirement, intrinsic, and monomorphized
   item receives a typed ID from one semantic database.</li><li>A span is location metadata owned by the database. It may diagnose or navigate an ID, but map
   equality on spans must not decide whether two semantic entities are identical.</li><li>The checker produces the semantic result consumed by ownership, provenance, LSP, specialization,
@@ -411,7 +411,40 @@ InstanceMember::Coercion(CoercionDecl)
    instruction operand/effect traversal, bind primitive identity before MIR lowering, and require
    declared return contracts in the production MIR API.</li><li>Split implementation files only where the preceding changes create a new responsibility. Run
    focused regression tests after each boundary, then the complete repository, installed-home,
-   examples, corpus, documentation, formatting, warnings-denied Clippy, and diff gates.</li></ol><h3 id="completion-definition-6">Completion Definition</h3><p>Phase 5 is complete only when production semantic maps no longer key executable facts by <code>ByteSpan</code>; monomorphized selection never compares rendered types or tries a less-specific fallback; the type-checker/MIR ownership handoff names one owner for every decision; generic machine-IR analyses consume centralized instruction views; ABI parameter bindings cannot express misaligned parallel arrays; production MIR construction cannot omit its return contract; removed adapters have no callers; architecture regression tests protect these boundaries; and the complete verification matrix passes. Publication and release qualification are separate, explicitly authorized work after this phase.</p>
+   examples, corpus, documentation, formatting, warnings-denied Clippy, and diff gates.</li></ol><h3 id="completion-definition-6">Completion Definition</h3><p>Phase 5 is complete only when production semantic maps no longer key executable facts by <code>ByteSpan</code>; monomorphized selection never compares rendered types or tries a less-specific fallback; the type-checker/MIR ownership handoff names one owner for every decision; generic machine-IR analyses consume centralized instruction views; ABI parameter bindings cannot express misaligned parallel arrays; production MIR construction cannot omit its return contract; removed adapters have no callers; architecture regression tests protect these boundaries; and the complete verification matrix passes. Publication and release qualification are separate, explicitly authorized work after this phase.</p><h3 id="completion-record-6">Completion Record</h3><ul><li><code>SemanticDb</code> assigns <code>StmtId</code> alongside <code>BodyId</code> and <code>ExprId</code>. Checked expression plans use
+  <code>ExprId</code>, checked statement plans use <code>StmtId</code>, and non-expression syntax sites use an explicit
+  <code>SemanticSiteId</code> arena whose span index is only an input projection. No checked executable fact
+  collection uses a source range as semantic equality.</li><li><code>TypeIdentity</code> is a span-free structural key for every source type form used by specialization,
+  including callable capability, provenance, opaque witnesses, projections, outcome layers, and
+  closure captures. <code>CallInstanceKey</code> and body specialization use this structure, and one
+  <code>MonoItemRegistry</code> interns exact keys as <code>MonoItemId</code> values.</li><li>Buildability and machine lowering use exact specialization keys. Receiver-unqualification,
+  missing-type-argument, runtime-name, and method-alias fallback indexes were deleted. Linkage
+  strings are produced only after a semantic instance has been selected.</li><li>Generic type substitution and dispatch specialization are separate operations. Once a receiver
+  is concrete, one compile-unit query rebinds an interface requirement <code>DefId</code> to its conformance
+  method <code>DefId</code>; interface identity is compared by <code>DefId</code>, never by resolver-relative canonical
+  spelling. Instance-owner type parameters remain in the receiver key, while only method-owned
+  parameters occupy call type-argument slots.</li><li>The source ownership checker remains the sole user-visible authority for copy/move intent,
+  borrow capability, and provenance. Its place and provenance dataflow roots use <code>LocalSymbolId</code>;
+  equal source names or edited locations cannot merge shadowed bindings. Finalized MIR consumes
+  those decisions and independently verifies CFG-sensitive initialization, moves, loans, cleanup,
+  and destruction without defining a second acceptance policy.</li><li>Machine ABI parameters use one tagged ABI-word sequence plus a source-ordinal storage projection.
+  The eight parallel optional word arrays and unused name/borrow side tables were deleted, so a
+  word cannot acquire several incompatible binding kinds or drift out of alignment.</li><li>One exhaustive machine-instruction effect view owns call targets, call operands, outgoing ABI
+  word counts, nested control-flow bodies, and failure-handler bodies. Reachability and frame
+  outgoing-argument analysis traverse that view rather than maintaining separate complete
+  instruction enumerations.</li><li>Recognized primitive declarations bind their closed <code>IntrinsicId</code> in <code>SemanticDb</code>. MIR lowering
+  no longer derives an intrinsic from a resolver symbol name. Unknown primitive spellings have no
+  compiler role.</li><li>Production <code>BuildInputs</code> requires a declared return <code>TyId</code>. Missing return contracts stop MIR
+  construction at the buildability or lowering boundary; contextual expression types cannot stand
+  in for a callable ABI contract. Tests also pass the authored declaration type explicitly, except
+  for the isolated scalar test helper that derives it before calling the production builder.</li><li>Static error payload indexing obtains checked MIR through the same cache-or-build boundary as
+  ordinary lowering. It no longer depends on another traversal having populated the body cache
+  first, so buildability and IR projection are independent of callable discovery order.</li><li>Architecture regressions cover statement identity, structural specialization, exact registry
+  lookup, distinct shadowed ownership/provenance roots, tagged multiword ABI slots, nested
+  instruction traversal, imported and failure-path reachability, primitive binding, and explicit
+  outcome-success returns.</li><li>The complete compiler, distributed-home, public-example, source-corpus, documentation,
+  formatting, warnings-denied Clippy, and diff matrix passes. No public language or ABI behavior
+  changed, and no v0.14.0 artifact was published.</li></ul>
             </div>
         </main>
     </div>
