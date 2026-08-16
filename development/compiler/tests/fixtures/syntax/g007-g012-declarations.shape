@@ -12,7 +12,9 @@ ModuleSource
   Item
     InterfaceDeclaration
       AssociatedTypeDeclaration
+        Visibility
       InterfaceMethod
+        Visibility
         MethodSignature
           Receiver
           Parameters

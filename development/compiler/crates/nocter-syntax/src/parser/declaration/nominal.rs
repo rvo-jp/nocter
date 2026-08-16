@@ -78,7 +78,7 @@ fn interface_member(parser: &mut Parser<'_>) {
 
 fn associated_type(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    parser.bump();
+    optional_visibility(parser);
     parser.bump();
     parser.expect_name();
     if parser.at_punctuation(Punctuation::Colon) {
@@ -95,7 +95,7 @@ fn associated_type(parser: &mut Parser<'_>) {
 
 fn interface_method(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    parser.bump();
+    optional_visibility(parser);
     super::method_signature(parser);
     block::optional(parser);
     parser.complete(marker, NodeKind::InterfaceMethod);
