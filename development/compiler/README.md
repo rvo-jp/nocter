@@ -190,9 +190,14 @@ be introduced to make an unresolved syntax choice.
   valid specialization facts. Callable signatures never stand in for closure-environment
   ownership. `check_prepared_program` is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  recursive-outcome, copy, and whole-binding move nodes. Semantic move paths track initialized
-  parameter/local state independently of syntax and join only paths visible at a control-flow
-  entry. The checker rejects copy-value moves, borrow-binding moves, later uninitialized uses,
+  recursive-outcome, copy, and named-field move nodes. Semantic move paths track initialized
+  parameter/local state independently of syntax, inherit field state from the nearest ancestor,
+  preserve disjoint siblings, invalidate partially moved parents, and join only paths visible at a
+  control-flow entry. Named-field selection is one visibility-aware authority that substitutes
+  generic owner arguments and emits exact field source projections. The checked program owns one
+  nominal-family `DropTable`; a partial move through the nearest enclosing type-owned drop projects
+  `E0381` and the exact drop declaration instead of rediscovering cleanup by method or name lookup.
+  The checker also rejects copy-value moves, borrow-binding moves, later uninitialized uses,
   value-producing expression statements, and reachable non-value fallthrough, and projects every
   `BodyNodeId` back to its exact syntax origin.
 

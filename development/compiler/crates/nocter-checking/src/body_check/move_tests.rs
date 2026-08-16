@@ -1,8 +1,9 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_source_index::{SemanticEntity, SourceRole};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
-use crate::{CheckedOperation, prepare_program_checking};
+use crate::{CheckedOperation, PlaceProjection, prepare_program_checking};
 
 #[test]
 fn explicit_move_transfers_a_move_only_parameter_into_the_body_result() {
@@ -70,4 +71,143 @@ fn explicit_move_rejects_copy_and_borrow_values_separately() {
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0377");
+}
+
+#[test]
+fn generic_named_field_move_uses_the_substituted_field_type() {
+    let fixture = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         struct Box<T> {\n    item: T\n}\n\
+         func take(box: Box<Owned>): Owned {\n    move box.item\n}\n",
+    );
+    let (input, prelude) = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| !body.places().is_empty())
+        .unwrap();
+    let (_, place) = body.places().iter().next().unwrap();
+    let PlaceProjection::Field(field) = place.projections()[0] else {
+        panic!("named field move must retain its semantic field projection");
+    };
+
+    assert!(place.is_move_source());
+    assert!(
+        output
+            .source_index()
+            .bindings_for(SemanticEntity::Field(field))
+            .iter()
+            .any(|binding| binding.role() == SourceRole::Reference)
+    );
+}
+
+#[test]
+fn disjoint_named_fields_move_independently() {
+    let fixture = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         struct Pair {\n    first: Owned\n    second: Owned\n}\n\
+         func split(pair: Pair): Owned {\n    let _ = move pair.first\n    move pair.second\n}\n",
+    );
+    let (input, prelude) = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+
+    check_prepared_program(&input, prepared).unwrap();
+}
+
+#[test]
+fn named_field_move_invalidates_that_field_and_its_parent() {
+    for result in ["move pair.first", "move pair"] {
+        let fixture = Fixture::new(&format!(
+            "struct Owned {{\n    value: i32\n}}\n\
+             struct Pair {{\n    first: Owned\n    second: Owned\n}}\n\
+             func invalid(pair: Pair): Owned {{\n    let _ = move pair.first\n    {result}\n}}\n"
+        ));
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0378");
+    }
+}
+
+#[test]
+fn named_field_move_rejects_borrowed_and_unknown_fields() {
+    let borrowed = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         struct Box {\n    item: Owned\n}\n\
+         func invalid(box: &+Box): Owned {\n    move box.item\n}\n",
+    );
+    let (input, prelude) = borrowed.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0377");
+
+    let unknown = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         struct Box {\n    item: Owned\n}\n\
+         func invalid(box: Box): Owned {\n    move box.missing\n}\n",
+    );
+    let (input, prelude) = unknown.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0379");
+}
+
+#[test]
+fn named_field_move_obeys_the_declaring_module_visibility_boundary() {
+    let fixture = Fixture::with_child(
+        "use ./child.{Box, Owned}\n\
+         func invalid(box: Box): Owned {\n    move box.item\n}\n",
+        "pub struct Owned {\n    value: i32\n}\n\
+         pub struct Box {\n    item: Owned\n}\n",
+    );
+    let mut expected = None;
+    for reverse in [false, true] {
+        let (input, prelude) = fixture.input(reverse);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+        let diagnostic = error.source_diagnostic().unwrap().clone();
+
+        assert_eq!(diagnostic.code(), "E0380");
+        if let Some(expected) = &expected {
+            assert_eq!(&diagnostic, expected);
+        } else {
+            expected = Some(diagnostic);
+        }
+    }
+}
+
+#[test]
+fn a_type_owned_drop_forbids_partial_move_with_a_related_location() {
+    let fixture = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         struct Box {\n    item: Owned\n}\n\
+         drop Box(&+self) {\n    return\n}\n\
+         func invalid(box: Box): Owned {\n    move box.item\n}\n",
+    );
+    let (input, prelude) = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+    let diagnostic = error.source_diagnostic().unwrap();
+
+    assert_eq!(diagnostic.code(), "E0381");
+    assert_eq!(diagnostic.notes().len(), 1);
 }

@@ -144,7 +144,8 @@ Increment 5 now has a closed output schema and a non-output preparation state. `
 opens `DeclarationProgram` once, retains the same extended `TypeStore`, and owns the conformance
 table, body-source catalog, resolved lexical identities, temporary syntax-backed uses, and source
 projection. It cannot be mistaken for a checked program. `CheckedProgram` has no syntax lifetime
-and owns the graph, type store, conformance table, and one `CheckedBody` per `BodyId`.
+and owns the graph, type store, conformance table, copyability table, type-owned drop table, and one
+`CheckedBody` per `BodyId`.
 
 Each checked body has dense scope, typed local, typed capture, place, loop, and node domains. The
 closed node operation distinguishes constants, places, copy/move/borrow, static or callable-value
@@ -198,15 +199,28 @@ for every `copy struct` family. Preparation rejects an impossible field as sourc
 the exact field declaration. A generic-dependent family remains valid and evaluates its condition
 again only after canonical argument substitution creates a distinct type identity.
 
-Whole-binding ownership transfer uses a separate semantic `MovePath` domain keyed by
+Ownership transfer uses a separate semantic `MovePath` domain keyed by
 `PlaceRoot`, never by a source name or place occurrence. Callable and drop parameters enter their
 body initialized; a local enters only after its initializer succeeds. Copy and borrow reads require
 an initialized path, while `move` requires a move-only owned value and changes the path to
 uninitialized before later reachable expressions are checked. Source rules `E0376`-`E0378`
 distinguish moving a copy value, moving a borrow binding, and reading an uninitialized path. The
-state lattice already defines an entry-relative branch join: only paths visible at branch entry
-survive, and differing incoming states become maybe initialized. Named-field paths and actual
-control-flow consumers remain subsequent increments.
+same path domain extends roots with exact `FieldId` projections. Field state is inherited lazily
+from the nearest recorded ancestor, so moving one field preserves disjoint siblings but makes the
+complete parent unavailable. Branch joins include field overrides visible under entry roots while
+excluding branch-local roots; differing incoming states become maybe initialized.
+
+One visibility-aware field selector accepts the canonical base type, substitutes the nominal
+owner's actual generic arguments through `TypeSubstitution`, and returns the exact owner, field,
+and selected type. Body checking never scans names or fields independently. It also projects each
+selected field token to `SemanticEntity::Field`. Borrow layers weaken place access before
+selection, so writable field access through `&+T` still cannot become an owned move path.
+
+`DropTable` is the sole nominal-family-to-drop-body association in preparation and the final
+checked program. A field move examines its enclosing nominal families from nearest to farthest;
+the first family with a type-owned drop body projects `E0381` and the exact drop declaration as a
+related source. Cleanup planning can therefore assume a user drop body always receives a complete
+`Self`. Conditional control-flow consumers and generated cleanup remain subsequent increments.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

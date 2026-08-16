@@ -2,7 +2,7 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::{ConformanceTable, CopyabilityTable};
+use crate::{ConformanceTable, CopyabilityTable, DropTable};
 
 use super::CheckedBody;
 
@@ -13,6 +13,7 @@ pub struct CheckedProgram {
     types: TypeStore,
     conformances: ConformanceTable,
     copyabilities: CopyabilityTable,
+    drops: DropTable,
     bodies: Arena<BodyId, CheckedBody>,
 }
 
@@ -22,6 +23,7 @@ impl CheckedProgram {
         types: TypeStore,
         conformances: ConformanceTable,
         copyabilities: CopyabilityTable,
+        drops: DropTable,
         bodies: Arena<BodyId, CheckedBody>,
     ) -> Self {
         Self {
@@ -29,6 +31,7 @@ impl CheckedProgram {
             types,
             conformances,
             copyabilities,
+            drops,
             bodies,
         }
     }
@@ -51,6 +54,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn copyabilities(&self) -> &CopyabilityTable {
         &self.copyabilities
+    }
+
+    #[must_use]
+    pub const fn drops(&self) -> &DropTable {
+        &self.drops
     }
 
     #[must_use]

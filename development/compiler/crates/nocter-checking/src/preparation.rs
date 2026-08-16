@@ -9,8 +9,8 @@ use nocter_source_index::SourceIndex;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
 use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityBuildError,
-    CopyabilityTable, DeclarationTypeValidityError, NameResolutionError, ResolvedBodyNames,
-    build_conformance_table, catalog_body_sources, validate_declaration_types,
+    CopyabilityTable, DeclarationTypeValidityError, DropTable, DropTableError, NameResolutionError,
+    ResolvedBodyNames, build_conformance_table, catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -24,6 +24,7 @@ pub struct PreparedChecking<'syntax> {
     types: TypeStore,
     conformances: ConformanceTable,
     copyabilities: CopyabilityTable,
+    drops: DropTable,
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_index: SourceIndex,
@@ -51,6 +52,11 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
+    pub const fn drops(&self) -> &DropTable {
+        &self.drops
+    }
+
+    #[must_use]
     pub const fn body_sources(&self) -> &BodySourceCatalog<'syntax> {
         &self.body_sources
     }
@@ -71,6 +77,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             types: self.types,
             conformances: self.conformances,
             copyabilities: self.copyabilities,
+            drops: self.drops,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_index: self.source_index,
@@ -83,6 +90,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) types: TypeStore,
     pub(crate) conformances: ConformanceTable,
     pub(crate) copyabilities: CopyabilityTable,
+    pub(crate) drops: DropTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_index: SourceIndex,
@@ -92,6 +100,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 pub enum PreparationError {
     TypeValidity(DeclarationTypeValidityError),
     Copyability(CopyabilityBuildError),
+    DropTable(DropTableError),
     Conformance(ConformanceBuildError),
     NameResolution(NameResolutionError),
 }
@@ -102,6 +111,7 @@ impl PreparationError {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
+            Self::DropTable(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
         }
@@ -113,6 +123,7 @@ impl fmt::Display for PreparationError {
         match self {
             Self::TypeValidity(error) => error.fmt(formatter),
             Self::Copyability(error) => error.fmt(formatter),
+            Self::DropTable(error) => error.fmt(formatter),
             Self::Conformance(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
@@ -136,6 +147,12 @@ impl From<ConformanceBuildError> for PreparationError {
 impl From<CopyabilityBuildError> for PreparationError {
     fn from(error: CopyabilityBuildError) -> Self {
         Self::Copyability(error)
+    }
+}
+
+impl From<DropTableError> for PreparationError {
+    fn from(error: DropTableError) -> Self {
+        Self::DropTable(error)
     }
 }
 
@@ -167,6 +184,7 @@ pub fn prepare_program_checking<'syntax>(
         .map_err(NameResolutionError::from)?;
     validate_declaration_types(&graph, &types, &source_index)?;
     let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)?;
+    let drops = DropTable::build(&graph, &types)?;
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
@@ -175,6 +193,7 @@ pub fn prepare_program_checking<'syntax>(
         types,
         conformances,
         copyabilities,
+        drops,
         body_sources,
         body_names,
         source_index,

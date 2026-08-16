@@ -2,27 +2,31 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_declaration_lowering::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
-    ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, LocalBindingId, PlaceId,
-    TypeId, TypeKind, TypeStore,
+    ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, LocalBindingId, NominalTypeId,
+    PlaceId, TypeId, TypeKind, TypeStore,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
 
+use super::context::BodyProgramFacts;
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
 use crate::checked::{CheckedBodyBuilder, CheckedProgram, CheckedProgramOutput};
 use crate::copyability::{Copyability, CopyabilityTable};
+use crate::field_selection::{FieldSelectionError, field_selection_base, select_field};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::preparation::PreparedCheckingParts;
 use crate::syntax::{direct_child, direct_identifier, direct_nodes, identifier_tokens, token_text};
 use crate::{
     BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, ConstantValue,
-    ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, NameTarget, OutcomeLayer,
-    PlaceAccess, PlaceRoot, PreparedChecking, ResolvedBodyNames, plan_expected_type,
+    DropTable, ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, NameTarget,
+    OutcomeLayer, PlaceAccess, PlaceProjection, PlaceRoot, PreparedChecking, ResolvedBodyNames,
+    plan_expected_type,
 };
 
 struct NodeProjection {
@@ -34,6 +38,8 @@ struct NamedPlace {
     id: PlaceId,
     ty: TypeId,
     path: MovePath,
+    access: PlaceAccess,
+    partial_parents: Box<[NominalTypeId]>,
 }
 
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
@@ -55,12 +61,14 @@ pub fn check_prepared_program<'syntax>(
         mut types,
         conformances,
         mut copyabilities,
+        drops,
         body_sources,
         body_names,
         source_index,
     } = prepared.into_parts();
     let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
     let mut projections = Vec::new();
+    let facts = BodyProgramFacts::new(&graph, &drops, &source_index);
 
     for (body, _) in graph.declarations().bodies().iter() {
         let source = body_sources
@@ -72,16 +80,9 @@ pub fn check_prepared_program<'syntax>(
         if names.body() != body {
             return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
         }
-        let checked = BodyChecker::new(
-            input,
-            &graph,
-            &mut types,
-            &mut copyabilities,
-            &source_index,
-            source,
-            names,
-        )?
-        .check()?;
+        let checked =
+            BodyChecker::new(input, facts, &mut types, &mut copyabilities, source, names)?
+                .check()?;
         let actual = bodies.insert(checked.body);
         if actual != body {
             return Err(BodyCheckInternalError::NonCanonicalBody(body).into());
@@ -99,7 +100,14 @@ pub fn check_prepared_program<'syntax>(
         .complete(&graph, &mut types)
         .map_err(BodyCheckInternalError::Copyability)?;
     Ok(CheckedProgramOutput::new(
-        CheckedProgram::new(graph, types, conformances, copyabilities, bodies.finish()),
+        CheckedProgram::new(
+            graph,
+            types,
+            conformances,
+            copyabilities,
+            drops,
+            bodies.finish(),
+        ),
         source_index.finish(),
     ))
 }
@@ -114,6 +122,8 @@ struct BodyChecker<'input, 'syntax> {
     graph: &'input DeclarationGraph,
     types: &'input mut TypeStore,
     copyabilities: &'input mut CopyabilityTable,
+    drops: &'input DropTable,
+    source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     builder: CheckedBodyBuilder,
@@ -128,13 +138,15 @@ struct BodyChecker<'input, 'syntax> {
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn new(
         input: &'input CompileUnitInput<'syntax>,
-        graph: &'input DeclarationGraph,
+        facts: BodyProgramFacts<'input>,
         types: &'input mut TypeStore,
         copyabilities: &'input mut CopyabilityTable,
-        source_index: &'input SourceIndex,
         source: BodySource<'syntax>,
         names: &'input ResolvedBodyNames,
     ) -> Result<Self, BodyCheckError> {
+        let graph = facts.graph();
+        let drops = facts.drops();
+        let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
             if uses.insert(use_.origin(), use_.target()).is_some() {
@@ -168,6 +180,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             graph,
             types,
             copyabilities,
+            drops,
+            source_index,
             source,
             names,
             builder: CheckedBodyBuilder::new(names),
@@ -457,11 +471,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             );
         }
         let operand = self.required_child(node, NodeKind::NamedPlace)?;
-        if identifier_tokens(self.tree(), operand).len() != 1 {
-            return Err(
-                BodyCheckInternalError::UnsupportedSyntax(operand, NodeKind::NamedPlace).into(),
-            );
-        }
         let place = self.named_place(operand)?;
         self.require_initialized(node, &place.path)?;
         match self
@@ -474,8 +483,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
             Copyability::MoveOnly => {}
         }
-        if matches!(self.types.get(place.ty), Some(TypeKind::Borrow { .. })) {
+        if place.access != PlaceAccess::Owned
+            || matches!(self.types.get(place.ty), Some(TypeKind::Borrow { .. }))
+        {
             return Err(self.rule(BodyRule::InvalidMoveSource, node)?.into());
+        }
+        for parent in place.partial_parents.iter().rev() {
+            if let Some(drop) = self.drops.get(*parent) {
+                return Err(self.partial_move_drop(node, drop)?);
+            }
         }
         self.ownership
             .move_out(&place.path)
@@ -513,7 +529,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn named_place(&mut self, node: NodeId) -> Result<NamedPlace, BodyCheckError> {
-        let token = direct_identifier(self.tree(), node)
+        let tokens = identifier_tokens(self.tree(), node);
+        let token = tokens
+            .first()
+            .copied()
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let origin = SyntaxOrigin::Token(token);
         let target = self
@@ -522,7 +541,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .copied()
             .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
         self.consumed_uses.insert(origin);
-        let (root, ty) = match target {
+        let (root, mut ty) = match target {
             NameTarget::Parameter(parameter) => {
                 let ty = self
                     .graph
@@ -541,12 +560,66 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             ),
             _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
         };
+        let mut path = MovePath::root(root);
+        let mut access = PlaceAccess::Owned;
+        let mut projections = Vec::new();
+        let mut partial_parents = Vec::new();
+        for field_token in tokens.into_iter().skip(1) {
+            let base =
+                field_selection_base(self.types, ty, &mut access).map_err(|error| match error {
+                    FieldSelectionError::UnknownType(unknown) => {
+                        BodyCheckInternalError::UnknownType(unknown)
+                    }
+                    _ => BodyCheckInternalError::FieldSelection,
+                })?;
+            let spelling = self.token_text(field_token)?.to_owned();
+            let selected = match select_field(
+                self.graph,
+                self.types,
+                self.source.module(),
+                base,
+                &spelling,
+            ) {
+                Ok(selected) => selected,
+                Err(FieldSelectionError::NoFields(_) | FieldSelectionError::MissingField(_)) => {
+                    return Err(self.token_rule(BodyRule::UnknownField, field_token)?.into());
+                }
+                Err(FieldSelectionError::InaccessibleField(_)) => {
+                    return Err(self
+                        .token_rule(BodyRule::InaccessibleField, field_token)?
+                        .into());
+                }
+                Err(FieldSelectionError::UnknownType(unknown)) => {
+                    return Err(BodyCheckInternalError::UnknownType(unknown).into());
+                }
+                Err(
+                    FieldSelectionError::UnknownNominal(_)
+                    | FieldSelectionError::UnknownField(_)
+                    | FieldSelectionError::UnknownFieldSite(_)
+                    | FieldSelectionError::AmbiguousField(_)
+                    | FieldSelectionError::GenericArity(_)
+                    | FieldSelectionError::Substitution(_),
+                ) => return Err(BodyCheckInternalError::FieldSelection.into()),
+            };
+            if access == PlaceAccess::Owned {
+                path = path.field(selected.field());
+                partial_parents.push(selected.owner());
+            }
+            let origin = SourceOrigin::from_token(self.tree(), field_token)
+                .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+            self.projections.push(NodeProjection {
+                entity: SemanticEntity::Field(selected.field()),
+                origin,
+            });
+            projections.push(PlaceProjection::Field(selected.field()));
+            ty = selected.ty();
+        }
         Ok(NamedPlace {
-            id: self
-                .builder
-                .add_place(root, Vec::new().into_boxed_slice(), ty, PlaceAccess::Owned),
+            id: self.builder.add_place(root, projections, ty, access),
             ty,
-            path: MovePath::root(root),
+            path,
+            access,
+            partial_parents: partial_parents.into_boxed_slice(),
         })
     }
 
@@ -556,11 +629,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             Err(OwnershipStateError::NotInitialized { .. }) => {
                 Err(self.rule(BodyRule::UninitializedPlace, node)?.into())
             }
-            Err(
-                OwnershipStateError::DuplicatePath(_)
-                | OwnershipStateError::UnknownPath(_)
-                | OwnershipStateError::JoinPathMismatch(_),
-            ) => Err(BodyCheckInternalError::OwnershipState.into()),
+            Err(OwnershipStateError::DuplicatePath(_) | OwnershipStateError::UnknownPath(_)) => {
+                Err(BodyCheckInternalError::OwnershipState.into())
+            }
         }
     }
 
@@ -673,6 +744,47 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let origin = SourceOrigin::from_node(self.tree(), node)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         Ok(rule.diagnostic(origin))
+    }
+
+    fn token_rule(
+        &self,
+        rule: BodyRule,
+        token: SyntaxToken,
+    ) -> Result<nocter_diagnostics::SourceDiagnostic, BodyCheckInternalError> {
+        let origin = SourceOrigin::from_token(self.tree(), token)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        Ok(rule.diagnostic(origin))
+    }
+
+    fn partial_move_drop(
+        &self,
+        node: NodeId,
+        drop: nocter_model::DropId,
+    ) -> Result<BodyCheckError, BodyCheckInternalError> {
+        let primary = SourceOrigin::from_node(self.tree(), node)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        let entity = SemanticEntity::Drop(drop);
+        let related = self
+            .source_index
+            .bindings_for(entity)
+            .iter()
+            .find(|binding| {
+                matches!(
+                    binding.role(),
+                    SourceRole::Declaration | SourceRole::Implementation
+                )
+            })
+            .map(|binding| binding.origin())
+            .ok_or(BodyCheckInternalError::MissingSource(entity))?;
+        Ok(BodyCheckError::Rule(
+            BodyRule::PartialMoveThroughDrop.diagnostic_with_notes(
+                primary,
+                [DiagnosticNote::new(
+                    "the enclosing struct's drop declaration is here",
+                    related,
+                )],
+            ),
+        ))
     }
 
     fn token_text(&self, token: SyntaxToken) -> Result<&str, BodyCheckInternalError> {
@@ -834,126 +946,6 @@ mod tests {
             node.operation(),
             CheckedOperation::Outcome(CheckedOutcome::Absent)
         )));
-    }
-
-    #[test]
-    fn readonly_borrow_uses_the_same_resolved_parameter_place() {
-        let fixture = Fixture::new(
-            "func observe(value: i32): void {\n    let view = &value\n    return\n}\n",
-        );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let output = check_prepared_program(&input, prepared).unwrap();
-        let (_, body) = output.program().bodies().iter().next().unwrap();
-
-        assert!(
-            body.nodes()
-                .iter()
-                .any(|(_, node)| matches!(node.operation(), CheckedOperation::Borrow { .. }))
-        );
-        assert_eq!(body.places().len(), 1);
-    }
-
-    #[test]
-    fn copy_struct_specialization_uses_substituted_field_copyability() {
-        let fixture = Fixture::new(
-            "copy struct Box<T> {\n    value: T\n}\n\
-             func duplicate(value: Box<i32>): Box<i32> {\n    value\n}\n",
-        );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let output = check_prepared_program(&input, prepared).unwrap();
-
-        assert!(
-            output.program().types().iter().all(|(ty, _)| output
-                .program()
-                .copyabilities()
-                .get(ty)
-                .is_some())
-        );
-        assert!(output.program().bodies().iter().any(|(_, body)| {
-            body.nodes()
-                .iter()
-                .any(|(_, node)| matches!(node.operation(), CheckedOperation::Copy(_)))
-        }));
-    }
-
-    #[test]
-    fn copy_struct_specialization_remains_move_only_for_move_only_argument() {
-        let fixture = Fixture::new(
-            "struct Owned {\n    value: i32\n}\n\
-             copy struct Box<T> {\n    value: T\n}\n\
-             func duplicate(value: Box<Owned>): Box<Owned> {\n    value\n}\n",
-        );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let error = check_prepared_program(&input, prepared).unwrap_err();
-
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
-    }
-
-    #[test]
-    fn callable_copy_requirement_supplies_the_generic_body_proof() {
-        let fixture = Fixture::new("func duplicate<T>(value: T): T where copy T {\n    value\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-
-        check_prepared_program(&input, prepared).unwrap();
-    }
-
-    #[test]
-    fn unconstrained_generic_parameter_is_not_implicitly_copied() {
-        let fixture = Fixture::new("func duplicate<T>(value: T): T {\n    value\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let error = check_prepared_program(&input, prepared).unwrap_err();
-
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
-    }
-
-    #[test]
-    fn payloadless_enum_is_copyable_without_a_marker() {
-        let fixture = Fixture::new(
-            "enum Choice {\n    yes\n    no\n}\n\
-             func duplicate(value: Choice): Choice {\n    value\n}\n",
-        );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-
-        check_prepared_program(&input, prepared).unwrap();
-    }
-
-    #[test]
-    fn readonly_and_readwrite_borrows_have_distinct_copyability() {
-        let readonly =
-            Fixture::new("func duplicate(value: &i32): &i32 from value {\n    value\n}\n");
-        let (input, prelude) = readonly.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        check_prepared_program(&input, prepared).unwrap();
-
-        let readwrite =
-            Fixture::new("func duplicate(value: &+i32): &+i32 from value {\n    value\n}\n");
-        let (input, prelude) = readwrite.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let error = check_prepared_program(&input, prepared).unwrap_err();
-
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
     }
 
     #[test]

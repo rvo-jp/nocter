@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::FieldId;
 
@@ -21,7 +21,6 @@ impl MovePath {
         }
     }
 
-    #[allow(dead_code, reason = "named-field move checking is the next consumer")]
     pub(crate) fn field(&self, field: FieldId) -> Self {
         let mut fields = self.fields.to_vec();
         fields.push(field);
@@ -29,6 +28,24 @@ impl MovePath {
             root: self.root,
             fields: fields.into_boxed_slice(),
         }
+    }
+
+    fn root_identity(&self) -> PlaceRoot {
+        self.root
+    }
+
+    fn is_prefix_of(&self, another: &Self) -> bool {
+        self.root == another.root
+            && self.fields.len() <= another.fields.len()
+            && another.fields.starts_with(&self.fields)
+    }
+
+    fn parent(&self) -> Option<Self> {
+        let (_, fields) = self.fields.split_last()?;
+        Some(Self {
+            root: self.root,
+            fields: fields.into(),
+        })
     }
 }
 
@@ -68,41 +85,79 @@ impl OwnershipState {
     }
 
     pub(crate) fn require_initialized(&self, path: &MovePath) -> Result<(), OwnershipStateError> {
-        match self.paths.get(path).copied() {
-            Some(InitializationState::Initialized) => Ok(()),
-            Some(state) => Err(OwnershipStateError::NotInitialized {
+        let state = self.state_at(path)?;
+        if state != InitializationState::Initialized {
+            return Err(OwnershipStateError::NotInitialized {
                 path: path.clone(),
                 state,
-            }),
-            None => Err(OwnershipStateError::UnknownPath(path.clone())),
+            });
         }
+        if let Some(state) = self
+            .paths
+            .iter()
+            .filter(|(candidate, _)| path != *candidate && path.is_prefix_of(candidate))
+            .map(|(_, state)| *state)
+            .find(|state| *state != InitializationState::Initialized)
+        {
+            return Err(OwnershipStateError::NotInitialized {
+                path: path.clone(),
+                state,
+            });
+        }
+        Ok(())
     }
 
     pub(crate) fn move_out(&mut self, path: &MovePath) -> Result<(), OwnershipStateError> {
         self.require_initialized(path)?;
         self.paths
+            .retain(|candidate, _| candidate == path || !path.is_prefix_of(candidate));
+        self.paths
             .insert(path.clone(), InitializationState::Uninitialized);
         Ok(())
     }
 
-    #[allow(dead_code, reason = "branch checking is the next consumer")]
+    fn state_at(&self, path: &MovePath) -> Result<InitializationState, OwnershipStateError> {
+        let mut current = Some(path.clone());
+        while let Some(candidate) = current {
+            if let Some(state) = self.paths.get(&candidate) {
+                return Ok(*state);
+            }
+            current = candidate.parent();
+        }
+        Err(OwnershipStateError::UnknownPath(path.clone()))
+    }
+
+    #[allow(dead_code, reason = "control-flow checking is the next consumer")]
     pub(crate) fn join_branches(
         &self,
         left: &Self,
         right: &Self,
     ) -> Result<Self, OwnershipStateError> {
+        let roots = self
+            .paths
+            .keys()
+            .map(MovePath::root_identity)
+            .collect::<BTreeSet<_>>();
+        let paths = self
+            .paths
+            .keys()
+            .chain(
+                left.paths
+                    .keys()
+                    .filter(|path| roots.contains(&path.root_identity())),
+            )
+            .chain(
+                right
+                    .paths
+                    .keys()
+                    .filter(|path| roots.contains(&path.root_identity())),
+            )
+            .cloned()
+            .collect::<BTreeSet<_>>();
         let mut joined = BTreeMap::new();
-        for path in self.paths.keys() {
-            let left = left
-                .paths
-                .get(path)
-                .copied()
-                .ok_or_else(|| OwnershipStateError::JoinPathMismatch(path.clone()))?;
-            let right = right
-                .paths
-                .get(path)
-                .copied()
-                .ok_or_else(|| OwnershipStateError::JoinPathMismatch(path.clone()))?;
+        for path in paths {
+            let left = left.state_at(&path)?;
+            let right = right.state_at(&path)?;
             joined.insert(path.clone(), left.join(right));
         }
         Ok(Self { paths: joined })
@@ -117,12 +172,11 @@ pub(crate) enum OwnershipStateError {
         path: MovePath,
         state: InitializationState,
     },
-    JoinPathMismatch(MovePath),
 }
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, LocalBindingId};
+    use nocter_model::{ArenaBuilder, FieldId, LocalBindingId};
 
     use super::{InitializationState, MovePath, OwnershipState, OwnershipStateError};
     use crate::PlaceRoot;
@@ -181,5 +235,48 @@ mod tests {
         let joined = entry.join_branches(&left, &entry).unwrap();
 
         assert_eq!(joined, entry);
+    }
+
+    #[test]
+    fn field_move_preserves_disjoint_field_and_invalidates_parent() {
+        let root = local_path();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let first = root.field(fields.insert(()));
+        let second = root.field(fields.insert(()));
+        let _ = fields.finish();
+        let mut state = OwnershipState::default();
+        state.declare_initialized(root.clone()).unwrap();
+        state.move_out(&first).unwrap();
+
+        assert!(state.require_initialized(&second).is_ok());
+        assert!(matches!(
+            state.require_initialized(&root),
+            Err(OwnershipStateError::NotInitialized { .. })
+        ));
+        assert!(matches!(
+            state.require_initialized(&first),
+            Err(OwnershipStateError::NotInitialized { .. })
+        ));
+    }
+
+    #[test]
+    fn field_state_joins_against_inherited_parent_state() {
+        let root = local_path();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = root.field(fields.insert(()));
+        let _ = fields.finish();
+        let mut entry = OwnershipState::default();
+        entry.declare_initialized(root).unwrap();
+        let mut moved = entry.clone();
+        moved.move_out(&field).unwrap();
+        let joined = entry.join_branches(&moved, &entry).unwrap();
+
+        assert_eq!(
+            joined.require_initialized(&field),
+            Err(OwnershipStateError::NotInitialized {
+                path: field,
+                state: InitializationState::MaybeInitialized,
+            })
+        );
     }
 }

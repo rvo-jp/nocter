@@ -10,6 +10,7 @@ mod checked;
 mod conformance;
 mod copyability;
 mod expected;
+mod field_selection;
 mod inference;
 mod names;
 mod ownership;
@@ -52,6 +53,7 @@ pub use names::{
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
     resolve_body_names,
 };
+pub use ownership::{DropTable, DropTableError};
 pub use preparation::{PreparationError, PreparedChecking, prepare_program_checking};
 pub use type_validity::{
     DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,

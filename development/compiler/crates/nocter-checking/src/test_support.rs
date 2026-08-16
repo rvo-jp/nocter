@@ -1,15 +1,17 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
+    UseTargetInput,
 };
 use nocter_source::{SourceId, SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 pub(crate) struct Fixture {
     sources: SourceMap,
     app_manifest: SyntaxTree,
     std_manifest: SyntaxTree,
     app: SyntaxTree,
+    child: Option<SyntaxTree>,
     standard: SyntaxTree,
     prelude: SyntaxTree,
 }
@@ -26,10 +28,18 @@ impl Fixture {
             app_manifest: parsed(&sources, app_manifest_id, ParseGoal::PackageFile),
             std_manifest: parsed(&sources, std_manifest_id, ParseGoal::PackageFile),
             app: parsed(&sources, app_id, ParseGoal::ModuleSource),
+            child: None,
             standard: parsed(&sources, std_id, ParseGoal::ModuleSource),
             prelude: parsed(&sources, prelude_id, ParseGoal::ModuleSource),
             sources,
         }
+    }
+
+    pub(crate) fn with_child(app: &str, child: &str) -> Self {
+        let mut fixture = Self::new(app);
+        let child_id = add_source(&mut fixture.sources, "/app/child/index.nct", child);
+        fixture.child = Some(parsed(&fixture.sources, child_id, ParseGoal::ModuleSource));
+        fixture
     }
 
     pub(crate) fn input(&self, reverse: bool) -> (CompileUnitInput<'_>, ModuleIdentity) {
@@ -57,16 +67,51 @@ impl Fixture {
                 &self.prelude,
             ),
         ];
+        if let Some(child) = &self.child {
+            modules.push(module(
+                "workspace:app",
+                &["child"],
+                "/app/child/index.nct",
+                child,
+            ));
+        }
         if reverse {
             packages.reverse();
             modules.reverse();
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let resolutions = self.child.as_ref().map_or_else(Vec::new, |_| {
+            vec![UseResolutionInput::new(
+                use_declaration(&self.app),
+                UseTargetInput::Module(ModuleIdentity::new(
+                    PackageIdentity::new("workspace:app"),
+                    ["child"],
+                )),
+            )]
+        });
         (
-            CompileUnitInput::new(&self.sources, packages, modules, Vec::new()),
+            CompileUnitInput::new(&self.sources, packages, modules, resolutions),
             prelude,
         )
     }
+}
+
+fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree
+            .node(node)
+            .is_some_and(|node| node.kind() == NodeKind::UseDeclaration)
+        {
+            return node;
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    panic!("child-module fixture requires one module use declaration");
 }
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {

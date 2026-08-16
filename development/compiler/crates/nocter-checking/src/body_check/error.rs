@@ -74,6 +74,7 @@ pub enum BodyCheckInternalError {
     UnconsumedNameUses(BodyId),
     NonCanonicalBody(BodyId),
     OwnershipState,
+    FieldSelection,
 }
 
 impl fmt::Display for BodyCheckInternalError {

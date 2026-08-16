@@ -2,19 +2,19 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by extending the closed typed-body construction path with ownership-state
-transitions on top of the completed program-wide copyability authority.
+Continue v0.14.0 Phase 3 by connecting the existing ownership-state lattice to checked control
+flow and cleanup planning.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Extend whole-binding ownership state to statically named fields, including partial
-   initialization and the prohibition on partial moves through a type-owned drop declaration.
-2. Apply the existing branch join to checked conditionals and loops. The entry state must exclude
+1. Apply the existing branch join to checked conditionals and loops. The entry state must exclude
    branch-local paths while joining every visible outer path to initialized, uninitialized, or
    maybe initialized.
+2. Materialize scope-exit cleanup from the same initialization state. Complete and remaining
+   fields must be dropped in normative order without creating a second liveness analysis.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -57,9 +57,14 @@ contracts are never guessed copyable. Copy-struct families retain `Always`, gene
 `Impossible` conditions; an unconditionally move-only field now projects `E0366` at its declaration
 instead of creating a never-copy family. Whole-binding state now tracks parameter and local move
 paths, emits exact `Move` nodes, rejects moves of copy values and borrow bindings, and reports
-later uses through `E0376`-`E0378`. The same state has an entry-relative branch join that cannot
-leak branch-local paths. Named fields, annotation binding, calls, operators, aggregates, branches,
-loops, closures, literals, and interpolation remain incomplete.
+later uses through `E0376`-`E0378`. Statically named fields now resolve through one visibility-aware
+selector that substitutes the nominal owner's generic arguments and projects the exact field
+identity back to source. Move paths retain field identity, preserve disjoint siblings, invalidate
+their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
+the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
+project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
+branch-local paths. Annotation binding, calls, operators, aggregates, branches, loops, closures,
+literals, and interpolation remain incomplete.
 
 ## Guardrails
 

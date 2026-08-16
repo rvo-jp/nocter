@@ -1,4 +1,4 @@
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -12,6 +12,9 @@ pub enum BodyRule {
     MoveCopyValue,
     InvalidMoveSource,
     UninitializedPlace,
+    UnknownField,
+    InaccessibleField,
+    PartialMoveThroughDrop,
 }
 
 impl BodyRule {
@@ -25,6 +28,9 @@ impl BodyRule {
         Self::MoveCopyValue,
         Self::InvalidMoveSource,
         Self::UninitializedPlace,
+        Self::UnknownField,
+        Self::InaccessibleField,
+        Self::PartialMoveThroughDrop,
     ];
 
     #[must_use]
@@ -39,10 +45,21 @@ impl BodyRule {
             Self::MoveCopyValue => "E0376",
             Self::InvalidMoveSource => "E0377",
             Self::UninitializedPlace => "E0378",
+            Self::UnknownField => "E0379",
+            Self::InaccessibleField => "E0380",
+            Self::PartialMoveThroughDrop => "E0381",
         }
     }
 
     pub(super) fn diagnostic(self, primary: SourceOrigin) -> SourceDiagnostic {
+        self.diagnostic_with_notes(primary, [])
+    }
+
+    pub(super) fn diagnostic_with_notes(
+        self,
+        primary: SourceOrigin,
+        notes: impl Into<Box<[DiagnosticNote]>>,
+    ) -> SourceDiagnostic {
         let (message, help) = match self {
             Self::TypeMismatch => (
                 "expression type is incompatible with its expected destination type",
@@ -80,8 +97,20 @@ impl BodyRule {
                 "place may be uninitialized at this use",
                 "initialize it on every reachable path before using it",
             ),
+            Self::UnknownField => (
+                "type has no field with this name",
+                "select a field declared by the base struct",
+            ),
+            Self::InaccessibleField => (
+                "field is not visible from this module",
+                "use an accessible field or a public API of the defining module",
+            ),
+            Self::PartialMoveThroughDrop => (
+                "field move would partially initialize a struct with a drop declaration",
+                "move the complete struct or keep every field initialized",
+            ),
         };
-        SourceDiagnostic::new(self.code(), message, primary, [], Some(help))
+        SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))
     }
 }
 
