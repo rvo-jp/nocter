@@ -166,7 +166,9 @@ Rules:
 
 ## Statement Separation
 
-Nocter does not use semicolons as statement terminators. The `;` token is reserved for grammar positions that explicitly require it, such as fixed-size array types `[T; N]`.
+Nocter does not use semicolons as statement terminators. The `;` token is reserved for grammar
+positions that explicitly require it: fixed-size array types `[T; N]` and the separator between
+explicit closure captures and closure parameters.
 
 Rules:
 
@@ -189,7 +191,8 @@ Rules:
   into a continuation newline. A blank or comment-only intervening line therefore ends any
   possible leading-token continuation.
 - A closing brace `}` ends the current block or arm.
-- A semicolon does not terminate a statement. Outside an explicit grammar position such as `[T; N]`, it is a syntax error.
+- A semicolon does not terminate a statement. Outside `[T; N]` or a closure capture separator, it
+  is a syntax error.
 - A newline also continues an expression when the tokens before it cannot end the expression, such
   as after a binary operator, or when the enclosing call, literal, index, or parenthesized-expression
   grammar is still consuming the expression.

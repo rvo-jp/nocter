@@ -87,7 +87,10 @@ Captures appear before a semicolon in the parameter list:
 
 ```nct
 (&threshold; value) { value > threshold }
-(&+count; value) { count += 1; value }
+(&+count; value) {
+    count += 1
+    value
+}
 (move prefix; value) { prefix.len() + value }
 ```
 
