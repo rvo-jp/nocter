@@ -16,9 +16,9 @@ tooling contract can be implemented without guessing.
 - [Rewrite maintenance policy](docs/maintenance.md)
 - [New compiler boundary](compiler/README.md)
 
-There is currently no repository-local compiler build command. The previous compiler is preserved
-by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
-reference.
+The new source/syntax workspace is under `development/compiler/`. The previous compiler is
+preserved by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or
+implementation reference.
 
 ## Specification Workflow
 
@@ -44,7 +44,7 @@ development/
 ├── AGENTS.md
 ├── README.md
 ├── TODO.md
-├── compiler/          # new implementation; intentionally empty during specification closure
+├── compiler/          # specification-first compiler workspace
 ├── docs/              # rewrite architecture and maintenance policy
 ├── milestones/        # active and historical milestone records
 ├── packaging/         # published-package inputs, unchanged during specification closure
@@ -52,5 +52,5 @@ development/
 └── std/               # existing source, not a bootstrap oracle for the new compiler
 ```
 
-Rust and Cargo will become development requirements again when the new workspace is introduced.
-Users of the published v0.13.0 release remain unaffected by the rewrite.
+Rust and Cargo are development requirements for the new workspace. Users of the published
+v0.13.0 release remain unaffected by the rewrite.

@@ -176,7 +176,7 @@ pub(super) fn visibility(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::Visibility);
 }
 
-fn use_tree(parser: &mut Parser<'_>) {
+pub(super) fn use_tree(parser: &mut Parser<'_>) {
     let path = parser.start();
     module_path(parser);
     parser.complete(path, NodeKind::ModulePath);

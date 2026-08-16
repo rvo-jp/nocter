@@ -1,0 +1,19 @@
+func expressions<T>(left: T, right: T, source: T, owned: T, arena: Allocator): bool {
+    let precedence = left + right * left << 1 == right && true || false
+    let ordered = left < right
+    let converted = &left as &View
+    let moved = (move owned?)?
+    let postfix = factory().field[index]
+    let record = parser.Record<T> { value: left }
+    let member = parser.Option<T>.some(right)
+    let fixed = [1, 2, 3]
+    let sequence = Vec [left, ...&source, ...move owned] using arena
+    let plain_text = String "plain" using arena
+    let interpolated = "value: ${left}"
+    let closure = (&source; value: T): bool { value == left }
+    if (Flags { ready: true }).ready {
+        closure(left)
+    } else {
+        precedence
+    }
+}

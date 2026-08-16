@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Nocter Compiler - Nocter</title>
-    <meta name="description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The Phase ">
+    <meta name="description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/compiler/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="New Nocter Compiler - Nocter">
-    <meta property="og:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The Phase ">
+    <meta property="og:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta property="og:url" content="https://nocter.dev/development/compiler/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="New Nocter Compiler - Nocter">
-    <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The Phase ">
+    <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The Phase ","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -131,7 +131,7 @@
                 <span class="markdown-path-text">/development/compiler/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="new-nocter-compiler">New Nocter Compiler</h1><p>This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The Phase 1 workspace now owns normalized source storage, lexical projection, an immutable syntax arena, parser diagnostics, and the parser boundary through package/module roots, imports, every declaration container, types, and generic requirements.</p><h2 id="authority">Authority</h2><p>The compiler derives public behavior from <a href="../../spec/index.html#content"><code>spec/</code></a>. Missing language rules block implementation; they are not inferred from the archived compiler, old tests, released binaries, or historical implementation documents.</p><h2 id="isolation">Isolation</h2><p>The new compiler must never depend on, copy, execute, or compare itself with the compiler preserved by commit <code>f6c08da3</code>. Existing standard-library implementation details are also not bootstrap semantics. Public standard-library contracts come from the specification and will receive new implementations after the required language foundation exists.</p><h2 id="planned-dependency-direction">Planned Dependency Direction</h2><pre><code class="language-text">source
+                <h1 id="new-nocter-compiler">New Nocter Compiler</h1><p>This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The completed Phase 1 workspace owns normalized source storage, lexical projection, an immutable syntax arena, parser diagnostics, and the complete G001-G033 recognition boundary from source roots through declarations, types, blocks, statements, patterns, and expressions.</p><h2 id="authority">Authority</h2><p>The compiler derives public behavior from <a href="../../spec/index.html#content"><code>spec/</code></a>. Missing language rules block implementation; they are not inferred from the archived compiler, old tests, released binaries, or historical implementation documents.</p><h2 id="isolation">Isolation</h2><p>The new compiler must never depend on, copy, execute, or compare itself with the compiler preserved by commit <code>f6c08da3</code>. Existing standard-library implementation details are also not bootstrap semantics. Public standard-library contracts come from the specification and will receive new implementations after the required language foundation exists.</p><h2 id="planned-dependency-direction">Planned Dependency Direction</h2><pre><code class="language-text">source
   -&gt; syntax
   -&gt; semantic core
   -&gt; analysis and checked program
@@ -142,9 +142,9 @@
 </code></pre><p>Later stages cannot import syntax representations to reconstruct earlier decisions. Source ranges remain outside semantic identity, and runtime linkage is a one-way output projection.</p><p>The Cargo workspace must begin with source and syntax responsibilities only. Its parser fixtures derive from the <a href="../docs/grammar-conformance/index.html#content">grammar conformance plan</a>; semantic crates cannot be introduced to make an unresolved syntax choice.</p><h2 id="current-crates">Current Crates</h2><ul><li><code>nocter-source</code> owns source identities, CRLF normalization, normalized byte spans, and line
   projection.</li><li><code>nocter-syntax</code> owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
-  lossless syntax tree. Its current grammar coverage includes declaration and member-container
-  structure. Blocks currently establish their owning delimiter boundary and accept empty bodies;
-  block imports, statements, and expressions are the next parser boundary.</li></ul><p>Accepted fixtures through G018 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Neither crate owns declaration identity, name resolution, types, or checked semantics.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  lossless syntax tree. Its parser covers the complete normative grammar, including token-only
+  ambiguity decisions, continuation-newline ownership, body-result classification, control-header
+  brace ownership, and bounded malformed-source recovery.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Neither crate owns declaration identity, name resolution, semantic types, or checked semantics. Those responsibilities begin in Phase 2 and cannot alter an accepted syntax-tree shape.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>

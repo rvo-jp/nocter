@@ -1,10 +1,10 @@
 # New Nocter Compiler
 
 This directory is the implementation root for the specification-first Nocter compiler rewrite.
-The lexical and syntactic grammar gate is closed. The Phase 1 workspace now owns normalized source
-storage, lexical projection, an immutable syntax arena, parser diagnostics, and the parser boundary
-through package/module roots, imports, every declaration container, types, and generic
-requirements.
+The lexical and syntactic grammar gate is closed. The completed Phase 1 workspace owns normalized
+source storage, lexical projection, an immutable syntax arena, parser diagnostics, and the complete
+G001-G033 recognition boundary from source roots through declarations, types, blocks, statements,
+patterns, and expressions.
 
 ## Authority
 
@@ -45,15 +45,16 @@ be introduced to make an unresolved syntax choice.
   projection.
 - `nocter-syntax` owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
-  lossless syntax tree. Its current grammar coverage includes declaration and member-container
-  structure. Blocks currently establish their owning delimiter boundary and accept empty bodies;
-  block imports, statements, and expressions are the next parser boundary.
+  lossless syntax tree. Its parser covers the complete normative grammar, including token-only
+  ambiguity decisions, continuation-newline ownership, body-result classification, control-header
+  brace ownership, and bounded malformed-source recovery.
 
-Accepted fixtures through G018 have human-readable node-shape snapshots. Accepted, rejected, and
+Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-Neither crate owns declaration identity, name resolution, types, or checked semantics.
+Neither crate owns declaration identity, name resolution, semantic types, or checked semantics.
+Those responsibilities begin in Phase 2 and cannot alter an accepted syntax-tree shape.
 
 ## Verification
 

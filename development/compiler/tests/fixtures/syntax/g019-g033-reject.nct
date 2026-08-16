@@ -1,0 +1,56 @@
+func late_use(): void {
+    work()
+    use std/io.print
+}
+
+func missing_initializer(): void {
+    var value: i32
+}
+
+func invalid_drop(): void {
+    drop owner.field
+}
+
+func invalid_allocator(): void {
+    region temporary using make_allocator() {}
+}
+
+func nested_pattern(value: State): void {
+    if value is State.some(State.other(item)) {}
+}
+
+func bare_catch(): void {
+    load() catch {}
+}
+
+func chained_order(): bool {
+    left < middle < right
+}
+
+func invalid_move(): void {
+    move make_value()
+}
+
+func repeated_outcome(): void {
+    value??
+}
+
+func explicit_call_arguments<T>(): void {
+    make<T>()
+}
+
+func mutable_spread(): void {
+    Vec [...&+source]
+}
+
+func typed_interpolation(): void {
+    String "${value}"
+}
+
+func empty_capture_segment(): void {
+    let closure = (; value) { value }
+}
+
+func removed(): void {
+    alloc func nested(): void {}
+}

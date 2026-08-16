@@ -1,9 +1,13 @@
 mod block;
 mod declaration;
+mod expression;
+mod newline;
+mod place;
 mod requirements;
 mod root;
 #[cfg(test)]
 mod snapshots;
+mod statement;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -31,7 +35,7 @@ pub fn parse(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
         ParseGoal::ModuleSource => root::module_source(&mut parser),
     }
     let (events, diagnostics) = parser.finish();
-    let built = build_tree(events);
+    let built = build_tree(&events);
     SyntaxTree::new(lexed, built, diagnostics)
 }
 
@@ -73,11 +77,12 @@ impl<'source> Parser<'source> {
         self.events.push(Event::Start {
             kind: NodeKind::Error,
             offset: self.current_span().range().start(),
+            forward_parent: None,
         });
         Marker { event_index }
     }
 
-    fn complete(&mut self, marker: Marker, kind: NodeKind) {
+    fn complete(&mut self, marker: Marker, kind: NodeKind) -> CompletedMarker {
         let Event::Start {
             kind: event_kind, ..
         } = &mut self.events[marker.event_index]
@@ -86,6 +91,33 @@ impl<'source> Parser<'source> {
         };
         *event_kind = kind;
         self.events.push(Event::Finish);
+        CompletedMarker {
+            event_index: marker.event_index,
+        }
+    }
+
+    fn precede(&mut self, completed: CompletedMarker) -> Marker {
+        let event_index = self.events.len();
+        let Event::Start {
+            offset,
+            forward_parent,
+            ..
+        } = &mut self.events[completed.event_index]
+        else {
+            unreachable!("completed marker must point to a start event");
+        };
+        assert!(
+            forward_parent.is_none(),
+            "a completed node can acquire only one direct forward parent"
+        );
+        *forward_parent = Some(event_index - completed.event_index);
+        let offset = *offset;
+        self.events.push(Event::Start {
+            kind: NodeKind::Error,
+            offset,
+            forward_parent: None,
+        });
+        Marker { event_index }
     }
 
     fn at(&self, kind: TokenKind) -> bool {
@@ -245,11 +277,24 @@ impl<'source> Parser<'source> {
     }
 
     fn expect_name(&mut self) -> bool {
-        if self.eat(TokenKind::Identifier) {
+        if self.at(TokenKind::Identifier) && !matches!(self.current_text(), "_" | "Self") {
+            self.bump();
             true
+        } else if self.at(TokenKind::Identifier) {
+            self.error_token(ExpectedSyntax::Name);
+            false
         } else {
             self.missing(ExpectedSyntax::Name);
             false
+        }
+    }
+
+    fn expect_name_or_discard(&mut self) -> bool {
+        if self.at_identifier_text("_") {
+            self.bump();
+            true
+        } else {
+            self.expect_name()
         }
     }
 
@@ -454,35 +499,81 @@ impl<'source> Parser<'source> {
     /// the token and event state. Safety-limit diagnostics survive rollback because they describe
     /// the input's structural depth rather than the rejected branch's ordinary syntax errors.
     fn attempt(&mut self, parse: fn(&mut Self)) -> bool {
-        let cursor = self.cursor;
-        let split = self.split;
-        let nesting = self.nesting;
-        let event_count = self.events.len();
-        let diagnostic_count = self.diagnostics.len();
+        self.attempt_with(parse, |_, ()| true).is_some()
+    }
 
-        parse(self);
-        let accepted = self.diagnostics.len() == diagnostic_count;
-
-        if accepted {
-            return true;
+    fn attempt_with<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> T,
+        accept: impl FnOnce(&Self, &T) -> bool,
+    ) -> Option<T> {
+        let checkpoint = self.checkpoint();
+        let value = parse(self);
+        if self.diagnostics.len() == checkpoint.diagnostic_count && accept(self, &value) {
+            return Some(value);
         }
+        self.rollback(checkpoint);
+        None
+    }
 
-        let nesting_diagnostic = self.diagnostics[diagnostic_count..]
+    /// Parse a branch whose token discriminator can commit even when its interior is malformed.
+    ///
+    /// Diagnostics produced before the discriminator are retained only if `accept` confirms the
+    /// branch. This differs from `attempt_with`, where any diagnostic rejects the branch.
+    fn attempt_decided_with<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> T,
+        accept: impl FnOnce(&Self, &T) -> bool,
+    ) -> Option<T> {
+        let checkpoint = self.checkpoint();
+        let value = parse(self);
+        if accept(self, &value) {
+            return Some(value);
+        }
+        self.rollback(checkpoint);
+        None
+    }
+
+    fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            cursor: self.cursor,
+            split: self.split,
+            nesting: self.nesting,
+            event_count: self.events.len(),
+            diagnostic_count: self.diagnostics.len(),
+        }
+    }
+
+    fn rollback(&mut self, checkpoint: Checkpoint) {
+        let nesting_diagnostic = self.diagnostics[checkpoint.diagnostic_count..]
             .iter()
             .copied()
             .find(|diagnostic| diagnostic.kind() == ParseDiagnosticKind::NestingLimit);
 
-        self.cursor = cursor;
-        self.split = split;
-        self.nesting = nesting;
-        self.events.truncate(event_count);
-        self.diagnostics.truncate(diagnostic_count);
+        self.cursor = checkpoint.cursor;
+        self.split = checkpoint.split;
+        self.nesting = checkpoint.nesting;
+        self.events.truncate(checkpoint.event_count);
+        self.diagnostics.truncate(checkpoint.diagnostic_count);
         self.diagnostics.extend(nesting_diagnostic);
-        false
     }
 }
 
 #[derive(Clone, Copy)]
 struct Marker {
     event_index: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CompletedMarker {
+    event_index: usize,
+}
+
+#[derive(Clone, Copy)]
+struct Checkpoint {
+    cursor: usize,
+    split: Option<SyntaxToken>,
+    nesting: u16,
+    event_count: usize,
+    diagnostic_count: usize,
 }

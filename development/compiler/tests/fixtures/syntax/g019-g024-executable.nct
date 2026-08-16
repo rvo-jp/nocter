@@ -1,0 +1,46 @@
+func execute(input: State, source: Values, arena: Allocator): i32 {
+    use std/io.print
+
+    let initial: i32 = 1
+    let _ = inspect(input)
+    var total = initial
+    total += 2
+    while ready() {
+        total = total + 1
+    }
+    loop {
+        break
+        continue
+    }
+    for index in 0..<count {
+        print(index)
+    }
+    for item in &source {
+        print(item)
+    }
+    region temporary using arena.child {
+        print(total)
+    }
+    let selected = if input is State.value(value, _) {
+        value
+    } else if ready() {
+        fallback()
+    } else {
+        0
+    }
+    let matched = match input {
+        State.value(value, _) { value }
+        _ { 0 }
+    }
+    let recovered = load() catch error {
+        recover(error)
+    } otherwise {
+        fallback()
+    }
+    drop input
+    selected + matched + recovered
+}
+
+func stop(value: i32): i32 {
+    return value
+}

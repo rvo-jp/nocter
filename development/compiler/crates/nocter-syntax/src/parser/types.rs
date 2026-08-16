@@ -1,4 +1,4 @@
-use super::Parser;
+use super::{CompletedMarker, Parser};
 use crate::{BuiltinType, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn type_(parser: &mut Parser<'_>) {
@@ -34,7 +34,7 @@ pub(super) fn declaration_type_pattern(parser: &mut Parser<'_>) {
         parser.expect_punctuation(Punctuation::RightBracket);
     } else if at_builtin_pattern(parser) {
         builtin_type(parser);
-    } else if parser.at(TokenKind::Identifier) {
+    } else if parser.at(TokenKind::Identifier) && !matches!(parser.current_text(), "_" | "Self") {
         parser.bump();
         if parser.at_punctuation(Punctuation::Less) {
             pattern_arguments(parser);
@@ -204,17 +204,55 @@ fn callable_parameter(parser: &mut Parser<'_>) {
 
 fn type_atom(parser: &mut Parser<'_>) {
     match parser.current_kind() {
-        TokenKind::Identifier if at_builtin_type(parser) => builtin_type(parser),
-        TokenKind::Identifier => named_type(parser),
-        TokenKind::Keyword(Keyword::Void | Keyword::Never) => builtin_type(parser),
+        TokenKind::Identifier if at_builtin_type(parser) => {
+            builtin_type(parser);
+        }
+        TokenKind::Identifier => {
+            named_type(parser);
+        }
+        TokenKind::Keyword(Keyword::Void | Keyword::Never) => {
+            builtin_type(parser);
+        }
         TokenKind::Punctuation(Punctuation::LeftBracket) => bracket_type(parser),
         TokenKind::Punctuation(Punctuation::LeftParen) => grouped_type(parser),
         _ => parser.error_token(ExpectedSyntax::Type),
     }
 }
 
-fn named_type(parser: &mut Parser<'_>) {
+fn named_type(parser: &mut Parser<'_>) -> CompletedMarker {
+    named_type_with_facts(parser).0
+}
+
+pub(super) fn owner_reference(parser: &mut Parser<'_>) -> OwnerFacts {
+    if at_builtin_pattern(parser) {
+        OwnerFacts {
+            completed: builtin_type(parser),
+            has_type_arguments: false,
+            plain_selections_after_type_arguments: 0,
+        }
+    } else if parser.at(TokenKind::Identifier) {
+        let (completed, has_type_arguments, plain_selections_after_type_arguments) =
+            named_type_with_facts(parser);
+        OwnerFacts {
+            completed,
+            has_type_arguments,
+            plain_selections_after_type_arguments,
+        }
+    } else {
+        let marker = parser.start();
+        parser.error_token(ExpectedSyntax::Type);
+        OwnerFacts {
+            completed: parser.complete(marker, NodeKind::Error),
+            has_type_arguments: false,
+            plain_selections_after_type_arguments: 0,
+        }
+    }
+}
+
+fn named_type_with_facts(parser: &mut Parser<'_>) -> (CompletedMarker, bool, usize) {
     let marker = parser.start();
+    let mut has_type_arguments = false;
+    let mut plain_selections_after_type_arguments = 0;
     if parser.at_identifier_text("Self") {
         let self_type = parser.start();
         parser.bump();
@@ -222,22 +260,31 @@ fn named_type(parser: &mut Parser<'_>) {
     } else {
         parser.bump();
         if parser.at_punctuation(Punctuation::Less) {
-            parser.attempt(type_arguments);
+            has_type_arguments = parser.attempt(type_arguments);
         }
     }
     while parser.eat_punctuation(Punctuation::Dot) {
         parser.expect_name();
         if parser.at_punctuation(Punctuation::Less) {
-            parser.attempt(type_arguments);
+            if parser.attempt(type_arguments) {
+                has_type_arguments = true;
+                plain_selections_after_type_arguments = 0;
+            }
+        } else if has_type_arguments {
+            plain_selections_after_type_arguments += 1;
         }
     }
-    parser.complete(marker, NodeKind::NamedType);
+    (
+        parser.complete(marker, NodeKind::NamedType),
+        has_type_arguments,
+        plain_selections_after_type_arguments,
+    )
 }
 
-fn builtin_type(parser: &mut Parser<'_>) {
+fn builtin_type(parser: &mut Parser<'_>) -> CompletedMarker {
     let marker = parser.start();
     parser.bump();
-    parser.complete(marker, NodeKind::BuiltinType);
+    parser.complete(marker, NodeKind::BuiltinType)
 }
 
 fn pattern_arguments(parser: &mut Parser<'_>) {
@@ -408,4 +455,10 @@ fn at_type_list_end(parser: &Parser<'_>) -> bool {
     parser.at_punctuation(Punctuation::Greater)
         || parser.at_punctuation(Punctuation::ShiftRight)
         || parser.at(TokenKind::Eof)
+}
+
+pub(super) struct OwnerFacts {
+    pub(super) completed: CompletedMarker,
+    pub(super) has_type_arguments: bool,
+    pub(super) plain_selections_after_type_arguments: usize,
 }

@@ -1,0 +1,64 @@
+func expression_statement(): i32 {
+    1
+    2
+}
+
+func immutable_assignment(): void {
+    let value = 1
+    value = 2
+}
+
+func misplaced_control(): void {
+    break
+}
+
+func unsupported_iteration(values: Values): void {
+    for value in values {}
+}
+
+func incomplete_match(value: State): i32 {
+    match value {
+        _ { 0 }
+        State.ready { 1 }
+    }
+}
+
+func invalid_recovery(): void {
+    infallible() catch _ {}
+}
+
+func unsupported_operator(left: Value, right: Value): bool {
+    left < right
+}
+
+func moved_borrow(value: &Value): Value {
+    move value
+}
+
+func invalid_call(value: Value): void {
+    value()
+}
+
+func inaccessible_construction(): External {
+    External { value: 1 }
+}
+
+func invalid_override(arena: Value): String {
+    String "text" using arena
+}
+
+func unsupported_interpolation(value: Value): str {
+    "${value}"
+}
+
+func uncaptured(value: i32): Handler {
+    () { value }
+}
+
+func invalid_header(): bool {
+    if (() { true }) { true } else { false }
+}
+
+func contextual_name(): void {
+    let copy = 1
+}

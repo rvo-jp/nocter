@@ -48,11 +48,20 @@ missing syntax and subdivided token views are ordinary child elements. Every syn
 its lexical-token identity, and the syntax pieces for one subdivided token must exactly partition
 that token's normalized range.
 
+Left-associative expression nodes use forward-parent links in that event stream. The builder
+resolves each link once while opening arena frames; the parser does not recursively reparent an
+already built subtree or allocate wrapper nodes for precedence levels that have no authored
+operator. Deep unary and binary expressions therefore share the same bounded-memory arena path as
+deep type prefixes.
+
 Bounded syntactic ambiguity is parsed transactionally. A successful branch keeps the events it
 already produced; a failed branch restores its cursor, token subdivision, nesting, events, and
 ordinary diagnostics. The parser never performs a successful lookahead and then parses the same
 branch again. Safety-limit diagnostics survive rollback. This rule keeps nested type-argument
 recognition linear while leaving an unmatched `<` available to the enclosing expression grammar.
+Token discriminators commit assignment, closure, and construction-owner branches independently
+from the validity of their interiors. Once committed, malformed interiors retain the selected node
+identity and focused diagnostics instead of being reinterpreted as another expression family.
 
 One line-sequence parser owns newline-separated source and member containers. Leaf declarations
 never consume their enclosing separator. A missing separator recovers to that container's next
@@ -60,13 +69,15 @@ newline or closing delimiter instead of letting one member reinterpret the follo
 tokens. Comma-delimited and line-delimited declarations therefore cannot silently accept each
 other's separators.
 
-Continuation-newline classification depends only on token kinds and delimiter depth. At the active
-header delimiter depth, the parser's control-header mode reserves the first `{` for the control
-body. A struct literal, closure, recovery clause, or nested control expression at that level must
-therefore be grouped; the parser never speculates toward a later brace or consults name resolution.
-Every block classifies its final expression as a body result by source position before semantic
-checking. Error recovery may retain missing or unexpected syntax nodes, but cannot revise any of
-these choices after resolution or typing.
+One continuation-newline component owns leading-token and incomplete-expression consumption.
+Statement-level syntax accepts exactly one continuation newline and never crosses a blank line;
+delimiter-owned expressions consume the newlines admitted by their delimiter. At the active header
+delimiter depth, the parser's control-header mode reserves the first `{` for the control body. A
+struct literal, closure, recovery clause, or nested control expression at that level must therefore
+be grouped; the parser never speculates toward a later brace or consults name resolution. Every
+block classifies its final expression as a body result by source position before semantic checking.
+Error recovery may retain missing or unexpected syntax nodes, but cannot revise any of these
+choices after resolution or typing.
 
 ## Semantic Identities
 

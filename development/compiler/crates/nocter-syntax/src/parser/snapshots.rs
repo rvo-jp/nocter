@@ -79,6 +79,42 @@ const CASES: &[SnapshotCase] = &[
         )),
         goal: ParseGoal::ModuleSource,
     },
+    SnapshotCase {
+        name: "G019-G024 executable syntax",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g019-g024-executable.nct"
+        )),
+        shape: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g019-g024-executable.shape"
+        )),
+        goal: ParseGoal::ModuleSource,
+    },
+    SnapshotCase {
+        name: "G025-G033 expressions",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g025-g033-expressions.nct"
+        )),
+        shape: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g025-g033-expressions.shape"
+        )),
+        goal: ParseGoal::ModuleSource,
+    },
+    SnapshotCase {
+        name: "G019-G033 semantic boundaries",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g019-g033-semantic.nct"
+        )),
+        shape: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g019-g033-semantic.shape"
+        )),
+        goal: ParseGoal::ModuleSource,
+    },
 ];
 
 const REJECTED_CASES: &[RejectedCase] = &[
@@ -111,6 +147,14 @@ const REJECTED_CASES: &[RejectedCase] = &[
         source: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g013-g018-types-reject.nct"
+        )),
+        goal: ParseGoal::ModuleSource,
+    },
+    RejectedCase {
+        name: "G019-G033 executable syntax",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/syntax/g019-g033-reject.nct"
         )),
         goal: ParseGoal::ModuleSource,
     },

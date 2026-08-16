@@ -56,6 +56,75 @@ pub enum NodeKind {
     CallableTail,
     ProvenanceClause,
     Block,
+    BlockUseDeclaration,
+    ExecutableSequence,
+    ExpressionStatement,
+    BodyResult,
+    BindingStatement,
+    BindingTarget,
+    TypeAnnotation,
+    AssignmentStatement,
+    AssignmentTarget,
+    ReturnStatement,
+    BreakStatement,
+    ContinueStatement,
+    DropStatement,
+    WhileStatement,
+    LoopStatement,
+    ForStatement,
+    ForSource,
+    RegionStatement,
+    NamedPlace,
+    AllocatorPlace,
+    Expression,
+    RecoveryExpression,
+    RecoveryClause,
+    LogicalOrExpression,
+    LogicalAndExpression,
+    EqualityExpression,
+    OrderingExpression,
+    ShiftExpression,
+    AdditiveExpression,
+    MultiplicativeExpression,
+    ConversionExpression,
+    UnaryExpression,
+    MoveExpression,
+    OutcomeExpression,
+    PostfixExpression,
+    CallSuffix,
+    MemberSuffix,
+    IndexSuffix,
+    IfExpression,
+    IfCondition,
+    ElseClause,
+    MatchExpression,
+    MatchArm,
+    EnumPattern,
+    EnumPatternPayload,
+    PayloadSlot,
+    ClosureExpression,
+    ClosureHead,
+    ClosureCaptures,
+    ClosureCapture,
+    ClosureParameters,
+    ClosureParameter,
+    ClosureResult,
+    StructLiteral,
+    StructInitializer,
+    FieldInitializer,
+    TypedSequenceLiteral,
+    SequenceBody,
+    SequenceElement,
+    SpreadExpression,
+    TypedStringLiteral,
+    AllocationOverride,
+    ArrayLiteral,
+    StringExpression,
+    StringPart,
+    GenericOwnerMember,
+    ReferenceExpression,
+    GroupedExpression,
+    ScalarLiteral,
     Type,
     BuiltinType,
     SelfType,
@@ -265,8 +334,13 @@ impl SyntaxTree {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum Event {
-    Start { kind: NodeKind, offset: ByteOffset },
+    Start {
+        kind: NodeKind,
+        offset: ByteOffset,
+        forward_parent: Option<usize>,
+    },
     Token(SyntaxToken),
     Missing(MissingSyntax),
     Finish,
@@ -282,7 +356,7 @@ pub(crate) struct BuiltTree {
     root: NodeId,
 }
 
-pub(crate) fn build_tree(events: Vec<Event>) -> BuiltTree {
+pub(crate) fn build_tree(events: &[Event]) -> BuiltTree {
     struct Frame {
         kind: NodeKind,
         offset: ByteOffset,
@@ -293,14 +367,50 @@ pub(crate) fn build_tree(events: Vec<Event>) -> BuiltTree {
     let mut nodes = Vec::new();
     let mut elements = Vec::new();
     let mut root = None;
+    let mut consumed_starts = vec![false; events.len()];
 
-    for event in events {
+    for (event_index, event) in events.iter().copied().enumerate() {
         match event {
-            Event::Start { kind, offset } => stack.push(Frame {
-                kind,
-                offset,
-                children: Vec::new(),
-            }),
+            Event::Start { .. } if consumed_starts[event_index] => {}
+            Event::Start { .. } => {
+                let mut chain = Vec::new();
+                let mut current = event_index;
+                loop {
+                    assert!(
+                        !consumed_starts[current],
+                        "forward-parent cycle in event stream"
+                    );
+                    consumed_starts[current] = true;
+                    let Event::Start {
+                        kind,
+                        offset,
+                        forward_parent,
+                    } = events[current]
+                    else {
+                        panic!("forward parent must point to a start event");
+                    };
+                    chain.push((kind, offset));
+                    let Some(distance) = forward_parent else {
+                        break;
+                    };
+                    assert!(
+                        distance > 0,
+                        "forward parent must advance in the event stream"
+                    );
+                    current = current
+                        .checked_add(distance)
+                        .filter(|index| *index < events.len())
+                        .expect("forward parent escaped the event stream");
+                }
+
+                for (kind, offset) in chain.into_iter().rev() {
+                    stack.push(Frame {
+                        kind,
+                        offset,
+                        children: Vec::new(),
+                    });
+                }
+            }
             Event::Token(token) => stack
                 .last_mut()
                 .expect("token event requires an open node")
