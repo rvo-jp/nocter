@@ -50,6 +50,8 @@ Rules for generated code:
   bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
+- Define type cleanup with one top-level `drop Type(&+self) { ... }` declaration. Never place it in
+  `instance`, and never define it for a `copy struct` or payloadless enum.
 - Use postfix `expr?` to propagate fallible failure or optional absence.
 - Use postfix `expr!` only for unrecoverable assumptions, tests, and prototypes.
 - Use `expr catch error { ... }` for local handling of `T!` failure.

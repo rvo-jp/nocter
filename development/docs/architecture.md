@@ -61,6 +61,12 @@ produce or initialize the outcome.
 Declaration validation rejects zero-variant enums before semantic type interning creates usable
 enum identities. Later exhaustiveness and layout stages may therefore assume every enum has at
 least one valid tag.
+Each nominal type definition owns at most one resolved top-level drop body. Declaration validation
+admits it only for an ordinary struct or payload-bearing enum declared in the same module and
+rejects it independently of `instance` and conformance lookup. Copyability is derived from the
+type declaration before that association and is never changed by cleanup availability. Checked
+ownership and MIR consume the resolved drop-body identity; neither performs method lookup to find
+cleanup.
 
 ## Checked Program
 

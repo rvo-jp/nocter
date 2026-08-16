@@ -195,7 +195,8 @@
   conformance body.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li><li>A type-equality predicate uses one space around <code>=</code>: <code>R.Item = L.Item</code>.</li><li>An operator requirement encloses its expression and writes an explicit result type:
   <code>where (&amp;T == &amp;T): bool</code>, <code>where (&amp;T &lt; &amp;T): bool</code>, or <code>where (&amp;C[K]): &amp;V</code>.</li><li>An equality declaration is <code>operator (&amp;self == other: &amp;Self): bool</code>; spaces surround <code>==</code>, the
   named right binding follows it, and the complete operand expression stays in parentheses.</li><li>A strict-order declaration is <code>operator (&amp;self &lt; other: &amp;Self): bool</code>; spaces surround <code>&lt;</code>, the
-  named right binding follows it, and <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> have no declaration forms.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
+  named right binding follows it, and <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> have no declaration forms.</li><li>A drop declaration is <code>drop TypePattern(&amp;+self) { ... }</code>. It has no visibility, generic prefix,
+  <code>where</code> clause, or result annotation, and follows ordinary top-level brace formatting.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
   <code>operator (&amp;+self[index: K]): &amp;+V</code>. There is no space before <code>[</code>, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
   result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface&lt;Item = Type&gt;</code>. Associated binding <code>=</code>

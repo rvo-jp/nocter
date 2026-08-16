@@ -13,7 +13,7 @@ func scan_words(text: &str): WordStats {
 }
 ```
 
-Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A selected executable module's function named `main` is the executable entry point. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
+Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A selected executable module's function named `main` is the executable entry point. `drop` is not reserved; top-level drop declarations and explicit drop statements are contextual source forms.
 
 Parameters are written as `name: Type`. Mutable parameter bindings are not supported. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 

@@ -309,6 +309,11 @@ Required diagnostic families:
 - Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic
   should suggest an intermediate binding or explicit grouping such as `(expression?)?`.
 - Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
+- Duplicate drop declarations for one nominal type family; a drop declaration targeting another
+  module's type, a type alias, or a non-nominal type; or a drop declaration with visibility,
+  target directive, generic prefix, `where` clause, result annotation, or a non-`&+self` receiver.
+- A drop declaration on a `copy struct` family or payloadless enum. The diagnostic must identify
+  copyability as the conflict and must not suggest that the declaration makes the type move-only.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.

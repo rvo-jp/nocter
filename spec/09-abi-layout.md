@@ -285,7 +285,7 @@ Rules:
 - Both fields have type `&str`.
 - The field order is `code`, then `message`.
 - The built-in `error` type has size 32 bytes and alignment 8 on the current ABI.
-- `error` does not own its string storage and has no destructor.
+- `error` does not own its string storage and has no drop declaration.
 - `error` is copyable because both fields are copyable borrowed views.
 - An `error` value carries borrow-like provenance from both `&str` fields.
 - Returning or storing an `error` must satisfy the same borrow-like escape rules
@@ -299,7 +299,7 @@ Rules:
 Source syntax:
 
 ```nct
-destruct Resource(&+self) {
+drop Resource(&+self) {
     ...
 }
 ```
@@ -314,9 +314,11 @@ return void
 Rules:
 
 - destruction is not fallible.
-- a destructor must not return a value.
+- a drop body must not return a value.
 - The caller passes a readwrite borrow of the value being destroyed.
 - After `drop` returns, the caller treats that value as dead.
+- Copyable types have no source-defined drop ABI entry. A drop declaration never changes the
+  target type's copyability or stored layout.
 - Drop glue for structs, fixed arrays, enums, optionals, and fallible values must
   follow active-field, initialized-element, and active-payload rules.
 

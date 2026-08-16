@@ -122,10 +122,12 @@ contain that binder, and one binder cannot have two refinements. Refinements aff
 conformance applicability. Overlapping patterns are rejected; a more concrete refinement never
 wins by ranking or source order.
 
-An independent `destruct TypePattern(&+self) { ... }` declaration is uniform across every
+An independent `drop TypePattern(&+self) { ... }` declaration is uniform across every
 specialization of a nominal type. Its pattern must use each target slot through one distinct
-binder and cannot have a `where` predicate. This keeps generic ownership and ABI behavior
-independent of conditional method availability.
+binder and cannot have a `where` predicate. A `copy struct` family cannot declare one, including
+when one particular specialization is move-only. This keeps generic ownership and ABI behavior
+independent of conditional method availability and prevents a conditional declaration from
+changing copyability.
 
 ```nct
 func inspect<T>(value: &T): i32 where T: Readable<i32> {
@@ -371,7 +373,7 @@ Rules:
 - The initial form is accepted only as the success payload of a body-bearing function, associated
   function, inherent method, or body-bearing interface default method.
 - Parameters, fields, aliases, callable value types, primitives, construction literals, bodyless
-  interface requirements, conformance method contracts, coercions, and destruction declarations
+  interface requirements, conformance method contracts, coercions, and drop declarations
   cannot introduce opaque types.
 - `some Interface?` and `some Interface!` use the ordinary optional and fallible outer layers.
 - A `from` clause remains an independent storage-lifetime contract. `some` neither adds nor removes

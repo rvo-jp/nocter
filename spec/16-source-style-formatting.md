@@ -163,6 +163,8 @@ Rules:
   named right binding follows it, and the complete operand expression stays in parentheses.
 - A strict-order declaration is `operator (&self < other: &Self): bool`; spaces surround `<`, the
   named right binding follows it, and `>`, `<=`, and `>=` have no declaration forms.
+- A drop declaration is `drop TypePattern(&+self) { ... }`. It has no visibility, generic prefix,
+  `where` clause, or result annotation, and follows ordinary top-level brace formatting.
 - A readonly index declaration is `operator (&self[index: K]): &V`; a readwrite declaration is
   `operator (&+self[index: K]): &+V`. There is no space before `[`, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the

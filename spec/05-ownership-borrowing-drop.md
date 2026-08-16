@@ -244,49 +244,123 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 
 ## Drop
 
-Resource destruction uses an independent `destruct` declaration, not an `instance` method or a
-`Drop` interface.
+Resource destruction uses an independent top-level `drop` declaration, not an `instance` method or
+a `Drop` interface.
 
 ```nct
-destruct File(&+self) {
+drop File(&+self) {
     close(self)
     return
 }
 ```
 
-`destruct` is a reserved declaration keyword. `drop` remains an identifier token that the parser
-recognizes contextually only for the explicit `drop value` statement. Outside statement position,
-`drop` is an ordinary identifier.
+`drop` is an identifier token. The parser recognizes it contextually at the start of a top-level
+drop declaration and at the start of an explicit `drop value` statement. Outside those two source
+forms, `drop` is an ordinary identifier.
+
+```text
+DropDeclaration = "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
+DropStatement   = "drop" Name
+```
 
 A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
 Rules:
 
-- A nominal type family may define at most one `destruct` declaration.
-- A destructor has the source form `destruct TypePattern(&+self) { ... }`.
-- `self` is the fixed destructor receiver name and is scoped to the destructor body.
+- A nominal type family may define at most one drop declaration.
+- A drop declaration has the source form `drop TypePattern(&+self) { ... }`.
+- Its target must be an ordinary `struct` or a payload-bearing `enum` declared in the same module.
+  Type aliases, `copy struct` families, payloadless enums, and non-nominal types cannot own a drop
+  declaration.
+- `self` is the fixed drop receiver name and is scoped to the drop body.
 - The drop receiver type is always exactly `&+Self`.
-- A destructor is a top-level declaration. `instance` contains inherent methods, and `conform`
-  contains interface members.
-- A destructor has no visibility, target, generic-prefix, `where`, or return-type annotation.
+- A drop declaration is top-level. `instance` contains inherent methods, and `conform` contains
+  interface members. A drop declaration cannot appear inside either body.
+- A drop declaration has no visibility, target directive, generic-prefix, `where`, or return-type
+  annotation.
 - Its target pattern must cover every generic slot exactly once with a distinct binder.
-- A destructor always returns no value and cannot be fallible.
-- A destructor cannot be called as a normal construction function or method.
-- `file.drop()` is an ordinary method call if an ordinary method named `drop` exists; it is not a destructor call.
+- The declaration applies uniformly to every specialization of its nominal type family.
+- Every eligible target family is move-only by declaration. Copyability is determined from the
+  type declaration and substituted fields, never changed by the presence or absence of a drop
+  declaration.
+- A drop body always returns no value and cannot be fallible.
+- A drop declaration cannot be called as a normal construction function or method.
+- `file.drop()` is an ordinary method call if an ordinary method named `drop` exists; it does not
+  invoke the drop declaration.
 - `File.drop(&+file)` is an ordinary construction-function call only if `construct File` declares a
-  construction function named `drop`; it is not a destructor call.
-- A destructor cannot report cleanup failure through a fallible return.
+  construction function named `drop`; it does not invoke the drop declaration.
+- A drop body cannot report cleanup failure through a fallible return.
 - If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
-- Struct drop glue invokes the struct's own destructor first when present,
+- Struct drop glue invokes the struct's own drop declaration first when present,
   then drops owned fields in reverse declaration order. Field drop glue follows
   the same rule recursively.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
 - `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
 - A moved value is not dropped through the original binding.
+
+Valid move-only type:
+
+```nct
+struct File {
+    handle: usize
+}
+
+drop File(&+self) {
+    close(self.handle)
+    return
+}
+```
+
+A generic drop declaration covers the complete family and cannot be refined:
+
+```nct
+struct Buffer<T> {
+    value: T
+}
+
+drop Buffer<T>(&+self) {
+    release(self)
+    return
+}
+```
+
+Copyable targets are invalid, including an enum whose variants all carry no payload:
+
+```nct
+copy struct Point {
+    x: i32
+    y: i32
+}
+
+drop Point(&+self) { // error: Point is copyable
+    return
+}
+
+enum Token {
+    only
+}
+
+drop Token(&+self) { // error: Token is copyable
+    return
+}
+```
+
+A generic `copy struct` cannot own a drop declaration. The compiler does not search substitutions
+or turn only its non-copy specializations into separately destructible types:
+
+```nct
+copy struct Box<T> {
+    value: T
+}
+
+drop Box<T>(&+self) { // error: copy struct families cannot own drop declarations
+    return
+}
+```
 
 ### Explicit Drop Statements
 
@@ -366,7 +440,12 @@ Rules:
   be copyable. For example, `copy struct Box<T> { value: T }` is copyable as
   `Box<i32>` but move-only as `Box<String>`, while a field such as `&T` remains
   copyable for any `T`.
-- A `copy struct` cannot define `drop`.
+- No copyable type can own or acquire a drop declaration. This includes primitive numeric types,
+  `bool`, raw pointers, the built-in `error` type, payloadless enums, copyable fixed arrays,
+  copyable `copy struct` specializations, copyable borrows, and aliases to any of these types.
+- Because one drop declaration covers a complete nominal type family, every `copy struct` family is
+  ineligible even when a particular specialization is move-only. A drop declaration never changes
+  a type from copyable to move-only.
 - A `copy struct` must not own resources that require destruction.
 - Primitive numeric types, `bool`, and raw pointers are copyable.
 - The built-in `error` type is copyable.
