@@ -3,6 +3,7 @@ members = [
     "crates/nocter-checking",
     "crates/nocter-declarations",
     "crates/nocter-declaration-lowering",
+    "crates/nocter-diagnostics",
     "crates/nocter-model",
     "crates/nocter-source",
     "crates/nocter-source-index",

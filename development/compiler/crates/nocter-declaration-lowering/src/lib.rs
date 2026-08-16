@@ -40,7 +40,6 @@ pub use definitions::{
     DeclarationDiagnostic, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
     define_declaration_headers,
 };
-pub use diagnostic::{DiagnosticNote, SourceDiagnostic};
 pub use generic_diagnostic::GenericDiagnostic;
 pub use generics::{
     GenericError, GenericRule, GenericViolation, PreparedGenerics, prepare_generic_binders,
@@ -58,6 +57,7 @@ pub use input::{
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
+pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,

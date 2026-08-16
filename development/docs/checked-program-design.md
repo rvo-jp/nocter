@@ -18,6 +18,10 @@ syntax-origin indexes may exist while a body is being checked, but they are cons
 checked-node and body-local identities. A canonical checked node never contains a syntax node,
 byte range, rendered name, or reverse lookup key.
 
+Authored checking failures use the phase-neutral diagnostic envelope shared by compiler stages.
+The checker owns rule selection and projects the retained failing syntax subject exactly once;
+diagnostic construction must not rerun lookup, typing, ownership analysis, or source discovery.
+
 The production checker consumes the complete declaration-lowering result and the same explicit
 compile-unit syntax snapshots. It locates each body by the existing `BodyId` projection; it never
 finds a declaration by source containment. It returns a complete `CheckedProgram` or one typed

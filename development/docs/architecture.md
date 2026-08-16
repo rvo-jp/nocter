@@ -283,12 +283,14 @@ selection does declaration lowering project those IDs through the completed `Sou
 syntax origins. Changing a diagnostic span therefore cannot change rule selection, and adding a
 diagnostic cannot create a second attachment or declaration-shape evaluator.
 
-All source-backed declaration-lowering diagnostics share one envelope containing a stable code,
+All source-backed compiler diagnostics share one phase-neutral envelope containing a stable code,
 primary source origin, zero or more related source notes, and optional correction guidance. The
-envelope does not select a rule. Contract joining projects its exact syntax subjects into the
-envelope before reservation; module-surface validation does the same only for authored root-versus-
-implementation rules. An unmatched private construction, literal, or coercion entry has its own
-`E0254` rule rather than being rendered as a mismatch against a contract that does not exist.
+envelope does not select a rule and has no dependency on declaration or checked-program models.
+Each phase owns its rule selection and exact syntax-to-source projection. Contract joining projects
+its exact syntax subjects into the envelope before reservation; module-surface validation does the
+same only for authored root-versus-implementation rules. An unmatched private construction,
+literal, or coercion entry has its own `E0254` rule rather than being rendered as a mismatch against
+a contract that does not exist.
 Freeze-time validation projects semantic declaration-site subjects through
 the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
 that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler

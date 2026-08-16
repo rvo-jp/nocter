@@ -8,6 +8,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-diagnostics",
  "nocter-model",
  "nocter-source",
  "nocter-source-index",
@@ -19,6 +20,7 @@ name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [
  "nocter-declarations",
+ "nocter-diagnostics",
  "nocter-model",
  "nocter-source",
  "nocter-source-index",
@@ -30,6 +32,15 @@ name = "nocter-declarations"
 version = "0.0.0"
 dependencies = [
  "nocter-model",
+]
+
+[[package]]
+name = "nocter-diagnostics"
+version = "0.0.0"
+dependencies = [
+ "nocter-source",
+ "nocter-source-index",
+ "nocter-syntax",
 ]
 
 [[package]]
