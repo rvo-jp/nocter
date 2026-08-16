@@ -141,8 +141,8 @@ const generics.
 
 ## Instances
 
-An `instance` declaration associates receiver methods and the fixed equality operation with a
-type. It does not create a class or introduce inheritance.
+An `instance` declaration is the type-owned surface for receiver methods, borrow coercions, and the
+closed set of source-declarable operators. It does not create a class or introduce inheritance.
 
 ```nct
 instance WordStats {
@@ -162,11 +162,19 @@ instance WordStats {
 }
 ```
 
-Only this homogeneous readonly `==` shape is accepted. `operator` declarations cannot appear in an
-interface or conformance, and no other operator is declarable.
+Equality, strict ordering, readonly/readwrite indexing, and readonly/readwrite/owned expansion are
+the complete operator families accepted in an `instance`. Their exact declaration shapes and
+selection rules are owned by [Operators, Comparison, and Precedence](02-values-types.md#operators-comparison-and-precedence),
+[Strict Ordering Operators](24-ordering-operators.md), and
+[Expansion Operators](23-expansion-operators.md). Borrow coercion entries are owned by
+[Borrow Coercions](22-borrow-coercions.md). These members cannot appear in an interface or
+conformance, and arbitrary operator spellings are not declarable.
 
-The target must be a nominal `struct` or `enum`; a type alias cannot own an `instance`. Generic
-instance parameters are in scope for the target, members, and member bodies.
+For an ordinary package, the target must be a nominal `struct` or `enum` declared by the same
+module; a type alias cannot own an `instance`. The exact active standard-library package may also
+provide the compiler-authorized instances for built-in types and views described in
+[Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md). Generic instance
+parameters are in scope for the target, members, and member bodies.
 
 Functions that directly create the nominal owner belong to its `construct` declaration. Other
 associated functions are qualified top-level declarations. Construction behavior is specified in
