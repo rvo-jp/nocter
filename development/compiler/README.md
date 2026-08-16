@@ -173,7 +173,11 @@ be introduced to make an unresolved syntax choice.
   validator covers declaration data, callable results, type operands, borrow/raw-pointer pointees,
   structural callables, generic arguments, outcomes, and unsized forms after alias expansion. The
   same source-independent validator remains open for concrete generic substitution. Typed
-  checked-HIR construction consumes these frozen boundaries next.
+  checked-HIR construction consumes these frozen boundaries through `PreparedChecking`, which
+  owns the sole graph/type/conformance/name inputs but cannot escape as a partial checked program.
+  The syntax-independent output schema has separate dense place, loop, and typed-node identities;
+  selected calls, requirements, coercions, indexing, iteration, outcomes, aggregates, closures,
+  literals, and control operations are explicit rather than rediscovered by later stages.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

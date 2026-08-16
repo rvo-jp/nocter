@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_declaration_lowering::CompileUnitInput;
-use nocter_declarations::{BodyOwner, DeclarationProgram, ExportedEntity};
+use nocter_declarations::{BodyOwner, DeclarationGraph, ExportedEntity};
 use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
 };
@@ -60,7 +60,7 @@ enum Action {
 
 pub(super) struct BodyNameResolver<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
-    program: &'input DeclarationProgram,
+    graph: &'input DeclarationGraph,
     source_index: &'input SourceIndex,
     import_targets: &'input HashMap<NodeId, ModuleId>,
     source: BodySource<'syntax>,
@@ -76,14 +76,14 @@ pub(super) struct BodyNameResolver<'input, 'syntax> {
 impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     pub(super) fn new(
         input: &'input CompileUnitInput<'syntax>,
-        program: &'input DeclarationProgram,
+        graph: &'input DeclarationGraph,
         source_index: &'input SourceIndex,
         import_targets: &'input HashMap<NodeId, ModuleId>,
         source: BodySource<'syntax>,
     ) -> Self {
         Self {
             input,
-            program,
+            graph,
             source_index,
             import_targets,
             source,
@@ -476,7 +476,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 let exported_name = self.symbol(exported)?;
                 let local_name = self.symbol(local)?;
                 let Some(entry) = self
-                    .program
+                    .graph
                     .module_namespaces()
                     .get(target_module)
                     .and_then(|namespace| namespace.lookup_authored(exported_name))
@@ -487,7 +487,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     )
                     .into());
                 };
-                if !self.program.is_visible_from(
+                if !self.graph.is_visible_from(
                     entry.visibility(),
                     self.source.module(),
                     target_module,
@@ -518,7 +518,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn seed_parameters(&mut self) -> Result<(), NameResolutionError> {
-        let declarations = self.program.declarations();
+        let declarations = self.graph.declarations();
         let parameters: Vec<ParameterId> = match self.source.owner() {
             BodyOwner::Callable(owner) => {
                 let callable = declarations.callables().get(owner).ok_or(
@@ -629,7 +629,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             return Err(diagnostic.into());
         }
         if self
-            .program
+            .graph
             .module_namespaces()
             .get(self.source.module())
             .is_some_and(|namespace| namespace.lookup_authored(name).is_some())
@@ -669,7 +669,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             self.record_use(token, binding.target)?;
             return Ok(());
         }
-        if let Some(target) = self.program.lookup_local(self.source.module(), name) {
+        if let Some(target) = self.graph.lookup_local(self.source.module(), name) {
             self.record_use(token, NameTarget::Exported(target))?;
             return Ok(());
         }
@@ -800,11 +800,11 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn symbol(&self, token: SyntaxToken) -> Result<Symbol, NameResolutionInternalError> {
-        token_symbol(self.input.sources(), self.program.symbols(), token)
+        token_symbol(self.input.sources(), self.graph.symbols(), token)
     }
 
     fn spelling(&self, symbol: Symbol) -> Result<&str, NameResolutionInternalError> {
-        self.program
+        self.graph
             .symbols()
             .spelling(symbol)
             .ok_or_else(|| NameResolutionInternalError::MissingSymbol(format!("{symbol:?}").into()))

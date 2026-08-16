@@ -1,0 +1,103 @@
+use nocter_model::{
+    BodyNodeId, BorrowCapability, CaptureId, FieldId, LocalBindingId, ParameterId, TypeId,
+};
+
+use super::StaticDispatch;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PlaceRoot {
+    Parameter(ParameterId),
+    Local(LocalBindingId),
+    Capture(CaptureId),
+}
+
+/// Storage authority retained by a checked place.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PlaceAccess {
+    Owned,
+    Borrowed(BorrowCapability),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PlaceProjection {
+    Field(FieldId),
+    BuiltinIndex {
+        index: BodyNodeId,
+    },
+    SelectedIndex {
+        index: BodyNodeId,
+        operation: StaticDispatch,
+        receiver_coercion: Option<StaticDispatch>,
+    },
+}
+
+/// One fully classified place. Move eligibility is further restricted to field-only projections.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedPlace {
+    root: PlaceRoot,
+    projections: Box<[PlaceProjection]>,
+    ty: TypeId,
+    access: PlaceAccess,
+}
+
+impl CheckedPlace {
+    #[must_use]
+    pub const fn root(&self) -> PlaceRoot {
+        self.root
+    }
+
+    #[must_use]
+    pub const fn projections(&self) -> &[PlaceProjection] {
+        &self.projections
+    }
+
+    #[must_use]
+    pub const fn ty(&self) -> TypeId {
+        self.ty
+    }
+
+    #[must_use]
+    pub const fn access(&self) -> PlaceAccess {
+        self.access
+    }
+
+    #[must_use]
+    pub fn is_move_source(&self) -> bool {
+        self.access == PlaceAccess::Owned
+            && self
+                .projections
+                .iter()
+                .all(|projection| matches!(projection, PlaceProjection::Field(_)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::{ArenaBuilder, BuiltinType, FieldId, LocalBindingId, TypeStore};
+
+    use super::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
+
+    #[test]
+    fn only_owned_named_field_paths_are_move_sources() {
+        let mut locals = ArenaBuilder::<LocalBindingId, _>::new();
+        let local = locals.insert(());
+        let _ = locals.finish();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = fields.insert(());
+        let _ = fields.finish();
+        let types = TypeStore::new();
+        let owned = CheckedPlace {
+            root: PlaceRoot::Local(local),
+            projections: Box::new([PlaceProjection::Field(field)]),
+            ty: types.builtin(BuiltinType::I32),
+            access: PlaceAccess::Owned,
+        };
+        let borrowed = CheckedPlace {
+            access: PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite),
+            ..owned.clone()
+        };
+
+        assert!(owned.is_move_source());
+        assert!(!borrowed.is_move_source());
+    }
+}

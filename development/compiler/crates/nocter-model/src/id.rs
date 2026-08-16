@@ -53,6 +53,8 @@ semantic_ids! {
     RequirementId,
     BodyId,
     BodyNodeId,
+    PlaceId,
+    LoopId,
     BodyScopeId,
     LocalBindingId,
     CaptureId,

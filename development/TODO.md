@@ -10,11 +10,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Define the immutable checked-program and typed-body node contracts from the closed Phase 3
-   decisions. Do not create expression side maps or a second declaration/name authority.
-2. Establish the expected-type and inference construction order that produces those nodes without
-   allowing a partial checked program to escape.
-   Do not create expression side maps or a second declaration/name authority.
+1. Implement expected-type and constraint collection for scalar, reference, aggregate, outcome,
+   and callable expressions, then construct the existing closed typed-node schema.
+2. Consume every temporary syntax-backed resolved use while building nodes and extend
+   `SourceIndex` with exact `BodyNodeId` projections. Do not add expression side maps.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -42,6 +41,11 @@ One iterative normalized-type validator now covers every declaration-owned data 
 callable result, non-value type operand, borrow/raw-pointer pointee, generic argument, structural
 callable, and outcome layer. It is source-independent so concrete substitution can invoke the same
 rules before specialization enters checked bodies or later representations.
+`PreparedChecking` now owns the single graph/type/conformance/name input after program-wide rules,
+while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
+static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
+No production path constructs checked bodies yet; expected-type and constraint construction is the
+active increment.
 
 ## Guardrails
 

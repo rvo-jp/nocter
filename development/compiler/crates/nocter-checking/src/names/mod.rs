@@ -10,7 +10,7 @@ mod tests;
 use std::fmt;
 
 use nocter_declaration_lowering::{CompileUnitInput, ModuleIdentity};
-use nocter_declarations::DeclarationProgram;
+use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};
 use nocter_source::SourceId;
@@ -19,7 +19,7 @@ use nocter_source_index::{
 };
 use nocter_syntax::NodeId;
 
-use crate::{BodySourceError, catalog_body_sources};
+use crate::{BodySourceCatalog, BodySourceError, catalog_body_sources};
 use imports::block_import_targets;
 
 pub use diagnostic::NameRule;
@@ -31,12 +31,18 @@ use resolver::BodyNameResolver;
 
 /// Complete temporary name-resolution product plus the extended source projection.
 #[derive(Debug)]
-pub struct NameResolution {
+pub struct NameResolution<'syntax> {
+    body_sources: BodySourceCatalog<'syntax>,
     bodies: Arena<BodyId, ResolvedBodyNames>,
     source_index: SourceIndex,
 }
 
-impl NameResolution {
+impl<'syntax> NameResolution<'syntax> {
+    #[must_use]
+    pub const fn body_sources(&self) -> &BodySourceCatalog<'syntax> {
+        &self.body_sources
+    }
+
     #[must_use]
     pub const fn bodies(&self) -> &Arena<BodyId, ResolvedBodyNames> {
         &self.bodies
@@ -48,8 +54,14 @@ impl NameResolution {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (Arena<BodyId, ResolvedBodyNames>, SourceIndex) {
-        (self.bodies, self.source_index)
+    pub fn into_parts(
+        self,
+    ) -> (
+        BodySourceCatalog<'syntax>,
+        Arena<BodyId, ResolvedBodyNames>,
+        SourceIndex,
+    ) {
+        (self.body_sources, self.bodies, self.source_index)
     }
 }
 
@@ -193,21 +205,29 @@ impl From<DuplicateSourceBinding> for NameResolutionInternalError {
 ///
 /// Returns an authored [`SourceDiagnostic`] for a body-name rule or an internal failure when the
 /// Phase 2 program, discovery input, syntax catalog, and source projection disagree.
-pub fn resolve_body_names(
-    input: &CompileUnitInput<'_>,
-    program: &DeclarationProgram,
+pub fn resolve_body_names<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
     source_index: SourceIndex,
-) -> Result<NameResolution, NameResolutionError> {
-    let catalog = catalog_body_sources(input, program, &source_index)
+) -> Result<NameResolution<'syntax>, NameResolutionError> {
+    let catalog = catalog_body_sources(input, graph, &source_index)
         .map_err(NameResolutionInternalError::from)?;
-    let import_targets = block_import_targets(input, program, &source_index)?;
+    resolve_cataloged_body_names(input, graph, source_index, catalog)
+}
+
+pub(crate) fn resolve_cataloged_body_names<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
+    source_index: SourceIndex,
+    catalog: BodySourceCatalog<'syntax>,
+) -> Result<NameResolution<'syntax>, NameResolutionError> {
+    let import_targets = block_import_targets(input, graph, &source_index)?;
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
 
     for source in catalog.iter() {
-        let resolved =
-            BodyNameResolver::new(input, program, &source_index, &import_targets, source)
-                .resolve()?;
+        let resolved = BodyNameResolver::new(input, graph, &source_index, &import_targets, source)
+            .resolve()?;
         let expected = source.body();
         let actual = bodies.insert(resolved.body);
         if actual != expected {
@@ -224,6 +244,7 @@ pub fn resolve_body_names(
     }
 
     Ok(NameResolution {
+        body_sources: catalog,
         bodies: bodies.finish(),
         source_index: source_index.finish(),
     })

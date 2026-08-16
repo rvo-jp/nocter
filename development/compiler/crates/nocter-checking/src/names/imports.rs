@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_declaration_lowering::{CompileUnitInput, UseTargetInput};
-use nocter_declarations::DeclarationProgram;
+use nocter_declarations::DeclarationGraph;
 use nocter_model::ModuleId;
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeId, NodeKind};
@@ -14,11 +14,11 @@ use super::NameResolutionInternalError;
 /// rendered package names or module path strings.
 pub(super) fn block_import_targets(
     input: &CompileUnitInput<'_>,
-    program: &DeclarationProgram,
+    graph: &DeclarationGraph,
     source_index: &SourceIndex,
 ) -> Result<HashMap<NodeId, ModuleId>, NameResolutionInternalError> {
     let mut modules_by_source = HashMap::new();
-    for (module, _) in program.modules().iter() {
+    for (module, _) in graph.modules().iter() {
         let mut found = false;
         for binding in source_index.bindings_for(SemanticEntity::Module(module)) {
             if !matches!(

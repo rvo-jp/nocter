@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use nocter_declaration_lowering::CompileUnitInput;
-use nocter_declarations::{BodyOwner, DeclarationProgram};
+use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
@@ -161,14 +161,14 @@ impl std::error::Error for BodySourceError {}
 /// describe one complete and mutually consistent compile unit.
 pub fn catalog_body_sources<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    program: &DeclarationProgram,
+    graph: &DeclarationGraph,
     source_index: &SourceIndex,
 ) -> Result<BodySourceCatalog<'syntax>, BodySourceError> {
     let syntax = syntax_by_source(input)?;
-    let modules = module_by_source(program, source_index)?;
-    let mut bodies = Vec::with_capacity(program.declarations().bodies().len());
+    let modules = module_by_source(graph, source_index)?;
+    let mut bodies = Vec::with_capacity(graph.declarations().bodies().len());
 
-    for (body, declaration) in program.declarations().bodies().iter() {
+    for (body, declaration) in graph.declarations().bodies().iter() {
         let mut definitions = source_index
             .bindings_for(SemanticEntity::Body(body))
             .iter()
@@ -195,7 +195,7 @@ pub fn catalog_body_sources<'syntax>(
         if tree.node(block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
             return Err(BodySourceError::InvalidBodyProjection(body));
         }
-        let module = body_module(program, body, declaration.owner())?;
+        let module = body_module(graph, body, declaration.owner())?;
         if modules.get(&tree.source()).copied() != Some(module) {
             return Err(BodySourceError::BodyOutsideOwnerModule(body));
         }
@@ -227,11 +227,11 @@ fn syntax_by_source<'syntax>(
 }
 
 fn module_by_source(
-    program: &DeclarationProgram,
+    graph: &DeclarationGraph,
     source_index: &SourceIndex,
 ) -> Result<HashMap<SourceId, ModuleId>, BodySourceError> {
     let mut result = HashMap::new();
-    for (module, _) in program.modules().iter() {
+    for (module, _) in graph.modules().iter() {
         let mut found = false;
         for binding in source_index.bindings_for(SemanticEntity::Module(module)) {
             if !matches!(
@@ -257,11 +257,11 @@ fn module_by_source(
 }
 
 fn body_module(
-    program: &DeclarationProgram,
+    graph: &DeclarationGraph,
     body: BodyId,
     owner: BodyOwner,
 ) -> Result<ModuleId, BodySourceError> {
-    let declarations = program.declarations();
+    let declarations = graph.declarations();
     let site = match owner {
         BodyOwner::Callable(owner) => declarations
             .callables()
@@ -277,7 +277,7 @@ fn body_module(
             .map(|declaration| declaration.site()),
     }
     .ok_or(BodySourceError::InvalidBodyOwner(body))?;
-    program
+    graph
         .declaration_sites()
         .get(site)
         .map(|declaration| declaration.module())
@@ -340,7 +340,8 @@ mod tests {
             let input = CompileUnitInput::new(&sources, packages, modules, Vec::new());
             let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
             let catalog =
-                catalog_body_sources(&input, lowered.program(), lowered.source_index()).unwrap();
+                catalog_body_sources(&input, lowered.program().graph(), lowered.source_index())
+                    .unwrap();
             assert_eq!(catalog.len(), 2);
             assert!(!catalog.is_empty());
             let entries: Vec<_> = catalog
@@ -408,7 +409,8 @@ mod tests {
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
         let error =
-            catalog_body_sources(&input, lowered.program(), &SourceIndex::default()).unwrap_err();
+            catalog_body_sources(&input, lowered.program().graph(), &SourceIndex::default())
+                .unwrap_err();
 
         assert!(matches!(error, BodySourceError::MissingModuleProjection(_)));
     }

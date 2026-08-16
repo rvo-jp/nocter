@@ -139,3 +139,19 @@ type-position validator classifies data, callable-result, non-value type operand
 and pointer-pointee roots. It traverses nested structural types once, validates every declaration
 position after alias expansion, and is reused after concrete generic substitution rather than
 encoding `void`, `never`, outcome, or unsized exceptions in inference and layout consumers.
+
+Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
+opens `DeclarationProgram` once, retains the same extended `TypeStore`, and owns the conformance
+table, body-source catalog, resolved lexical identities, temporary syntax-backed uses, and source
+projection. It cannot be mistaken for a checked program. `CheckedProgram` has no syntax lifetime
+and owns the graph, type store, conformance table, and one `CheckedBody` per `BodyId`.
+
+Each checked body has dense scope, typed local, typed capture, place, loop, and node domains. The
+closed node operation distinguishes constants, places, copy/move/borrow, static or callable-value
+calls, selected coercions, primitive operations, aggregates, outcomes, closures, typed literals,
+iteration/spread, interpolation, and control. `StaticDispatch` is the only operation-selection
+edge and records a direct callable, an exact interface requirement plus method, or an exact
+structural requirement. A place records its owned or borrowed root and exact field/builtin-index/
+selected-index projection path; only an owned field-only path is an eligible explicit move source.
+This schema prevents MIR from repeating member, conformance, coercion, iterator, or move-place
+selection.
