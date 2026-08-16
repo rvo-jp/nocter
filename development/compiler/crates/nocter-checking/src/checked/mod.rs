@@ -17,8 +17,9 @@ pub use node::{
     AggregateConstruction, AllocationSelection, CallTarget, CheckedCall, CheckedClosure,
     CheckedControl, CheckedInterpolation, CheckedLoop, CheckedMatchArm, CheckedNode,
     CheckedOperation, CheckedOutcome, CheckedPattern, CheckedSequence, ConstantValue,
-    InterpolationPart, IterationAcquisition, LoopKind, PrimitiveBinary, PrimitiveOperation,
-    PrimitiveUnary, SequenceElement, SpreadMode, TypedIteration,
+    InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PrimitiveBinary,
+    PrimitiveComparison, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
+    TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub use program::{CheckedProgram, CheckedProgramOutput};

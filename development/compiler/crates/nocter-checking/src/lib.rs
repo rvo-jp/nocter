@@ -33,9 +33,9 @@ pub use checked::{
     CheckedPattern, CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence,
     CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
     CleanupTiming, ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments,
-    InterpolationPart, IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot,
-    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
-    StaticDispatch, StaticSelection, TypedIteration,
+    InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PlaceAccess,
+    PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparison, PrimitiveOperation,
+    PrimitiveUnary, SequenceElement, SpreadMode, StaticDispatch, StaticSelection, TypedIteration,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,

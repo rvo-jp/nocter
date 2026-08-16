@@ -31,6 +31,19 @@ pub(super) fn is_integer_type(types: &TypeStore, ty: TypeId) -> bool {
     )
 }
 
+pub(super) fn is_signed_integer_type(types: &TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(
+            BuiltinType::I8
+                | BuiltinType::I16
+                | BuiltinType::I32
+                | BuiltinType::I64
+                | BuiltinType::Isize
+        ))
+    )
+}
+
 pub(super) fn parse_integer(text: &str) -> Option<u64> {
     let compact = text
         .chars()
@@ -59,6 +72,17 @@ pub(super) fn fits_integer(types: &TypeStore, ty: TypeId, value: u64) -> bool {
         Some(TypeKind::Builtin(BuiltinType::U64 | BuiltinType::Usize)) => true,
         _ => false,
     }
+}
+
+pub(super) fn fits_negative_integer(types: &TypeStore, ty: TypeId, magnitude: u64) -> bool {
+    let maximum_magnitude = match types.get(ty) {
+        Some(TypeKind::Builtin(BuiltinType::I8)) => 1_u64 << 7,
+        Some(TypeKind::Builtin(BuiltinType::I16)) => 1_u64 << 15,
+        Some(TypeKind::Builtin(BuiltinType::I32)) => 1_u64 << 31,
+        Some(TypeKind::Builtin(BuiltinType::I64 | BuiltinType::Isize)) => 1_u64 << 63,
+        _ => return false,
+    };
+    magnitude <= maximum_magnitude
 }
 
 fn outcome_leaf(types: &TypeStore, root: TypeId) -> Option<TypeId> {

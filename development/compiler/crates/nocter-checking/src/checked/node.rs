@@ -63,7 +63,7 @@ pub enum CheckedOperation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConstantValue {
     Bool(bool),
-    Integer(u64),
+    Integer(i128),
     Text(Box<str>),
 }
 
@@ -114,11 +114,20 @@ pub enum PrimitiveBinary {
     Divide,
     Remainder,
     ShiftLeft,
-    ShiftRight,
+    ShiftRightSigned,
+    ShiftRightUnsigned,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PrimitiveComparison {
     Equal,
     Less,
-    LogicalAnd,
-    LogicalOr,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum LogicalOperation {
+    And,
+    Or,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -131,6 +140,13 @@ pub enum PrimitiveOperation {
         operation: PrimitiveBinary,
         left: BodyNodeId,
         right: BodyNodeId,
+    },
+    Comparison {
+        operation: PrimitiveComparison,
+        left: BodyNodeId,
+        right: BodyNodeId,
+        reverse: bool,
+        negate: bool,
     },
     IntegerConversion {
         operand: BodyNodeId,
@@ -412,6 +428,11 @@ pub enum CheckedControl {
         condition: BodyNodeId,
         then_branch: BodyNodeId,
         else_branch: Option<BodyNodeId>,
+    },
+    Logical {
+        operation: LogicalOperation,
+        left: BodyNodeId,
+        right: BodyNodeId,
     },
     Match {
         subject: BodyNodeId,

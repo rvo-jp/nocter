@@ -138,7 +138,10 @@ impl OwnershipAnalyzer<'_> {
                 PrimitiveOperation::Unary { operand, .. }
                 | PrimitiveOperation::IntegerConversion { operand, .. },
             ) => self.visit(*operand, state),
-            CheckedOperation::Primitive(PrimitiveOperation::Binary { left, right, .. }) => {
+            CheckedOperation::Primitive(
+                PrimitiveOperation::Binary { left, right, .. }
+                | PrimitiveOperation::Comparison { left, right, .. },
+            ) => {
                 if !self.visit(*left, state)? {
                     return Ok(false);
                 }
@@ -200,6 +203,7 @@ impl OwnershipAnalyzer<'_> {
                 then_branch,
                 else_branch,
             } => self.visit_if(*condition, *then_branch, *else_branch, state),
+            CheckedControl::Logical { left, right, .. } => self.visit_logical(*left, *right, state),
             CheckedControl::Unreachable(_) => Ok(false),
             CheckedControl::Break(loop_) => self.visit_loop_control(node, *loop_, true, state),
             CheckedControl::Continue(loop_) => self.visit_loop_control(node, *loop_, false, state),
@@ -296,6 +300,27 @@ impl OwnershipAnalyzer<'_> {
             .join_reachable(&incoming)
             .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         Ok(!incoming.is_empty())
+    }
+
+    fn visit_logical(
+        &mut self,
+        left: BodyNodeId,
+        right: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(left, state)? {
+            return Ok(false);
+        }
+        let entry = state.clone();
+        let mut incoming = vec![entry.clone()];
+        let mut right_state = entry.clone();
+        if self.visit(right, &mut right_state)? {
+            incoming.push(right_state);
+        }
+        *state = entry
+            .join_reachable(&incoming)
+            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        Ok(true)
     }
 
     fn visit_loop_control(

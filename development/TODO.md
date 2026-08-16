@@ -2,21 +2,21 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by implementing the remaining closed primitive operator families on top
-of the completed assignment and source-defined indexed-place transitions.
+Continue v0.14.0 Phase 3 by generalizing the instance-operation selector from indexing/coercion to
+source-defined equality and strict ordering.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Complete unary numeric, shift, logical, primitive equality, and primitive ordering selection
-   without mixing source-defined operator dispatch into the primitive path.
-2. Generalize the completed instance-operation authority from indexing and coercion to the
-   remaining source-defined operator families. Each selector must share requirement proof,
+1. Generalize the completed instance-operation authority from indexing and coercion to equality
+   and strict ordering. Each selector must share requirement proof,
    visibility, generic substitution, and ambiguity rules.
-3. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
+2. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
+3. Preserve source-order evaluation when derived source comparisons reverse the semantic `<`
+   operands; the checked comparison plan must separate those two orders.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -115,6 +115,14 @@ and generic arguments. Lexical structural index requirements dispatch through th
 `RequirementId`; concrete instance candidates must satisfy normalized declaration and callable
 requirements, while unresolved generic receivers require lexical evidence. Remaining operators,
 temporary cleanup for calls and aggregates, and executable MIR lowering remain incomplete.
+
+Closed prefix, shift, logical, and primitive-comparison selection is complete. A directly negated
+integer literal becomes one signed `i128`-domain constant, including each exact signed minimum;
+runtime negation remains an explicit unary operation. Signed and unsigned right shift are distinct
+checked operations. Primitive comparison retains source operands plus `reverse` and `negate`
+derivation facts, so `>`, `<=`, and `>=` cannot reorder source evaluation. `&&` and `||` are
+control nodes rather than eager primitive binaries; ownership joins the RHS path with the
+short-circuit bypass. Source-defined equality and ordering remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

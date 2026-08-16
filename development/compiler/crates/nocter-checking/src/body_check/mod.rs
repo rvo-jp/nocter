@@ -26,6 +26,8 @@ mod loop_tests;
 #[cfg(test)]
 mod move_tests;
 #[cfg(test)]
+mod operator_tests;
+#[cfg(test)]
 mod place_tests;
 
 pub use diagnostic::BodyRule;

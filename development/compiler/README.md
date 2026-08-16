@@ -237,6 +237,11 @@ be introduced to make an unresolved syntax choice.
   ambiguity never depends on declaration order. Readwrite selection preserves both operation
   capability and the original receiver's writability. Conditional index and coercion predicates
   recursively use the same selector and fail closed on proof cycles.
+  Prefix logical/numeric operations, signed/unsigned shifts, primitive equality, primitive strict
+  ordering, and short-circuit logic are also closed checked nodes. Negative literal range checking
+  produces one signed constant for exact minima. Derived comparisons preserve source evaluation
+  order separately from semantic operand reversal, and logical ownership joins the RHS with its
+  bypass path.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.

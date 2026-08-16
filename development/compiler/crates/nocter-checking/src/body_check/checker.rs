@@ -35,6 +35,7 @@ use crate::{
 mod arithmetic;
 mod assignment;
 mod loops;
+mod operators;
 mod place;
 use loops::LoopConstruction;
 
@@ -65,9 +66,10 @@ enum BlockExpectation {
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
 ///
 /// The current construction slice accepts blocks, scalar literals, named places and field moves,
-/// readonly/readwrite borrows, field and built-in index places, bindings, conditionals,
-/// while/infinite/integer-range loops, loop control, expression statements, body results, and
-/// returns. Other valid syntax is reported as an internal incomplete-implementation boundary; no
+/// readonly/readwrite borrows, built-in and selected index places, primitive operators, bindings,
+/// conditionals, short-circuit logic, while/infinite/integer-range loops, loop control, expression
+/// statements, body results, and returns. Other valid syntax is reported as an internal
+/// incomplete-implementation boundary; no
 /// partial checked program escapes.
 ///
 /// # Errors
@@ -546,10 +548,17 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
                     return self.check_arithmetic(current, expected);
                 }
+                NodeKind::ShiftExpression => return self.check_shift(current, expected),
+                NodeKind::EqualityExpression | NodeKind::OrderingExpression => {
+                    return self.check_primitive_comparison(current, expected);
+                }
+                NodeKind::LogicalAndExpression | NodeKind::LogicalOrExpression => {
+                    return self.check_logical(current, expected);
+                }
                 NodeKind::PostfixExpression => self.check_postfix_reference(current)?,
                 NodeKind::ReferenceExpression => self.check_reference(current)?,
                 NodeKind::MoveExpression => self.check_move(current)?,
-                NodeKind::UnaryExpression => self.check_unary(current)?,
+                NodeKind::UnaryExpression => return self.check_unary(current, expected),
                 _ => return Err(BodyCheckInternalError::UnsupportedSyntax(current, kind).into()),
             };
             return expected.map_or(Ok(value), |expected| {
@@ -663,7 +672,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let checked = self.add_node(
                     node,
                     ty,
-                    CheckedOperation::Constant(ConstantValue::Integer(value)),
+                    CheckedOperation::Constant(ConstantValue::Integer(i128::from(value))),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)
@@ -723,47 +732,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         self.add_node(node, place.ty, CheckedOperation::Move(place.id))
-    }
-
-    fn check_unary(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
-        let token =
-            direct_token(self.tree(), node).ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let capability = match token.kind() {
-            TokenKind::Punctuation(Punctuation::Ampersand) => BorrowCapability::Readonly,
-            TokenKind::Punctuation(Punctuation::ReadWrite) => BorrowCapability::ReadWrite,
-            _ => {
-                return Err(BodyCheckInternalError::UnsupportedSyntax(
-                    node,
-                    NodeKind::UnaryExpression,
-                )
-                .into());
-            }
-        };
-        let operands = direct_nodes(self.tree(), node);
-        if operands.len() != 1 {
-            return Err(
-                BodyCheckInternalError::UnsupportedSyntax(node, NodeKind::UnaryExpression).into(),
-            );
-        }
-        let place = self.postfix_place(operands[0], capability)?;
-        if capability == BorrowCapability::ReadWrite && !self.is_writable_place(place.id)? {
-            return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operands[0])?);
-        }
-        let ty = self
-            .types
-            .intern(TypeKind::Borrow {
-                capability,
-                referent: place.ty,
-            })
-            .map_err(|_| BodyCheckInternalError::UnknownType(place.ty))?;
-        self.add_node(
-            node,
-            ty,
-            CheckedOperation::Borrow {
-                capability,
-                place: place.id,
-            },
-        )
     }
 
     fn apply_expected(

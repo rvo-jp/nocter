@@ -331,8 +331,18 @@ the ownership walk visits the RHS before requiring the target to be definitely i
 does not build or analyze a duplicate ordinary binary expression. `BodyCheckError` retains the
 exact `BodyRule` that produced its separate `SourceDiagnostic`, allowing this boundary to replace a
 nested general mismatch with required compound rule `E0386` without inspecting a rendered code.
-Unary numeric, shift, logical, primitive comparison, and source-defined operator selection remain
-subsequent increments.
+Prefix `!` and runtime numeric negation select closed unary operations. Directly negated integer
+literals instead become one signed mathematical constant after combined range checking, including
+the exact minimum of every signed integer type. Shift checking requires one exact integer type for
+both operands and freezes signed and unsigned right shift as different operations.
+
+Primitive equality accepts booleans, matching integers, and matching payloadless enums. Primitive
+strict ordering accepts matching integers. One comparison node retains source-left and source-right
+evaluation plus independent `reverse` and `negate` derivation bits. Thus `>`, `<=`, and `>=` remain
+one strict `<` operation without reversing ownership evaluation. `&&` and `||` are checked control
+nodes, not eager primitive binaries. Ownership evaluates the left operand, then joins the possible
+RHS state with the short-circuit bypass state. Source-defined equality and ordering remain a
+subsequent increment on the instance-operation selector.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
