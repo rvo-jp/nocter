@@ -76,6 +76,14 @@ Rules:
 - At scope end, maybe initialized bindings use conditional drop.
 - To use a binding after a branch, every reachable path to that use must leave the binding initialized.
 - Reinitializing only a field of an uninitialized binding is not supported.
+- Statically named fields of a partially initialized struct independently carry initialized,
+  uninitialized, or maybe initialized state. A field state becomes maybe initialized when control
+  flow merges initialized and uninitialized incoming states.
+- An initialized named field may be read or moved. An uninitialized or maybe initialized field may
+  not be read, borrowed, moved, explicitly dropped, or used by compound assignment.
+- Disjoint definitely initialized fields remain usable while another field is uninitialized or
+  maybe initialized. The complete parent may be read, borrowed, moved, or passed only after every
+  field is definitely initialized.
 - Assignment is a statement, not an expression.
 - Assignment target must be a writable place.
 - Writable places are `var` bindings, fields reachable through writable
@@ -92,14 +100,24 @@ Rules:
   `operator (&+self[index: K]): &+V` declaration or one accessible coercion to
   a readwrite index operation.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
-- Field assignment overwrites the field. It is not a partial move.
+- Field assignment stores a complete field value. It either overwrites an initialized field or
+  restores an uninitialized or maybe initialized field; it never creates a new partial state.
 - For assignment, the complete right-hand side is evaluated first. After it succeeds, dynamic
-  target-place components are evaluated exactly once, the old value in that resolved place is
-  dropped, and the new value is stored.
+  target-place components are evaluated exactly once. An initialized old value is dropped, a maybe
+  initialized old value is conditionally dropped, and an uninitialized place performs no old-value
+  drop. The new value is then stored and the target place becomes initialized.
 - If right-hand-side evaluation propagates or terminates, the target expression is not evaluated
   and no assignment drop or store occurs. Side effects already performed by the right-hand side
   remain. Normal scope-end cleanup still applies to recoverable propagation.
 - Whole-binding assignment to a maybe initialized `var` binding is allowed. If the right-hand side succeeds, the compiler conditionally drops the old value if it is initialized, then stores the new value.
+- Named-field assignment to an uninitialized or maybe initialized field of a writable partial
+  `var` parent is allowed when every proper-prefix field needed to reach it exists. On success that
+  field becomes definitely initialized, so the complete parent becomes initialized once all fields
+  are initialized.
+- Whole-binding assignment over a partial `var` parent drops every remaining initialized field in
+  reverse declaration order, conditionally drops each maybe initialized field, and then stores the
+  complete replacement. Such a parent cannot own a drop declaration because its earlier partial
+  move would have been rejected.
 - Assigning an existing non-copy value requires explicit `move`.
 - Assigning a copy value copies it.
 - Field assignment follows the same ownership and borrow rules as local reassignment.
@@ -118,6 +136,8 @@ Rules:
   `target = target operator rhs`, because that would duplicate or reorder target evaluation.
 - Compound assignment follows the same borrow-conflict rules as assignment at each evaluation
   point.
+- Compound assignment requires a definitely initialized target because it reads the old value
+  before writing the result. It cannot restore an uninitialized or maybe initialized field.
 
 Examples:
 
@@ -161,7 +181,9 @@ If step 1 fails because the right-hand side contains postfix `?`, `user.name` is
 
 ### Reinitialization After Move Or Drop
 
-Only whole `var` bindings may be reinitialized after `move` or explicit `drop`.
+Whole `var` bindings may be reinitialized after a whole-value `move` or explicit `drop`. A writable
+named field may be restored after an eligible field move without allowing field-by-field
+construction of a never-initialized parent.
 
 ```nct
 var text = String.new()
@@ -179,11 +201,16 @@ Rules:
 - If reinitialization fails through postfix `?`, the binding remains uninitialized.
 - `let` bindings cannot be reinitialized after move or explicit drop.
 - Field reinitialization after moving a whole binding is not supported.
+- Assignment may restore an uninitialized or maybe initialized field only when the parent began as
+  a fully initialized value and became partial through named-field move. The right-hand side and
+  conditional old-value drop follow the common assignment order above.
 - Struct construction and whole-binding reinitialization do not accept field-by-field partial
   initialization. A fully initialized struct may enter the compiler-tracked partial state only
   after an eligible named-field move, under the restrictions in
   [Move Expressions](05-ownership-borrowing-drop.md#move-expressions).
-- At scope end, only initialized bindings are dropped.
+- At scope end, uninitialized bindings are skipped, initialized bindings use ordinary drop,
+  maybe initialized bindings use conditional drop, and partial structs apply those states to each
+  named field in reverse declaration order.
 - Definite initialization is checked across control flow.
 
 Examples:

@@ -75,6 +75,10 @@ Every checked move place also records its owned root and projections. A borrow p
 produce a writable place but never an owned move place. Returns, arguments, assignments, captures,
 patterns, iteration, and spread consume this same classification rather than maintaining
 context-specific move-source rules.
+Initialization dataflow is keyed by those semantic places. Joins merge each named-field state to
+initialized, uninitialized, or maybe initialized. Assignment consumes that one state to select no
+drop, unconditional drop, or conditional drop before storing and marking the place initialized;
+scope cleanup and whole-parent replacement consume the same state instead of recomputing liveness.
 The type store derives optional and fallible copyability structurally from their success or present
 payload and the built-in copyable `error` type. The result is attached to the complete semantic
 type before body checking. Flow analysis never reclassifies an outcome from its active tag, and

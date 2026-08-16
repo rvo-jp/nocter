@@ -52,6 +52,9 @@ Rules for generated code:
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Move only from owned bindings, owned parameters, owned closure captures, or their named struct
   fields. `&+` permits mutation but never permits moving ownership out of the borrowed value.
+- After control flow makes a moved named field maybe initialized, assignment to that field may
+  restore it. The compiler conditionally drops an old live field before storing the replacement;
+  the complete parent is usable again only when every field is initialized.
 - Define type cleanup with one top-level `drop Type(&+self) { ... }` declaration. Never place it in
   `instance`, and never define it for a `copy struct` or payloadless enum.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

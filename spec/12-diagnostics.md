@@ -334,7 +334,7 @@ Required diagnostic families:
 - A `copy struct` field whose type is unconditionally move-only for every legal generic
   substitution. The diagnostic identifies the field and its structural copyability blocker; a
   generic-dependent copy condition is not itself an error.
-- Use of a maybe initialized binding.
+- Use of a maybe initialized binding or named field before a restoring assignment.
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.
 - Borrow conflicts are computed after ordinary `if` and `while` condition temporaries have been

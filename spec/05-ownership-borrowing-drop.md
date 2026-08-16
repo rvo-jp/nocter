@@ -666,6 +666,13 @@ remaining initialized fields, in their ordinary reverse declaration order. The w
 cannot be used or moved while it remains partially initialized. A mutable parent may restore a
 moved field through field assignment before a later whole-value use.
 
+Control-flow joins merge named-field state independently. A field initialized on every incoming
+path is initialized, a field uninitialized on every incoming path is uninitialized, and a mixture
+is maybe initialized. Assignment to an uninitialized or maybe initialized field of a `var` parent
+restores that field through the common no-drop or conditional-drop assignment rule. Scope exit and
+whole-parent replacement likewise drop only live fields, using conditional drop for maybe
+initialized fields.
+
 This partial state exists only for structs without their own drop declaration. A field whose type
 has a drop declaration may still be moved as one complete field; its drop obligation transfers to
 the destination. The prohibition concerns each enclosing struct that would otherwise require a
@@ -694,6 +701,19 @@ drop Session(&+self) {
 
 let session = open_session()
 let socket = move session.socket // error: Session owns a drop declaration
+```
+
+Conditional field restoration:
+
+```nct
+var user = make_user()
+
+if condition {
+    consume(move user.name)
+}
+
+user.name = String.copy("replacement")
+use(user) // valid: every field is initialized again
 ```
 
 ## Return Values

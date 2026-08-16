@@ -288,6 +288,9 @@ Rules:
 - Blocks, `if` bodies, `match` arms, and loop bodies create scopes.
 - Initialized local values are dropped at scope end in reverse declaration order.
 - Maybe initialized local values use compiler-generated conditional drop at scope end.
+- Partially initialized structs drop their remaining initialized fields in reverse declaration
+  order. A named field that is maybe initialized after control-flow merge uses conditional drop.
+  Such a partial struct never owns a type-level drop body.
 - Postfix `?`, `return`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
 - Borrows and borrow-like views derived from temporaries cannot escape the statement.
 - Temporary lifetime extension is not supported.
