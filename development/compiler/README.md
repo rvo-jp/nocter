@@ -218,6 +218,9 @@ be introduced to make an unresolved syntax choice.
   locals in reverse declaration order; return then cleans owned parameters. Maybe-initialized
   paths become conditional actions, moved paths disappear, partially moved structs expand to their
   remaining fields, and discarded move-only values remain explicit value cleanup targets.
+  Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
+  bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
+  drop edge, and later automatic cleanup cannot destroy it twice.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -85,6 +85,20 @@ impl<'program> CleanupPlanner<'program> {
         }))
     }
 
+    pub(super) fn explicit_path_action(
+        &mut self,
+        path: &MovePath,
+        ty: TypeId,
+    ) -> Result<CleanupAction, BodyCheckInternalError> {
+        if !self.needs_cleanup(ty)? {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        Ok(CleanupAction::new(
+            CleanupTarget::Path(CleanupPath::new(path.root_identity(), path.fields(), ty)),
+            CleanupCondition::Always,
+        ))
+    }
+
     fn plan_path(
         &mut self,
         path: &MovePath,

@@ -2,17 +2,17 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by implementing explicit destruction, assignment, and reinitialization on
-the same ownership and cleanup state.
+Continue v0.14.0 Phase 3 by implementing assignment and reinitialization on the same ownership and
+cleanup state.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Implement explicit `drop`, whole-binding assignment, and eligible field reinitialization.
-   Replacement and scope exit must consume the existing cleanup planner rather than create a
-   second initialization model.
+1. Implement whole-binding assignment and eligible field reinitialization. Replacement and scope
+   exit must consume the existing cleanup planner rather than create a second initialization
+   model.
 2. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 
@@ -87,8 +87,15 @@ field-sensitive initialization state. Actions preserve reverse declaration order
 unconditional from maybe-initialized destruction, omit moved roots and non-owning borrows, expand a
 partially moved struct to only its remaining fields, and represent a discarded move-only result as
 a value cleanup rather than an invented local. Loop-edge cleanup removes loop-local roots before
-the fixed-point join. Explicit `drop`, replacement assignment, temporary cleanup for calls and
-aggregates, and executable MIR lowering remain incomplete.
+the fixed-point join. Replacement assignment, temporary cleanup for calls and aggregates, and
+executable MIR lowering remain incomplete.
+
+Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
+checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop
+requires an exactly initialized path, emits one unconditional path cleanup on the drop node, and
+then marks the binding uninitialized; later use and a second drop therefore use the ordinary
+`E0378` state rule. Automatic scope cleanup sees the updated state and cannot destroy the binding
+again. Loan-conflict checking remains incomplete with the general loan analysis.
 
 ## Guardrails
 

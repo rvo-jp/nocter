@@ -262,8 +262,16 @@ When a named-field override makes a struct partial, cleanup recursively follows 
 reverse order and emits actions only for remaining live field paths; the earlier partial-move rule
 guarantees no expanded parent has a type-owned drop body. Discarding a move-only expression records
 the consumed value node itself, so cleanup does not invent a hidden local or lose the transferred
-value. Explicit `drop`, assignment/reinitialization, and temporary ownership for unsupported
-expression families remain subsequent increments.
+value. Assignment/reinitialization and temporary ownership for unsupported expression families
+remain subsequent increments.
+
+Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
+rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
+ownership analysis requires the exact path to be initialized, attaches one unconditional path
+action to the checked drop node, and transitions that path to uninitialized. Scope exit therefore
+cannot schedule a second action. Unreachable valid drop source remains typed HIR but receives no
+executable cleanup edge. Loan conflicts, assignment, and reinitialization remain subsequent
+increments.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

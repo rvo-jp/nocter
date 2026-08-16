@@ -15,6 +15,7 @@ pub enum BodyRule {
     InaccessibleField,
     PartialMoveThroughDrop,
     InvalidLoopControl,
+    InvalidExplicitDrop,
 }
 
 impl BodyRule {
@@ -31,6 +32,7 @@ impl BodyRule {
         Self::InaccessibleField,
         Self::PartialMoveThroughDrop,
         Self::InvalidLoopControl,
+        Self::InvalidExplicitDrop,
     ];
 
     #[must_use]
@@ -48,6 +50,7 @@ impl BodyRule {
             Self::InaccessibleField => "E0380",
             Self::PartialMoveThroughDrop => "E0381",
             Self::InvalidLoopControl => "E0382",
+            Self::InvalidExplicitDrop => "E0383",
         }
     }
 
@@ -108,6 +111,10 @@ impl BodyRule {
             Self::InvalidLoopControl => (
                 "loop control has no enclosing loop in this callable body",
                 "place `break` or `continue` inside the loop it should target",
+            ),
+            Self::InvalidExplicitDrop => (
+                "explicit drop requires a move-only owned binding",
+                "remove `drop` for a copy or borrow binding",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

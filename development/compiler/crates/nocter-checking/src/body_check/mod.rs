@@ -14,6 +14,8 @@ mod control_tests;
 #[cfg(test)]
 mod copy_tests;
 #[cfg(test)]
+mod drop_tests;
+#[cfg(test)]
 mod flow_tests;
 #[cfg(test)]
 mod loop_tests;

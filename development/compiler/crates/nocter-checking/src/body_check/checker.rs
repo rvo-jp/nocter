@@ -365,6 +365,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 result: false,
                 reaches_next: false,
             }),
+            NodeKind::DropStatement => Ok(CheckedExecutable {
+                node: self.check_drop(executable)?,
+                result: false,
+                reaches_next: true,
+            }),
             kind => Err(BodyCheckInternalError::UnsupportedSyntax(executable, kind).into()),
         }
     }
@@ -462,6 +467,31 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             statement,
             self.types.builtin(BuiltinType::Never),
             CheckedOperation::Control(CheckedControl::Return(value)),
+        )
+    }
+
+    fn check_drop(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+        let token = identifier_tokens(self.tree(), statement)
+            .last()
+            .copied()
+            .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
+        let (root, ty) = self.place_root(statement, token)?;
+        if matches!(self.types.get(ty), Some(TypeKind::Borrow { .. }))
+            || self
+                .copyabilities
+                .classify(self.graph, self.types, ty)
+                .map_err(BodyCheckInternalError::Copyability)?
+                == Copyability::Copy
+        {
+            return Err(self.rule(BodyRule::InvalidExplicitDrop, statement)?.into());
+        }
+        let place =
+            self.builder
+                .add_place(root, Vec::<PlaceProjection>::new(), ty, PlaceAccess::Owned);
+        self.add_node(
+            statement,
+            self.types.builtin(BuiltinType::Void),
+            CheckedOperation::Control(CheckedControl::Drop(place)),
         )
     }
 
@@ -690,32 +720,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .first()
             .copied()
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let origin = SyntaxOrigin::Token(token);
-        let target = self
-            .uses
-            .get(&origin)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
-        self.consumed_uses.insert(origin);
-        let (root, mut ty) = match target {
-            NameTarget::Parameter(parameter) => {
-                let ty = self
-                    .graph
-                    .declarations()
-                    .parameters()
-                    .get(parameter)
-                    .map(|parameter| parameter.ty())
-                    .ok_or(BodyCheckInternalError::MissingParameterType(target))?;
-                (PlaceRoot::Parameter(parameter), ty)
-            }
-            NameTarget::Local(local) => (
-                PlaceRoot::Local(local),
-                self.builder
-                    .local_type(local)
-                    .ok_or(BodyCheckInternalError::MissingLocalType(local))?,
-            ),
-            _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
-        };
+        let (root, mut ty) = self.place_root(node, token)?;
         let mut access = PlaceAccess::Owned;
         let mut projections = Vec::new();
         let mut partial_parents = Vec::new();
@@ -773,6 +778,39 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             ty,
             access,
             partial_parents: partial_parents.into_boxed_slice(),
+        })
+    }
+
+    fn place_root(
+        &mut self,
+        node: NodeId,
+        token: SyntaxToken,
+    ) -> Result<(PlaceRoot, TypeId), BodyCheckError> {
+        let origin = SyntaxOrigin::Token(token);
+        let target = self
+            .uses
+            .get(&origin)
+            .copied()
+            .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
+        self.consumed_uses.insert(origin);
+        Ok(match target {
+            NameTarget::Parameter(parameter) => {
+                let ty = self
+                    .graph
+                    .declarations()
+                    .parameters()
+                    .get(parameter)
+                    .map(|parameter| parameter.ty())
+                    .ok_or(BodyCheckInternalError::MissingParameterType(target))?;
+                (PlaceRoot::Parameter(parameter), ty)
+            }
+            NameTarget::Local(local) => (
+                PlaceRoot::Local(local),
+                self.builder
+                    .local_type(local)
+                    .ok_or(BodyCheckInternalError::MissingLocalType(local))?,
+            ),
+            _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
         })
     }
 

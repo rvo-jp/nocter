@@ -206,10 +206,10 @@ impl OwnershipAnalyzer<'_> {
             CheckedControl::Unreachable(_) => Ok(false),
             CheckedControl::Break(loop_) => self.visit_loop_control(node, *loop_, true, state),
             CheckedControl::Continue(loop_) => self.visit_loop_control(node, *loop_, false, state),
+            CheckedControl::Drop(place) => self.visit_drop(node, *place, state),
             CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
             CheckedControl::Assign { .. }
             | CheckedControl::CompoundAssign { .. }
-            | CheckedControl::Drop(_)
             | CheckedControl::Match { .. }
             | CheckedControl::Region { .. } => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
@@ -320,6 +320,28 @@ impl OwnershipAnalyzer<'_> {
             frame.continues.push(state.clone());
         }
         Ok(false)
+    }
+
+    fn visit_drop(
+        &mut self,
+        node: BodyNodeId,
+        place: nocter_model::PlaceId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        let path = self.move_path(place)?;
+        self.require_path_initialized(node, &path, state)?;
+        let ty = self
+            .body
+            .places()
+            .get(place)
+            .map(crate::CheckedPlace::ty)
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
+        let action = self.explicit_path_cleanup(&path, ty)?;
+        state
+            .move_out(&path)
+            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        self.record_cleanup(node, vec![action]);
+        Ok(true)
     }
 
     fn visit_loop(
@@ -478,6 +500,22 @@ impl OwnershipAnalyzer<'_> {
             self.source,
         )
         .value_action(node, ty)
+    }
+
+    fn explicit_path_cleanup(
+        &mut self,
+        path: &MovePath,
+        ty: nocter_model::TypeId,
+    ) -> Result<CleanupAction, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .explicit_path_action(path, ty)
     }
 
     fn all_scope_cleanup(

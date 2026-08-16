@@ -401,6 +401,9 @@ without source containment queries. Its dense cleanup table is keyed by the node
 edge runs the action. Path actions retain only an owned root, exact field identities, type, and
 unconditional-or-conditional state; discarded owned temporaries name their checked value node.
 MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue.
+Explicit source `drop` is a checked control operation over the same owned root path. It attaches an
+unconditional action to that statement's outgoing edge and consumes the path state; it does not
+call a method, allocate hidden storage, or maintain a second explicit-destruction liveness table.
 
 A checked body records reachability on its control-flow nodes. Source after a proven terminal node
 still receives declaration and type identities, but no synthetic initialization, move, loan, or
