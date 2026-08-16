@@ -132,6 +132,9 @@ Rules:
 - A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.
 - A borrow-like result discarded by `let _ = expression` does not extend the source borrow beyond
   the discard statement.
+- A borrow held only by a temporary in an ordinary `if` or `while` boolean condition ends when the
+  condition temporary is dropped, before the selected body begins. Retaining the borrow through
+  the body requires an explicit longer-lived binding.
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
 - `&str`, `&[T]`, `&+[T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.

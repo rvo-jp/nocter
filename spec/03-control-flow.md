@@ -250,7 +250,19 @@ Rules:
 - Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-mutability).
 - Operators and expressions with conditional evaluation, such as `&&`, `||`, `otherwise`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
-- Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
+- Temporaries are dropped at the end of the current statement in reverse creation order unless a
+  narrower control-header scope below applies or ownership is moved into a longer-lived owner.
+- An ordinary `if` boolean condition is one control-header temporary scope. After its `bool` result
+  is computed, all remaining condition temporaries are dropped in reverse creation order before
+  the selected body begins.
+- Each evaluation of a `while` boolean condition is a new control-header temporary scope. Its
+  remaining temporaries are dropped after that iteration's `bool` is computed and before either
+  entering the body or leaving the loop.
+- Condition cleanup also runs before propagation or another early exit leaves the control header.
+  A condition temporary therefore never remains live through an ordinary `if` or `while` body.
+- `if expr is Pattern` and `match expr` do not use the boolean-condition rule for their pattern
+  target. An owned pattern target and payload projections use the pattern-operation lifetime
+  defined in [Enums and Variant Construction](02-values-types.md#enums-and-variant-construction).
 - A value produced for `let _ = expression` is consumed by that discard statement. Its active owned
   content is dropped after expression evaluation and before earlier temporaries from the same
   statement are dropped.
@@ -292,6 +304,17 @@ Write this instead:
 var text = String.copy("abc")
 let view = &text as &str
 ```
+
+Condition temporaries end before the selected body:
+
+```nct
+if Guard.acquire(&+state).ready() {
+    inspect(&state)
+}
+```
+
+The temporary `Guard` and its loan are dropped after `ready()` produces `bool`. Bind the guard
+before the `if` when the body must retain it.
 
 A method receiver borrow lasts only for the call unless the method returns a value whose type carries a borrow-like lifetime tracked by the compiler.
 
@@ -347,6 +370,9 @@ loop {
 Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
+- Every `while` condition is evaluated before its corresponding iteration. Condition temporaries
+  are dropped before the body starts under
+  [Evaluation Order and Temporaries](#evaluation-order-and-temporaries).
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
 - Optional values do not have dedicated loop syntax; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.

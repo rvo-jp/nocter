@@ -295,6 +295,8 @@ Required diagnostic families:
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.
+- Borrow conflicts are computed after ordinary `if` and `while` condition temporaries have been
+  dropped; a condition-only loan must not be reported as live in the body.
 - Returning a borrow-like value whose provenance cannot outlive the function.
 - Postfix `?` used on `T!` outside a fallible function, method, or closure body.
 - Postfix `?` used on `T?` outside a function, method, or closure body whose current result layer

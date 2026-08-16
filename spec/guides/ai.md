@@ -216,6 +216,12 @@ A closure is its own control-flow boundary. `return` and postfix `?` affect the 
 `break` and `continue` can target only loops inside that closure, never a loop surrounding the
 closure expression.
 
+## Condition Temporaries
+
+Temporary values in an ordinary `if` or `while` boolean condition are dropped after the condition
+is computed and before the body begins. Bind an RAII value first when it must remain live in the
+body.
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.
