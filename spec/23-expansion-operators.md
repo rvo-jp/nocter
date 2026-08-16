@@ -72,12 +72,18 @@ Source syntax selects one capability:
 for item in &values { inspect(item) }
 for item in &+values { update(item) }
 for item in move values { consume(move item) }
-for item in iterator { consume(move item) }
+for item in move iterator { consume(move item) }
+for item in make_iterator() { consume(move item) }
 ```
 
-The first three forms select the corresponding expansion operator. The last form requires the
-source type itself to conform to `Iterator`; it performs no expansion. A bare collection is
-rejected rather than guessed as readonly or consuming.
+Readonly and readwrite forms select the corresponding expansion operator. For `move source`, a
+source type that directly conforms to `Iterator` is used as that iterator; otherwise the form
+selects the owned expansion operator. Direct conformance has fixed priority when a type provides
+both. The final form above is a newly produced direct iterator and performs no expansion.
+
+A bare direct-iterator expression follows ordinary ownership rules. A new temporary is already
+owned by the loop, a copyable iterator place is copied, and an existing move-only iterator place
+requires `move`. A bare collection is rejected rather than guessed as readonly or consuming.
 
 The source expression is evaluated once. The resulting iterator is advanced through its selected
 `Iterator.next` declaration. Absence ends the loop without initializing an item. Cleanup for
@@ -100,8 +106,12 @@ let owned = Vec [...move source]
 ```
 
 - `...source` and `...&source` select readonly expansion.
-- `...move source` selects owned expansion, or accepts a direct owning iterator.
+- `...move source` accepts a direct owning iterator when the source type conforms to `Iterator`;
+  otherwise it selects owned expansion. Direct iterator conformance has fixed priority when both
+  are present.
 - Every spread iterator must also conform to `ExactSizeIterator`.
+- A directly selected iterator that lacks `ExactSizeIterator` is rejected; selection does not fall
+  back to an owned expansion.
 - Bare spread copies readonly yielded referents and therefore requires `copy` elements.
 - `...&source` contributes the yielded readonly references themselves.
 - `...&+source` is rejected.

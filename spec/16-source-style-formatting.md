@@ -279,6 +279,18 @@ for i in 0..<bytes.len() {
 }
 ```
 
+Collection iteration keeps an explicit ownership prefix adjacent to its source:
+
+```nct
+for item in &values { ... }
+for item in &+values { ... }
+for item in move values { ... }
+for item in make_iterator() { ... }
+```
+
+An existing move-only iterator is formatted with `move`; formatting never removes that required
+ownership transfer.
+
 ## Comments
 
 Rules:

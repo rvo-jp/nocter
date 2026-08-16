@@ -193,6 +193,15 @@ match &pair {
 Loop bodies do not produce values. Their final reachable expression must be `void` or `never`; use
 `let _ = expression` when an iteration intentionally discards a value.
 
+Use `&source`, `&+source`, or `move source` to choose collection iteration ownership. A bare source
+is valid only when it already is an iterator and ordinary ownership still applies. Existing
+move-only iterator bindings require `move`; new iterator temporaries do not.
+
+```nct
+for item in move iterator { consume(move item) }
+for item in make_iterator() { consume(move item) }
+```
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.

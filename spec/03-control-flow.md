@@ -386,9 +386,16 @@ for item in &+values {
 
 - `&expression` selects the source type's readonly expansion operator.
 - `&+expression` selects its readwrite expansion operator and holds an exclusive source loan.
-- `move expression` selects its owned expansion operator and transfers the source.
+- `move expression` first uses the source directly when its type implements the trusted iterator
+  contract. In that direct mode, an existing move-only source must be an eligible explicit move
+  place under the ordinary ownership rules. Otherwise the form selects the source type's owned
+  expansion operator. A type that has both direct iterator conformance and an owned expansion uses
+  direct iteration; this priority is fixed and does not form an overload set.
 - A bare expression is accepted only when its type already implements the trusted iterator
-  contract. A collection value without `&`, `&+`, or `move` is rejected rather than guessed.
+  contract, and ordinary ownership rules still apply. A new iterator temporary may be used
+  directly. A copyable iterator place is copied. An existing move-only iterator place requires
+  `move place`; `for item in iterator` never performs an implicit move.
+- A collection value without `&`, `&+`, or `move` is rejected rather than guessed.
 - The source expression is evaluated once. Its iterator is owned by the loop and advanced through
   a validated declaration identity, not a method-name search.
 - Each successful step initializes one immutable loop binding. Absence ends the loop without

@@ -286,8 +286,14 @@ while i <span class="token-operator">&lt;</span> bytes<span class="token-operato
 <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-operator">&amp;+</span>values <span class="token-operator">{</span>
     <span class="token-function">update</span><span class="token-operator">(</span>item<span class="token-operator">)</span>
 <span class="token-operator">}</span>
-</code></pre><ul><li><code>&amp;expression</code> selects the source type's readonly expansion operator.</li><li><code>&amp;+expression</code> selects its readwrite expansion operator and holds an exclusive source loan.</li><li><code>move expression</code> selects its owned expansion operator and transfers the source.</li><li>A bare expression is accepted only when its type already implements the trusted iterator
-  contract. A collection value without <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> is rejected rather than guessed.</li><li>The source expression is evaluated once. Its iterator is owned by the loop and advanced through
+</code></pre><ul><li><code>&amp;expression</code> selects the source type's readonly expansion operator.</li><li><code>&amp;+expression</code> selects its readwrite expansion operator and holds an exclusive source loan.</li><li><code>move expression</code> first uses the source directly when its type implements the trusted iterator
+  contract. In that direct mode, an existing move-only source must be an eligible explicit move
+  place under the ordinary ownership rules. Otherwise the form selects the source type's owned
+  expansion operator. A type that has both direct iterator conformance and an owned expansion uses
+  direct iteration; this priority is fixed and does not form an overload set.</li><li>A bare expression is accepted only when its type already implements the trusted iterator
+  contract, and ordinary ownership rules still apply. A new iterator temporary may be used
+  directly. A copyable iterator place is copied. An existing move-only iterator place requires
+  <code>move place</code>; <code>for item in iterator</code> never performs an implicit move.</li><li>A collection value without <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> is rejected rather than guessed.</li><li>The source expression is evaluated once. Its iterator is owned by the loop and advanced through
   a validated declaration identity, not a method-name search.</li><li>Each successful step initializes one immutable loop binding. Absence ends the loop without
   initializing or dropping an element.</li><li><code>continue</code> drops an unconsumed current element before advancing. <code>break</code>, <code>return</code>, propagation,
   and normal completion drop live element state and then the iterator exactly once.</li><li>A readonly yielded borrow retains its source loan through the borrow's last use. A consuming

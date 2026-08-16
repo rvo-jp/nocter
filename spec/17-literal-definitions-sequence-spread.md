@@ -119,11 +119,13 @@ any layout.
 A bare spread never guesses that a move-only source should be consumed. Ownership transfer requires
 `...move`.
 
-Each spread source resolves through the same readonly or owned expansion operator used by
-collection iteration and must provide an exact remaining count. Unknown-size iterators are rejected
-because `items.len()` is fixed before the body starts. The exact-size contract grants no unchecked
-memory access; the body still consumes ordinary `next()` results. `...&+source` is rejected because
-the pack could retain multiple mutable element loans. See
+Each spread source uses the same direct-iterator-first selection used by collection iteration. For
+`...move source`, direct iterator conformance has fixed priority over an owned expansion. The
+selected iterator must provide an exact remaining count; the compiler does not retry an owned
+expansion when a directly selected iterator lacks that contract. Unknown-size iterators are
+rejected because `items.len()` is fixed before the body starts. The exact-size contract grants no
+unchecked memory access; the body still consumes ordinary `next()` results. `...&+source` is
+rejected because the pack could retain multiple mutable element loans. See
 [Expansion Operators](23-expansion-operators.md).
 
 ## Evaluation Order

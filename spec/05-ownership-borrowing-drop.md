@@ -375,6 +375,9 @@ Rules:
   concrete substitution. It adds no runtime metadata and cannot be implemented by user code.
 - Non-copy values are not implicitly moved by assignment, argument passing, or return.
 - Moving a non-copy value requires explicit `move`.
+- Direct collection iteration follows the same rule. An existing move-only iterator binding must
+  be written as `for item in move iterator`; only a newly produced iterator temporary or a copyable
+  iterator may appear as a bare direct-iterator source.
 
 Examples:
 

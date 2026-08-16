@@ -288,6 +288,7 @@ Required diagnostic families:
 - Explicit `drop` while borrowed.
 - Use after `move`.
 - Use after explicit `drop`.
+- Existing move-only iterator place used as a bare collection-loop source without `move`.
 - Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.
