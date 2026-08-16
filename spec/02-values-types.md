@@ -544,8 +544,9 @@ The exact names for wrapping arithmetic APIs belong to the primitive numeric API
 
 ## Operators, Comparison, and Precedence
 
-Nocter has a closed operator grammar. An `instance` may define equality and one-operand indexing
-with fixed declaration shapes. Equality uses:
+Nocter has a closed operator grammar. An `instance` may define equality, strict ordering,
+readonly/readwrite indexing, and readonly/readwrite/owned expansion with fixed declaration shapes.
+Equality uses:
 
 ```nct
 instance Text {
