@@ -182,9 +182,9 @@
   parser diagnostic and do not produce a compatibility AST.</li><li><code>trait</code> is not a reserved keyword. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.</li><li><code>Self</code> has identifier spelling but is reserved as contextual type syntax in
   inherent member type positions. It is not a valid binding, declaration, field,
-  variant, module, type parameter, or import alias name.</li><li><code>error</code> is not a reserved keyword. In type positions, the exact spelling <code>error</code> is compiler built-in type syntax. In value positions, it is an ordinary identifier, so <code>catch error { ... }</code> binds a local value named <code>error</code>.</li><li>A single <code>_</code> is the wildcard or discard spelling in pattern positions. It is
-  not a valid binding, declaration, field, variant, type parameter, or import
-  alias name.</li><li>Identifiers beginning with <code>_</code> are otherwise valid.</li></ul><p>Reserved keyword tokens:</p><pre><code class="language-text">as
+  variant, module, type parameter, or import alias name.</li><li><code>error</code> is not a reserved keyword. In type positions, the exact spelling <code>error</code> is compiler built-in type syntax. In value positions, it is an ordinary identifier, so <code>catch error { ... }</code> binds a local value named <code>error</code>.</li><li>A single <code>_</code> is the wildcard or discard spelling in pattern positions and in the local discard
+  initializer <code>let _ = expression</code>. A discard initializer creates no binding. <code>_</code> is not a valid
+  binding, declaration, field, variant, type parameter, or import alias name.</li><li>Identifiers beginning with <code>_</code> are otherwise valid.</li></ul><p>Reserved keyword tokens:</p><pre><code class="language-text">as
 break
 catch
 continue

@@ -28,6 +28,13 @@ let missing: i32 // error
 var later: File  // error
 ```
 
+Use a discard initializer when an evaluated value is intentionally ignored:
+
+```nct
+let _ = String.copy("unused")
+let _ = try_operation()
+```
+
 Assignment updates a writable place.
 
 ```nct
@@ -41,6 +48,18 @@ Rules:
 
 - `let` creates an immutable binding.
 - `var` creates a mutable binding.
+- `let _ = expression` is a discard initializer. It evaluates `expression` but creates no binding.
+- A discard initializer accepts an expression of any type. It is the only source form that may
+  intentionally discard a non-`void`, non-`never` body value.
+- The discarded value is consumed and any owned content is dropped at the end of the discard
+  statement. A borrow-like value requires no drop and its borrow ends according to normal
+  statement-end liveness.
+- Discarding `T?`, `T!`, `T?!`, or `T!?` does not unwrap, recover, or propagate it. The complete
+  outcome value, including any active success, absence, or failure payload, is intentionally
+  discarded and its owned content is dropped.
+- Discarding an existing move-only binding still requires `move`, as in `let _ = move value`.
+- `_` in a discard initializer cannot have a type annotation, cannot be referenced, and cannot be
+  used with `var`.
 - Local `let` and `var` bindings require an initializer.
 - Uninitialized local declarations are not supported.
 - `let` bindings cannot be reassigned.
@@ -801,7 +820,7 @@ Rules:
   after the transfer. A non-selected branch retains and drops the source enum.
 - Payload-carrying enum active payload cleanup lowers for runtime-supported enum
   values whose droppable variants have supported aggregate drop trees.
-  Scope-end cleanup, parameter cleanup, discarded call results, call-result
+  Scope-end cleanup, parameter cleanup, explicit discard initializers, call-result
   bindings, and whole-local replacement drop only the active payload fields.
   Multi-field payload cleanup drops active fields in reverse aggregate field
   order and applies supported struct and fixed-array drop trees recursively;

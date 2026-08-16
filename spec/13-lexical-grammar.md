@@ -93,9 +93,9 @@ Rules:
   inherent member type positions. It is not a valid binding, declaration, field,
   variant, module, type parameter, or import alias name.
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
-- A single `_` is the wildcard or discard spelling in pattern positions. It is
-  not a valid binding, declaration, field, variant, type parameter, or import
-  alias name.
+- A single `_` is the wildcard or discard spelling in pattern positions and in the local discard
+  initializer `let _ = expression`. A discard initializer creates no binding. `_` is not a valid
+  binding, declaration, field, variant, type parameter, or import alias name.
 - Identifiers beginning with `_` are otherwise valid.
 
 Reserved keyword tokens:

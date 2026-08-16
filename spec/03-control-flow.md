@@ -136,6 +136,11 @@ Rules:
 
 - A body contains zero or more statements followed by an optional result expression.
 - The result expression is written without `return`.
+- An expression used as a non-final statement must have type `void` or `never`. A non-final
+  expression of any value-producing type is an error even when its value would be immediately
+  droppable.
+- `let _ = expression` explicitly evaluates and discards a value-producing expression. It is a
+  statement, not a binding and not a body result.
 - Bindings introduced by earlier statements in the same body are in scope for the result expression.
 - A body without a result expression has type `void` unless all reachable paths terminate with `return`, `break`, `continue`, or `never`.
 - A body whose reachable paths all terminate has type `never`.
@@ -230,6 +235,9 @@ Rules:
 - Operators and expressions with conditional evaluation, such as `&&`, `||`, `otherwise`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
+- A value produced for `let _ = expression` is consumed by that discard statement. Its active owned
+  content is dropped after expression evaluation and before earlier temporaries from the same
+  statement are dropped.
 - Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.
 - Blocks, `if` bodies, `match` arms, and loop bodies create scopes.
 - Initialized local values are dropped at scope end in reverse declaration order.

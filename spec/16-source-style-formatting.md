@@ -73,6 +73,7 @@ Rules:
 - `else` stays on the same line as the previous closing brace.
 - Top-level declarations are separated by one blank line.
 - Empty blocks may stay as `{}` only when the construct is intentionally empty and readability is not harmed.
+- An explicit discard initializer is formatted as `let _ = expression`.
 
 Examples:
 

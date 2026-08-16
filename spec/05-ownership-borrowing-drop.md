@@ -28,6 +28,9 @@ Rules:
 - A readwrite borrow is exclusive and cannot coexist with other readonly or readwrite borrows of the same value.
 - A value cannot be moved while it is borrowed.
 - A value cannot be explicitly dropped while it is borrowed.
+- `let _ = expression` consumes and drops the resulting owned value without creating a binding.
+  Existing move-only bindings require `let _ = move name`; newly produced owned temporaries do not
+  require `move`.
 - A borrow cannot outlive the value it refers to.
 - A borrow of a stack value cannot escape the stack value's scope.
 - A borrow of region-allocated memory cannot escape that region.
@@ -127,6 +130,8 @@ Rules:
 - A borrow cannot outlive the storage it refers to.
 - A borrow cannot outlive a region from which its storage was allocated.
 - A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.
+- A borrow-like result discarded by `let _ = expression` does not extend the source borrow beyond
+  the discard statement.
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
 - `&str`, `&[T]`, `&+[T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
