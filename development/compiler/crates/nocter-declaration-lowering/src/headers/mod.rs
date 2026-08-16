@@ -1,5 +1,4 @@
 mod names;
-mod visibility;
 
 use std::fmt;
 
@@ -8,6 +7,7 @@ use nocter_model::{DeclarationSiteId, Symbol};
 use nocter_source::SourceId;
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
 
+use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{ReservedDeclarations, SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceSourceId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -158,7 +158,7 @@ pub fn prepare_declaration_headers(
         let module = reserved
             .module_for_source(declaration.source())
             .ok_or(HeaderError::MissingSource(declaration.source()))?;
-        let visibility = visibility::resolve(&reserved, id, declaration, &resolved_visibility)?;
+        let visibility = resolve_visibility(&reserved, id, declaration, &resolved_visibility)?;
         let site = reserved.program.add_declaration_site(module, visibility)?;
         sites[index] = Some(site);
         resolved_visibility[index] = Some(visibility);
@@ -171,6 +171,65 @@ pub fn prepare_declaration_headers(
         names: names.into_boxed_slice(),
         sites: sites.into_boxed_slice(),
         visibility: resolved_visibility.into_boxed_slice(),
+    })
+}
+
+fn resolve_visibility(
+    reserved: &ReservedDeclarations<'_>,
+    id: SurfaceDeclarationId,
+    declaration: crate::SurfaceDeclaration,
+    resolved: &[Option<Visibility>],
+) -> Result<Visibility, HeaderError> {
+    match declaration.kind() {
+        SurfaceDeclarationKind::Variant => {
+            if declaration.visibility().is_some() {
+                return Err(HeaderError::InvalidVisibility(id));
+            }
+            declaration
+                .owner()
+                .and_then(|owner| resolved.get(owner.index()))
+                .copied()
+                .flatten()
+                .ok_or(HeaderError::InvalidVisibility(id))
+        }
+        SurfaceDeclarationKind::ConformanceMethod
+        | SurfaceDeclarationKind::Construction
+        | SurfaceDeclarationKind::Instance
+        | SurfaceDeclarationKind::Conformance
+        | SurfaceDeclarationKind::Drop
+        | SurfaceDeclarationKind::Test => {
+            if declaration.visibility().is_some() {
+                Err(HeaderError::InvalidVisibility(id))
+            } else {
+                Ok(Visibility::Private)
+            }
+        }
+        SurfaceDeclarationKind::InterfaceMethod | SurfaceDeclarationKind::AssociatedType => {
+            let visibility = authored_visibility(reserved, id, declaration)?;
+            if visibility == Visibility::Public {
+                Ok(visibility)
+            } else {
+                Err(HeaderError::InvalidVisibility(id))
+            }
+        }
+        SurfaceDeclarationKind::OpaqueType => Err(HeaderError::InvalidVisibility(id)),
+        _ => authored_visibility(reserved, id, declaration),
+    }
+}
+
+fn authored_visibility(
+    reserved: &ReservedDeclarations<'_>,
+    id: SurfaceDeclarationId,
+    declaration: crate::SurfaceDeclaration,
+) -> Result<Visibility, HeaderError> {
+    resolve_authored(reserved, declaration.source(), declaration.visibility()).map_err(|error| {
+        match error {
+            VisibilityResolutionError::MissingSource(source) => HeaderError::MissingSource(source),
+            VisibilityResolutionError::Invalid(_) => HeaderError::InvalidVisibility(id),
+            VisibilityResolutionError::AbovePackageRoot(_) => {
+                HeaderError::VisibilityAbovePackageRoot(id)
+            }
+        }
     })
 }
 

@@ -8,10 +8,11 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Resolve module-local and imported type names and lower structural types against the completed
-   canonical reservation, declaration-name, and generic-scope sets. Package/module/source topology,
-   surface inventory, cross-file callable joining, recursive identity reservation, exact names,
-   normalized visibility, and generic binder identity are complete.
+1. Add the compiler-managed standard-prelude fallback without mixing it into authored collision
+   rules, then lower structural types against the completed canonical reservation, authored module
+   namespace, and generic-scope sets. Package/module/source topology, surface inventory, cross-file
+   callable joining, recursive identity reservation, exact names, normalized visibility, generic
+   binder identity, and authored imports/re-exports are complete.
 2. Define declaration headers, aliases, associated declarations, callable provenance, and generic
    requirements into the structural type store, then freeze the declaration program and separate
    `SourceIndex`.

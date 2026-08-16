@@ -81,15 +81,21 @@ be introduced to make an unresolved syntax choice.
   lexical scopes into members, reuses repeated declaration-pattern binders, rejects explicit
   duplicates and nested shadowing, and projects every authored binder occurrence. Joined contract
   and implementation sources share one generic identity sequence.
+  Authored import preparation builds one visibility-bearing namespace per module. Direct
+  declarations, private imports, scoped/public re-exports, selected aliases, and module namespaces
+  use the same table and collision rule. Dependency modules are completed before importers;
+  selected names must be accessible, re-exports cannot widen their targets, and source imports add
+  no semantic import identity. Exact module paths and selected-name tokens project back to their
+  resolved semantic entities.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will resolve module-local and imported type names, structural types, and
-requirements against the complete reservation, namespace, and generic-scope set, define every
-arena slot, and discard the temporary syntax-owned inventory and all mutable builders. No crate yet
-owns checked body semantics.
+The next Phase 2 increment will add the compiler-managed prelude fallback, then resolve structural
+types and requirements against the complete reservation, authored namespace, and generic-scope
+set. It will define every arena slot and discard the temporary syntax-owned inventory and all
+mutable builders. No crate yet owns checked body semantics.
 
 ## Verification
 

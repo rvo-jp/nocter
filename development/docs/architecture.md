@@ -180,6 +180,16 @@ implementations reuse the representative contract's parameter IDs and must repea
 sequence. Structural type lowering therefore receives one complete lexical generic environment and
 never infers binding identity from a type occurrence.
 
+Authored module imports are resolved after generic scopes but before type construction. Every
+module owns one symbol-sorted namespace whose entries pair an exported semantic entity with its
+effective visibility. Direct declarations and imported names occupy that same table, so selected
+aliases cannot collide with a declaration or another import. Dependency modules are completed
+before importers. Selection checks the target entry from the importing module, and a re-export's
+normalized visibility must denote a subset of the target boundary. Same-module source edges add no
+semantic import; declarations from their already-composed sources entered the module table during
+the direct pass. The compiler-managed prelude remains a separate fallback layer so it cannot turn
+two authored collisions into priority rules.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no
