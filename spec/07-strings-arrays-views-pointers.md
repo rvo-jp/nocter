@@ -557,6 +557,13 @@ Rules:
 - A multi-line string literal has type `&str`.
 - Both forms are valid UTF-8 after escape processing.
 - Both forms refer to static storage.
+- Each compiled literal occurrence evaluates to a stable static `&str` for the program lifetime.
+  The compiler may pool identical decoded bytes or share overlapping prefix or suffix storage
+  between different occurrences. It may also keep occurrences separate.
+- No address equality or inequality is guaranteed between distinct literal occurrences, even when
+  their decoded contents are equal. String identity and equality use decoded bytes, not `ptr()`.
+- An empty string literal still carries a non-null `*u8`-compatible pointer and length zero. No byte
+  is live or readable through that pointer.
 - Multi-line string literal indentation is removed by the lexical rules in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
 - Multi-line string literals do not add an implicit leading newline or trailing newline.
 - A multi-line string literal can include line breaks in its value.

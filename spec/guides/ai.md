@@ -46,6 +46,8 @@ Rules for generated code:
   payloadless success at a concrete expected `void!` boundary. It does not infer a generic type.
 - Inside interpolation, postfix `?` performs ordinary propagation and cleanup, while postfix `!`
   traps without dropping the partial `String`. A bare fallible call never propagates implicitly.
+- Never use string-literal addresses as identity. Distinct occurrences may share pooled static
+  bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.
