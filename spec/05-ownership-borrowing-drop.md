@@ -260,7 +260,7 @@ forms, `drop` is an ordinary identifier.
 
 The declaration and statement source forms are defined by
 [Drop and Test Declarations](25-syntactic-grammar.md#drop-and-test-declarations) and the common
-statement grammar.
+[statement grammar](25-syntactic-grammar.md#statements).
 
 A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
@@ -578,13 +578,8 @@ return move value
 let item = move maybe?
 ```
 
-Move syntax has a place-specific grammar:
-
-```text
-MovePlace = binding ("." field_name)*
-MoveExpression = "move" MovePlace
-MoveOutcomeExpression = MoveExpression ["?" | "!"]
-```
+Move syntax uses the place-specific production under
+[Expression Precedence](25-syntactic-grammar.md#expression-precedence).
 
 An outcome suffix is applied to the completed move expression. Therefore `move maybe?` is
 equivalent to `(move maybe)?`, not `move (maybe?)`.

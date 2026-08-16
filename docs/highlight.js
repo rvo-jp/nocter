@@ -1,5 +1,16 @@
 const NOCTER_LANGUAGES = new Set(["nct", "nocter"]);
 const SHELL_LANGUAGES = new Set(["sh", "shell", "bash", "zsh"]);
+const NOCTER_RESERVED_KEYWORDS = new Set([
+    "as", "break", "catch", "continue", "construct", "conform", "else", "enum", "false",
+    "for", "func", "if", "in", "instance", "interface", "is", "let", "literal", "loop",
+    "match", "method", "move", "never", "none", "operator", "otherwise", "primitive", "pub",
+    "region", "return", "struct", "test", "true", "type", "use", "using", "var", "void",
+    "while"
+]);
+const NOCTER_BUILTIN_TYPES = new Set([
+    "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "str", "bool",
+    "void", "never", "Self"
+]);
 
 function highlightCode(source, language = "") {
     const normalized = String(language).toLowerCase();
@@ -17,8 +28,6 @@ function highlightCode(source, language = "") {
 
 function highlightNocterCode(source) {
     const pattern = /\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|&\+|\.{3}|\b[A-Za-z_][A-Za-z0-9_]*\b|\b\d+\b|[{}()[\]:=.+*/<>,&?!]/g;
-    const keywords = new Set(["use", "struct", "interface", "impl", "enum", "literal", "construct", "func", "method", "pub", "primitive", "let", "var", "move", "as", "otherwise", "match", "return", "if", "else", "for", "in"]);
-    const types = new Set(["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "str", "bool", "void", "never", "Self"]);
     let output = "";
     let lastIndex = 0;
 
@@ -26,19 +35,19 @@ function highlightNocterCode(source) {
         const token = match[0];
         const index = match.index;
         output += escapeHtml(source.slice(lastIndex, index));
-        output += highlightNocterToken(token, source.slice(index + token.length), keywords, types);
+        output += highlightNocterToken(token, source.slice(index + token.length));
         lastIndex = index + token.length;
     }
 
     return output + escapeHtml(source.slice(lastIndex));
 }
 
-function highlightNocterToken(value, rest, keywords, types) {
+function highlightNocterToken(value, rest) {
     if (value.startsWith("//")) return syntaxToken("comment", value);
     if (value.startsWith('"') || value.startsWith("'")) return syntaxToken("string", value);
     if (/^\d+$/.test(value)) return syntaxToken("number", value);
-    if (keywords.has(value)) return syntaxToken("keyword", value);
-    if (types.has(value) || /^[A-Z][A-Za-z0-9_]*$/.test(value)) return syntaxToken("type", value);
+    if (NOCTER_RESERVED_KEYWORDS.has(value)) return syntaxToken("keyword", value);
+    if (NOCTER_BUILTIN_TYPES.has(value) || /^[A-Z][A-Za-z0-9_]*$/.test(value)) return syntaxToken("type", value);
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value) && rest.trimStart().startsWith("(")) return syntaxToken("function", value);
     if (value === "&+" || value === "..." || /^[{}()[\]:=.+*/<>,&?!]$/.test(value)) return syntaxToken("operator", value);
     return escapeHtml(value);
@@ -108,6 +117,7 @@ function escapeHtml(text) {
 }
 
 module.exports = {
+    NOCTER_RESERVED_KEYWORDS,
     highlightCode,
     highlightNocterCode,
     highlightShellCode

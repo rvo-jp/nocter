@@ -62,7 +62,7 @@
                 <div class="hero-code-panels">
                     <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
 
-<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
 
     <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
@@ -73,10 +73,10 @@
     <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span><span class="token-operator">:</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
     <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
         output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
         output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
@@ -88,14 +88,16 @@
     expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
-        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
-        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
         <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
@@ -157,16 +159,19 @@
                 <span class="markdown-path-text">/spec/25-syntactic-grammar.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="syntactic-grammar">Syntactic Grammar</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><p>This chapter is the normative recognition grammar for the source forms whose productions it defines. The <a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a> owns token formation, comments, newline tokens, and the common comma-delimited-list rule. Topical chapters own name resolution, visibility reachability, typing, ownership, evaluation, and container-specific validity after a source form has been recognized.</p><p><code>Expression</code> is referenced here but remains defined by the expression chapters until its productions are consolidated into this chapter. A referenced production is not an invitation for a compiler to infer syntax from examples: only an explicit rule in the linked chapter may recognize it.</p><h2 id="notation">Notation</h2><p>Productions use this notation:</p><pre><code class="language-text">Name        = one production
+                <h1 id="syntactic-grammar">Syntactic Grammar</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><p>This chapter is the normative recognition grammar for the source forms whose productions it defines. The <a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a> owns token formation, comments, and newline tokens. This chapter owns their composition into lists and source forms. Topical chapters own name resolution, visibility reachability, typing, ownership, evaluation, and container-specific validity after a source form has been recognized.</p><p>Every production referenced by this chapter is defined here or imported explicitly from the lexical grammar. A compiler must not infer syntax from examples, names, resolved declarations, or type information.</p><h2 id="notation">Notation</h2><p>Productions use this notation:</p><pre><code class="language-text">Name        = one production
 "token"     = one exact token spelling
 X?          = zero or one X
 X*          = zero or more X
 X+          = one or more X
 X | Y       = X or Y
 (X Y)       = grouping
-Delimited(X) = X ("," X)* ","?
+List(X) = newline* (X ("," newline* X)* ","?)? newline*
+NonEmptyList(X) = newline* X ("," newline* X)* ","? newline*
 LineSequence(X) = newline* (X (newline+ X)*)? newline*
-</code></pre><p><code>Name</code> means an <code>identifier</code> token unless a narrower production says otherwise. <code>LineSequence</code> owns separation for declarations that do not use commas: adjacent elements require at least one newline, while leading, trailing, and blank lines are accepted. A leaf declaration never consumes its enclosing separator. Newlines accepted as continuations inside parameter lists, generic lists, directives, types, requirements, and expressions are not separators in <code>LineSequence</code>.</p><p>Comments do not change syntactic recognition. Documentation comments are retained as source metadata and attach according to their lexical kind; removing them leaves the same token grammar.</p><h2 id="source-files">Source Files</h2><p>Nocter recognizes package files separately from module source files:</p><pre><code class="language-text">PackageFile = LineSequence(PackageDirective) eof
+X ~ Y       = X and Y are byte-adjacent tokens
+X gap Y     = X and Y are non-joint tokens on the same logical line
+</code></pre><p><code>Name</code> means an <code>identifier</code> token unless a narrower production says otherwise. <code>LineSequence</code> owns separation for declarations that do not use commas: adjacent elements require at least one newline, while leading, trailing, and blank lines are accepted. A leaf declaration never consumes its enclosing separator. Newlines accepted as continuations inside parameter lists, generic lists, directives, types, requirements, and expressions are not separators in <code>LineSequence</code>.</p><p><code>List</code> and <code>NonEmptyList</code> own newlines immediately after an opening delimiter, after a comma, and before the closing delimiter. A newline before a required comma is not consumed: the comma stays at the end of its element's logical line. <code>List</code> permits no elements; <code>NonEmptyList</code> requires one.</p><p>Productions omit a <code>continuation_newline</code> pseudo-token for readability. The parser classifies and consumes exactly the single newlines admitted by the lexical <a href="../13-lexical-grammar/index.html#statement-separation">Statement Separation</a> rules before applying <code>LineSequence</code>. Every remaining <code>newline</code> is a separator token. This classification uses adjacent token kinds and delimiter depth only; it does not depend on parsing success, names, or types.</p><p>Comments do not change syntactic recognition. Documentation comments are retained as source metadata and attach according to their lexical kind; removing them leaves the same token grammar.</p><h2 id="source-files">Source Files</h2><p>Nocter recognizes package files separately from module source files:</p><pre><code class="language-text">PackageFile = LineSequence(PackageDirective) eof
 
 ModuleSource = newline*
                (UseSequence (newline+ ItemSequence)? | ItemSequence)?
@@ -183,11 +188,11 @@ PackageDirectiveName = "name"
                      | "executable"
                      | "test"
 
-DirectiveValue = string_literal
+DirectiveValue = StringLiteral
                | integer_literal
                | DirectiveRecord
 
-DirectiveRecord = "{" Delimited(DirectiveField)? "}"
+DirectiveRecord = "{" List(DirectiveField) "}"
 DirectiveField  = Name ":" DirectiveValue
 </code></pre><p>The closed directive names, allowed repetitions, and record schemas are defined by <a href="../15-command-line-interface/index.html#package-file">Package File</a>. The recursive record grammar only recognizes their common data notation; it does not permit a schema to accept arbitrary fields or value kinds.</p><p>For example:</p><pre><code class="language-nct">#name<span class="token-operator">:</span> <span class="token-string">"example"</span>
 #executable<span class="token-operator">:</span> <span class="token-operator">{</span>
@@ -206,7 +211,7 @@ UseTree = ModulePath
         | ModulePath "." ImportSelection
 
 ImportSelection = Name ("as" Name)?
-                | "{" Delimited(SelectedName) "}"
+                | "{" NonEmptyList(SelectedName) "}"
 
 SelectedName = Name ("as" Name)?
 
@@ -214,7 +219,7 @@ ModulePath = PackageModulePath | RelativeModulePath
 
 PackageModulePath  = ModuleSegment ("/" ModuleSegment)*
 RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
-</code></pre><p><code>ModuleSegment</code> is the snake-case module segment defined by the lexical grammar. Resolution decides whether a private bare relative path is a same-module source import or whether a path is a directory-module import. The parser does not choose between those meanings.</p><p>A block-scope import uses the private <code>"use" UseTree LineEnd</code> form. Visibility is recognized only on a top-level use declaration; the module rules further reject visibility on a same-module source import and reject namespace alias re-exports.</p><h2 id="items">Items</h2><pre><code class="language-text">Item = TargetDirective? TargetableItem
+</code></pre><p><code>ModuleSegment</code> is the snake-case module segment defined by the lexical grammar. Resolution decides whether a private bare relative path is a same-module source import or whether a path is a directory-module import. The parser does not choose between those meanings.</p><p>A block-scope import uses the private <code>BlockUseDeclaration</code> form. Its enclosing block owns the newline separator. Visibility is recognized only on a top-level use declaration; the module rules further reject visibility on a same-module source import and reject namespace alias re-exports.</p><h2 id="items">Items</h2><pre><code class="language-text">Item = TargetDirective? TargetableItem
      | ConstructDeclaration
      | InstanceDeclaration
      | ConformDeclaration
@@ -228,10 +233,10 @@ TargetableItem = FunctionDeclaration
                | EnumDeclaration
                | InterfaceDeclaration
 
-TargetDirective = "#" "target" ":" string_literal newline+
-</code></pre><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>conform</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" Delimited(Name) "&gt;"
+TargetDirective = "#" "target" ":" StringLiteral newline+
+</code></pre><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>conform</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" NonEmptyList(Name) "&gt;"
 
-Parameters = "(" Delimited(Parameter)? ")"
+Parameters = "(" List(Parameter) ")"
 Parameter  = Name ":" Type
 
 CallableTail = ":" CallableResult ProvenanceClause? WhereClause?
@@ -239,7 +244,7 @@ ProvenanceClause = "from" ProvenanceOrigin ("|" ProvenanceOrigin)*
 ProvenanceOrigin = Name
 
 CallableBody = Block?
-</code></pre><p><code>CallableResult</code>, <code>Type</code>, and <code>WhereClause</code> are defined below. A bodyless declaration ends when its enclosing <code>LineSequence</code> reaches a separator or closing brace; later semantic validation permits it only for a source form that owns an external contract/body split or is intrinsically bodyless.</p><h2 id="functions-primitives-and-aliases">Functions, Primitives, and Aliases</h2><pre><code class="language-text">FunctionDeclaration = Visibility? "func" Name GenericParameters? Parameters
+</code></pre><p><code>CallableResult</code>, <code>Type</code>, and <code>WhereClause</code> are defined below. A bodyless declaration ends when its enclosing <code>LineSequence</code> reaches a separator or closing brace; later semantic validation permits it only for a source form that owns an external contract/body split or is intrinsically bodyless. At the start of <code>CallableResult</code>, the identifier spelling <code>some</code> commits to <code>OpaqueResult</code>; it is not reconsidered as a <code>NamedType</code> if the opaque form is incomplete. This contextual boundary does not affect value expressions named <code>some</code>.</p><h2 id="functions-primitives-and-aliases">Functions, Primitives, and Aliases</h2><pre><code class="language-text">FunctionDeclaration = Visibility? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
 
 PrimitiveDeclaration = Visibility? "primitive" Name GenericParameters? Parameters
@@ -256,7 +261,7 @@ EnumDeclaration = Visibility? "enum" Name GenericParameters? WhereClause?
                   "{" LineSequence(EnumVariant) "}"
 
 EnumVariant = Name EnumPayload?
-EnumPayload = "(" Delimited(Parameter)? ")"
+EnumPayload = "(" List(Parameter) ")"
 </code></pre><p>Struct fields and enum variants are newline-separated declarations. They are not comma-delimited items. Enum payload parameters are comma-delimited. The grammar recognizes an empty enum body so the enum validity rule can emit its dedicated “at least one variant” diagnostic; a valid enum has one through 256 variants.</p><p><code>copy</code> is contextual only immediately before <code>struct</code>. It is not a general type modifier and does not occur on an enum or alias.</p><h2 id="interfaces">Interfaces</h2><pre><code class="language-text">InterfaceDeclaration = Visibility? "interface" Name GenericParameters? WhereClause?
                        "{" LineSequence(InterfaceMember) "}"
 
@@ -277,11 +282,11 @@ ConstructionFunction = "func" Name GenericParameters? Parameters
 
 LiteralDeclaration = "literal" LiteralShape LiteralParameters CallableTail CallableBody
 
-LiteralShape = "[" "]" | empty_string_literal
+LiteralShape = "[" "]" | EmptyStringLiteral
 
 LiteralParameters = "(" "..." Name ":" Type ")"
                   | "(" Parameter ")"
-</code></pre><p><code>empty_string_literal</code> is the <code>string_literal</code> token whose source and decoded contents are both empty (<code>""</code>). In this position it denotes a literal shape, not a decoded runtime string value. Semantic validation pairs the sequence shape with its one element pack and the string shape with its one ordinary parameter. Every construction member requires an explicit <code>Visibility</code>; <code>default</code> is contextual only between that visibility and <code>func</code> or <code>literal</code>.</p><p>An empty construction body is syntactically valid and explicitly declares no direct construction entry.</p><h2 id="instances">Instances</h2><pre><code class="language-text">InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
+</code></pre><p><code>EmptyStringLiteral</code> is the joint single-line <code>string_start string_end</code> sequence whose source and decoded contents are both empty (<code>""</code>). In this position it denotes a literal shape, not a decoded runtime string value. Semantic validation pairs the sequence shape with its one element pack and the string shape with its one ordinary parameter. Every construction member requires an explicit <code>Visibility</code>; <code>default</code> is contextual only between that visibility and <code>func</code> or <code>literal</code>.</p><p>An empty construction body is syntactically valid and explicitly declares no direct construction entry.</p><h2 id="instances">Instances</h2><pre><code class="language-text">InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
                       "{" LineSequence(InstanceMember) "}"
 
 InstanceMember = InherentMethod
@@ -325,31 +330,31 @@ ConformMethod = MethodSignature Block
                        | BuiltinTypePattern
                        | "[" Name "]"
 
-PatternArguments = "&lt;" Delimited(Name) "&gt;"
+PatternArguments = "&lt;" NonEmptyList(Name) "&gt;"
 BuiltinTypePattern = BuiltinScalarType | "str" | "error"
 </code></pre><p>Pattern argument slots contain bare binder names only. Concrete and nested types are expressed by <code>where</code> binder refinements, not placed directly in <code>PatternArguments</code>. Semantic validation decides which built-in patterns the active standard-library package may extend and whether the resolved target kind is legal for <code>construct</code>, <code>instance</code>, <code>conform</code>, or <code>drop</code>.</p><h2 id="drop-and-test-declarations">Drop and Test Declarations</h2><pre><code class="language-text">DropDeclaration = "drop" DeclarationTypePattern "(" "&amp;+" "self" ")" Block
 TestDeclaration = "test" Name Block
-</code></pre><p>Neither declaration accepts visibility, generic parameters before its target/name, an explicit result type, or a <code>where</code> clause. A drop declaration always contains its body. A test body has the fixed semantic result contract <code>void!</code> without writing that contract in source.</p><h2 id="recognition-boundaries">Recognition Boundaries</h2><p>The following examples are syntax errors, independently of whether their names resolve:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">late</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+</code></pre><p>Neither declaration accepts visibility, generic parameters before its target/name, an explicit result type, or a <code>where</code> clause. A drop declaration always contains its body. A test body has the fixed semantic result contract <code>void!</code> without writing that contract in source.</p><h2 id="recognition-boundaries">Recognition Boundaries</h2><p>The following examples are syntax errors, independently of whether their names resolve:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">late</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print <span class="token-comment">// imports cannot follow items</span>
 
-<span class="token-keyword">pub</span> instance <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// instance has no declaration visibility</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// instance has no declaration visibility</span>
 
-instance <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// pattern arguments cannot contain concrete types</span>
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// pattern arguments cannot contain concrete types</span>
 
-instance <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">!</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> false <span class="token-operator">}</span>
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">!</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-instance <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span>
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span>
 </code></pre><p>The following forms are recognized first and rejected by later semantic validation:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">missing_body</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span>
 
 <span class="token-keyword">enum</span> <span class="token-type">Empty</span> <span class="token-operator">{</span><span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">ExternalType</span> <span class="token-operator">{</span><span class="token-operator">}</span>
-</code></pre><p>The first is invalid unless it is an eligible public contract with one matching same-module body; the second violates the enum variant-count rule; the third violates construction ownership unless the resolved target belongs to the declaring module or to the authorized standard-library surface. Keeping those checks outside parsing gives every accepted token sequence one stable syntax-tree shape.</p><h2 id="types">Types</h2><pre><code class="language-text">Type = PrefixType OutcomeSuffix?
+</code></pre><p>The first is invalid unless it is an eligible public contract with one matching same-module body; the second violates the enum variant-count rule; the third violates construction ownership unless the resolved target belongs to the declaring module or to the authorized standard-library surface. Keeping those checks outside parsing gives every accepted token sequence one stable syntax-tree shape.</p><h2 id="types">Types</h2><pre><code class="language-text">Type = PrefixType TypeOutcomeSuffix?
 
-OutcomeSuffix = "?" "!"? | "!"
+TypeOutcomeSuffix = "?" "!"? | "!"
 
 PrefixType = CallableType | NonCallablePrefix
 
@@ -363,7 +368,6 @@ TypeAtom = BuiltinScalarType
          | "error"
          | "void"
          | "never"
-         | "Self"
          | NamedType
          | SliceType
          | FixedArrayType
@@ -374,26 +378,27 @@ BuiltinScalarType = "bool"
                   | "u8" | "u16" | "u32" | "u64"
                   | "usize" | "isize"
 
-NamedType = Name TypeArguments? ProjectionSuffix*
-TypeArguments = "&lt;" Delimited(Type) "&gt;"
-ProjectionSuffix = "." Name
+NamedType = NamedTypeHead TypeSelectionSuffix*
+NamedTypeHead = Name TypeArguments? | "Self"
+TypeArguments = "&lt;" NonEmptyList(Type) "&gt;"
+TypeSelectionSuffix = "." Name TypeArguments?
 
 SliceType = "[" Type "]"
 FixedArrayType = "[" Type ";" integer_literal "]"
 GroupedType = "(" Type ")"
 
-CallableType = CallableCapability "func" "(" Delimited(CallableParameter)? ")"
+CallableType = CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 CallableCapability = ("&amp;" | "&amp;+")?
 CallableParameter = Type | Name ":" Type
 
 BorrowType = "&amp;" NonCallablePrefix | "&amp;+" NonCallablePrefix
 
-CallableResult = Type | OpaqueResult
+CallableResult = Type | OpaqueResult TypeOutcomeSuffix?
 OpaqueResult = "some" Name OpaqueArguments?
-OpaqueArguments = "&lt;" Delimited(OpaqueArgument) "&gt;"
+OpaqueArguments = "&lt;" NonEmptyList(OpaqueArgument) "&gt;"
 OpaqueArgument = Type | Name "=" Type
-</code></pre><p>Prefix pointer and borrow operators bind before an outcome suffix. Consequently <code>&amp;T?</code> is an optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in <code>&amp;(T?)</code>.</p><p>At one ungrouped layer, <code>?</code>, <code>!</code>, and <code>?!</code> are the recognized suffixes. Reversing the outcome order uses a grouped inner fallible type, <code>(T!)?</code>; <code>T!?</code> is not a production. Semantic validation rejects repeated layers reached through grouping, invalid <code>void</code> or <code>never</code> positions, unsized values outside indirection, and opaque results outside their allowed callable-result positions.</p><p><code>CallableCapability</code> distinguishes a repeatedly callable readonly value (<code>&amp;func</code>), a repeatedly callable readwrite value (<code>&amp;+func</code>), and a once-callable owned value (<code>func</code>). Callable parameters may omit names or use <code>name: Type</code>; names exist for provenance clauses but do not change the structural callable type.</p><p>Because <code>&amp;func</code> and <code>&amp;+func</code> begin callable types, they are not parsed as an ordinary borrow prefix followed by a separate <code>func</code> type. Borrowing a callable type as data requires explicit grouping, just like borrowing another already composed type.</p><p>An associated projection is a suffix of a named type atom. Name resolution and conformance decide whether <code>Base.Name</code> denotes one valid associated type; the parser does not reinterpret it as a module path. A projection may then participate in ordinary outer prefix and outcome forms.</p><p>The fixed-array length is an integer-literal token. General constant expressions and const generic parameters have no type production.</p><p>The lexer emits <code>&gt;&gt;</code> as one punctuation token. While parsing type arguments, that token supplies two consecutive <code>&gt;</code> closers only when two currently open type-argument lists require them. Thus <code>Outer&lt;Inner&lt;T&gt;&gt;</code> is canonical and does not require whitespace between the closers. In expression grammar, the same token remains the right-shift operator; no name or type information participates in this decision.</p><h2 id="generic-requirements">Generic Requirements</h2><pre><code class="language-text">WhereClause = "where" Predicate ("," Predicate)*
+</code></pre><p>Prefix pointer and borrow operators bind before an outcome suffix. Consequently <code>&amp;T?</code> is an optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in <code>&amp;(T?)</code>.</p><p>At one ungrouped layer, <code>?</code>, <code>!</code>, and <code>?!</code> are the recognized suffixes. Reversing the outcome order uses a grouped inner fallible type, <code>(T!)?</code>; <code>T!?</code> is not a production. Semantic validation rejects repeated layers reached through grouping, invalid <code>void</code> or <code>never</code> positions, unsized values outside indirection, and opaque results outside their allowed callable-result positions.</p><p><code>CallableCapability</code> distinguishes a repeatedly callable readonly value (<code>&amp;func</code>), a repeatedly callable readwrite value (<code>&amp;+func</code>), and a once-callable owned value (<code>func</code>). Callable parameters may omit names or use <code>name: Type</code>; names exist for provenance clauses but do not change the structural callable type.</p><p>Because <code>&amp;func</code> and <code>&amp;+func</code> begin callable types, they are not parsed as an ordinary borrow prefix followed by a separate <code>func</code> type. Borrowing a callable type as data requires explicit grouping, just like borrowing another already composed type.</p><p>A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module namespace prefix selects one exported type member, while a type prefix selects an associated type. Thus <code>parser.Parser&lt;T&gt;</code> and <code>T.Item</code> use the same token-only selection grammar without conflating their resolved identities. Type arguments are syntactically accepted on a selected segment so a module-qualified nominal type can be generic; semantic validation rejects arguments on an associated projection because generic associated types are not supported. A selected type may then participate in ordinary outer prefix and outcome forms.</p><p>After a <code>Name</code>, <code>&lt;</code> starts <code>TypeArguments</code> only when the complete non-empty list and matching <code>&gt;</code> are present in that type position. Otherwise the enclosing expression grammar retains <code>&lt;</code> as its ordering token. This bounded syntactic lookahead never asks whether the name denotes a generic type. Nested closing <code>&gt;&gt;</code> follows the token-subdivision rule below.</p><p>The fixed-array length is an integer-literal token. General constant expressions and const generic parameters have no type production.</p><p>The lexer emits <code>&gt;&gt;</code> as one punctuation token. While parsing type arguments, that token supplies two consecutive <code>&gt;</code> closers only when two currently open type-argument lists require them. Thus <code>Outer&lt;Inner&lt;T&gt;&gt;</code> is canonical and does not require whitespace between the closers. In expression grammar, the same token remains the right-shift operator; no name or type information participates in this decision.</p><p>The lexer likewise emits <code>&amp;&amp;</code> as one token. In a type-prefix position it supplies two readonly borrow prefixes, so <code>&amp;&amp;T</code> is the compact spelling of <code>&amp;(&amp;T)</code>. In an expression operator position it remains logical conjunction.</p><h2 id="generic-requirements">Generic Requirements</h2><pre><code class="language-text">WhereClause = "where" Predicate ("," Predicate)*
 
 Predicate = CapabilityPredicate
           | CopyPredicate
@@ -415,8 +420,8 @@ OperatorRequirement = "&amp;" Type ("==" | "&lt;") "&amp;" Type
 CoercionPredicate = ("&amp;" | "&amp;+") Type "as" Type
 
 ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
-ExpansionRequirementSource = Type | "&amp;" Type | "&amp;+" Type
-</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p><h2 id="blocks-and-body-results">Blocks and Body Results</h2><pre><code class="language-text">Block = "{" newline*
+ExpansionRequirementSource = Name | "&amp;" Name | "&amp;+" Name
+</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p><p>An expansion requirement's source is syntactically one binder name with optional readonly or readwrite capability. Semantic validation requires that name to be a visible generic parameter; arbitrary constructed source types do not create a second expansion-requirement spelling.</p><h2 id="blocks-and-body-results">Blocks and Body Results</h2><pre><code class="language-text">Block = "{" newline*
         (BlockUseSequence (newline+ ExecutableSequence)? | ExecutableSequence)?
         newline* "}"
 
@@ -449,28 +454,159 @@ BreakStatement = "break"
 ContinueStatement = "continue"
 DropStatement = "drop" Name
 
-WhileStatement = "while" Expression Block
+WhileStatement = "while" HeaderExpression Block
 LoopStatement = "loop" Block
 
 ForStatement = "for" Name "in" ForSource Block
-ForSource = Expression "..&lt;" Expression | Expression
+ForSource = HeaderExpression "..&lt;" HeaderExpression | HeaderExpression
 
-RegionStatement = "region" Name "using" Expression Block
-</code></pre><p><code>PostfixExpression</code> is the common expression production for a primary followed by field, call, method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a writable place. The place, initialization, borrow, and operator checks happen after parsing. This keeps <code>call() = value</code> structurally an assignment with one invalid target rather than forcing error recovery to invent another expression tree.</p><p><code>let _ = expression</code> is the only discard binding. Later validation rejects <code>var _</code>, missing type information, invalid binding types, assignment to immutable places, assignment to borrowed parameter bindings, and compound assignment whose target is not definitely initialized.</p><p>The <code>drop</code> spelling is contextual only at the beginning of a statement followed by one <code>Name</code>. Dropping a field, index, call result, or arbitrary expression has no statement production. An ordinary call such as <code>drop(value)</code> remains an expression using an ordinary name.</p><p><code>ForSource</code> gives <code>..&lt;</code> a grammar role only in a <code>for</code> header. The first alternative is selected when that token follows the first expression; no other binary range expression exists. A collection source is one ordinary expression, including an explicit <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> prefix. Iteration capability and the rejection of a bare collection are semantic checks.</p><h2 id="control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</h2><pre><code class="language-text">ControlExpression = IfExpression | MatchExpression
+RegionStatement = "region" Name "using" AllocatorPlace Block
+
+NamedPlace = Name ("." Name)*
+AllocatorPlace = NamedPlace
+</code></pre><p><code>PostfixExpression</code> is the common expression production for a primary followed by field, call, method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a writable place. The place, initialization, borrow, and operator checks happen after parsing. This keeps <code>call() = value</code> structurally an assignment with one invalid target rather than forcing error recovery to invent another expression tree.</p><p><code>let _ = expression</code> is the only discard binding. Later validation rejects <code>var _</code>, missing type information, invalid binding types, assignment to immutable places, assignment to borrowed parameter bindings, and compound assignment whose target is not definitely initialized.</p><p>The <code>drop</code> spelling is contextual only at the beginning of a statement followed by one <code>Name</code>. Dropping a field, index, call result, or arbitrary expression has no statement production. An ordinary call such as <code>drop(value)</code> remains an expression using an ordinary name.</p><p><code>ForSource</code> gives <code>..&lt;</code> a grammar role only in a <code>for</code> header. The first alternative is selected when that token follows the first expression; no other binary range expression exists. A collection source is one ordinary expression, including an explicit <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> prefix. Iteration capability and the rejection of a bare collection are semantic checks.</p><p><code>AllocatorPlace</code> is shared by <code>region ... using</code> and typed-literal overrides. It admits an existing binding and statically named fields only. Calls, indexes, literals, conversions, and other effectful expressions must be evaluated into a binding before selection as an allocation context.</p><h2 id="control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</h2><pre><code class="language-text">ControlExpression = IfExpression | MatchExpression
 
 IfExpression = "if" IfCondition Block ElseClause?
-IfCondition = Expression ("is" EnumPattern)?
+IfCondition = HeaderExpression ("is" EnumPattern)?
 ElseClause = "else" Block | "else" IfExpression
 
-MatchExpression = "match" Expression
+MatchExpression = "match" HeaderExpression
                   "{" LineSequence(MatchArm) "}"
 
 MatchArm = EnumPattern Block | "_" Block
 
 EnumPattern = Name "." Name EnumPatternPayload?
-EnumPatternPayload = "(" Delimited(PayloadSlot)? ")"
+EnumPatternPayload = "(" List(PayloadSlot) ")"
 PayloadSlot = Name | "_"
-</code></pre><p><code>is</code> is recognized only between an <code>if</code> target expression and its enum pattern. <code>_</code> by itself is recognized only as a <code>match</code> fallback arm; inside a payload list it consumes exactly one payload slot. Nested, literal, named-field, rest, and binding-modifier patterns have no production.</p><p>The grammar permits zero match arms and permits a fallback in any source position so the semantic checker can issue focused exhaustiveness, duplicate-arm, empty-match, and fallback-last diagnostics. It likewise recognizes any qualified names and payload arity before resolution checks that they select the target enum and exact variant payload.</p><p>An <code>if</code>, <code>if is</code>, or <code>match</code> has one expression node whether it appears as a non-final expression statement or as a block result. Branch compatibility, missing <code>else</code>, exhaustiveness, ownership of the pattern target, and payload binding types do not affect parsing.</p>
+</code></pre><p><code>is</code> is recognized only between an <code>if</code> target expression and its enum pattern. <code>_</code> by itself is recognized only as a <code>match</code> fallback arm; inside a payload list it consumes exactly one payload slot. Nested, literal, named-field, rest, and binding-modifier patterns have no production.</p><p>The grammar permits zero match arms and permits a fallback in any source position so the semantic checker can issue focused exhaustiveness, duplicate-arm, empty-match, and fallback-last diagnostics. It likewise recognizes any qualified names and payload arity before resolution checks that they select the target enum and exact variant payload.</p><p>An <code>if</code>, <code>if is</code>, or <code>match</code> has one expression node whether it appears as a non-final expression statement or as a block result. Branch compatibility, missing <code>else</code>, exhaustiveness, ownership of the pattern target, and payload binding types do not affect parsing.</p><h2 id="expression-precedence">Expression Precedence</h2><p>The complete expression grammar, from lowest to highest precedence, is:</p><pre><code class="language-text">Expression = RecoveryExpression
+
+RecoveryExpression = LogicalOrExpression RecoveryClause*
+RecoveryClause = "catch" CatchBinding Block
+               | "otherwise" Block
+CatchBinding = Name | "_"
+
+LogicalOrExpression = LogicalAndExpression ("||" LogicalAndExpression)*
+LogicalAndExpression = EqualityExpression ("&amp;&amp;" EqualityExpression)*
+
+EqualityExpression = OrderingExpression (("==" | "!=") OrderingExpression)?
+OrderingExpression = ShiftExpression (("&lt;" | "&lt;=" | "&gt;" | "&gt;=") ShiftExpression)?
+ShiftExpression = AdditiveExpression (("&lt;&lt;" | "&gt;&gt;") AdditiveExpression)*
+AdditiveExpression = MultiplicativeExpression (("+" | "-") MultiplicativeExpression)*
+MultiplicativeExpression = ConversionExpression (("*" | "/" | "%") ConversionExpression)*
+
+ConversionExpression = UnaryExpression ("as" Type)*
+
+UnaryExpression = ("!" | "-" | "&amp;" | "&amp;+") UnaryExpression
+                | MoveExpression
+                | OutcomeExpression
+
+MoveExpression = "move" MovePlace ExpressionOutcomeSuffix?
+MovePlace = NamedPlace
+
+OutcomeExpression = PostfixExpression ExpressionOutcomeSuffix?
+ExpressionOutcomeSuffix = "?" | "!"
+
+PostfixExpression = PrimaryExpression PostfixSuffix*
+PostfixSuffix = CallSuffix | MemberSuffix | IndexSuffix
+CallSuffix = "(" List(Expression) ")"
+MemberSuffix = "." Name
+IndexSuffix = "[" Expression "]"
+</code></pre><p>Every repeated binary level associates left. <code>&amp;&amp;</code> and <code>||</code> retain their specified short-circuit evaluation. Equality and ordering are deliberately non-associative instead: one ungrouped level accepts at most one comparison. <code>a &lt; b &lt; c</code> and <code>a == b == true</code> therefore have no production. When comparing a comparison result is intentional, grouping states that intent explicitly, as in <code>(a == b) == true</code>. The parser does not invent a comparison-chain node.</p><p>Unary operators bind more tightly than <code>as</code>. Thus <code>&amp;value as &amp;View</code> is exactly <code>(&amp;value) as &amp;View</code>, while <code>&amp;(value as WiderInteger)</code> requires the authored grouping shown. Conversion binds more tightly than multiplicative arithmetic. Repeated explicit conversions associate left; conversion validity and the one-step borrow-coercion rule are semantic checks.</p><p>At a unary-prefix position, lexical <code>&amp;&amp;</code> supplies two readonly borrow prefixes; after a completed left operand it remains logical conjunction. Thus <code>&amp;&amp;value</code> is parsed as <code>&amp;(&amp;value)</code>, while <code>left &amp;&amp; value</code> uses <code>LogicalAndExpression</code>. No type information selects between them.</p><p>One ungrouped layer accepts at most one outcome suffix. <code>value??</code>, <code>value!!</code>, <code>value?!</code>, and <code>value!?</code> have no production. Grouping creates another expression layer, so <code>(value?)?</code> is valid syntax. <code>move place?</code> and <code>move place!</code> are part of <code>MoveExpression</code>: the complete place is moved before the suffix applies. Calls, indexes, dereferences, and grouped expressions are not <code>MovePlace</code> forms.</p><p>Each recovery clause applies to the complete expression to its left. This permits a fallible optional to handle failure and then absence:</p><pre><code class="language-nct">value <span class="token-keyword">catch</span> error <span class="token-operator">{</span> <span class="token-function">fallback_optional</span><span class="token-operator">(</span>error<span class="token-operator">)</span> <span class="token-operator">}</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-function">fallback_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+</code></pre><p>The blocks make recovery grouping explicit. Nested fallback is written inside the block; there is no separate precedence guess or implicit flattening. <code>catch</code> requires one binding or <code>_</code>, while bare <code>catch { ... }</code> has no production.</p><p>An index suffix requires its opening <code>[</code> to be joint with the preceding expression token. <code>values[index]</code> is indexing; <code>values [index]</code> is considered for typed-sequence construction instead. A call opener may be separated by spaces but must remain on the same logical line as its callee. <code>.</code> may use the lexical continuation rule. These decisions use only token spacing and newlines.</p><p>Assignment and <code>..&lt;</code> are absent from this precedence grammar. Assignment is a statement, and <code>..&lt;</code> exists only in a range <code>for</code> header.</p><h2 id="primary-expressions">Primary Expressions</h2><pre><code class="language-text">PrimaryExpression = ControlExpression
+                  | ClosureExpression
+                  | StructLiteral
+                  | TypedLiteral
+                  | ArrayLiteral
+                  | StringExpression
+                  | GenericOwnerMember
+                  | ReferenceExpression
+                  | integer_literal
+                  | byte_literal
+                  | "true"
+                  | "false"
+                  | "none"
+                  | GroupedExpression
+
+GroupedExpression = "(" Expression ")"
+
+ReferenceExpression = OwnerHead
+GenericOwnerMember = GenericOwnerReference "." Name
+
+GenericOwnerReference = GenericNamedTypeHead TypeSelectionSuffix*
+                      | PlainNamedTypeHead PlainTypeSelectionSuffix*
+                        GenericTypeSelectionSuffix TypeSelectionSuffix*
+GenericNamedTypeHead = Name TypeArguments
+PlainNamedTypeHead = Name | "Self"
+PlainTypeSelectionSuffix = "." Name
+GenericTypeSelectionSuffix = "." Name TypeArguments
+
+OwnerReference = NamedType
+               | BuiltinScalarType
+               | "str"
+               | "error"
+OwnerHead = Name | "Self" | BuiltinScalarType | "str" | "error"
+
+StructLiteral = OwnerReference StructInitializer
+StructInitializer = "{" List(FieldInitializer) "}"
+FieldInitializer = Name ":" Expression
+
+ArrayLiteral = "[" List(Expression) "]"
+
+TypedLiteral = TypedSequenceLiteral | TypedStringLiteral
+TypedSequenceLiteral = OwnerReference gap SequenceBody AllocationOverride?
+SequenceBody = "[" List(SequenceElement) "]"
+SequenceElement = Expression | "..." SpreadExpression
+SpreadExpression = Expression
+
+TypedStringLiteral = OwnerReference gap StringLiteral AllocationOverride?
+AllocationOverride = "using" AllocatorPlace
+</code></pre><p><code>OwnerReference</code> is a syntactic construction owner, not a resolved type. A <code>Name</code> without explicit owner arguments remains the same identifier-shaped primary used for values and types; resolution decides its namespace. Dotted owner references can select a type from an imported module namespace or an associated type through the same left-to-right rule as <code>NamedType</code>. Explicit <code>TypeArguments</code> in expression position are recognized only in the three productions that immediately prove construction-owner syntax: before a final <code>.Name</code> member, a struct initializer, or a spaced typed literal. <code>GenericOwnerReference</code> spells out the token cases in which at least one owner segment has explicit arguments. Consequently <code>left &lt; middle &gt; right</code> is never reparsed as a generic owner after name resolution.</p><p>Brace-owning expressions are allowed in ordinary expression nesting. At the outer level of a control header, however, the first <code>{</code> at the header's delimiter depth always starts the required control body:</p><pre><code class="language-text">HeaderExpression = Expression up to but not including the first outer "{"
+</code></pre><p>This applies to <code>if</code>, <code>if is</code>, <code>while</code>, <code>match</code>, both range endpoints and collection sources in <code>for</code>. At that outer level a <code>StructLiteral</code>, <code>ClosureExpression</code>, nested <code>ControlExpression</code>, or <code>RecoveryClause</code> therefore cannot consume a block. Parentheses, call arguments, index operands, array elements, and string interpolations enter a nested delimiter depth and restore ordinary expression grammar:</p><pre><code class="language-nct"><span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-type">Flags</span> <span class="token-operator">{</span> ready<span class="token-operator">:</span> <span class="token-keyword">true</span> <span class="token-operator">}</span><span class="token-operator">)</span><span class="token-operator">.</span>ready <span class="token-operator">{</span>
+    <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre><p>Therefore <code>if Empty {}</code> always means condition <code>Empty</code> followed by an empty body. The parser does not backtrack based on fields, a second brace, or whether <code>Empty</code> resolves as a type. Likewise, <code>if (ready) { run() }</code> is a grouped condition and its <code>if</code> body, not a closure used as the condition. To place a closure itself at the outer header level, group the complete closure:</p><pre><code class="language-nct"><span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">(</span>value<span class="token-operator">)</span> <span class="token-operator">{</span> value <span class="token-operator">&gt;</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+</code></pre><p>That example is syntactically unambiguous and then fails semantically unless the closure is valid as the required header value.</p><p>The same grouping rule applies to recovery and nested control expressions:</p><pre><code class="language-nct"><span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-function">load_flag</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">false</span> <span class="token-operator">}</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">while</span> <span class="token-operator">(</span><span class="token-keyword">if</span> <span class="token-function">ready</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-function">keep_running</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span> <span class="token-keyword">false</span> <span class="token-operator">}</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">step</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre><p>Without the outer parentheses, the first block opener belongs to the surrounding control form; the parser never searches for a later brace that would make another interpretation succeed.</p><p>Typed sequence and typed string construction require <code>gap</code>: at least one space, tab, or removed same-line comment separates the owner from <code>[</code> or the string opener, and no newline intervenes. The formatter writes one space. This makes <code>Vec [1]</code> construction and <code>values[1]</code> indexing distinct without consulting name resolution. A newline ends the preceding statement because <code>[</code> and a string opener are not continuation leaders.</p><p>A fixed array contains only ordinary expressions. Spread is recognized only in a typed sequence. <code>SpreadExpression</code> has one additional recognition restriction: its first token cannot be <code>&amp;+</code>. When its first token is <code>move</code>, it must form the ordinary place-only <code>MoveExpression</code>. The accepted ownership-leading forms are therefore <code>...&amp;source</code>, <code>...move place</code>, and a bare <code>...expression</code>; mutable <code>...&amp;+source</code> has no production.</p><p><code>AllocationOverride</code> belongs only to a typed literal and uses the shared <code>AllocatorPlace</code> grammar. Semantic validation requires that place to carry an established aborting allocator or allocation context.</p><h2 id="string-expressions">String Expressions</h2><pre><code class="language-text">StringExpression = string_start StringPart* string_end
+StringPart = string_text
+           | interpolation_start Expression interpolation_end
+
+StringLiteral = string_start string_text? string_end
+EmptyStringLiteral = single_line_string_start ~ string_end
+</code></pre><p><code>StringExpression</code> is the ordinary expression form. With no interpolation part, it is a borrowed static string literal. With at least one interpolation part, it is the allocating interpolation expression specified by the string chapter. An interpolation contains exactly one <code>Expression</code>; empty <code>${}</code> and multiple newline-separated expressions have no production.</p><p><code>StringLiteral</code> is the non-interpolated subset used by package data, <code>#target</code>, and typed string construction. <code>EmptyStringLiteral</code> further requires a single-line opener immediately followed by its joint closer and is used only as the <code>literal ""</code> declaration shape. Triple-quoted empty text does not become a second declaration spelling.</p><p>The lexer identifies <code>interpolation_end</code> by balanced source delimiters. The parser still owns the expression between the delimiters, so nested calls, struct literals, control expressions, strings, and blocks use their ordinary productions without scanning string source a second time.</p><h2 id="closure-expressions">Closure Expressions</h2><pre><code class="language-text">ClosureExpression = "(" ClosureHead ")" ClosureResult? Block
+ClosureHead = newline*
+              (ClosureCaptures ";" ClosureParameters? | ClosureParameters)?
+              newline*
+
+ClosureCaptures = NonEmptyList(ClosureCapture)
+ClosureCapture = "&amp;" Name | "&amp;+" Name | "move" Name
+
+ClosureParameters = NonEmptyList(ClosureParameter)
+ClosureParameter = Name TypeAnnotation?
+
+ClosureResult = ":" Type
+</code></pre><p>The semicolon is present exactly when explicit captures exist, and the capture segment cannot be empty. <code>(&amp;source; value)</code>, <code>(&amp;source;)</code>, <code>(value)</code>, and <code>()</code> are valid shapes; <code>(; value)</code> is not. Capture and parameter segments independently use the common comma-delimited rule.</p><p>Parentheses followed by an optional result annotation and a block select <code>ClosureExpression</code>. Otherwise <code>(expression)</code> selects <code>GroupedExpression</code>. This token-only boundary makes <code>(value) { value }</code> a closure without treating every parenthesized name as a closure during ordinary expression parsing.</p><h2 id="expression-recognition-boundaries">Expression Recognition Boundaries</h2><p>Valid boundary forms include:</p><pre><code class="language-nct"><span class="token-keyword">let</span> view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">View</span>
+<span class="token-keyword">let</span> nested <span class="token-operator">=</span> <span class="token-operator">(</span><span class="token-keyword">move</span> result<span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">let</span> fixed <span class="token-operator">=</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-keyword">let</span> grown <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-operator">...</span>source<span class="token-operator">,</span> <span class="token-operator">...</span><span class="token-keyword">move</span> owned<span class="token-operator">]</span>
+<span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"hello"</span> <span class="token-keyword">using</span> arena
+<span class="token-keyword">let</span> recovered <span class="token-operator">=</span> <span class="token-function">load</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-function">fallback</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-function">default_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+<span class="token-keyword">let</span> explicit <span class="token-operator">=</span> <span class="token-operator">(</span>left <span class="token-operator">=</span><span class="token-operator">=</span> right<span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> expected
+</code></pre><p>The following forms are syntax errors rather than alternate spellings:</p><pre><code class="language-nct"><span class="token-keyword">let</span> invalid <span class="token-operator">=</span> value<span class="token-operator">?</span><span class="token-operator">?</span>
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> <span class="token-keyword">move</span> <span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-operator">...</span><span class="token-operator">&amp;+</span>source<span class="token-operator">]</span>
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> <span class="token-operator">(</span>; value<span class="token-operator">)</span> <span class="token-operator">{</span> value <span class="token-operator">}</span>
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"value: ${value}"</span>
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> left <span class="token-operator">&lt;</span> middle <span class="token-operator">&lt;</span> right
+<span class="token-keyword">let</span> invalid <span class="token-operator">=</span> left <span class="token-operator">=</span><span class="token-operator">=</span> middle <span class="token-operator">=</span><span class="token-operator">=</span> right
+</code></pre><p><code>Vec[index]</code> remains valid indexing syntax, never typed construction. A newline before <code>[1, 2, 3]</code> ends the preceding expression and begins a separate fixed-array expression; it never becomes a typed literal across the newline.</p><p>Whether a recognized reference is a type, value, construction owner, callable, field, or enum variant remains a later resolution decision. Whether an operator, coercion, spread, allocation override, outcome elimination, or closure capture is semantically valid likewise does not alter the syntax-tree shape.</p><h2 id="contextual-spellings">Contextual Spellings</h2><p>The lexer emits the following spellings as identifier-shaped tokens. This grammar gives them a special role only at the listed boundary:</p><table><thead><tr><th>Spelling</th><th>Contextual grammar position</th></tr></thead><tbody><tr><td><code>copy</code></td><td>immediately before <code>struct</code>, or immediately after <code>where</code> / a predicate comma</td></tr><tr><td><code>where</code></td><td>the requirement-clause position of an eligible declaration</td></tr><tr><td><code>some</code></td><td>the start of an opaque callable result</td></tr><tr><td><code>from</code></td><td>immediately after a callable result type</td></tr><tr><td><code>default</code></td><td>between construction-member visibility and <code>func</code> or <code>literal</code></td></tr><tr><td><code>coerce</code></td><td>the start of an <code>instance</code> member</td></tr><tr><td><code>drop</code></td><td>the start of a top-level drop declaration or a <code>drop Name</code> statement</td></tr><tr><td><code>self</code></td><td>the fixed receiver position of methods, operators, coercions, and drop declarations</td></tr><tr><td><code>Self</code></td><td>a type atom or construction-owner head in a type-owned context</td></tr><tr><td><code>error</code></td><td>a built-in type atom or construction-owner head; otherwise an ordinary value name</td></tr><tr><td><code>_</code></td><td>a discard binding, catch discard, payload slot, or match fallback</td></tr><tr><td><code>target</code></td><td>immediately after <code>#</code> in an item prefix</td></tr><tr><td>package directive names</td><td>immediately after <code>#</code> in <code>nocter.nct</code></td></tr></tbody></table><p>Outside those positions, an otherwise valid identifier spelling remains ordinary unless a topical semantic rule forbids that declaration name. <code>alloc</code>, <code>import</code>, and <code>trait</code> have no contextual production. Removed <code>alloc func</code>, legacy import, and trait declarations are diagnosed without creating compatibility syntax trees.</p>
             </div>
         </main>
     </div>

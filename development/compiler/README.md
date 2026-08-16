@@ -1,7 +1,8 @@
 # New Nocter Compiler
 
-This directory is the implementation root for the specification-first Nocter compiler rewrite. It
-contains no compiler code while specification closure is active.
+This directory is the implementation root for the specification-first Nocter compiler rewrite.
+The lexical and syntactic grammar gate is closed; the Phase 1 source/syntax workspace is the next
+implementation boundary.
 
 ## Authority
 
@@ -32,5 +33,6 @@ source
 Later stages cannot import syntax representations to reconstruct earlier decisions. Source ranges
 remain outside semantic identity, and runtime linkage is a one-way output projection.
 
-No Cargo workspace should be created until the first specification-closure gate defines the
-complete lexical and syntactic input contract.
+The Cargo workspace must begin with source and syntax responsibilities only. Its parser fixtures
+derive from the [grammar conformance plan](../docs/grammar-conformance.md); semantic crates cannot
+be introduced to make an unresolved syntax choice.

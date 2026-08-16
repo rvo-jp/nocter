@@ -487,8 +487,9 @@ This preserves Nocter's rule that ordinary names do not define special behavior.
 
 ### Associated Type Projections
 
-`Base.Name` in a type position is an associated type projection. It denotes the type selected for
-`Name` by an interface conformance, rather than an ordinary qualified declaration.
+Type selections are resolved from left to right. When the prefix names an imported module
+namespace, `.Name` selects one exported type declaration, as in `parser.Parser<T>`. Once the prefix
+denotes a type, `.Name` is an associated type projection selected by an interface conformance.
 
 ```nct
 func next<S>(source: &+S): S.Item? where S: Source {
@@ -502,9 +503,11 @@ requires exactly one applicable conformance that binds `Item`. Projection normal
 applies beneath existing type constructors, so `Vec<S.Item>`, `S.Item?`, and `&S.Item` retain their
 ordinary outer type rules.
 
-An unknown or ambiguous projection is an error. Nocter does not select a declaration by import
-order, interface spelling, or the name `Item`. Associated-type declarations, bindings, and
-constraints are specified in [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#associated-types).
+An unknown or ambiguous selection is an error. Type arguments may follow a module-selected nominal
+type, but not an associated projection because generic associated types are not supported. Nocter
+does not select a declaration by import order, interface spelling, or the name `Item`.
+Associated-type declarations, bindings, and constraints are specified in
+[Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#associated-types).
 
 Built-in literal values:
 
@@ -784,66 +787,15 @@ Unary numeric rules:
 - `-expr` requires a signed numeric operand.
 - Unary `+expr` is not part of the language.
 
-Precedence, from highest to lowest:
+The complete precedence, associativity, move-place, outcome-suffix, recovery, and primary-expression
+grammar is centralized under [Expression Precedence](25-syntactic-grammar.md#expression-precedence).
+In particular, unary borrowing binds before `as`, one ungrouped expression layer accepts one
+outcome suffix, and `move place?` moves the complete place before applying that suffix.
 
-```text
-1. call / method / index / field
-   f(x), x.method(), x[i], x.field
-
-2. postfix / type conversion
-   expr?, expr!, expr as Type
-
-3. unary
-   !x, -x, &x, &+x, move name
-
-4. multiplicative
-   *, /, %
-
-5. additive
-   +, -
-
-6. shift
-   <<, >>
-
-7. ordering comparison
-   <, <=, >, >=
-
-8. equality comparison
-   ==, !=
-
-9. logical and
-   &&
-
-10. logical or
-    ||
-
-11. fallible catch / optional otherwise
-    expr catch name { body }
-    expr otherwise { body }
-```
-
-Rules:
-
-- Assignment is a statement, not an expression, and is not part of the precedence table.
-- `move` has a place-only operand grammar rather than the unrestricted operand grammar of `!`,
-  `-`, `&`, and `&+`. An immediately following outcome suffix applies after that place is moved:
-  `move value?` means `(move value)?`, and `move value!` means `(move value)!`.
-- One unparenthesized expression layer accepts at most one postfix outcome suffix. Adjacent
-  expression suffixes `??`, `!!`, `?!`, and `!?` are invalid. Apply another layer only after an
-  explicit grouping boundary, such as `(move result?)?`, or through an intermediate binding.
-- This restriction does not affect type syntax: `T?!` remains the canonical fallible optional
-  success type.
-- The move place may include eligible named struct fields, so `move holder.result?` first moves
-  `holder.result` and then propagates its outcome. Calls, indexes, dereferences, and parenthesized
-  complex expressions do not become move places through this rule.
-- The half-open range token `..<` is part of range `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
-- `catch` binds to the immediately preceding expression after higher-precedence
-  operators have been parsed.
-- `otherwise` is right-associative.
-- `if` and `match` are control expressions, not precedence-table operators.
-- `condition ? then : else` is not Nocter syntax. Use `if condition { then } else { else_value }`.
-- `enum_expr ?{ ... }` is not Nocter syntax. Use `match enum_expr { ... }`.
-- `&&`, `||`, `otherwise`, `if`, and `match` evaluate only the needed operand, branch, or arm.
+Assignment remains a statement rather than an expression. `..<` remains confined to a range
+`for` header. `if` and `match` are primary control expressions. `condition ? then : else` and
+`enum_expr ?{ ... }` have no productions. `&&`, `||`, `otherwise`, `if`, and `match` evaluate only
+the required operand, fallback, branch, or arm.
 
 Example:
 

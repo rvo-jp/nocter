@@ -336,8 +336,7 @@ The full literal and sequence rules live in
 
 ## Current Non-goals
 
-- typed literal parsing or lowering
-- sequence spread, variadic capture, or embedding
+- variadic ordinary function parameters, aggregate spread, or embedding
 - ambient recoverable allocation contexts
 - fallible `region` statements
 - source-level lifetime parameters

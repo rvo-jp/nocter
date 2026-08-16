@@ -43,8 +43,7 @@ same implementation when direct iterator construction is useful.
 A generic function states expansion and iterator behavior separately:
 
 ```nct
-func visit<C, I>(source: &C): void
-where (...&C): I, I: Iterator {
+func visit<C, I>(source: &C): void where (...&C): I, I: Iterator {
     for item in &source {
         inspect(item)
     }

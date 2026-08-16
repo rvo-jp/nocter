@@ -12,6 +12,7 @@ tooling contract can be implemented without guessing.
 - [Current handoff](TODO.md)
 - [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
 - [New compiler architecture](docs/architecture.md)
+- [Grammar conformance plan](docs/grammar-conformance.md)
 - [Rewrite maintenance policy](docs/maintenance.md)
 - [New compiler boundary](compiler/README.md)
 

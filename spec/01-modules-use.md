@@ -59,6 +59,17 @@ Meaning:
 The default namespace name is the final path segment. `use std/io` introduces `io` and
 `use ./path/to/parser` introduces `parser`.
 
+Namespace members use `.` after import. The same selection shape works in value and type position;
+resolution keeps those namespaces distinct:
+
+```nct
+use ./parser
+
+func parse_text(text: &str): parser.Value! {
+    return parser.parse(text)
+}
+```
+
 Selected-name import braces are comma-delimited. One trailing comma is valid on either a single
 line or multiple lines under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
 

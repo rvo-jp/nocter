@@ -92,7 +92,7 @@ Rules:
 Example:
 
 ```nct
-use std/ptr as ptr
+use std/ptr
 
 func address_of(value: &u8): usize {
     let pointer = ptr.from_ref(value)

@@ -305,8 +305,7 @@ predicates relate projections selected by independent parameters without introdu
 associated-type declaration:
 
 ```nct
-func chain<L, R>(left: L, right: R): ChainIter<L, R>
-where L: Iterator, R: Iterator, R.Item = L.Item {
+func chain<L, R>(left: L, right: R): ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
     ...
 }
 ```
@@ -338,8 +337,8 @@ func values<T>(): some Source<T, Item = &T> { ... }
 
 Rules:
 
-- `some` is contextual at the start of a type atom. It remains an ordinary value identifier in
-  value position.
+- `some` is contextual at the start of a callable result. It commits that result to the opaque
+  form and remains an ordinary value identifier in value position.
 - The advertised type must be one accessible nominal interface.
 - Every named binding must name one associated type declared by that interface. Duplicate and
   unknown bindings are errors.

@@ -79,8 +79,7 @@ target-wide parse, resolution, or type error is reported with a null case identi
 
 ```nct
 pub func assert(condition: bool): void!
-pub func assert_eq<T>(actual: &T, expected: &T): void!
-where (&T == &T): bool
+pub func assert_eq<T>(actual: &T, expected: &T): void! where (&T == &T): bool
 ```
 
 Failures use `std.testing.assertion_failed` or `std.testing.not_equal`. Messages are static error

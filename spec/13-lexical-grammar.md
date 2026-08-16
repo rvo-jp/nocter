@@ -75,9 +75,17 @@ Rules:
   clauses.
 - `some` is not a reserved keyword. It is emitted as an identifier token and recognized
   contextually at the start of an opaque type atom in a callable result.
+- `coerce` is not a reserved keyword. It is emitted as an identifier token and recognized
+  contextually as an `instance` member declaration.
+- `default` is not a reserved keyword. It is emitted as an identifier token and recognized
+  contextually between a construction member's visibility and its `func` or `literal` keyword.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
   it contextually in top-level `drop Type(&+self) { ... }` declarations and statement-position
   `drop name` forms.
+- `self` is not a reserved keyword. It is emitted as an identifier token and recognized
+  contextually as the fixed receiver in method, operator, coercion, and drop declaration forms.
+  Outside a receiver position it is an ordinary identifier spelling unless a semantic namespace
+  rule rejects that use.
 - `interface` is a reserved keyword.
 - `from` and `import` are not reserved keywords. They are emitted as
   identifier tokens; top-level legacy import syntax is diagnosed as removed
@@ -244,13 +252,9 @@ let rendered = render
 
 ## Comma-Delimited Lists
 
-Every syntax form declared as a comma-delimited list uses one layout-independent separator rule:
-
-```text
-DelimitedList(Item) = Item ("," Item)* [","]
-```
-
-The enclosing grammar separately decides whether the list may be empty.
+Every comma-delimited syntax form uses the shared empty or non-empty list production from
+[Syntactic Grammar](25-syntactic-grammar.md#notation). The enclosing production chooses whether the
+list may be empty.
 
 Rules:
 
@@ -288,7 +292,13 @@ Lexer boundary:
 - The lexer returns a token stream and diagnostics.
 - The token stream includes keyword tokens, newline tokens, and one EOF token.
 - Comments are not emitted as tokens.
-- Literal tokens keep their source text; final literal value interpretation belongs to later compiler stages except for lexical validity checks.
+- Integer, byte, and string-component tokens keep their source text; final literal value
+  interpretation belongs to later compiler stages except for lexical validity checks.
+- Every non-EOF token records whether its source span is byte-adjacent to the next emitted token.
+  Spaces, horizontal tabs, or a removed comment make the tokens non-joint. A normalized LF remains
+  an emitted `newline` token rather than spacing metadata. The parser uses this lexical fact for
+  the closed syntax positions that distinguish adjacency, such as indexing from a typed sequence;
+  it never re-reads source bytes to reconstruct spacing.
 - Invalid lexical constructs produce diagnostics. The lexer may stop after the first unrecoverable lexical error.
 - `nocter tokens app.nct --format json` emits a JSON envelope even when lexer diagnostics are present.
 
@@ -298,8 +308,12 @@ Token categories:
 identifier
 keyword
 integer_literal
-string_literal
 byte_literal
+string_start
+string_text
+interpolation_start
+interpolation_end
+string_end
 newline
 punctuation
 eof
@@ -316,7 +330,8 @@ Keyword rules:
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
   The parser recognizes `some` contextually only in the opaque result type form defined by
   [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#static-opaque-results).
-- `default` is not reserved. The parser recognizes it contextually inside `construct` blocks.
+- `default` is emitted as an identifier token and recognized only in its construction-member
+  position.
 - `alloc` is emitted as an identifier token and has no contextual keyword classification.
 
 Newline rules:
@@ -363,6 +378,10 @@ Rules:
 - `>>` is one token. In expression grammar it is right shift. The syntactic grammar may consume it
   as two adjacent generic-list closers when two open type-argument lists require them; this is a
   token subdivision determined solely by the type grammar, not by name resolution.
+- `&&` is one token. In an infix expression position it is logical conjunction. Where type or unary
+  grammar is already expecting a prefix operator, the syntactic grammar may consume it as two
+  adjacent readonly `&` prefixes. The position alone selects subdivision; a parser never consults
+  operand types.
 - `..<` is one token. It is used only in `for name in start..<end` range syntax.
 - `#` is punctuation. It begins a declarative directive. Directive names remain identifiers rather
   than reserved keywords.
@@ -376,11 +395,11 @@ tokens:
 # target : "target-name"
 ```
 
-At the start of package-root `nocter.nct`, package directives accept declarative strings, integers,
-booleans, lists, and records. These values are data: they do not perform lookup, calls,
-interpolation, allocation, or target execution. `#target` remains a declaration directive and is
-recognized only before an eligible top-level declaration. A `#` token in any other source position
-is a syntax error.
+At the start of package-root `nocter.nct`, package directives accept the declarative strings,
+integers, and records admitted by the package grammar. These values are data: they do not perform
+lookup, calls, interpolation, allocation, or target execution. `#target` remains a declaration
+directive and is recognized only before an eligible top-level declaration. A `#` token in any
+other source position is a syntax error.
 
 ## Integer Literals
 
@@ -469,6 +488,36 @@ Multi-line string literal rules:
 - The closing delimiter ends the multi-line string literal. Following source text is tokenized normally.
 - A `"""` sequence that is not in closing-delimiter position is ordinary literal content.
 
+String tokenization is uniform for plain and interpolated strings:
+
+- `string_start` covers the opening `"` or `"""` delimiter and records which delimiter form was
+  used.
+- `string_text` covers each maximal non-empty source-text segment between the opening delimiter,
+  an interpolation, and the closing delimiter. It retains escaped source spelling; decoding and
+  multi-line indentation removal happen after parsing.
+- `interpolation_start` covers an unescaped `${`.
+- Tokens inside interpolation use the ordinary lexer rules.
+- `interpolation_end` covers the `}` that matches the current `${`. Nested expression braces are
+  ordinary punctuation and do not end interpolation.
+- `string_end` covers the closing delimiter.
+- Empty text segments are omitted. The empty single-line string `""` therefore emits one
+  `string_start` immediately followed by one joint `string_end`.
+
+The lexer maintains a stack for nested string and interpolation states. This is lexical delimiter
+matching, not expression parsing: the parser still decides whether the ordinary tokens between
+`interpolation_start` and `interpolation_end` form one valid expression. Component spans cover the
+complete authored string source without overlap or gaps, which lets diagnostics and formatting
+project directly back to source.
+
+Representative token shapes:
+
+```text
+"hello"            string_start string_text string_end
+""                 string_start string_end
+"hello ${name}"    string_start string_text interpolation_start identifier
+                    interpolation_end string_end
+```
+
 Escapes:
 
 ```text
@@ -511,7 +560,10 @@ Rules:
 - Braces inside nested expressions, such as struct literals, blocks, `if` expressions, and `match` expressions, participate in normal brace matching.
 - Newline handling inside an interpolation expression follows ordinary expression grammar, not string-literal text rules.
 - Escapes in literal text segments are interpreted before the final text is constructed.
-- An interpolated string source form is an expression-level construct, not a plain string literal token. Its type, allocation behavior, evaluation order, and formatting rules are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-interpolation).
+- An interpolated string source form is an expression-level construct, not the non-interpolated
+  `StringLiteral` grammar subset. Its type, allocation behavior, evaluation order, and formatting
+  rules are specified in
+  [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-interpolation).
 - To include the literal characters `${` in string text, write `\${`.
 
 The type and storage rules for string and byte literals are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-and-byte-literals).

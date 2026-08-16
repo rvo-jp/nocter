@@ -188,6 +188,10 @@ Rules:
 - The `if` condition expression must have type `bool`.
 - Only the selected `if` branch is evaluated.
 - `if enum_expr is Enum.variant { ... }` follows the same statement/expression rules as ordinary `if`.
+- At the outer delimiter depth of an `if`, `if is`, `while`, `match`, or `for` header, the first
+  `{` begins the control body. Parenthesize the complete header expression when it contains a
+  struct literal, closure, recovery block, or nested control expression at that level, as specified by
+  [Primary Expressions](25-syntactic-grammar.md#primary-expressions).
 - Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
 - Pattern target ownership and payload binding types are defined by
   [Enums and Variant Construction](02-values-types.md#enums-and-variant-construction). In
@@ -504,7 +508,7 @@ Typical uses:
 Example:
 
 ```nct
-use std/process as process
+use std/process
 
 func require_path(path: &str?): &str {
     let value = path otherwise { process.abort() }

@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { highlightCode } = require("./highlight");
+const { NOCTER_RESERVED_KEYWORDS, highlightCode } = require("./highlight");
 
 const SITE_ORIGIN = "https://nocter.dev";
 const SOURCE_ORIGIN = "https://github.com/rvo-jp/nocter/blob/main";
@@ -59,7 +59,7 @@ func greet(user: User): void! {
     pub method &+self.write(bytes: &[u8]): void!
 }
 
-func save_log(output: &+Writer, events: &[Event]): void! {
+func save_log<W>(output: &+W, events: &[Event]): void! where W: Writer {
     for event in events {
         output.write(event.message().bytes())?
         output.write("\\n".bytes())?
@@ -71,11 +71,13 @@ func save_log(output: &+Writer, events: &[Event]): void! {
     expires_at: Time
 }
 
-pub func Session.start(user: User, clock: &Clock): Session {
-    return Session {
-        id: SessionId.new(),
-        user: move user,
-        expires_at: clock.now().plus_minutes(30),
+construct Session {
+    pub default func start(user: User, clock: &Clock): Self {
+        return Self {
+            id: SessionId.new(),
+            user: move user,
+            expires_at: clock.now().plus_minutes(30),
+        }
     }
 }`,
     ownership: `func consume(values: Vec<String>): void! {
@@ -99,6 +101,7 @@ pub func Session.start(user: User, clock: &Clock): Session {
 const sourceFiles = collectSourceFiles(PROJECT_ROOT);
 const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 
+validateNocterLexicon();
 validateOutputPaths(sourceFiles);
 cleanGeneratedHtml();
 
@@ -112,6 +115,24 @@ for (const file of sourceFiles) {
 
 writeRobots();
 writeSitemap(sourceFiles);
+
+function validateNocterLexicon() {
+    const lexicalPath = path.join(PROJECT_ROOT, "spec/13-lexical-grammar.md");
+    const lexicalSource = fs.readFileSync(lexicalPath, "utf8");
+    const match = lexicalSource.match(/Reserved keyword tokens:\n\n```text\n([\s\S]*?)\n```/);
+
+    if (!match) {
+        throw new Error("Cannot find the normative reserved-keyword block in spec/13-lexical-grammar.md");
+    }
+
+    const specificationKeywords = new Set(match[1].split("\n").filter(Boolean));
+    const missing = [...specificationKeywords].filter(keyword => !NOCTER_RESERVED_KEYWORDS.has(keyword));
+    const extra = [...NOCTER_RESERVED_KEYWORDS].filter(keyword => !specificationKeywords.has(keyword));
+
+    if (missing.length > 0 || extra.length > 0) {
+        throw new Error(`Nocter highlighter keyword drift (missing: ${missing.join(", ") || "none"}; extra: ${extra.join(", ") || "none"})`);
+    }
+}
 
 console.log(`Generated ${sourceFiles.length} HTML pages in ${path.relative(PROJECT_ROOT, OUTPUT_ROOT)}/`);
 

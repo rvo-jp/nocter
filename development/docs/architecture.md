@@ -35,6 +35,20 @@ semantic ID -> SourceIndex -> diagnostic range
 No inverse source lookup participates in type equality, dispatch, ownership, monomorphization,
 reachability, ABI selection, or code generation.
 
+`SourceProgram` owns normalized UTF-8, source identities, lexical tokens, byte spans, newline
+tokens, and each token's joint-to-next fact. String starts, text segments, interpolation boundaries,
+and string ends are ordinary lexical tokens in that same stream. `SyntaxProgram` consumes those
+facts once; it never re-reads source bytes to distinguish indexing from typed literals or rescans
+string contents to discover interpolation.
+
+Continuation-newline classification depends only on token kinds and delimiter depth. At the active
+header delimiter depth, the parser's control-header mode reserves the first `{` for the control
+body. A struct literal, closure, recovery clause, or nested control expression at that level must
+therefore be grouped; the parser never speculates toward a later brace or consults name resolution.
+Every block classifies its final expression as a body result by source position before semantic
+checking. Error recovery may retain missing or unexpected syntax nodes, but cannot revise any of
+these choices after resolution or typing.
+
 ## Semantic Identities
 
 Distinct domains represent packages, modules, authored declaration sites, semantic type

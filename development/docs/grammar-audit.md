@@ -57,16 +57,17 @@ recognized by one production.
    that same normative chapter.
 3. **Complete:** define blocks, block imports, bindings, assignment, control flow, patterns, and
    body-result positions.
-4. Define expressions from postfix forms through binary precedence, outcome elimination,
-   assignment exclusion, closures, construction, and literals.
-5. Replace scattered formal productions with links to the canonical owner while preserving each
-   topical semantic rule.
-6. Add valid, boundary, and invalid syntax cases for every production and audit contextual
-   keywords against the lexical chapter.
+4. **Complete:** define expressions from postfix forms through binary precedence, outcome
+   elimination, assignment exclusion, closures, construction, and literals.
+5. **Complete:** replace scattered formal productions with links to the canonical owner while
+   preserving each topical semantic rule.
+6. **Complete:** audit contextual spellings against the lexical chapter and derive accepted,
+   syntax-rejected, and semantic-boundary cases in
+   [`grammar-conformance.md`](grammar-conformance.md).
 
 ## Closure Gate
 
-The grammar is closed only when every supported source form reaches one production, every removed
-or deferred form is rejected without a compatibility production, and no parser choice depends on
-name resolution, type information, declaration order, or a semantic fallback. Only then may the new
-source/syntax compiler workspace be created.
+The grammar is closed: every supported source form reaches one production, removed and deferred
+forms have no compatibility production, and no parser choice depends on name resolution, type
+information, declaration order, or a semantic fallback. The new source/syntax compiler workspace
+may now be created from the normative chapter and its derived conformance plan.

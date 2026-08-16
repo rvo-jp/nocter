@@ -72,16 +72,8 @@ Multiple or zero parameters use the same form:
 (left, right) { left + right }
 ```
 
-Grammar:
-
-```text
-ClosureExpression = "(" [ClosureCaptures ";"] [ClosureParameters] ")"
-                    [":" Type] Block
-ClosureCaptures   = ClosureCapture ("," ClosureCapture)* [","]
-ClosureCapture    = "&" Name | "&+" Name | "move" Name
-ClosureParameters = ClosureParameter ("," ClosureParameter)* [","]
-ClosureParameter  = Name [":" Type]
-```
+The complete capture, parameter, result, and grouping boundary is defined under
+[Closure Expressions](25-syntactic-grammar.md#closure-expressions).
 
 Closure parameters and explicit captures are comma-delimited segments and accept one trailing comma
 before their `)` or `;` terminator on any layout. The formatter removes a single-line trailing

@@ -67,6 +67,9 @@ The current literal shapes are:
 - sequence: `Type [elements...]`
 - string: `Type "text"` and `Type """text"""`
 
+Their exact construction, adjacency, sequence-element, spread, and allocation-override source forms
+are centralized under [Primary Expressions](25-syntactic-grammar.md#primary-expressions).
+
 String definitions receive the decoded `&str` value. Numeric, byte, mapping, tuple-like, and custom
 delimiter definitions are not supported.
 
