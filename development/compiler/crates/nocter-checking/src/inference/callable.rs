@@ -20,6 +20,7 @@ pub struct CallableInference {
     parameters: Box<[GenericParameterId]>,
     equations: Vec<(TypeId, TypeId)>,
     deferred: Vec<DeferredCompatibility>,
+    result_context: Option<ResultContext>,
 }
 
 impl CallableInference {
@@ -29,6 +30,7 @@ impl CallableInference {
             parameters: parameters.into(),
             equations: Vec::new(),
             deferred: Vec::new(),
+            result_context: None,
         }
     }
 
@@ -125,6 +127,37 @@ impl CallableInference {
         }
     }
 
+    /// Adds the expected type of the complete call result.
+    ///
+    /// Result inference ranks exact complete-type identity before recursively projecting optional
+    /// or fallible destination payloads. The selected specialization is then revalidated by the
+    /// ordinary expected-type planner, so inference and outcome injection cannot disagree.
+    ///
+    /// # Errors
+    ///
+    /// Returns an unknown-type failure or a duplicate-result-context failure.
+    pub fn constrain_result_contextual(
+        &mut self,
+        types: &TypeStore,
+        result: TypeId,
+        expected: TypeId,
+    ) -> Result<(), InferenceFailure> {
+        if types.get(result).is_none() {
+            return Err(InferenceFailure::UnknownType(result));
+        }
+        if types.get(expected).is_none() {
+            return Err(InferenceFailure::UnknownType(expected));
+        }
+        if self
+            .result_context
+            .replace(ResultContext { result, expected })
+            .is_some()
+        {
+            return Err(InferenceFailure::DuplicateResultContext);
+        }
+        Ok(())
+    }
+
     /// Solves a unique substitution and validates every specialized generic argument.
     ///
     /// # Errors
@@ -133,7 +166,36 @@ impl CallableInference {
     /// leaves a declared parameter undetermined, or a type-validity failure for substitutions such
     /// as `void`, `never`, and unsized data.
     pub fn finish(self, types: &mut TypeStore) -> Result<GenericArguments, InferenceFailure> {
-        let bindings = unify_type_pairs(types, self.parameters.iter().copied(), self.equations)?;
+        let candidates = self
+            .result_context
+            .map_or(Ok(vec![None]), |context| context.candidates(types))?;
+        let mut first_failure = None;
+        for candidate in candidates {
+            match self.finish_candidate(types, candidate) {
+                Ok(arguments) => return Ok(arguments),
+                Err(error) => {
+                    first_failure.get_or_insert(error);
+                }
+            }
+        }
+        Err(first_failure.unwrap_or(InferenceFailure::DuplicateResultContext))
+    }
+
+    fn finish_candidate(
+        &self,
+        types: &mut TypeStore,
+        result_candidate: Option<TypeId>,
+    ) -> Result<GenericArguments, InferenceFailure> {
+        let mut equations = self.equations.clone();
+        if let (Some(context), Some(candidate)) = (self.result_context, result_candidate)
+            && !matches!(
+                types.get(context.result),
+                Some(TypeKind::Builtin(BuiltinType::Never))
+            )
+        {
+            equations.push((context.result, candidate));
+        }
+        let bindings = unify_type_pairs(types, self.parameters.iter().copied(), equations)?;
         let mut substitution = TypeSubstitution::default();
         for (parameter, ty) in bindings.iter() {
             substitution.bind_generic(parameter, ty);
@@ -148,7 +210,7 @@ impl CallableInference {
             validate_type(types, ty, TypePosition::Data)?;
             arguments.push(GenericArgument::new(parameter, ty));
         }
-        for deferred in self.deferred {
+        for deferred in self.deferred.iter().copied() {
             let expected = substitution.apply_type(types, deferred.expected)?;
             if !deferred.is_compatible(types, expected)? {
                 return Err(InferenceFailure::ContextualMismatch {
@@ -157,7 +219,48 @@ impl CallableInference {
                 });
             }
         }
+        if let Some(context) = self.result_context {
+            let result = substitution.apply_type(types, context.result)?;
+            plan_expected_type(types, context.expected, InferenceEvidence::Typed(result)).map_err(
+                |error| match error {
+                    ExpectedTypeError::Mismatch { .. } => InferenceFailure::ContextualMismatch {
+                        expected: context.expected,
+                        evidence: InferenceEvidence::Typed(result),
+                    },
+                    ExpectedTypeError::UnknownType(ty) => InferenceFailure::UnknownType(ty),
+                },
+            )?;
+        }
         GenericArguments::new(arguments).map_err(|_| InferenceFailure::DuplicateParameter)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ResultContext {
+    result: TypeId,
+    expected: TypeId,
+}
+
+impl ResultContext {
+    fn candidates(self, types: &TypeStore) -> Result<Vec<Option<TypeId>>, InferenceFailure> {
+        if matches!(
+            types.get(self.result),
+            Some(TypeKind::Builtin(BuiltinType::Never))
+        ) {
+            return Ok(vec![None]);
+        }
+        let mut candidates = Vec::new();
+        let mut current = self.expected;
+        loop {
+            candidates.push(Some(current));
+            match types
+                .get(current)
+                .ok_or(InferenceFailure::UnknownType(current))?
+            {
+                TypeKind::Optional(payload) | TypeKind::Fallible(payload) => current = *payload,
+                _ => return Ok(candidates),
+            }
+        }
     }
 }
 
@@ -196,6 +299,7 @@ pub enum InferenceFailure {
     InvalidSubstitution(SubstitutionError),
     InvalidArgument(TypeValidityFailure),
     DuplicateParameter,
+    DuplicateResultContext,
 }
 
 impl From<TypeUnificationError> for InferenceFailure {
@@ -257,6 +361,9 @@ impl fmt::Display for InferenceFailure {
             Self::InvalidArgument(error) => error.fmt(formatter),
             Self::DuplicateParameter => {
                 formatter.write_str("callable inference declared one generic parameter twice")
+            }
+            Self::DuplicateResultContext => {
+                formatter.write_str("callable inference received two result contexts")
             }
         }
     }
@@ -382,6 +489,84 @@ mod tests {
         assert!(matches!(
             inference.finish(&mut types),
             Err(InferenceFailure::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn result_context_prefers_complete_type_identity_before_injection() {
+        let mut types = TypeStore::new();
+        let (parameter, variable) = parameter(&mut types);
+        let i32_type = types.builtin(BuiltinType::I32);
+        let expected = types.intern(TypeKind::Optional(i32_type)).unwrap();
+        let mut inference = CallableInference::new([parameter]);
+        inference
+            .constrain_result_contextual(&types, variable, expected)
+            .unwrap();
+
+        assert_eq!(
+            inference.finish(&mut types).unwrap().get(parameter),
+            Some(expected)
+        );
+    }
+
+    #[test]
+    fn fixed_result_uses_the_nearest_compatible_outcome_payload() {
+        let mut types = TypeStore::new();
+        let i32_type = types.builtin(BuiltinType::I32);
+        let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
+        let expected = types.intern(TypeKind::Fallible(optional)).unwrap();
+        let mut inference = CallableInference::new([]);
+        inference
+            .constrain_result_contextual(&types, i32_type, expected)
+            .unwrap();
+
+        assert!(inference.finish(&mut types).unwrap().as_slice().is_empty());
+    }
+
+    #[test]
+    fn shaped_generic_result_infers_from_the_exact_expected_shape() {
+        let mut types = TypeStore::new();
+        let (parameter, variable) = parameter(&mut types);
+        let result = types.intern(TypeKind::Optional(variable)).unwrap();
+        let i32_type = types.builtin(BuiltinType::I32);
+        let expected = types.intern(TypeKind::Optional(i32_type)).unwrap();
+        let mut inference = CallableInference::new([parameter]);
+        inference
+            .constrain_result_contextual(&types, result, expected)
+            .unwrap();
+
+        assert_eq!(
+            inference.finish(&mut types).unwrap().get(parameter),
+            Some(i32_type)
+        );
+    }
+
+    #[test]
+    fn never_result_accepts_context_without_inventing_generic_evidence() {
+        let mut types = TypeStore::new();
+        let expected = types
+            .intern(TypeKind::Optional(types.builtin(BuiltinType::I32)))
+            .unwrap();
+        let mut inference = CallableInference::new([]);
+        inference
+            .constrain_result_contextual(&types, types.builtin(BuiltinType::Never), expected)
+            .unwrap();
+
+        assert!(inference.finish(&mut types).unwrap().as_slice().is_empty());
+    }
+
+    #[test]
+    fn result_context_is_a_single_authoritative_boundary() {
+        let types = TypeStore::new();
+        let i32_type = types.builtin(BuiltinType::I32);
+        let mut inference = CallableInference::new([]);
+        inference
+            .constrain_result_contextual(&types, i32_type, i32_type)
+            .unwrap();
+
+        assert!(matches!(
+            inference.constrain_result_contextual(&types, i32_type, i32_type),
+            Err(InferenceFailure::DuplicateResultContext)
         ));
     }
 }

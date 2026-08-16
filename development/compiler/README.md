@@ -184,8 +184,9 @@ be introduced to make an unresolved syntax choice.
   structural unifier treats only an explicitly supplied set of generic identities as variables;
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
-  known outcome layers, and rejects incomplete or invalid data substitutions before checked-node
-  construction. One program-wide copyability table collects normalized generic copy proofs,
+  known outcome layers, ranks exact result identity before recursive outcome injection, and rejects
+  incomplete or invalid data substitutions before checked-node construction. One program-wide
+  copyability table collects normalized generic copy proofs,
   memoizes substituted `copy struct`, enum, array, outcome, pointer, and borrow classifications by
   canonical type identity, and closes over the final extended type store before becoming part of
   `CheckedProgram`. It also retains normalized family conditions and rejects an unconditionally

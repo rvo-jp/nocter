@@ -175,13 +175,17 @@ prevents conformance matching from accidentally solving variables owned by its r
 call inference independent of argument or declaration order.
 
 `CallableInference` collects exact receiver/equality constraints and contextual argument/result
-constraints before solving once. A statically known optional or fallible parameter shape projects
-to its payload before ordinary evidence is unified; a source value already carrying the matching
-complete layer is unified exactly. Absence, contextual failure, `never`, and `void` contribute no
-payload constraint. They are validated after other evidence has produced a complete substitution.
-Every inferred argument is structurally rewritten to its final canonical `TypeId` and rerun through
-the common data-position validator, so `void`, `never`, unsized, and invalid outcome substitutions
-cannot enter a checked call.
+constraints before selection. A result context tries complete expected-type identity first, then
+its optional/fallible payload chain from outermost to innermost. The first rank producing a
+complete, valid substitution is revalidated by the ordinary expected-type planner. This preserves
+exact complete-result identity ahead of outcome injection without a call-site inference fork. A
+statically known optional or fallible parameter shape projects to its payload before ordinary
+evidence is unified; a source value already carrying the matching complete layer is unified
+exactly. Absence, contextual failure, `never`, and `void` contribute no payload constraint. They are
+validated after other evidence has produced a complete substitution. Every inferred argument is
+structurally rewritten to its final canonical `TypeId` and rerun through the common data-position
+validator, so `void`, `never`, unsized, and invalid outcome substitutions cannot enter a checked
+call.
 
 `plan_expected_type` is the single syntax-independent recursive outcome-injection rule used after
 inference or other leaf selection. It checks exact complete type identity before opening a layer,
