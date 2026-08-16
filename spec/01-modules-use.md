@@ -163,8 +163,8 @@ and bounds, receiver, parameter names and types, result type, and authored `from
 parts must have identical canonical source notation. Missing, mismatched, and duplicate bodies are
 errors independent of source traversal order.
 
-This rule applies to top-level and associated functions, inherent methods, construction functions,
-typed literals, and coercion entries. A construction implementation does not repeat `default`.
+This rule applies to top-level functions, inherent methods, construction functions, typed literals,
+and coercion entries. A construction implementation does not repeat `default`.
 Interface requirements and conformance methods keep their conformance model;
 interface default methods remain inline, and `drop` always has an inline body.
 
@@ -423,8 +423,8 @@ pub(/) primitive from_addr<T>(address: usize): *T
 Rules:
 
 - public declarations may be written only in `index.nct`
-- top-level types, aliases, interfaces, functions, primitives, fields, associated functions,
-  methods, interface members, construction entries, coercion entries, and re-exports follow this
+- top-level types, aliases, interfaces, functions, primitives, fields, methods, interface members,
+  construction entries, coercion entries, and re-exports follow this
   rule
 - private declarations in every composed source are visible throughout their module
 - `pub(./)` exposes the declaring module and all descendant modules

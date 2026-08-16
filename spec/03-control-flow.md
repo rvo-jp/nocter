@@ -48,7 +48,7 @@ let text = String.copy(&+allocator, "hello")?
 
 Rules:
 
-- Function, associated function, method, and primitive calls use positional arguments.
+- Top-level function, construction function, method, and primitive calls use positional arguments.
 - Argument expressions are matched to parameters by position.
 - Argument count must match parameter count exactly.
 - Each argument must type-check against the corresponding parameter type under the normal contextual typing, ownership, move, copy, and borrow rules.
@@ -57,7 +57,8 @@ Rules:
 - Method arguments are then evaluated left to right in the order written.
 - Parameter names are not part of call syntax.
 - Named arguments, default parameters, and variadic functions are not supported.
-- Functions, associated functions, and methods cannot be overloaded by type, arity, or return type.
+- Top-level functions, construction functions, and methods cannot be overloaded by type, arity, or
+  return type.
 - A duplicate callable name in the same namespace is a compile error.
 - A trailing comma is allowed in multi-line parameter lists and multi-line argument lists.
 - A trailing comma is not allowed in single-line parameter lists or single-line argument lists.

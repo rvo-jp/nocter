@@ -262,9 +262,10 @@ Rules:
 - A destructor has no visibility, target, generic-prefix, `where`, or return-type annotation.
 - Its target pattern must cover every generic slot exactly once with a distinct binder.
 - A destructor always returns no value and cannot be fallible.
-- A destructor cannot be called as a normal associated function or method.
+- A destructor cannot be called as a normal construction function or method.
 - `file.drop()` is an ordinary method call if an ordinary method named `drop` exists; it is not a destructor call.
-- `File.drop(&+file)` is an ordinary associated function call if an ordinary function named `drop` exists; it is not a destructor call.
+- `File.drop(&+file)` is an ordinary construction-function call only if `construct File` declares a
+  construction function named `drop`; it is not a destructor call.
 - A destructor cannot report cleanup failure through a fallible return.
 - If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.

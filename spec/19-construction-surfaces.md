@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 This chapter defines the construction-surface model. A construction surface
 groups the public operations that directly create one nominal type so source readers and editor
-tooling do not have to discover field literals, typed literals, and associated functions
+tooling do not have to discover field literals, typed literals, and construction functions
 independently.
 
 ## Construct Declarations
@@ -39,7 +39,10 @@ let reserved = Vec.with_capacity(16)
 
 Rules:
 
-- The target must be a nominal struct or enum declared in the same module.
+- In an ordinary package, the target must be a nominal struct or enum declared in the same module.
+- The exact active standard-library package may additionally declare compiler-authorized
+  construction surfaces for built-in types such as integer types. This authority follows package
+  identity, not path spelling or visibility.
 - The target arguments must bind every generic parameter in declaration order.
 - A nominal type may have at most one `construct` declaration.
 - Every construction member must carry an explicit non-private visibility: `pub(./)`, an ancestor
@@ -52,9 +55,10 @@ Rules:
 - `construct` declarations cannot be imported separately. Their accessible members travel with the
   target type.
 
-Public functions that do not directly produce the target remain ordinary functions. Receiver
-methods remain in `instance`; destruction uses an independent `destruct Type(&+self)` declaration;
-interface conformance members remain in `conform Interface for Type`.
+Functions that do not directly produce the target are ordinary module functions and cannot use a
+qualified type owner. Receiver methods remain in `instance`; destruction uses an independent
+`destruct Type(&+self)` declaration; interface conformance members remain in
+`conform Interface for Type`.
 
 ## Default Construction Entry
 
@@ -111,7 +115,7 @@ visibility and must use the visible type spelling rather than an internal canoni
 Enum variants are intrinsic construction entries and are not duplicated inside `construct`.
 Interfaces and type aliases do not own construction surfaces. Interfaces are not values. An alias
 does not acquire a second construction API under its alias spelling; callers use the nominal target
-or an ordinary alias-specific factory when the alias names a builtin representation.
+or an ordinary module function when an alias-specific factory is needed.
 
 ## Legacy Declaration Forms
 
@@ -122,9 +126,9 @@ literal Vec<T> [](...items: T): Self { ... }
 pub func Vec.new<T>(): Vec<T> { ... }
 ```
 
-The compiler diagnoses a top-level literal directly. It also diagnoses a top-level associated
-function when its owner is a nominal struct or enum and its result, present payload, or success
-payload is that owner. Both diagnostics direct the declaration into `construct Vec<T> { ... }`.
-Ordinary associated functions that do not construct their owner remain valid, as do factories on
-aliases of builtin representations. The compiler does not maintain a second compatibility AST or
-silently synthesize a construct declaration.
+The compiler diagnoses a top-level literal directly. Every qualified top-level function is also
+invalid. When its result, present payload, or success payload is the named owner, the diagnostic
+directs it into `construct Vec<T> { ... }`; otherwise it directs the declaration to an unqualified
+module function or a receiver method. Factories for aliases of builtin representations are module
+functions because aliases cannot own construction surfaces. The compiler does not maintain a
+second compatibility AST or silently synthesize a construct declaration.

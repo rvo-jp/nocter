@@ -176,8 +176,9 @@ provide the compiler-authorized instances for built-in types and views described
 [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md). Generic instance
 parameters are in scope for the target, members, and member bodies.
 
-Functions that directly create the nominal owner belong to its `construct` declaration. Other
-associated functions are qualified top-level declarations. Construction behavior is specified in
+Functions that directly create the owner belong to its `construct` declaration. A callable without
+a receiver that does not construct that owner is an ordinary module function; Nocter has no
+qualified top-level function declaration. Construction behavior is specified in
 [Construction Surfaces](19-construction-surfaces.md).
 
 ## Receivers
@@ -360,7 +361,7 @@ Conformance rules are:
 - the target is a nominal `struct` or `enum`
 - every bodyless interface method has exactly one matching implementation member
 - every associated type declaration has exactly one binding and no undeclared binding is present
-- extra methods, associated functions, literals, `drop`, and construction members are invalid
+- extra methods, literals, `drop`, and construction members are invalid
 - receiver capability, generic parameters, parameter and result types, outcome layers, and external
   result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
