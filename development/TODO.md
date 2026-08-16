@@ -2,17 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 with program-wide normalized conformance and data-position type validity,
-then define the closed typed-body node model those decisions feed.
+Continue v0.14.0 Phase 3 by defining the closed typed-body node model and construction boundary on
+top of the completed name, conformance, and normalized type-position authorities.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Validate every normalized data-position type, including `void`, `never`, unsized, optional, and
-   fallible placement, before body expected-type checking can consume it.
-2. Define the immutable checked-program and typed-body node contracts from those closed decisions.
+1. Define the immutable checked-program and typed-body node contracts from the closed Phase 3
+   decisions. Do not create expression side maps or a second declaration/name authority.
+2. Establish the expected-type and inference construction order that produces those nodes without
+   allowing a partial checked program to escape.
    Do not create expression side maps or a second declaration/name authority.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -37,6 +38,10 @@ The program-wide `ConformanceTable` now owns refinement normalization, overlap u
 required/default method selection, signature substitution, conditional requirements, associated
 bindings, and associated interface/callable bound proof. Generic matching and bound proof query
 that table; they do not reconstruct declaration patterns or rank a more-specific conformance.
+One iterative normalized-type validator now covers every declaration-owned data position,
+callable result, non-value type operand, borrow/raw-pointer pointee, generic argument, structural
+callable, and outcome layer. It is source-independent so concrete substitution can invoke the same
+rules before specialization enters checked bodies or later representations.
 
 ## Guardrails
 

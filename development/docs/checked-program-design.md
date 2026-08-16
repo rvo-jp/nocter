@@ -130,9 +130,12 @@ name resolution succeeded but ownership or provenance checking did not.
 An increment is complete only when its superseded temporary authority is consumed, its public
 failures retain exact source subjects, and input-order permutation tests pass.
 
-The conformance half of increment 4 is complete. `ConformanceTable` is the only structural
+Increment 4 is complete. `ConformanceTable` is the only structural
 dispatch authority: it stores refinement-normalized target/interface patterns, exact default or
 implementation method selections, normalized conditional requirements, and associated bindings.
 One pattern matcher serves associated-bound proof and future dispatch, while a symmetric unifier
-rejects every pair of patterns that can denote one application. Data-position type validity is the
-remaining increment-4 boundary.
+rejects every pair of patterns that can denote one application. The independent iterative
+type-position validator classifies data, callable-result, non-value type operand, borrow-pointee,
+and pointer-pointee roots. It traverses nested structural types once, validates every declaration
+position after alias expansion, and is reused after concrete generic substitution rather than
+encoding `void`, `never`, outcome, or unsized exceptions in inference and layout consumers.

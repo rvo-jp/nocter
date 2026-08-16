@@ -196,6 +196,21 @@ interface arguments, `Self`, associated bindings, method generics, and binder re
 comparison. Bound proof and later dispatch query that same table rather than repeating pattern
 selection.
 
+Source-backed normalized type-position diagnostics:
+
+- `E0360`: an outcome type repeats an optional or fallible layer, or contains more than two
+  outcome layers.
+- `E0361`: an optional outcome has `void` as its eventual payload.
+- `E0362`: an optional or fallible outcome has `never` as its eventual payload.
+- `E0363`: `never` appears in a data-bearing position instead of as a complete callable result.
+- `E0364`: `void` appears in a data-bearing position instead of as completion, the direct success
+  payload of `void!`, or the pointee of `*void`.
+- `E0365`: unsized `str` or `[T]` appears by value rather than behind an indirection.
+
+These rules run on normalized semantic types after alias expansion and again after concrete generic
+substitution. A type alias may directly name `void`, `never`, `str`, or `[T]`; the position where
+that alias is used determines whether the expanded type is valid.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

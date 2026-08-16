@@ -7,6 +7,7 @@
 mod body_sources;
 mod conformance;
 mod names;
+mod type_validity;
 
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use conformance::{
@@ -18,4 +19,8 @@ pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
     resolve_body_names,
+};
+pub use type_validity::{
+    DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,
+    TypeValidityRule, TypeValidityViolation, validate_declaration_types, validate_type,
 };

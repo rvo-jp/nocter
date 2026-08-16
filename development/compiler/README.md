@@ -169,8 +169,11 @@ be introduced to make an unresolved syntax choice.
   binder refinements before storing target/interface patterns, substitutes `Self`, generic, and
   associated identities into method contracts, rejects unifiable patterns, selects required or
   default methods, and proves associated interface/callable bounds through the same table. It does
-  not discover bodies by source containment or filesystem paths. Data-position validation and
-  typed checked-HIR construction consume these frozen boundaries next.
+  not discover bodies by source containment or filesystem paths. One iterative type-position
+  validator covers declaration data, callable results, type operands, borrow/raw-pointer pointees,
+  structural callables, generic arguments, outcomes, and unsized forms after alias expansion. The
+  same source-independent validator remains open for concrete generic substitution. Typed
+  checked-HIR construction consumes these frozen boundaries next.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
