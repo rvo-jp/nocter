@@ -4,6 +4,7 @@ use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
 use super::BodyChecker;
+use super::call_planning::DeclaredCallGenerics;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
@@ -17,7 +18,22 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let (reference, suffix) = direct_call_syntax(self, node)?;
+        let syntax = call_syntax(self, node)?;
+        let (reference, suffix) = match syntax {
+            CallSyntax::Direct { reference, suffix } => (reference, suffix),
+            CallSyntax::Member {
+                owner,
+                member,
+                suffix,
+            } => {
+                return self
+                    .check_construction_function_call(node, owner, member, suffix, expected);
+            }
+            CallSyntax::GenericOwner { owner, suffix } => {
+                return self
+                    .check_explicit_construction_function_call(node, owner, suffix, expected);
+            }
+        };
         let target = call_name_target(self, reference)?;
         let callable_id = match target {
             NameTarget::Exported(ExportedEntity::Callable(callable)) => {
@@ -56,7 +72,7 @@ impl BodyChecker<'_, '_> {
             suffix,
             callable_id,
             &callable,
-            callable.generic_parameters(),
+            DeclaredCallGenerics::inferred(callable.generic_parameters()),
             expected,
         )?;
         let call = self.add_node(
@@ -77,10 +93,27 @@ impl BodyChecker<'_, '_> {
     }
 }
 
-pub(super) fn direct_call_syntax(
+#[derive(Clone, Copy)]
+enum CallSyntax {
+    Direct {
+        reference: NodeId,
+        suffix: NodeId,
+    },
+    Member {
+        owner: NodeId,
+        member: NodeId,
+        suffix: NodeId,
+    },
+    GenericOwner {
+        owner: NodeId,
+        suffix: NodeId,
+    },
+}
+
+fn call_syntax(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
-) -> Result<(NodeId, NodeId), BodyCheckInternalError> {
+) -> Result<CallSyntax, BodyCheckInternalError> {
     let children = direct_nodes(checker.tree(), node);
     let [callee, suffix] = children.as_slice() else {
         return Err(BodyCheckInternalError::InvalidSyntax(node));
@@ -88,24 +121,45 @@ pub(super) fn direct_call_syntax(
     if checker.kind(*suffix)? != NodeKind::CallSuffix {
         return Err(BodyCheckInternalError::InvalidSyntax(*suffix));
     }
-    let mut reference = *callee;
-    while checker.kind(reference).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), reference);
+    let mut callee = *callee;
+    while checker.kind(callee).is_ok_and(is_transparent_expression) {
+        let children = direct_nodes(checker.tree(), callee);
         let [child] = children.as_slice() else {
             break;
         };
-        reference = *child;
+        callee = *child;
     }
-    if checker.kind(reference)? != NodeKind::ReferenceExpression {
-        return Err(BodyCheckInternalError::UnsupportedSyntax(
-            *suffix,
-            NodeKind::CallSuffix,
-        ));
+    if checker.kind(callee)? == NodeKind::ReferenceExpression {
+        return Ok(CallSyntax::Direct {
+            reference: callee,
+            suffix: *suffix,
+        });
     }
-    Ok((reference, *suffix))
+    if checker.kind(callee)? == NodeKind::GenericOwnerMember {
+        return Ok(CallSyntax::GenericOwner {
+            owner: callee,
+            suffix: *suffix,
+        });
+    }
+    if checker.kind(callee)? == NodeKind::PostfixExpression {
+        let member_children = direct_nodes(checker.tree(), callee);
+        if let [owner, member] = member_children.as_slice()
+            && checker.kind(*member)? == NodeKind::MemberSuffix
+        {
+            return Ok(CallSyntax::Member {
+                owner: *owner,
+                member: *member,
+                suffix: *suffix,
+            });
+        }
+    }
+    Err(BodyCheckInternalError::UnsupportedSyntax(
+        *suffix,
+        NodeKind::CallSuffix,
+    ))
 }
 
-fn call_origin(
+pub(super) fn call_origin(
     checker: &BodyChecker<'_, '_>,
     reference: NodeId,
 ) -> Result<SyntaxOrigin, BodyCheckInternalError> {
@@ -115,7 +169,7 @@ fn call_origin(
         .ok_or(BodyCheckInternalError::InvalidSyntax(reference))
 }
 
-fn call_name_target(
+pub(super) fn call_name_target(
     checker: &BodyChecker<'_, '_>,
     reference: NodeId,
 ) -> Result<NameTarget, BodyCheckInternalError> {

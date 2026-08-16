@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{
-    Arena, BuiltinType, CallableId, GenericParameterId, InstanceId, NominalTypeId, TypeId,
-    TypeKind, TypeStore,
-};
+use nocter_model::{Arena, CallableId, GenericParameterId, InstanceId, TypeId, TypeStore};
 
+use crate::type_relations::InherentTypeFamily;
 use crate::{CheckedRequirement, GenericArgument};
 
 /// One refinement-normalized instance declaration and its operation members.
@@ -60,24 +58,17 @@ impl CheckedInstanceOperations {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) enum InstanceFamily {
-    Nominal(NominalTypeId),
-    Builtin(BuiltinType),
-    Slice,
-}
-
 /// Sole normalized lookup authority for instance-owned operations.
 #[derive(Debug)]
 pub struct InstanceOperationTable {
     entries: Arena<InstanceId, CheckedInstanceOperations>,
-    by_family: BTreeMap<InstanceFamily, Box<[InstanceId]>>,
+    by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
 }
 
 impl InstanceOperationTable {
     pub(super) fn new(
         entries: Arena<InstanceId, CheckedInstanceOperations>,
-        by_family: BTreeMap<InstanceFamily, Box<[InstanceId]>>,
+        by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
     ) -> Self {
         Self { entries, by_family }
     }
@@ -88,17 +79,8 @@ impl InstanceOperationTable {
     }
 
     pub(crate) fn candidates(&self, types: &TypeStore, target: TypeId) -> Option<&[InstanceId]> {
-        family(types, target)
+        InherentTypeFamily::of(types, target)
             .and_then(|family| self.by_family.get(&family))
             .map(AsRef::as_ref)
-    }
-}
-
-pub(super) fn family(types: &TypeStore, target: TypeId) -> Option<InstanceFamily> {
-    match types.get(target)? {
-        TypeKind::Nominal { definition, .. } => Some(InstanceFamily::Nominal(*definition)),
-        TypeKind::Builtin(builtin) => Some(InstanceFamily::Builtin(*builtin)),
-        TypeKind::Slice(_) => Some(InstanceFamily::Slice),
-        _ => None,
     }
 }

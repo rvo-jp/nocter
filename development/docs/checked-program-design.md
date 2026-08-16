@@ -386,8 +386,19 @@ readwrite calls additionally require a writable place, and owned calls consume t
 evaluating arguments. These are invocation preparations rather than copyability claims, so a
 move-only readonly callback remains repeatedly callable and a copyable consuming callback still
 uses consuming-call semantics. Callable arguments use the same expected-type conversion boundary
-as static calls. Construction, method, closure-expression, temporary-cleanup, and result-provenance
-passes remain subsequent increments rather than alternate paths inside call checking.
+as static calls.
+
+`ConstructionSurfaceTable` indexes each validated `construct` declaration by its inherent target
+family once during preparation and remains part of `CheckedProgram`. Construction-function calls
+resolve their owner through semantic module/type identity and select an accessible named member
+through that table; body checking never scans all declarations or treats a rendered path as type
+identity. Omitted owner arguments join callable arguments and the result context in the ordinary
+inference problem. Complete explicit owner arguments become fixed substitutions before callable
+generic inference. Both forms then enter the same declared-call planner, expected-type conversion,
+callable-requirement proof, and specialized nominal-requirement proof. The member token projects to
+the exact callable identity for editor consumers. Method, closure-expression, temporary-cleanup,
+and result-provenance passes remain subsequent increments rather than alternate paths inside call
+checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

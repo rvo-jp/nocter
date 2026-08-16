@@ -7,10 +7,10 @@ use nocter_model::{ArenaBuilder, CallableCapability, CallableId, InstanceId, Typ
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use super::diagnostic;
-use super::model::{CheckedInstanceOperations, InstanceFamily, InstanceOperationTable, family};
+use super::model::{CheckedInstanceOperations, InstanceOperationTable};
 use crate::conformance::normalize_requirements;
 use crate::pattern_requirements::PatternRequirements;
-use crate::type_relations::{SubstitutionError, type_patterns_overlap};
+use crate::type_relations::{InherentTypeFamily, SubstitutionError, type_patterns_overlap};
 
 #[derive(Debug)]
 pub enum InstanceOperationBuildError {
@@ -99,14 +99,14 @@ pub fn build_instance_operation_table(
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let declarations = graph.declarations();
     let mut entries = ArenaBuilder::<InstanceId, CheckedInstanceOperations>::new();
-    let mut by_family = BTreeMap::<InstanceFamily, Vec<InstanceId>>::new();
+    let mut by_family = BTreeMap::<InherentTypeFamily, Vec<InstanceId>>::new();
 
     for (id, instance) in declarations.instances().iter() {
         let pattern_requirements = PatternRequirements::collect(graph, instance.requirements())?;
         let pattern_substitution = pattern_requirements.substitution();
         let target = pattern_substitution.apply_type(types, instance.target())?;
-        let family =
-            family(types, target).ok_or(InstanceOperationInternalError::InvalidTarget(target))?;
+        let family = InherentTypeFamily::of(types, target)
+            .ok_or(InstanceOperationInternalError::InvalidTarget(target))?;
         if let Some(previous) = by_family.get(&family) {
             for previous in previous {
                 let previous_entry = entries

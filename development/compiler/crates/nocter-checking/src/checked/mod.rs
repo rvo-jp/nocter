@@ -24,6 +24,7 @@ pub use node::{
     TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
+pub(crate) use program::CheckedProgramAuthorities;
 pub use program::{CheckedProgram, CheckedProgramOutput};
 pub use selection::{
     DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,

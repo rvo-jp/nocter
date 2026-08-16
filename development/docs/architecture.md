@@ -443,6 +443,12 @@ cannot rescan instance declarations or derive priority from source order. Condit
 coercion requirements recursively call that same selector under an active-predicate guard; there
 is no weaker requirement-only operation registry.
 
+The program-wide construction-surface table separately maps each inherent target family to its
+validated `construct` declaration. Named construction calls resolve module and type owners to
+semantic identity, apply member visibility at the use module, and then enter the common declared
+call planner. The table remains in `CheckedProgram`, so editor queries, instantiation, and body
+checking cannot invent independent construction-member indexes.
+
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once
 through one conformance table. MIR and later stages have no dispatch API.

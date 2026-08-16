@@ -2,7 +2,9 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::{ConformanceTable, CopyabilityTable, DropTable, InstanceOperationTable};
+use crate::{
+    ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable, InstanceOperationTable,
+};
 
 use super::CheckedBody;
 
@@ -12,29 +14,36 @@ pub struct CheckedProgram {
     graph: DeclarationGraph,
     types: TypeStore,
     conformances: ConformanceTable,
+    construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     bodies: Arena<BodyId, CheckedBody>,
 }
 
+pub(crate) struct CheckedProgramAuthorities {
+    pub(crate) conformances: ConformanceTable,
+    pub(crate) construction_surfaces: ConstructionSurfaceTable,
+    pub(crate) instance_operations: InstanceOperationTable,
+    pub(crate) copyabilities: CopyabilityTable,
+    pub(crate) drops: DropTable,
+}
+
 impl CheckedProgram {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         graph: DeclarationGraph,
         types: TypeStore,
-        conformances: ConformanceTable,
-        instance_operations: InstanceOperationTable,
-        copyabilities: CopyabilityTable,
-        drops: DropTable,
+        authorities: CheckedProgramAuthorities,
         bodies: Arena<BodyId, CheckedBody>,
     ) -> Self {
         Self {
             graph,
             types,
-            conformances,
-            instance_operations,
-            copyabilities,
-            drops,
+            conformances: authorities.conformances,
+            construction_surfaces: authorities.construction_surfaces,
+            instance_operations: authorities.instance_operations,
+            copyabilities: authorities.copyabilities,
+            drops: authorities.drops,
             bodies,
         }
     }
@@ -52,6 +61,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn conformances(&self) -> &ConformanceTable {
         &self.conformances
+    }
+
+    #[must_use]
+    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+        &self.construction_surfaces
     }
 
     #[must_use]

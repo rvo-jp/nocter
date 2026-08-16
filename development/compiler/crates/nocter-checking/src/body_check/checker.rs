@@ -18,7 +18,9 @@ use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
 use super::ownership::analyze_body_ownership;
-use crate::checked::{CheckedBodyBuilder, CheckedProgram, CheckedProgramOutput};
+use crate::checked::{
+    CheckedBodyBuilder, CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput,
+};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::preparation::PreparedCheckingParts;
 use crate::syntax::{
@@ -36,10 +38,12 @@ mod assignment;
 mod call_planning;
 mod callable_values;
 mod calls;
+mod constructions;
 mod expected;
 mod loops;
 mod operators;
 mod place;
+mod type_uses;
 use loops::LoopConstruction;
 
 struct NodeProjection {
@@ -86,6 +90,7 @@ pub fn check_prepared_program<'syntax>(
         graph,
         mut types,
         conformances,
+        construction_surfaces,
         instance_operations,
         mut copyabilities,
         drops,
@@ -99,6 +104,7 @@ pub fn check_prepared_program<'syntax>(
         &graph,
         &drops,
         &conformances,
+        &construction_surfaces,
         &instance_operations,
         &source_index,
     );
@@ -136,10 +142,13 @@ pub fn check_prepared_program<'syntax>(
         CheckedProgram::new(
             graph,
             types,
-            conformances,
-            instance_operations,
-            copyabilities,
-            drops,
+            CheckedProgramAuthorities {
+                conformances,
+                construction_surfaces,
+                instance_operations,
+                copyabilities,
+                drops,
+            },
             bodies.finish(),
         ),
         source_index.finish(),
@@ -158,6 +167,7 @@ struct BodyChecker<'input, 'syntax> {
     copyabilities: &'input mut CopyabilityTable,
     drops: &'input DropTable,
     conformances: &'input crate::ConformanceTable,
+    construction_surfaces: &'input crate::ConstructionSurfaceTable,
     instance_operations: &'input crate::InstanceOperationTable,
     source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
@@ -186,6 +196,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let graph = facts.graph();
         let drops = facts.drops();
         let conformances = facts.conformances();
+        let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
@@ -217,6 +228,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             copyabilities,
             drops,
             conformances,
+            construction_surfaces,
             instance_operations,
             source_index,
             source,

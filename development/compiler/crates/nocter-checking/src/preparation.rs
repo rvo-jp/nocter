@@ -8,11 +8,11 @@ use nocter_source_index::SourceIndex;
 
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
 use crate::{
-    BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityBuildError,
-    CopyabilityTable, DeclarationTypeValidityError, DropTable, DropTableError,
-    InstanceOperationBuildError, InstanceOperationTable, NameResolutionError, ResolvedBodyNames,
-    build_conformance_table, build_instance_operation_table, catalog_body_sources,
-    validate_declaration_types,
+    BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
+    ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
+    DeclarationTypeValidityError, DropTable, DropTableError, InstanceOperationBuildError,
+    InstanceOperationTable, NameResolutionError, ResolvedBodyNames, build_conformance_table,
+    build_instance_operation_table, catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -25,6 +25,7 @@ pub struct PreparedChecking<'syntax> {
     graph: DeclarationGraph,
     types: TypeStore,
     conformances: ConformanceTable,
+    construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
@@ -47,6 +48,11 @@ impl<'syntax> PreparedChecking<'syntax> {
     #[must_use]
     pub const fn conformances(&self) -> &ConformanceTable {
         &self.conformances
+    }
+
+    #[must_use]
+    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+        &self.construction_surfaces
     }
 
     #[must_use]
@@ -84,6 +90,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             graph: self.graph,
             types: self.types,
             conformances: self.conformances,
+            construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
             copyabilities: self.copyabilities,
             drops: self.drops,
@@ -98,6 +105,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) graph: DeclarationGraph,
     pub(crate) types: TypeStore,
     pub(crate) conformances: ConformanceTable,
+    pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
@@ -112,6 +120,7 @@ pub enum PreparationError {
     Copyability(CopyabilityBuildError),
     DropTable(DropTableError),
     Conformance(ConformanceBuildError),
+    ConstructionSurfaces(ConstructionSurfaceBuildError),
     InstanceOperations(InstanceOperationBuildError),
     NameResolution(NameResolutionError),
 }
@@ -122,7 +131,7 @@ impl PreparationError {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
-            Self::DropTable(_) => None,
+            Self::DropTable(_) | Self::ConstructionSurfaces(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
@@ -137,6 +146,7 @@ impl fmt::Display for PreparationError {
             Self::Copyability(error) => error.fmt(formatter),
             Self::DropTable(error) => error.fmt(formatter),
             Self::Conformance(error) => error.fmt(formatter),
+            Self::ConstructionSurfaces(error) => error.fmt(formatter),
             Self::InstanceOperations(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
@@ -154,6 +164,12 @@ impl From<DeclarationTypeValidityError> for PreparationError {
 impl From<ConformanceBuildError> for PreparationError {
     fn from(error: ConformanceBuildError) -> Self {
         Self::Conformance(error)
+    }
+}
+
+impl From<ConstructionSurfaceBuildError> for PreparationError {
+    fn from(error: ConstructionSurfaceBuildError) -> Self {
+        Self::ConstructionSurfaces(error)
     }
 }
 
@@ -205,6 +221,7 @@ pub fn prepare_program_checking<'syntax>(
     let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)?;
     let drops = DropTable::build(&graph, &types)?;
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
+    let construction_surfaces = ConstructionSurfaceTable::build(&graph, &types)?;
     let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)?;
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
@@ -212,6 +229,7 @@ pub fn prepare_program_checking<'syntax>(
         graph,
         types,
         conformances,
+        construction_surfaces,
         instance_operations,
         copyabilities,
         drops,
@@ -233,7 +251,9 @@ mod tests {
     #[test]
     fn preparation_owns_every_program_wide_checking_authority() {
         let fixture = Fixture::new(
-            "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\nfunc main(): void { return }\n",
+            "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\n\
+             construct Value { pub func new(): Self { loop {} } }\n\
+             func main(): void { return }\n",
         );
         let (input, prelude) = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
@@ -241,8 +261,9 @@ mod tests {
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
         assert_eq!(prepared.conformances().entries().len(), 1);
-        assert_eq!(prepared.body_sources().len(), 1);
-        assert_eq!(prepared.body_names().len(), 1);
+        assert_eq!(prepared.construction_surfaces().len(), 1);
+        assert_eq!(prepared.body_sources().len(), 2);
+        assert_eq!(prepared.body_names().len(), 2);
         assert!(!prepared.source_index().is_empty());
         assert!(!prepared.types().is_empty());
         assert!(!prepared.graph().declarations().callables().is_empty());

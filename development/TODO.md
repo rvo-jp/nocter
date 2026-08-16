@@ -2,16 +2,16 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by extending the closed call model from direct functions and structural
-callable values to construction entries and methods.
+Continue v0.14.0 Phase 3 by extending the closed call model from direct functions, structural
+callable values, and construction functions to receiver methods.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Add construction functions and methods while keeping one argument-inference/materialization
-   pipeline and the common expected-type boundary.
+1. Add receiver methods while keeping one argument-inference/materialization pipeline, one
+   semantic member-selection authority, and the common expected-type boundary.
 2. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 3. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
@@ -46,13 +46,15 @@ One iterative normalized-type validator now covers every declaration-owned data 
 callable result, non-value type operand, borrow/raw-pointer pointee, generic argument, structural
 callable, and outcome layer. It is source-independent so concrete substitution can invoke the same
 rules before specialization enters checked bodies or later representations.
-`PreparedChecking` now owns the single graph/type/conformance/name input after program-wide rules,
+`PreparedChecking` now owns the single graph/type/conformance/construction-surface/name input after
+program-wide rules,
 while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
 static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
 `check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
 for the current vertical body slice: scalar literals, inferred locals, parameter/local/named-field
 places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
-injection, ordinary conditionals, and while/infinite/integer-range loops. Every typed node receives
+injection, ordinary conditionals, while/infinite/integer-range loops, and named construction
+function calls. Every typed node receives
 an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
 failed rule. `CopyabilityTable` collects normalized `copy`
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
@@ -60,7 +62,13 @@ facts by canonical `TypeId`, closes over the final type store, and remains owned
 `CheckedProgram`. Ordinary structs, unconstrained generics, readwrite borrows, and callable
 contracts are never guessed copyable. Copy-struct families retain `Always`, generic `Requires`, or
 `Impossible` conditions; an unconditionally move-only field now projects `E0366` at its declaration
-instead of creating a never-copy family. Whole-binding state now tracks parameter and local move
+instead of creating a never-copy family. `ConstructionSurfaceTable` is the sole target-family
+index for `construct` declarations and remains in the final checked program for body and editor
+queries. Construction calls resolve unqualified or qualified semantic owners, enforce member
+visibility, project the exact member identity, infer omitted owner arguments, accept only complete
+explicit owner arguments, combine owner and callable generics by identity, and validate both the
+callable and specialized nominal requirements through the common proof authority. Whole-binding
+state now tracks parameter and local move
 paths, emits exact `Move` nodes, rejects moves of copy values and borrow bindings, and reports
 later uses through `E0376`-`E0378`. Statically named fields now resolve through one visibility-aware
 selector that substitutes the nominal owner's generic arguments and projects the exact field
@@ -68,7 +76,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, calls, remaining operators, aggregates, pattern conditionals,
+branch-local paths. Annotation binding, receiver methods, remaining operators, aggregates, pattern conditionals,
 `match`, loops, closures, literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
@@ -144,8 +152,11 @@ rejected by the program-wide table as `E0356` before body selection. Calls throu
 now select one exact lexical callable requirement and retain its `RequirementId`, capability, and
 callee place. Readonly and readwrite calls borrow the place without copying its environment;
 readwrite calls require writable storage. Owned calls consume the callee before their arguments,
-independent of closure copyability. Construction calls, methods, closure expressions, temporary
-cleanup, and program-wide result-provenance inference remain incomplete.
+independent of closure copyability. Construction functions use that same planner after the
+construction-surface table has selected one accessible semantic member. Omitted owner arguments
+participate in inference; explicit owner arguments become fixed substitutions before callable
+generic inference begins. Methods, closure expressions, temporary cleanup, and program-wide
+result-provenance inference remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

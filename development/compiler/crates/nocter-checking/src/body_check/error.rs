@@ -99,7 +99,9 @@ pub enum BodyCheckInternalError {
     BodyAssumptions(crate::SubstitutionError),
     CallSubstitution(crate::SubstitutionError),
     CallInference(crate::InferenceFailure),
+    CallGenericArguments(crate::DuplicateGenericArgument),
     CallContractSelection,
+    ConstructionSurfaceSelection(crate::ConstructionSurfaceSelectionError),
     ExpectedConversion,
     CleanupPlanning,
 }
@@ -139,6 +141,12 @@ impl From<CopyabilityError> for BodyCheckInternalError {
 impl From<InstanceSelectionError> for BodyCheckInternalError {
     fn from(error: InstanceSelectionError) -> Self {
         Self::InstanceSelection(error)
+    }
+}
+
+impl From<crate::ConstructionSurfaceSelectionError> for BodyCheckInternalError {
+    fn from(error: crate::ConstructionSurfaceSelectionError) -> Self {
+        Self::ConstructionSurfaceSelection(error)
     }
 }
 

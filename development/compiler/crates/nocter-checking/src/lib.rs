@@ -8,6 +8,7 @@ mod body_check;
 mod body_sources;
 mod checked;
 mod conformance;
+mod construction_surfaces;
 mod copyability;
 mod expected;
 mod field_selection;
@@ -44,6 +45,9 @@ pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
+};
+pub use construction_surfaces::{
+    ConstructionSurfaceBuildError, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
 };
 pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,

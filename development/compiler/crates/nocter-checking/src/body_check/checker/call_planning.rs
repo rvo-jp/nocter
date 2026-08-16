@@ -9,7 +9,10 @@ use crate::conformance::normalize_requirements;
 use crate::instance_operations::InstanceOperationSelector;
 use crate::syntax::{direct_child, direct_nodes, direct_token, is_transparent_expression};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
-use crate::{CallableInference, GenericArguments, InferenceEvidence, InferenceFailure, NameTarget};
+use crate::{
+    CallableInference, GenericArgument, GenericArguments, InferenceEvidence, InferenceFailure,
+    NameTarget,
+};
 
 enum ArgumentDraft {
     Checked {
@@ -32,6 +35,31 @@ pub(super) struct DeclaredCallPlan {
     pub(super) result: TypeId,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct DeclaredCallGenerics<'a> {
+    pub(super) inference_parameters: &'a [GenericParameterId],
+    pub(super) fixed_arguments: &'a [GenericArgument],
+}
+
+impl<'a> DeclaredCallGenerics<'a> {
+    pub(super) const fn inferred(inference_parameters: &'a [GenericParameterId]) -> Self {
+        Self {
+            inference_parameters,
+            fixed_arguments: &[],
+        }
+    }
+
+    pub(super) const fn with_fixed(
+        inference_parameters: &'a [GenericParameterId],
+        fixed_arguments: &'a [GenericArgument],
+    ) -> Self {
+        Self {
+            inference_parameters,
+            fixed_arguments,
+        }
+    }
+}
+
 impl BodyChecker<'_, '_> {
     pub(super) fn plan_declared_call(
         &mut self,
@@ -39,27 +67,52 @@ impl BodyChecker<'_, '_> {
         suffix: NodeId,
         callable_id: nocter_model::CallableId,
         callable: &CallableDeclaration,
-        inference_parameters: &[GenericParameterId],
+        generics: DeclaredCallGenerics<'_>,
         expected: Option<TypeId>,
     ) -> Result<DeclaredCallPlan, BodyCheckError> {
         let argument_syntax = direct_nodes(self.tree(), suffix);
-        let parameter_types =
-            self.declared_parameter_types(callable_id, callable, suffix, argument_syntax.len())?;
-        let (arguments, generic_arguments, substitution) = self.infer_declared_arguments(
+        let mut substitution = TypeSubstitution::default();
+        for argument in generics.fixed_arguments {
+            substitution.bind_generic(argument.parameter(), argument.ty());
+        }
+        let parameter_types = self
+            .declared_parameter_types(callable_id, callable, suffix, argument_syntax.len())?
+            .into_iter()
+            .map(|parameter| {
+                substitution
+                    .apply_type(self.types, parameter)
+                    .map_err(BodyCheckInternalError::CallSubstitution)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let result = substitution
+            .apply_type(self.types, callable.result())
+            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let (arguments, inferred_arguments) = self.infer_declared_arguments(
             node,
-            callable,
-            inference_parameters,
+            result,
+            generics.inference_parameters,
             argument_syntax,
             &parameter_types,
             expected,
         )?;
-        if !self.declared_requirements_hold(callable, &substitution)? {
+        for argument in inferred_arguments.as_slice() {
+            substitution.bind_generic(argument.parameter(), argument.ty());
+        }
+        let generic_arguments = GenericArguments::new(
+            generics
+                .fixed_arguments
+                .iter()
+                .copied()
+                .chain(inferred_arguments.as_slice().iter().copied()),
+        )
+        .map_err(BodyCheckInternalError::CallGenericArguments)?;
+        if !self.requirements_hold(callable.requirements(), &substitution)? {
             return Err(self.rule(BodyRule::InvalidCall, node)?);
         }
         let arguments =
             self.materialize_declared_arguments(arguments, parameter_types, &substitution)?;
         let result = substitution
-            .apply_type(self.types, callable.result())
+            .apply_type(self.types, result)
             .map_err(BodyCheckInternalError::CallSubstitution)?;
         Ok(DeclaredCallPlan {
             arguments,
@@ -113,12 +166,12 @@ impl BodyChecker<'_, '_> {
     fn infer_declared_arguments(
         &mut self,
         node: NodeId,
-        callable: &CallableDeclaration,
+        result: TypeId,
         inference_parameters: &[GenericParameterId],
         argument_syntax: Vec<NodeId>,
         parameter_types: &[TypeId],
         expected: Option<TypeId>,
-    ) -> Result<(Vec<ArgumentDraft>, GenericArguments, TypeSubstitution), BodyCheckError> {
+    ) -> Result<(Vec<ArgumentDraft>, GenericArguments), BodyCheckError> {
         let mut inference = CallableInference::new(inference_parameters);
         let mut arguments = Vec::with_capacity(argument_syntax.len());
         for (syntax, parameter) in argument_syntax
@@ -161,31 +214,23 @@ impl BodyChecker<'_, '_> {
         }
         if let Some(expected) = expected {
             inference
-                .constrain_result_contextual(self.types, callable.result(), expected)
+                .constrain_result_contextual(self.types, result, expected)
                 .map_err(|error| self.call_inference_error(node, error))?;
         }
         let generic_arguments = inference
             .finish(self.types)
             .map_err(|error| self.call_inference_error(node, error))?;
-        let mut substitution = TypeSubstitution::default();
-        for argument in generic_arguments.as_slice() {
-            substitution.bind_generic(argument.parameter(), argument.ty());
-        }
-        Ok((arguments, generic_arguments, substitution))
+        Ok((arguments, generic_arguments))
     }
 
-    fn declared_requirements_hold(
+    pub(super) fn requirements_hold(
         &mut self,
-        callable: &CallableDeclaration,
+        requirements: &[nocter_model::RequirementId],
         substitution: &TypeSubstitution,
     ) -> Result<bool, BodyCheckError> {
-        let requirements = normalize_requirements(
-            self.graph,
-            self.types,
-            substitution,
-            callable.requirements(),
-        )
-        .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let requirements =
+            normalize_requirements(self.graph, self.types, substitution, requirements)
+                .map_err(BodyCheckInternalError::CallSubstitution)?;
         let mut selector = InstanceOperationSelector::new(
             self.graph,
             self.types,

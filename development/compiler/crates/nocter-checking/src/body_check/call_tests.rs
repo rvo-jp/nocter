@@ -1,5 +1,6 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_model::TypeKind;
+use nocter_source_index::{SemanticEntity, SourceRole};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
@@ -9,6 +10,10 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
+    check_fixture(&fixture)
+}
+
+fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let (input, prelude) = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (program, source_index) = lowered.into_parts();
@@ -131,5 +136,185 @@ fn static_call_arity_is_rejected_at_the_call_boundary() {
         check("func one(value: i32): i32 {\n    value\n}\nfunc invalid(): i32 {\n    one()\n}\n")
             .unwrap_err();
 
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0390");
+}
+
+#[test]
+fn construction_functions_use_the_canonical_surface_and_declared_call_plan() {
+    let output = check(
+        "struct Box<T> { value: T }\n\
+         construct Box<T> {\n\
+             pub func from_value<U>(value: T, marker: U): Self { loop {} }\n\
+         }\n\
+         func make(): Box<i32> {\n\
+             Box.from_value(42, true)\n\
+         }\n",
+    )
+    .unwrap();
+    let call = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("construction call");
+    let CallTarget::Static(selection) = call.target() else {
+        panic!("construction function must freeze static dispatch")
+    };
+    let StaticDispatch::Direct(callable) = selection.dispatch() else {
+        panic!("construction function must retain its callable identity")
+    };
+
+    assert_eq!(selection.generic_arguments().as_slice().len(), 2);
+    assert_eq!(call.arguments().len(), 2);
+    assert!(
+        output
+            .source_index()
+            .bindings_for(SemanticEntity::Callable(callable))
+            .iter()
+            .any(|binding| binding.role() == SourceRole::Reference)
+    );
+}
+
+#[test]
+fn construction_owner_generics_may_be_inferred_only_from_the_result_context() {
+    let output = check(
+        "struct Box<T> { value: T }\n\
+         construct Box<T> {\n\
+             pub func empty(): Self { loop {} }\n\
+         }\n\
+         func make(): Box<i64> {\n\
+             Box.empty()\n\
+         }\n",
+    )
+    .unwrap();
+    let inferred = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => match call.target() {
+                CallTarget::Static(selection) => selection
+                    .generic_arguments()
+                    .as_slice()
+                    .first()
+                    .map(|argument| argument.ty()),
+                CallTarget::CallableValue { .. } => None,
+            },
+            _ => None,
+        })
+        .expect("inferred owner argument");
+
+    assert_eq!(
+        output.program().types().get(inferred),
+        Some(&TypeKind::Builtin(nocter_model::BuiltinType::I64))
+    );
+}
+
+#[test]
+fn explicit_construction_owner_arguments_are_fixed_before_callable_inference() {
+    let output = check(
+        "struct Box<T> { value: T }\n\
+         construct Box<T> {\n\
+             pub func from_marker<U>(marker: U): Self { loop {} }\n\
+         }\n\
+         func make(): Box<i32> {\n\
+             Box<i32>.from_marker(true)\n\
+         }\n",
+    )
+    .unwrap();
+    let arguments = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => match call.target() {
+                CallTarget::Static(selection) => {
+                    Some(selection.generic_arguments().as_slice().to_vec())
+                }
+                CallTarget::CallableValue { .. } => None,
+            },
+            _ => None,
+        })
+        .expect("explicit construction call");
+
+    assert_eq!(arguments.len(), 2);
+    assert!(arguments.iter().any(|argument| {
+        output.program().types().get(argument.ty())
+            == Some(&TypeKind::Builtin(nocter_model::BuiltinType::I32))
+    }));
+    assert!(arguments.iter().any(|argument| {
+        output.program().types().get(argument.ty())
+            == Some(&TypeKind::Builtin(nocter_model::BuiltinType::Bool))
+    }));
+}
+
+#[test]
+fn explicit_construction_owner_resolves_lexical_and_structural_type_arguments() {
+    check(
+        "struct Box<T> { value: T }\n\
+         construct Box<T> { pub func empty(): Self { loop {} } }\n\
+         func generic<T>(): Box<T> { Box<T>.empty() }\n\
+         func pointer(): Box<*i32> { Box<*i32>.empty() }\n\
+         func slice(): Box<&[i32]> { Box<&[i32]>.empty() }\n\
+         func callback(): Box<&func(value: i32): i32> {\n\
+             Box<&func(value: i32): i32>.empty()\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn missing_construction_surface_or_member_is_one_call_boundary_error() {
+    let missing_surface =
+        check("struct Value {}\nfunc invalid(): Value {\n    Value.new()\n}\n").unwrap_err();
+    assert_eq!(missing_surface.source_diagnostic().unwrap().code(), "E0390");
+
+    let missing_member = check(
+        "struct Value {}\n\
+         construct Value { pub func new(): Self { loop {} } }\n\
+         func invalid(): Value { Value.other() }\n",
+    )
+    .unwrap_err();
+    assert_eq!(missing_member.source_diagnostic().unwrap().code(), "E0390");
+}
+
+#[test]
+fn qualified_construction_owners_and_member_visibility_use_semantic_modules() {
+    let public = Fixture::with_child(
+        "use ./child\nfunc make(): child.Value { child.Value.new() }\n",
+        "pub struct Value {}\nconstruct Value { pub func new(): Self { loop {} } }\n",
+    );
+    check_fixture(&public).unwrap();
+
+    let scoped = Fixture::with_child(
+        "use ./child\nfunc make(): child.Value { child.Value.new() }\n",
+        "pub struct Value {}\nconstruct Value { pub(./) func new(): Self { loop {} } }\n",
+    );
+    let error = check_fixture(&scoped).unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0390");
+}
+
+#[test]
+fn construction_validates_the_specialized_nominal_contract() {
+    check(
+        "copy struct Box<T> where copy T { value: T }\n\
+         construct Box<T> { pub func empty(): Self { loop {} } }\n\
+         func make(): Box<i32> { Box.empty() }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "struct Owned { value: i32 }\n\
+         copy struct Box<T> where copy T { value: T }\n\
+         construct Box<T> { pub func empty(): Self { loop {} } }\n\
+         func invalid(): Box<Owned> { Box.empty() }\n",
+    )
+    .unwrap_err();
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0390");
 }
