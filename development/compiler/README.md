@@ -177,7 +177,12 @@ be introduced to make an unresolved syntax choice.
   owns the sole graph/type/conformance/name inputs but cannot escape as a partial checked program.
   The syntax-independent output schema has separate dense place, loop, and typed-node identities;
   selected calls, requirements, coercions, indexing, iteration, outcomes, aggregates, closures,
-  literals, and control operations are explicit rather than rediscovered by later stages.
+  literals, and control operations are explicit rather than rediscovered by later stages. A shared
+  structural unifier treats only an explicitly supplied set of generic identities as variables;
+  requester-owned generics remain opaque. Callable inference collects receiver, argument,
+  contextual-result, and equality evidence independent of discovery order, projects statically
+  known outcome layers, and rejects incomplete or invalid data substitutions before checked-node
+  construction.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

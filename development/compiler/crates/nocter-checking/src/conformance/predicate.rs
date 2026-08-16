@@ -6,7 +6,7 @@ use nocter_model::{
     BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
-use super::substitution::{SubstitutionError, TypeSubstitution};
+use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// A declaration requirement normalized to type identities after owner substitution.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

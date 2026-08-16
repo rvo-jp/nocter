@@ -6,7 +6,7 @@ use nocter_model::{TypeKind, TypeStore};
 use super::model::ConformanceTable;
 use super::overlap::match_pattern;
 use super::predicate::{CheckedPredicate, CheckedRequirement, substitute_predicate};
-use super::substitution::SubstitutionError;
+use crate::type_relations::SubstitutionError;
 
 pub(super) fn proves(
     types: &mut TypeStore,

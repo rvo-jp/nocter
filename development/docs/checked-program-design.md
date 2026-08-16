@@ -155,3 +155,18 @@ structural requirement. A place records its owned or borrowed root and exact fie
 selected-index projection path; only an owned field-only path is an eligible explicit move source.
 This schema prevents MIR from repeating member, conformance, coercion, iterator, or move-place
 selection.
+
+Generic matching and inference share one iterative structural unifier. Every invocation supplies
+the exact `GenericParameterId` set that may receive bindings. A generic identity outside that set
+is an opaque term even if a repeated binding later places it on the left of an equation. This
+prevents conformance matching from accidentally solving variables owned by its requester and keeps
+call inference independent of argument or declaration order.
+
+`CallableInference` collects exact receiver/equality constraints and contextual argument/result
+constraints before solving once. A statically known optional or fallible parameter shape projects
+to its payload before ordinary evidence is unified; a source value already carrying the matching
+complete layer is unified exactly. Absence, contextual failure, `never`, and `void` contribute no
+payload constraint. They are validated after other evidence has produced a complete substitution.
+Every inferred argument is structurally rewritten to its final canonical `TypeId` and rerun through
+the common data-position validator, so `void`, `never`, unsized, and invalid outcome substitutions
+cannot enter a checked call.

@@ -10,9 +10,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Implement expected-type and constraint collection for scalar, reference, aggregate, outcome,
-   and callable expressions, then construct the existing closed typed-node schema.
-2. Consume every temporary syntax-backed resolved use while building nodes and extend
+1. Use the completed callable constraint solver and contextual outcome projection while checking
+   scalar, reference, aggregate, outcome, and call syntax into the closed typed-node schema.
+2. Consume every temporary syntax-backed resolved use while building those nodes and extend
    `SourceIndex` with exact `BodyNodeId` projections. Do not add expression side maps.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -44,8 +44,10 @@ rules before specialization enters checked bodies or later representations.
 `PreparedChecking` now owns the single graph/type/conformance/name input after program-wide rules,
 while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
 static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
-No production path constructs checked bodies yet; expected-type and constraint construction is the
-active increment.
+No production path constructs checked bodies yet. The shared type unifier now has an explicit
+variable set, conformance matching no longer treats requester-owned generics as pattern variables,
+and `CallableInference` produces one canonical, fully validated `GenericArguments` value from
+order-independent evidence. Typed syntax construction is the active increment.
 
 ## Guardrails
 

@@ -15,8 +15,8 @@ use super::diagnostic;
 use super::model::{CheckedConformance, ConformanceMethod, ConformanceTable, MethodSelection};
 use super::overlap::patterns_overlap;
 use super::predicate::{CheckedRequirement, normalize_requirements};
-use super::substitution::{SubstitutionError, TypeSubstitution};
 use super::validate::validate_associated_bounds;
+use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// Authored conformance failure or an inconsistent semantic boundary.
 #[derive(Debug)]

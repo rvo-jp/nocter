@@ -6,26 +6,26 @@ use nocter_model::{
 };
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct TypeSubstitution {
+pub(crate) struct TypeSubstitution {
     interface_self: Option<(InterfaceId, TypeId)>,
     generics: HashMap<GenericParameterId, TypeId>,
     associated: HashMap<nocter_model::AssociatedTypeId, TypeId>,
 }
 
 impl TypeSubstitution {
-    pub(super) fn set_interface_self(&mut self, interface: InterfaceId, target: TypeId) {
+    pub(crate) fn set_interface_self(&mut self, interface: InterfaceId, target: TypeId) {
         self.interface_self = Some((interface, target));
     }
 
-    pub(super) fn bind_generic(&mut self, source: GenericParameterId, target_type: TypeId) {
+    pub(crate) fn bind_generic(&mut self, source: GenericParameterId, target_type: TypeId) {
         self.generics.insert(source, target_type);
     }
 
-    pub(super) fn bind_type(&mut self, source: GenericParameterId, target: TypeId) {
+    pub(crate) fn bind_type(&mut self, source: GenericParameterId, target: TypeId) {
         self.generics.insert(source, target);
     }
 
-    pub(super) fn bind_associated(
+    pub(crate) fn bind_associated(
         &mut self,
         declaration: nocter_model::AssociatedTypeId,
         target: TypeId,
@@ -33,7 +33,7 @@ impl TypeSubstitution {
         self.associated.insert(declaration, target);
     }
 
-    pub(super) fn apply_type(
+    pub(crate) fn apply_type(
         &self,
         types: &mut TypeStore,
         root: TypeId,

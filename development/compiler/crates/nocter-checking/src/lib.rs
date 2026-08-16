@@ -7,8 +7,10 @@
 mod body_sources;
 mod checked;
 mod conformance;
+mod inference;
 mod names;
 mod preparation;
+mod type_relations;
 mod type_validity;
 
 #[cfg(test)]
@@ -30,6 +32,7 @@ pub use conformance::{
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
 };
+pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
