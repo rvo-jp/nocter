@@ -137,7 +137,10 @@ be introduced to make an unresolved syntax choice.
   acquiring stage-specific codes or messages. Import namespaces retain the exact declaration name,
   selected name, or alias token that introduced each binding. Missing selections, inaccessible
   names, and widening re-exports preserve their source subject and the target declaration before
-  the temporary import state is consumed.
+  the temporary import state is consumed. Module dependency edges retain the authored `use` node.
+  Cycle validation derives one deterministic complete edge witness rather than reporting a module
+  selected from residual graph state; every edge becomes the primary span or an ordered related
+  note. Source-import shape violations likewise retain their exact `use` declaration.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

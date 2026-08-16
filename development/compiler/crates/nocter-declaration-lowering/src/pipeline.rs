@@ -4,7 +4,7 @@ use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericError,
     HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
     ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError, SourceDiagnostic,
-    SurfaceDiagnostic, SurfaceError, TypeBindingError, TypeNormalizationError,
+    SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingError, TypeNormalizationError,
     analyze_callable_contracts, apply_standard_prelude, bind_header_type_syntax,
     collect_declaration_surface, define_declaration_headers, normalize_header_types,
     prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum DeclarationLoweringError {
+    Topology(TopologyDiagnostic),
     Surface(SurfaceDiagnostic),
     InternalSurface(SurfaceError),
     CallableContract(CallableContractDiagnostic),
@@ -36,6 +37,7 @@ impl DeclarationLoweringError {
     #[must_use]
     pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
+            Self::Topology(diagnostic) => Some(diagnostic.source()),
             Self::Surface(diagnostic) => Some(diagnostic.source()),
             Self::CallableContract(diagnostic) => Some(diagnostic.source()),
             Self::Namespace(diagnostic) => Some(diagnostic.source()),
@@ -57,6 +59,7 @@ impl DeclarationLoweringError {
 impl fmt::Display for DeclarationLoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Topology(error) => error.fmt(formatter),
             Self::Surface(error) => error.fmt(formatter),
             Self::InternalSurface(error) => error.fmt(formatter),
             Self::CallableContract(error) => error.fmt(formatter),
@@ -93,6 +96,14 @@ pub fn lower_compile_unit_declarations(
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
     let surface = match collect_declaration_surface(input) {
         Ok(surface) => surface,
+        Err(SurfaceError::Topology(crate::LoweringError::Rule(violation))) => {
+            return match TopologyDiagnostic::project(&violation, input) {
+                Some(diagnostic) => Err(DeclarationLoweringError::Topology(diagnostic)),
+                None => Err(DeclarationLoweringError::InternalSurface(
+                    SurfaceError::Topology(crate::LoweringError::Rule(violation)),
+                )),
+            };
+        }
         Err(error) => {
             return match SurfaceDiagnostic::project(error, input) {
                 Ok(diagnostic) => Err(DeclarationLoweringError::Surface(diagnostic)),
@@ -162,7 +173,7 @@ mod tests {
     use crate::{
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, ImportRule,
         ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
-        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, TopologyRule,
         lower_compile_unit_declarations,
     };
 
@@ -212,6 +223,56 @@ mod tests {
             Some("E0230")
         );
         assert!(matches!(error, DeclarationLoweringError::Surface(_)));
+    }
+
+    #[test]
+    fn production_pipeline_projects_a_deterministic_module_cycle() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "use ./a\n");
+        let a_id = add_source(&mut sources, "/app/a/index.nct", "use /b\n");
+        let b_id = add_source(&mut sources, "/app/b/index.nct", "use /a\n");
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
+        let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
+        let package_identity = PackageIdentity::new("workspace:app");
+        let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
+        let b_identity = ModuleIdentity::new(package_identity, ["b"]);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &root),
+                module("workspace:app", &["a"], "/app/a/index.nct", &a),
+                module("workspace:app", &["b"], "/app/b/index.nct", &b),
+            ],
+            vec![
+                module_use(&root, 0, a_identity.clone()),
+                module_use(&a, 0, b_identity),
+                module_use(&b, 0, a_identity),
+            ],
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Topology(diagnostic) = error else {
+            panic!("module cycle did not produce a topology diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), TopologyRule::ModuleImportCycle);
+        assert_eq!(diagnostic.source().code(), "E0271");
+        assert_eq!(diagnostic.source().primary().source(), a_id);
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(diagnostic.source().notes()[0].origin().source(), b_id);
     }
 
     #[test]

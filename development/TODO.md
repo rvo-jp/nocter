@@ -8,13 +8,12 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Project authored topology failures that precede surface collection, especially invalid source-
-   composition edges and module import cycles. Missing, duplicated, or stale discovery-owned edges
-   remain internal contract failures.
-2. Extend the common source-backed diagnostic envelope from the completed module-surface, callable-
-   contract, namespace, authored-import, and freeze-time declaration rules to generic and type-
-   binding passes. Internal consistency faults remain distinct and must not receive user-facing
-   error codes.
+1. Extend the common source-backed diagnostic envelope from the completed module-topology, module-
+   surface, callable-contract, namespace, authored-import, and freeze-time declaration rules to
+   generic and type-binding passes. Internal consistency faults remain distinct and must not receive
+   user-facing error codes.
+2. Audit prelude composition failures. Compiler-selected authority and inconsistent namespace state
+   remain internal; any authored prelude-import rule must retain its exact syntax subject.
 3. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
 
@@ -35,7 +34,10 @@ exact name tokens and visibility nodes in shared namespace violations before con
 surface identities, then projects `E0240`-`E0242` without reverse lookup. Authored imports reuse
 those namespace rules and add `E0260`, `E0261`, and `E0412` for missing, widening, and inaccessible
 selected names. Namespace bindings retain exact local-name origins, so collision and access notes
-never expand to a whole `use` declaration.
+never expand to a whole `use` declaration. Source-composition violations and module cycles project
+`E0270`-`E0271`; module edges retain their authored `use` nodes, and cycle selection is canonical
+under compile-unit input reordering. Missing, duplicate, stale, and unreachable discovery inputs
+remain internal contract errors.
 
 ## Guardrails
 

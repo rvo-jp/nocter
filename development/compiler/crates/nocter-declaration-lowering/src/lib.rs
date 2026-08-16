@@ -21,6 +21,8 @@ mod surface;
 mod surface_diagnostic;
 mod text;
 mod topology;
+mod topology_diagnostic;
+mod topology_violation;
 mod types;
 mod visibility;
 
@@ -56,6 +58,8 @@ pub use surface::{
 };
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};
+pub use topology_diagnostic::TopologyDiagnostic;
+pub use topology_violation::{TopologyRule, TopologyViolation};
 pub use types::{
     BoundCallableType, BoundCapability, BoundDeclarationPattern, BoundRequirementKind, BoundTypeId,
     BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypeBindings,

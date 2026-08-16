@@ -303,7 +303,11 @@ fn source_imports_must_be_private_bare_edges_within_one_module() {
     ))
     .unwrap_err();
 
-    assert!(matches!(error, LoweringError::InvalidSourceUse(_)));
+    assert!(matches!(
+        error,
+        LoweringError::Rule(violation)
+            if violation.rule() == crate::TopologyRule::InvalidSourceImport
+    ));
 }
 
 #[test]
@@ -363,7 +367,12 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     let package_identity = PackageIdentity::new("workspace:app");
     let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
     let b_identity = ModuleIdentity::new(package_identity.clone(), ["b"]);
-    let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
+    let packages = vec![declared_package(
+        "workspace:app",
+        "app",
+        "/app/nocter.nct",
+        &manifest,
+    )];
     let modules = vec![
         root_module(
             "workspace:app",
@@ -398,13 +407,33 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
         module_use(&b, 0, a_identity.clone()),
     ];
 
-    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+    let forward = lower_compile_unit_topology(&CompileUnitInput::new(
         &sources,
-        vec![package],
-        modules,
-        resolutions,
+        packages.clone(),
+        modules.clone(),
+        resolutions.clone(),
+    ))
+    .unwrap_err();
+    let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
+        &sources,
+        packages.into_iter().rev().collect(),
+        modules.into_iter().rev().collect(),
+        resolutions.into_iter().rev().collect(),
     ))
     .unwrap_err();
 
-    assert_eq!(error, LoweringError::ModuleImportCycle(a_identity));
+    assert_eq!(forward, reverse);
+    let LoweringError::Rule(violation) = forward else {
+        panic!("module cycle did not select a topology rule");
+    };
+    assert_eq!(violation.rule(), crate::TopologyRule::ModuleImportCycle);
+    assert!(matches!(
+        violation.primary(),
+        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == a_id
+    ));
+    assert_eq!(violation.related().len(), 1);
+    assert!(matches!(
+        violation.related()[0],
+        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == b_id
+    ));
 }

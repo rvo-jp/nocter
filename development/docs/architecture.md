@@ -139,6 +139,13 @@ source imports. Those edges may cycle and remain idempotent. Module edges must t
 the compile unit and form an acyclic graph. The canonical surface retains the normalized edge, so
 later import lookup has no path-probing fallback.
 
+Module edges also retain the exact authored `use` node selected by discovery. Acyclic validation
+first removes the deterministic acyclic prefix, then derives one canonical complete cycle from the
+residual graph. The cycle is rotated by canonical module identity, so compile-unit input ordering
+cannot change its primary edge or ordered notes. Missing, duplicate, stale, and unreachable
+discovery inputs remain internal boundary failures; only authored source-import shape and module-
+cycle rules receive source diagnostic codes.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

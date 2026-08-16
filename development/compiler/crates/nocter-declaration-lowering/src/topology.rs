@@ -14,7 +14,7 @@ use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, Token
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceKind, PackageIdentity, PackageInput,
-    PackageMode, UseResolutionInput, UseTargetInput,
+    PackageMode, TopologyViolation, UseResolutionInput, UseTargetInput,
 };
 
 pub(crate) type UseResolutionKey = (SourceId, usize);
@@ -51,6 +51,7 @@ impl LoweredDeclarations {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LoweringError {
+    Rule(TopologyViolation),
     DuplicatePackage(PackageIdentity),
     DuplicateModule(ModuleIdentity),
     DuplicateSourcePath(Box<str>),
@@ -69,9 +70,7 @@ pub enum LoweringError {
     DuplicateUseResolution(NodeId),
     InvalidUseResolution(NodeId),
     UnknownUseTarget(NodeId),
-    InvalidSourceUse(NodeId),
     UnreachableImplementationSource(Box<str>),
-    ModuleImportCycle(ModuleIdentity),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
@@ -79,6 +78,12 @@ pub enum LoweringError {
 impl fmt::Display for LoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::DuplicatePackage(package) => {
                 write!(formatter, "duplicate package identity {}", package.as_str())
             }
@@ -155,20 +160,10 @@ impl fmt::Display for LoweringError {
                 formatter,
                 "resolved use {declaration:?} names a target outside the compile unit"
             ),
-            Self::InvalidSourceUse(declaration) => write!(
-                formatter,
-                "resolved source use {declaration:?} violates same-module composition rules"
-            ),
             Self::UnreachableImplementationSource(path) => {
                 write!(
                     formatter,
                     "implementation source {path} is not reachable from its module root"
-                )
-            }
-            Self::ModuleImportCycle(module) => {
-                write!(
-                    formatter,
-                    "module import graph contains a cycle through {module:?}"
                 )
             }
             Self::Program(error) => error.fmt(formatter),
@@ -188,6 +183,12 @@ impl From<ProgramBuildError> for LoweringError {
 impl From<DuplicateSourceBinding> for LoweringError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<TopologyViolation> for LoweringError {
+    fn from(violation: TopologyViolation) -> Self {
+        Self::Rule(violation)
     }
 }
 
@@ -439,7 +440,7 @@ fn validate_use_resolutions<'input, 'syntax>(
 
     let mut resolved = BTreeMap::new();
     let mut source_edges: BTreeMap<SourceId, Vec<SourceId>> = BTreeMap::new();
-    let mut module_edges = vec![BTreeSet::new(); modules.len()];
+    let mut module_edges = vec![BTreeMap::new(); modules.len()];
     let mut input_resolutions: Vec<_> = input.use_resolutions().iter().collect();
     input_resolutions.sort_unstable_by(|left, right| {
         use_key(left.declaration())
@@ -469,7 +470,7 @@ fn validate_use_resolutions<'input, 'syntax>(
                     || target_source.kind() != ModuleSourceKind::Implementation
                     || !is_source_use(importing_source.syntax(), declaration)
                 {
-                    return Err(LoweringError::InvalidSourceUse(declaration));
+                    return Err(TopologyViolation::invalid_source_import(declaration).into());
                 }
                 source_edges
                     .entry(importing_source.syntax().source())
@@ -483,7 +484,9 @@ fn validate_use_resolutions<'input, 'syntax>(
                 let target_index = *module_indices
                     .get(target)
                     .ok_or(LoweringError::UnknownUseTarget(declaration))?;
-                module_edges[importing_index].insert(target_index);
+                module_edges[importing_index]
+                    .entry(target_index)
+                    .or_insert(declaration);
             }
         }
     }
@@ -604,11 +607,11 @@ fn validate_source_reachability(
 
 fn validate_acyclic_modules(
     modules: &[&ModuleInput<'_>],
-    edges: &[BTreeSet<usize>],
+    edges: &[BTreeMap<usize, NodeId>],
 ) -> Result<(), LoweringError> {
     let mut indegree = vec![0usize; modules.len()];
     for targets in edges {
-        for target in targets {
+        for target in targets.keys() {
             indegree[*target] += 1;
         }
     }
@@ -620,7 +623,7 @@ fn validate_acyclic_modules(
     let mut visited = 0;
     while let Some(index) = ready.pop_first() {
         visited += 1;
-        for target in &edges[index] {
+        for target in edges[index].keys() {
             indegree[*target] -= 1;
             if indegree[*target] == 0 {
                 ready.insert(*target);
@@ -628,15 +631,53 @@ fn validate_acyclic_modules(
         }
     }
     if visited != modules.len() {
-        let index = indegree
-            .iter()
-            .position(|degree| *degree != 0)
-            .expect("unvisited module has a positive indegree");
-        return Err(LoweringError::ModuleImportCycle(
-            modules[index].identity().clone(),
-        ));
+        let imports = module_cycle_witness(edges, &indegree)
+            .expect("unvisited module graph contains a cycle witness");
+        return Err(TopologyViolation::module_import_cycle(imports)
+            .expect("module cycle contains at least one import")
+            .into());
     }
     Ok(())
+}
+
+fn module_cycle_witness(
+    edges: &[BTreeMap<usize, NodeId>],
+    residual_indegree: &[usize],
+) -> Option<Vec<NodeId>> {
+    let mut predecessors = vec![BTreeSet::new(); edges.len()];
+    for (source, targets) in edges.iter().enumerate() {
+        for target in targets.keys() {
+            if residual_indegree[source] != 0 && residual_indegree[*target] != 0 {
+                predecessors[*target].insert(source);
+            }
+        }
+    }
+    let mut current = residual_indegree.iter().position(|degree| *degree != 0)?;
+    let mut positions = BTreeMap::new();
+    let mut backward = Vec::new();
+    let cycle_start = loop {
+        if let Some(position) = positions.insert(current, backward.len()) {
+            break position;
+        }
+        backward.push(current);
+        current = *predecessors[current].first()?;
+    };
+    let mut modules = backward[cycle_start..].to_vec();
+    modules.reverse();
+    let canonical = modules
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, module)| **module)
+        .map(|(position, _)| position)?;
+    modules.rotate_left(canonical);
+
+    let mut imports = Vec::with_capacity(modules.len());
+    for index in 0..modules.len() {
+        let source = modules[index];
+        let target = modules[(index + 1) % modules.len()];
+        imports.push(*edges[source].get(&target)?);
+    }
+    Some(imports)
 }
 
 const fn use_key(declaration: NodeId) -> UseResolutionKey {

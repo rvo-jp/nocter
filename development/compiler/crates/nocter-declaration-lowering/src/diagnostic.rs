@@ -128,22 +128,26 @@ pub(crate) fn input_trees<'input, 'syntax: 'input>(
 pub(crate) fn project_syntax_diagnostic(
     input: &CompileUnitInput<'_>,
     primary: SyntaxOrigin,
-    related: Option<SyntaxOrigin>,
+    related: impl IntoIterator<Item = SyntaxOrigin>,
     code: &'static str,
     message: &'static str,
     related_message: Option<&'static str>,
     help: &'static str,
 ) -> Option<SourceDiagnostic> {
     let primary = origin_from_syntax(input_trees(input), primary)?;
-    let related = match related {
-        Some(syntax) => Some(origin_from_syntax(input_trees(input), syntax)?),
-        None => None,
+    let related = related.into_iter().collect::<Vec<_>>();
+    let related_message = if related.is_empty() {
+        ""
+    } else {
+        related_message?
     };
     let notes = related
-        .zip(related_message)
-        .map(|(origin, message)| DiagnosticNote::new(message, origin))
         .into_iter()
-        .collect::<Vec<_>>();
+        .map(|syntax| {
+            origin_from_syntax(input_trees(input), syntax)
+                .map(|origin| DiagnosticNote::new(related_message, origin))
+        })
+        .collect::<Option<Vec<_>>>()?;
     Some(SourceDiagnostic::new(
         code,
         message,

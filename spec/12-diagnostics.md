@@ -83,6 +83,13 @@ Source-backed import diagnostics:
 - `E0412`: a selected import name is outside its declared visibility boundary from the importing
   module.
 
+Source-backed module-topology diagnostics:
+
+- `E0270`: a resolved source import is not a private top-level bare relative import of an
+  implementation source in the same directory module.
+- `E0271`: authored module imports form a dependency cycle. The primary span and related notes
+  identify one deterministic complete cycle of `use` declarations.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.
