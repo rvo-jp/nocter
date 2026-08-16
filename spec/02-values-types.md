@@ -329,6 +329,12 @@ algorithm is [Recursive Outcome Injection](04-errors-optionals.md#recursive-outc
 Nocter supports one optional layer, one fallible layer, or one of each in either order. Repeated
 equal layers and deeper recursive outcome types are not supported.
 
+`void!` is valid and represents a recoverable operation with no success value. An optional layer
+must not ultimately wrap `void`; `void?`, `void?!`, `(void?)!`, and `(void!)?` are invalid. This
+restriction is checked after alias expansion and generic substitution, so an otherwise valid
+generic `T?` cannot be instantiated with `T = void`. Use an enum when absence and successful
+completion are observably different states.
+
 Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
 type syntax group a type without creating a new type.

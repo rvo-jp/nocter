@@ -304,6 +304,9 @@ Rules:
 
 - `T?` is not spelled as a special `Option<T>` type.
 - `none` is the optional absent literal.
+- `T` must not be `void`, including after alias expansion or generic substitution. Optional
+  `void` has no source value for its present branch; use an enum when that state distinction is
+  required.
 - A compatible function body result or `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - Postfix `?` on `T?` propagates `none` through the current optional return layer.
@@ -342,6 +345,8 @@ Rules:
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
 - `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
+- An optional layer must not have `void` as its eventual payload. Consequently `void?!` and
+  `(void!)?` are invalid even though `void!` is valid.
 - Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
 

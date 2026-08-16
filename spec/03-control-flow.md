@@ -31,6 +31,8 @@ Return checking:
   function body for success; `return error_value` returns failure.
 - An optional function `T?` must produce a present value through the function body result or explicit `return`, `return none`, or terminate with `never` on every reachable path.
 - A fallible optional function `T?!` must produce a present success value through the function body result or explicit `return`, `return none` as success absence, return an `error` failure value, or terminate with `never` on every reachable path.
+- Optional result types with `void` as their eventual payload are invalid. Bare `return` and
+  end-of-body completion therefore never construct a hidden present-`void` optional state.
 - `func main(): i32!` and `func main(): usize!` follow the same source-level return checking rules as functions returning those fallible types; success returns `i32` or `usize`, and failure returns an `error` value.
 - `func main(): void!` follows the same source-level return checking rules as a
   function returning `void!`; success returns no value, and failure returns an

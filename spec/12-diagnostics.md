@@ -312,6 +312,9 @@ Required diagnostic families:
 - Postfix `?` used on `T?` outside a function, method, or closure body whose current result layer
   can carry `none`.
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
+- An optional type whose eventual payload is `void`, including a generic or alias-expanded
+  `void?`, `void?!`, or `(void!)?`. The diagnostic should recommend `void!` when only recoverable
+  failure is needed, or an enum when absence and completion must remain distinct.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
 - A callable body result or `return` expression that recursive outcome injection cannot make

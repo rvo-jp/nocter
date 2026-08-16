@@ -45,6 +45,10 @@ The compile-unit type store interns structural types. Its keys contain typed sem
 normalized constants, never rendered names, source text, or byte positions. `TypeExpr` belongs to
 syntax lowering and presentation; it does not cross into checked semantics.
 
+Type well-formedness is validated on interned semantic types after alias expansion and concrete
+generic substitution. Invalid constructed types, including an optional layer whose eventual
+payload is `void`, cannot enter checked bodies, monomorphized keys, MIR, or ABI layout.
+
 ## Checked Program
 
 Every checked body owns one typed node arena. Authored and compiler-generated operations use the

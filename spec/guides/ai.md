@@ -32,6 +32,8 @@ Rules for generated code:
   built-in.
 - Write fallible types as `T!`.
 - Write fallible optional success values as `T?!`.
+- Use `void!` for a recoverable operation with no success value. Do not generate `void?`,
+  `void?!`, or `(void!)?`; model an observable absence/completion distinction with an enum.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.
