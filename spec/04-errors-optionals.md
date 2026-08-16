@@ -87,7 +87,7 @@ let file = File.open(path)?
 ```
 
 For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current
-function, method, or closure fails with the same `error` payload.
+function, method, or closure returns the same `error` payload through its declared fallible layer.
 
 For `T?`, `expr?` evaluates to the present value when `expr` is present. On `none`, the current
 function, method, or closure returns `none` through its optional return layer.
@@ -98,7 +98,12 @@ Example:
 let file = File.open(path)?
 ```
 
-This binds `file` to the successful `File` value. If `File.open(path)` fails, the current function fails with that `error` as if `return error_value` had been executed.
+This binds `file` to the successful `File` value. If `File.open(path)` fails, the current callable
+returns that `error` as if `return error_value` had been executed.
+
+In a callable returning `(U!)?`, that explicit return meaning is presence containing inner
+failure. In a callable returning `U?!`, it is outer failure. The declared outcome order is never
+flattened or reordered by propagation.
 
 Rules:
 
@@ -109,9 +114,12 @@ Rules:
 - A newly produced outcome temporary needs no `move`. A copyable outcome place may be used without
   `move`; it is copied and the original remains initialized.
 - Postfix `?` does not perform stack unwinding.
-- Postfix `?` on `T!` can be used only inside a fallible function.
-- Postfix `?` on `T?` can be used only when the current callable body's result layer can carry
-  `none`.
+- Postfix `?` on `T!` can be used only when the current function, method, or closure result type
+  contains a fallible layer.
+- Postfix `?` on `T?` can be used only when the current function, method, or closure result type
+  contains an optional layer.
+- Propagation selects the matching declared outcome layer through recursive outcome injection. It
+  does not require that layer to be outermost and does not change the order of composed layers.
 - Postfix `?` does not convert `none` into `error`.
 - Postfix `?` does not convert `error` into `none`.
 - Scope-end cleanup and `drop` behavior still run as they would for an explicit `return`.
@@ -466,8 +474,9 @@ func require_home(): &str? {
 Rules:
 
 - Postfix `?` on `T?` is valid when the current callable body's result type can carry `none`, such
-  as `U?` or `(U?)!`.
+  as `U?`, `(U?)!`, or `(U!)?`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
+- In a function returning `(U!)?`, `none` is returned as outer absence.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
 - Exact absence propagation uses `?`. Absence defaulting and control flow other than returning the
   same `none` use `otherwise`.

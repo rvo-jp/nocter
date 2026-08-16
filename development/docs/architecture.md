@@ -66,6 +66,9 @@ Contextual return checking lowers optional and fallible construction into explic
 Each node names its expected outcome type, selected tag, and recursively checked payload. An
 expression already having the complete expected outcome type requires no injection node. MIR must
 consume these decisions; it cannot reopen a rendered type spelling or reconstruct outcome order.
+Checked propagation nodes identify the exact declared outcome layer they target and reuse the same
+injection path as an explicit `return`; they do not encode only an unqualified "failure" or
+"absence" action.
 
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once

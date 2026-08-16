@@ -54,6 +54,9 @@ Rules for generated code:
   `T?!`, `error` is outer failure and `none` is success absence. For `(T!)?`, `none` is outer
   absence and `error` is a present inner failure. A value already having the complete declared
   result type is returned unchanged.
+- Postfix `?` propagates through the matching declared layer without reordering outcomes. A
+  fallible failure in `(T!)?` becomes a present inner failure; optional absence in `T?!` remains
+  outer success with inner absence.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 

@@ -204,9 +204,10 @@ Rules:
 - Only the selected `match` arm body is evaluated.
 - `for name in start..<end { ... }` is a statement.
 - `return value` explicitly returns a value from the current function, method, or closure body.
-- `return error_value` explicitly returns a failure from the current fallible callable body.
-- `return none` explicitly returns absence from the current optional callable body, or success
-  absence from its fallible optional result.
+- `return error_value` explicitly selects the fallible layer in the current callable's declared
+  result type. Recursive outcome injection preserves any enclosing optional layer.
+- `return none` explicitly selects the optional layer in the current callable's declared result
+  type. Recursive outcome injection preserves any enclosing fallible layer.
 
 Examples:
 

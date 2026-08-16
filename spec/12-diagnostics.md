@@ -308,9 +308,10 @@ Required diagnostic families:
 - Borrow conflicts are computed after ordinary `if` and `while` condition temporaries have been
   dropped; a condition-only loan must not be reported as live in the body.
 - Returning a borrow-like value whose provenance cannot outlive the function.
-- Postfix `?` used on `T!` outside a fallible function, method, or closure body.
-- Postfix `?` used on `T?` outside a function, method, or closure body whose current result layer
-  can carry `none`.
+- Postfix `?` used on `T!` outside a function, method, or closure whose complete declared result
+  type contains a fallible layer.
+- Postfix `?` used on `T?` outside a function, method, or closure whose complete declared result
+  type contains an optional layer.
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - An optional type whose eventual payload is `void`, including a generic or alias-expanded
   `void?`, `void?!`, or `(void!)?`. The diagnostic should recommend `void!` when only recoverable
