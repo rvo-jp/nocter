@@ -772,6 +772,8 @@ let user = User {
 Rules:
 
 - Struct literal syntax is `Type { field: value, ... }`.
+- A struct may declare zero fields. Its structural literal is `Type {}` under the same visibility
+  and construction-surface rules as any other struct.
 - Struct literal fields are comma-delimited and may use one trailing comma on any layout.
 - The type in a struct literal must name a struct type. A generic owner may use complete explicit
   type arguments or infer all of them under

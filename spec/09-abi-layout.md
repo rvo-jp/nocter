@@ -50,6 +50,13 @@ The caller must assume `x0-x17` may be clobbered by a call, except for return va
 
 ABI classification uses 64-bit words.
 
+Zero-word values:
+
+- any sized type whose computed size is `0`
+
+A zero-word value still exists for source ownership, initialization, destruction, and evaluation
+order. Its transport consumes no argument register, return register, or stack slot.
+
 One-word values:
 
 - `bool`
@@ -83,6 +90,8 @@ Arguments are assigned left to right.
 
 Rules:
 
+- A zero-sized argument expression is evaluated and ownership is transferred normally, but it
+  consumes no argument register or stack slot.
 - Values of 16 bytes or less are passed directly.
 - Direct values use `x0-x7` when enough consecutive argument registers remain.
 - A two-word direct value must fit entirely in registers; otherwise the whole argument is passed on the stack.
@@ -104,6 +113,8 @@ Return rules:
 
 - `void` returns no value.
 - `never` does not return to the caller.
+- A zero-sized return expression is evaluated and transfers one logical initialized value to the
+  caller, but consumes no return register and requires no indirect return storage.
 - Values of 16 bytes or less return directly in `x0` and `x1`.
 - Values larger than 16 bytes return indirectly.
 
@@ -120,6 +131,7 @@ Rules:
 - Each field is placed at the next offset satisfying that field's alignment.
 - The struct alignment is the maximum alignment of its fields.
 - The final struct size is rounded up to the struct alignment.
+- A struct with zero fields has size `0` and alignment `1`.
 - `copy struct` and ordinary `struct` use the same layout rules.
 - `drop` presence does not change layout.
 
@@ -148,6 +160,9 @@ Rules:
 - Element `i` starts at byte offset `i * stride`.
 - The array size is `stride * N`.
 - `[T; 0]` has size `0` and the same alignment as `T`.
+- When `T` is zero-sized, every logical element has the same byte offset and the array size is
+  `0` for every `N`. Bounds, initialization, ownership, evaluation, and per-element destruction
+  still use the declared logical element count.
 - Array ABI classification uses the total array size and alignment, following the
   ordinary direct-versus-indirect rules.
 - Drop glue for a fixed array drops initialized owned elements in reverse index

@@ -169,6 +169,9 @@ Rules:
 - The length `N` in `[T; N]` is a compile-time integer literal value that must
   fit in `usize`.
 - `[T; 0]` is valid and contains no initialized elements.
+- A fixed array of a zero-sized element type still contains its declared number of logical
+  elements even though its stored size is zero. Element evaluation, bounds, ownership, and drop
+  behavior use that logical count.
 - The element type `T` must be sized. Unsized `str` and `[T]` elements must be
   used behind an indirection such as `&str` or `&[T]`.
 - Array literal elements are evaluated left to right.

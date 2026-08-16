@@ -116,6 +116,9 @@ aggregate size and alignment, argument and return classification, active-payload
 drop-glue addressing. Optional and fallible layers receive distinct semantic type identities but
 use the same recursive binary tagged-union layout operation. Code generation cannot calculate a
 second layout from rendered types or special-case a different tag width for calls.
+Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
+MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
+destruction merely because a layout has size zero.
 
 One target-independent trap operation represents always-on safety failure, including failed
 postfix `!`. Machine lowering does not route that operation through standard-library formatting,
