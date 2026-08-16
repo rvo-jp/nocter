@@ -33,7 +33,7 @@ impl std::error::Error for PreludeError {}
 /// Authored namespaces plus compiler-managed standard-prelude fallback entries.
 #[derive(Debug)]
 pub struct PreparedNamespaces<'syntax> {
-    imports: PreparedImports<'syntax>,
+    pub(crate) imports: PreparedImports<'syntax>,
     prelude: Box<[ModuleNamespace]>,
 }
 

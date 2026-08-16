@@ -89,15 +89,20 @@ be introduced to make an unresolved syntax choice.
   resolved semantic entities. The compiler-selected standard prelude is a separate fallback table:
   authored names shadow it, it never becomes an implicit re-export, standard-package modules do
   not receive it, and source code cannot import the compiler-managed prelude explicitly.
+  Header type binding then converts every type occurrence into a flat syntax-independent arena.
+  It resolves module selections, authored and prelude names, generic identities and arity, `Self`
+  ownership, fixed-array lengths, and structural-callable origin names exactly once. Alias
+  applications and associated selections remain explicit bound nodes until the normalization pass
+  has the requirements needed to resolve them.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will resolve structural types and requirements against the complete
-reservation, authored namespace with standard-prelude fallback, and generic-scope set. It will
-define every arena slot and discard the temporary syntax-owned inventory and all mutable builders.
-No crate yet owns checked body semantics.
+The next Phase 2 increment will normalize aliases and associated selections into the structural
+type store while resolving requirements. It will then define every declaration arena slot and
+discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns checked
+body semantics.
 
 ## Verification
 

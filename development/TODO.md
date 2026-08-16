@@ -8,14 +8,13 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Lower structural types against the completed canonical reservation, authored module namespace,
-   compiler-managed standard-prelude fallback, and generic-scope sets. Package/module/source
-   topology, surface inventory, cross-file callable joining, recursive identity reservation, exact
-   names, normalized visibility, generic binder identity, authored imports/re-exports, and the
-   non-reexporting prelude fallback are complete.
-2. Define declaration headers, aliases, associated declarations, callable provenance, and generic
-   requirements into the structural type store, then freeze the declaration program and separate
-   `SourceIndex`.
+1. Normalize the completed bound header-type arena into the structural type store. Resolve alias
+   applications and associated selections together with their requirement environment; do not add
+   either as a temporary canonical `TypeKind`. Package/module/source topology, surface inventory,
+   cross-file callable joining, recursive identity reservation, names, visibility, generic binders,
+   authored imports/re-exports, prelude fallback, and lexical type-name binding are complete.
+2. Define declaration headers, associated declarations, callable provenance, and generic
+   requirements, then freeze the declaration program and separate `SourceIndex`.
 3. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
    permutation tests for the complete lowering result.
 

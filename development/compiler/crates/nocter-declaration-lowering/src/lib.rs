@@ -12,6 +12,7 @@ mod input;
 mod reservation;
 mod surface;
 mod topology;
+mod types;
 mod visibility;
 
 #[cfg(test)]
@@ -38,3 +39,7 @@ pub use surface::{
     collect_declaration_surface,
 };
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};
+pub use types::{
+    BoundCallableType, BoundTypeId, BoundTypeKind, PreparedTypeBindings, TypeBindingError,
+    bind_header_type_syntax,
+};
