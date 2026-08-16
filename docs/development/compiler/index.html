@@ -274,7 +274,11 @@
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
   known outcome layers, and rejects incomplete or invalid data substitutions before checked-node
-  construction. <code>check_prepared_program</code> is now the production consuming boundary for the first
+  construction. One program-wide copyability table collects normalized generic copy proofs,
+  memoizes substituted <code>copy struct</code>, enum, array, outcome, pointer, and borrow classifications by
+  canonical type identity, and closes over the final extended type store before becoming part of
+  <code>CheckedProgram</code>. Callable signatures never stand in for closure-environment ownership.
+  <code>check_prepared_program</code> is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
   and recursive-outcome nodes, rejects value-producing expression statements and reachable
   non-value fallthrough, and projects every <code>BodyNodeId</code> back to its exact syntax origin.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>

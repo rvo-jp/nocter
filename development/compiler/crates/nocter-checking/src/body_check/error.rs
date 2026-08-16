@@ -6,7 +6,7 @@ use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
 use crate::checked::BuildCheckedBodyError;
-use crate::{ExpectedTypeError, NameTarget};
+use crate::{CopyabilityError, ExpectedTypeError, NameTarget};
 
 #[derive(Debug)]
 pub enum BodyCheckError {
@@ -66,7 +66,7 @@ pub enum BodyCheckInternalError {
     InvalidLiteral(NodeId),
     UnknownType(TypeId),
     MissingNode(BodyNodeId),
-    UnsupportedCopyability(TypeId),
+    Copyability(CopyabilityError),
     ExpectedType(ExpectedTypeError),
     Construction(BuildCheckedBodyError),
     DuplicateProjection(DuplicateSourceBinding),
@@ -98,6 +98,12 @@ impl From<BuildCheckedBodyError> for BodyCheckError {
 impl From<ExpectedTypeError> for BodyCheckInternalError {
     fn from(error: ExpectedTypeError) -> Self {
         Self::ExpectedType(error)
+    }
+}
+
+impl From<CopyabilityError> for BodyCheckInternalError {
+    fn from(error: CopyabilityError) -> Self {
+        Self::Copyability(error)
     }
 }
 

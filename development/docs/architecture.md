@@ -348,15 +348,16 @@ Initialization dataflow is keyed by those semantic places. Joins merge each name
 initialized, uninitialized, or maybe initialized. Assignment consumes that one state to select no
 drop, unconditional drop, or conditional drop before storing and marking the place initialized;
 scope cleanup and whole-parent replacement consume the same state instead of recomputing liveness.
-The type store derives optional and fallible copyability structurally from their success or present
-payload and the built-in copyable `error` type. The result is attached to the complete semantic
-type before body checking. Flow analysis never reclassifies an outcome from its active tag, and
-MIR consumes the same type fact instead of deciding whether a particular tagged value may be
-copied.
-Generic `copy struct` validation builds one normalized conjunction of field-copy requirements.
-Concrete substitution evaluates that expression once in the type store. An unconditional
-move-only field rejects the declaration, while a generic-dependent atom remains a specialization
-condition; body checking and MIR do not traverse fields again to rediscover copyability.
+The program-wide copyability table derives optional and fallible copyability structurally from
+their success or present payload and the built-in copyable `error` type. It memoizes the result by
+canonical `TypeId` and closes over the complete semantic type store before checked-program
+construction finishes. Flow analysis never reclassifies an outcome from its active tag, and MIR
+consumes the same type fact instead of deciding whether a particular tagged value may be copied.
+Generic `copy struct` validation builds one normalized conjunction of field-copy requirements. A
+concrete specialization substitutes its arguments and evaluates its field types once through the
+same copyability table. An unconditional move-only field rejects the declaration, while a generic-
+dependent atom remains a specialization condition; body checking and MIR do not traverse fields
+again to rediscover copyability.
 Checked closure construction records one environment field for each resolved capture and derives
 copyability with the same structural operation used by aggregates. Invocation capability is a
 separate callable fact and cannot overwrite the environment's ownership class. Later

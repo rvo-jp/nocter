@@ -185,8 +185,18 @@ must be represented; it is never exposed as a source value. Outcome plans become
 `CheckedOutcome` nodes from the payload outward. Each constructed node extends `SourceIndex`
 directly with `SemanticEntity::BodyNode`; no expression-to-type side map survives construction.
 
+`CopyabilityTable` is the sole copy-proof authority. It collects normalized `copy` requirements by
+`GenericParameterId`, classifies ordinary structs and readwrite borrows as move-only, recognizes
+payloadless enums and readonly borrows directly, and evaluates arrays, outcomes, and `copy struct`
+specializations structurally. Nominal field types use the shared canonical substitution engine.
+Every result is memoized by `TypeId`; finalization closes the table over the complete extended type
+store before moving it into `CheckedProgram`. Body checking and later stages therefore consume one
+fact instead of traversing nominal fields independently. Closure environments remain a checked-
+value responsibility because callable signature capability does not determine capture copyability.
+
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and
-source projection only after every body succeeds. Unsupported valid syntax and copyability that
-requires not-yet-implemented nominal specialization remain internal incomplete-implementation
-errors, preventing both a partial program and a misleading source diagnostic.
+source projection only after every body succeeds. Unsupported valid syntax remains an internal
+incomplete-implementation error, preventing both a partial program and a misleading source
+diagnostic. Declaration-wide rejection of an invalid `copy struct` family remains the next
+copyability rule; concrete specialization and body reads already use the shared authority.

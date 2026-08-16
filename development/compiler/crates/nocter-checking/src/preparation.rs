@@ -8,9 +8,9 @@ use nocter_source_index::SourceIndex;
 
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
 use crate::{
-    BodySourceCatalog, ConformanceBuildError, ConformanceTable, DeclarationTypeValidityError,
-    NameResolutionError, ResolvedBodyNames, build_conformance_table, catalog_body_sources,
-    validate_declaration_types,
+    BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityTable,
+    DeclarationTypeValidityError, NameResolutionError, ResolvedBodyNames, build_conformance_table,
+    catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -23,6 +23,7 @@ pub struct PreparedChecking<'syntax> {
     graph: DeclarationGraph,
     types: TypeStore,
     conformances: ConformanceTable,
+    copyabilities: CopyabilityTable,
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_index: SourceIndex,
@@ -45,6 +46,11 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
+    pub const fn copyabilities(&self) -> &CopyabilityTable {
+        &self.copyabilities
+    }
+
+    #[must_use]
     pub const fn body_sources(&self) -> &BodySourceCatalog<'syntax> {
         &self.body_sources
     }
@@ -64,6 +70,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             graph: self.graph,
             types: self.types,
             conformances: self.conformances,
+            copyabilities: self.copyabilities,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_index: self.source_index,
@@ -75,6 +82,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) graph: DeclarationGraph,
     pub(crate) types: TypeStore,
     pub(crate) conformances: ConformanceTable,
+    pub(crate) copyabilities: CopyabilityTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_index: SourceIndex,
@@ -148,12 +156,14 @@ pub fn prepare_program_checking<'syntax>(
         .map_err(NameResolutionError::from)?;
     validate_declaration_types(&graph, &types, &source_index)?;
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
+    let copyabilities = CopyabilityTable::new(&graph);
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
         graph,
         types,
         conformances,
+        copyabilities,
         body_sources,
         body_names,
         source_index,

@@ -182,7 +182,11 @@ be introduced to make an unresolved syntax choice.
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
   known outcome layers, and rejects incomplete or invalid data substitutions before checked-node
-  construction. `check_prepared_program` is now the production consuming boundary for the first
+  construction. One program-wide copyability table collects normalized generic copy proofs,
+  memoizes substituted `copy struct`, enum, array, outcome, pointer, and borrow classifications by
+  canonical type identity, and closes over the final extended type store before becoming part of
+  `CheckedProgram`. Callable signatures never stand in for closure-environment ownership.
+  `check_prepared_program` is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
   and recursive-outcome nodes, rejects value-producing expression statements and reachable
   non-value fallthrough, and projects every `BodyNodeId` back to its exact syntax origin.

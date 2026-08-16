@@ -60,7 +60,10 @@ impl TypeSubstitution {
                         .get(ty)
                         .cloned()
                         .ok_or(SubstitutionError::UnknownType(ty))?;
-                    if let Some(replacement) = self.direct_replacement(types, &kind) {
+                    if let Some(replacement) = self
+                        .direct_replacement(types, &kind)
+                        .filter(|replacement| *replacement != ty)
+                    {
                         pending.push(Action::Replace {
                             source: ty,
                             target: replacement,
@@ -262,5 +265,18 @@ mod tests {
             substitution.apply_type(&mut types, first_type).unwrap(),
             expected
         );
+    }
+
+    #[test]
+    fn identity_generic_replacement_is_a_no_op() {
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let mut types = TypeStore::new();
+        let generic = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
+        let mut substitution = TypeSubstitution::default();
+        substitution.bind_generic(parameter, generic);
+
+        assert_eq!(substitution.apply_type(&mut types, generic), Ok(generic));
     }
 }

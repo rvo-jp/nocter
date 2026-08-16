@@ -2,20 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by defining the closed typed-body node model and construction boundary on
-top of the completed name, conformance, and normalized type-position authorities.
+Continue v0.14.0 Phase 3 by extending the closed typed-body construction path with ownership-state
+transitions on top of the completed program-wide copyability authority.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Extend the production checked-body path from its completed scalar/local/borrow/return slice to
-   ownership-state transitions, named fields, calls, and primitive operators. Use the existing
-   inference and expected-type planners rather than adding syntax-specific compatibility paths.
-2. Add canonical copyability and concrete nominal substitution before accepting nominal or generic
-   place reads. Keep unknown copyability as an internal incomplete-implementation boundary rather
-   than emitting a false implicit-move diagnostic.
+1. Validate each `copy struct` family as a declaration-wide conditional copy contract. Reject an
+   unconditionally move-only field with an exact authored diagnostic; retain generic-dependent
+   field conditions for specialization rather than weakening the family to move-only.
+2. Add explicit move and initialization-state transitions before named fields, calls, and
+   primitive operators. Use the same place and copyability authorities for assignment, arguments,
+   returns, captures, iteration, and spread.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -50,7 +50,11 @@ static dispatch retain exact decisions, and generic arguments are identity-keyed
 for the first vertical body slice: scalar literals, inferred locals, copyable parameter/local
 places, readonly borrows, binding/discard, return/body-result checking, and recursive outcome
 injection. Every typed node receives an exact `BodyNodeId` source projection, and no partial program
-escapes an unsupported construct or failed rule. Ownership state, nominal copyability,
+escapes an unsupported construct or failed rule. `CopyabilityTable` collects normalized `copy`
+proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
+facts by canonical `TypeId`, closes over the final type store, and remains owned by
+`CheckedProgram`. Ordinary structs, unconstrained generics, readwrite borrows, and callable
+contracts are never guessed copyable. Ownership state, copy-family declaration validation,
 annotation binding, calls, operators, aggregates, branches, loops, closures, literals, and
 interpolation remain incomplete.
 

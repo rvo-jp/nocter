@@ -15,6 +15,7 @@ use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
 use crate::checked::{CheckedBodyBuilder, CheckedProgram, CheckedProgramOutput};
+use crate::copyability::{Copyability, CopyabilityTable};
 use crate::preparation::PreparedCheckingParts;
 use crate::syntax::{direct_child, direct_identifier, direct_nodes, token_text};
 use crate::{
@@ -46,6 +47,7 @@ pub fn check_prepared_program<'syntax>(
         graph,
         mut types,
         conformances,
+        mut copyabilities,
         body_sources,
         body_names,
         source_index,
@@ -63,8 +65,16 @@ pub fn check_prepared_program<'syntax>(
         if names.body() != body {
             return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
         }
-        let checked =
-            BodyChecker::new(input, &graph, &mut types, &source_index, source, names)?.check()?;
+        let checked = BodyChecker::new(
+            input,
+            &graph,
+            &mut types,
+            &mut copyabilities,
+            &source_index,
+            source,
+            names,
+        )?
+        .check()?;
         let actual = bodies.insert(checked.body);
         if actual != body {
             return Err(BodyCheckInternalError::NonCanonicalBody(body).into());
@@ -78,8 +88,11 @@ pub fn check_prepared_program<'syntax>(
             .insert(projection.entity, SourceRole::Reference, projection.origin)
             .map_err(BodyCheckInternalError::from)?;
     }
+    copyabilities
+        .complete(&graph, &mut types)
+        .map_err(BodyCheckInternalError::Copyability)?;
     Ok(CheckedProgramOutput::new(
-        CheckedProgram::new(graph, types, conformances, bodies.finish()),
+        CheckedProgram::new(graph, types, conformances, copyabilities, bodies.finish()),
         source_index.finish(),
     ))
 }
@@ -93,6 +106,7 @@ struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
     types: &'input mut TypeStore,
+    copyabilities: &'input mut CopyabilityTable,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     builder: CheckedBodyBuilder,
@@ -108,6 +122,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         input: &'input CompileUnitInput<'syntax>,
         graph: &'input DeclarationGraph,
         types: &'input mut TypeStore,
+        copyabilities: &'input mut CopyabilityTable,
         source_index: &'input SourceIndex,
         source: BodySource<'syntax>,
         names: &'input ResolvedBodyNames,
@@ -136,6 +151,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             input,
             graph,
             types,
+            copyabilities,
             source,
             names,
             builder: CheckedBodyBuilder::new(names),
@@ -392,10 +408,13 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     fn check_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let (place, ty) = self.named_place(node)?;
-        match is_copy_type(self.types, ty) {
-            Some(true) => {}
-            Some(false) => return Err(self.rule(BodyRule::ImplicitMove, node)?.into()),
-            None => return Err(BodyCheckInternalError::UnsupportedCopyability(ty).into()),
+        match self
+            .copyabilities
+            .classify(self.graph, self.types, ty)
+            .map_err(BodyCheckInternalError::Copyability)?
+        {
+            Copyability::Copy => {}
+            Copyability::MoveOnly => return Err(self.rule(BodyRule::ImplicitMove, node)?.into()),
         }
         self.add_node(node, ty, CheckedOperation::Copy(place))
     }
@@ -650,55 +669,6 @@ fn single_descendant(
     }
 }
 
-fn is_copy_type(types: &TypeStore, root: TypeId) -> Option<bool> {
-    let mut pending = vec![root];
-    let mut visited = HashSet::new();
-    while let Some(ty) = pending.pop() {
-        if !visited.insert(ty) {
-            continue;
-        }
-        match types.get(ty) {
-            Some(
-                TypeKind::Builtin(
-                    BuiltinType::Bool
-                    | BuiltinType::I8
-                    | BuiltinType::I16
-                    | BuiltinType::I32
-                    | BuiltinType::I64
-                    | BuiltinType::U8
-                    | BuiltinType::U16
-                    | BuiltinType::U32
-                    | BuiltinType::U64
-                    | BuiltinType::Usize
-                    | BuiltinType::Isize
-                    | BuiltinType::Error
-                    | BuiltinType::Void,
-                )
-                | TypeKind::Pointer(_)
-                | TypeKind::Borrow { .. }
-                | TypeKind::Callable(_),
-            ) => {}
-            Some(
-                TypeKind::FixedArray { element, .. }
-                | TypeKind::Optional(element)
-                | TypeKind::Fallible(element),
-            ) => pending.push(*element),
-            Some(TypeKind::Builtin(BuiltinType::Never | BuiltinType::Str) | TypeKind::Slice(_)) => {
-                return Some(false);
-            }
-            Some(
-                TypeKind::GenericParameter(_)
-                | TypeKind::InterfaceSelf(_)
-                | TypeKind::Nominal { .. }
-                | TypeKind::AssociatedProjection { .. }
-                | TypeKind::Opaque { .. },
-            )
-            | None => return None,
-        }
-    }
-    Some(true)
-}
-
 #[cfg(test)]
 mod tests {
     use nocter_declaration_lowering::lower_compile_unit_declarations;
@@ -806,6 +776,106 @@ mod tests {
                 .any(|(_, node)| matches!(node.operation(), CheckedOperation::Borrow { .. }))
         );
         assert_eq!(body.places().len(), 1);
+    }
+
+    #[test]
+    fn copy_struct_specialization_uses_substituted_field_copyability() {
+        let fixture = Fixture::new(
+            "copy struct Box<T> {\n    value: T\n}\n\
+             func duplicate(value: Box<i32>): Box<i32> {\n    value\n}\n",
+        );
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let output = check_prepared_program(&input, prepared).unwrap();
+
+        assert!(
+            output.program().types().iter().all(|(ty, _)| output
+                .program()
+                .copyabilities()
+                .get(ty)
+                .is_some())
+        );
+        assert!(output.program().bodies().iter().any(|(_, body)| {
+            body.nodes()
+                .iter()
+                .any(|(_, node)| matches!(node.operation(), CheckedOperation::Copy(_)))
+        }));
+    }
+
+    #[test]
+    fn copy_struct_specialization_remains_move_only_for_move_only_argument() {
+        let fixture = Fixture::new(
+            "struct Owned {\n    value: i32\n}\n\
+             copy struct Box<T> {\n    value: T\n}\n\
+             func duplicate(value: Box<Owned>): Box<Owned> {\n    value\n}\n",
+        );
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
+    }
+
+    #[test]
+    fn callable_copy_requirement_supplies_the_generic_body_proof() {
+        let fixture = Fixture::new("func duplicate<T>(value: T): T where copy T {\n    value\n}\n");
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+
+        check_prepared_program(&input, prepared).unwrap();
+    }
+
+    #[test]
+    fn unconstrained_generic_parameter_is_not_implicitly_copied() {
+        let fixture = Fixture::new("func duplicate<T>(value: T): T {\n    value\n}\n");
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
+    }
+
+    #[test]
+    fn payloadless_enum_is_copyable_without_a_marker() {
+        let fixture = Fixture::new(
+            "enum Choice {\n    yes\n    no\n}\n\
+             func duplicate(value: Choice): Choice {\n    value\n}\n",
+        );
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+
+        check_prepared_program(&input, prepared).unwrap();
+    }
+
+    #[test]
+    fn readonly_and_readwrite_borrows_have_distinct_copyability() {
+        let readonly =
+            Fixture::new("func duplicate(value: &i32): &i32 from value {\n    value\n}\n");
+        let (input, prelude) = readonly.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        check_prepared_program(&input, prepared).unwrap();
+
+        let readwrite =
+            Fixture::new("func duplicate(value: &+i32): &+i32 from value {\n    value\n}\n");
+        let (input, prelude) = readwrite.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
     }
 
     #[test]

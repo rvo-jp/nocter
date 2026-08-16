@@ -8,6 +8,7 @@ mod body_check;
 mod body_sources;
 mod checked;
 mod conformance;
+mod copyability;
 mod expected;
 mod inference;
 mod names;
@@ -36,6 +37,7 @@ pub use conformance::{
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
 };
+pub use copyability::{Copyability, CopyabilityError, CopyabilityTable};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
     plan_expected_type,
