@@ -5,6 +5,7 @@
 //! projects them back to source without exposing syntax to later semantic stages.
 
 mod contract;
+mod generics;
 mod headers;
 mod input;
 mod reservation;
@@ -12,6 +13,7 @@ mod surface;
 mod topology;
 
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
+pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,

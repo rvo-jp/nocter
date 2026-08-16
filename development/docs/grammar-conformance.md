@@ -44,7 +44,7 @@ it is introduced.
 | G014 | outcome suffixes and nesting | `T?!` and `(T!)?` | `T!?` | an outcome whose eventual payload is `never` |
 | G015 | callable capabilities, named parameters, and provenance | `&+func(input: &T): &T from input` | a callable type without a result annotation | a provenance name that is not a parameter |
 | G016 | opaque callable results and bindings | `func values(): some Source<Item = u8>? { ... }` | `func values(): some { ... }` | opaque syntax in a bodyless requirement |
-| G017 | generic parameters, nested arguments, and split closers | `Outer<Inner<T>>` | an empty generic parameter list | duplicate binders in `instance Pair<T, T> {}` |
+| G017 | generic parameters, nested arguments, and split closers | `Outer<Inner<T>>` | an empty generic parameter list | duplicate binders in `struct Pair<T, T> {}` |
 | G018 | all requirement predicates | one clause containing capability, copy, equality, operator, coercion, and expansion predicates | a newline used instead of a predicate comma | equality without an associated projection |
 | G019 | blocks, block imports, executable sequences, and body results | `{ use std/io.print` then a blank line then `value }` | a block import after an executable | a non-final non-`void` expression statement |
 | G020 | bindings, annotations, assignment, and compound assignment | `var value: i32 = 1` followed by `value += 2` | `var value: i32` without an initializer | assignment through an immutable place |

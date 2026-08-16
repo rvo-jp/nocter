@@ -72,15 +72,20 @@ be introduced to make an unresolved syntax choice.
   allocates every recursively referenceable typed ID—including associated types—in canonical
   surface order. Header preparation resolves exact declaration names and normalized visibility,
   creates declaration sites, rejects deterministic namespace collisions, and only then projects
-  named entities from their exact name tokens rather than whole declaration ranges.
+  named entities from their exact name tokens rather than whole declaration ranges. Generic
+  preparation allocates binder identities from their already-reserved owners, carries immutable
+  lexical scopes into members, reuses repeated declaration-pattern binders, rejects explicit
+  duplicates and nested shadowing, and projects every authored binder occurrence. Joined contract
+  and implementation sources share one generic identity sequence.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will resolve generic binders, structural types, and requirements against
-the complete reservation and namespace set, define every arena slot, and discard the temporary
-syntax-owned inventory and all mutable builders. No crate yet owns checked body semantics.
+The next Phase 2 increment will resolve module-local and imported type names, structural types, and
+requirements against the complete reservation, namespace, and generic-scope set, define every
+arena slot, and discard the temporary syntax-owned inventory and all mutable builders. No crate yet
+owns checked body semantics.
 
 ## Verification
 

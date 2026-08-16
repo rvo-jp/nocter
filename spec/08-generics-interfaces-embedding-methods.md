@@ -25,6 +25,11 @@ intrinsic copy requirement, and associated-type equality required by the declara
 recognition grammar is centralized under
 [Generic Requirements](25-syntactic-grammar.md#generic-requirements).
 
+Names in an explicit generic parameter list are unique. A nested declaration cannot redeclare a
+generic name visible from its enclosing declaration; it must use that existing parameter or choose
+a new name. Declaration type patterns are the sole exception to spelling repetition: their first
+occurrence declares a binder and later occurrences refer to that same binder, as specified below.
+
 Every nominal capability must resolve to an accessible interface with the declared type arity. Bound
 order is formatting information; semantics use specialized interface declaration identities plus
 at most one structural callable contract. Duplicate interface identities and multiple callable

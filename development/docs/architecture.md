@@ -163,6 +163,15 @@ token; unnamed containers use their syntax node. A joined body is an implementat
 contract entity rather than a second declaration. This prevents editor ranges from expanding to a
 keyword, visibility prefix, brace, or surrounding whitespace.
 
+Generic preparation runs only after recursive owners and declaration names exist. Explicit generic
+lists allocate unique, non-shadowing parameters in authored order. A declaration type pattern
+allocates a parameter at the first spelling and resolves later occurrences of that spelling to the
+same identity; declaration and reference source roles preserve that distinction. Members inherit
+an immutable, symbol-sorted owner scope and add only their own explicit binders. Joined callable
+implementations reuse the representative contract's parameter IDs and must repeat the exact binder
+sequence. Structural type lowering therefore receives one complete lexical generic environment and
+never infers binding identity from a type occurrence.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no
