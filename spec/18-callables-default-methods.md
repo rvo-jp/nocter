@@ -40,7 +40,7 @@ the interface's required methods, other unambiguous default methods, and ordinar
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F: &+func(Self.Item): U>(transform: F): MapIter<U, Self, F> from self | transform {
+pub method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(Self.Item): U {
     return MapIter<U, Self, F> {
         source: move self,
         transform: move transform,

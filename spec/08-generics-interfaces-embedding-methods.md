@@ -26,13 +26,23 @@ intrinsic copy requirement, and associated-type equality required by the declara
 ```text
 GenericParameters = "<" Name ("," Name)* [","] ">"
 WhereClause       = "where" Predicate ("," Predicate)*
-Predicate         = Name ":" Capability ("+" Capability)*
-                  | "copy" Name
-                  | Type "=" Type
-                  | "&" Type "==" "&" Type
+Predicate         = CapabilityPredicate
+                  | CopyPredicate
+                  | TypeEqualityPredicate
+                  | OperatorPredicate
+                  | CoercionPredicate
+                  | ExpansionPredicate
+CapabilityPredicate   = Name ":" Capability ("+" Capability)*
+CopyPredicate         = "copy" Name
+TypeEqualityPredicate = Type "=" Type
+OperatorPredicate     = "(" OperatorRequirement ")" ":" Type
+OperatorRequirement   = "&" Type ("==" | "<") "&" Type
+                      | ("&" | "&+") Type "[" Type "]"
+CoercionPredicate     = ("&" | "&+") Type "as" Type
+ExpansionPredicate    = "(" "..." ["&" | "&+"] Type ")" ":" Type
 Capability        = InterfaceBound | CallableContract
 InterfaceBound    = Type
-CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
+CallableContract  = ["&" | "&+"] "func" "(" CallableParameters ")" ":" Type
 ```
 
 Every nominal capability must resolve to an accessible interface with the declared type arity. Bound
