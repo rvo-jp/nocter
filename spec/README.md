@@ -30,6 +30,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md)
 - [Diagnostics](12-diagnostics.md)
 - [Lexical Grammar](13-lexical-grammar.md)
+- [Syntactic Grammar](25-syntactic-grammar.md)
 - [Tooling and Editor Integration](14-tooling-editor-integration.md)
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)

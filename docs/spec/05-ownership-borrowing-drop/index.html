@@ -135,6 +135,7 @@
                 <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
                 <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
                 <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
                 <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
                 <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
                 <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
@@ -250,9 +251,7 @@ user<span class="token-operator">.</span>count <span class="token-operator">+</s
     <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
-</code></pre><p><code>drop</code> is an identifier token. The parser recognizes it contextually at the start of a top-level drop declaration and at the start of an explicit <code>drop value</code> statement. Outside those two source forms, <code>drop</code> is an ordinary identifier.</p><pre><code class="language-text">DropDeclaration = "drop" DeclarationTypePattern "(" "&amp;+" "self" ")" Block
-DropStatement   = "drop" Name
-</code></pre><p>A declaration such as <code>func drop(...)</code> or <code>method &amp;self.drop(...)</code> declares an ordinary function or method named <code>drop</code>. It does not define destruction behavior.</p><p>Rules:</p><ul><li>A nominal type family may define at most one drop declaration.</li><li>A drop declaration has the source form <code>drop TypePattern(&amp;+self) { ... }</code>.</li><li>Its target must be an ordinary <code>struct</code> or a payload-bearing <code>enum</code> declared in the same module.
+</code></pre><p><code>drop</code> is an identifier token. The parser recognizes it contextually at the start of a top-level drop declaration and at the start of an explicit <code>drop value</code> statement. Outside those two source forms, <code>drop</code> is an ordinary identifier.</p><p>The declaration and statement source forms are defined by <a href="../25-syntactic-grammar/index.html#drop-and-test-declarations">Drop and Test Declarations</a> and the common statement grammar.</p><p>A declaration such as <code>func drop(...)</code> or <code>method &amp;self.drop(...)</code> declares an ordinary function or method named <code>drop</code>. It does not define destruction behavior.</p><p>Rules:</p><ul><li>A nominal type family may define at most one drop declaration.</li><li>A drop declaration has the source form <code>drop TypePattern(&amp;+self) { ... }</code>.</li><li>Its target must be an ordinary <code>struct</code> or a payload-bearing <code>enum</code> declared in the same module.
   Type aliases, <code>copy struct</code> families, payloadless enums, and non-nominal types cannot own a drop
   declaration.</li><li><code>self</code> is the fixed drop receiver name and is scoped to the drop body.</li><li>The drop receiver type is always exactly <code>&amp;+Self</code>.</li><li>A drop declaration is top-level. <code>instance</code> contains inherent methods, and <code>conform</code> contains
   interface members. A drop declaration cannot appear inside either body.</li><li>A drop declaration has no visibility, target directive, generic-prefix, <code>where</code>, or return-type

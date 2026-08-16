@@ -360,6 +360,9 @@ Examples of single lexical tokens:
 Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
+- `>>` is one token. In expression grammar it is right shift. The syntactic grammar may consume it
+  as two adjacent generic-list closers when two open type-argument lists require them; this is a
+  token subdivision determined solely by the type grammar, not by name resolution.
 - `..<` is one token. It is used only in `for name in start..<end` range syntax.
 - `#` is punctuation. It begins a declarative directive. Directive names remain identifiers rather
   than reserved keywords.

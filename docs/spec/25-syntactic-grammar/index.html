@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syntactic Grammar - Nocter</title>
+    <meta name="description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/25-syntactic-grammar/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Syntactic Grammar - Nocter">
+    <meta property="og:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta property="og:url" content="https://nocter.dev/spec/25-syntactic-grammar/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-16">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Syntactic Grammar - Nocter">
+    <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Syntactic Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/25-syntactic-grammar/","mainEntityOfPage":"https://nocter.dev/spec/25-syntactic-grammar/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"25 Syntactic Grammar","item":"https://nocter.dev/spec/25-syntactic-grammar/"}]}]</script>
+
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../00-overview/index.html#content">Overview</a></li>
+                <li><a href="../01-modules-use/index.html#content">Modules and Use Declarations</a></li>
+                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
+                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
+                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
+                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
+                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="./index.html#content" aria-current="page">Syntactic Grammar</a></li>
+                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
+                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
+                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
+                <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
+                <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
+                <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
+                <li><a href="../24-ordering-operators/index.html#content">Strict Ordering Operators</a></li>
+                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+                <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
+                <li><a href="../../releases/index.html#content">release index</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/25-syntactic-grammar.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="syntactic-grammar">Syntactic Grammar</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><p>This chapter is the normative recognition grammar for the source forms whose productions it defines. The <a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a> owns token formation, comments, newline tokens, and the common comma-delimited-list rule. Topical chapters own name resolution, visibility reachability, typing, ownership, evaluation, and container-specific validity after a source form has been recognized.</p><p><code>Block</code> and <code>Expression</code> are referenced here but remain defined by the control-flow and expression chapters until their productions are consolidated into this chapter. A referenced production is not an invitation for a compiler to infer syntax from examples: only an explicit rule in the linked chapter may recognize it.</p><h2 id="notation">Notation</h2><p>Productions use this notation:</p><pre><code class="language-text">Name        = one production
+"token"     = one exact token spelling
+X?          = zero or one X
+X*          = zero or more X
+X+          = one or more X
+X | Y       = X or Y
+(X Y)       = grouping
+Delimited(X) = X ("," X)* ","?
+LineSequence(X) = newline* (X (newline+ X)*)? newline*
+</code></pre><p><code>Name</code> means an <code>identifier</code> token unless a narrower production says otherwise. <code>LineSequence</code> owns separation for declarations that do not use commas: adjacent elements require at least one newline, while leading, trailing, and blank lines are accepted. A leaf declaration never consumes its enclosing separator. Newlines accepted as continuations inside parameter lists, generic lists, directives, types, requirements, and expressions are not separators in <code>LineSequence</code>.</p><p>Comments do not change syntactic recognition. Documentation comments are retained as source metadata and attach according to their lexical kind; removing them leaves the same token grammar.</p><h2 id="source-files">Source Files</h2><p>Nocter recognizes package files separately from module source files:</p><pre><code class="language-text">PackageFile = LineSequence(PackageDirective) eof
+
+ModuleSource = newline*
+               (UseSequence (newline+ ItemSequence)? | ItemSequence)?
+               newline* eof
+
+UseSequence = UseDeclaration (newline+ UseDeclaration)*
+ItemSequence = Item (newline+ Item)*
+</code></pre><p>Only <code>nocter.nct</code> is a <code>PackageFile</code>. It accepts package documentation and package directives, but not imports or declarations. Every other selected <code>.nct</code> file is a <code>ModuleSource</code>. A module source places every top-level <code>use</code> before its first item. Whether a module source is an <code>index.nct</code> module root or a same-module implementation source does not change its grammar; the module rules reject visibility and member forms that an implementation source is not allowed to contribute.</p><p>The grammar deliberately does not accept an arbitrary mixture of imports and items. A later top-level <code>use</code> is a syntax error even when name resolution would otherwise succeed.</p><h2 id="package-directives">Package Directives</h2><pre><code class="language-text">PackageDirective = "#" PackageDirectiveName ":" DirectiveValue
+
+PackageDirectiveName = "name"
+                     | "version"
+                     | "dependencies"
+                     | "lock"
+                     | "executable"
+                     | "test"
+
+DirectiveValue = string_literal
+               | integer_literal
+               | DirectiveRecord
+
+DirectiveRecord = "{" Delimited(DirectiveField)? "}"
+DirectiveField  = Name ":" DirectiveValue
+</code></pre><p>The closed directive names, allowed repetitions, and record schemas are defined by <a href="../15-command-line-interface/index.html#package-file">Package File</a>. The recursive record grammar only recognizes their common data notation; it does not permit a schema to accept arbitrary fields or value kinds.</p><p>For example:</p><pre><code class="language-nct">#name<span class="token-operator">:</span> <span class="token-string">"example"</span>
+#executable<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"example"</span><span class="token-operator">,</span>
+    module<span class="token-operator">:</span> <span class="token-string">"./src/app"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>#target</code> is not a package directive. It is an item prefix in module source.</p><h2 id="visibility">Visibility</h2><pre><code class="language-text">Visibility = "pub"
+           | "pub" "(" VisibilityScope ")"
+
+VisibilityScope = "." "/"
+                | ("." "." "/")+
+                | "/"
+</code></pre><p>The spellings inside <code>pub(...)</code> are closed. A name, package alias, or arbitrary module path is not a <code>VisibilityScope</code>. The visibility chapter determines whether a recognized boundary can be used from the declaring module and whether an item kind permits visibility at all.</p><h2 id="use-declarations">Use Declarations</h2><pre><code class="language-text">UseDeclaration = Visibility? "use" UseTree
+
+UseTree = ModulePath
+        | ModulePath "." ImportSelection
+
+ImportSelection = Name ("as" Name)?
+                | "{" Delimited(SelectedName) "}"
+
+SelectedName = Name ("as" Name)?
+
+ModulePath = PackageModulePath | RelativeModulePath
+
+PackageModulePath  = ModuleSegment ("/" ModuleSegment)*
+RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
+</code></pre><p><code>ModuleSegment</code> is the snake-case module segment defined by the lexical grammar. Resolution decides whether a private bare relative path is a same-module source import or whether a path is a directory-module import. The parser does not choose between those meanings.</p><p>A block-scope import uses the private <code>"use" UseTree LineEnd</code> form. Visibility is recognized only on a top-level use declaration; the module rules further reject visibility on a same-module source import and reject namespace alias re-exports.</p><h2 id="items">Items</h2><pre><code class="language-text">Item = TargetDirective? TargetableItem
+     | ConstructDeclaration
+     | InstanceDeclaration
+     | ConformDeclaration
+     | DropDeclaration
+     | TestDeclaration
+
+TargetableItem = FunctionDeclaration
+               | PrimitiveDeclaration
+               | TypeAliasDeclaration
+               | StructDeclaration
+               | EnumDeclaration
+               | InterfaceDeclaration
+
+TargetDirective = "#" "target" ":" string_literal newline+
+</code></pre><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>conform</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" Delimited(Name) "&gt;"
+
+Parameters = "(" Delimited(Parameter)? ")"
+Parameter  = Name ":" Type
+
+CallableTail = ":" CallableResult ProvenanceClause? WhereClause?
+ProvenanceClause = "from" ProvenanceOrigin ("|" ProvenanceOrigin)*
+ProvenanceOrigin = Name
+
+CallableBody = Block?
+</code></pre><p><code>CallableResult</code>, <code>Type</code>, and <code>WhereClause</code> are defined below. A bodyless declaration ends when its enclosing <code>LineSequence</code> reaches a separator or closing brace; later semantic validation permits it only for a source form that owns an external contract/body split or is intrinsically bodyless.</p><h2 id="functions-primitives-and-aliases">Functions, Primitives, and Aliases</h2><pre><code class="language-text">FunctionDeclaration = Visibility? "func" Name GenericParameters? Parameters
+                      CallableTail CallableBody
+
+PrimitiveDeclaration = Visibility? "primitive" Name GenericParameters? Parameters
+                       CallableTail
+
+TypeAliasDeclaration = Visibility? "type" Name GenericParameters? "=" Type
+                       WhereClause?
+</code></pre><p>A primitive never has a source body. An ordinary function is recognized with a body or as a bodyless contract; module composition and visibility rules decide whether the latter is valid.</p><h2 id="structs-and-enums">Structs and Enums</h2><pre><code class="language-text">StructDeclaration = Visibility? "copy"? "struct" Name GenericParameters? WhereClause?
+                    "{" LineSequence(StructField) "}"
+
+StructField = Visibility? Name ":" Type
+
+EnumDeclaration = Visibility? "enum" Name GenericParameters? WhereClause?
+                  "{" LineSequence(EnumVariant) "}"
+
+EnumVariant = Name EnumPayload?
+EnumPayload = "(" Delimited(Parameter)? ")"
+</code></pre><p>Struct fields and enum variants are newline-separated declarations. They are not comma-delimited items. Enum payload parameters are comma-delimited. The grammar recognizes an empty enum body so the enum validity rule can emit its dedicated “at least one variant” diagnostic; a valid enum has one through 256 variants.</p><p><code>copy</code> is contextual only immediately before <code>struct</code>. It is not a general type modifier and does not occur on an enum or alias.</p><h2 id="interfaces">Interfaces</h2><pre><code class="language-text">InterfaceDeclaration = Visibility? "interface" Name GenericParameters? WhereClause?
+                       "{" LineSequence(InterfaceMember) "}"
+
+InterfaceMember = AssociatedTypeDeclaration | InterfaceMethod
+
+AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
+InterfaceBounds = ":" Capability ("+" Capability)*
+
+InterfaceMethod = "pub" MethodSignature CallableBody
+</code></pre><p>An interface member always writes bare <code>pub</code>; it cannot narrow its visibility independently from the interface. A bodyless method is a requirement. A method with a block is a default method. Fields, operators, coercions, construction entries, drop declarations, and tests have no interface member production.</p><h2 id="construction-declarations">Construction Declarations</h2><pre><code class="language-text">ConstructDeclaration = "construct" DeclarationTypePattern
+                       "{" LineSequence(ConstructMember) "}"
+
+ConstructMember = Visibility "default"? ConstructionFunction
+                | Visibility "default"? LiteralDeclaration
+
+ConstructionFunction = "func" Name GenericParameters? Parameters
+                       CallableTail CallableBody
+
+LiteralDeclaration = "literal" LiteralShape LiteralParameters CallableTail CallableBody
+
+LiteralShape = "[" "]" | empty_string_literal
+
+LiteralParameters = "(" "..." Name ":" Type ")"
+                  | "(" Parameter ")"
+</code></pre><p><code>empty_string_literal</code> is the <code>string_literal</code> token whose source and decoded contents are both empty (<code>""</code>). In this position it denotes a literal shape, not a decoded runtime string value. Semantic validation pairs the sequence shape with its one element pack and the string shape with its one ordinary parameter. Every construction member requires an explicit <code>Visibility</code>; <code>default</code> is contextual only between that visibility and <code>func</code> or <code>literal</code>.</p><p>An empty construction body is syntactically valid and explicitly declares no direct construction entry.</p><h2 id="instances">Instances</h2><pre><code class="language-text">InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
+                      "{" LineSequence(InstanceMember) "}"
+
+InstanceMember = InherentMethod
+               | CoercionDeclaration
+               | EqualityOperator
+               | OrderingOperator
+               | IndexOperator
+               | ExpansionOperator
+
+InherentMethod = Visibility? MethodSignature CallableBody
+
+MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
+Receiver = "&amp;" "self" | "&amp;+" "self" | "self"
+
+CoercionDeclaration = Visibility? "coerce" BorrowReceiver "as" Type
+                      CoercionProvenance? CallableBody
+BorrowReceiver = "&amp;" "self" | "&amp;+" "self"
+CoercionProvenance = "from" "self"
+
+EqualityOperator = Visibility? "operator" "(" "&amp;" "self" "==" Name ":" "&amp;" "Self" ")"
+                   ":" "bool" WhereClause? Block
+
+OrderingOperator = Visibility? "operator" "(" "&amp;" "self" "&lt;" Name ":" "&amp;" "Self" ")"
+                   ":" "bool" WhereClause? Block
+
+IndexOperator = Visibility? "operator" "(" IndexReceiver "[" Parameter "]" ")"
+                ":" BorrowType ProvenanceClause? WhereClause? Block
+IndexReceiver = "&amp;" "self" | "&amp;+" "self"
+
+ExpansionOperator = Visibility? "operator" "(" "..." ExpansionReceiver ")"
+                    ":" Type ProvenanceClause? WhereClause? Block
+ExpansionReceiver = "&amp;" "self" | "&amp;+" "self" | "self"
+</code></pre><p><code>BorrowType</code> is the readonly or readwrite borrowed result form from the type grammar. Fixed operator syntax is recognized directly rather than parsed as an arbitrary expression signature. This keeps the declarable operator set closed. <code>!=</code>, <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> therefore have no declaration production.</p><h2 id="explicit-conformances">Explicit Conformances</h2><pre><code class="language-text">ConformDeclaration = "conform" DeclarationTypePattern "for" DeclarationTypePattern
+                     WhereClause? "{" LineSequence(ConformMember) "}"
+
+ConformMember = AssociatedTypeBinding | ConformMethod
+
+AssociatedTypeBinding = "type" Name "=" Type
+ConformMethod = MethodSignature Block
+</code></pre><p>Conformance members never write visibility. They contain only associated type bindings and body-bearing method implementations. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
+                       | BuiltinTypePattern
+                       | "[" Name "]"
+
+PatternArguments = "&lt;" Delimited(Name) "&gt;"
+BuiltinTypePattern = BuiltinScalarType | "str" | "error"
+</code></pre><p>Pattern argument slots contain bare binder names only. Concrete and nested types are expressed by <code>where</code> binder refinements, not placed directly in <code>PatternArguments</code>. Semantic validation decides which built-in patterns the active standard-library package may extend and whether the resolved target kind is legal for <code>construct</code>, <code>instance</code>, <code>conform</code>, or <code>drop</code>.</p><h2 id="drop-and-test-declarations">Drop and Test Declarations</h2><pre><code class="language-text">DropDeclaration = "drop" DeclarationTypePattern "(" "&amp;+" "self" ")" Block
+TestDeclaration = "test" Name Block
+</code></pre><p>Neither declaration accepts visibility, generic parameters before its target/name, an explicit result type, or a <code>where</code> clause. A drop declaration always contains its body. A test body has the fixed semantic result contract <code>void!</code> without writing that contract in source.</p><h2 id="recognition-boundaries">Recognition Boundaries</h2><p>The following examples are syntax errors, independently of whether their names resolve:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">late</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print <span class="token-comment">// imports cannot follow items</span>
+
+<span class="token-keyword">pub</span> instance <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// instance has no declaration visibility</span>
+
+instance <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span> <span class="token-comment">// pattern arguments cannot contain concrete types</span>
+
+instance <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">!</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> false <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+instance <span class="token-type">Buffer</span> <span class="token-operator">{</span><span class="token-operator">}</span>
+</code></pre><p>The following forms are recognized first and rejected by later semantic validation:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">missing_body</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span>
+
+<span class="token-keyword">enum</span> <span class="token-type">Empty</span> <span class="token-operator">{</span><span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">ExternalType</span> <span class="token-operator">{</span><span class="token-operator">}</span>
+</code></pre><p>The first is invalid unless it is an eligible public contract with one matching same-module body; the second violates the enum variant-count rule; the third violates construction ownership unless the resolved target belongs to the declaring module or to the authorized standard-library surface. Keeping those checks outside parsing gives every accepted token sequence one stable syntax-tree shape.</p><h2 id="types">Types</h2><pre><code class="language-text">Type = PrefixType OutcomeSuffix?
+
+OutcomeSuffix = "?" "!"? | "!"
+
+PrefixType = CallableType | NonCallablePrefix
+
+NonCallablePrefix = "*" PrefixType
+                  | "&amp;" NonCallablePrefix
+                  | "&amp;+" NonCallablePrefix
+                  | TypeAtom
+
+TypeAtom = BuiltinScalarType
+         | "str"
+         | "error"
+         | "void"
+         | "never"
+         | "Self"
+         | NamedType
+         | SliceType
+         | FixedArrayType
+         | GroupedType
+
+BuiltinScalarType = "bool"
+                  | "i8" | "i16" | "i32" | "i64"
+                  | "u8" | "u16" | "u32" | "u64"
+                  | "usize" | "isize"
+
+NamedType = Name TypeArguments? ProjectionSuffix*
+TypeArguments = "&lt;" Delimited(Type) "&gt;"
+ProjectionSuffix = "." Name
+
+SliceType = "[" Type "]"
+FixedArrayType = "[" Type ";" integer_literal "]"
+GroupedType = "(" Type ")"
+
+CallableType = CallableCapability "func" "(" Delimited(CallableParameter)? ")"
+               ":" Type ProvenanceClause?
+CallableCapability = ("&amp;" | "&amp;+")?
+CallableParameter = Type | Name ":" Type
+
+BorrowType = "&amp;" NonCallablePrefix | "&amp;+" NonCallablePrefix
+
+CallableResult = Type | OpaqueResult
+OpaqueResult = "some" Name OpaqueArguments?
+OpaqueArguments = "&lt;" Delimited(OpaqueArgument) "&gt;"
+OpaqueArgument = Type | Name "=" Type
+</code></pre><p>Prefix pointer and borrow operators bind before an outcome suffix. Consequently <code>&amp;T?</code> is an optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in <code>&amp;(T?)</code>.</p><p>At one ungrouped layer, <code>?</code>, <code>!</code>, and <code>?!</code> are the recognized suffixes. Reversing the outcome order uses a grouped inner fallible type, <code>(T!)?</code>; <code>T!?</code> is not a production. Semantic validation rejects repeated layers reached through grouping, invalid <code>void</code> or <code>never</code> positions, unsized values outside indirection, and opaque results outside their allowed callable-result positions.</p><p><code>CallableCapability</code> distinguishes a repeatedly callable readonly value (<code>&amp;func</code>), a repeatedly callable readwrite value (<code>&amp;+func</code>), and a once-callable owned value (<code>func</code>). Callable parameters may omit names or use <code>name: Type</code>; names exist for provenance clauses but do not change the structural callable type.</p><p>Because <code>&amp;func</code> and <code>&amp;+func</code> begin callable types, they are not parsed as an ordinary borrow prefix followed by a separate <code>func</code> type. Borrowing a callable type as data requires explicit grouping, just like borrowing another already composed type.</p><p>An associated projection is a suffix of a named type atom. Name resolution and conformance decide whether <code>Base.Name</code> denotes one valid associated type; the parser does not reinterpret it as a module path. A projection may then participate in ordinary outer prefix and outcome forms.</p><p>The fixed-array length is an integer-literal token. General constant expressions and const generic parameters have no type production.</p><p>The lexer emits <code>&gt;&gt;</code> as one punctuation token. While parsing type arguments, that token supplies two consecutive <code>&gt;</code> closers only when two currently open type-argument lists require them. Thus <code>Outer&lt;Inner&lt;T&gt;&gt;</code> is canonical and does not require whitespace between the closers. In expression grammar, the same token remains the right-shift operator; no name or type information participates in this decision.</p><h2 id="generic-requirements">Generic Requirements</h2><pre><code class="language-text">WhereClause = "where" Predicate ("," Predicate)*
+
+Predicate = CapabilityPredicate
+          | CopyPredicate
+          | TypeEqualityPredicate
+          | OperatorPredicate
+          | CoercionPredicate
+          | ExpansionPredicate
+
+CapabilityPredicate = Name ":" Capability ("+" Capability)*
+CopyPredicate = "copy" Name
+TypeEqualityPredicate = Type "=" Type
+
+Capability = NamedType | CallableType
+
+OperatorPredicate = "(" OperatorRequirement ")" ":" Type
+OperatorRequirement = "&amp;" Type ("==" | "&lt;") "&amp;" Type
+                    | ("&amp;" | "&amp;+") Type "[" Type "]"
+
+CoercionPredicate = ("&amp;" | "&amp;+") Type "as" Type
+
+ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
+ExpansionRequirementSource = Type | "&amp;" Type | "&amp;+" Type
+</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../script.js" defer></script>
+</body>
+</html>

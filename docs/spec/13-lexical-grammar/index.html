@@ -135,6 +135,7 @@
                 <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
                 <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
                 <li><a href="./index.html#content" aria-current="page">Lexical Grammar</a></li>
+                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
                 <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
                 <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
                 <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
@@ -307,7 +308,9 @@ eof
 /=
 %=
 #
-</code></pre><p>Rules:</p><ul><li><code>&amp;+</code> is one token. It is used for readwrite borrow syntax.</li><li><code>..&lt;</code> is one token. It is used only in <code>for name in start..&lt;end</code> range syntax.</li><li><code>#</code> is punctuation. It begins a declarative directive. Directive names remain identifiers rather
+</code></pre><p>Rules:</p><ul><li><code>&amp;+</code> is one token. It is used for readwrite borrow syntax.</li><li><code>&gt;&gt;</code> is one token. In expression grammar it is right shift. The syntactic grammar may consume it
+  as two adjacent generic-list closers when two open type-argument lists require them; this is a
+  token subdivision determined solely by the type grammar, not by name resolution.</li><li><code>..&lt;</code> is one token. It is used only in <code>for name in start..&lt;end</code> range syntax.</li><li><code>#</code> is punctuation. It begins a declarative directive. Directive names remain identifiers rather
   than reserved keywords.</li><li><code>@</code> is reserved for possible future attribute-like syntax and is invalid outside string literals, byte literals, and comments.</li><li>Unary <code>+expr</code> is not part of the language even though <code>+</code> is a valid additive operator token.</li></ul><p><code>#target: "target-name"</code> is tokenized as ordinary punctuation, identifier, punctuation, and string tokens:</p><pre><code class="language-text"># target : "target-name"
 </code></pre><p>At the start of package-root <code>nocter.nct</code>, package directives accept declarative strings, integers, booleans, lists, and records. These values are data: they do not perform lookup, calls, interpolation, allocation, or target execution. <code>#target</code> remains a declaration directive and is recognized only before an eligible top-level declaration. A <code>#</code> token in any other source position is a syntax error.</p><h2 id="integer-literals">Integer Literals</h2><p>Integer literals support decimal, hexadecimal, binary, and <code>_</code> digit separators.</p><p>Forms:</p><pre><code class="language-text">10
 1_000

@@ -2,18 +2,20 @@
 
 ## Current Task
 
-Begin the v0.14.0 specification-first compiler rewrite. The previous compiler is preserved by
-commit `f6c08da3` and removed from the active working tree. No previous source, test, binary
-behavior, or implementation document may be used to answer a language-design question.
+Close the v0.14.0 public grammar before scaffolding the new compiler. The previous compiler is
+preserved by commit `f6c08da3` and removed from the active working tree. No previous source, test,
+binary behavior, or implementation document may be used to answer a language-design question.
 
 ## Immediate Work
 
-1. Complete the isolation checkpoint and regenerate contributor documentation.
-2. Audit `spec/` from lexical input through execution and tooling.
-3. Classify each gap as derivable, internal freedom, deferred scope, or user-visible ambiguity.
-4. Stop at each user-visible ambiguity and request a decision with a minimal distinguishing program.
-5. Record adopted rules in the sole owning specification chapter.
-6. Derive new conformance cases only from closed normative rules.
+1. Consolidate blocks, bindings, control flow, patterns, and body-result positions into
+   `spec/25-syntactic-grammar.md`.
+2. Consolidate the complete precedence expression grammar, construction, literals, closures, and
+   outcome elimination into the same chapter.
+3. Replace remaining duplicate formal productions with links to that sole grammar owner.
+4. Audit contextual keywords and add valid, boundary, and invalid conformance cases derived only
+   from the closed grammar.
+5. Scaffold the source/syntax compiler workspace only after the grammar gate is complete.
 
 ## Guardrails
 

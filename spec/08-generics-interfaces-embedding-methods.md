@@ -21,29 +21,9 @@ func first<T>(items: &[T]): T? {
 ```
 
 A generic parameter list declares names and arity only. A `where` clause declares every capability,
-intrinsic copy requirement, and associated-type equality required by the declaration:
-
-```text
-GenericParameters = "<" Name ("," Name)* [","] ">"
-WhereClause       = "where" Predicate ("," Predicate)*
-Predicate         = CapabilityPredicate
-                  | CopyPredicate
-                  | TypeEqualityPredicate
-                  | OperatorPredicate
-                  | CoercionPredicate
-                  | ExpansionPredicate
-CapabilityPredicate   = Name ":" Capability ("+" Capability)*
-CopyPredicate         = "copy" Name
-TypeEqualityPredicate = Type "=" Type
-OperatorPredicate     = "(" OperatorRequirement ")" ":" Type
-OperatorRequirement   = "&" Type ("==" | "<") "&" Type
-                      | ("&" | "&+") Type "[" Type "]"
-CoercionPredicate     = ("&" | "&+") Type "as" Type
-ExpansionPredicate    = "(" "..." ["&" | "&+"] Type ")" ":" Type
-Capability        = InterfaceBound | CallableContract
-InterfaceBound    = Type
-CallableContract  = ["&" | "&+"] "func" "(" CallableParameters ")" ":" Type
-```
+intrinsic copy requirement, and associated-type equality required by the declaration. The complete
+recognition grammar is centralized under
+[Generic Requirements](25-syntactic-grammar.md#generic-requirements).
 
 Every nominal capability must resolve to an accessible interface with the declared type arity. Bound
 order is formatting information; semantics use specialized interface declaration identities plus
@@ -302,11 +282,10 @@ conform Source for BufferSource<T> {
 }
 ```
 
-```text
-AssociatedTypeDeclaration = "pub" "type" Name [":" Bound ("+" Bound)*]
-AssociatedTypeBinding     = "type" Name "=" Type
-ProjectedType             = TypeAtom "." Name
-```
+The associated declaration, binding, and projected-type source forms are defined by
+[Interfaces](25-syntactic-grammar.md#interfaces),
+[Explicit Conformances](25-syntactic-grammar.md#explicit-conformances), and
+[Types](25-syntactic-grammar.md#types).
 
 Every associated type is required and public. A declaration may require ordinary interface or
 callable capabilities from its selected type. A conformance binds each declaration exactly once,
@@ -348,10 +327,8 @@ record, or allocation. The compiler selects one concrete witness from the callab
 that witness for layout, ABI, destruction, and statically dispatched interface calls. Callers see
 only the declared interface and its named associated-type bindings.
 
-```text
-OpaqueResult   = "some" InterfaceName ["<" OpaqueArgument ("," OpaqueArgument)* [","] ">"]
-OpaqueArgument = Type | Name "=" Type
-```
+The `some` result source form is defined by
+[Types](25-syntactic-grammar.md#types).
 
 Ordinary interface type arguments precede associated bindings when both are present:
 

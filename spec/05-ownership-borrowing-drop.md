@@ -258,10 +258,9 @@ drop File(&+self) {
 drop declaration and at the start of an explicit `drop value` statement. Outside those two source
 forms, `drop` is an ordinary identifier.
 
-```text
-DropDeclaration = "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
-DropStatement   = "drop" Name
-```
+The declaration and statement source forms are defined by
+[Drop and Test Declarations](25-syntactic-grammar.md#drop-and-test-declarations) and the common
+statement grammar.
 
 A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 

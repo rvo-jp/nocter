@@ -135,6 +135,7 @@
                 <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
                 <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
                 <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
                 <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
                 <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
                 <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
@@ -161,8 +162,7 @@
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
-</code></pre><p>An entry has this grammar:</p><pre><code class="language-text">visibility? `coerce` receiver `as` target (`from` `self`)? block
-</code></pre><p>The following rules apply:</p><ul><li>the receiver is exactly <code>&amp;self</code> or <code>&amp;+self</code>; an owned <code>self</code> receiver is invalid</li><li>the target is a borrowed type, <code>&amp;str</code>, or a slice view</li><li>the result origin is always the receiver and is normally elided; an explicit clause, when
+</code></pre><p>The entry source form is defined by <a href="../25-syntactic-grammar/index.html#instances">Instances</a>.</p><p>The following rules apply:</p><ul><li>the receiver is exactly <code>&amp;self</code> or <code>&amp;+self</code>; an owned <code>self</code> receiver is invalid</li><li>the target is a borrowed type, <code>&amp;str</code>, or a slice view</li><li>the result origin is always the receiver and is normally elided; an explicit clause, when
   written, must be exactly <code>from self</code></li><li>an omitted visibility makes an entry private; <code>pub(./)</code>, ancestor scopes, <code>pub(/)</code>, and bare
   <code>pub</code> expose it through the same boundaries as other declarations</li><li>only the module that defines a nominal type may declare coercions for that type</li><li>the source receiver capability and canonical target type identify an entry, so duplicate entries
   are invalid even when they appear in separate <code>instance</code> blocks</li></ul><p>A readonly receiver cannot produce a readwrite target. A readwrite receiver may produce either a readonly or readwrite target, subject to the declared body and provenance contract.</p><p>Generic source parameters follow the source type's declaration order:</p><pre><code class="language-nct">instance <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

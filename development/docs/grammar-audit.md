@@ -50,10 +50,13 @@ recognized by one production.
 
 ## Work Order
 
-1. Define notation, lexical-terminal imports, `SourceFile`, directive prefixes, `Item`, visibility,
-   and every declaration/member container.
-2. Define the complete type, generic, requirement, and result-contract grammar.
-3. Define blocks, imports, bindings, assignment, control flow, patterns, and body-result positions.
+1. **Complete:** define notation, lexical-terminal imports, `SourceFile`, directive prefixes,
+   `Item`, visibility, and every declaration/member container in
+   [`spec/25-syntactic-grammar.md`](../../spec/25-syntactic-grammar.md).
+2. **Complete:** define the complete type, generic, requirement, and result-contract grammar in
+   that same normative chapter.
+3. Define blocks, block imports, bindings, assignment, control flow, patterns, and body-result
+   positions.
 4. Define expressions from postfix forms through binary precedence, outcome elimination,
    assignment exclusion, closures, construction, and literals.
 5. Replace scattered formal productions with links to the canonical owner while preserving each

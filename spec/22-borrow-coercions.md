@@ -20,11 +20,7 @@ instance String {
 }
 ```
 
-An entry has this grammar:
-
-```text
-visibility? `coerce` receiver `as` target (`from` `self`)? block
-```
+The entry source form is defined by [Instances](25-syntactic-grammar.md#instances).
 
 The following rules apply:
 
