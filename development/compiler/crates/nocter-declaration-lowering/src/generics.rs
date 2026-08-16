@@ -1,3 +1,6 @@
+#[path = "generics/violation.rs"]
+mod violation;
+
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -11,15 +14,24 @@ use crate::{
     SurfaceDeclarationKind,
 };
 
-type GenericScope = Box<[(Symbol, GenericParameterId)]>;
+pub use violation::{GenericRule, GenericViolation};
+
+#[derive(Clone, Copy, Debug)]
+struct GenericBinding {
+    name: Symbol,
+    parameter: GenericParameterId,
+    origin: SyntaxToken,
+}
+
+type GenericScope = Box<[GenericBinding]>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GenericError {
+    Rule(GenericViolation),
     MissingSource(SurfaceDeclarationId),
     InconsistentSource(SurfaceDeclarationId),
+    InconsistentBinder(SurfaceDeclarationId),
     InvalidOwner(SurfaceDeclarationId),
-    InvalidBinder(SurfaceDeclarationId),
-    DuplicateBinder(SurfaceDeclarationId),
     InconsistentContract(SurfaceDeclarationId),
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
@@ -27,6 +39,12 @@ pub enum GenericError {
 impl fmt::Display for GenericError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::MissingSource(declaration) => {
                 write!(formatter, "declaration {declaration:?} has no source")
             }
@@ -34,22 +52,16 @@ impl fmt::Display for GenericError {
                 formatter,
                 "declaration {declaration:?} has an inconsistent generic binder origin"
             ),
+            Self::InconsistentBinder(declaration) => write!(
+                formatter,
+                "declaration {declaration:?} has an inconsistent generic binder"
+            ),
             Self::InvalidOwner(declaration) => {
                 write!(
                     formatter,
                     "declaration {declaration:?} cannot own generic binders"
                 )
             }
-            Self::InvalidBinder(declaration) => {
-                write!(
-                    formatter,
-                    "declaration {declaration:?} has an invalid generic binder"
-                )
-            }
-            Self::DuplicateBinder(declaration) => write!(
-                formatter,
-                "declaration {declaration:?} repeats or shadows a generic binder"
-            ),
             Self::InconsistentContract(declaration) => write!(
                 formatter,
                 "implementation declaration {declaration:?} changed its generic binders"
@@ -67,12 +79,18 @@ impl From<DuplicateSourceBinding> for GenericError {
     }
 }
 
+impl From<GenericViolation> for GenericError {
+    fn from(violation: GenericViolation) -> Self {
+        Self::Rule(violation)
+    }
+}
+
 /// Declaration headers with generic identities and complete lexical generic scopes.
 #[derive(Debug)]
 pub struct PreparedGenerics<'syntax> {
     pub(crate) headers: PreparedHeaders<'syntax>,
     pub(crate) own: Box<[Box<[GenericParameterId]>]>,
-    pub(crate) visible: Box<[GenericScope]>,
+    visible: Box<[GenericScope]>,
 }
 
 impl PreparedGenerics<'_> {
@@ -94,9 +112,22 @@ impl PreparedGenerics<'_> {
     ) -> Option<GenericParameterId> {
         self.visible
             .get(declaration.index())?
-            .binary_search_by_key(&name, |(candidate, _)| *candidate)
+            .binary_search_by_key(&name, |binding| binding.name)
             .ok()
-            .map(|index| self.visible[declaration.index()][index].1)
+            .map(|index| self.visible[declaration.index()][index].parameter)
+    }
+
+    pub(crate) fn visible_ids(
+        &self,
+        declaration: SurfaceDeclarationId,
+    ) -> Option<Vec<GenericParameterId>> {
+        Some(
+            self.visible
+                .get(declaration.index())?
+                .iter()
+                .map(|binding| binding.parameter)
+                .collect(),
+        )
     }
 }
 
@@ -111,7 +142,7 @@ pub fn prepare_generic_binders(
 ) -> Result<PreparedGenerics<'_>, GenericError> {
     let count = headers.reserved.declarations.len();
     let mut own = vec![Box::<[GenericParameterId]>::default(); count];
-    let mut visible = vec![Box::<[(Symbol, GenericParameterId)]>::default(); count];
+    let mut visible = vec![GenericScope::default(); count];
 
     for index in 0..count {
         let id = SurfaceDeclarationId::from_index(index);
@@ -131,23 +162,26 @@ pub fn prepare_generic_binders(
         let inherited = inherited_scope(&headers, &visible, id, declaration)?;
         let binders = binder_tokens(&headers, id, declaration)?;
         let owner = generic_owner(&headers, id, binders.tokens.is_empty())?;
-        let mut scope: BTreeMap<_, _> = inherited.iter().copied().collect();
+        let mut scope: BTreeMap<_, _> = inherited
+            .iter()
+            .copied()
+            .map(|binding| (binding.name, binding))
+            .collect();
         let mut local = BTreeMap::new();
         let mut ids = Vec::new();
         for token in binders.tokens {
             let name = binder_symbol(&headers, id, token)?;
-            if let Some(parameter) = local.get(&name).copied() {
+            if let Some((parameter, first)) = local.get(&name).copied() {
                 if !binders.reuses_local_names {
-                    return Err(GenericError::DuplicateBinder(id));
+                    return Err(GenericViolation::duplicate_binder(first, token).into());
                 }
                 project_binder(&mut headers, id, parameter, token, SourceRole::Reference)?;
                 continue;
             }
-            if inherited
-                .binary_search_by_key(&name, |(candidate, _)| *candidate)
-                .is_ok()
-            {
-                return Err(GenericError::DuplicateBinder(id));
+            if let Ok(index) = inherited.binary_search_by_key(&name, |binding| binding.name) {
+                return Err(
+                    GenericViolation::shadowing_binder(inherited[index].origin, token).into(),
+                );
             }
             let owner = owner.ok_or(GenericError::InvalidOwner(id))?;
             let parameter = headers
@@ -155,13 +189,20 @@ pub fn prepare_generic_binders(
                 .program
                 .declarations_mut()
                 .add_generic_parameter(GenericParameter::new(owner, name, ids.len()));
-            scope.insert(name, parameter);
-            local.insert(name, parameter);
+            scope.insert(
+                name,
+                GenericBinding {
+                    name,
+                    parameter,
+                    origin: token,
+                },
+            );
+            local.insert(name, (parameter, token));
             ids.push(parameter);
             project_binder(&mut headers, id, parameter, token, SourceRole::Declaration)?;
         }
         own[index] = ids.into_boxed_slice();
-        visible[index] = scope.into_iter().collect::<Vec<_>>().into_boxed_slice();
+        visible[index] = scope.into_values().collect::<Vec<_>>().into_boxed_slice();
     }
 
     Ok(PreparedGenerics {
@@ -176,7 +217,7 @@ fn inherited_scope(
     visible: &[GenericScope],
     id: SurfaceDeclarationId,
     declaration: SurfaceDeclaration,
-) -> Result<Box<[(Symbol, GenericParameterId)]>, GenericError> {
+) -> Result<GenericScope, GenericError> {
     let Some(owner) = declaration.owner() else {
         return Ok(Box::new([]));
     };
@@ -276,14 +317,14 @@ fn binder_symbol(
         .text_at(token.range())
         .ok_or(GenericError::MissingSource(id))?;
     if spelling == "Self" || nocter_syntax::BuiltinType::from_spelling(spelling).is_some() {
-        return Err(GenericError::InvalidBinder(id));
+        return Err(GenericViolation::reserved_binder(token).into());
     }
     headers
         .reserved
         .program
         .symbols()
         .get(spelling)
-        .ok_or(GenericError::InvalidBinder(id))
+        .ok_or(GenericError::InconsistentBinder(id))
 }
 
 fn project_binder(

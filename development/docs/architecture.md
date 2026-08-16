@@ -192,7 +192,10 @@ same identity; declaration and reference source roles preserve that distinction.
 an immutable, symbol-sorted owner scope and add only their own explicit binders. Joined callable
 implementations reuse the representative contract's parameter IDs and must repeat the exact binder
 sequence. Structural type lowering therefore receives one complete lexical generic environment and
-never infers binding identity from a type occurrence.
+never infers binding identity from a type occurrence. Each lexical entry also retains the exact
+declaration token selected when the binder was allocated. Reserved names, explicit same-list
+duplicates, and nested shadowing project distinct `E0280`-`E0282` diagnostics from those stored
+subjects; the diagnostic adapter never searches syntax or reconstructs scope ancestry.
 
 Authored module imports are resolved after generic scopes but before type construction. Every
 module owns one symbol-sorted namespace whose entries pair an exported semantic entity with its

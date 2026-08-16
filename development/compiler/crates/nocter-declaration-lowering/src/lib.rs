@@ -8,6 +8,7 @@ mod contract;
 mod contract_diagnostic;
 mod definitions;
 mod diagnostic;
+mod generic_diagnostic;
 mod generics;
 mod headers;
 mod import_diagnostic;
@@ -33,7 +34,10 @@ pub use contract::{CallableContractError, CallableContracts, analyze_callable_co
 pub use contract_diagnostic::{CallableContractDiagnostic, CallableContractRule};
 pub use definitions::{DeclarationDiagnostic, HeaderDefinitionError, define_declaration_headers};
 pub use diagnostic::{DiagnosticNote, SourceDiagnostic};
-pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
+pub use generic_diagnostic::GenericDiagnostic;
+pub use generics::{
+    GenericError, GenericRule, GenericViolation, PreparedGenerics, prepare_generic_binders,
+};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use import_diagnostic::ImportDiagnostic;
 pub use imports::{

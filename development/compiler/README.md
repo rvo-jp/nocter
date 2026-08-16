@@ -140,7 +140,11 @@ be introduced to make an unresolved syntax choice.
   the temporary import state is consumed. Module dependency edges retain the authored `use` node.
   Cycle validation derives one deterministic complete edge witness rather than reporting a module
   selected from residual graph state; every edge becomes the primary span or an ordered related
-  note. Source-import shape violations likewise retain their exact `use` declaration.
+  note. Source-import shape violations likewise retain their exact `use` declaration. Generic
+  scopes retain each binder's declaration token together with its semantic identity. Reserved
+  binders, same-list duplicates, and nested shadowing therefore project `E0280`-`E0282` directly;
+  repeated names in declaration target patterns remain authored references rather than duplicate
+  declarations.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
@@ -151,8 +155,8 @@ validation must identify the exact semantic subject so diagnostics can project i
 `SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
 do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
 guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
-surface, contract, header, generic, import, and type-binding passes still require the same
-diagnostic projection. No crate yet owns checked body semantics.
+  type-binding pass still requires the same diagnostic projection. No crate yet owns checked body
+  semantics.
 
 ## Verification
 

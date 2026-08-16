@@ -176,11 +176,9 @@ fn visible_generics(
     let mut parameters: Vec<_> = namespaces
         .imports
         .generics
-        .visible
-        .get(declaration.index())
+        .visible_ids(declaration)
         .into_iter()
         .flatten()
-        .map(|(_, parameter)| *parameter)
         .collect();
     parameters.sort_unstable();
     parameters.dedup();

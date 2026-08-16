@@ -9,9 +9,9 @@ test, binary behavior, or implementation document may be used as an implementati
 ## Immediate Work
 
 1. Extend the common source-backed diagnostic envelope from the completed module-topology, module-
-   surface, callable-contract, namespace, authored-import, and freeze-time declaration rules to
-   generic and type-binding passes. Internal consistency faults remain distinct and must not receive
-   user-facing error codes.
+   surface, callable-contract, namespace, generic-binder, authored-import, and freeze-time
+   declaration rules to type binding. Internal consistency faults remain distinct and must not
+   receive user-facing error codes.
 2. Audit prelude composition failures. Compiler-selected authority and inconsistent namespace state
    remain internal; any authored prelude-import rule must retain its exact syntax subject.
 3. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
@@ -37,7 +37,10 @@ selected names. Namespace bindings retain exact local-name origins, so collision
 never expand to a whole `use` declaration. Source-composition violations and module cycles project
 `E0270`-`E0271`; module edges retain their authored `use` nodes, and cycle selection is canonical
 under compile-unit input reordering. Missing, duplicate, stale, and unreachable discovery inputs
-remain internal contract errors.
+remain internal contract errors. Generic binder declarations project `E0280`-`E0282`; lexical
+scopes retain exact declaration tokens, so duplicate declarations and inherited shadowing produce
+different rules and related spans without reverse syntax lookup. Repeated binders in a declaration
+target pattern remain references to the first binding.
 
 ## Guardrails
 

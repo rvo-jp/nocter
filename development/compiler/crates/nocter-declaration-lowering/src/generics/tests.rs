@@ -133,18 +133,24 @@ fn duplicate_explicit_binders_and_nested_shadowing_are_rejected() {
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
 
+        let error = prepare(
+            &sources,
+            &manifest,
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            Vec::new(),
+        )
+        .unwrap_err();
         assert!(matches!(
-            prepare(
-                &sources,
-                &manifest,
-                vec![ModuleSourceInput::new(
-                    "/app/index.nct",
-                    ModuleSourceKind::Root,
-                    &root,
-                )],
-                Vec::new(),
-            ),
-            Err(GenericError::DuplicateBinder(_))
+            error,
+            GenericError::Rule(violation)
+                if matches!(
+                    violation.rule(),
+                    crate::GenericRule::DuplicateBinder | crate::GenericRule::ShadowingBinder
+                )
         ));
     }
 }

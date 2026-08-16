@@ -90,6 +90,17 @@ Source-backed module-topology diagnostics:
 - `E0271`: authored module imports form a dependency cycle. The primary span and related notes
   identify one deterministic complete cycle of `use` declarations.
 
+Source-backed generic-binder diagnostics:
+
+- `E0280`: an explicit generic binder uses `Self` or a name reserved for a built-in type.
+- `E0281`: one explicit generic parameter list declares the same binder more than once. The second
+  binder is primary and the first declaration is related.
+- `E0282`: a nested declaration introduces an explicit generic binder with the same name as an
+  inherited binder. The nested binder is primary and the inherited declaration is related.
+
+Repeated names in a declaration target pattern refer to the first binder and do not constitute
+duplicate declarations.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

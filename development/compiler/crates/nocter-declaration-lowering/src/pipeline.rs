@@ -1,13 +1,14 @@
 use std::fmt;
 
 use crate::{
-    CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericError,
-    HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
-    ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError, SourceDiagnostic,
-    SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingError, TypeNormalizationError,
-    analyze_callable_contracts, apply_standard_prelude, bind_header_type_syntax,
-    collect_declaration_surface, define_declaration_headers, normalize_header_types,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericDiagnostic,
+    GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
+    LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError,
+    SourceDiagnostic, SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingError,
+    TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
+    bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
+    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
+    prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -20,7 +21,8 @@ pub enum DeclarationLoweringError {
     Reservation(ReservationError),
     Namespace(NamespaceDiagnostic),
     InternalHeader(HeaderError),
-    Generic(GenericError),
+    Generic(GenericDiagnostic),
+    InternalGeneric(GenericError),
     Import(ImportDiagnostic),
     InternalImport(ImportError),
     Prelude(PreludeError),
@@ -41,13 +43,14 @@ impl DeclarationLoweringError {
             Self::Surface(diagnostic) => Some(diagnostic.source()),
             Self::CallableContract(diagnostic) => Some(diagnostic.source()),
             Self::Namespace(diagnostic) => Some(diagnostic.source()),
+            Self::Generic(diagnostic) => Some(diagnostic.source()),
             Self::Import(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
             | Self::InternalHeader(_)
-            | Self::Generic(_)
+            | Self::InternalGeneric(_)
             | Self::InternalImport(_)
             | Self::Prelude(_)
             | Self::TypeBinding(_)
@@ -68,6 +71,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::Namespace(error) => error.fmt(formatter),
             Self::InternalHeader(error) => error.fmt(formatter),
             Self::Generic(error) => error.fmt(formatter),
+            Self::InternalGeneric(error) => error.fmt(formatter),
             Self::Import(error) => error.fmt(formatter),
             Self::InternalImport(error) => error.fmt(formatter),
             Self::Prelude(error) => error.fmt(formatter),
@@ -134,7 +138,18 @@ pub fn lower_compile_unit_declarations(
         }
         Err(internal) => return Err(DeclarationLoweringError::InternalHeader(internal)),
     };
-    let generics = prepare_generic_binders(headers).map_err(DeclarationLoweringError::Generic)?;
+    let generics = match prepare_generic_binders(headers) {
+        Ok(generics) => generics,
+        Err(GenericError::Rule(violation)) => {
+            return match GenericDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Generic(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalGeneric(
+                    GenericError::Rule(internal),
+                )),
+            };
+        }
+        Err(internal) => return Err(DeclarationLoweringError::InternalGeneric(internal)),
+    };
     let imports = match prepare_authored_imports(generics) {
         Ok(imports) => imports,
         Err(ImportError::Namespace(violation)) => {
@@ -171,7 +186,7 @@ mod tests {
 
     use crate::test_support::{module_use, source_use};
     use crate::{
-        CallableContractRule, CompileUnitInput, DeclarationLoweringError, ImportRule,
+        CallableContractRule, CompileUnitInput, DeclarationLoweringError, GenericRule, ImportRule,
         ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, TopologyRule,
         lower_compile_unit_declarations,
@@ -404,6 +419,110 @@ mod tests {
         assert_eq!(diagnostic.source().code(), "E0242");
         assert_eq!(diagnostic.source().primary().source(), child_id);
         assert!(diagnostic.source().primary().node().is_some());
+    }
+
+    #[test]
+    fn production_pipeline_projects_duplicate_generic_binder_tokens() {
+        let text = "pub struct Broken<T, T> {}\n";
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", text);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![module("workspace:app", &[], "/app/index.nct", &root)],
+            Vec::new(),
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Generic(diagnostic) = error else {
+            panic!("duplicate binder did not produce a generic diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), GenericRule::DuplicateBinder);
+        assert_eq!(diagnostic.source().code(), "E0281");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.rfind('T').unwrap()).unwrap()
+        );
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(
+            diagnostic.source().notes()[0]
+                .origin()
+                .span()
+                .range()
+                .start()
+                .get(),
+            u32::try_from(text.find('T').unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn production_pipeline_distinguishes_nested_generic_shadowing() {
+        let text = concat!(
+            "pub struct Pair<T> {}\n",
+            "instance Pair<T> {\n",
+            "    pub method &self.identity<T>(value: T): T { value }\n",
+            "}\n",
+        );
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", text);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![module("workspace:app", &[], "/app/index.nct", &root)],
+            Vec::new(),
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Generic(diagnostic) = error else {
+            panic!("nested shadowing did not produce a generic diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), GenericRule::ShadowingBinder);
+        assert_eq!(diagnostic.source().code(), "E0282");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        let method_binder = text.find("identity<T>").unwrap() + "identity<".len();
+        let inherited_binder = text.find("instance Pair<T>").unwrap() + "instance Pair<".len();
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(method_binder).unwrap()
+        );
+        assert_eq!(
+            diagnostic.source().notes()[0]
+                .origin()
+                .span()
+                .range()
+                .start()
+                .get(),
+            u32::try_from(inherited_binder).unwrap()
+        );
     }
 
     #[test]
