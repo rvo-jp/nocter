@@ -59,6 +59,9 @@ Rules for generated code:
 - Existing move-only outcome places require `move` before elimination: `move value?`,
   `move value!`, `move value catch error { ... }`, or `move value otherwise { ... }`. New
   temporaries and copyable outcomes omit `move`.
+- Outcome copyability follows the payload recursively: `T?`, `T!`, `T?!`, and `(T!)?` are copyable
+  exactly when `T` is copyable, while `void!` is copyable. The currently active tag does not change
+  that property.
 - Do not concatenate expression suffixes as `??`, `!!`, `?!`, or `!?`. Use an intermediate binding
   or parentheses such as `(move result?)?` for a second outcome layer. Type syntax `T?!` remains
   valid and has a different grammar.

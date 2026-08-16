@@ -255,6 +255,11 @@ Inactive union bytes and padding have unspecified contents. Copy, move, drop, an
 inspect the tag but must not read or destroy an inactive payload. Callable entry and return lowering
 explicitly bridge this one stored layout and the target-specific register ABI.
 
+Copyability follows the recursive source-type rule rather than the active runtime tag. `T?` and
+`T!` are copyable exactly when `T` is copyable, `void!` is copyable, and mixed outcomes apply the
+same rule at each layer. A copy duplicates the tag and the one active payload, if any. A move-only
+outcome remains move-only even while absence or failure is active.
+
 Nocter source uses contextual outcome injection to construct tags. The ABI does not reserve the
 identifiers `value`, `success`, `none`, or `failure`; the table defines binary representation, not
 additional source names. For example, `T?!` is a fallible layer whose tag-`0` success payload is

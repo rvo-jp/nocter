@@ -57,6 +57,9 @@ Rules:
 - The built-in `error` payload is copyable, non-owning, and carries borrow-like
   provenance from its `&str` fields. Returning or storing an `error` follows the
   same escape rules as other aggregates containing borrow-like values.
+- A fallible type's copyability is structural: `T!` is copyable exactly when `T` is copyable, and
+  `void!` is copyable. The failure branch does not make a move-only success type copyable merely
+  because `error` itself is copyable.
 - The ABI layout of `error` is specified in [ABI and Layout](09-abi-layout.md#built-in-error-layout).
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity. This rule is checked after type aliases and through optional success layers such as `error?!`.
 
@@ -316,6 +319,8 @@ Rules:
 
 - `T?` is not spelled as a special `Option<T>` type.
 - `none` is the optional absent literal.
+- `T?` is copyable exactly when `T` is copyable. The absent branch does not make an optional with
+  a move-only present payload copyable.
 - `T` must not be `void`, including after alias expansion or generic substitution. Optional
   `void` has no source value for its present branch; use an enum when that state distinction is
   required.
@@ -364,6 +369,8 @@ Rules:
 - `never` must not be the eventual payload of any optional or fallible composition.
 - Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
+- Mixed outcome copyability applies the same rule from the inside out. Consequently `T?!` and
+  `(T!)?` are copyable exactly when `T` is copyable.
 
 ### Recursive Outcome Injection
 

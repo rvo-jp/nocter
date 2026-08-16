@@ -330,10 +330,11 @@ Self
 `T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. `T?!` means a fallible value whose success payload is optional.
 
 Supported optional and fallible compositions are ordinary sized
-values. They may be stored in bindings and sized aggregates, moved, copied when every possible
-payload is copyable, assigned, passed as arguments, returned, and consumed later. Only the selected
-tag branch is initialized. Absence never initializes a success payload, and failure initializes the
-`error` payload instead of the success payload.
+values. They may be stored in bindings and sized aggregates, moved, assigned, passed as arguments,
+returned, and consumed later. They are copyable exactly when their recursively contained payload
+types are copyable under the [outcome copyability](05-ownership-borrowing-drop.md#copy-and-move)
+rules. Only the selected tag branch is initialized. Absence never initializes a success payload,
+and failure initializes the `error` payload instead of the success payload.
 
 Outcome construction at a callable return boundary is contextual, not a subtype conversion. The
 checker records each presence or success injection required by the complete declared result type;

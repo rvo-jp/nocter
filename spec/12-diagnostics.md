@@ -304,6 +304,9 @@ Required diagnostic families:
 - Existing move-only optional or fallible place eliminated by `?`, `!`, `catch`, or `otherwise`
   without `move`. The diagnostic should suggest `move place?`, `move place!`,
   `move place catch ...`, or `move place otherwise ...` as appropriate.
+- Implicit copy of an optional, fallible, or mixed outcome whose eventual payload is move-only. The
+  diagnostic must identify the complete outcome type and the move-only payload; an inactive
+  absence or failure tag does not make that value copyable.
 - Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
   `move place?`.
 - Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic

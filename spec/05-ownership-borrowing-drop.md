@@ -451,6 +451,14 @@ Rules:
 - The built-in `error` type is copyable.
 - Payloadless enum values are copyable.
 - Fixed-size arrays `[T; N]` are copyable when `T` is copyable.
+- An optional `T?` is copyable exactly when `T` is copyable.
+- A fallible `T!` is copyable exactly when its success payload `T` is copyable. Its alternate
+  `error` payload is always copyable. The special payloadless-success type `void!` is copyable.
+- Supported mixed outcomes apply those rules recursively. `T?!` and `(T!)?` are therefore copyable
+  exactly when `T` is copyable.
+- Copyability is a property of the complete outcome type, not its currently active tag. An absent
+  `String?` and a failed `String!` remain move-only because another value of the same type may own a
+  `String` payload.
 - Type aliases to copy types are copyable. For example, a project-local alias to `i32` is copyable.
 - `&T` is copyable.
 - `&+T` is not copyable.
@@ -473,6 +481,39 @@ let p2 = p1 // OK: Point is copy
 let text1 = String.new()
 let text2 = text1      // error: String is not copy
 let text3 = move text1 // OK
+```
+
+Copyable outcomes copy like other copy types:
+
+```nct
+let maybe: i32? = find_count()
+let copied = maybe
+inspect(maybe) // valid: maybe remains initialized
+
+let result: i32! = read_count()
+let copied_result = result
+inspect_result(result) // valid
+```
+
+Payloadless fallible completion is the boundary case:
+
+```nct
+let completion: void! = flush()
+let copied_completion = completion
+inspect_completion(completion) // valid
+```
+
+An outcome that can contain a move-only payload is move-only even when its current tag contains no
+payload or contains only `error`:
+
+```nct
+let maybe_name: String? = find_name()
+let copied_name = maybe_name // error: String? is move-only
+let moved_name = move maybe_name
+
+let read_name: String! = load_name()
+let copied_read = read_name // error: String! is move-only
+let moved_read = move read_name
 ```
 
 Function calls follow the same rule.

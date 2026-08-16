@@ -67,6 +67,11 @@ rejects it independently of `instance` and conformance lookup. Copyability is de
 type declaration before that association and is never changed by cleanup availability. Checked
 ownership and MIR consume the resolved drop-body identity; neither performs method lookup to find
 cleanup.
+The type store derives optional and fallible copyability structurally from their success or present
+payload and the built-in copyable `error` type. The result is attached to the complete semantic
+type before body checking. Flow analysis never reclassifies an outcome from its active tag, and
+MIR consumes the same type fact instead of deciding whether a particular tagged value may be
+copied.
 
 ## Checked Program
 
