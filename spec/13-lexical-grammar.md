@@ -170,11 +170,63 @@ Nocter does not use semicolons as statement terminators. The `;` token is reserv
 
 Rules:
 
-- A newline separates statements where the grammar can end a statement.
+- At statement-capable nesting depth, a newline separates statements when the tokens before it can
+  end a statement.
+- One such newline is instead a continuation newline when the first token on the next physical line
+  is a continuation leader. A continuation leader is a token that cannot begin an expression or
+  statement in that position and can extend the expression immediately before the newline.
+- The continuation leaders are `.`, `+`, `*`, `/`, `%`, `<<`, `>>`, `<`, `<=`, `>`, `>=`, `==`,
+  `!=`, `&&`, `||`, `as`, `catch`, and `otherwise`. The context-specific `is` and `..<` tokens are
+  also continuation leaders in `if` pattern conditions and range `for` headers respectively.
+- `-` is not a continuation leader because it can begin a unary expression. Put binary `-` at the
+  end of the previous line when its right operand continues on the next line.
+- `!`, `&`, `&+`, and `move` are not continuation leaders because they can begin expressions.
+  Postfix `?` and postfix `!` remain attached to the expression they modify and cannot begin a
+  continuation line.
+- `(` and `[` are not continuation leaders. A call or index opener must remain on the same line as
+  its callee or indexed expression.
+- Two or more consecutive newline tokens at statement-capable nesting depth are never collapsed
+  into a continuation newline. A blank or comment-only intervening line therefore ends any
+  possible leading-token continuation.
 - A closing brace `}` ends the current block or arm.
 - A semicolon does not terminate a statement. Outside an explicit grammar position such as `[T; N]`, it is a syntax error.
-- Multi-line expressions are valid only when the expression syntax clearly continues, such as inside calls, literals, indexes, parenthesized expressions, or before an operator that requires a right operand.
+- A newline also continues an expression when the tokens before it cannot end the expression, such
+  as after a binary operator, or when the enclosing call, literal, index, or parenthesized-expression
+  grammar is still consuming the expression.
 - Whitespace other than newline is only a token separator.
+
+Examples:
+
+```nct
+let total = left
+    + right
+    * scale
+
+let difference = left -
+    right
+
+let result = values
+    .map(transform)
+    .filter(predicate)
+
+let rendered = render(
+    input,
+)
+```
+
+The following does not continue the first line because unary `-` can begin an expression:
+
+```nct
+let difference = left
+-right
+```
+
+The following is not a call because `(` is not a continuation leader:
+
+```nct
+let rendered = render
+(input)
+```
 
 ## Tokenization
 

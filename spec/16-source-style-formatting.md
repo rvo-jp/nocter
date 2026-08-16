@@ -195,6 +195,11 @@ Rules:
 - Method calls have no space around `.`.
 - Indexing has no space between value and `[`.
 - Field access has no space around `.`.
+- A wrapped binary expression normally puts a binary-only operator at the beginning of the
+  continuation line. Binary `-` stays at the end of the preceding line because `-` can also begin a
+  unary expression.
+- A wrapped field or method chain puts `.` at the beginning of each continuation line.
+- A call opener `(` and index opener `[` remain on the same line as the expression they extend.
 
 Examples:
 
@@ -204,6 +209,17 @@ let home = maybe_home otherwise { "/tmp" }
 let label = if is_ready { "ready" } else { "waiting" }
 let byte = bytes[i]
 file.write_text("hello")
+
+let total = left
+    + right
+    * scale
+
+let difference = left -
+    right
+
+let result = values
+    .map(transform)
+    .filter(predicate)
 ```
 
 ## Control Flow

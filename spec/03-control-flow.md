@@ -205,9 +205,16 @@ Statement separation:
 - Semicolons are not statement terminators.
 - One statement per line is the normal style.
 - A newline separates statements where the grammar can end a statement.
+- A single newline does not separate statements when the next line starts with a continuation leader
+  such as `.`, a binary-only operator, `as`, `catch`, or `otherwise`.
+- A token that can begin an expression, including unary `-`, never acts as a continuation leader.
+  When subtraction spans lines, keep `-` at the end of the first line rather than the beginning of
+  the second line.
+- A blank or comment-only intervening line ends leading-token continuation.
 - A closing brace `}` ends the current block or arm.
 - Multi-line expressions are allowed only where the expression syntax clearly continues, such as inside calls, literals, or parenthesized expressions.
-- The lexical source text and comment rules are specified in [Lexical Grammar](13-lexical-grammar.md).
+- The complete continuation-leader set and lexical source text rules are specified in
+  [Lexical Grammar](13-lexical-grammar.md#statement-separation).
 
 ## Evaluation Order and Temporaries
 
