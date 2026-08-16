@@ -18,7 +18,7 @@ use crate::{
     SurfaceDeclarationKind, SurfaceImport, SurfaceSource, analyze_callable_contracts,
 };
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ReservedEntity {
     NominalType(NominalTypeId),
     TypeAlias(TypeAliasId),
@@ -129,7 +129,9 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) source_index: SourceIndexBuilder,
     pub(crate) source_map: &'syntax SourceMap,
     pub(crate) packages: Box<[PackageInput<'syntax>]>,
+    pub(crate) package_ids: Box<[PackageId]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
+    pub(crate) module_ids: Box<[ModuleId]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_modules: Box<[ModuleId]>,
     pub(crate) imports: Box<[SurfaceImport]>,
@@ -157,6 +159,16 @@ impl ReservedDeclarations<'_> {
     #[must_use]
     pub const fn modules(&self) -> &[ModuleIdentity] {
         &self.modules
+    }
+
+    #[must_use]
+    pub const fn package_ids(&self) -> &[PackageId] {
+        &self.package_ids
+    }
+
+    #[must_use]
+    pub const fn module_ids(&self) -> &[ModuleId] {
+        &self.module_ids
     }
 
     #[must_use]
@@ -229,20 +241,33 @@ pub fn reserve_declaration_identities(
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
     let entities = reserve_surface_entities(&declarations, &contracts, &mut program)?;
-    project_declarations(
-        &sources,
-        &declarations,
-        &contracts,
-        &entities,
-        &mut source_index,
-    )?;
+    let semantic_packages = packages
+        .iter()
+        .map(|package| {
+            package_ids
+                .get(package.identity())
+                .copied()
+                .ok_or_else(|| ReservationError::MissingSymbol(package.display_name().into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let semantic_modules = modules
+        .iter()
+        .map(|module| {
+            module_ids
+                .get(module)
+                .copied()
+                .ok_or_else(|| ReservationError::UnknownModule(module.clone()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(ReservedDeclarations {
         program,
         source_index,
         source_map,
         packages,
+        package_ids: semantic_packages.into_boxed_slice(),
         modules,
+        module_ids: semantic_modules.into_boxed_slice(),
         sources,
         source_modules: source_modules.into_boxed_slice(),
         imports,
@@ -477,36 +502,6 @@ fn validate_owner(
     } else {
         Err(ReservationError::InvalidOwner(id))
     }
-}
-
-fn project_declarations(
-    sources: &[SurfaceSource<'_>],
-    declarations: &[SurfaceDeclaration],
-    contracts: &CallableContracts,
-    entities: &[Option<ReservedEntity>],
-    source_index: &mut SourceIndexBuilder,
-) -> Result<(), ReservationError> {
-    for (index, declaration) in declarations.iter().copied().enumerate() {
-        let Some(entity) = entities[index] else {
-            continue;
-        };
-        let id = SurfaceDeclarationId::from_index(index);
-        let source = sources
-            .get(declaration.source().index())
-            .ok_or(InconsistentSurface(id))?;
-        let role = if contracts.is_implementation(id) {
-            SourceRole::Implementation
-        } else {
-            SourceRole::Declaration
-        };
-        source_index.insert(
-            entity.semantic_entity(),
-            role,
-            SourceOrigin::from_node(source.syntax(), declaration.node())
-                .map_err(|_| InconsistentSurface(id))?,
-        )?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

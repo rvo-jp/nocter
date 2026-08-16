@@ -8,9 +8,10 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Resolve generic binders, declaration names, normalized visibility, and module-local type names
-   against the completed canonical reservation set. Package/module/source topology, surface
-   inventory, cross-file callable joining, and recursive identity reservation are complete.
+1. Resolve generic binders and module-local/imported type names against the completed canonical
+   reservation and declaration-name set. Package/module/source topology, surface inventory,
+   cross-file callable joining, recursive identity reservation, exact names, and normalized
+   visibility are complete.
 2. Define declaration headers, aliases, associated declarations, callable provenance, and generic
    requirements into the structural type store, then freeze the declaration program and separate
    `SourceIndex`.

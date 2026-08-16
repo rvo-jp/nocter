@@ -70,16 +70,17 @@ be introduced to make an unresolved syntax choice.
   to exactly one private implementation body without resolving names or types; both source forms
   therefore enter reservation through one representative identity. The reservation pass then
   allocates every recursively referenceable typed ID—including associated types—in canonical
-  surface order and records declaration/implementation source roles before resolving headers.
+  surface order. Header preparation resolves exact declaration names and normalized visibility,
+  creates declaration sites, rejects deterministic namespace collisions, and only then projects
+  named entities from their exact name tokens rather than whole declaration ranges.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will resolve generic binders, declaration names, visibility, structural
-types, and requirements against the complete reservation set, define every arena slot, and discard
-the temporary syntax-owned inventory and all mutable builders. No crate yet owns checked body
-semantics.
+The next Phase 2 increment will resolve generic binders, structural types, and requirements against
+the complete reservation and namespace set, define every arena slot, and discard the temporary
+syntax-owned inventory and all mutable builders. No crate yet owns checked body semantics.
 
 ## Verification
 

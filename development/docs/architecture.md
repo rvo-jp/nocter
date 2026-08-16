@@ -153,9 +153,15 @@ Reservation consumes that grouping in canonical surface order. Nominals, aliases
 associated types, callables, construction surfaces, instances, conformances, variants, drops,
 tests, and opaque result types receive their final typed IDs before any header type is resolved.
 Fields, generic parameters, ordinary parameters, requirements, and bodies are added later because
-their identities cannot participate in recursive header lookup before their owner exists. Source
-projection is populated in the same pass; a joined body is an implementation binding of the
-contract entity rather than a second declaration.
+their identities cannot participate in recursive header lookup before their owner exists.
+
+Header preparation reads the exact name-token identity already selected by the surface inventory,
+resolves `pub`, `pub(./)`, ancestor scopes, and `pub(/)` once to semantic package/module
+boundaries, and allocates declaration sites. It rejects module, member, and test-name collisions in
+canonical order. Only after a name is known does source projection bind a named entity to its exact
+token; unnamed containers use their syntax node. A joined body is an implementation binding of the
+contract entity rather than a second declaration. This prevents editor ranges from expanding to a
+keyword, visibility prefix, brace, or surrounding whitespace.
 
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
