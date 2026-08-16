@@ -26,8 +26,11 @@ impl BodyChecker<'_, '_> {
                 member,
                 suffix,
             } => {
-                return self
-                    .check_construction_function_call(node, owner, member, suffix, expected);
+                return if member_owner_is_value(self, owner)? {
+                    self.check_method_call(node, owner, member, suffix, expected)
+                } else {
+                    self.check_construction_function_call(node, owner, member, suffix, expected)
+                };
             }
             CallSyntax::GenericOwner { owner, suffix } => {
                 return self
@@ -90,6 +93,42 @@ impl BodyChecker<'_, '_> {
         expected.map_or(Ok(call), |expected| {
             self.apply_expected(node, call, expected)
         })
+    }
+}
+
+fn member_owner_is_value(
+    checker: &BodyChecker<'_, '_>,
+    mut node: NodeId,
+) -> Result<bool, BodyCheckInternalError> {
+    loop {
+        while checker.kind(node).is_ok_and(is_transparent_expression) {
+            let children = direct_nodes(checker.tree(), node);
+            let [child] = children.as_slice() else {
+                return Err(BodyCheckInternalError::InvalidSyntax(node));
+            };
+            node = *child;
+        }
+        match checker.kind(node)? {
+            NodeKind::ReferenceExpression => {
+                return Ok(matches!(
+                    call_name_target(checker, node)?,
+                    NameTarget::Parameter(_) | NameTarget::Local(_) | NameTarget::Capture(_)
+                ));
+            }
+            NodeKind::PostfixExpression => {
+                let children = direct_nodes(checker.tree(), node);
+                let [base, suffix] = children.as_slice() else {
+                    return Err(BodyCheckInternalError::InvalidSyntax(node));
+                };
+                match checker.kind(*suffix)? {
+                    NodeKind::MemberSuffix => node = *base,
+                    NodeKind::CallSuffix | NodeKind::IndexSuffix => return Ok(true),
+                    _ => return Err(BodyCheckInternalError::InvalidSyntax(*suffix)),
+                }
+            }
+            NodeKind::GenericOwnerMember => return Ok(false),
+            _ => return Ok(true),
+        }
     }
 }
 

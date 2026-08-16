@@ -2,20 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by extending the closed call model from direct functions, structural
-callable values, and construction functions to receiver methods.
+Continue v0.14.0 Phase 3 by adding aggregate construction and outcome control to the closed checked
+body model, then connect their temporary ownership and cleanup edges to the existing analysis.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Add receiver methods while keeping one argument-inference/materialization pipeline, one
-   semantic member-selection authority, and the common expected-type boundary.
-2. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
+1. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
-3. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
+2. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
    analysis to rediscover callable semantics.
+3. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
+   receivers through the common loan/provenance authority.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -53,8 +53,8 @@ static dispatch retain exact decisions, and generic arguments are identity-keyed
 `check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
 for the current vertical body slice: scalar literals, inferred locals, parameter/local/named-field
 places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
-injection, ordinary conditionals, while/infinite/integer-range loops, and named construction
-function calls. Every typed node receives
+injection, ordinary conditionals, while/infinite/integer-range loops, named construction functions,
+and receiver methods. Every typed node receives
 an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
 failed rule. `CopyabilityTable` collects normalized `copy`
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
@@ -76,8 +76,8 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, receiver methods, remaining operators, aggregates, pattern conditionals,
-`match`, loops, closures, literals, and interpolation remain incomplete.
+branch-local paths. Annotation binding, remaining operators, aggregates, pattern conditionals,
+`match`, collection iteration, regions, closures, literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -155,7 +155,16 @@ readwrite calls require writable storage. Owned calls consume the callee before 
 independent of closure copyability. Construction functions use that same planner after the
 construction-surface table has selected one accessible semantic member. Omitted owner arguments
 participate in inference; explicit owner arguments become fixed substitutions before callable
-generic inference begins. Methods, closure expressions, temporary cleanup, and program-wide
+generic inference begins. Receiver methods now use one semantic selector over normalized instance
+and conformance tables. Exact lookup combines inherent, concrete conformance/default, and lexical
+generic-interface candidates without overload ranking. Interface `Self`, interface arguments,
+associated types, instance arguments, and callable generics enter the shared declared-call planner
+as one substitution. Only an empty exact set permits one receiver coercion; minimum-authority
+coercion tiers, ambiguity, and direct-method priority match other instance operations.
+`CheckedCallReceiver` freezes owned copy/move, place or temporary borrowing, existing-borrow
+preservation/weakening, selected coercion dispatch, and post-coercion weakening. Concrete calls
+freeze their implementation/default callable; generic calls retain the exact interface
+requirement. Closure expressions, temporary cleanup/loan escape, and program-wide
 result-provenance inference remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural

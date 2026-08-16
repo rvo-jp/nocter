@@ -66,6 +66,10 @@ impl CoercionCandidate {
         self.receiver_capability
     }
 
+    pub(crate) const fn result_capability(&self) -> BorrowCapability {
+        self.result_capability
+    }
+
     pub(crate) const fn selection(&self) -> &StaticSelection {
         &self.selection
     }
@@ -74,6 +78,8 @@ impl CoercionCandidate {
 #[derive(Debug)]
 pub enum InstanceSelectionError {
     MissingInstance(nocter_model::InstanceId),
+    MissingConformance(nocter_model::ConformanceId),
+    MissingInterface(nocter_model::InterfaceId),
     MissingCallable(nocter_model::CallableId),
     MissingNominal(nocter_model::NominalTypeId),
     MissingParameter(nocter_model::ParameterId),
@@ -83,6 +89,8 @@ pub enum InstanceSelectionError {
     InvalidIndexSignature(nocter_model::CallableId),
     InvalidCoercionSignature(nocter_model::CallableId),
     InvalidComparisonSignature(nocter_model::CallableId),
+    InvalidMethodSignature(nocter_model::CallableId),
+    InvalidInterfaceMethod(nocter_model::InterfaceId),
     InvalidStructuralIndex(nocter_model::RequirementId),
     IncompleteGeneric(nocter_model::GenericParameterId),
     DuplicateGeneric(nocter_model::GenericParameterId),
@@ -94,6 +102,12 @@ impl fmt::Display for InstanceSelectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingInstance(instance) => write!(formatter, "missing instance {instance:?}"),
+            Self::MissingConformance(conformance) => {
+                write!(formatter, "missing conformance {conformance:?}")
+            }
+            Self::MissingInterface(interface) => {
+                write!(formatter, "missing interface {interface:?}")
+            }
             Self::MissingCallable(callable) => write!(formatter, "missing callable {callable:?}"),
             Self::MissingNominal(nominal) => write!(formatter, "missing nominal type {nominal:?}"),
             Self::MissingParameter(parameter) => {
@@ -110,6 +124,15 @@ impl fmt::Display for InstanceSelectionError {
             }
             Self::InvalidComparisonSignature(callable) => {
                 write!(formatter, "invalid comparison signature {callable:?}")
+            }
+            Self::InvalidMethodSignature(callable) => {
+                write!(formatter, "invalid method signature {callable:?}")
+            }
+            Self::InvalidInterfaceMethod(interface) => {
+                write!(
+                    formatter,
+                    "invalid method index for interface {interface:?}"
+                )
             }
             Self::InvalidStructuralIndex(requirement) => {
                 write!(
@@ -501,7 +524,7 @@ impl<'program> InstanceOperationSelector<'program> {
     }
 }
 
-fn selected_generic_arguments(
+pub(super) fn selected_generic_arguments(
     types: &mut TypeStore,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,

@@ -255,7 +255,7 @@ impl OwnershipAnalyzer<'_> {
             }
         }
         if let Some(receiver) = call.receiver()
-            && !self.visit(receiver, state)?
+            && !self.visit(receiver.value(), state)?
         {
             return Ok(false);
         }

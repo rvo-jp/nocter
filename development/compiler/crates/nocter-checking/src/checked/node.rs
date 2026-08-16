@@ -132,17 +132,104 @@ pub enum CallTarget {
     },
 }
 
+/// How a source receiver is prepared for one selected method invocation.
+///
+/// The receiver value and this preparation form a closed lowering contract. Lowering never has
+/// to recover whether an owned expression was a place or a temporary, nor whether an existing
+/// readwrite borrow was preserved or weakened.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ReceiverPreparation {
+    Owned,
+    BorrowPlace(BorrowCapability),
+    BorrowTemporary(BorrowCapability),
+    PreserveBorrow(BorrowCapability),
+    WeakenReadwriteBorrow,
+}
+
+/// How a selected borrow coercion result supplies the method receiver.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CoercedReceiverPreparation {
+    PreserveReadonly,
+    PreserveReadwrite,
+    WeakenReadwrite,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedReceiverCoercion {
+    selection: StaticSelection,
+    result_preparation: CoercedReceiverPreparation,
+}
+
+impl CheckedReceiverCoercion {
+    pub(crate) const fn new(
+        selection: StaticSelection,
+        result_preparation: CoercedReceiverPreparation,
+    ) -> Self {
+        Self {
+            selection,
+            result_preparation,
+        }
+    }
+
+    #[must_use]
+    pub const fn selection(&self) -> &StaticSelection {
+        &self.selection
+    }
+
+    #[must_use]
+    pub const fn result_preparation(&self) -> CoercedReceiverPreparation {
+        self.result_preparation
+    }
+}
+
+/// One completely selected method receiver, including an optional one-step borrow coercion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedCallReceiver {
+    value: BodyNodeId,
+    preparation: ReceiverPreparation,
+    coercion: Option<CheckedReceiverCoercion>,
+}
+
+impl CheckedCallReceiver {
+    pub(crate) const fn new(
+        value: BodyNodeId,
+        preparation: ReceiverPreparation,
+        coercion: Option<CheckedReceiverCoercion>,
+    ) -> Self {
+        Self {
+            value,
+            preparation,
+            coercion,
+        }
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> BodyNodeId {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn preparation(&self) -> ReceiverPreparation {
+        self.preparation
+    }
+
+    #[must_use]
+    pub const fn coercion(&self) -> Option<&CheckedReceiverCoercion> {
+        self.coercion.as_ref()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedCall {
     target: CallTarget,
-    receiver: Option<BodyNodeId>,
+    receiver: Option<CheckedCallReceiver>,
     arguments: Box<[BodyNodeId]>,
 }
 
 impl CheckedCall {
     pub(crate) fn new(
         target: CallTarget,
-        receiver: Option<BodyNodeId>,
+        receiver: Option<CheckedCallReceiver>,
         arguments: impl Into<Box<[BodyNodeId]>>,
     ) -> Self {
         Self {
@@ -158,8 +245,8 @@ impl CheckedCall {
     }
 
     #[must_use]
-    pub const fn receiver(&self) -> Option<BodyNodeId> {
-        self.receiver
+    pub const fn receiver(&self) -> Option<&CheckedCallReceiver> {
+        self.receiver.as_ref()
     }
 
     #[must_use]

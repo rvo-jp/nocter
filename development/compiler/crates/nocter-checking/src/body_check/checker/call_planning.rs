@@ -39,6 +39,7 @@ pub(super) struct DeclaredCallPlan {
 pub(super) struct DeclaredCallGenerics<'a> {
     pub(super) inference_parameters: &'a [GenericParameterId],
     pub(super) fixed_arguments: &'a [GenericArgument],
+    pub(super) owner_substitution: Option<&'a TypeSubstitution>,
 }
 
 impl<'a> DeclaredCallGenerics<'a> {
@@ -46,6 +47,7 @@ impl<'a> DeclaredCallGenerics<'a> {
         Self {
             inference_parameters,
             fixed_arguments: &[],
+            owner_substitution: None,
         }
     }
 
@@ -56,6 +58,19 @@ impl<'a> DeclaredCallGenerics<'a> {
         Self {
             inference_parameters,
             fixed_arguments,
+            owner_substitution: None,
+        }
+    }
+
+    pub(super) const fn specialized(
+        inference_parameters: &'a [GenericParameterId],
+        fixed_arguments: &'a [GenericArgument],
+        owner_substitution: &'a TypeSubstitution,
+    ) -> Self {
+        Self {
+            inference_parameters,
+            fixed_arguments,
+            owner_substitution: Some(owner_substitution),
         }
     }
 }
@@ -71,7 +86,7 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<DeclaredCallPlan, BodyCheckError> {
         let argument_syntax = direct_nodes(self.tree(), suffix);
-        let mut substitution = TypeSubstitution::default();
+        let mut substitution = generics.owner_substitution.cloned().unwrap_or_default();
         for argument in generics.fixed_arguments {
             substitution.bind_generic(argument.parameter(), argument.ty());
         }

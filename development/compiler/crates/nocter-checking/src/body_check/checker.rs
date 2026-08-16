@@ -41,6 +41,7 @@ mod calls;
 mod constructions;
 mod expected;
 mod loops;
+mod methods;
 mod operators;
 mod place;
 mod type_uses;

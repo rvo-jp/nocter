@@ -1,5 +1,9 @@
 use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication};
-use nocter_model::{Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, TypeId};
+use std::collections::BTreeMap;
+
+use nocter_model::{
+    Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, Symbol, TypeId,
+};
 
 use super::predicate::CheckedRequirement;
 use crate::GenericArgument;
@@ -127,16 +131,19 @@ impl CheckedConformance {
 pub struct ConformanceTable {
     entries: Arena<ConformanceId, CheckedConformance>,
     by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
+    interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
 }
 
 impl ConformanceTable {
     pub(super) const fn new(
         entries: Arena<ConformanceId, CheckedConformance>,
         by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
+        interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
     ) -> Self {
         Self {
             entries,
             by_interface,
+            interfaces_by_method,
         }
     }
 
@@ -149,6 +156,15 @@ impl ConformanceTable {
     pub fn candidates(&self, interface: InterfaceId) -> &[ConformanceId] {
         self.by_interface
             .get(interface)
+            .map(AsRef::as_ref)
+            .unwrap_or_default()
+    }
+
+    /// Returns interfaces declaring one method name in canonical declaration identity order.
+    #[must_use]
+    pub fn method_interfaces(&self, name: Symbol) -> &[InterfaceId] {
+        self.interfaces_by_method
+            .get(&name)
             .map(AsRef::as_ref)
             .unwrap_or_default()
     }

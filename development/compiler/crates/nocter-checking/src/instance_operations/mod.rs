@@ -1,6 +1,7 @@
 mod build;
 mod comparison;
 mod diagnostic;
+mod methods;
 mod model;
 mod requirements;
 mod selection;
@@ -13,6 +14,7 @@ pub use build::{
 };
 pub(crate) use comparison::ComparisonCandidateImplementation;
 pub use diagnostic::InstanceOperationRule;
+pub(crate) use methods::MethodCandidate;
 pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;
 pub(crate) use selection::{

@@ -15,13 +15,14 @@ pub use cleanup::{
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
-    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall, CheckedClosure,
-    CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedInterpolation, CheckedLoop,
-    CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
-    CheckedSequence, ComparisonImplementation, ComparisonOperation, ConstantValue,
+    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall,
+    CheckedCallReceiver, CheckedClosure, CheckedComparison, CheckedComparisonOperand,
+    CheckedControl, CheckedInterpolation, CheckedLoop, CheckedMatchArm, CheckedNode,
+    CheckedOperation, CheckedOutcome, CheckedPattern, CheckedReceiverCoercion, CheckedSequence,
+    CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
     InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PrimitiveBinary,
-    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, SequenceElement, SpreadMode,
-    TypedIteration,
+    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
+    SequenceElement, SpreadMode, TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;

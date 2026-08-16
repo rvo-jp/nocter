@@ -396,9 +396,27 @@ identity. Omitted owner arguments join callable arguments and the result context
 inference problem. Complete explicit owner arguments become fixed substitutions before callable
 generic inference. Both forms then enter the same declared-call planner, expected-type conversion,
 callable-requirement proof, and specialized nominal-requirement proof. The member token projects to
-the exact callable identity for editor consumers. Method, closure-expression, temporary-cleanup,
-and result-provenance passes remain subsequent increments rather than alternate paths inside call
-checking.
+the exact callable identity for editor consumers.
+
+Method lookup uses the same normalized instance and conformance authorities. A name-index stored
+with `ConformanceTable` finds interface surfaces without a declaration scan at each call. Exact
+receiver lookup combines accessible inherent methods, applicable concrete conformance selections,
+and lexical interface requirements for unresolved generic receivers; any surviving collision is
+ambiguous without signature ranking. Interface `Self`, interface arguments, associated bindings,
+instance arguments, and callable arguments enter one owner substitution and the same declared-call
+planner. A concrete conformance freezes its selected implementation or default body, while a
+generic call retains the exact interface `RequirementId` and method identity.
+
+Only when exact lookup has no candidate may method selection traverse one borrow coercion.
+Readonly coercion receivers form the minimum-authority tier; a readwrite receiver tier is tried
+only when the first tier has no route. An exact method shadows every coercion route, and multiple
+routes in one tier are ambiguous. `CheckedCallReceiver` separates the source value from its owned,
+place-borrow, temporary-borrow, preserved-borrow, or weakened-borrow preparation. An optional
+checked receiver coercion retains its static selection and whether its result borrow is preserved
+or weakened for the selected method. Owned methods freeze a copy or move node immediately;
+lowering and ownership analysis never reconstruct receiver semantics from syntax or callable
+spelling. Closure-expression, temporary-loan/cleanup, and result-provenance passes remain
+subsequent increments rather than alternate paths inside call checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

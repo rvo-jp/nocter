@@ -30,6 +30,8 @@ mod flow_tests;
 #[cfg(test)]
 mod loop_tests;
 #[cfg(test)]
+mod method_tests;
+#[cfg(test)]
 mod move_tests;
 #[cfg(test)]
 mod operator_tests;

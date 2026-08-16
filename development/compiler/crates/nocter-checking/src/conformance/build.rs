@@ -214,9 +214,39 @@ pub fn build_conformance_table(
     for candidates in by_interface {
         by_interface_arena.insert(candidates.into_boxed_slice());
     }
-    let table = ConformanceTable::new(entries.finish(), by_interface_arena.finish());
+    let table = ConformanceTable::new(
+        entries.finish(),
+        by_interface_arena.finish(),
+        method_interface_index(graph)?,
+    );
     validate_associated_bounds(graph, types, source_index, &table)?;
     Ok(table)
+}
+
+fn method_interface_index(
+    graph: &DeclarationGraph,
+) -> Result<BTreeMap<nocter_model::Symbol, Box<[InterfaceId]>>, ConformanceInternalError> {
+    let declarations = graph.declarations();
+    let mut by_method = BTreeMap::<_, Vec<_>>::new();
+    for (interface_id, interface) in declarations.interfaces().iter() {
+        for method in interface.methods() {
+            let callable = declarations
+                .callables()
+                .get(*method)
+                .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+            let name = callable
+                .name()
+                .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+            let interfaces = by_method.entry(name).or_default();
+            if interfaces.last() != Some(&interface_id) {
+                interfaces.push(interface_id);
+            }
+        }
+    }
+    Ok(by_method
+        .into_iter()
+        .map(|(name, interfaces)| (name, interfaces.into_boxed_slice()))
+        .collect())
 }
 
 struct ConformancePattern {
