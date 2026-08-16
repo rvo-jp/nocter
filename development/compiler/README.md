@@ -1,8 +1,8 @@
 # New Nocter Compiler
 
 This directory is the implementation root for the specification-first Nocter compiler rewrite.
-The lexical and syntactic grammar gate is closed; the Phase 1 source/syntax workspace is the next
-implementation boundary.
+The lexical and syntactic grammar gate is closed. The Phase 1 workspace now owns normalized source
+storage and lexical projection; parser implementation is the next boundary.
 
 ## Authority
 
@@ -36,3 +36,22 @@ remain outside semantic identity, and runtime linkage is a one-way output projec
 The Cargo workspace must begin with source and syntax responsibilities only. Its parser fixtures
 derive from the [grammar conformance plan](../docs/grammar-conformance.md); semantic crates cannot
 be introduced to make an unresolved syntax choice.
+
+## Current Crates
+
+- `nocter-source` owns source identities, CRLF normalization, normalized byte spans, and line
+  projection.
+- `nocter-syntax` owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
+  joint-token facts, string/interpolation boundaries, and lexical diagnostics.
+
+Neither crate owns declaration identity, name resolution, types, or checked semantics.
+
+## Verification
+
+Run from `development/compiler/`:
+
+```sh
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```

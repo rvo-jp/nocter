@@ -8,13 +8,15 @@ implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Scaffold the smallest Cargo workspace that owns only source storage and syntax.
-2. Implement normalized source identities, spans, token kinds, joint-token facts, and lexical
-   diagnostics without semantic names or types.
-3. Expand the first rows of the
-   [grammar conformance plan](docs/grammar-conformance.md) into lexer and parser fixtures.
-4. Add parsing incrementally in grammar dependency order; do not introduce declaration or checked
-   semantic crates during Phase 1.
+1. Define the immutable syntax-tree representation and parser event boundary without semantic
+   identities or source-text backtracking.
+2. Implement package/module source roots, directive data, imports, visibility, item dispatch, and
+   declaration headers in grammar dependency order.
+3. Expand G001 onward from the
+   [grammar conformance plan](docs/grammar-conformance.md) into accepted and rejected parser
+   fixtures; keep semantic-boundary cases parseable.
+4. Add expression and block parsing only after the declaration/type productions they consume are
+   structurally stable. Do not introduce declaration or checked semantic crates during Phase 1.
 
 ## Guardrails
 
@@ -25,9 +27,12 @@ implementation document may be used as an implementation input.
 - Do not create the new compiler workspace before the grammar closure gate.
 - Do not mark specification closure complete while an observable choice remains implicit.
 
-## Verification Before the Workspace Exists
+## Verification
 
 ```sh
+cargo fmt --manifest-path development/compiler/Cargo.toml --all --check
+cargo clippy --manifest-path development/compiler/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path development/compiler/Cargo.toml --workspace
 node docs/build-docs.js
 git diff --check
 ```
