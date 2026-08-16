@@ -196,9 +196,10 @@ Rules:
 - A `never` branch is compatible with the other branch result type.
 - Only the selected `match` arm body is evaluated.
 - `for name in start..<end { ... }` is a statement.
-- `return value` explicitly returns a value from a function.
-- `return error_value` explicitly returns a failure from a fallible function.
-- `return none` explicitly returns absence from an optional function, or success absence from a fallible optional function.
+- `return value` explicitly returns a value from the current function, method, or closure body.
+- `return error_value` explicitly returns a failure from the current fallible callable body.
+- `return none` explicitly returns absence from the current optional callable body, or success
+  absence from its fallible optional result.
 
 Examples:
 
@@ -358,8 +359,12 @@ Rules:
 - The loop variable is an immutable binding scoped to the loop body.
 - If `start >= end`, the loop body runs zero times.
 - The range step is always `+1`.
-- `break` exits the innermost loop.
-- `continue` skips to the next iteration of the innermost loop.
+- `break` exits the innermost loop in the current function, method, or closure body.
+- `continue` skips to the next iteration of the innermost loop in the current function, method, or
+  closure body.
+- A nested closure is a callable control-flow boundary. Its `break` and `continue` cannot target a
+  loop outside that closure, even when the closure expression is written lexically inside the
+  loop.
 - `break value` is not supported.
 - Loops are statements and do not produce values.
 - The reachable result expression of a `while`, `loop`, range `for`, or collection `for` body must

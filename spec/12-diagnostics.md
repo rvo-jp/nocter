@@ -296,8 +296,9 @@ Required diagnostic families:
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.
 - Returning a borrow-like value whose provenance cannot outlive the function.
-- Postfix `?` used on `T!` outside a fallible function.
-- Postfix `?` used on `T?` outside a function whose current return layer can carry `none`.
+- Postfix `?` used on `T!` outside a fallible function, method, or closure body.
+- Postfix `?` used on `T?` outside a function, method, or closure body whose current result layer
+  can carry `none`.
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
@@ -327,6 +328,8 @@ Required diagnostic families:
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
+- `break` or `continue` whose nearest loop is outside the current callable body, including an outer
+  loop surrounding a closure expression.
 - Selected entry function with type parameters, such as `func main<T>(): i32!`.
 - Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`.
 - Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.

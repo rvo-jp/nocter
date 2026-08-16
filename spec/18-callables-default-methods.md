@@ -85,6 +85,28 @@ unambiguous. An annotation may state a parameter or result type when inference n
 
 The body is an ordinary block. Its tail expression is the result. `return` exits the closure body.
 
+### Closure Control-Flow Boundary
+
+Every closure body is a separate callable control-flow boundary:
+
+- `return`, `return value`, and `return none` return from the closure, never from the surrounding
+  function, method, or closure.
+- Postfix `?` propagates failure or absence through the closure's own inferred or expected result
+  type. It cannot propagate directly through an enclosing callable.
+- `break` and `continue` may target only a loop lexically inside the same closure body. A loop
+  surrounding the closure expression is not a target.
+- Early exit drops live closure-body locals and statement temporaries under the ordinary cleanup
+  rules. It does not exit or clean up an enclosing caller scope.
+- Callable contracts carry no nonlocal-return, nonlocal-loop-exit, or hidden propagation effect.
+
+```nct
+loop {
+    let callback = () {
+        break // error: no loop in this closure body
+    }
+}
+```
+
 When a closure is passed to a generic callable, contextual checking may infer unknown callable
 parameters from the closure result and propagate that substitution to the outer call. The call
 still follows the uniform rule that callable type arguments are never written explicitly. See

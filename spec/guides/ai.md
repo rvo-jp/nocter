@@ -210,6 +210,12 @@ let values = make_values()
 for item in move values { consume(move item) }
 ```
 
+## Closure Control Flow
+
+A closure is its own control-flow boundary. `return` and postfix `?` affect the closure result.
+`break` and `continue` can target only loops inside that closure, never a loop surrounding the
+closure expression.
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.

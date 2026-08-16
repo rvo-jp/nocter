@@ -84,9 +84,11 @@ Postfix `?` unwraps fallible and optional values for propagation.
 let file = File.open(path)?
 ```
 
-For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same `error` payload.
+For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current
+function, method, or closure fails with the same `error` payload.
 
-For `T?`, `expr?` evaluates to the present value when `expr` is present. On `none`, the current function returns `none` through its optional return layer.
+For `T?`, `expr?` evaluates to the present value when `expr` is present. On `none`, the current
+function, method, or closure returns `none` through its optional return layer.
 
 Example:
 
@@ -101,7 +103,8 @@ Rules:
 - Postfix `?` is not an exception mechanism.
 - Postfix `?` does not perform stack unwinding.
 - Postfix `?` on `T!` can be used only inside a fallible function.
-- Postfix `?` on `T?` can be used only when the current function's return layer can carry `none`.
+- Postfix `?` on `T?` can be used only when the current callable body's result layer can carry
+  `none`.
 - Postfix `?` does not convert `none` into `error`.
 - Postfix `?` does not convert `error` into `none`.
 - Scope-end cleanup and `drop` behavior still run as they would for an explicit `return`.
@@ -344,7 +347,8 @@ let home = env("HOME") catch error {
 
 Postfix `?` propagates optional absence.
 
-When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`, the current function returns `none` through its optional return layer.
+When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`, the current
+function, method, or closure returns `none` through its optional return layer.
 
 ```nct
 func require_home(): &str? {
@@ -356,7 +360,8 @@ func require_home(): &str? {
 
 Rules:
 
-- Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
+- Postfix `?` on `T?` is valid when the current callable body's result type can carry `none`, such
+  as `U?` or `(U?)!`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
 - Exact absence propagation uses `?`. Absence defaulting and control flow other than returning the
