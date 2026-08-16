@@ -199,7 +199,14 @@ fn rejects_recursive_alias_expansion() {
     )
     .unwrap_err();
 
-    assert!(matches!(error, TypeNormalizationError::RecursiveAlias(_)));
+    assert!(
+        matches!(
+            &error,
+            TypeNormalizationError::Rule(violation)
+                if violation.rule() == crate::TypeNormalizationRule::RecursiveAlias
+        ),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -227,7 +234,8 @@ fn rejects_ambiguous_concrete_associated_projection() {
 
     assert!(matches!(
         error,
-        TypeNormalizationError::AmbiguousAssociatedType { .. }
+        TypeNormalizationError::Rule(violation)
+            if violation.rule() == crate::TypeNormalizationRule::AmbiguousAssociatedType
     ));
 }
 

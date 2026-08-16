@@ -110,10 +110,9 @@ fn collect_associated(
             ReservedEntity::AssociatedType(item),
         ))?;
         if associated.insert((interface, name), item).is_some() {
-            return Err(TypeNormalizationError::AmbiguousAssociatedType {
-                declaration: SurfaceDeclarationId::from_index(index),
-                name,
-            });
+            return Err(TypeNormalizationError::InconsistentAssociatedIndex(
+                SurfaceDeclarationId::from_index(index),
+            ));
         }
         surfaces.insert(item, SurfaceDeclarationId::from_index(index));
     }

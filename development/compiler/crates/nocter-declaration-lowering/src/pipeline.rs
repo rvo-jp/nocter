@@ -3,9 +3,10 @@ use std::fmt;
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericDiagnostic,
     GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
-    LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError,
-    SourceDiagnostic, SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingDiagnostic,
-    TypeBindingError, TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
+    LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic, PreludeError, PreparedTypeBindings,
+    PreparedTypes, ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError,
+    TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
+    TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
     bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
     normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
     prepare_generic_binders,
@@ -28,7 +29,8 @@ pub enum DeclarationLoweringError {
     Prelude(PreludeError),
     TypeBinding(TypeBindingDiagnostic),
     InternalTypeBinding(TypeBindingError),
-    TypeNormalization(TypeNormalizationError),
+    TypeNormalization(TypeNormalizationDiagnostic),
+    InternalTypeNormalization(TypeNormalizationError),
     Definition(HeaderDefinitionError),
 }
 
@@ -47,6 +49,7 @@ impl DeclarationLoweringError {
             Self::Generic(diagnostic) => Some(diagnostic.source()),
             Self::Import(diagnostic) => Some(diagnostic.source()),
             Self::TypeBinding(diagnostic) => Some(diagnostic.source()),
+            Self::TypeNormalization(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
@@ -56,7 +59,7 @@ impl DeclarationLoweringError {
             | Self::InternalImport(_)
             | Self::Prelude(_)
             | Self::InternalTypeBinding(_)
-            | Self::TypeNormalization(_) => None,
+            | Self::InternalTypeNormalization(_) => None,
         }
     }
 }
@@ -80,6 +83,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::TypeBinding(error) => error.fmt(formatter),
             Self::InternalTypeBinding(error) => error.fmt(formatter),
             Self::TypeNormalization(error) => error.fmt(formatter),
+            Self::InternalTypeNormalization(error) => error.fmt(formatter),
             Self::Definition(error) => error.fmt(formatter),
         }
     }
@@ -197,9 +201,28 @@ pub fn lower_compile_unit_declarations(
         }
         Err(internal) => return Err(DeclarationLoweringError::InternalTypeBinding(internal)),
     };
-    let normalized =
-        normalize_header_types(bound).map_err(DeclarationLoweringError::TypeNormalization)?;
+    let normalized = normalize_types(bound, input)?;
     define_declaration_headers(normalized).map_err(DeclarationLoweringError::Definition)
+}
+
+fn normalize_types<'syntax>(
+    bound: PreparedTypeBindings<'syntax>,
+    input: &CompileUnitInput<'syntax>,
+) -> Result<PreparedTypes<'syntax>, DeclarationLoweringError> {
+    match normalize_header_types(bound) {
+        Ok(normalized) => Ok(normalized),
+        Err(TypeNormalizationError::Rule(violation)) => {
+            match TypeNormalizationDiagnostic::project(&violation, input) {
+                Some(diagnostic) => Err(DeclarationLoweringError::TypeNormalization(diagnostic)),
+                None => Err(DeclarationLoweringError::InternalTypeNormalization(
+                    TypeNormalizationError::Rule(violation),
+                )),
+            }
+        }
+        Err(internal) => Err(DeclarationLoweringError::InternalTypeNormalization(
+            internal,
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -212,7 +235,7 @@ mod tests {
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, GenericRule, ImportRule,
         ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, TopologyRule,
-        TypeBindingRule, lower_compile_unit_declarations,
+        TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
     };
 
     #[test]
@@ -981,6 +1004,150 @@ mod tests {
                 assert!(diagnostic.source().notes().is_empty());
             }
         }
+    }
+
+    #[test]
+    fn production_pipeline_projects_a_canonical_alias_cycle() {
+        let text = "type A = B\ntype B = A\n";
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = input_with_standard_prelude(
+            &sources,
+            &app_manifest,
+            &app,
+            &standard_manifest,
+            &standard,
+            &prelude,
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
+            panic!("recursive aliases did not produce a normalization diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), TypeNormalizationRule::RecursiveAlias);
+        assert_eq!(diagnostic.source().code(), "E0310");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.find('A').unwrap()).unwrap()
+        );
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(
+            diagnostic.source().notes()[0]
+                .origin()
+                .span()
+                .range()
+                .start()
+                .get(),
+            u32::try_from(text.rfind('B').unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn production_pipeline_projects_ambiguous_callable_provenance_at_the_callable() {
+        let text = "type Callback = &func(left: &str, right: &str): &str\n";
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = input_with_standard_prelude(
+            &sources,
+            &app_manifest,
+            &app,
+            &standard_manifest,
+            &standard,
+            &prelude,
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
+            panic!("ambiguous provenance did not produce a normalization diagnostic");
+        };
+
+        assert_eq!(
+            diagnostic.rule(),
+            TypeNormalizationRule::AmbiguousCallableProvenance
+        );
+        assert_eq!(diagnostic.source().code(), "E0313");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().node().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.find("&func").unwrap()).unwrap()
+        );
+        assert!(diagnostic.source().notes().is_empty());
+    }
+
+    #[test]
+    fn production_pipeline_projects_the_exact_unknown_associated_name() {
+        let text = concat!(
+            "interface Source { pub type Item }\n",
+            "func read<T>(value: &T): T.Missing where T: Source { return value }\n",
+        );
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = input_with_standard_prelude(
+            &sources,
+            &app_manifest,
+            &app,
+            &standard_manifest,
+            &standard,
+            &prelude,
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
+            panic!("unknown associated type did not produce a normalization diagnostic");
+        };
+
+        assert_eq!(
+            diagnostic.rule(),
+            TypeNormalizationRule::UnknownAssociatedType
+        );
+        assert_eq!(diagnostic.source().code(), "E0311");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.find("Missing").unwrap()).unwrap()
+        );
+        assert!(diagnostic.source().notes().is_empty());
     }
 
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {

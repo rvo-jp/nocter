@@ -152,6 +152,11 @@ be introduced to make an unresolved syntax choice.
   every module-path origin, and an explicit compiler-managed prelude import reuses `ImportRule`
   `E0262`. Missing compiler-selected modules, missing retained origins, and invalid builder state
   remain internal `PreludeError` variants.
+  Type binding owns a `BindingArena` containing bound kinds, root indexes, and the temporary
+  `NormalizationOrigins` side index. Normalization consumes that index to project recursive alias
+  cycles, unknown or ambiguous associated selections, and ambiguous callable provenance as
+  `E0310`-`E0313`. The alias cycle witness is complete and canonically rotated by declaration
+  identity. No source coordinate enters a `BoundTypeKind`, canonical `TypeKind`, or semantic ID.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
@@ -162,8 +167,8 @@ validation must identify the exact semantic subject so diagnostics can project i
 `SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
 do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
 guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
-  type normalization still requires an authored-versus-internal failure audit. No crate yet owns
-  checked body semantics.
+  The remaining Phase 2 work is an exhaustive production-failure classification and
+  ordering-invariance audit. No crate yet owns checked body semantics.
 
 ## Verification
 

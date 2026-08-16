@@ -1,7 +1,9 @@
+mod binding_arena;
 mod capability;
 mod context;
 mod names;
 mod normalization;
+mod normalization_origins;
 mod opaque;
 mod pattern;
 mod projection;
@@ -75,7 +77,7 @@ impl BoundCallableType {
 
 pub use normalization::{
     NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypes, TypeNormalizationError,
-    normalize_header_types,
+    TypeNormalizationRule, TypeNormalizationViolation, normalize_header_types,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -261,6 +263,7 @@ pub struct PreparedTypeBindings<'syntax> {
     opaque_results: HashMap<OpaqueTypeId, BoundOpaqueResult>,
     callable_results: Box<[Option<BoundTypeId>]>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
+    normalization_origins: normalization_origins::NormalizationOrigins,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -329,9 +332,7 @@ pub fn bind_header_type_syntax(
     mut namespaces: PreparedNamespaces<'_>,
 ) -> Result<PreparedTypeBindings<'_>, TypeBindingError> {
     let declaration_nodes = declaration_node_set(&namespaces);
-    let mut kinds = Vec::new();
-    let mut roots = HashMap::new();
-    let mut root_declarations = HashMap::new();
+    let mut arena = binding_arena::BindingArena::default();
     let mut alias_targets = HashMap::new();
     let mut capabilities = HashMap::new();
     let mut capability_declarations = HashMap::new();
@@ -359,26 +360,19 @@ pub fn bind_header_type_syntax(
             .syntax();
         let type_roots = header_type_roots(tree, surface.node(), &declaration_nodes);
         for root in type_roots {
-            if roots.contains_key(&root) {
+            if arena.roots.contains_key(&root) {
                 continue;
             }
-            syntax::bind(
-                &mut namespaces,
-                declaration,
-                tree,
-                root,
-                &mut kinds,
-                &mut roots,
-                &mut root_declarations,
-            )?;
+            syntax::bind(&mut namespaces, declaration, tree, root, &mut arena)?;
         }
         record_alias_target(
             &namespaces,
             declaration,
             tree,
             surface.node(),
-            &roots,
+            &arena.roots,
             &mut alias_targets,
+            &mut arena.origins,
         )?;
         for capability in header_nodes(
             tree,
@@ -386,15 +380,8 @@ pub fn bind_header_type_syntax(
             &declaration_nodes,
             NodeKind::Capability,
         ) {
-            let bound = capability::bind(
-                &mut namespaces,
-                declaration,
-                tree,
-                capability,
-                &mut kinds,
-                &mut roots,
-                &mut root_declarations,
-            )?;
+            let bound =
+                capability::bind(&mut namespaces, declaration, tree, capability, &mut arena)?;
             capabilities.insert(capability, bound);
             capability_declarations.insert(capability, declaration);
         }
@@ -408,26 +395,21 @@ pub fn bind_header_type_syntax(
                 declaration,
                 tree,
                 surface.node(),
-                &mut kinds,
-                &roots,
+                &mut arena.kinds,
+                &arena.roots,
                 &capabilities,
             )?
             .into_boxed_slice(),
         );
     }
 
-    let (opaque_results, callable_results) = results::bind_all(
-        &mut namespaces,
-        &mut kinds,
-        &mut roots,
-        &mut root_declarations,
-    )?;
+    let (opaque_results, callable_results) = results::bind_all(&mut namespaces, &mut arena)?;
 
     Ok(PreparedTypeBindings {
         namespaces,
-        kinds: kinds.into_boxed_slice(),
-        roots,
-        root_declarations,
+        kinds: arena.kinds.into_boxed_slice(),
+        roots: arena.roots,
+        root_declarations: arena.root_declarations,
         alias_targets,
         patterns: patterns.into_boxed_slice(),
         capabilities,
@@ -435,6 +417,7 @@ pub fn bind_header_type_syntax(
         opaque_results,
         callable_results,
         requirements: requirements.into_boxed_slice(),
+        normalization_origins: arena.origins,
     })
 }
 
@@ -457,6 +440,7 @@ fn record_alias_target(
     declaration_node: NodeId,
     roots: &HashMap<NodeId, BoundTypeId>,
     alias_targets: &mut HashMap<TypeAliasId, BoundTypeId>,
+    origins: &mut normalization_origins::NormalizationOrigins,
 ) -> Result<(), TypeBindingError> {
     let Some(ReservedEntity::TypeAlias(alias)) = namespaces
         .imports
@@ -474,6 +458,10 @@ fn record_alias_target(
         .copied()
         .ok_or(TypeBindingError::InvalidSyntax(target_node))?;
     alias_targets.insert(alias, target);
+    let name = namespaces.imports.generics.headers.reserved.declarations[declaration.index()]
+        .name()
+        .ok_or(TypeBindingError::InvalidSyntax(declaration_node))?;
+    origins.record_alias(alias, nocter_source_index::SyntaxOrigin::Token(name));
     Ok(())
 }
 

@@ -8,9 +8,8 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Extend the source-backed boundary to type normalization without turning malformed bound graphs
-   into user-facing errors. Alias cycles and authored associated selections must retain the syntax
-   subjects that selected them.
+1. Audit every production-facade failure variant and record why it is an authored language rule or
+   an internal compiler/discovery integrity error.
 2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
 3. Close Phase 2 only after every production-facade failure is classified as an authored rule or an
@@ -48,6 +47,13 @@ Prelude composition reuses the import rule domain for `E0262`. Authored import p
 each module-path node alongside its semantic import identity, so the later compiler-selected
 prelude check reports the exact path without reparsing or reverse lookup. A missing selected
 prelude, a missing retained path, and program-builder authority failures remain internal.
+Type normalization projects `E0310`-`E0313`. A temporary `BindingArena` owns bound kinds, root
+indexes, and `NormalizationOrigins` as one lowering state. Alias declarations and selected bound
+types retain only the syntax subjects normalization may need; that side index is consumed before
+the immutable declaration graph is frozen. Recursive aliases produce a canonical complete cycle,
+and associated selections and ambiguous callable provenance retain their exact authored subjects.
+Malformed bound IDs, missing alias definitions, invalid `Self` state, and inconsistent associated
+indexes remain internal.
 
 ## Guardrails
 

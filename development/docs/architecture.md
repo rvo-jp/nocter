@@ -221,6 +221,14 @@ retain the first and later tokens. Missing syntax nodes, missing discovery-owned
 symbols, and duplicate source-index insertion remain internal `TypeBindingError` variants. The
 production facade is the only layer that converts an authored violation to `SourceDiagnostic`.
 
+The mutable binding boundary is one `BindingArena`: a bound-kind arena, syntax-root index,
+declaration-context index, and temporary `NormalizationOrigins` side index. The side index records
+only subjects that a later normalization rule can select. It retains alias declaration tokens,
+exact associated-selection tokens, and callable type nodes without contaminating `BoundTypeKind`
+or canonical `TypeKind`. Normalization projects `E0310`-`E0313`; alias cycles are rotated by
+canonical declaration identity and retain every declaration in the cycle. Missing bound state,
+alias definitions, normalized `Self`, or associated-index invariants remain internal failures.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no

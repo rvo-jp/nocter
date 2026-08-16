@@ -11,8 +11,8 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
 use super::context::{declaration_module, require_arity, token_symbol};
 use super::{
-    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule, projection,
-    push,
+    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule,
+    binding_arena::BindingArena, projection, push,
 };
 
 #[derive(Clone, Copy)]
@@ -33,8 +33,7 @@ pub(super) fn bind(
     namespaces: &mut PreparedNamespaces<'_>,
     tree: &SyntaxTree,
     syntax: OpaqueSyntax,
-    kinds: &mut Vec<BoundTypeKind>,
-    roots: &HashMap<NodeId, BoundTypeId>,
+    arena: &mut BindingArena,
 ) -> Result<BoundOpaqueResult, TypeBindingError> {
     let OpaqueSyntax {
         declaration,
@@ -68,7 +67,7 @@ pub(super) fn bind(
         interface_token,
     )?;
 
-    let arguments = bind_opaque_arguments(namespaces, tree, node, interface, roots)?;
+    let arguments = bind_opaque_arguments(namespaces, tree, node, interface, &arena.roots)?;
     require_arity(
         namespaces,
         arguments
@@ -82,10 +81,10 @@ pub(super) fn bind(
     let generic_arguments: Box<_> = generic_parameters
         .iter()
         .copied()
-        .map(|parameter| push(kinds, BoundTypeKind::GenericParameter(parameter)))
+        .map(|parameter| push(&mut arena.kinds, BoundTypeKind::GenericParameter(parameter)))
         .collect();
     let mut result = push(
-        kinds,
+        &mut arena.kinds,
         BoundTypeKind::Opaque {
             definition,
             arguments: generic_arguments,
@@ -97,10 +96,10 @@ pub(super) fn bind(
         };
         match token.kind() {
             TokenKind::Punctuation(Punctuation::Question) => {
-                result = push(kinds, BoundTypeKind::Optional(result));
+                result = push(&mut arena.kinds, BoundTypeKind::Optional(result));
             }
             TokenKind::Punctuation(Punctuation::Bang) => {
-                result = push(kinds, BoundTypeKind::Fallible(result));
+                result = push(&mut arena.kinds, BoundTypeKind::Fallible(result));
             }
             _ => {}
         }

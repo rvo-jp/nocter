@@ -128,6 +128,19 @@ These rules retain their exact name token, argument container, requirement, or d
 type binding selects the error. Diagnostic rendering does not search the syntax tree or repeat name
 resolution to find a span.
 
+Source-backed declaration-header type-normalization diagnostics:
+
+- `E0310`: type aliases form a recursive expansion cycle. The primary alias and ordered related
+  aliases form one complete deterministic cycle of declaration-name tokens.
+- `E0311`: an associated selection names no associated type available from its base type.
+- `E0312`: an associated selection has more than one applicable associated declaration.
+- `E0313`: a structural callable can carry result storage but its omitted result provenance has no
+  unique inference. The callable type is primary; an explicit `from` clause is required.
+
+The binding-to-normalization boundary retains these syntax subjects in a temporary side index. It
+does not place source coordinates in canonical type identity, and normalization diagnostics do not
+recover subjects by scanning source or rendering semantic names.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

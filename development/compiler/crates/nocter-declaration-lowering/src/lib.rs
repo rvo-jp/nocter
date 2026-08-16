@@ -25,6 +25,7 @@ mod topology;
 mod topology_diagnostic;
 mod topology_violation;
 mod type_binding_diagnostic;
+mod type_normalization_diagnostic;
 mod types;
 mod visibility;
 
@@ -66,9 +67,11 @@ pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topolo
 pub use topology_diagnostic::TopologyDiagnostic;
 pub use topology_violation::{TopologyRule, TopologyViolation};
 pub use type_binding_diagnostic::TypeBindingDiagnostic;
+pub use type_normalization_diagnostic::TypeNormalizationDiagnostic;
 pub use types::{
     BoundCallableType, BoundCapability, BoundDeclarationPattern, BoundRequirementKind, BoundTypeId,
     BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypeBindings,
     PreparedTypes, TypeBindingError, TypeBindingRule, TypeBindingViolation, TypeNormalizationError,
-    bind_header_type_syntax, normalize_header_types,
+    TypeNormalizationRule, TypeNormalizationViolation, bind_header_type_syntax,
+    normalize_header_types,
 };

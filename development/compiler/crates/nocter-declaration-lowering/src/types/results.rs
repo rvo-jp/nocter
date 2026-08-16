@@ -6,7 +6,8 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::{
-    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, opaque, push, syntax,
+    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, binding_arena::BindingArena,
+    opaque, push, syntax,
 };
 
 type BoundResults = (
@@ -16,9 +17,7 @@ type BoundResults = (
 
 pub(super) fn bind_all(
     namespaces: &mut PreparedNamespaces<'_>,
-    kinds: &mut Vec<BoundTypeKind>,
-    roots: &mut HashMap<NodeId, BoundTypeId>,
-    root_declarations: &mut HashMap<NodeId, SurfaceDeclarationId>,
+    arena: &mut BindingArena,
 ) -> Result<BoundResults, TypeBindingError> {
     let count = namespaces
         .imports
@@ -61,8 +60,7 @@ pub(super) fn bind_all(
                         callable_tail: tail,
                         definition: opaque_id,
                     },
-                    kinds,
-                    roots,
+                    arena,
                 )?;
                 callable_results[owner.index()] = Some(bound.result);
                 opaque_results.insert(opaque_id, bound);
@@ -75,9 +73,7 @@ pub(super) fn bind_all(
                         tree,
                         surface.node(),
                         surface.kind(),
-                        kinds,
-                        roots,
-                        root_declarations,
+                        arena,
                     )?
                 {
                     callable_results[index] = Some(result);
@@ -96,9 +92,7 @@ fn bind_callable_result(
     tree: &SyntaxTree,
     node: NodeId,
     kind: SurfaceDeclarationKind,
-    kinds: &mut Vec<BoundTypeKind>,
-    roots: &mut HashMap<NodeId, BoundTypeId>,
-    root_declarations: &mut HashMap<NodeId, SurfaceDeclarationId>,
+    arena: &mut BindingArena,
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result_node = match kind {
         SurfaceDeclarationKind::Function
@@ -117,7 +111,10 @@ fn bind_callable_result(
         }
         SurfaceDeclarationKind::Index => direct_node(tree, node, NodeKind::BorrowType),
         SurfaceDeclarationKind::Equality | SurfaceDeclarationKind::Ordering => {
-            return Ok(Some(push(kinds, BoundTypeKind::Builtin(BuiltinType::Bool))));
+            return Ok(Some(push(
+                &mut arena.kinds,
+                BoundTypeKind::Builtin(BuiltinType::Bool),
+            )));
         }
         _ => return Ok(None),
     };
@@ -125,19 +122,10 @@ fn bind_callable_result(
         // An opaque result is filled when its separately reserved child is processed.
         return Ok(None);
     };
-    if let Some(bound) = roots.get(&result_node).copied() {
+    if let Some(bound) = arena.roots.get(&result_node).copied() {
         return Ok(Some(bound));
     }
-    syntax::bind(
-        namespaces,
-        declaration,
-        tree,
-        result_node,
-        kinds,
-        roots,
-        root_declarations,
-    )
-    .map(Some)
+    syntax::bind(namespaces, declaration, tree, result_node, arena).map(Some)
 }
 
 fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {

@@ -13,14 +13,17 @@ use nocter_syntax::NodeId;
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId};
 
+use super::normalization_origins::NormalizationOrigins;
 use super::{
     BoundCapability, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
     PreparedTypeBindings,
 };
 
 mod preparation;
+mod violation;
 
 use preparation::prepare_context;
+pub use violation::{TypeNormalizationRule, TypeNormalizationViolation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NormalizedDeclarationPattern {
@@ -60,26 +63,24 @@ impl NormalizedOpaqueResult {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeNormalizationError {
+    Rule(TypeNormalizationViolation),
     InvalidBoundType(BoundTypeId),
     InconsistentTypeStore,
     MissingCapabilityContext(NodeId),
     MissingAlias(TypeAliasId),
-    RecursiveAlias(TypeAliasId),
     InvalidSelf(ReservedEntity),
-    UnknownAssociatedType {
-        declaration: SurfaceDeclarationId,
-        name: Symbol,
-    },
-    AmbiguousAssociatedType {
-        declaration: SurfaceDeclarationId,
-        name: Symbol,
-    },
-    AmbiguousCallableProvenance(BoundTypeId),
+    InconsistentAssociatedIndex(SurfaceDeclarationId),
 }
 
 impl fmt::Display for TypeNormalizationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::InvalidBoundType(ty) => write!(formatter, "bound type {ty:?} is inconsistent"),
             Self::InconsistentTypeStore => {
                 formatter.write_str("normalized type store contains an invalid reference")
@@ -88,27 +89,22 @@ impl fmt::Display for TypeNormalizationError {
                 write!(formatter, "capability {node:?} has no declaration context")
             }
             Self::MissingAlias(alias) => write!(formatter, "type alias {alias:?} has no target"),
-            Self::RecursiveAlias(alias) => {
-                write!(formatter, "type alias {alias:?} expands recursively")
-            }
             Self::InvalidSelf(owner) => write!(formatter, "{owner:?} has no normalized Self type"),
-            Self::UnknownAssociatedType { declaration, name } => write!(
+            Self::InconsistentAssociatedIndex(declaration) => write!(
                 formatter,
-                "type selection in {declaration:?} names unknown associated type {name:?}"
-            ),
-            Self::AmbiguousAssociatedType { declaration, name } => write!(
-                formatter,
-                "type selection in {declaration:?} ambiguously names associated type {name:?}"
-            ),
-            Self::AmbiguousCallableProvenance(ty) => write!(
-                formatter,
-                "structural callable {ty:?} requires explicit result provenance"
+                "declaration {declaration:?} duplicates an associated index entry"
             ),
         }
     }
 }
 
 impl std::error::Error for TypeNormalizationError {}
+
+impl From<TypeNormalizationViolation> for TypeNormalizationError {
+    fn from(violation: TypeNormalizationViolation) -> Self {
+        Self::Rule(violation)
+    }
+}
 
 /// Header types after aliases, `Self`, associated names, and requirement types are canonicalized.
 #[derive(Debug)]
@@ -232,6 +228,7 @@ enum EvaluationFrame {
 
 struct Evaluator<'a> {
     kinds: &'a [BoundTypeKind],
+    origins: &'a NormalizationOrigins,
     context: &'a NormalizationContext,
     store: &'a mut TypeStore,
     memo: HashMap<EvaluationKey, TypeId>,
@@ -299,12 +296,16 @@ impl Evaluator<'_> {
             .cloned()
             .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?;
         if !self.active.insert(key.clone()) {
-            return Err(self
-                .alias_stack
-                .last()
-                .copied()
-                .map(TypeNormalizationError::RecursiveAlias)
-                .unwrap_or(TypeNormalizationError::InvalidBoundType(key.ty)));
+            let repeated = match kind {
+                BoundTypeKind::Alias { definition, .. } => Some(definition),
+                _ => self.alias_stack.iter().rev().copied().find(|alias| {
+                    self.context.aliases.get(alias).is_some_and(|definition| {
+                        definition.declaration == key.declaration && definition.target == key.ty
+                    })
+                }),
+            }
+            .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?;
+            return Err(self.recursive_alias(repeated)?);
         }
         match kind {
             BoundTypeKind::Builtin(builtin) => {
@@ -428,7 +429,7 @@ impl Evaluator<'_> {
             },
             BoundTypeKind::AssociatedSelection { base, name } => {
                 let base = self.result(&key, base)?;
-                let associated = self.resolve_associated(key.declaration, base, name)?;
+                let associated = self.resolve_associated(key.declaration, key.ty, base, name)?;
                 TypeKind::AssociatedProjection { base, associated }
             }
             BoundTypeKind::Pointer(pointee) => TypeKind::Pointer(self.result(&key, pointee)?),
@@ -531,14 +532,17 @@ impl Evaluator<'_> {
         match eligible.as_slice() {
             [] if !unnamed_eligible => Ok(ResultProvenance::empty()),
             [origin] if !unnamed_eligible => ResultProvenance::from_origins([*origin])
-                .map_err(|_| TypeNormalizationError::AmbiguousCallableProvenance(bound)),
-            _ => Err(TypeNormalizationError::AmbiguousCallableProvenance(bound)),
+                .map_err(|_| TypeNormalizationError::InvalidBoundType(bound)),
+            _ => Err(
+                self.authored_violation(TypeNormalizationRule::AmbiguousCallableProvenance, bound)?
+            ),
         }
     }
 
     fn resolve_associated(
         &self,
         declaration: SurfaceDeclarationId,
+        selection: BoundTypeId,
         base: TypeId,
         name: Symbol,
     ) -> Result<AssociatedTypeId, TypeNormalizationError> {
@@ -573,14 +577,63 @@ impl Evaluator<'_> {
             }
         };
         match occurrences {
-            0 => Err(TypeNormalizationError::UnknownAssociatedType { declaration, name }),
-            1 if candidates.len() == 1 => candidates
-                .iter()
-                .next()
-                .copied()
-                .ok_or(TypeNormalizationError::UnknownAssociatedType { declaration, name }),
-            _ => Err(TypeNormalizationError::AmbiguousAssociatedType { declaration, name }),
+            0 => {
+                Err(self
+                    .authored_violation(TypeNormalizationRule::UnknownAssociatedType, selection)?)
+            }
+            1 if candidates.len() == 1 => candidates.iter().next().copied().ok_or(
+                TypeNormalizationError::InconsistentAssociatedIndex(declaration),
+            ),
+            _ => Err(
+                self.authored_violation(TypeNormalizationRule::AmbiguousAssociatedType, selection)?
+            ),
         }
+    }
+
+    fn authored_violation(
+        &self,
+        rule: TypeNormalizationRule,
+        ty: BoundTypeId,
+    ) -> Result<TypeNormalizationError, TypeNormalizationError> {
+        let origin = self
+            .origins
+            .bound(ty)
+            .ok_or(TypeNormalizationError::InvalidBoundType(ty))?;
+        Ok(TypeNormalizationViolation::new(rule, origin).into())
+    }
+
+    fn recursive_alias(
+        &self,
+        repeated: TypeAliasId,
+    ) -> Result<TypeNormalizationError, TypeNormalizationError> {
+        let start = self
+            .alias_stack
+            .iter()
+            .position(|alias| *alias == repeated)
+            .ok_or(TypeNormalizationError::MissingAlias(repeated))?;
+        let mut cycle = self.alias_stack[start..].to_vec();
+        let rotation = cycle
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, alias)| {
+                self.context
+                    .aliases
+                    .get(alias)
+                    .map_or(usize::MAX, |definition| definition.declaration.index())
+            })
+            .map_or(0, |(index, _)| index);
+        cycle.rotate_left(rotation);
+        let origins = cycle
+            .into_iter()
+            .map(|alias| {
+                self.origins
+                    .alias(alias)
+                    .ok_or(TypeNormalizationError::MissingAlias(alias))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        TypeNormalizationViolation::alias_cycle(origins)
+            .map(TypeNormalizationError::from)
+            .ok_or(TypeNormalizationError::MissingAlias(repeated))
     }
 
     fn collect_parameter_associated(
@@ -747,6 +800,7 @@ pub fn normalize_header_types(
         opaque_results: bound_opaque_results,
         callable_results: bound_callable_results,
         requirements: bound_requirements,
+        normalization_origins,
     } = bindings;
     let context = prepare_context(
         &mut namespaces,
@@ -763,6 +817,7 @@ pub fn normalize_header_types(
         .types_mut();
     let mut evaluator = Evaluator {
         kinds: &kinds,
+        origins: &normalization_origins,
         context: &context,
         store,
         memo: HashMap::new(),

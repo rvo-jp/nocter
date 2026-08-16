@@ -9,8 +9,10 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
+use super::binding_arena::BindingArena;
 use super::context::{builtin_type, require_arity, token_symbol, token_text};
 use super::names::{resolve_exported, segments};
+use super::normalization_origins::NormalizationOrigins;
 use super::{
     BoundCallableType, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule, projection,
     push,
@@ -21,15 +23,13 @@ pub(super) fn bind(
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
     root: NodeId,
-    kinds: &mut Vec<BoundTypeKind>,
-    roots: &mut HashMap<NodeId, BoundTypeId>,
-    root_declarations: &mut HashMap<NodeId, SurfaceDeclarationId>,
+    arena: &mut BindingArena,
 ) -> Result<BoundTypeId, TypeBindingError> {
     let mut values = HashMap::new();
     let mut pending = vec![(root, false)];
     while let Some((node, expanded)) = pending.pop() {
         if !expanded {
-            if let Some(existing) = roots.get(&node).copied() {
+            if let Some(existing) = arena.roots.get(&node).copied() {
                 values.insert(node, existing);
                 continue;
             }
@@ -42,12 +42,24 @@ pub(super) fn bind(
             continue;
         }
         if let Some(kind) = tree.node(node).map(nocter_syntax::SyntaxNode::kind)
-            && let Some(id) = bind_node(namespaces, declaration, tree, node, kind, &values, kinds)?
+            && let Some(id) = bind_node(
+                namespaces,
+                declaration,
+                tree,
+                node,
+                kind,
+                &values,
+                &mut arena.kinds,
+                &mut arena.origins,
+            )?
         {
+            arena
+                .origins
+                .record_bound_if_absent(id, SyntaxOrigin::Node(node));
             values.insert(node, id);
             if kind == NodeKind::Type {
-                roots.insert(node, id);
-                root_declarations.insert(node, declaration);
+                arena.roots.insert(node, id);
+                arena.root_declarations.insert(node, declaration);
             }
         }
     }
@@ -66,6 +78,7 @@ fn bind_node(
     kind: NodeKind,
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
+    origins: &mut NormalizationOrigins,
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result = match kind {
         NodeKind::Type => bind_type_wrapper(tree, node, values, kinds)?,
@@ -73,7 +86,9 @@ fn bind_node(
             kinds,
             BoundTypeKind::Builtin(builtin_type(namespaces, tree, node)?),
         ),
-        NodeKind::NamedType => bind_named(namespaces, declaration, tree, node, values, kinds)?,
+        NodeKind::NamedType => {
+            bind_named(namespaces, declaration, tree, node, values, kinds, origins)?
+        }
         NodeKind::PointerType => push(
             kinds,
             BoundTypeKind::Pointer(child_value(tree, node, values)?),
@@ -134,6 +149,7 @@ fn bind_named(
     node: NodeId,
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
+    origins: &mut NormalizationOrigins,
 ) -> Result<BoundTypeId, TypeBindingError> {
     let segments = segments(tree, node, values)?;
     let first = segments
@@ -148,7 +164,7 @@ fn bind_named(
             SyntaxOrigin::Token(first.token),
         ))?;
         let base = push(kinds, BoundTypeKind::SelfType(owner));
-        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds);
+        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds, origins);
     }
 
     let name = token_symbol(namespaces, tree, first.token)?;
@@ -158,7 +174,7 @@ fn bind_named(
         }
         projection::generic(namespaces, tree, parameter, first.token)?;
         let base = push(kinds, BoundTypeKind::GenericParameter(parameter));
-        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds);
+        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds, origins);
     }
 
     let path = resolve_exported(namespaces, declaration, tree, node, segments)?;
@@ -186,6 +202,7 @@ fn bind_named(
                 name: selection.name,
             },
         );
+        origins.record_bound(current, SyntaxOrigin::Token(selection.token));
     }
     Ok(current)
 }
@@ -244,6 +261,7 @@ fn bind_associated_tail(
     mut base: BoundTypeId,
     segments: &[super::names::NameSegment],
     kinds: &mut Vec<BoundTypeKind>,
+    origins: &mut NormalizationOrigins,
 ) -> Result<BoundTypeId, TypeBindingError> {
     for segment in segments {
         if !segment.arguments.is_empty() {
@@ -261,6 +279,7 @@ fn bind_associated_tail(
                 name: token_symbol(namespaces, tree, segment.token)?,
             },
         );
+        origins.record_bound(base, SyntaxOrigin::Token(segment.token));
     }
     Ok(base)
 }
