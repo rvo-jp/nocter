@@ -627,7 +627,8 @@ Allocator and lowering rules:
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
 - The lowering uses the compiler-propagated current allocation context. It must
   not read a mutable process-global allocator.
-- Interpolation must be supported by `build` and `run`; check-only acceptance is insufficient.
+- Interpolation participates in the same selected-target buildability validation for `check`,
+  `build`, and `run`; none may report success when the required lowering capability is absent.
 
 The intended lowering is equivalent to constructing a `String` through ordinary
 standard-library operations in the current context, appending decoded text

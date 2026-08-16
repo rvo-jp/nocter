@@ -425,44 +425,21 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
         <span class="token-operator">...</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
-</code></pre><p>Rules:</p><ul><li><code>match</code> may be used as a statement or as an expression.</li><li>Match arms use <code>Pattern { ... }</code>.</li><li><code>_ { ... }</code> is the fallback arm and matches any remaining value.</li><li>A <code>match</code> may have at most one <code>_</code> fallback arm.</li><li>The <code>_</code> fallback arm must be the last arm.</li><li>When <code>match</code> is used as an expression, each selected arm body result is the expression value.</li><li>A <code>match</code> expression without <code>_</code> must cover all variants to avoid a <code>void</code> missing-branch type.</li><li>Match expression arm result types must be compatible. A <code>never</code> arm is compatible with the other result type.</li><li><code>match</code> without <code>_</code> is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.</li><li><code>match</code> with <code>_</code> is treated as a terminating statement when every explicit arm and the <code>_</code> arm terminate.</li><li>Payloadless enum <code>match</code> statements and supported
-  payloadless enum <code>match</code> expressions lower through the enum tag ABI.</li><li>Payload-carrying enum construction, local storage, returns, and value
-  arguments lower in the current runtime-supported payload subset: copy/no-drop
-  payloads, plus aggregate payload fields with runtime-supported recursive drop
-  glue when active payload cleanup is required.</li><li>Tag-only payload-carrying enum <code>if is Enum.variant(_)</code> statements and
-  tag-only payload-carrying enum <code>match</code> statements lower over existing enum
-  bindings and parameters in the current runtime-supported payload subset,
-  including wildcard-only, nonexhaustive no-wildcard, and exhaustive
-  no-wildcard statement forms.</li><li>Payload-carrying enum <code>if is Enum.variant(binding)</code> statements/value
-  expressions and <code>match</code> statement/value-expression arms lower over existing
-  enum bindings and parameters when the payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>,
-  <code>bool</code>, <code>&amp;str</code>, a slice view, a copy aggregate value, or an owned aggregate
-  value with runtime-supported recursive drop glue, or a fixed array of
-  supported recursively droppable struct elements. The binding is loaded or
-  moved only inside the matching branch.</li><li>A copy payload binding copies the payload into its branch-local binding. A
-  move-only payload binding transfers ownership out of an owned pattern target.
-  Matching an existing local requires an explicit <code>move</code> target, such as
-  <code>match move result</code>; a call result, a direct-call success value extracted by
-  postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, a direct optional-call value recovered
-  by <code>otherwise</code>, or a direct variant constructor is already an owned
-  temporary. Member targets cannot supply move-only payload bindings until
-  field moves are supported. Runtime lowering currently supports this transfer
-  for aggregate payloads and supported move-only fixed-array payloads with
-  runtime-supported recursive drop glue.
-  The selected branch owns and drops the binding; the source enum is suppressed
-  after the transfer. A non-selected branch retains and drops the source enum.</li><li>Payload-carrying enum active payload cleanup lowers for runtime-supported enum
-  values whose droppable variants have supported aggregate drop trees.
-  Scope-end cleanup, parameter cleanup, explicit discard initializers, call-result
-  bindings, and whole-local replacement drop only the active payload fields.
-  Multi-field payload cleanup drops active fields in reverse aggregate field
-  order and applies supported struct and fixed-array drop trees recursively;
-  fixed-array elements drop in reverse index order.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over call results, direct-call
-  success values extracted by postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, direct
-  optional-call values recovered by <code>otherwise</code>, direct variant constructors,
-  and explicit <code>move</code> of an enum local lower in the current runtime-supported
-  payload subset. Other pattern target expressions and move-only payload
-  bindings with unsupported recursive drop trees still reject before
-  build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
+</code></pre><p>Rules:</p><ul><li><code>match</code> may be used as a statement or as an expression.</li><li>Match arms use <code>Pattern { ... }</code>.</li><li><code>_ { ... }</code> is the fallback arm and matches any remaining value.</li><li>A <code>match</code> may have at most one <code>_</code> fallback arm.</li><li>The <code>_</code> fallback arm must be the last arm.</li><li>When <code>match</code> is used as an expression, each selected arm body result is the expression value.</li><li>A <code>match</code> expression without <code>_</code> must cover all variants to avoid a <code>void</code> missing-branch type.</li><li>Match expression arm result types must be compatible. A <code>never</code> arm is compatible with the other result type.</li><li><code>match</code> without <code>_</code> is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.</li><li><code>match</code> with <code>_</code> is treated as a terminating statement when every explicit arm and the <code>_</code> arm terminate.</li><li>Every enum payload field may use any sized type that is valid as a struct field. Construction,
+  local storage, arguments, returns, assignment, optional/fallible wrapping, and pattern matching
+  apply recursively to payload aggregates without a separate runtime type allowlist.</li><li>A pattern target expression is evaluated exactly once before its tag is tested. An ordinary
+  expression that produces a new owned enum temporary may be matched directly.</li><li>A copy payload binding copies the payload into its branch-local binding. Matching a copy enum
+  place does not invalidate the original value.</li><li>A move-only payload binding transfers ownership from an owned pattern target. Matching an
+  existing move-only local, parameter, or named struct field requires an explicit <code>move</code> target,
+  such as <code>match move result</code> or <code>match move holder.result</code>. The ordinary move-place restrictions
+  still apply; indexes, dereferences, and computed projections are not move sources.</li><li>A newly produced owned enum temporary, including a call result, variant constructor, control
+  expression result, or value produced through postfix <code>?</code>, postfix <code>!</code>, <code>catch</code>, or <code>otherwise</code>,
+  is already owned by the pattern operation and does not use <code>move</code>.</li><li>Extracting a move-only payload suppresses that payload's cleanup through the consumed enum. The
+  branch-local binding assumes its drop obligation. An unselected or discarded owned enum
+  temporary retains and drops its active payload normally.</li><li>Enum cleanup reads the active tag and drops only initialized fields of that variant. Fields drop
+  in reverse payload declaration order and recursively use the same struct, enum, fixed-array, and
+  outcome cleanup rules. Fixed-array elements drop in reverse index order.</li><li>Scope-end cleanup, parameter cleanup, explicit discard initializers, call-result temporaries,
+  assignment replacement, and partial control-flow cleanup all use the same active-variant rule.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid
   <code>if is</code> pattern.</li></ul><p>Example value selection:</p><pre><code class="language-nct"><span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>
     <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span> <span class="token-function">missing_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>

@@ -266,7 +266,8 @@ encoded into a display string. The command exits zero only when every selected r
 
 ## Check
 
-`check` runs source-language and ownership analysis without emitting or executing a program.
+`check` runs source-language, ownership, and selected-target buildability analysis without emitting
+or executing a program.
 
 ```sh
 nocter check
@@ -279,8 +280,13 @@ Human-readable diagnostics go to stderr. `--format json` writes exactly one JSON
 envelope to stdout and no other stdout text. The envelope is specified in
 [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 
-`check` may accept semantically valid forms whose native lowering is not yet implemented. `build`
-and `run` must reject those forms during buildability validation with source-backed diagnostics.
+When they select the same executable compile unit, target, toolchain home, and dependency snapshot,
+`check`, `build`, and `run` accept the same source program. `check` stops after constructing and
+validating the complete target program; `build` and `run` continue through entry-driven
+instantiation, lowering, and code generation. A library-only package check uses the same target
+language rules but has no executable entry to instantiate. A released language feature is not
+check-only, and an unfinished lowering path must not be represented as a successful public `check`
+result.
 
 ## Format, Tokens, and AST
 

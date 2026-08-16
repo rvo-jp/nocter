@@ -253,8 +253,8 @@ Rules:
 
 - `fmt` is the source of canonical formatting.
 - `check --format json` is the source of semantic diagnostics.
-- `check` can accept explicitly check-only surfaces; use `build` or `run` when
-  the generated program must be runtime-buildable today.
+- `check`, `build`, and `run` accept the same source programs for the same selected target and
+  toolchain. Use `build` to verify executable emission and `run` to verify runtime behavior.
 - `tokens --format json` is the source of lexer output.
 - `ast --format json` is the source of parser structure and attached documentation text.
 - AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root `main` entry rule.

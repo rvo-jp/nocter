@@ -302,21 +302,14 @@ Required diagnostic families:
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.
 - `if is` enum pattern whose enum or variant does not match the target enum type.
-- Move-only enum payload binding from an existing local without an explicit
-  `move` pattern target, or from a member target before field moves are
-  supported.
+- Move-only enum payload binding from an existing owned place without an explicit `move` pattern
+  target, or from an expression that is not eligible for `move`.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
 - Interpolation expression whose value type is not supported by the adopted formatting surface.
-- Interpolation used when the active Nocter home does not provide the complete trusted string and
-  formatting runtime capability required by the compiler. This must be reported before IR lowering.
-- Check-only construct used with `build` or `run`, such as `std/process.env(name)` before
-  environment runtime support is promoted, a fixed-array element type containing
-  a payload enum, or move-only payload binding with an unsupported recursive drop
-  tree and broader payload enum pattern target expressions before those lowering
-  paths are promoted.
-- Standard-library runtime subset violation during buildability validation, such
-  as an unsupported `Vec<T>` element storage path.
+- Active Nocter home missing a trusted string, formatting, primitive, or runtime capability required
+  by the selected target. `check`, `build`, and `run` report the same failure before successful
+  buildability validation.
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.

@@ -11,6 +11,7 @@ SourceProgram
   -> SyntaxProgram
   -> DeclarationProgram
   -> CheckedProgram
+  -> TargetProgram
   -> ExecutableProgram
   -> MirProgram
   -> MachineProgram
@@ -55,15 +56,25 @@ Type checking selects either a direct callable or an exact abstract requirement.
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once
 through one conformance table. MIR and later stages have no dispatch API.
 
+## Target Program
+
+`TargetProgram` owns the selected target and exact toolchain capability validation for the complete
+checked compile unit. It is the common public acceptance boundary for `check`, `build`, and `run`
+under one target and toolchain snapshot. A library-only `check` may stop there without inventing an
+executable entry. Frontend-only experiments remain internal tests and never create a second public
+language subset.
+
 ## Executable Program
 
 Entry-driven instantiation produces the only reachable callable graph. A monomorphized key contains
 semantic callable identity, optional concrete receiver type, and substitutions keyed by generic
 parameter identity. Duplicate keys with different values are errors.
 
-Build capability validation, MIR construction, and linkage consume this graph. They cannot build
-parallel callable indexes. Runtime symbol spelling is generated after item selection and cannot be
-used to find a semantic item.
+MIR construction and linkage consume this graph. They cannot build parallel callable indexes.
+Runtime symbol spelling is generated after item selection and cannot be used to find a semantic
+item. `build` and `run` cannot reject a source-language construct that the corresponding
+`TargetProgram` accepted; a later failure is an internal compiler or output-system failure, not a
+second language diagnostic.
 
 ## MIR and Machine Program
 
