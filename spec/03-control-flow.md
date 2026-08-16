@@ -62,8 +62,8 @@ Rules:
 - Top-level functions, construction functions, and methods cannot be overloaded by type, arity, or
   return type.
 - A duplicate callable name in the same namespace is a compile error.
-- A trailing comma is allowed in multi-line parameter lists and multi-line argument lists.
-- A trailing comma is not allowed in single-line parameter lists or single-line argument lists.
+- Parameter and argument lists accept one trailing comma regardless of physical layout under
+  [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
 
 Examples:
 

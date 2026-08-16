@@ -72,6 +72,10 @@ Multiple or zero parameters use the same form:
 (left, right) { left + right }
 ```
 
+Closure parameters and explicit captures are comma-delimited segments and accept one trailing comma
+before their `)` or `;` terminator on any layout. The formatter removes a single-line trailing
+comma.
+
 Parameter and result types are inferred from an expected callable contract when that contract is
 unambiguous. An annotation may state a parameter or result type when inference needs it:
 

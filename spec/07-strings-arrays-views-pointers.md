@@ -172,6 +172,7 @@ Rules:
 - The element type `T` must be sized. Unsized `str` and `[T]` elements must be
   used behind an indirection such as `&str` or `&[T]`.
 - Array literal elements are evaluated left to right.
+- Array literal elements are comma-delimited and may use one trailing comma on any layout.
 - If a later element expression fails through postfix `?`, already initialized
   owned elements are dropped in reverse index order before the failure propagates.
 - A fixed array is copyable only when its element type is copyable.

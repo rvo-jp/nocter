@@ -231,6 +231,40 @@ let rendered = render
 (input)
 ```
 
+## Comma-Delimited Lists
+
+Every syntax form declared as a comma-delimited list uses one layout-independent separator rule:
+
+```text
+DelimitedList(Item) = Item ("," Item)* [","]
+```
+
+The enclosing grammar separately decides whether the list may be empty.
+
+Rules:
+
+- A comma is required between adjacent items. A newline never replaces it.
+- One trailing comma is accepted before the closing delimiter on either a single line or multiple
+  lines.
+- The same rule applies when an explicit grammar token such as the closure-capture `;` ends one
+  comma-delimited segment inside a larger delimiter pair.
+- Two adjacent commas and more than one trailing comma are invalid.
+- A comma is invalid outside a grammar position that declares a comma-delimited list or separator.
+- Non-delimited sequences such as a `where` predicate clause, struct declaration fields, enum
+  variants, match arms, and body statements retain their own separator rules and do not gain a
+  trailing comma.
+- Source formatting, not parsing, determines whether the accepted trailing comma appears in
+  canonical output.
+
+For example, all of these are syntactically valid before formatting:
+
+```nct
+call(first, second)
+call(first, second,)
+let values = [1, 2, 3,]
+let user = User { id: 1, name: text, }
+```
+
 ## Tokenization
 
 The lexer uses longest-match tokenization for multi-character tokens.

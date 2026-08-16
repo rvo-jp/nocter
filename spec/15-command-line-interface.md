@@ -121,6 +121,9 @@ directory names or filenames.
 `nocter.nct` accepts package documentation and directives only. Ordinary imports and declarations
 belong in `index.nct` or another module source.
 
+Directive list elements and record fields are comma-delimited and may use one trailing comma on any
+layout under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
+
 Dependencies and their generated exact locks share `nocter.nct`:
 
 ```nct

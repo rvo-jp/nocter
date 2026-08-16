@@ -698,6 +698,7 @@ let user = User {
 Rules:
 
 - Struct literal syntax is `Type { field: value, ... }`.
+- Struct literal fields are comma-delimited and may use one trailing comma on any layout.
 - The type in a struct literal must name a struct type. A generic owner may use complete explicit
   type arguments or infer all of them under
   [Generic Owner Arguments](19-construction-surfaces.md#generic-owner-arguments).
@@ -752,6 +753,8 @@ Rules:
 
 - Enum variant names use snake_case.
 - Variants may carry zero or more payload values.
+- Variant payload declarations and constructor arguments are comma-delimited and may use one
+  trailing comma on any layout.
 - Payloadless variants are constructed as `EnumName.variant_name`.
 - Payload variants are constructed as `EnumName.variant_name(args...)`.
 - Payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.

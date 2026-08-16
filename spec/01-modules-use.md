@@ -59,6 +59,9 @@ Meaning:
 The default namespace name is the final path segment. `use std/io` introduces `io` and
 `use ./path/to/parser` introduces `parser`.
 
+Selected-name import braces are comma-delimited. One trailing comma is valid on either a single
+line or multiple lines under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
+
 Top-level imports precede non-import declarations. Block-scope module imports precede executable
 statements in their block:
 

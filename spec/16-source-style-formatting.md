@@ -126,7 +126,11 @@ Rules:
 - Type annotations use no space before `:` and one space after `:`.
 - Function return annotations use no space before `:` and one space after `:`.
 - Commas have no preceding space and one following space on a single line.
-- Multi-line parameter lists put one parameter per line and keep a trailing comma.
+- A single-line comma-delimited list never retains a trailing comma, even though the parser accepts
+  one.
+- A multi-line comma-delimited list puts one item per line and retains a trailing comma.
+- The same canonical trailing-comma rule applies to arguments, parameters, generic parameters and
+  arguments, literals, import selections, directive data, enum payloads, and closure segments.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
 - A generic parameter list contains names only: `<T, U>`.
 - Complete explicit generic owner arguments are attached to the owner name, as in

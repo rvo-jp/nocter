@@ -108,6 +108,9 @@ let joined = Vec [
 ]
 ```
 
+Fixed elements and spread segments form one comma-delimited list and may use one trailing comma on
+any layout.
+
 - A fixed expression contributes one owned element.
 - `...source` iterates readonly and copies each yielded element; the item type must be `Copy`.
 - `...&source` iterates readonly and contributes the yielded readonly references themselves.
