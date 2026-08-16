@@ -28,7 +28,7 @@ error recovery cannot silently change its shape.
 | G004 | module paths, selections, aliases, and re-exports | `use /parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
 | G005 | target attachment and targetable items | `#target: "arm64-darwin"` followed by a function | `#target: "arm64-darwin"` before `test smoke {}` | an unsupported target name |
 | G006 | functions, primitives, aliases, parameters, callable tails, provenance | `func choose<T>(left: &T, right: &T): &T from left | right` | a function without `: Result` | an ineligible bodyless private function |
-| G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) none }` with newline-separated variants | comma-separated struct fields | an empty enum body |
+| G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) missing }` with newline-separated variants | comma-separated struct fields | an empty enum body |
 | G008 | interfaces and associated declarations | `interface Source { pub type Item pub method &+self.next(): Self.Item? }` with member newlines | a non-public interface member | a duplicate associated name |
 | G009 | construction declarations, functions, and literals | `construct Vec<T> { pub default func new(): Self { ... } }` | a construction member without visibility | two default members |
 | G010 | instances, methods, coercions, and the four operator families | an instance containing a method, coercion, equality, ordering, index, and expansion member | `operator (&self != other: &Self): bool { ... }` | an instance for a type outside its ownership boundary |

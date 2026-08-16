@@ -3,7 +3,8 @@
 This directory is the implementation root for the specification-first Nocter compiler rewrite.
 The lexical and syntactic grammar gate is closed. The Phase 1 workspace now owns normalized source
 storage, lexical projection, an immutable syntax arena, parser diagnostics, and the parser boundary
-through package/module roots, imports, callable declarations, types, and generic requirements.
+through package/module roots, imports, every declaration container, types, and generic
+requirements.
 
 ## Authority
 
@@ -44,8 +45,9 @@ be introduced to make an unresolved syntax choice.
   projection.
 - `nocter-syntax` owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
-  lossless syntax tree. Its current grammar coverage ends before nominal and member-container
-  declarations.
+  lossless syntax tree. Its current grammar coverage includes declaration and member-container
+  structure. Blocks currently establish their owning delimiter boundary and accept empty bodies;
+  block imports, statements, and expressions are the next parser boundary.
 
 Neither crate owns declaration identity, name resolution, types, or checked semantics.
 

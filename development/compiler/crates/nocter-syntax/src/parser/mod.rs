@@ -1,3 +1,4 @@
+mod block;
 mod declaration;
 mod requirements;
 mod root;
@@ -250,6 +251,16 @@ impl<'source> Parser<'source> {
         }
     }
 
+    fn expect_identifier_text(&mut self, text: &'static str) -> bool {
+        if self.at_identifier_text(text) {
+            self.bump();
+            true
+        } else {
+            self.missing(ExpectedSyntax::Contextual(text));
+            false
+        }
+    }
+
     fn missing(&mut self, expected: ExpectedSyntax) {
         let span = self.empty_current_span();
         self.events.push(missing(expected, span));
@@ -327,6 +338,48 @@ impl<'source> Parser<'source> {
         }
     }
 
+    fn line_sequence(
+        &mut self,
+        closing: Punctuation,
+        expected_element: ExpectedSyntax,
+        parse_element: fn(&mut Self),
+    ) {
+        self.eat_newlines();
+        while !self.at_punctuation(closing) && !self.at(TokenKind::Eof) {
+            let before = (self.cursor, self.split);
+            parse_element(self);
+            if (self.cursor, self.split) == before {
+                self.error_token(expected_element);
+            }
+
+            if self.at_punctuation(closing) || self.at(TokenKind::Eof) {
+                break;
+            }
+            if self.eat_newlines() == 0 {
+                self.missing(ExpectedSyntax::Newline);
+                self.recover_until(&[TokenKind::Newline, TokenKind::Punctuation(closing)]);
+                self.eat_newlines();
+            }
+        }
+    }
+
+    fn braced_line_sequence(
+        &mut self,
+        expected_element: ExpectedSyntax,
+        parse_element: fn(&mut Self),
+    ) {
+        if !self.expect_punctuation(Punctuation::LeftBrace) {
+            return;
+        }
+        if !self.enter_nesting() {
+            self.recover_balanced(Punctuation::LeftBrace, Punctuation::RightBrace);
+            return;
+        }
+        self.line_sequence(Punctuation::RightBrace, expected_element, parse_element);
+        self.expect_punctuation(Punctuation::RightBrace);
+        self.leave_nesting();
+    }
+
     fn require_line_end(&mut self) {
         if self.at(TokenKind::Eof) {
             return;
@@ -357,6 +410,23 @@ impl<'source> Parser<'source> {
         }
         let marker = self.start();
         while !self.at(TokenKind::Eof) && !boundaries.contains(&self.current_kind()) {
+            self.bump();
+        }
+        self.complete(marker, NodeKind::Error);
+    }
+
+    /// Recover after an opening delimiter has already been consumed.
+    ///
+    /// The matching closer is included in the error node so the caller must not consume it again.
+    fn recover_balanced(&mut self, opening: Punctuation, closing: Punctuation) {
+        let marker = self.start();
+        let mut depth = 1_u32;
+        while depth > 0 && !self.at(TokenKind::Eof) {
+            if self.at_punctuation(opening) {
+                depth += 1;
+            } else if self.at_punctuation(closing) {
+                depth -= 1;
+            }
             self.bump();
         }
         self.complete(marker, NodeKind::Error);

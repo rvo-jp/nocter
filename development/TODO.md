@@ -9,15 +9,15 @@ input.
 
 ## Immediate Work
 
-1. Complete nominal declarations and member containers in G007-G012, reusing the existing
-   declaration/type/requirement parser rather than introducing parallel member parsers.
-2. Complete the type and requirement boundaries in G013-G018, including accepted, rejected, and
-   semantic-boundary coverage not already exercised by callable declarations.
-3. Expand G001 onward from the
+1. Complete the type and requirement boundaries in G013-G018, including accepted, rejected, and
+   semantic-boundary coverage not already exercised by declaration headers.
+2. Expand G001 onward from the
    [grammar conformance plan](docs/grammar-conformance.md) into accepted and rejected parser
    fixtures and stable tree-shape snapshots; keep semantic-boundary cases parseable.
-4. Add expression and block parsing only after the declaration/type productions they consume are
-   structurally stable. Do not introduce declaration or checked semantic crates during Phase 1.
+3. Implement block imports, executable sequences, bindings, and terminal statements in G019-G021
+   on the shared line-sequence and block-delimiter boundary.
+4. Continue through control flow and expressions in grammar dependency order. Do not introduce
+   declaration or checked semantic crates during Phase 1.
 
 ## Guardrails
 

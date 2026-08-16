@@ -1,0 +1,98 @@
+use super::{Parser, block, callable_tail, root, types};
+use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, StringDelimiter, TokenKind};
+
+pub(super) fn declaration(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.expect_keyword(Keyword::Construct);
+    types::declaration_type_pattern(parser);
+    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, member);
+    parser.complete(marker, NodeKind::ConstructDeclaration);
+}
+
+fn member(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if parser.at_keyword(Keyword::Pub) {
+        root::visibility(parser);
+    } else {
+        parser.missing(ExpectedSyntax::Visibility);
+    }
+    if parser.at_identifier_text("default") {
+        parser.bump();
+    }
+
+    let kind = match parser.current_kind() {
+        TokenKind::Keyword(Keyword::Func) => {
+            construction_function(parser);
+            NodeKind::ConstructionFunction
+        }
+        TokenKind::Keyword(Keyword::Literal) => {
+            literal_declaration(parser);
+            NodeKind::LiteralDeclaration
+        }
+        _ => {
+            parser.error_token(ExpectedSyntax::DeclarationMember);
+            NodeKind::Error
+        }
+    };
+    parser.complete(marker, kind);
+}
+
+fn construction_function(parser: &mut Parser<'_>) {
+    parser.bump();
+    parser.expect_name();
+    if parser.at_punctuation(Punctuation::Less) {
+        types::generic_parameters(parser);
+    }
+    types::parameters(parser);
+    callable_tail(parser);
+    block::optional(parser);
+}
+
+fn literal_declaration(parser: &mut Parser<'_>) {
+    parser.bump();
+    literal_shape(parser);
+    literal_parameters(parser);
+    callable_tail(parser);
+    block::optional(parser);
+}
+
+fn literal_shape(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if parser.eat_punctuation(Punctuation::LeftBracket) {
+        parser.expect_punctuation(Punctuation::RightBracket);
+    } else if parser.at(TokenKind::StringStart(StringDelimiter::SingleLine))
+        && parser.nth_kind(1) == TokenKind::StringEnd(StringDelimiter::SingleLine)
+        && parser.tokens[parser.cursor].is_joint_to_next()
+    {
+        parser.bump();
+        parser.bump();
+    } else {
+        parser.error_token(ExpectedSyntax::LiteralShape);
+    }
+    parser.complete(marker, NodeKind::LiteralShape);
+}
+
+fn literal_parameters(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if !parser.expect_punctuation(Punctuation::LeftParen) {
+        parser.complete(marker, NodeKind::LiteralParameters);
+        return;
+    }
+    if !parser.enter_nesting() {
+        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+        parser.complete(marker, NodeKind::LiteralParameters);
+        return;
+    }
+    parser.eat_newlines();
+    if parser.eat_punctuation(Punctuation::Expansion) {
+        parser.expect_name();
+        parser.expect_punctuation(Punctuation::Colon);
+        types::type_(parser);
+    } else {
+        types::parameter(parser);
+    }
+    parser.eat_newlines();
+    parser.expect_punctuation(Punctuation::RightParen);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::LiteralParameters);
+}

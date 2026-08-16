@@ -54,6 +54,12 @@ ordinary diagnostics. The parser never performs a successful lookahead and then 
 branch again. Safety-limit diagnostics survive rollback. This rule keeps nested type-argument
 recognition linear while leaving an unmatched `<` available to the enclosing expression grammar.
 
+One line-sequence parser owns newline-separated source and member containers. Leaf declarations
+never consume their enclosing separator. A missing separator recovers to that container's next
+newline or closing delimiter instead of letting one member reinterpret the following member's
+tokens. Comma-delimited and line-delimited declarations therefore cannot silently accept each
+other's separators.
+
 Continuation-newline classification depends only on token kinds and delimiter depth. At the active
 header delimiter depth, the parser's control-header mode reserves the first `{` for the control
 body. A struct literal, closure, recovery clause, or nested control expression at that level must

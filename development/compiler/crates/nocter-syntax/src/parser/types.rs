@@ -1,5 +1,5 @@
 use super::Parser;
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{BuiltinType, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
@@ -21,10 +21,28 @@ pub(super) fn generic_parameters(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
     type_delimited_list(parser, false, ExpectedSyntax::Name, |parser| {
-        parser.expect_name();
+        expect_pattern_binder(parser);
     });
     parser.expect_type_greater();
     parser.complete(marker, NodeKind::GenericParameters);
+}
+
+pub(super) fn declaration_type_pattern(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if parser.eat_punctuation(Punctuation::LeftBracket) {
+        expect_pattern_binder(parser);
+        parser.expect_punctuation(Punctuation::RightBracket);
+    } else if at_builtin_pattern(parser) {
+        builtin_type(parser);
+    } else if parser.at(TokenKind::Identifier) {
+        parser.bump();
+        if parser.at_punctuation(Punctuation::Less) {
+            pattern_arguments(parser);
+        }
+    } else {
+        parser.error_token(ExpectedSyntax::DeclarationTypePattern);
+    }
+    parser.complete(marker, NodeKind::DeclarationTypePattern);
 }
 
 pub(super) fn parameters(parser: &mut Parser<'_>) {
@@ -61,7 +79,7 @@ pub(super) fn capability(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if at_callable_type(parser) {
         callable_type(parser);
-    } else if parser.at(TokenKind::Identifier) {
+    } else if parser.at(TokenKind::Identifier) && !at_builtin_type(parser) {
         named_type(parser);
     } else {
         parser.error_token(ExpectedSyntax::Capability);
@@ -69,7 +87,7 @@ pub(super) fn capability(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::Capability);
 }
 
-fn parameter(parser: &mut Parser<'_>) {
+pub(super) fn parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
@@ -78,8 +96,19 @@ fn parameter(parser: &mut Parser<'_>) {
 }
 
 fn prefix_type(parser: &mut Parser<'_>) {
+    prefix_type_with_callable(parser, true);
+}
+
+pub(super) fn borrow_type(parser: &mut Parser<'_>) {
+    if at_readonly_borrow(parser) || parser.at_punctuation(Punctuation::ReadWrite) {
+        prefix_type_with_callable(parser, false);
+    } else {
+        parser.error_token(ExpectedSyntax::Type);
+    }
+}
+
+fn prefix_type_with_callable(parser: &mut Parser<'_>, mut callable_allowed: bool) {
     let mut wrappers = Vec::new();
-    let mut callable_allowed = true;
 
     loop {
         if callable_allowed && at_callable_type(parser) {
@@ -175,8 +204,9 @@ fn callable_parameter(parser: &mut Parser<'_>) {
 
 fn type_atom(parser: &mut Parser<'_>) {
     match parser.current_kind() {
+        TokenKind::Identifier if at_builtin_type(parser) => builtin_type(parser),
         TokenKind::Identifier => named_type(parser),
-        TokenKind::Keyword(Keyword::Void | Keyword::Never) => parser.bump(),
+        TokenKind::Keyword(Keyword::Void | Keyword::Never) => builtin_type(parser),
         TokenKind::Punctuation(Punctuation::LeftBracket) => bracket_type(parser),
         TokenKind::Punctuation(Punctuation::LeftParen) => grouped_type(parser),
         _ => parser.error_token(ExpectedSyntax::Type),
@@ -185,9 +215,15 @@ fn type_atom(parser: &mut Parser<'_>) {
 
 fn named_type(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    parser.bump();
-    if parser.at_punctuation(Punctuation::Less) {
-        parser.attempt(type_arguments);
+    if parser.at_identifier_text("Self") {
+        let self_type = parser.start();
+        parser.bump();
+        parser.complete(self_type, NodeKind::SelfType);
+    } else {
+        parser.bump();
+        if parser.at_punctuation(Punctuation::Less) {
+            parser.attempt(type_arguments);
+        }
     }
     while parser.eat_punctuation(Punctuation::Dot) {
         parser.expect_name();
@@ -196,6 +232,41 @@ fn named_type(parser: &mut Parser<'_>) {
         }
     }
     parser.complete(marker, NodeKind::NamedType);
+}
+
+fn builtin_type(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    parser.complete(marker, NodeKind::BuiltinType);
+}
+
+fn pattern_arguments(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    type_delimited_list(parser, false, ExpectedSyntax::Name, expect_pattern_binder);
+    parser.expect_type_greater();
+    parser.complete(marker, NodeKind::PatternArguments);
+}
+
+fn expect_pattern_binder(parser: &mut Parser<'_>) {
+    if parser.at(TokenKind::Identifier)
+        && !matches!(parser.current_text(), "_" | "Self")
+        && !at_builtin_pattern(parser)
+    {
+        parser.bump();
+    } else {
+        parser.error_token(ExpectedSyntax::Name);
+    }
+}
+
+fn at_builtin_pattern(parser: &Parser<'_>) -> bool {
+    parser.at(TokenKind::Identifier)
+        && BuiltinType::from_spelling(parser.current_text())
+            .is_some_and(BuiltinType::is_declaration_pattern)
+}
+
+fn at_builtin_type(parser: &Parser<'_>) -> bool {
+    BuiltinType::from_spelling(parser.current_text()).is_some()
 }
 
 fn type_arguments(parser: &mut Parser<'_>) {

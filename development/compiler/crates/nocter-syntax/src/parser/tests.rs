@@ -60,6 +60,21 @@ fn assert_complete_token_projection(tree: &SyntaxTree) {
     }
 }
 
+fn has_node_kind(tree: &SyntaxTree, expected: NodeKind) -> bool {
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree.node(node).is_some_and(|node| node.kind() == expected) {
+            return true;
+        }
+        for child in tree.children(node) {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    false
+}
+
 #[test]
 fn parses_empty_and_nested_package_files() {
     assert_syntax_ok("", ParseGoal::PackageFile);
@@ -253,4 +268,164 @@ fn nested_type_arguments_are_parsed_once_per_level() {
     let source = format!("type Deep = {}T{}\n", "Outer<".repeat(128), ">".repeat(128));
 
     assert_syntax_ok(&source, ParseGoal::ModuleSource);
+}
+
+#[test]
+fn parses_structs_enums_and_semantically_empty_enums() {
+    let tree = assert_syntax_ok(
+        "pub copy struct Pair<T> where copy T {\n    pub left: T\n    right: T\n}\nenum Maybe<T> {\n    some(value: T)\n    missing\n}\nenum Empty {}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    for kind in [
+        NodeKind::StructDeclaration,
+        NodeKind::StructField,
+        NodeKind::EnumDeclaration,
+        NodeKind::EnumVariant,
+        NodeKind::EnumPayload,
+    ] {
+        assert!(has_node_kind(&tree, kind));
+    }
+}
+
+#[test]
+fn rejects_commas_between_line_separated_nominal_members() {
+    for source in [
+        "struct Pair { left: i32, right: i32 }\n",
+        "enum Maybe { some, none }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
+}
+
+#[test]
+fn parses_interface_requirements_and_default_methods() {
+    let tree = assert_syntax_ok(
+        "interface Source<T> where copy T {\n    pub type Item: Iterable<T> + &func(T): T\n    pub method &+self.next(): Self.Item?\n    pub method self.consume(): void {}\n}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::AssociatedTypeDeclaration));
+    assert!(has_node_kind(&tree, NodeKind::InterfaceMethod));
+    assert!(has_node_kind(&tree, NodeKind::SelfType));
+}
+
+#[test]
+fn interface_members_require_bare_public_visibility() {
+    for source in [
+        "interface Source { method &self.read(): void }\n",
+        "interface Source { pub(./) method &self.read(): void }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
+
+    assert_syntax_ok(
+        "interface Source { pub type Item\npub type Item }\n",
+        ParseGoal::ModuleSource,
+    );
+}
+
+#[test]
+fn parses_construction_functions_and_both_literal_shapes() {
+    let tree = assert_syntax_ok(
+        "construct Vec<T> {\n    pub default literal [](...items: T): Self {}\n    pub literal \"\"(text: &str): Self\n    pub func with_capacity(capacity: usize): Self {}\n}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::LiteralShape));
+    assert!(has_node_kind(&tree, NodeKind::LiteralParameters));
+    assert!(has_node_kind(&tree, NodeKind::ConstructionFunction));
+}
+
+#[test]
+fn construction_members_require_visibility_but_defaults_remain_semantic() {
+    assert!(
+        parse_text(
+            "construct Value { func new(): Self {} }\n",
+            ParseGoal::ModuleSource
+        )
+        .has_errors()
+    );
+    assert_syntax_ok(
+        "construct Value { pub default func first(): Self {}\npub default func second(): Self {} }\nconstruct External {}\n",
+        ParseGoal::ModuleSource,
+    );
+}
+
+#[test]
+fn parses_every_instance_member_family() {
+    let tree = assert_syntax_ok(
+        "instance Text<T> where copy T {\n    pub method &self.len(): usize {}\n    coerce &self as &str from self {}\n    pub operator (&self == other: &Self): bool {}\n    pub operator (&self < other: &Self): bool {}\n    pub operator (&self[index: usize]): &T from self {}\n    pub operator (&+self[index: usize]): &+T from self {}\n    pub operator (...&self): Iterator<T> {}\n    pub operator (...self): Iterator<T> {}\n}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    for kind in [
+        NodeKind::InherentMethod,
+        NodeKind::CoercionDeclaration,
+        NodeKind::EqualityOperator,
+        NodeKind::OrderingOperator,
+        NodeKind::IndexOperator,
+        NodeKind::ExpansionOperator,
+    ] {
+        assert!(has_node_kind(&tree, kind));
+    }
+}
+
+#[test]
+fn rejects_closed_instance_and_pattern_forms() {
+    for source in [
+        "pub instance Value {}\n",
+        "instance Buffer<i32> {}\n",
+        "instance Buffer<error> {}\n",
+        "instance Buffer<Self> {}\n",
+        "instance Buffer<_> {}\n",
+        "instance Value { operator (&self != other: &Self): bool {} }\n",
+        "instance Value { coerce self as View {} }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
+}
+
+#[test]
+fn parses_conformance_bindings_and_body_bearing_methods() {
+    let tree = assert_syntax_ok(
+        "conform Source<T> for Input<T> where copy T {\n    type Item = T\n    method &+self.next(): Self.Item? {}\n}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::AssociatedTypeBinding));
+    assert!(has_node_kind(&tree, NodeKind::ConformMethod));
+}
+
+#[test]
+fn conformance_members_reject_visibility_and_missing_bodies() {
+    for source in [
+        "conform Source for Input { pub method &self.read(): void {} }\n",
+        "conform Source for Input { method &self.read(): void }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
+}
+
+#[test]
+fn parses_drop_and_test_declarations() {
+    let tree = assert_syntax_ok(
+        "drop Buffer<T>(&+self) {}\ntest empty {}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::DropDeclaration));
+    assert!(has_node_kind(&tree, NodeKind::TestDeclaration));
+}
+
+#[test]
+fn drop_and_test_declarations_keep_their_closed_headers() {
+    for source in [
+        "pub drop Buffer(&+self) {}\n",
+        "drop Buffer(&self) {}\n",
+        "test named(): void {}\n",
+        "#target: \"arm64-darwin\"\ntest targeted {}\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
 }

@@ -94,7 +94,7 @@ fn directive_record(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
     if !parser.enter_nesting() {
-        recover_balanced_record(parser);
+        parser.recover_balanced(Punctuation::LeftBrace, Punctuation::RightBrace);
         parser.complete(marker, NodeKind::DirectiveRecord);
         return;
     }
@@ -116,18 +116,6 @@ fn directive_field(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     directive_value(parser);
     parser.complete(marker, NodeKind::DirectiveField);
-}
-
-fn recover_balanced_record(parser: &mut Parser<'_>) {
-    let mut depth = 1_u32;
-    while depth > 0 && !parser.at(TokenKind::Eof) {
-        if parser.at_punctuation(Punctuation::LeftBrace) {
-            depth += 1;
-        } else if parser.at_punctuation(Punctuation::RightBrace) {
-            depth -= 1;
-        }
-        parser.bump();
-    }
 }
 
 fn at_use_start(parser: &Parser<'_>) -> bool {

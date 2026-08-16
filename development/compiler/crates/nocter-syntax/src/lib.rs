@@ -10,7 +10,7 @@ mod tree;
 pub use diagnostic::{ExpectedSyntax, ParseDiagnostic, ParseDiagnosticKind};
 pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFile, lex};
 pub use parser::{ParseGoal, parse};
-pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
+pub use token::{BuiltinType, Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{
     MissingSyntax, NodeId, NodeKind, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree, TokenId,
 };
