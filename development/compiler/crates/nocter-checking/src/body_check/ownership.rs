@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{ArenaBuilder, BodyNodeId, BodyScopeId, LoopId, TypeStore};
+use nocter_model::{ArenaBuilder, BodyNodeId, BodyScopeId, CallableCapability, LoopId, TypeStore};
 use nocter_source_index::SourceOrigin;
 
 mod cleanup;
@@ -229,10 +229,30 @@ impl OwnershipAnalyzer<'_> {
         call: &CheckedCall,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
-        if let CallTarget::CallableValue { value, .. } = call.target()
-            && !self.visit(*value, state)?
+        if let CallTarget::CallableValue {
+            value, capability, ..
+        } = call.target()
         {
-            return Ok(false);
+            if !self.visit(*value, state)? {
+                return Ok(false);
+            }
+            if *capability == CallableCapability::Owned {
+                let place = self
+                    .body
+                    .nodes()
+                    .get(*value)
+                    .and_then(|node| match node.operation() {
+                        CheckedOperation::Place(place) => Some(*place),
+                        _ => None,
+                    })
+                    .ok_or(BodyCheckInternalError::UnsupportedOwnershipOperation(
+                        *value,
+                    ))?;
+                let path = self.move_path(place)?;
+                state
+                    .move_out(&path)
+                    .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+            }
         }
         if let Some(receiver) = call.receiver()
             && !self.visit(receiver, state)?

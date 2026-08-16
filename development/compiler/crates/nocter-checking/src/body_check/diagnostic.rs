@@ -162,8 +162,8 @@ impl BodyRule {
                 "use operands with one applicable primitive or source-defined comparison",
             ),
             Self::InvalidCall => (
-                "this static call has no valid argument and generic substitution plan",
-                "match the declared arity and argument types, and provide enough type evidence",
+                "this call has no valid callee, argument, and substitution plan",
+                "use a callable target with matching capability, arity, argument types, and type evidence",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

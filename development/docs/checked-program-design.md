@@ -377,8 +377,17 @@ place drafts until generic inference supplies their final expected type, prevent
 reborrow from becoming an implicit copy. Minimum-authority selection prefers a readonly receiver
 entry and uses a readwrite receiver returning readonly only as a fallback. The checked call stores
 arguments in authored order; ownership visits them in that order and applies ordinary copy/move
-rules. Callable-value, construction, method, temporary-cleanup, and result-provenance passes remain
-subsequent increments rather than alternate paths inside direct-call checking.
+rules.
+
+A call whose resolved callee is a parameter, local, or capture selects one exact lexical structural
+callable requirement for that value type. Its `CallTarget::CallableValue` retains the callee place,
+capability, and structural `RequirementId` dispatch. Readonly calls inspect initialized storage,
+readwrite calls additionally require a writable place, and owned calls consume the callee before
+evaluating arguments. These are invocation preparations rather than copyability claims, so a
+move-only readonly callback remains repeatedly callable and a copyable consuming callback still
+uses consuming-call semantics. Callable arguments use the same expected-type conversion boundary
+as static calls. Construction, method, closure-expression, temporary-cleanup, and result-provenance
+passes remain subsequent increments rather than alternate paths inside call checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

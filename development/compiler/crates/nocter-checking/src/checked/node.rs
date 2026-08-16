@@ -128,6 +128,7 @@ pub enum CallTarget {
     CallableValue {
         value: BodyNodeId,
         capability: CallableCapability,
+        dispatch: StaticSelection,
     },
 }
 

@@ -35,13 +35,26 @@ enum ArgumentDraft {
 }
 
 impl BodyChecker<'_, '_> {
-    pub(super) fn check_static_call(
+    pub(super) fn check_call(
         &mut self,
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let (reference, suffix) = direct_call_syntax(self, node)?;
-        let callable_id = self.consume_static_callable(reference, suffix)?;
+        let target = call_name_target(self, reference)?;
+        let callable_id = match target {
+            NameTarget::Exported(ExportedEntity::Callable(callable)) => {
+                self.consumed_uses.insert(call_origin(self, reference)?);
+                callable
+            }
+            NameTarget::Parameter(_) | NameTarget::Local(_) | NameTarget::Capture(_) => {
+                return self.check_callable_value_call(node, reference, suffix, expected);
+            }
+            NameTarget::Exported(_) | NameTarget::Builtin(_) => {
+                self.consumed_uses.insert(call_origin(self, reference)?);
+                return Err(self.rule(BodyRule::InvalidCall, reference)?);
+            }
+        };
         let callable = self
             .graph
             .declarations()
@@ -280,32 +293,6 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn consume_static_callable(
-        &mut self,
-        reference: NodeId,
-        suffix: NodeId,
-    ) -> Result<nocter_model::CallableId, BodyCheckError> {
-        let token = direct_identifier(self.tree(), reference)
-            .or_else(|| identifier(self, reference))
-            .ok_or(BodyCheckInternalError::InvalidSyntax(reference))?;
-        let origin = SyntaxOrigin::Token(token);
-        let target = self
-            .uses
-            .get(&origin)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingNameUse(reference))?;
-        self.consumed_uses.insert(origin);
-        match target {
-            NameTarget::Exported(ExportedEntity::Callable(callable)) => Ok(callable),
-            NameTarget::Parameter(_) | NameTarget::Local(_) | NameTarget::Capture(_) => {
-                Err(BodyCheckInternalError::UnsupportedSyntax(suffix, NodeKind::CallSuffix).into())
-            }
-            NameTarget::Exported(_) | NameTarget::Builtin(_) => {
-                Err(self.rule(BodyRule::InvalidCall, reference)?)
-            }
-        }
-    }
-
     fn call_inference_error(&self, node: NodeId, error: InferenceFailure) -> BodyCheckError {
         match error {
             InferenceFailure::UnknownType(ty) => BodyCheckInternalError::UnknownType(ty).into(),
@@ -319,7 +306,7 @@ impl BodyChecker<'_, '_> {
     }
 }
 
-fn direct_call_syntax(
+pub(super) fn direct_call_syntax(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
 ) -> Result<(NodeId, NodeId), BodyCheckInternalError> {
@@ -345,6 +332,28 @@ fn direct_call_syntax(
         ));
     }
     Ok((reference, *suffix))
+}
+
+fn call_origin(
+    checker: &BodyChecker<'_, '_>,
+    reference: NodeId,
+) -> Result<SyntaxOrigin, BodyCheckInternalError> {
+    direct_identifier(checker.tree(), reference)
+        .or_else(|| identifier(checker, reference))
+        .map(SyntaxOrigin::Token)
+        .ok_or(BodyCheckInternalError::InvalidSyntax(reference))
+}
+
+fn call_name_target(
+    checker: &BodyChecker<'_, '_>,
+    reference: NodeId,
+) -> Result<NameTarget, BodyCheckInternalError> {
+    let origin = call_origin(checker, reference)?;
+    checker
+        .uses
+        .get(&origin)
+        .copied()
+        .ok_or(BodyCheckInternalError::MissingNameUse(reference))
 }
 
 fn is_none_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> bool {

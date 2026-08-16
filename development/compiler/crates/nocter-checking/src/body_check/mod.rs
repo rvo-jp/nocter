@@ -12,6 +12,8 @@ mod assignment_tests;
 #[cfg(test)]
 mod call_tests;
 #[cfg(test)]
+mod callable_value_tests;
+#[cfg(test)]
 mod cleanup_tests;
 #[cfg(test)]
 mod construction_tests;

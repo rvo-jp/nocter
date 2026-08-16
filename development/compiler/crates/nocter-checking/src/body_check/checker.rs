@@ -33,6 +33,7 @@ use crate::{
 
 mod arithmetic;
 mod assignment;
+mod callable_values;
 mod calls;
 mod expected;
 mod loops;
@@ -559,7 +560,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::PostfixExpression
                     if direct_child(self.tree(), current, NodeKind::CallSuffix).is_some() =>
                 {
-                    return self.check_static_call(current, expected);
+                    return self.check_call(current, expected);
                 }
                 NodeKind::PostfixExpression => {
                     return self.check_postfix_reference(current, expected);

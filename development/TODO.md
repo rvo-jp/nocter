@@ -2,16 +2,16 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by extending the closed call model from direct static functions to
-callable values, construction entries, and methods.
+Continue v0.14.0 Phase 3 by extending the closed call model from direct functions and structural
+callable values to construction entries and methods.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Generalize direct static calls to callable values, construction functions, and methods while
-   keeping one argument-inference/materialization pipeline and the common expected-type boundary.
+1. Add construction functions and methods while keeping one argument-inference/materialization
+   pipeline and the common expected-type boundary.
 2. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 3. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
@@ -140,9 +140,12 @@ drafts through generic inference so a reborrow cannot be misclassified as an imp
 Generic parameter and result evidence admit the same built-in capability weakening. The operation
 selector prefers minimum receiver authority, falls back to a readwrite receiver only when required,
 and uses lexical coercion requirements in generic bodies. Duplicate coercion identities are
-rejected by the program-wide table as `E0356` before body selection. Callable values, methods,
-construction calls, temporary cleanup, and program-wide result-provenance inference remain
-incomplete.
+rejected by the program-wide table as `E0356` before body selection. Calls through generic values
+now select one exact lexical callable requirement and retain its `RequirementId`, capability, and
+callee place. Readonly and readwrite calls borrow the place without copying its environment;
+readwrite calls require writable storage. Owned calls consume the callee before their arguments,
+independent of closure copyability. Construction calls, methods, closure expressions, temporary
+cleanup, and program-wide result-provenance inference remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop
