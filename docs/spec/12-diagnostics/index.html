@@ -258,7 +258,11 @@ ByteSpan { source, start, end }
   diagnostic must identify the complete outcome type and the move-only payload; an inactive
   absence or failure tag does not make that value copyable.</li><li>Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
   diagnostic must identify the first source capture that prevents copying and must not describe
-  callable capability as the cause.</li><li>Parenthesized computed outcome such as <code>move (place?)</code> used where the intended canonical form is
+  callable capability as the cause.</li><li>Implicit use of an outer callable binding from a closure without an explicit capture; duplicate
+  capture names; a collision between a capture and parameter name; or a capture target that is not
+  one enclosing local or parameter binding.</li><li>Invalid closure capture borrow or move. Borrow diagnostics use the ordinary source binding and
+  loan conflict, while a move diagnostic identifies the captured source binding; diagnostics do
+  not expose anonymous environment fields.</li><li>Parenthesized computed outcome such as <code>move (place?)</code> used where the intended canonical form is
   <code>move place?</code>.</li><li>Adjacent postfix outcome suffixes <code>??</code>, <code>!!</code>, <code>?!</code>, or <code>!?</code> in expression syntax. The diagnostic
   should suggest an intermediate binding or explicit grouping such as <code>(expression?)?</code>.</li><li>Explicit <code>drop</code> of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.</li><li>Duplicate drop declarations for one nominal type family; a drop declaration targeting another
   module's type, a type alias, or a non-nominal type; or a drop declaration with visibility,

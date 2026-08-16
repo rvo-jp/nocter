@@ -72,6 +72,17 @@ Multiple or zero parameters use the same form:
 (left, right) { left + right }
 ```
 
+Grammar:
+
+```text
+ClosureExpression = "(" [ClosureCaptures ";"] [ClosureParameters] ")"
+                    [":" Type] Block
+ClosureCaptures   = ClosureCapture ("," ClosureCapture)* [","]
+ClosureCapture    = "&" Name | "&+" Name | "move" Name
+ClosureParameters = ClosureParameter ("," ClosureParameter)* [","]
+ClosureParameter  = Name [":" Type]
+```
+
 Closure parameters and explicit captures are comma-delimited segments and accept one trailing comma
 before their `)` or `;` terminator on any layout. The formatter removes a single-line trailing
 comma.
@@ -129,10 +140,32 @@ Captures appear before a semicolon in the parameter list:
 - `&+name` stores a readwrite borrow and therefore requires a writable source place
 - `move name` transfers the value into the closure environment
 
-Every reference to an outer local binding must name an explicit capture. Captures initialize once
-from left to right. The closure owns moved captures and drops them in reverse field order. Borrowed
-captures retain their source loans for the closure value's last use. A closure carrying region-
-derived storage cannot escape that region.
+Every reference to an outer local or parameter binding must name an explicit capture. A capture
+names exactly one binding in an enclosing callable body; module declarations, fields, projections,
+and arbitrary expressions are not capture targets. Capture names are unique, and a capture name
+cannot collide with a closure parameter name.
+
+Captures initialize once from left to right. `&name` and `&+name` perform the ordinary borrow
+operation at the capture position, including writability and exclusivity checking. `move name`
+performs the ordinary ownership transfer from that binding. A failure to satisfy any capture does
+not create a partially accepted closure expression.
+
+The environment stores `&T`, `&+T`, or owned `T` according to the authored capture. Inside the
+closure body, however, the captured name denotes the projected captured place:
+
+- `&name` exposes a readonly place of type `T`
+- `&+name` exposes a readwrite place of type `T`
+- `move name` exposes the owned environment place of type `T`
+
+This projection is part of closure capture binding; it is not a general implicit dereference for
+borrow values. The readonly form cannot be assigned, the readwrite form follows ordinary mutation
+and exclusivity rules, and neither borrowed form permits moving the referenced owner.
+
+The closure owns moved captures and drops their still-initialized values in reverse capture order.
+Borrowed captures retain their source loans through the last use of every live closure value
+derived by copying or moving the environment. Copying a readonly-capture closure therefore extends
+the same source loan through all copies; it does not create independent source storage. A closure
+carrying region-derived storage cannot escape that region.
 
 The anonymous closure environment follows ordinary structural copyability:
 

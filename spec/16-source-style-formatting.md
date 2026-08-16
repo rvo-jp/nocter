@@ -172,6 +172,10 @@ Rules:
 - An opaque result is `some Interface` or `some Interface<Item = Type>`. Associated binding `=`
   uses one space on each side, comma spacing follows ordinary generic arguments, and `?` or `!`
   attaches to the complete opaque type without extra parentheses.
+- Closure captures precede one semicolon and parameters follow it: `(&limit, move prefix; value)`.
+  Capture and parameter segments independently use the common single-line or multi-line comma
+  rules. There is one space after a single-line semicolon and no space before it. A result
+  annotation follows the closing parenthesis as `): Type`.
 
 Examples:
 

@@ -76,6 +76,10 @@ Checked closure construction records one environment field for each resolved cap
 copyability with the same structural operation used by aggregates. Invocation capability is a
 separate callable fact and cannot overwrite the environment's ownership class. Later
 monomorphization and MIR consume both decisions without reconstructing either from closure syntax.
+Each closure-body capture binding resolves directly to one typed environment-field projection with
+readonly, readwrite, or owned access. Body checking never discovers captures by free-name scanning,
+and later stages never reinterpret a stored borrow as an implicit source dereference. Copies and
+moves of a closure retain the same capture and loan identities through ordinary value flow.
 
 ## Checked Program
 

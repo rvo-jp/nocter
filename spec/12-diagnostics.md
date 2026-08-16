@@ -310,6 +310,12 @@ Required diagnostic families:
 - Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
   diagnostic must identify the first source capture that prevents copying and must not describe
   callable capability as the cause.
+- Implicit use of an outer callable binding from a closure without an explicit capture; duplicate
+  capture names; a collision between a capture and parameter name; or a capture target that is not
+  one enclosing local or parameter binding.
+- Invalid closure capture borrow or move. Borrow diagnostics use the ordinary source binding and
+  loan conflict, while a move diagnostic identifies the captured source binding; diagnostics do
+  not expose anonymous environment fields.
 - Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
   `move place?`.
 - Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic

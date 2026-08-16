@@ -201,7 +201,10 @@
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
   result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface&lt;Item = Type&gt;</code>. Associated binding <code>=</code>
   uses one space on each side, comma spacing follows ordinary generic arguments, and <code>?</code> or <code>!</code>
-  attaches to the complete opaque type without extra parentheses.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+  attaches to the complete opaque type without extra parentheses.</li><li>Closure captures precede one semicolon and parameters follow it: <code>(&amp;limit, move prefix; value)</code>.
+  Capture and parameter segments independently use the common single-line or multi-line comma
+  rules. There is one space after a single-line semicolon and no space before it. A result
+  annotation follows the closing parenthesis as <code>): Type</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
 <span class="token-keyword">let</span> maybe_home<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">lookup</span><span class="token-operator">(</span><span class="token-string">"HOME"</span><span class="token-operator">)</span>
 <span class="token-keyword">let</span> home <span class="token-operator">=</span> maybe_home<span class="token-operator">?</span>
