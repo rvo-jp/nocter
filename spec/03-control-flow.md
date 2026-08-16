@@ -572,6 +572,7 @@ Always-on checks:
 - Division and remainder by zero checks.
 - Signed division overflow checks.
 - Shift count range checks.
+- Forced unwrap of a fallible failure or optional absence through postfix `!`.
 - Invalid live `bool` bit-pattern checks where a value can enter from a primitive or ABI boundary.
 - Invalid enum tag checks where a value can enter from a primitive or ABI boundary.
 - Reaching `unreachable()` or an equivalent impossible-path marker.

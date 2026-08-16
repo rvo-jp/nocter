@@ -44,6 +44,8 @@ Rules for generated code:
 - Do not concatenate expression suffixes as `??`, `!!`, `?!`, or `!?`. Use an intermediate binding
   or parentheses such as `(move result?)?` for a second outcome layer. Type syntax `T?!` remains
   valid and has a different grammar.
+- A failed or absent postfix `!` immediately traps without Nocter-provided output or cleanup. Use
+  `catch` or `otherwise` when a stable error message, exit status, or cleanup is required.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 

@@ -142,7 +142,15 @@ Rules:
 - Applying `!` to an existing move-only outcome place requires `move place!`. The complete source
   outcome is moved before its tag is checked. A newly produced temporary or copyable outcome does
   not require `move`.
-- If `expr!` sees failure or `none`, execution terminates immediately through a trap-like non-recoverable path.
+- If `expr!` sees failure or `none`, execution terminates immediately through the ordinary
+  non-recoverable Nocter safety trap.
+- That path is exactly the ordinary Nocter safety trap used for bounds, arithmetic, and other
+  checked contract violations. Nocter does not print the `error` payload, emit a fixed absence
+  message, or translate the trap into entry-wrapper failure status `1`.
+- A forced-unwrap trap performs no stack unwinding or source-level cleanup. Live locals and
+  statement temporaries are not dropped on that path.
+- OS-provided signal names, process status, crash reports, and incidental output after a trap are
+  outside the language contract.
 - `expr!` does not return `error` or `none` to the caller.
 - `expr!` has result type `T`.
 - One expression layer accepts only one postfix `?` or `!`. To eliminate a second composed outcome
@@ -150,6 +158,8 @@ Rules:
 - `expr!` is intended for tests, prototypes, and truly unrecoverable assumptions.
 - Normal code should prefer `?`, `catch`, or `otherwise`.
 - `expr!` is not stack unwinding.
+- Programs that need a stable message, exit code, or cleanup before termination must handle the
+  outcome with `catch` or `otherwise` and call an explicit process API after the required work.
 
 ## Recoverable Failure and Non-Recoverable Termination
 

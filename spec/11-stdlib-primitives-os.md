@@ -144,6 +144,9 @@ The closed registry has three broad responsibilities:
 - target-specific process and I/O boundaries;
 - target-specific syscall, trap, and unreachable boundaries used by standard-library internals.
 
+Postfix `!` failure lowers to the same compiler trap boundary as other always-on safety checks. It
+does not call formatting, stderr, `exit`, or `abort` APIs from the standard library.
+
 The registry is an implementation inventory, not a second public standard library. Public
 documentation should describe the wrapper contract, not encourage direct use of restricted
 primitives.
