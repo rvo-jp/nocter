@@ -4,6 +4,7 @@
 //! declaration-lowering result and extends the separate source projection while constructing
 //! checked semantic identities. Target validation and later lowering cannot depend on this crate.
 
+mod body_check;
 mod body_sources;
 mod checked;
 mod conformance;
@@ -11,19 +12,21 @@ mod expected;
 mod inference;
 mod names;
 mod preparation;
+mod syntax;
 mod type_relations;
 mod type_validity;
 
 #[cfg(test)]
 mod test_support;
 
+pub use body_check::{BodyCheckError, BodyCheckInternalError, BodyRule, check_prepared_program};
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
-    AggregateConstruction, AllocationSelection, CallTarget, CheckedBody, CheckedCall,
-    CheckedCapture, CheckedClosure, CheckedControl, CheckedInterpolation, CheckedLocal,
-    CheckedLoop, CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
-    CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence, ConstantValue,
-    DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
+    AggregateConstruction, AllocationSelection, BuildCheckedBodyError, CallTarget, CheckedBody,
+    CheckedCall, CheckedCapture, CheckedClosure, CheckedControl, CheckedInterpolation,
+    CheckedLocal, CheckedLoop, CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome,
+    CheckedPattern, CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence,
+    ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
     IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary,
     PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode, StaticDispatch,
     TypedIteration,

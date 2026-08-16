@@ -176,3 +176,17 @@ inference or other leaf selection. It checks exact complete type identity before
 classifies absence, failure, and divergence explicitly, and returns presence/success injections in
 inner-to-outer construction order. Binding initializers, arguments, fields, fallbacks, returns, and
 body results must consume this plan rather than encode their own optional or fallible cases.
+
+The first production checked-body slice now consumes `PreparedChecking` through
+`check_prepared_program`. It builds blocks, scalar constants, inferred local bindings, copyable
+parameter/local places, readonly borrows, explicit discards, returns, and body results. Bare
+completion uses an explicit `Complete` checked operation only when an enclosing fallible success
+must be represented; it is never exposed as a source value. Outcome plans become concrete
+`CheckedOutcome` nodes from the payload outward. Each constructed node extends `SourceIndex`
+directly with `SemanticEntity::BodyNode`; no expression-to-type side map survives construction.
+
+The body builder verifies dense local/capture identity completion before freezing. The production
+facade owns the declaration graph, extended type store, conformance table, checked-body arena, and
+source projection only after every body succeeds. Unsupported valid syntax and copyability that
+requires not-yet-implemented nominal specialization remain internal incomplete-implementation
+errors, preventing both a partial program and a misleading source diagnostic.

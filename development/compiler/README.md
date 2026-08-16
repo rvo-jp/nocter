@@ -182,7 +182,10 @@ be introduced to make an unresolved syntax choice.
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
   known outcome layers, and rejects incomplete or invalid data substitutions before checked-node
-  construction.
+  construction. `check_prepared_program` is now the production consuming boundary for the first
+  checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
+  and recursive-outcome nodes, rejects value-producing expression statements and reachable
+  non-value fallthrough, and projects every `BodyNodeId` back to its exact syntax origin.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
@@ -192,7 +195,9 @@ Phase 2 is complete. Declaration validation identifies exact semantic subjects, 
 project them through `SourceIndex` without duplicating validation in lowering. Every production
 failure is classified as an authored rule or an internal compiler/discovery integrity error.
 Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
-and module input order. No crate yet owns checked body semantics; that is the Phase 3 boundary.
+and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its
+first production slice; unsupported valid constructs fail internally without returning a partial
+checked program.
 
 ## Verification
 

@@ -13,6 +13,10 @@ pub struct CheckedLocal {
 }
 
 impl CheckedLocal {
+    pub(super) const fn new(declaration: LocalBinding, ty: TypeId) -> Self {
+        Self { declaration, ty }
+    }
+
     #[must_use]
     pub const fn declaration(self) -> LocalBinding {
         self.declaration
@@ -55,6 +59,26 @@ pub struct CheckedBody {
 }
 
 impl CheckedBody {
+    pub(super) fn new(
+        scopes: Arena<BodyScopeId, BodyScope>,
+        locals: Arena<LocalBindingId, CheckedLocal>,
+        captures: Arena<CaptureId, CheckedCapture>,
+        places: Arena<PlaceId, CheckedPlace>,
+        loops: Arena<LoopId, CheckedLoop>,
+        nodes: Arena<BodyNodeId, CheckedNode>,
+        root: BodyNodeId,
+    ) -> Self {
+        Self {
+            scopes,
+            locals,
+            captures,
+            places,
+            loops,
+            nodes,
+            root,
+        }
+    }
+
     #[must_use]
     pub const fn scopes(&self) -> &Arena<BodyScopeId, BodyScope> {
         &self.scopes

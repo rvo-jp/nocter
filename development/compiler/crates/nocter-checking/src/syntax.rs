@@ -2,9 +2,9 @@ use nocter_model::Symbol;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
 
-use super::NameResolutionInternalError;
+use crate::names::NameResolutionInternalError;
 
-pub(super) fn direct_child(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Option<NodeId> {
+pub(crate) fn direct_child(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Option<NodeId> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
@@ -19,7 +19,7 @@ pub(super) fn direct_child(tree: &SyntaxTree, node: NodeId, expected: NodeKind) 
         })
 }
 
-pub(super) fn direct_children(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Vec<NodeId> {
+pub(crate) fn direct_children(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Vec<NodeId> {
     tree.children(node)
         .iter()
         .filter_map(|element| match element {
@@ -35,7 +35,7 @@ pub(super) fn direct_children(tree: &SyntaxTree, node: NodeId, expected: NodeKin
         .collect()
 }
 
-pub(super) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
+pub(crate) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
     tree.children(node)
         .iter()
         .filter_map(|element| match element {
@@ -45,7 +45,7 @@ pub(super) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
         .collect()
 }
 
-pub(super) fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
+pub(crate) fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
@@ -54,7 +54,7 @@ pub(super) fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<Synta
         })
 }
 
-pub(super) fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
+pub(crate) fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
     let mut tokens = Vec::new();
     let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
     while let Some(element) = pending.pop() {
@@ -71,7 +71,7 @@ pub(super) fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxTo
     tokens
 }
 
-pub(super) fn token_symbol(
+pub(crate) fn token_symbol(
     sources: &SourceMap,
     symbols: &nocter_model::SymbolTable,
     token: SyntaxToken,
@@ -82,7 +82,7 @@ pub(super) fn token_symbol(
         .ok_or_else(|| NameResolutionInternalError::MissingSymbol(spelling.into()))
 }
 
-pub(super) fn token_text(
+pub(crate) fn token_text(
     sources: &SourceMap,
     token: SyntaxToken,
 ) -> Result<&str, NameResolutionInternalError> {

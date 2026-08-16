@@ -16,6 +16,20 @@ pub struct CheckedProgram {
 }
 
 impl CheckedProgram {
+    pub(crate) const fn new(
+        graph: DeclarationGraph,
+        types: TypeStore,
+        conformances: ConformanceTable,
+        bodies: Arena<BodyId, CheckedBody>,
+    ) -> Self {
+        Self {
+            graph,
+            types,
+            conformances,
+            bodies,
+        }
+    }
+
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
         &self.graph
@@ -45,6 +59,13 @@ pub struct CheckedProgramOutput {
 }
 
 impl CheckedProgramOutput {
+    pub(crate) const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
+        Self {
+            program,
+            source_index,
+        }
+    }
+
     #[must_use]
     pub const fn program(&self) -> &CheckedProgram {
         &self.program

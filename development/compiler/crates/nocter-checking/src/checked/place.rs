@@ -41,6 +41,20 @@ pub struct CheckedPlace {
 }
 
 impl CheckedPlace {
+    pub(super) fn new(
+        root: PlaceRoot,
+        projections: impl Into<Box<[PlaceProjection]>>,
+        ty: TypeId,
+        access: PlaceAccess,
+    ) -> Self {
+        Self {
+            root,
+            projections: projections.into(),
+            ty,
+            access,
+        }
+    }
+
     #[must_use]
     pub const fn root(&self) -> PlaceRoot {
         self.root

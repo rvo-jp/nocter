@@ -45,6 +45,11 @@ impl ExpectedTypePlan {
     pub const fn injections(&self) -> &[OutcomeLayer] {
         &self.injections
     }
+
+    #[must_use]
+    pub fn into_parts(self) -> (ExpectedBase, Box<[OutcomeLayer]>) {
+        (self.base, self.injections)
+    }
 }
 
 /// Applies the normative outer-to-inner expected-type rule and returns an inner-to-outer plan.

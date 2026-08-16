@@ -10,10 +10,12 @@ implementation input.
 
 ## Immediate Work
 
-1. Use the completed callable constraint solver and contextual outcome projection while checking
-   scalar, reference, aggregate, outcome, and call syntax into the closed typed-node schema.
-2. Consume every temporary syntax-backed resolved use while building those nodes and extend
-   `SourceIndex` with exact `BodyNodeId` projections. Do not add expression side maps.
+1. Extend the production checked-body path from its completed scalar/local/borrow/return slice to
+   ownership-state transitions, named fields, calls, and primitive operators. Use the existing
+   inference and expected-type planners rather than adding syntax-specific compatibility paths.
+2. Add canonical copyability and concrete nominal substitution before accepting nominal or generic
+   place reads. Keep unknown copyability as an internal incomplete-implementation boundary rather
+   than emitting a false implicit-move diagnostic.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -44,11 +46,13 @@ rules before specialization enters checked bodies or later representations.
 `PreparedChecking` now owns the single graph/type/conformance/name input after program-wide rules,
 while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
 static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
-No production path constructs checked bodies yet. The shared type unifier now has an explicit
-variable set, conformance matching no longer treats requester-owned generics as pattern variables,
-and `CallableInference` produces one canonical, fully validated `GenericArguments` value from
-order-independent evidence. Recursive outcome injection now produces one reusable explicit plan
-for every authoritative expected-type boundary. Typed syntax construction is the active increment.
+`check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
+for the first vertical body slice: scalar literals, inferred locals, copyable parameter/local
+places, readonly borrows, binding/discard, return/body-result checking, and recursive outcome
+injection. Every typed node receives an exact `BodyNodeId` source projection, and no partial program
+escapes an unsupported construct or failed rule. Ownership state, nominal copyability,
+annotation binding, calls, operators, aggregates, branches, loops, closures, literals, and
+interpolation remain incomplete.
 
 ## Guardrails
 

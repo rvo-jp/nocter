@@ -1,10 +1,13 @@
 mod body;
+mod builder;
 mod node;
 mod place;
 mod program;
 mod selection;
 
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
+pub use builder::BuildCheckedBodyError;
+pub(crate) use builder::CheckedBodyBuilder;
 pub use node::{
     AggregateConstruction, AllocationSelection, CallTarget, CheckedCall, CheckedClosure,
     CheckedControl, CheckedInterpolation, CheckedLoop, CheckedMatchArm, CheckedNode,

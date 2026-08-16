@@ -1,0 +1,9 @@
+mod checker;
+mod diagnostic;
+mod error;
+mod literal;
+
+pub use diagnostic::BodyRule;
+pub use error::{BodyCheckError, BodyCheckInternalError};
+
+pub use checker::check_prepared_program;

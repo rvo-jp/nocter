@@ -15,12 +15,12 @@ use super::model::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget, ResolvedBodyNames,
     ResolvedNameUse,
 };
-use super::syntax::{
+use super::{NameResolutionError, NameResolutionInternalError, Projection};
+use crate::BodySource;
+use crate::syntax::{
     direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
     token_symbol, token_text,
 };
-use super::{NameResolutionError, NameResolutionInternalError, Projection};
-use crate::BodySource;
 
 pub(super) struct ResolvedBody {
     pub(super) body: ResolvedBodyNames,

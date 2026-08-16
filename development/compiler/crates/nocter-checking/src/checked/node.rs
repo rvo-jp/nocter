@@ -14,6 +14,10 @@ pub struct CheckedNode {
 }
 
 impl CheckedNode {
+    pub(super) const fn new(ty: TypeId, operation: CheckedOperation) -> Self {
+        Self { ty, operation }
+    }
+
     #[must_use]
     pub const fn ty(&self) -> TypeId {
         self.ty
@@ -27,6 +31,7 @@ impl CheckedNode {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CheckedOperation {
+    Complete,
     Constant(ConstantValue),
     Place(PlaceId),
     Copy(PlaceId),

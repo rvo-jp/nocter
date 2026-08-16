@@ -58,6 +58,26 @@ impl<'syntax> PreparedChecking<'syntax> {
     pub const fn source_index(&self) -> &SourceIndex {
         &self.source_index
     }
+
+    pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
+        PreparedCheckingParts {
+            graph: self.graph,
+            types: self.types,
+            conformances: self.conformances,
+            body_sources: self.body_sources,
+            body_names: self.body_names,
+            source_index: self.source_index,
+        }
+    }
+}
+
+pub(crate) struct PreparedCheckingParts<'syntax> {
+    pub(crate) graph: DeclarationGraph,
+    pub(crate) types: TypeStore,
+    pub(crate) conformances: ConformanceTable,
+    pub(crate) body_sources: BodySourceCatalog<'syntax>,
+    pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
+    pub(crate) source_index: SourceIndex,
 }
 
 #[derive(Debug)]

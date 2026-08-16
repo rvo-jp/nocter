@@ -2,7 +2,6 @@ mod diagnostic;
 mod imports;
 mod model;
 mod resolver;
-mod syntax;
 
 #[cfg(test)]
 mod tests;
