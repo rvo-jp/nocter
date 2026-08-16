@@ -5,10 +5,15 @@
 //! projects them back to source without exposing syntax to later semantic stages.
 
 mod input;
+mod surface;
 mod topology;
 
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+};
+pub use surface::{
+    DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
+    SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId, collect_declaration_surface,
 };
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};

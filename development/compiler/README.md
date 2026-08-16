@@ -63,16 +63,19 @@ be introduced to make an unresolved syntax choice.
 - `nocter-declaration-lowering` owns the one-way syntax-to-declaration boundary. Its input is an
   explicit package graph and module/source topology supplied by discovery; it never probes the
   filesystem. It validates declared-package and single-file layouts, canonicalizes package and
-  module order, constructs the compile-unit symbol table, allocates stable topology identities,
-  and records their source projections.
+  module order, constructs the compile-unit symbol table, inventories every declaration and member
+  with its exact syntax owner, allocates stable topology identities, and records their source
+  projections. The temporary surface inventory also enforces the root-source-only API boundary
+  before semantic reservation.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will traverse module surfaces, reserve declaration identities in
-canonical source order, resolve headers, populate the declaration arenas and source index
-together, and discard all mutable builders. No crate yet owns checked body semantics.
+The next Phase 2 increment will reserve declaration identities from the canonical surface in one
+pass, resolve headers in a second pass, populate the declaration arenas and source index together,
+and discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns
+checked body semantics.
 
 ## Verification
 

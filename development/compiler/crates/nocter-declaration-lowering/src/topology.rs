@@ -143,15 +143,12 @@ impl From<DuplicateSourceBinding> for LoweringError {
 pub fn lower_compile_unit_topology(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, LoweringError> {
-    let packages = canonical_packages(input)?;
-    let modules = canonical_modules(input, &packages)?;
-    validate_sources(input, &packages, &modules)?;
-    let symbols = collect_symbols(input, &packages, &modules)?;
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let prepared = prepare_compile_unit(input)?;
+    let mut program = DeclarationProgramBuilder::new(prepared.symbols);
     let mut source_index = SourceIndexBuilder::new();
     let mut package_ids = BTreeMap::new();
 
-    for package in &packages {
+    for package in &prepared.packages {
         let display_name = program
             .symbols()
             .get(package.display_name())
@@ -169,7 +166,7 @@ pub fn lower_compile_unit_topology(
         }
     }
 
-    for module in &modules {
+    for module in &prepared.modules {
         let package = *package_ids
             .get(module.identity().package())
             .ok_or_else(|| LoweringError::UnknownPackage(module.identity().package().clone()))?;
@@ -191,6 +188,26 @@ pub fn lower_compile_unit_topology(
     Ok(LoweredDeclarations {
         program: program.finish()?,
         source_index: source_index.finish(),
+    })
+}
+
+pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
+    pub(crate) symbols: SymbolTable,
+    pub(crate) packages: Vec<&'input PackageInput<'syntax>>,
+    pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
+}
+
+pub(crate) fn prepare_compile_unit<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+) -> Result<PreparedCompileUnit<'input, 'syntax>, LoweringError> {
+    let packages = canonical_packages(input)?;
+    let modules = canonical_modules(input, &packages)?;
+    validate_sources(input, &packages, &modules)?;
+    let symbols = collect_symbols(input, &packages, &modules)?;
+    Ok(PreparedCompileUnit {
+        symbols,
+        packages,
+        modules,
     })
 }
 

@@ -131,6 +131,14 @@ program. Declared packages require one package declaration and one root module; 
 requires exactly one root module source and no package declaration. The two layouts cannot be
 silently substituted for each other.
 
+Before semantic identities are reserved, lowering produces one temporary declaration-surface
+inventory. It visits module roots before implementation sources, sorts implementation sources by
+canonical physical identity, and records each declaration or member with its exact syntactic
+owner. Blocks are opaque to this pass; body syntax cannot create or alter a declaration header.
+The pass also enforces the module rule that implementation sources cannot add visibility,
+re-exports, fields, interface members, construction entries, or coercion entries. This inventory
+is consumed by declaration reservation and never becomes a second long-lived program model.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no
