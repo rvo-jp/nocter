@@ -1,6 +1,5 @@
 use nocter_declarations::{
-    CallableKind, CallableProvenanceContract, DeclarationDomain, NominalShape, ProgramBuildError,
-    ProgramIntegrityError,
+    CallableKind, CallableProvenanceContract, DeclarationRule, NominalShape,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -110,6 +109,16 @@ fn lower<'syntax>(
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> crate::LoweredDeclarations {
+    try_lower(sources, packages, modules, uses, prelude).unwrap()
+}
+
+fn try_lower<'syntax>(
+    sources: &'syntax SourceMap,
+    packages: Vec<PackageInput<'syntax>>,
+    modules: Vec<ModuleInput<'syntax>>,
+    uses: Vec<UseResolutionInput>,
+    prelude: &ModuleIdentity,
+) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
     let input = CompileUnitInput::new(sources, packages, modules, uses);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
@@ -119,7 +128,7 @@ fn lower<'syntax>(
     let namespaces = apply_standard_prelude(imports, prelude).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let normalized = normalize_header_types(bound).unwrap();
-    define_declaration_headers(normalized).unwrap()
+    define_declaration_headers(normalized)
 }
 
 fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
@@ -324,39 +333,52 @@ fn rejects_ambiguous_bodyless_result_provenance() {
 
 #[test]
 fn rejects_invalid_semantic_header_graphs_at_freeze() {
-    assert!(matches!(
-        definition_error("enum Empty {}\n"),
-        super::HeaderDefinitionError::Program(ProgramBuildError::InvalidProgram(
-            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::NominalType)
-        ))
-    ));
+    let super::HeaderDefinitionError::Declaration(empty_enum) = definition_error("enum Empty {}\n")
+    else {
+        panic!("empty enum did not produce a declaration diagnostic");
+    };
+    assert_eq!(empty_enum.rule(), DeclarationRule::EmptyEnum);
+    assert_eq!(empty_enum.code(), "E0200");
+    assert!(empty_enum.primary().node().is_some());
+    assert_eq!(empty_enum.primary().span().range().start().get(), 0);
+    assert_eq!(empty_enum.primary().span().range().end().get(), 13);
+    assert_eq!(empty_enum.related(), None);
     assert!(matches!(
         definition_error(
             "interface Show { pub method &self.show(): i32 }\ninterface Factory { pub method &self.make(): some Show }\n"
         ),
-        super::HeaderDefinitionError::Program(ProgramBuildError::InvalidProgram(
-            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::OpaqueType)
-        ))
+        super::HeaderDefinitionError::Declaration(diagnostic)
+            if diagnostic.rule() == DeclarationRule::InvalidOpaqueResult
     ));
-    assert!(matches!(
-        definition_error("struct Box {}\nconstruct Box {\n    pub func new(): i32 { return }\n}\n"),
-        super::HeaderDefinitionError::Program(ProgramBuildError::InvalidProgram(
-            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Construction)
-        ))
-    ));
+    let super::HeaderDefinitionError::Declaration(invalid_result) =
+        definition_error("struct Box {}\nconstruct Box {\n    pub func new(): i32 { return }\n}\n")
+    else {
+        panic!("invalid construction result did not produce a declaration diagnostic");
+    };
+    assert_eq!(
+        invalid_result.rule(),
+        DeclarationRule::InvalidConstructionResult
+    );
+    let related = invalid_result.related().unwrap();
+    let primary_range = invalid_result.primary().span().range();
+    let related_range = related.span().range();
+    assert_eq!(
+        invalid_result.related_message(),
+        Some("owning construction is declared here")
+    );
+    assert!(related_range.start() < primary_range.start());
+    assert!(primary_range.end() < related_range.end());
     assert!(matches!(
         definition_error("instance str {\n    pub method &self.size(): usize { return 0 }\n}\n"),
-        super::HeaderDefinitionError::Program(ProgramBuildError::InvalidProgram(
-            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Instance)
-        ))
+        super::HeaderDefinitionError::Declaration(diagnostic)
+            if diagnostic.rule() == DeclarationRule::InvalidInherentAttachment
     ));
     assert!(matches!(
         definition_error(
             "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n"
         ),
-        super::HeaderDefinitionError::Program(ProgramBuildError::InvalidProgram(
-            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Conformance)
-        ))
+        super::HeaderDefinitionError::Declaration(diagnostic)
+            if diagnostic.rule() == DeclarationRule::IncompleteAssociatedTypes
     ));
 }
 
@@ -419,4 +441,48 @@ fn complete_header_identity_is_independent_of_input_order() {
         second.program().types().iter().collect::<Vec<_>>()
     );
     assert_eq!(first.source_index(), second.source_index());
+}
+
+#[test]
+fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let app_id = add_source(&mut sources, "/app/index.nct", "enum Empty {}\n");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+
+    let build = |reverse: bool| {
+        let mut packages = vec![
+            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+        ];
+        let mut modules = vec![
+            module("workspace:app", &[], "/app/index.nct", &app_tree),
+            module("toolchain:std", &[], "/std/index.nct", &std_root),
+            module(
+                "toolchain:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude_tree,
+            ),
+        ];
+        if reverse {
+            packages.reverse();
+            modules.reverse();
+        }
+        let error = try_lower(&sources, packages, modules, vec![], &prelude).unwrap_err();
+        let super::HeaderDefinitionError::Declaration(diagnostic) = error else {
+            panic!("empty enum did not produce a declaration diagnostic");
+        };
+        diagnostic
+    };
+
+    assert_eq!(build(false), build(true));
 }

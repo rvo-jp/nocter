@@ -105,11 +105,6 @@ pub(super) fn validate_nominal_types(
                 }
             }
             NominalShape::Enum { variants } => {
-                if variants.is_empty() {
-                    return Err(ProgramIntegrityError::InvalidDeclarationShape(
-                        DeclarationDomain::NominalType,
-                    ));
-                }
                 unique(variants, DeclarationDomain::NominalType)?;
                 for variant in variants {
                     let variant = require(

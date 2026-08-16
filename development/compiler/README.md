@@ -130,7 +130,11 @@ silently discard a token.
 
 The remaining Phase 2 increment is a source-backed semantic diagnostic boundary. Declaration
 validation must identify the exact semantic subject so diagnostics can project it through
-`SourceIndex` without duplicating validation in lowering. No crate yet owns checked body semantics.
+`SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
+do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
+guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
+surface, contract, header, generic, import, and type-binding passes still require the same
+diagnostic projection. No crate yet owns checked body semantics.
 
 ## Verification
 

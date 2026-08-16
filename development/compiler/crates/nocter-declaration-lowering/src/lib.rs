@@ -21,7 +21,7 @@ mod visibility;
 mod test_support;
 
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
-pub use definitions::{HeaderDefinitionError, define_declaration_headers};
+pub use definitions::{DeclarationDiagnostic, HeaderDefinitionError, define_declaration_headers};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use imports::{

@@ -69,6 +69,28 @@ Source-backed callable contract diagnostics:
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
 
+Source-backed declaration-header diagnostics:
+
+- `E0200`: an enum declares no variants.
+- `E0201`: a construction or instance declaration is outside the target type's ownership boundary.
+- `E0202`: one type family has more than one construction declaration.
+- `E0203`: a construction member does not produce its owning type, directly or through supported
+  outcome layers.
+- `E0204`: a drop declaration targets a type that cannot own that declaration.
+- `E0205`: one type family has more than one drop declaration.
+- `E0206`: a `copy struct` declares a drop body.
+- `E0207`: a payloadless enum declares a drop body.
+- `E0208`: a primitive declaration is outside the exact selected standard package.
+- `E0209`: a built-in conformance is outside the exact selected standard package.
+- `E0210`: a conformance target is neither a nominal type nor an authorized built-in type.
+- `E0211`: a conformance does not bind every associated type declared by its interface.
+- `E0212`: an opaque result appears on an unsupported callable or a callable without a source body.
+
+These diagnostics are selected by syntax-independent declaration rules. Each rule records a primary
+declaration-site identity and, when useful, one related declaration-site identity. The diagnostic
+adapter projects those identities through the completed source index; it does not repeat the rule
+against syntax to recover a location.
+
 ## Source And Span Model
 
 Compiler source identity and source positions are byte-based internally.

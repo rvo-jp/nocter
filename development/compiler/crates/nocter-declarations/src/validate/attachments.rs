@@ -1,10 +1,13 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use nocter_model::{BuiltinType, ModuleId, NominalTypeId, TypeId, TypeKind};
 
 use crate::{BuiltinAttachment, CallableKind, CallableOwner, DeclarationProgram, NominalShape};
 
-use super::{DeclarationDomain, ProgramIntegrityError, require};
+use super::{
+    DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,
+    ProgramValidationError, require,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum AttachmentTarget {
@@ -13,8 +16,13 @@ enum AttachmentTarget {
     Slice,
 }
 
-pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    validate_owned_declaration_sites(program)?;
+pub(super) fn validate_ownership(
+    program: &DeclarationProgram,
+) -> Result<(), ProgramIntegrityError> {
+    validate_owned_declaration_sites(program)
+}
+
+pub(super) fn validate_rules(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
     validate_primitives(program)?;
     validate_constructions(program)?;
     validate_instances(program)?;
@@ -63,7 +71,9 @@ fn validate_owned_declaration_sites(
         let owner_site = match callable.owner() {
             CallableOwner::Module(module) => {
                 if site_module(program, callable.site(), DeclarationDomain::Callable)? != module {
-                    return invalid(DeclarationDomain::Callable);
+                    return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                        DeclarationDomain::Callable,
+                    ));
                 }
                 continue;
             }
@@ -94,19 +104,21 @@ fn validate_owned_declaration_sites(
     Ok(())
 }
 
-fn validate_primitives(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+fn validate_primitives(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
     for (_, callable) in program.declarations().callables().iter() {
         if callable.kind() != CallableKind::Primitive {
             continue;
         }
         let module = site_module(program, callable.site(), DeclarationDomain::Callable)?;
-        require_standard_package_module(program, module, DeclarationDomain::Callable)?;
+        if !is_standard_package_module(program, module) {
+            return violation(DeclarationRule::PrimitiveAuthority, callable.site());
+        }
     }
     Ok(())
 }
 
-fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    let mut targets = HashSet::new();
+fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
+    let mut targets = HashMap::new();
     for (_, construction) in program.declarations().constructions().iter() {
         let module = site_module(
             program,
@@ -117,12 +129,15 @@ fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramInt
             program,
             construction.target(),
             module,
+            construction.site(),
             DeclarationDomain::Construction,
         )?;
-        if !targets.insert(target) {
-            return Err(ProgramIntegrityError::DuplicateReference(
-                DeclarationDomain::Construction,
-            ));
+        if let Some(previous) = targets.insert(target, construction.site()) {
+            return related_violation(
+                DeclarationRule::DuplicateConstruction,
+                construction.site(),
+                previous,
+            );
         }
         for member in construction.members() {
             let member = require(
@@ -131,62 +146,105 @@ fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramInt
                 DeclarationDomain::Callable,
             )?;
             if outcome_payload(program, member.result()) != Some(construction.target()) {
-                return invalid(DeclarationDomain::Construction);
+                return related_violation(
+                    DeclarationRule::InvalidConstructionResult,
+                    member.site(),
+                    construction.site(),
+                );
             }
         }
     }
     Ok(())
 }
 
-fn validate_instances(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+fn validate_instances(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
     for (_, instance) in program.declarations().instances().iter() {
         let module = site_module(program, instance.site(), DeclarationDomain::Instance)?;
         require_inherent_target(
             program,
             instance.target(),
             module,
+            instance.site(),
             DeclarationDomain::Instance,
         )?;
     }
     Ok(())
 }
 
-fn validate_conformances(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+fn validate_conformances(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
     for (_, conformance) in program.declarations().conformances().iter() {
         let module = site_module(program, conformance.site(), DeclarationDomain::Conformance)?;
         match attachment_target(program, conformance.target()) {
             Some(AttachmentTarget::Nominal(_)) => {}
             Some(AttachmentTarget::Builtin(_) | AttachmentTarget::Slice) => {
-                require_standard_package_module(program, module, DeclarationDomain::Conformance)?;
+                if !is_standard_package_module(program, module) {
+                    return violation(
+                        DeclarationRule::BuiltinConformanceAuthority,
+                        conformance.site(),
+                    );
+                }
             }
-            None => return invalid(DeclarationDomain::Conformance),
+            None => {
+                return violation(
+                    DeclarationRule::InvalidConformanceTarget,
+                    conformance.site(),
+                );
+            }
         }
     }
     Ok(())
 }
 
-fn validate_drops(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    let mut targets = HashSet::new();
+fn validate_drops(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
+    let mut targets = HashMap::new();
     for (_, drop) in program.declarations().drops().iter() {
         let module = site_module(program, drop.site(), DeclarationDomain::Drop)?;
         let Some(AttachmentTarget::Nominal(definition)) = attachment_target(program, drop.target())
         else {
-            return invalid(DeclarationDomain::Drop);
+            return violation(DeclarationRule::InvalidDropTarget, drop.site());
         };
         let nominal = require(
             program.declarations().nominal_types().get(definition),
             DeclarationDomain::Drop,
             DeclarationDomain::NominalType,
         )?;
-        if site_module(program, nominal.site(), DeclarationDomain::NominalType)? != module
-            || !drop_shape_can_own_body(program, nominal.shape())
-        {
-            return invalid(DeclarationDomain::Drop);
+        if site_module(program, nominal.site(), DeclarationDomain::NominalType)? != module {
+            return related_violation(
+                DeclarationRule::InvalidDropTarget,
+                drop.site(),
+                nominal.site(),
+            );
         }
-        if !targets.insert(definition) {
-            return Err(ProgramIntegrityError::DuplicateReference(
-                DeclarationDomain::Drop,
-            ));
+        match nominal.shape() {
+            NominalShape::Struct {
+                copy_declared: true,
+                ..
+            } => {
+                return related_violation(DeclarationRule::CopyDrop, drop.site(), nominal.site());
+            }
+            NominalShape::Enum { variants }
+                if !variants.iter().any(|variant| {
+                    program
+                        .declarations()
+                        .variants()
+                        .get(*variant)
+                        .is_some_and(|variant| !variant.payload().is_empty())
+                }) =>
+            {
+                return related_violation(
+                    DeclarationRule::PayloadlessEnumDrop,
+                    drop.site(),
+                    nominal.site(),
+                );
+            }
+            NominalShape::Struct {
+                copy_declared: false,
+                ..
+            }
+            | NominalShape::Enum { .. } => {}
+        }
+        if let Some(previous) = targets.insert(definition, drop.site()) {
+            return related_violation(DeclarationRule::DuplicateDrop, drop.site(), previous);
         }
     }
     Ok(())
@@ -196,10 +254,12 @@ fn require_inherent_target(
     program: &DeclarationProgram,
     ty: TypeId,
     module: ModuleId,
+    site: nocter_model::DeclarationSiteId,
     domain: DeclarationDomain,
-) -> Result<AttachmentTarget, ProgramIntegrityError> {
-    let target = attachment_target(program, ty)
-        .ok_or(ProgramIntegrityError::InvalidDeclarationShape(domain))?;
+) -> Result<AttachmentTarget, ProgramValidationError> {
+    let Some(target) = attachment_target(program, ty) else {
+        return violation(DeclarationRule::InvalidInherentAttachment, site);
+    };
     match target {
         AttachmentTarget::Nominal(definition) => {
             let nominal = require(
@@ -208,16 +268,25 @@ fn require_inherent_target(
                 DeclarationDomain::NominalType,
             )?;
             if site_module(program, nominal.site(), DeclarationDomain::NominalType)? != module {
-                return invalid(domain);
+                return related_violation(
+                    DeclarationRule::InvalidInherentAttachment,
+                    site,
+                    nominal.site(),
+                );
             }
         }
         AttachmentTarget::Builtin(builtin) => {
-            let attachment = builtin_attachment(builtin)
-                .ok_or(ProgramIntegrityError::InvalidDeclarationShape(domain))?;
-            require_standard_attachment_module(program, module, attachment, domain)?;
+            let Some(attachment) = builtin_attachment(builtin) else {
+                return violation(DeclarationRule::InvalidInherentAttachment, site);
+            };
+            if !is_standard_attachment_module(program, module, attachment) {
+                return violation(DeclarationRule::InvalidInherentAttachment, site);
+            }
         }
         AttachmentTarget::Slice => {
-            require_standard_attachment_module(program, module, BuiltinAttachment::Slice, domain)?;
+            if !is_standard_attachment_module(program, module, BuiltinAttachment::Slice) {
+                return violation(DeclarationRule::InvalidInherentAttachment, site);
+            }
         }
     }
     Ok(target)
@@ -251,47 +320,20 @@ fn builtin_attachment(builtin: BuiltinType) -> Option<BuiltinAttachment> {
     }
 }
 
-fn require_standard_attachment_module(
+fn is_standard_attachment_module(
     program: &DeclarationProgram,
     module: ModuleId,
     attachment: BuiltinAttachment,
-    domain: DeclarationDomain,
-) -> Result<(), ProgramIntegrityError> {
-    if program
+) -> bool {
+    program
         .standard_library()
         .and_then(|standard| standard.attachment_module(attachment))
         == Some(module)
-    {
-        Ok(())
-    } else {
-        invalid(domain)
-    }
 }
 
-fn require_standard_package_module(
-    program: &DeclarationProgram,
-    module: ModuleId,
-    domain: DeclarationDomain,
-) -> Result<(), ProgramIntegrityError> {
+fn is_standard_package_module(program: &DeclarationProgram, module: ModuleId) -> bool {
     let package = program.modules().get(module).map(crate::Module::package);
-    if package.is_some() && package == program.standard_package() {
-        Ok(())
-    } else {
-        invalid(domain)
-    }
-}
-
-fn drop_shape_can_own_body(program: &DeclarationProgram, shape: &NominalShape) -> bool {
-    match shape {
-        NominalShape::Struct { copy_declared, .. } => !copy_declared,
-        NominalShape::Enum { variants } => variants.iter().any(|variant| {
-            program
-                .declarations()
-                .variants()
-                .get(*variant)
-                .is_some_and(|variant| !variant.payload().is_empty())
-        }),
-    }
+    package.is_some() && package == program.standard_package()
 }
 
 fn outcome_payload(program: &DeclarationProgram, mut ty: TypeId) -> Option<TypeId> {
@@ -333,6 +375,17 @@ fn site_module(
     .map(|site| site.module())
 }
 
-fn invalid<T>(domain: DeclarationDomain) -> Result<T, ProgramIntegrityError> {
-    Err(ProgramIntegrityError::InvalidDeclarationShape(domain))
+fn violation<T>(
+    rule: DeclarationRule,
+    primary: nocter_model::DeclarationSiteId,
+) -> Result<T, ProgramValidationError> {
+    Err(DeclarationViolation::new(rule, primary).into())
+}
+
+fn related_violation<T>(
+    rule: DeclarationRule,
+    primary: nocter_model::DeclarationSiteId,
+    related: nocter_model::DeclarationSiteId,
+) -> Result<T, ProgramValidationError> {
+    Err(DeclarationViolation::with_related(rule, primary, related).into())
 }

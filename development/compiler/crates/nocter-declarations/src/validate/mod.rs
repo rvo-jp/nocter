@@ -11,7 +11,11 @@ mod attachments;
 mod callables;
 mod graph;
 mod requirements;
+mod rules;
 mod types;
+mod violation;
+
+pub use violation::{DeclarationRule, DeclarationViolation, ProgramValidationError};
 
 #[cfg(test)]
 mod tests;
@@ -101,7 +105,7 @@ impl fmt::Display for ProgramIntegrityError {
 
 impl std::error::Error for ProgramIntegrityError {}
 
-pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
     types::validate_types(program)?;
     graph::validate_packages_modules_sites(program)?;
     types::validate_nominal_types(program)?;
@@ -109,14 +113,17 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
     callables::validate(program)?;
     validate_constructions_instances_conformances(program)?;
     validate_drops_tests(program)?;
-    attachments::validate(program)?;
+    attachments::validate_ownership(program)?;
     validate_generic_parameters(program)?;
     validate_parameters(program)?;
     requirements::validate(program)?;
     validate_bodies(program)?;
     validate_opaque_types(program)?;
     graph::validate_imports(program)?;
-    graph::validate_package_targets(program)
+    graph::validate_package_targets(program)?;
+    rules::validate(program)?;
+    attachments::validate_rules(program)?;
+    Ok(())
 }
 
 fn validate_constructions_instances_conformances(
@@ -225,21 +232,7 @@ fn validate_complete_conformance(
         interface_id,
         DeclarationDomain::Conformance,
     )?;
-    let interface = program
-        .declarations()
-        .interfaces()
-        .get(interface_id)
-        .ok_or(ProgramIntegrityError::UnknownReference {
-            owner: DeclarationDomain::Conformance,
-            target: DeclarationDomain::Interface,
-        })?;
-    if conformance.associated_types().len() == interface.associated_types().len() {
-        Ok(())
-    } else {
-        Err(ProgramIntegrityError::InvalidDeclarationShape(
-            DeclarationDomain::Conformance,
-        ))
-    }
+    Ok(())
 }
 
 fn validate_drops_tests(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
@@ -462,20 +455,7 @@ fn validate_opaque_types(program: &DeclarationProgram) -> Result<(), ProgramInte
             DeclarationDomain::OpaqueType,
             DeclarationDomain::Callable,
         )?;
-        let valid_owner = callable.body().is_some()
-            && matches!(
-                (callable.kind(), callable.owner()),
-                (CallableKind::Function, CallableOwner::Module(_))
-                    | (
-                        CallableKind::ConstructionFunction,
-                        CallableOwner::Construction(_)
-                    )
-                    | (
-                        CallableKind::Method,
-                        CallableOwner::Instance(_) | CallableOwner::Interface(_)
-                    )
-            );
-        if !valid_owner || opaque_result(program, callable.result()) != Some(id) {
+        if opaque_result(program, callable.result()) != Some(id) {
             return Err(ProgramIntegrityError::InvalidDeclarationShape(
                 DeclarationDomain::OpaqueType,
             ));

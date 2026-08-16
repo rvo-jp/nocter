@@ -119,10 +119,18 @@ pub(super) fn finish(
     _allocated: AllocatedHeaders,
 ) -> Result<LoweredDeclarations, HeaderDefinitionError> {
     let reserved = types.namespaces.imports.generics.headers.reserved;
-    Ok(LoweredDeclarations::new(
-        reserved.program.finish()?,
-        reserved.source_index.finish(),
-    ))
+    let source_index = reserved.source_index.finish();
+    match reserved.program.finish() {
+        Ok(program) => Ok(LoweredDeclarations::new(program, source_index)),
+        Err(nocter_declarations::ProgramBuildError::InvalidProgram(
+            nocter_declarations::ProgramValidationError::Declaration(violation),
+        )) => {
+            let diagnostic = super::DeclarationDiagnostic::project(violation, &source_index)
+                .map_err(HeaderDefinitionError::MissingDiagnosticSubject)?;
+            Err(HeaderDefinitionError::Declaration(diagnostic))
+        }
+        Err(error) => Err(HeaderDefinitionError::Program(error)),
+    }
 }
 
 fn allocate_requirements(

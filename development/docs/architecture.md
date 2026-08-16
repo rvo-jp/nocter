@@ -215,6 +215,13 @@ path. The same validator owns empty-enum, construction-result, unique constructi
 opaque-result, associated-binding, and owner-site invariants; lowering does not maintain a second
 semantic prevalidation table.
 
+Program validation separates authored declaration-rule violations from malformed compiler graph
+integrity. A declaration rule owns its stable error code, source-level message, correction
+direction, primary declaration-site ID, and optional related declaration-site ID. Only after rule
+selection does declaration lowering project those IDs through the completed `SourceIndex` to exact
+syntax origins. Changing a diagnostic span therefore cannot change rule selection, and adding a
+diagnostic cannot create a second attachment or declaration-shape evaluator.
+
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual
 payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,

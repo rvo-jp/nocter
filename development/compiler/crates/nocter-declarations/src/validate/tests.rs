@@ -3,9 +3,10 @@ use nocter_model::{BuiltinType, CallableCapability, SymbolTable, TypeKind};
 use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
     CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
-    DeclarationProgramBuilder, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
-    InstanceDeclaration, ModulePath, NominalShape, NominalTypeDeclaration, Parameter,
-    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError, ProvenanceOrigin,
+    DeclarationProgramBuilder, DeclarationRule, DeclarationViolation, DropDeclaration,
+    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModulePath,
+    NominalShape, NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole,
+    ProgramBuildError, ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin,
     VariantDeclaration, Visibility,
 };
 
@@ -105,8 +106,8 @@ fn orphaned_members_cannot_enter_the_immutable_program() {
 
     assert_eq!(
         program.finish().unwrap_err(),
-        ProgramBuildError::InvalidProgram(ProgramIntegrityError::OwnerMismatch(
-            DeclarationDomain::Field,
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Integrity(
+            ProgramIntegrityError::OwnerMismatch(DeclarationDomain::Field)
         ))
     );
 }
@@ -142,8 +143,8 @@ fn empty_enums_cannot_enter_the_immutable_program() {
 
     assert_eq!(
         program.finish().unwrap_err(),
-        ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
-            DeclarationDomain::NominalType,
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
+            DeclarationViolation::new(DeclarationRule::EmptyEnum, site)
         ))
     );
 }
@@ -269,12 +270,11 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
     };
 
     assert!(build(true).is_ok());
-    assert_eq!(
+    assert!(matches!(
         build(false).unwrap_err(),
-        ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
-            DeclarationDomain::Instance,
-        ))
-    );
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(error))
+            if error.rule() == DeclarationRule::InvalidInherentAttachment
+    ));
 }
 
 #[test]
@@ -348,8 +348,8 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
 
     assert_eq!(
         program.finish().unwrap_err(),
-        ProgramBuildError::InvalidProgram(ProgramIntegrityError::DuplicateReference(
-            DeclarationDomain::Construction,
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
+            DeclarationViolation::with_related(DeclarationRule::DuplicateConstruction, site, site,)
         ))
     );
 }
@@ -418,8 +418,16 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
 
         assert_eq!(
             program.finish().unwrap_err(),
-            ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
-                DeclarationDomain::Drop,
+            ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
+                DeclarationViolation::with_related(
+                    if nominal_shape == 0 {
+                        DeclarationRule::CopyDrop
+                    } else {
+                        DeclarationRule::PayloadlessEnumDrop
+                    },
+                    site,
+                    site,
+                )
             ))
         );
     }

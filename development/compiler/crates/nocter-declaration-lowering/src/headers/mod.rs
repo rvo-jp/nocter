@@ -143,7 +143,7 @@ pub fn prepare_declaration_headers(
     let mut sites = vec![None; reserved.declarations.len()];
     let mut resolved_visibility = vec![None; reserved.declarations.len()];
 
-    for (index, name) in names.iter().enumerate() {
+    for index in 0..names.len() {
         let id = SurfaceDeclarationId::from_index(index);
         let declaration = reserved.declarations[index];
         let representative = reserved.contracts.representative(id);
@@ -162,7 +162,7 @@ pub fn prepare_declaration_headers(
         let site = reserved.program.add_declaration_site(module, visibility)?;
         sites[index] = Some(site);
         resolved_visibility[index] = Some(visibility);
-        project_site(&mut reserved, id, site, *name)?;
+        project_site(&mut reserved, id, site)?;
     }
     project_entities(&mut reserved, &names)?;
 
@@ -237,9 +237,8 @@ fn project_site(
     reserved: &mut ReservedDeclarations<'_>,
     declaration: SurfaceDeclarationId,
     site: DeclarationSiteId,
-    name: Option<Symbol>,
 ) -> Result<(), HeaderError> {
-    let origin = declaration_origin(reserved, declaration, name.is_some())?;
+    let origin = declaration_origin(reserved, declaration, false)?;
     reserved.source_index.insert(
         SemanticEntity::DeclarationSite(site),
         SourceRole::Declaration,

@@ -10,11 +10,14 @@ use crate::{LoweredDeclarations, PreparedTypes, SurfaceDeclarationId};
 
 mod allocation;
 mod declarations;
+mod diagnostic;
 mod projection;
 mod syntax;
 
 #[cfg(test)]
 mod tests;
+
+pub use diagnostic::DeclarationDiagnostic;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeaderDefinitionError {
@@ -34,6 +37,8 @@ pub enum HeaderDefinitionError {
     DuplicateAssociatedType(SurfaceDeclarationId),
     InconsistentType(TypeId),
     InconsistentSource(SourceId),
+    MissingDiagnosticSubject(nocter_model::DeclarationSiteId),
+    Declaration(DeclarationDiagnostic),
     Definition(DefinitionError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
@@ -108,6 +113,13 @@ impl fmt::Display for HeaderDefinitionError {
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent declaration origin")
             }
+            Self::MissingDiagnosticSubject(site) => {
+                write!(
+                    formatter,
+                    "declaration site {site:?} has no source projection"
+                )
+            }
+            Self::Declaration(diagnostic) => diagnostic.fmt(formatter),
             Self::Definition(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),

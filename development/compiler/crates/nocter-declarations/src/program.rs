@@ -8,7 +8,7 @@ use nocter_model::{
 
 use crate::{
     BuiltinAttachment, DeclarationArenaBuilder, DeclarationArenas, ImportDeclaration,
-    IncompleteDefinition, ModulePath, PackageTarget, ProgramIntegrityError, StandardLibrary,
+    IncompleteDefinition, ModulePath, PackageTarget, ProgramValidationError, StandardLibrary,
     Visibility,
 };
 
@@ -386,7 +386,7 @@ pub enum ProgramBuildError {
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
     IncompleteDefinition(IncompleteDefinition),
-    InvalidProgram(ProgramIntegrityError),
+    InvalidProgram(ProgramValidationError),
 }
 
 impl fmt::Display for ProgramBuildError {
@@ -436,8 +436,8 @@ impl From<IncompleteDefinition> for ProgramBuildError {
     }
 }
 
-impl From<ProgramIntegrityError> for ProgramBuildError {
-    fn from(error: ProgramIntegrityError) -> Self {
+impl From<ProgramValidationError> for ProgramBuildError {
+    fn from(error: ProgramValidationError) -> Self {
         Self::InvalidProgram(error)
     }
 }

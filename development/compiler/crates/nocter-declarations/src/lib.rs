@@ -44,5 +44,8 @@ pub use requirement::{
 };
 pub use standard::{BuiltinAttachment, StandardLibrary};
 pub use target::{PackageTarget, PackageTargetKind};
-pub use validate::{DeclarationDomain, ProgramIntegrityError};
+pub use validate::{
+    DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,
+    ProgramValidationError,
+};
 pub use visibility::Visibility;

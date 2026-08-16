@@ -8,17 +8,20 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Give every declaration-boundary failure one stable semantic diagnostic subject and exact source
-   projection. Graph integrity validation must remain the single rule authority; lowering must not
-   recreate attachment, conformance, construction, or declaration-shape rules to recover a span.
-2. Derive declaration diagnostic cases from G001-G018 semantic-boundary fixtures and verify that
-   input ordering cannot change the selected error, semantic subject, or source range.
+1. Extend the source-backed diagnostic boundary from freeze-time declaration rules to the earlier
+   surface, contract, header, generic, import, and type-binding passes. Internal consistency faults
+   remain distinct and must not receive user-facing error codes.
+2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
+   cannot change the selected code, semantic subject, primary range, or related range.
 
 Complete foundations: the lowering boundary now defines every reserved declaration, member,
 parameter, requirement, body, and opaque-result identity from the normalized type graph; separates
 authored and inferred callable provenance; projects contract and implementation sources onto shared
 semantic identities; records exact standard-package and built-in attachment authority; validates
 the frozen graph; and returns only an immutable `DeclarationProgram` plus `SourceIndex`.
+Freeze-time authored-rule failures now carry stable `E0200`-`E0212` codes, exact primary and related
+declaration-site identities, correction guidance, and source projections. Malformed compiler graph
+errors remain a separate internal integrity category.
 
 ## Guardrails
 
