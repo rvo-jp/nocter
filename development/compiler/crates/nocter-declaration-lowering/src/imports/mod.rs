@@ -124,6 +124,7 @@ pub struct PreparedImports<'syntax> {
     pub(crate) generics: PreparedGenerics<'syntax>,
     pub(super) namespaces: Box<[ModuleNamespace]>,
     import_ids: Box<[Option<ImportId>]>,
+    import_paths: Box<[Option<SyntaxOrigin>]>,
 }
 
 impl PreparedImports<'_> {
@@ -160,6 +161,10 @@ impl PreparedImports<'_> {
     pub fn import_id(&self, surface_index: usize) -> Option<ImportId> {
         self.import_ids.get(surface_index).copied().flatten()
     }
+
+    pub(super) fn import_path(&self, surface_index: usize) -> Option<SyntaxOrigin> {
+        self.import_paths.get(surface_index).copied().flatten()
+    }
 }
 
 /// Resolves authored module imports and re-exports after declaration and generic identities exist.
@@ -183,6 +188,7 @@ pub fn prepare_authored_imports(
     let order = dependency_order(&generics, &groups.dependencies)?;
     let import_count = generics.headers.reserved.imports.len();
     let mut import_ids = vec![None; import_count];
+    let mut import_paths = vec![None; import_count];
 
     for module_index in order {
         for import_index in &groups.by_module[module_index] {
@@ -202,6 +208,7 @@ pub fn prepare_authored_imports(
                 .ok_or(ImportError::MissingSource(import.source()))?;
             let tree = source.syntax();
             let authored = syntax::read(tree, import.node())?;
+            import_paths[*import_index] = Some(SyntaxOrigin::Node(authored.path));
             let visibility = resolve_authored(
                 &generics.headers.reserved,
                 import.source(),
@@ -271,6 +278,7 @@ pub fn prepare_authored_imports(
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         import_ids: import_ids.into_boxed_slice(),
+        import_paths: import_paths.into_boxed_slice(),
     })
 }
 

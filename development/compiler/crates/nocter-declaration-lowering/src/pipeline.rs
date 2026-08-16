@@ -173,8 +173,18 @@ pub fn lower_compile_unit_declarations(
         }
         Err(internal) => return Err(DeclarationLoweringError::InternalImport(internal)),
     };
-    let namespaces =
-        apply_standard_prelude(imports, prelude).map_err(DeclarationLoweringError::Prelude)?;
+    let namespaces = match apply_standard_prelude(imports, prelude) {
+        Ok(namespaces) => namespaces,
+        Err(PreludeError::Rule(violation)) => {
+            return match ImportDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Import(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::Prelude(PreludeError::Rule(
+                    internal,
+                ))),
+            };
+        }
+        Err(internal) => return Err(DeclarationLoweringError::Prelude(internal)),
+    };
     let bound = match bind_header_type_syntax(namespaces) {
         Ok(bound) => bound,
         Err(TypeBindingError::Rule(violation)) => {
@@ -636,6 +646,67 @@ mod tests {
         assert_eq!(diagnostic.source().code(), "E0260");
         assert_eq!(diagnostic.source().primary().source(), app_id);
         assert!(diagnostic.source().primary().token().is_some());
+        assert!(diagnostic.source().notes().is_empty());
+    }
+
+    #[test]
+    fn production_pipeline_projects_the_explicit_prelude_path() {
+        let text = "use std/prelude.String\n";
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(
+            &mut sources,
+            "/std/prelude/index.nct",
+            "pub struct String {}\n",
+        );
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package(
+                    "toolchain:std",
+                    "std",
+                    "/std/nocter.nct",
+                    &standard_manifest,
+                ),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &app),
+                module("toolchain:std", &[], "/std/index.nct", &standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    &prelude,
+                ),
+            ],
+            vec![module_use(&app, 0, prelude_identity.clone())],
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::Import(diagnostic) = error else {
+            panic!("explicit prelude import did not produce an import diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), ImportRule::CompilerManagedPreludeImport);
+        assert_eq!(diagnostic.source().code(), "E0262");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().node().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.find("std/prelude").unwrap()).unwrap()
+        );
         assert!(diagnostic.source().notes().is_empty());
     }
 

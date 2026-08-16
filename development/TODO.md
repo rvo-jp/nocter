@@ -8,13 +8,13 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Audit prelude composition failures. Compiler-selected authority and inconsistent namespace state
-   remain internal; any authored prelude-import rule must retain its exact syntax subject.
-2. Extend the source-backed boundary to type normalization without turning malformed bound graphs
+1. Extend the source-backed boundary to type normalization without turning malformed bound graphs
    into user-facing errors. Alias cycles and authored associated selections must retain the syntax
    subjects that selected them.
-3. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
+2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
+3. Close Phase 2 only after every production-facade failure is classified as an authored rule or an
+   explicit compiler/discovery integrity error.
 
 Complete foundations: the lowering boundary now defines every reserved declaration, member,
 parameter, requirement, body, and opaque-result identity from the normalized type graph; separates
@@ -44,6 +44,10 @@ Header type binding now projects `E0290`-`E0302`. Unknown names, invalid entitie
 `Self`, fixed-array lengths, callable parameter/provenance duplicates, opaque bindings, and generic
 requirements retain their exact syntax subjects when their rules are selected. Invalid parser
 snapshots, missing discovery state, and duplicate source-index insertion remain internal errors.
+Prelude composition reuses the import rule domain for `E0262`. Authored import preparation retains
+each module-path node alongside its semantic import identity, so the later compiler-selected
+prelude check reports the exact path without reparsing or reverse lookup. A missing selected
+prelude, a missing retained path, and program-builder authority failures remain internal.
 
 ## Guardrails
 

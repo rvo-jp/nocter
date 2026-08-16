@@ -148,6 +148,10 @@ be introduced to make an unresolved syntax choice.
   rules `E0290`-`E0302`. Resolved paths retain the token for each segment and the optional argument
   container; duplicate callable names, provenance origins, and opaque bindings retain both authored
   tokens. The diagnostic layer consequently performs neither name lookup nor tree search.
+  Prelude composition adds no second import diagnostic system: authored import preparation retains
+  every module-path origin, and an explicit compiler-managed prelude import reuses `ImportRule`
+  `E0262`. Missing compiler-selected modules, missing retained origins, and invalid builder state
+  remain internal `PreludeError` variants.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
@@ -158,8 +162,8 @@ validation must identify the exact semantic subject so diagnostics can project i
 `SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
 do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
 guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
-  prelude composition and type normalization still require an authored-versus-internal failure
-  audit. No crate yet owns checked body semantics.
+  type normalization still requires an authored-versus-internal failure audit. No crate yet owns
+  checked body semantics.
 
 ## Verification
 

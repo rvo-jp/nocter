@@ -1,36 +1,47 @@
 use std::fmt;
 
+use super::access::{module_index_by_id, module_index_by_identity, visible_from};
+use super::{ModuleNamespace, PreparedImports, lookup};
+use crate::{ImportViolation, ModuleIdentity, SurfaceImportTarget};
 use nocter_declarations::{BuiltinAttachment, ExportedEntity, ProgramBuildError};
 use nocter_model::{ModuleId, Symbol};
 use nocter_syntax::NodeId;
 
-use super::access::{module_index_by_id, module_index_by_identity, visible_from};
-use super::{ModuleNamespace, PreparedImports, lookup};
-use crate::{ModuleIdentity, SurfaceImportTarget};
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PreludeError {
+    Rule(ImportViolation),
     UnknownModule(ModuleIdentity),
-    AuthoredPreludeImport(NodeId),
+    InconsistentImport(NodeId),
     Program(ProgramBuildError),
 }
 
 impl fmt::Display for PreludeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::UnknownModule(module) => {
                 write!(formatter, "standard prelude module {module:?} is absent")
             }
-            Self::AuthoredPreludeImport(declaration) => write!(
-                formatter,
-                "source-level import {declaration:?} targets the compiler-managed prelude"
-            ),
+            Self::InconsistentImport(import) => {
+                write!(formatter, "authored import {import:?} has no retained path")
+            }
             Self::Program(error) => error.fmt(formatter),
         }
     }
 }
 
 impl std::error::Error for PreludeError {}
+
+impl From<ImportViolation> for PreludeError {
+    fn from(violation: ImportViolation) -> Self {
+        Self::Rule(violation)
+    }
+}
 
 /// Authored namespaces plus compiler-managed standard-prelude fallback entries.
 #[derive(Debug)]
@@ -80,12 +91,15 @@ pub fn apply_standard_prelude<'syntax>(
         let reserved = &imports.generics.headers.reserved;
         let prelude_index = module_index_by_identity(reserved, prelude_module)
             .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
-        for import in &reserved.imports {
+        for (index, import) in reserved.imports.iter().enumerate() {
             if matches!(
                 import.target(),
                 SurfaceImportTarget::Module(target) if target == prelude_module
             ) {
-                return Err(PreludeError::AuthoredPreludeImport(import.node()));
+                let path = imports
+                    .import_path(index)
+                    .ok_or(PreludeError::InconsistentImport(import.node()))?;
+                return Err(ImportViolation::compiler_managed_prelude_import(path).into());
             }
         }
 

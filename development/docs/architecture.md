@@ -207,6 +207,12 @@ semantic import; declarations from their already-composed sources entered the mo
 the direct pass. The compiler-managed prelude remains a separate fallback layer so it cannot turn
 two authored collisions into priority rules.
 
+Import preparation retains the exact module-path node for every semantic module import. Prelude
+composition consumes that retained origin instead of reading the syntax tree again. An authored
+import of the compiler-selected standard prelude is therefore the shared import rule `E0262`, while
+a missing selected prelude, an absent retained origin, or rejected program authority is an internal
+composition failure.
+
 Header type binding owns a closed distinction between authored rules and broken compiler input.
 Authored name, entity-kind, arity, `Self`, fixed-array, callable provenance, opaque-binding, and
 requirement failures retain `SyntaxOrigin` values at rule selection and project `E0290`-`E0302`.

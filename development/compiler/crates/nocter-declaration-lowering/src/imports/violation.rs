@@ -6,6 +6,7 @@ pub enum ImportRule {
     MissingImportedName,
     InaccessibleImportedName,
     WideningReexport,
+    CompilerManagedPreludeImport,
 }
 
 impl ImportRule {
@@ -15,6 +16,7 @@ impl ImportRule {
             Self::MissingImportedName => "E0260",
             Self::InaccessibleImportedName => "E0412",
             Self::WideningReexport => "E0261",
+            Self::CompilerManagedPreludeImport => "E0262",
         }
     }
 
@@ -27,6 +29,9 @@ impl ImportRule {
             }
             Self::WideningReexport => {
                 "re-export visibility is wider than the selected name's visibility"
+            }
+            Self::CompilerManagedPreludeImport => {
+                "source code imports the compiler-managed standard prelude"
             }
         }
     }
@@ -43,6 +48,9 @@ impl ImportRule {
             Self::WideningReexport => {
                 "narrow the re-export visibility to the selected name's visibility boundary"
             }
+            Self::CompilerManagedPreludeImport => {
+                "remove the import; the standard prelude is available implicitly"
+            }
         }
     }
 
@@ -52,7 +60,7 @@ impl ImportRule {
             Self::InaccessibleImportedName | Self::WideningReexport => {
                 Some("the selected name is declared here")
             }
-            Self::MissingImportedName => None,
+            Self::MissingImportedName | Self::CompilerManagedPreludeImport => None,
         }
     }
 }
@@ -90,6 +98,15 @@ impl ImportViolation {
             rule: ImportRule::WideningReexport,
             primary: visibility,
             related: Some(declaration),
+        }
+    }
+
+    #[must_use]
+    pub const fn compiler_managed_prelude_import(path: SyntaxOrigin) -> Self {
+        Self {
+            rule: ImportRule::CompilerManagedPreludeImport,
+            primary: path,
+            related: None,
         }
     }
 

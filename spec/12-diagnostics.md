@@ -80,6 +80,8 @@ Source-backed import diagnostics:
 
 - `E0260`: a selected import name does not exist in the target module.
 - `E0261`: a re-export visibility boundary is wider than the selected name's visibility boundary.
+- `E0262`: source code explicitly imports the compiler-managed standard prelude. The primary span
+  is the authored module path; ordinary source modules receive that prelude implicitly.
 - `E0412`: a selected import name is outside its declared visibility boundary from the importing
   module.
 

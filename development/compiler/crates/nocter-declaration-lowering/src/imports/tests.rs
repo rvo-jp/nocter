@@ -641,5 +641,9 @@ fn source_code_cannot_import_the_compiler_managed_prelude() {
 
     let error = apply_standard_prelude(imports, &prelude_identity).unwrap_err();
 
-    assert!(matches!(error, PreludeError::AuthoredPreludeImport(_)));
+    assert!(matches!(
+        error,
+        PreludeError::Rule(violation)
+            if violation.rule() == crate::ImportRule::CompilerManagedPreludeImport
+    ));
 }
