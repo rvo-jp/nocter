@@ -298,6 +298,8 @@ Required diagnostic families:
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
+- Reachable value-producing result expression in a `while`, `loop`, range `for`, or collection
+  `for` body. Loop statements do not implicitly discard iteration results.
 - Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.

@@ -188,6 +188,11 @@ match &pair {
 }
 ```
 
+## Loop Bodies
+
+Loop bodies do not produce values. Their final reachable expression must be `void` or `never`; use
+`let _ = expression` when an iteration intentionally discards a value.
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.

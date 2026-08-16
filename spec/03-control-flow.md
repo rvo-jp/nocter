@@ -148,6 +148,9 @@ Rules:
 - A body without a result expression has type `void` unless all reachable paths terminate with `return`, `break`, `continue`, or `never`.
 - A body whose reachable paths all terminate has type `never`.
 - Function, method, drop, `if`, `if is`, `match`, loop, and `catch` bodies use this same body form.
+- A loop body is still checked as a body, but the enclosing loop is a statement and has no consumer
+  for a body result. Its reachable body result must therefore have type `void` or `never`.
+  Explicitly discard any other final expression with `let _ = expression` inside the body.
 - A function or method body result is a return value for the declared return type.
 - Explicit `return` remains valid when an early exit is clearer or required.
 - A `void` function may have no body result and may reach the end of the body.
@@ -359,6 +362,9 @@ Rules:
 - `continue` skips to the next iteration of the innermost loop.
 - `break value` is not supported.
 - Loops are statements and do not produce values.
+- The reachable result expression of a `while`, `loop`, range `for`, or collection `for` body must
+  have type `void` or `never`. A value-producing final expression is not implicitly discarded on
+  each iteration; use `let _ = expression`.
 - Exiting a loop runs the normal scope-end `drop` behavior for values whose scopes end.
 - `break` and `continue` run the same cleanup for scopes they leave.
 
