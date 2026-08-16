@@ -15,6 +15,7 @@ mod input;
 mod pipeline;
 mod reservation;
 mod surface;
+mod surface_diagnostic;
 mod text;
 mod topology;
 mod types;
@@ -47,6 +48,7 @@ pub use surface::{
     SurfaceError, SurfaceImport, SurfaceImportTarget, SurfaceSource, SurfaceSourceId,
     collect_declaration_surface,
 };
+pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};
 pub use types::{
     BoundCallableType, BoundCapability, BoundDeclarationPattern, BoundRequirementKind, BoundTypeId,

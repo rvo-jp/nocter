@@ -3,7 +3,10 @@ use std::fmt;
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::NodeId;
 
-use crate::{CallableContractError, DeclarationSurface, DiagnosticNote, SourceDiagnostic};
+use crate::{
+    CallableContractError, DeclarationSurface, DiagnosticNote, SourceDiagnostic,
+    diagnostic::origin_from_trees,
+};
 
 /// Stable source-level rule for public contract and private body joining.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -161,12 +164,10 @@ const fn related_node(error: CallableContractError) -> Option<NodeId> {
 }
 
 fn origin(surface: &DeclarationSurface<'_>, node: NodeId) -> Option<SourceOrigin> {
-    let tree = surface
-        .sources()
-        .iter()
-        .map(crate::SurfaceSource::syntax)
-        .find(|tree| tree.source() == node.source())?;
-    SourceOrigin::from_node(tree, node).ok()
+    origin_from_trees(
+        surface.sources().iter().map(crate::SurfaceSource::syntax),
+        node,
+    )
 }
 
 #[cfg(test)]

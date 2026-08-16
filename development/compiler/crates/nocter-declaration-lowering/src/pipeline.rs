@@ -3,8 +3,8 @@ use std::fmt;
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericError,
     HeaderDefinitionError, HeaderError, ImportError, LoweredDeclarations, ModuleIdentity,
-    PreludeError, ReservationError, SourceDiagnostic, SurfaceError, TypeBindingError,
-    TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
+    PreludeError, ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError,
+    TypeBindingError, TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
     bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
     normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
     prepare_generic_binders,
@@ -12,7 +12,8 @@ use crate::{
 
 #[derive(Debug)]
 pub enum DeclarationLoweringError {
-    Surface(SurfaceError),
+    Surface(SurfaceDiagnostic),
+    InternalSurface(SurfaceError),
     CallableContract(CallableContractDiagnostic),
     InternalContract(CallableContractError),
     Reservation(ReservationError),
@@ -33,9 +34,10 @@ impl DeclarationLoweringError {
     #[must_use]
     pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
+            Self::Surface(diagnostic) => Some(diagnostic.source()),
             Self::CallableContract(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
-            Self::Surface(_)
+            Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
             | Self::Header(_)
@@ -52,6 +54,7 @@ impl fmt::Display for DeclarationLoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Surface(error) => error.fmt(formatter),
+            Self::InternalSurface(error) => error.fmt(formatter),
             Self::CallableContract(error) => error.fmt(formatter),
             Self::InternalContract(error) => error.fmt(formatter),
             Self::Reservation(error) => error.fmt(formatter),
@@ -82,7 +85,15 @@ pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
     prelude: &ModuleIdentity,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    let surface = collect_declaration_surface(input).map_err(DeclarationLoweringError::Surface)?;
+    let surface = match collect_declaration_surface(input) {
+        Ok(surface) => surface,
+        Err(error) => {
+            return match SurfaceDiagnostic::project(error, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Surface(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalSurface(internal)),
+            };
+        }
+    };
     let contracts = match analyze_callable_contracts(&surface) {
         Ok(contracts) => contracts,
         Err(error) => {
@@ -112,11 +123,60 @@ mod tests {
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
+    use crate::test_support::source_use;
     use crate::{
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, ModuleIdentity,
         ModuleInput, ModuleSourceInput, ModuleSourceKind, PackageDeclarationInput, PackageIdentity,
         PackageInput, PackageMode, lower_compile_unit_declarations,
     };
+
+    #[test]
+    fn production_pipeline_projects_surface_diagnostics() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "use ./private\n");
+        let implementation_id = add_source(
+            &mut sources,
+            "/app/private.nct",
+            "pub func exposed(): void {}\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![ModuleInput::new(
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                    ModuleSourceInput::new(
+                        "/app/private.nct",
+                        ModuleSourceKind::Implementation,
+                        &implementation,
+                    ),
+                ],
+            )],
+            vec![source_use(&root, 0, "/app/private.nct")],
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.source_diagnostic().map(crate::SourceDiagnostic::code),
+            Some("E0230")
+        );
+        assert!(matches!(error, DeclarationLoweringError::Surface(_)));
+    }
 
     #[test]
     fn production_pipeline_projects_callable_contract_diagnostics() {

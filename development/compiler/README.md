@@ -130,7 +130,8 @@ be introduced to make an unresolved syntax choice.
   related notes, and correction guidance. A stage-specific diagnostic retains the semantic rule
   identity separately from that presentation envelope. Compiler-state inconsistencies remain typed
   internal errors and are never assigned a language diagnostic code merely because they crossed the
-  production facade.
+  production facade. Module-surface diagnostics select only authored root-versus-implementation
+  violations; malformed syntax snapshots and incomplete discovery edges stay internal.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

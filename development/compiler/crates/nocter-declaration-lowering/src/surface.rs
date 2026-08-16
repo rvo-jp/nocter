@@ -405,9 +405,9 @@ fn collect_source(
         match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::UseDeclaration) => {
                 if source.kind() == ModuleSourceKind::Implementation
-                    && direct_child(tree, child, NodeKind::Visibility).is_some()
+                    && let Some(visibility) = direct_child(tree, child, NodeKind::Visibility)
                 {
-                    return Err(SurfaceError::ImplementationVisibility(child));
+                    return Err(SurfaceError::ImplementationVisibility(visibility));
                 }
                 let resolution = use_resolutions
                     .get(&(child.source(), child.index()))

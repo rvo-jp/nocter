@@ -232,10 +232,11 @@ diagnostic cannot create a second attachment or declaration-shape evaluator.
 All source-backed declaration-lowering diagnostics share one envelope containing a stable code,
 primary source origin, zero or more related source notes, and optional correction guidance. The
 envelope does not select a rule. Contract joining projects its exact syntax subjects into the
-envelope before reservation; freeze-time validation projects semantic declaration-site subjects
-through the completed source index. Stage-specific wrappers preserve the selected rule identity.
-Errors that indicate inconsistent compiler state stay outside this envelope and have no public
-language code.
+envelope before reservation; module-surface validation does the same only for authored root-versus-
+implementation rules. Freeze-time validation projects semantic declaration-site subjects through
+the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
+that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler
+state stay outside this envelope and have no public language code.
 
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual

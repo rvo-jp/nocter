@@ -61,6 +61,14 @@ Spanless CLI diagnostic codes:
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
 - `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
 
+Source-backed module-surface diagnostics:
+
+- `E0230`: an implementation source declares non-private visibility.
+- `E0231`: an implementation source declares a stored field or interface requirement owned
+  exclusively by the module root source.
+- `E0232`: a construction contract member in a module root source omits its required explicit
+  non-private visibility.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

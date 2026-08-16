@@ -1,4 +1,5 @@
 use nocter_source_index::SourceOrigin;
+use nocter_syntax::{NodeId, SyntaxTree};
 
 /// One source-backed note related to a primary diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,6 +80,16 @@ impl SourceDiagnostic {
     pub fn help(&self) -> Option<&str> {
         self.help.as_deref()
     }
+}
+
+pub(crate) fn origin_from_trees<'syntax>(
+    trees: impl IntoIterator<Item = &'syntax SyntaxTree>,
+    node: NodeId,
+) -> Option<SourceOrigin> {
+    let tree = trees
+        .into_iter()
+        .find(|tree| tree.source() == node.source())?;
+    SourceOrigin::from_node(tree, node).ok()
 }
 
 #[cfg(test)]
