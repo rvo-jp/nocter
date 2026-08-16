@@ -386,11 +386,14 @@ for item in &+values {
 
 - `&expression` selects the source type's readonly expansion operator.
 - `&+expression` selects its readwrite expansion operator and holds an exclusive source loan.
-- `move expression` first uses the source directly when its type implements the trusted iterator
-  contract. In that direct mode, an existing move-only source must be an eligible explicit move
-  place under the ordinary ownership rules. Otherwise the form selects the source type's owned
-  expansion operator. A type that has both direct iterator conformance and an owned expansion uses
-  direct iteration; this priority is fixed and does not form an overload set.
+- `move place` first uses the source directly when its type implements the trusted iterator
+  contract. Otherwise the form selects the source type's owned expansion operator. A type that has
+  both direct iterator conformance and an owned expansion uses direct iteration; this priority is
+  fixed and does not form an overload set.
+- The `move` in a collection-loop source is the ordinary move expression, not a separate capability
+  marker. Its operand must be an existing move-only local, parameter, or eligible named struct
+  field. `for item in move make_values()` is invalid. Bind a newly produced collection first, then
+  iterate with `move binding`.
 - A bare expression is accepted only when its type already implements the trusted iterator
   contract, and ordinary ownership rules still apply. A new iterator temporary may be used
   directly. A copyable iterator place is copied. An existing move-only iterator place requires

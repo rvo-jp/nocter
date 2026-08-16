@@ -289,6 +289,8 @@ Required diagnostic families:
 - Use after `move`.
 - Use after explicit `drop`.
 - Existing move-only iterator place used as a bare collection-loop source without `move`.
+- Newly produced value, call result, or other non-place expression used as the operand of `move` in
+  a collection-loop source or sequence spread.
 - Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.

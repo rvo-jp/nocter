@@ -289,7 +289,13 @@ for item in make_iterator() { ... }
 ```
 
 An existing move-only iterator is formatted with `move`; formatting never removes that required
-ownership transfer.
+ownership transfer. A newly produced collection that requires owned expansion is first bound, then
+moved:
+
+```nct
+let values = make_values()
+for item in move values { ... }
+```
 
 ## Comments
 

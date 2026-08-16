@@ -119,6 +119,14 @@ any layout.
 A bare spread never guesses that a move-only source should be consumed. Ownership transfer requires
 `...move`.
 
+The `move` operand must satisfy the ordinary move-place rules. It cannot be a call result, literal,
+or other newly produced temporary. Bind a new collection or iterator before spreading it:
+
+```nct
+let source = make_values()
+let joined = Vec [...move source]
+```
+
 Each spread source uses the same direct-iterator-first selection used by collection iteration. For
 `...move source`, direct iterator conformance has fixed priority over an owned expansion. The
 selected iterator must provide an exact remaining count; the compiler does not retry an owned

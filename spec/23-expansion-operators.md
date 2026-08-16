@@ -85,6 +85,10 @@ A bare direct-iterator expression follows ordinary ownership rules. A new tempor
 owned by the loop, a copyable iterator place is copied, and an existing move-only iterator place
 requires `move`. A bare collection is rejected rather than guessed as readonly or consuming.
 
+`move` remains the ordinary place-only move expression in this grammar. A newly produced collection
+cannot be written as `for item in move make_values()`. Bind it first and move that binding. A newly
+produced direct iterator needs no prefix and remains valid as `for item in make_iterator()`.
+
 The source expression is evaluated once. The resulting iterator is advanced through its selected
 `Iterator.next` declaration. Absence ends the loop without initializing an item. Cleanup for
 normal completion, `continue`, `break`, `return`, and propagation follows the ordinary ownership
@@ -109,6 +113,8 @@ let owned = Vec [...move source]
 - `...move source` accepts a direct owning iterator when the source type conforms to `Iterator`;
   otherwise it selects owned expansion. Direct iterator conformance has fixed priority when both
   are present.
+- The operand of `...move` must be an eligible existing move-only place. A call, literal, or other
+  newly produced temporary must first be stored in a binding.
 - Every spread iterator must also conform to `ExactSizeIterator`.
 - A directly selected iterator that lacks `ExactSizeIterator` is rejected; selection does not fall
   back to an owned expansion.

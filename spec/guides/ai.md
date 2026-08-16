@@ -202,6 +202,14 @@ for item in move iterator { consume(move item) }
 for item in make_iterator() { consume(move item) }
 ```
 
+`move` always requires an existing move-only place, including in iteration and spread. Bind a new
+collection before requesting owned expansion:
+
+```nct
+let values = make_values()
+for item in move values { consume(move item) }
+```
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.

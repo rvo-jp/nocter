@@ -439,6 +439,9 @@ Rules:
 - A place cannot be moved while it conflicts with an active borrow.
 - `move` describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.
 - Moving a newly constructed value is unnecessary and invalid.
+- This restriction also applies under collection iteration and sequence spread. `move` in
+  `for item in move source` and `...move source` is the ordinary place-only move expression, not a
+  contextual ownership selector for a newly produced value.
 - Moving from an index, dereference, call result, postfix `?` expression, conditional expression,
   or parenthesized complex expression is invalid.
 - Partial moves are field-sensitive only for statically named struct fields. Index moves from
