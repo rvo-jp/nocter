@@ -1,7 +1,9 @@
 [workspace]
 members = [
+    "crates/nocter-declarations",
     "crates/nocter-model",
     "crates/nocter-source",
+    "crates/nocter-source-index",
     "crates/nocter-syntax",
 ]
 resolver = "3"

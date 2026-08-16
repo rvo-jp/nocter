@@ -52,13 +52,20 @@ be introduced to make an unresolved syntax choice.
   normalized parameter-origin sets, and interned structural types. It has no crate dependencies;
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
   keys.
+- `nocter-declarations` owns the immutable declaration-program spine: exact package-and-module
+  identities, normalized visibility boundaries, authored declaration sites, and the compile-unit
+  type store. It depends only on `nocter-model`.
+- `nocter-source-index` owns the separate immutable projection between semantic entities and exact
+  syntax origins. It indexes the same bindings independently by semantic identity and by source
+  coordinate; semantic stages do not depend on it.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The Phase 2 lowering boundary will connect syntax to `nocter-model` while keeping its source index
-separate. No crate yet owns a declaration graph, header resolution, or checked body semantics.
+The next Phase 2 lowering boundary will populate the declaration arenas and source index together,
+then discard its mutable builders. No crate yet owns declaration header resolution or checked body
+semantics.
 
 ## Verification
 

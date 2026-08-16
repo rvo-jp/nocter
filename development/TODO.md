@@ -8,10 +8,10 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Add the immutable `DeclarationProgram` arenas and a separate `SourceIndex`; only the latter may
-   contain source and syntax identities.
-2. Lower package and module surfaces into one deterministic compile-unit declaration graph without
-   resolving body expressions or introducing checked semantics.
+1. Extend the immutable `DeclarationProgram` spine with complete declaration, member, generic,
+   callable, requirement, and body arenas derived from the specification.
+2. Add a syntax-to-declaration lowering crate that canonicalizes package/module/declaration input,
+   then freezes one declaration program and its separate `SourceIndex` without checking bodies.
 3. Resolve declaration headers, aliases, associated declarations, and generic requirements into
    the existing structural type store. Record semantic-boundary diagnostics independently from
    syntax recovery.

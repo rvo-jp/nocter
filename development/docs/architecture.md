@@ -91,6 +91,20 @@ table built by sorting and deduplicating the complete input set, so symbol IDs d
 source discovery order. Symbol IDs support lookup and presentation metadata only; nominal,
 associated, generic, callable, and opaque semantic IDs form type identity.
 
+`nocter-declarations` owns immutable typed arenas addressed by those ID domains. A consumed builder
+is the only mutation path. Exact module identity is a package identity paired with a normalized
+directory path; `.` and `..` never enter that path. Authored visibility is resolved once to private,
+an ancestor-module descendant boundary, the declaring package, or all packages. Later lookup never
+reinterprets `pub(../)` from a physical source path. The crate depends only on `nocter-model`, so a
+semantic consumer cannot acquire source or syntax access through the declaration graph.
+
+`nocter-source-index` is a sibling projection, not a field that defines declaration identity. It
+stores semantic-to-source bindings twice in immutable deterministic orders: once for lookup by
+semantic entity and once for lookup by source coordinate. Contract declarations, separate
+implementations, and references remain explicit roles. Structural `TypeId` values are not source
+entities because one interned type can occur at many sites; source type uses attach to their owning
+declaration or checked expression instead.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no

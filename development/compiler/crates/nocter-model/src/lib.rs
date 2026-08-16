@@ -4,11 +4,13 @@
 //! values, but later compiler stages consume them without gaining a reverse path to syntax trees,
 //! source ranges, or rendered type spellings.
 
+mod arena;
 mod id;
 mod origin;
 mod symbol;
 mod type_store;
 
+pub use arena::{Arena, ArenaBuilder};
 pub use id::{
     AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstructionId, DeclarationSiteId, DropId,
     FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, ModuleId, NominalTypeId,
