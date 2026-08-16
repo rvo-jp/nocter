@@ -340,7 +340,7 @@ mod tests {
     use super::{DeclarationArenaBuilder, DefinitionError};
     use crate::{
         CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
-        DeclarationProgramBuilder, ModulePath,
+        CallableProvenanceContract, DeclarationProgramBuilder, ModulePath,
     };
 
     #[test]
@@ -366,7 +366,7 @@ mod tests {
                 [],
                 [],
                 result,
-                CallableProvenance::empty(),
+                CallableProvenanceContract::declared(CallableProvenance::empty()),
                 [],
                 None,
                 None,

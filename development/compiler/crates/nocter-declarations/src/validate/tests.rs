@@ -2,10 +2,10 @@ use nocter_model::{BuiltinType, CallableCapability, SymbolTable, TypeKind};
 
 use crate::{
     Body, BodyOwner, CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
-    DeclarationDomain, DeclarationProgramBuilder, FieldDeclaration, GenericOwner, GenericParameter,
-    InstanceDeclaration, ModulePath, NominalShape, NominalTypeDeclaration, Parameter,
-    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError, ProvenanceOrigin,
-    Visibility,
+    CallableProvenanceContract, DeclarationDomain, DeclarationProgramBuilder, FieldDeclaration,
+    GenericOwner, GenericParameter, InstanceDeclaration, ModulePath, NominalShape,
+    NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole, ProgramBuildError,
+    ProgramIntegrityError, ProvenanceOrigin, Visibility,
 };
 
 #[test]
@@ -156,7 +156,9 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
                 [],
                 [],
                 result,
-                CallableProvenance::from_origins([ProvenanceOrigin::Receiver]).unwrap(),
+                CallableProvenanceContract::declared(
+                    CallableProvenance::from_origins([ProvenanceOrigin::Receiver]).unwrap(),
+                ),
                 [],
                 Some(body),
                 None,

@@ -141,7 +141,12 @@ fn validate_callables(program: &DeclarationProgram) -> Result<(), ProgramIntegri
                 ));
             }
         }
-        for origin in callable.provenance().origins() {
+        for origin in callable
+            .provenance()
+            .declared_origins()
+            .into_iter()
+            .flatten()
+        {
             match origin {
                 ProvenanceOrigin::Receiver if callable.receiver().is_none() => {
                     return Err(ProgramIntegrityError::InvalidCallableShape);

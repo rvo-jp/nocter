@@ -21,8 +21,8 @@ pub use arenas::{
 };
 pub use callable::{
     Body, BodyOwner, CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
-    DuplicateCallableOrigin, LiteralShape, Parameter, ParameterOwner, ParameterRole,
-    ProvenanceOrigin,
+    CallableProvenanceContract, DuplicateCallableOrigin, LiteralShape, Parameter, ParameterOwner,
+    ParameterRole, ProvenanceOrigin,
 };
 pub use declaration::{
     AssociatedTypeBinding, AssociatedTypeDeclaration, ConformanceDeclaration,

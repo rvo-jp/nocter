@@ -107,6 +107,38 @@ impl fmt::Display for DuplicateCallableOrigin {
 
 impl std::error::Error for DuplicateCallableOrigin {}
 
+/// The source-level provenance contract retained before body checking.
+///
+/// A declared contract is already an exact caller-visible upper bound. An inferred contract must
+/// remain unresolved until a source body or trusted primitive definition produces its checked
+/// provenance summary. Keeping that distinction here prevents declaration lowering from guessing
+/// body semantics.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum CallableProvenanceContract {
+    Inferred,
+    Declared(CallableProvenance),
+}
+
+impl CallableProvenanceContract {
+    #[must_use]
+    pub const fn inferred() -> Self {
+        Self::Inferred
+    }
+
+    #[must_use]
+    pub const fn declared(provenance: CallableProvenance) -> Self {
+        Self::Declared(provenance)
+    }
+
+    #[must_use]
+    pub const fn declared_origins(&self) -> Option<&[ProvenanceOrigin]> {
+        match self {
+            Self::Inferred => None,
+            Self::Declared(provenance) => Some(provenance.origins()),
+        }
+    }
+}
+
 /// One callable contract after header resolution and before body checking.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallableDeclaration {
@@ -118,7 +150,7 @@ pub struct CallableDeclaration {
     generic_parameters: Box<[GenericParameterId]>,
     parameters: Box<[ParameterId]>,
     result: TypeId,
-    provenance: CallableProvenance,
+    provenance: CallableProvenanceContract,
     requirements: Box<[RequirementId]>,
     body: Option<BodyId>,
     target_gate: Option<Symbol>,
@@ -136,7 +168,7 @@ impl CallableDeclaration {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         parameters: impl Into<Box<[ParameterId]>>,
         result: TypeId,
-        provenance: CallableProvenance,
+        provenance: CallableProvenanceContract,
         requirements: impl Into<Box<[RequirementId]>>,
         body: Option<BodyId>,
         target_gate: Option<Symbol>,
@@ -198,7 +230,7 @@ impl CallableDeclaration {
     }
 
     #[must_use]
-    pub const fn provenance(&self) -> &CallableProvenance {
+    pub const fn provenance(&self) -> &CallableProvenanceContract {
         &self.provenance
     }
 
