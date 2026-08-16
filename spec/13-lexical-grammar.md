@@ -93,9 +93,10 @@ Rules:
   inherent member type positions. It is not a valid binding, declaration, field,
   variant, module, type parameter, or import alias name.
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
-- A single `_` is the wildcard or discard spelling in pattern positions and in the local discard
-  initializer `let _ = expression`. A discard initializer creates no binding. `_` is not a valid
-  binding, declaration, field, variant, type parameter, or import alias name.
+- A single `_` is the one-slot wildcard or discard spelling in enum payload pattern positions and
+  in the local discard initializer `let _ = expression`. It never abbreviates multiple enum
+  payload positions. A discard initializer creates no binding. `_` is not a valid binding,
+  declaration, field, variant, type parameter, or import alias name.
 - Identifiers beginning with `_` are otherwise valid.
 
 Reserved keyword tokens:
@@ -253,6 +254,8 @@ Rules:
 - Non-delimited sequences such as a `where` predicate clause, struct declaration fields, enum
   variants, match arms, and body statements retain their own separator rules and do not gain a
   trailing comma.
+- Enum declaration payloads, variant constructor arguments, and enum pattern payload slots are
+  comma-delimited lists. Pattern payload slots additionally require exact declaration arity.
 - Source formatting, not parsing, determines whether the accepted trailing comma appears in
   canonical output.
 

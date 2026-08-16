@@ -182,9 +182,10 @@
   parser diagnostic and do not produce a compatibility AST.</li><li><code>trait</code> is not a reserved keyword. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.</li><li><code>Self</code> has identifier spelling but is reserved as contextual type syntax in
   inherent member type positions. It is not a valid binding, declaration, field,
-  variant, module, type parameter, or import alias name.</li><li><code>error</code> is not a reserved keyword. In type positions, the exact spelling <code>error</code> is compiler built-in type syntax. In value positions, it is an ordinary identifier, so <code>catch error { ... }</code> binds a local value named <code>error</code>.</li><li>A single <code>_</code> is the wildcard or discard spelling in pattern positions and in the local discard
-  initializer <code>let _ = expression</code>. A discard initializer creates no binding. <code>_</code> is not a valid
-  binding, declaration, field, variant, type parameter, or import alias name.</li><li>Identifiers beginning with <code>_</code> are otherwise valid.</li></ul><p>Reserved keyword tokens:</p><pre><code class="language-text">as
+  variant, module, type parameter, or import alias name.</li><li><code>error</code> is not a reserved keyword. In type positions, the exact spelling <code>error</code> is compiler built-in type syntax. In value positions, it is an ordinary identifier, so <code>catch error { ... }</code> binds a local value named <code>error</code>.</li><li>A single <code>_</code> is the one-slot wildcard or discard spelling in enum payload pattern positions and
+  in the local discard initializer <code>let _ = expression</code>. It never abbreviates multiple enum
+  payload positions. A discard initializer creates no binding. <code>_</code> is not a valid binding,
+  declaration, field, variant, type parameter, or import alias name.</li><li>Identifiers beginning with <code>_</code> are otherwise valid.</li></ul><p>Reserved keyword tokens:</p><pre><code class="language-text">as
 break
 catch
 continue
@@ -263,7 +264,8 @@ std/process
   lines.</li><li>The same rule applies when an explicit grammar token such as the closure-capture <code>;</code> ends one
   comma-delimited segment inside a larger delimiter pair.</li><li>Two adjacent commas and more than one trailing comma are invalid.</li><li>A comma is invalid outside a grammar position that declares a comma-delimited list or separator.</li><li>Non-delimited sequences such as a <code>where</code> predicate clause, struct declaration fields, enum
   variants, match arms, and body statements retain their own separator rules and do not gain a
-  trailing comma.</li><li>Source formatting, not parsing, determines whether the accepted trailing comma appears in
+  trailing comma.</li><li>Enum declaration payloads, variant constructor arguments, and enum pattern payload slots are
+  comma-delimited lists. Pattern payload slots additionally require exact declaration arity.</li><li>Source formatting, not parsing, determines whether the accepted trailing comma appears in
   canonical output.</li></ul><p>For example, all of these are syntactically valid before formatting:</p><pre><code class="language-nct"><span class="token-function">call</span><span class="token-operator">(</span>first<span class="token-operator">,</span> second<span class="token-operator">)</span>
 <span class="token-function">call</span><span class="token-operator">(</span>first<span class="token-operator">,</span> second<span class="token-operator">,</span><span class="token-operator">)</span>
 <span class="token-keyword">let</span> values <span class="token-operator">=</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">,</span><span class="token-operator">]</span>

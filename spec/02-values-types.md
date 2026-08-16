@@ -793,6 +793,30 @@ match error {
 }
 ```
 
+Enum patterns are shallow and positional:
+
+```text
+EnumPattern = EnumName "." VariantName
+            | EnumName "." VariantName "(" DelimitedList(PayloadSlot) ")"
+PayloadSlot = identifier | "_"
+```
+
+The payload list uses the common comma-delimited-list grammar. A payloadless variant uses the first
+form. A payload-bearing variant uses the second form and supplies exactly one slot for every
+declared payload field.
+
+```nct
+enum Pair {
+    values(left: String, right: String)
+}
+
+match &pair {
+    Pair.values(_, right) {
+        inspect(right) // right: &String
+    }
+}
+```
+
 The pattern target chooses how payload names are bound. Borrowed matching inspects an enum without
 extracting its payload:
 
@@ -831,6 +855,17 @@ Rules:
 
 - `match` may be used as a statement or as an expression.
 - Match arms use `Pattern { ... }`.
+- A variant pattern must use the exact enum qualifier and variant name selected by the target enum
+  type.
+- Payload pattern slots are positional and their count must equal the variant payload arity.
+- An identifier slot introduces one branch-local binding for the payload field at that position.
+  It does not need to repeat the field's declaration name.
+- `_` always occupies exactly one payload position and introduces no binding. Ignoring every field
+  of a multi-payload variant requires one `_` for each field, such as `Pair.values(_, _)`.
+- `Pair.values(_)` is therefore an arity error when `values` has two payload fields. `_` never
+  abbreviates an entire payload list.
+- Nested patterns, literal patterns, binding modifiers, field-name patterns, and rest patterns are
+  not supported.
 - `_ { ... }` is the fallback arm and matches any remaining value.
 - A `match` may have at most one `_` fallback arm.
 - The `_` fallback arm must be the last arm.
@@ -888,8 +923,10 @@ Rules:
 - Scope-end cleanup, parameter cleanup, explicit discard initializers, call-result temporaries,
   assignment replacement, and partial control-flow cleanup all use the same active-variant rule.
 - Payload names in a pattern are bound only inside that arm block.
-- `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
-  payload to exist and discards it without introducing a binding.
+- `_` inside a payload pattern, such as `AppError.open_failed(_)`, occupies exactly one declared
+  payload position without introducing a binding. For a consumed target, that unnamed owned field
+  remains under pattern-operation temporary cleanup. For a borrowed or retained target, the field
+  is neither copied nor moved.
 - `_` by itself is valid only as the `match` fallback arm. It is not a valid
   `if is` pattern.
 
@@ -923,8 +960,8 @@ Rules:
 - `if` pattern targets use the same owned, copied, readonly-borrowed, readwrite-borrowed, and moved
   binding modes as `match`.
 - Payload names are bound only inside the then body.
-- `if enum_expr is Enum.variant(_)` checks only the variant and discards the
-  payload without introducing a binding.
+- `if enum_expr is Enum.variant(_)` checks only the variant of a one-payload enum case and ignores
+  that payload without introducing a binding. A multi-payload variant requires one slot per field.
 - `else` may be used for the non-matching case.
 - `else` is optional.
 - `else if enum_expr is Pattern` is allowed.

@@ -166,6 +166,8 @@ Rules:
   readwrite borrows, and `move value` to consume an existing move-only enum and own its payload.
 - Do not add borrow markers to individual payload names. Every payload binding follows the pattern
   target capability.
+- Supply one positional identifier or `_` for every payload field. `_` ignores exactly one field;
+  it never stands for a complete multi-field payload.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
 
@@ -173,6 +175,12 @@ Rules:
 match &message {
     Message.text(text) { print(text as &str)? } // text: &String
     _ { ... }
+}
+```
+
+```nct
+match &pair {
+    Pair.values(_, right) { inspect(right) }
 }
 ```
 

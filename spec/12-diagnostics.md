@@ -302,6 +302,9 @@ Required diagnostic families:
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.
 - `if is` enum pattern whose enum or variant does not match the target enum type.
+- Enum pattern payload arity mismatch, including one `_` used for a variant with more than one
+  payload field.
+- Unsupported nested, literal, binding-modifier, field-name, or rest pattern syntax.
 - Owned move-only enum payload binding from an existing enum place without an explicit `move`
   pattern target, or a `move` pattern target whose operand is not an eligible move place.
 - Readwrite-borrowed enum pattern target created from a non-writable place or while a conflicting

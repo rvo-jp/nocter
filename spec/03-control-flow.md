@@ -177,8 +177,9 @@ Rules:
   [Enums and Variant Construction](02-values-types.md#enums-and-variant-construction). In
   particular, `&Enum` binds `&Payload`, `&+Enum` binds `&+Payload`, and `move place` binds owned
   payload values while consuming the place.
-- `if expr is Enum.variant(_)` checks the variant and discards the payload
-  without introducing a binding.
+- `if expr is Enum.variant(_)` checks a one-payload variant without introducing a binding. Enum
+  patterns have exact positional arity, so every field of a multi-payload variant needs its own
+  identifier or `_` slot.
 - `else if ...` is syntax for an `else` body whose result is another `if` expression.
 - `match enum_expr { ... }` and `match enum_expr { ... _ { ... } }` may be used as statements or expressions.
 - A `match` expression without `_` must cover all variants to avoid a `void` missing-branch type.
