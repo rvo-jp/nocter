@@ -4,8 +4,9 @@ use nocter_model::BuiltinType;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CheckedControl, CheckedOperation, ConstantValue, LogicalOperation, PrimitiveBinary,
-    PrimitiveComparison, PrimitiveOperation, PrimitiveUnary, prepare_program_checking,
+    CheckedControl, CheckedOperation, ComparisonImplementation, ComparisonOperation, ConstantValue,
+    LogicalOperation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ReadonlyOperandPreparation, StaticDispatch, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -139,12 +140,15 @@ fn primitive_comparisons_retain_the_strict_derivation() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Primitive(PrimitiveOperation::Comparison {
-                operation,
-                reverse,
-                negate,
-                ..
-            }) => Some((*operation, *reverse, *negate)),
+            CheckedOperation::Comparison(comparison)
+                if comparison.implementation() == &ComparisonImplementation::Primitive =>
+            {
+                Some((
+                    comparison.operation(),
+                    comparison.reverse(),
+                    comparison.negate(),
+                ))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -152,12 +156,12 @@ fn primitive_comparisons_retain_the_strict_derivation() {
     assert_eq!(
         operations,
         vec![
-            (PrimitiveComparison::Equal, false, false),
-            (PrimitiveComparison::Equal, false, true),
-            (PrimitiveComparison::Less, false, false),
-            (PrimitiveComparison::Less, true, true),
-            (PrimitiveComparison::Less, true, false),
-            (PrimitiveComparison::Less, false, true),
+            (ComparisonOperation::Equal, false, false),
+            (ComparisonOperation::Equal, false, true),
+            (ComparisonOperation::Less, false, false),
+            (ComparisonOperation::Less, true, true),
+            (ComparisonOperation::Less, true, false),
+            (ComparisonOperation::Less, false, true),
         ]
     );
 }
@@ -203,4 +207,188 @@ fn short_circuit_rhs_ownership_is_joined_with_the_bypass_path() {
     .unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0378");
+}
+
+#[test]
+fn direct_comparisons_borrow_move_only_places_and_retain_static_dispatch() {
+    let output = check(
+        "struct Rank { value: i32 }\ninstance Rank {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n    pub operator (&self < other: &Self): bool {\n        return self.value < other.value\n    }\n}\nfunc compare(left: Rank, right: Rank): i32 {\n    let _ = left == right\n    let _ = left >= right\n    left.value + right.value\n}\n",
+    )
+    .unwrap();
+    let comparisons = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison) => {
+                let ComparisonImplementation::Selected(selection) = comparison.implementation()
+                else {
+                    return None;
+                };
+                Some((
+                    comparison.operation(),
+                    comparison.reverse(),
+                    comparison.negate(),
+                    selection.dispatch(),
+                    comparison.left().preparation(),
+                    comparison.right().preparation(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(comparisons.len(), 2);
+    assert_eq!(comparisons[0].0, ComparisonOperation::Equal);
+    assert_eq!(comparisons[1].0, ComparisonOperation::Less);
+    assert_eq!((comparisons[1].1, comparisons[1].2), (false, true));
+    assert!(matches!(comparisons[0].3, StaticDispatch::Direct(_)));
+    assert!(matches!(comparisons[1].3, StaticDispatch::Direct(_)));
+    assert_eq!(
+        (comparisons[0].4, comparisons[0].5),
+        (
+            ReadonlyOperandPreparation::BorrowPlace,
+            ReadonlyOperandPreparation::BorrowPlace,
+        )
+    );
+}
+
+#[test]
+fn comparison_coercions_are_attached_to_source_operands_after_semantic_reversal() {
+    let output = check(
+        "struct Text { value: i32 }\nstruct Wrapper { value: Text }\ninstance Text {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n    pub operator (&self < other: &Self): bool {\n        return self.value < other.value\n    }\n}\ninstance Wrapper {\n    pub coerce &self as &Text {\n        return &self.value\n    }\n}\nfunc equal(left: Text, right: Wrapper): bool {\n    left == right\n}\nfunc greater(left: Wrapper, right: Text): bool {\n    left > right\n}\n",
+    )
+    .unwrap();
+    let comparisons = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison)
+                if matches!(
+                    comparison.implementation(),
+                    ComparisonImplementation::Selected(_)
+                ) =>
+            {
+                Some((
+                    comparison.operation(),
+                    comparison.reverse(),
+                    comparison.left().coercion().is_some(),
+                    comparison.right().coercion().is_some(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        comparisons,
+        vec![
+            (ComparisonOperation::Equal, false, false, true),
+            (ComparisonOperation::Less, true, true, false),
+        ]
+    );
+}
+
+#[test]
+fn exact_left_comparison_declaration_outranks_coercion_routes() {
+    let output = check(
+        "struct View { value: i32 }\nstruct Source { view: View }\ninstance View {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n}\ninstance Source {\n    pub operator (&self == other: &Self): bool {\n        return true\n    }\n    pub coerce &self as &View {\n        return &self.view\n    }\n}\nfunc same(left: Source, right: Source): bool {\n    left == right\n}\n",
+    )
+    .unwrap();
+    let comparisons = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison)
+                if matches!(
+                    comparison.implementation(),
+                    ComparisonImplementation::Selected(_)
+                ) =>
+            {
+                Some(comparison)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(comparisons.len(), 1);
+    assert!(comparisons[0].left().coercion().is_none());
+    assert!(comparisons[0].right().coercion().is_none());
+}
+
+#[test]
+fn generic_comparisons_dispatch_through_the_lexical_requirement() {
+    let output = check(
+        "func same<T>(left: &T, right: &T): bool where (&T == &T): bool {\n    left == right\n}\nfunc same_mut<T>(left: &+T, right: &T): bool where (&T == &T): bool {\n    left == right\n}\nfunc earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {\n    left < right\n}\n",
+    )
+    .unwrap();
+    let selections = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison) => match comparison.implementation() {
+                ComparisonImplementation::Selected(selection) => Some((
+                    selection.dispatch(),
+                    comparison.left().preparation(),
+                    comparison.right().preparation(),
+                )),
+                ComparisonImplementation::Primitive | ComparisonImplementation::Unreachable => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(selections.len(), 3);
+    assert!(
+        selections
+            .iter()
+            .all(|(dispatch, _, _)| matches!(dispatch, StaticDispatch::StructuralRequirement(_)))
+    );
+    assert_eq!(
+        (selections[1].1, selections[1].2),
+        (
+            ReadonlyOperandPreparation::WeakenReadwriteBorrow,
+            ReadonlyOperandPreparation::UseReadonlyBorrow,
+        )
+    );
+}
+
+#[test]
+fn conditional_comparison_instances_use_recursive_operation_proof() {
+    let output = check(
+        "struct Box<T> { value: T }\ninstance Box<T> where (&T == &T): bool, (&T < &T): bool {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n    pub operator (&self < other: &Self): bool {\n        return self.value < other.value\n    }\n}\nfunc compare(left: Box<i32>, right: Box<i32>): bool {\n    (left == right) || (left < right)\n}\n",
+    )
+    .unwrap();
+
+    let selected = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter(|(_, node)| {
+            matches!(
+                node.operation(),
+                CheckedOperation::Comparison(comparison)
+                    if matches!(comparison.implementation(), ComparisonImplementation::Selected(_))
+            )
+        })
+        .count();
+    assert_eq!(selected, 4);
+}
+
+#[test]
+fn ambiguous_comparison_coercion_targets_are_rejected() {
+    let error = check(
+        "struct First { value: i32 }\nstruct Second { value: i32 }\nstruct Source {\n    first: First\n    second: Second\n}\ninstance First {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n}\ninstance Second {\n    pub operator (&self == other: &Self): bool {\n        return self.value == other.value\n    }\n}\ninstance Source {\n    pub coerce &self as &First {\n        return &self.first\n    }\n    pub coerce &self as &Second {\n        return &self.second\n    }\n}\nfunc invalid(left: Source, right: Source): bool {\n    left == right\n}\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0389");
 }

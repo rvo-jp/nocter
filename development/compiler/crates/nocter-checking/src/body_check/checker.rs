@@ -66,10 +66,10 @@ enum BlockExpectation {
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
 ///
 /// The current construction slice accepts blocks, scalar literals, named places and field moves,
-/// readonly/readwrite borrows, built-in and selected index places, primitive operators, bindings,
-/// conditionals, short-circuit logic, while/infinite/integer-range loops, loop control, expression
-/// statements, body results, and returns. Other valid syntax is reported as an internal
-/// incomplete-implementation boundary; no
+/// readonly/readwrite borrows, built-in and selected index places, primitive and selected
+/// comparisons, primitive operators, bindings, conditionals, short-circuit logic,
+/// while/infinite/integer-range loops, loop control, expression statements, body results, and
+/// returns. Other valid syntax is reported as an internal incomplete-implementation boundary; no
 /// partial checked program escapes.
 ///
 /// # Errors
@@ -550,7 +550,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 }
                 NodeKind::ShiftExpression => return self.check_shift(current, expected),
                 NodeKind::EqualityExpression | NodeKind::OrderingExpression => {
-                    return self.check_primitive_comparison(current, expected);
+                    return self.check_comparison(current, expected);
                 }
                 NodeKind::LogicalAndExpression | NodeKind::LogicalOrExpression => {
                     return self.check_logical(current, expected);

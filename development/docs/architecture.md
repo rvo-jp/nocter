@@ -494,10 +494,13 @@ both syntax nodes. MIR never receives an out-of-range positive constant for the 
 Checked integer shift nodes distinguish left, unsigned-right, and signed-right operations and
 retain the validated source width. Machine lowering emits an explicit count-range trap before a
 target shift and cannot inherit the target instruction's count masking behavior.
-Checked primitive comparisons retain source operand order separately from strict-order reversal
-and result negation. Machine lowering always evaluates the source nodes left-to-right before using
-the derived semantic order. Short-circuit logic is a control operation whose ownership state joins
-the executed RHS edge with the bypass edge; it never enters an eager binary-operation lowering.
+Checked comparisons retain source operand order separately from strict-order reversal and result
+negation. Each operand records whether lowering borrows a place or temporary, uses a readonly
+borrow, weakens a readwrite borrow, and invokes one selected coercion. The plan also retains either
+primitive implementation or exact static dispatch. Machine lowering always evaluates source nodes
+left-to-right before preparing and arranging the semantic operands; it performs no operator or
+coercion lookup. Short-circuit logic is a control operation whose ownership state joins the
+executed RHS edge with the bypass edge; it never enters an eager binary-operation lowering.
 Checked division and remainder nodes retain signedness and width. Machine lowering emits zero and
 signed-minimum/`-1` guards before either operation and cannot inherit a target's overflow result or
 remainder convention.

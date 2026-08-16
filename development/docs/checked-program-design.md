@@ -302,11 +302,12 @@ instance and member requirements, applies visibility, and emits one `StaticSelec
 contains both the direct or structural dispatch identity and every declaration-generic argument,
 so instantiation and MIR cannot repeat matching.
 
-The selector owns one recursive requirement-proof context. `copy`, interface, callable, index, and
-coercion predicates therefore share the same lexical assumptions and concrete dispatch tables.
-Proving a concrete index or coercion requirement re-enters the ordinary selector, including direct
-priority, visibility, one-step coercion, and ambiguity; it does not use a reduced capability test.
-An active-predicate set makes recursive requirement cycles fail closed.
+The selector owns one recursive requirement-proof context. `copy`, interface, callable, index,
+coercion, equality, and ordering predicates therefore share the same lexical assumptions and
+concrete dispatch tables. Proving a concrete index, coercion, equality, or ordering requirement
+re-enters the ordinary selector, including primitive precedence, direct priority, visibility,
+one-step coercion, and ambiguity; it does not use a reduced capability test. An active-predicate
+set makes recursive requirement cycles fail closed.
 
 Declaration lookup is restricted to fully concrete receiver types. A receiver that still contains
 a lexical generic, interface `Self`, or associated projection can select only an exact lexical
@@ -337,12 +338,19 @@ the exact minimum of every signed integer type. Shift checking requires one exac
 both operands and freezes signed and unsigned right shift as different operations.
 
 Primitive equality accepts booleans, matching integers, and matching payloadless enums. Primitive
-strict ordering accepts matching integers. One comparison node retains source-left and source-right
-evaluation plus independent `reverse` and `negate` derivation bits. Thus `>`, `<=`, and `>=` remain
-one strict `<` operation without reversing ownership evaluation. `&&` and `||` are checked control
-nodes, not eager primitive binaries. Ownership evaluates the left operand, then joins the possible
-RHS state with the short-circuit bypass state. Source-defined equality and ordering remain a
-subsequent increment on the instance-operation selector.
+strict ordering accepts matching integers. The same selector then considers an exact lexical
+requirement or accessible instance declaration and, only if no viable exact receiver remains, one
+readonly receiver coercion. The other operand may use one readonly coercion to the selected owner.
+Conditional instance requirements recursively use this same selection operation; unresolved
+generic owners require exact lexical evidence.
+
+One comparison node freezes the primitive or `StaticSelection` implementation, readonly
+preparation of each source place/temporary/borrow, any coercion attached to each source operand,
+left-to-right source evaluation, and independent `reverse` and `negate` derivation bits. Thus `>`,
+`<=`, and `>=` remain one strict `<` operation without reversing ownership evaluation or forcing
+later lowering to reconstruct semantic arguments. Missing and ambiguous comparison plans are both
+`E0389`. `&&` and `||` are checked control nodes, not eager primitive binaries. Ownership evaluates
+the left operand, then joins the possible RHS state with the short-circuit bypass state.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

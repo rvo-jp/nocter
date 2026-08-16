@@ -6,7 +6,7 @@ use super::selection::{
 };
 use crate::conformance::{proves_predicate, substitute_predicate};
 use crate::type_relations::TypeSubstitution;
-use crate::{CheckedPredicate, CheckedRequirement, Copyability};
+use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
 impl InstanceOperationSelector<'_> {
     pub(super) fn requirements_hold(
@@ -54,6 +54,12 @@ impl InstanceOperationSelector<'_> {
             } => self.proves_index(*container, *index, *result, *capability, declaration)?,
             CheckedPredicate::Coercion { source, target } => {
                 self.proves_coercion(*source, *target)?
+            }
+            CheckedPredicate::Equality(ty) => {
+                self.proves_comparison(*ty, ComparisonOperation::Equal)?
+            }
+            CheckedPredicate::Ordering(ty) => {
+                self.proves_comparison(*ty, ComparisonOperation::Less)?
             }
             _ => proves_predicate(self.types, self.conformances, self.assumptions, predicate)?,
         };
@@ -107,5 +113,13 @@ impl InstanceOperationSelector<'_> {
             .filter(|candidate| candidate.target == target)
             .count()
             == 1)
+    }
+
+    fn proves_comparison(
+        &mut self,
+        ty: TypeId,
+        operation: ComparisonOperation,
+    ) -> Result<bool, InstanceSelectionError> {
+        Ok(self.select_comparison_operations(ty, ty, operation)?.len() == 1)
     }
 }

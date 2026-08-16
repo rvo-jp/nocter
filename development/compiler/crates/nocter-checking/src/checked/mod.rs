@@ -15,10 +15,11 @@ pub use cleanup::{
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, CallTarget, CheckedCall, CheckedClosure,
-    CheckedControl, CheckedInterpolation, CheckedLoop, CheckedMatchArm, CheckedNode,
-    CheckedOperation, CheckedOutcome, CheckedPattern, CheckedSequence, ConstantValue,
+    CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedInterpolation, CheckedLoop,
+    CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
+    CheckedSequence, ComparisonImplementation, ComparisonOperation, ConstantValue,
     InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PrimitiveBinary,
-    PrimitiveComparison, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
+    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, SequenceElement, SpreadMode,
     TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};

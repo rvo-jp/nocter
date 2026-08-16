@@ -138,14 +138,17 @@ impl OwnershipAnalyzer<'_> {
                 PrimitiveOperation::Unary { operand, .. }
                 | PrimitiveOperation::IntegerConversion { operand, .. },
             ) => self.visit(*operand, state),
-            CheckedOperation::Primitive(
-                PrimitiveOperation::Binary { left, right, .. }
-                | PrimitiveOperation::Comparison { left, right, .. },
-            ) => {
+            CheckedOperation::Primitive(PrimitiveOperation::Binary { left, right, .. }) => {
                 if !self.visit(*left, state)? {
                     return Ok(false);
                 }
                 self.visit(*right, state)
+            }
+            CheckedOperation::Comparison(comparison) => {
+                if !self.visit(comparison.left().value(), state)? {
+                    return Ok(false);
+                }
+                self.visit(comparison.right().value(), state)
             }
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
             CheckedOperation::Call(_)

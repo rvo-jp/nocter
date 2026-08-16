@@ -44,25 +44,29 @@ impl IndexOperationCandidate {
     }
 }
 
-struct ApplicableInstance {
-    instance: nocter_model::InstanceId,
-    substitution: TypeSubstitution,
-    generic_arguments: GenericArguments,
+pub(super) struct ApplicableInstance {
+    pub(super) instance: nocter_model::InstanceId,
+    pub(super) substitution: TypeSubstitution,
+    pub(super) generic_arguments: GenericArguments,
 }
 
 pub(super) struct CoercionCandidate {
     pub(super) target: TypeId,
-    selection: StaticSelection,
+    pub(super) selection: StaticSelection,
 }
 
 #[derive(Debug)]
 pub enum InstanceSelectionError {
     MissingInstance(nocter_model::InstanceId),
     MissingCallable(nocter_model::CallableId),
+    MissingNominal(nocter_model::NominalTypeId),
     MissingParameter(nocter_model::ParameterId),
     MissingSite(nocter_model::DeclarationSiteId),
+    MissingVariant(nocter_model::VariantId),
+    UnknownType(TypeId),
     InvalidIndexSignature(nocter_model::CallableId),
     InvalidCoercionSignature(nocter_model::CallableId),
+    InvalidComparisonSignature(nocter_model::CallableId),
     InvalidStructuralIndex(nocter_model::RequirementId),
     IncompleteGeneric(nocter_model::GenericParameterId),
     DuplicateGeneric(nocter_model::GenericParameterId),
@@ -75,15 +79,21 @@ impl fmt::Display for InstanceSelectionError {
         match self {
             Self::MissingInstance(instance) => write!(formatter, "missing instance {instance:?}"),
             Self::MissingCallable(callable) => write!(formatter, "missing callable {callable:?}"),
+            Self::MissingNominal(nominal) => write!(formatter, "missing nominal type {nominal:?}"),
             Self::MissingParameter(parameter) => {
                 write!(formatter, "missing parameter {parameter:?}")
             }
             Self::MissingSite(site) => write!(formatter, "missing declaration site {site:?}"),
+            Self::MissingVariant(variant) => write!(formatter, "missing enum variant {variant:?}"),
+            Self::UnknownType(ty) => write!(formatter, "missing type {ty:?}"),
             Self::InvalidIndexSignature(callable) => {
                 write!(formatter, "invalid index operation signature {callable:?}")
             }
             Self::InvalidCoercionSignature(callable) => {
                 write!(formatter, "invalid coercion signature {callable:?}")
+            }
+            Self::InvalidComparisonSignature(callable) => {
+                write!(formatter, "invalid comparison signature {callable:?}")
             }
             Self::InvalidStructuralIndex(requirement) => {
                 write!(
@@ -117,9 +127,9 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) types: &'program mut TypeStore,
     pub(super) conformances: &'program ConformanceTable,
     pub(super) copyabilities: &'program mut CopyabilityTable,
-    table: &'program InstanceOperationTable,
+    pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
-    from: ModuleId,
+    pub(super) from: ModuleId,
     pub(super) active: HashSet<CheckedPredicate>,
 }
 
@@ -367,7 +377,7 @@ impl<'program> InstanceOperationSelector<'program> {
         Ok(selected)
     }
 
-    fn applicable_instances(
+    pub(super) fn applicable_instances(
         &mut self,
         target: TypeId,
     ) -> Result<Vec<ApplicableInstance>, InstanceSelectionError> {
@@ -477,7 +487,7 @@ fn callable_capability(capability: BorrowCapability) -> CallableCapability {
     }
 }
 
-fn visible_callable(
+pub(super) fn visible_callable(
     graph: &DeclarationGraph,
     from: ModuleId,
     site: nocter_model::DeclarationSiteId,

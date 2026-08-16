@@ -46,6 +46,7 @@ pub enum CheckedOperation {
         target: TypeId,
         selection: StaticSelection,
     },
+    Comparison(CheckedComparison),
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),
     Outcome(CheckedOutcome),
@@ -119,9 +120,122 @@ pub enum PrimitiveBinary {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum PrimitiveComparison {
+pub enum ComparisonOperation {
     Equal,
     Less,
+}
+
+/// How one source operand becomes the readonly logical value consumed by a comparison.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ReadonlyOperandPreparation {
+    BorrowPlace,
+    BorrowTemporary,
+    UseReadonlyBorrow,
+    WeakenReadwriteBorrow,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedComparisonOperand {
+    value: BodyNodeId,
+    preparation: ReadonlyOperandPreparation,
+    coercion: Option<StaticSelection>,
+}
+
+impl CheckedComparisonOperand {
+    pub(crate) const fn new(
+        value: BodyNodeId,
+        preparation: ReadonlyOperandPreparation,
+        coercion: Option<StaticSelection>,
+    ) -> Self {
+        Self {
+            value,
+            preparation,
+            coercion,
+        }
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> BodyNodeId {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn preparation(&self) -> ReadonlyOperandPreparation {
+        self.preparation
+    }
+
+    #[must_use]
+    pub const fn coercion(&self) -> Option<&StaticSelection> {
+        self.coercion.as_ref()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ComparisonImplementation {
+    Primitive,
+    Selected(StaticSelection),
+    Unreachable,
+}
+
+/// One complete comparison plan with source evaluation and semantic invocation kept separate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedComparison {
+    operation: ComparisonOperation,
+    left: CheckedComparisonOperand,
+    right: CheckedComparisonOperand,
+    implementation: ComparisonImplementation,
+    reverse: bool,
+    negate: bool,
+}
+
+impl CheckedComparison {
+    pub(crate) const fn new(
+        operation: ComparisonOperation,
+        left: CheckedComparisonOperand,
+        right: CheckedComparisonOperand,
+        implementation: ComparisonImplementation,
+        reverse: bool,
+        negate: bool,
+    ) -> Self {
+        Self {
+            operation,
+            left,
+            right,
+            implementation,
+            reverse,
+            negate,
+        }
+    }
+
+    #[must_use]
+    pub const fn operation(&self) -> ComparisonOperation {
+        self.operation
+    }
+
+    #[must_use]
+    pub const fn left(&self) -> &CheckedComparisonOperand {
+        &self.left
+    }
+
+    #[must_use]
+    pub const fn right(&self) -> &CheckedComparisonOperand {
+        &self.right
+    }
+
+    #[must_use]
+    pub const fn implementation(&self) -> &ComparisonImplementation {
+        &self.implementation
+    }
+
+    #[must_use]
+    pub const fn reverse(&self) -> bool {
+        self.reverse
+    }
+
+    #[must_use]
+    pub const fn negate(&self) -> bool {
+        self.negate
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -140,13 +254,6 @@ pub enum PrimitiveOperation {
         operation: PrimitiveBinary,
         left: BodyNodeId,
         right: BodyNodeId,
-    },
-    Comparison {
-        operation: PrimitiveComparison,
-        left: BodyNodeId,
-        right: BodyNodeId,
-        reverse: bool,
-        negate: bool,
     },
     IntegerConversion {
         operand: BodyNodeId,

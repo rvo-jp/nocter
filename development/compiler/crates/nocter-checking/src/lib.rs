@@ -28,14 +28,16 @@ pub use body_check::{BodyCheckError, BodyCheckInternalError, BodyRule, check_pre
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
     AggregateConstruction, AllocationSelection, BuildCheckedBodyError, CallTarget, CheckedBody,
-    CheckedCall, CheckedCapture, CheckedClosure, CheckedControl, CheckedInterpolation,
-    CheckedLocal, CheckedLoop, CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome,
-    CheckedPattern, CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence,
-    CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
-    CleanupTiming, ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments,
-    InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PlaceAccess,
-    PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparison, PrimitiveOperation,
-    PrimitiveUnary, SequenceElement, SpreadMode, StaticDispatch, StaticSelection, TypedIteration,
+    CheckedCall, CheckedCapture, CheckedClosure, CheckedComparison, CheckedComparisonOperand,
+    CheckedControl, CheckedInterpolation, CheckedLocal, CheckedLoop, CheckedMatchArm, CheckedNode,
+    CheckedOperation, CheckedOutcome, CheckedPattern, CheckedPlace, CheckedProgram,
+    CheckedProgramOutput, CheckedSequence, CleanupAction, CleanupCondition, CleanupPath,
+    CleanupSchedule, CleanupTable, CleanupTarget, CleanupTiming, ComparisonImplementation,
+    ComparisonOperation, ConstantValue, DuplicateGenericArgument, GenericArgument,
+    GenericArguments, InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind,
+    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ReadonlyOperandPreparation, SequenceElement, SpreadMode, StaticDispatch, StaticSelection,
+    TypedIteration,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,

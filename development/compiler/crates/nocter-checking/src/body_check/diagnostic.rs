@@ -21,6 +21,7 @@ pub enum BodyRule {
     InvalidCompoundAssignment,
     InvalidReadWriteBorrow,
     InvalidIndexOperation,
+    InvalidComparisonOperation,
 }
 
 impl BodyRule {
@@ -43,6 +44,7 @@ impl BodyRule {
         Self::InvalidCompoundAssignment,
         Self::InvalidReadWriteBorrow,
         Self::InvalidIndexOperation,
+        Self::InvalidComparisonOperation,
     ];
 
     #[must_use]
@@ -66,6 +68,7 @@ impl BodyRule {
             Self::InvalidCompoundAssignment => "E0386",
             Self::InvalidReadWriteBorrow => "E0387",
             Self::InvalidIndexOperation => "E0388",
+            Self::InvalidComparisonOperation => "E0389",
         }
     }
 
@@ -150,6 +153,10 @@ impl BodyRule {
             Self::InvalidIndexOperation => (
                 "no unique accessible index operation accepts this receiver and index",
                 "use an index type with one applicable operation or add an accessible index declaration",
+            ),
+            Self::InvalidComparisonOperation => (
+                "no unique accessible comparison operation accepts these operands",
+                "use operands with one applicable primitive or source-defined comparison",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

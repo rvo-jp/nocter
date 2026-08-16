@@ -1,4 +1,5 @@
 mod build;
+mod comparison;
 mod diagnostic;
 mod model;
 mod requirements;
@@ -10,6 +11,7 @@ mod tests;
 pub use build::{
     InstanceOperationBuildError, InstanceOperationInternalError, build_instance_operation_table,
 };
+pub(crate) use comparison::ComparisonCandidateImplementation;
 pub use diagnostic::InstanceOperationRule;
 pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;

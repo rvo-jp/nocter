@@ -1,4 +1,3 @@
-use nocter_declarations::NominalShape;
 use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, TokenKind};
 
@@ -9,11 +8,20 @@ use crate::body_check::literal::{
     contextual_integer_type, fits_negative_integer, is_integer_type, is_signed_integer_type,
     parse_integer,
 };
+use crate::instance_operations::{ComparisonCandidateImplementation, InstanceOperationSelector};
 use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
 use crate::{
-    CheckedControl, CheckedOperation, ConstantValue, LogicalOperation, PrimitiveBinary,
-    PrimitiveComparison, PrimitiveOperation, PrimitiveUnary,
+    CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedOperation,
+    ComparisonImplementation, ComparisonOperation, ConstantValue, LogicalOperation,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation,
 };
+
+struct ComparisonOperandDraft {
+    value: nocter_model::BodyNodeId,
+    ty: TypeId,
+    owner: TypeId,
+    preparation: ReadonlyOperandPreparation,
+}
 
 impl BodyChecker<'_, '_> {
     pub(super) fn check_unary(
@@ -192,31 +200,70 @@ impl BodyChecker<'_, '_> {
         })
     }
 
-    pub(super) fn check_primitive_comparison(
+    pub(super) fn check_comparison(
         &mut self,
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let [left_syntax, right_syntax] = binary_operands(self, node)?;
-        let left = self.check_expression(left_syntax, None)?;
-        let left_ty = self.node_type(left)?;
+        let left = self.check_comparison_operand(left_syntax, None)?;
+        let right_expected = (is_integer_type(self.types, left.owner)
+            && direct_integer_literal(self, right_syntax).is_some())
+        .then_some(left.owner);
+        let right = self.check_comparison_operand(right_syntax, right_expected)?;
         let never = self.types.builtin(BuiltinType::Never);
-        let right = self.check_expression(right_syntax, (left_ty != never).then_some(left_ty))?;
-        let right_ty = self.node_type(right)?;
-        let operand_ty = if left_ty == never { right_ty } else { left_ty };
         let punctuation = operator_punctuation(self, node)?;
         let (operation, reverse, negate) = comparison_derivation(punctuation)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        if operand_ty != never {
-            let supported = match operation {
-                PrimitiveComparison::Equal => self.primitive_equality(operand_ty)?,
-                PrimitiveComparison::Less => is_integer_type(self.types, operand_ty),
+        let (implementation, receiver_coercion, argument_coercion) = if left.ty == never
+            || right.ty == never
+        {
+            (ComparisonImplementation::Unreachable, None, None)
+        } else {
+            let (semantic_left, semantic_right) = if reverse {
+                (right.owner, left.owner)
+            } else {
+                (left.owner, right.owner)
             };
-            if !supported {
-                return Err(self.rule(BodyRule::TypeMismatch, node)?);
+            let candidates = {
+                let mut selector = InstanceOperationSelector::new(
+                    self.graph,
+                    self.types,
+                    self.conformances,
+                    self.copyabilities,
+                    self.instance_operations,
+                    &self.assumptions,
+                    self.source.module(),
+                );
+                selector
+                    .select_comparison_operations(semantic_left, semantic_right, operation)
+                    .map_err(BodyCheckInternalError::from)?
+            };
+            let mut candidates = candidates.into_iter();
+            let Some(selected) = candidates.next() else {
+                return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
+            };
+            if candidates.next().is_some() {
+                return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
             }
-        }
-        let ty = if left_ty == never || right_ty == never {
+            let implementation = match selected.implementation() {
+                ComparisonCandidateImplementation::Primitive => ComparisonImplementation::Primitive,
+                ComparisonCandidateImplementation::Selected(selection) => {
+                    ComparisonImplementation::Selected(selection.clone())
+                }
+            };
+            (
+                implementation,
+                selected.receiver_coercion().cloned(),
+                selected.argument_coercion().cloned(),
+            )
+        };
+        let (left_coercion, right_coercion) = if reverse {
+            (argument_coercion, receiver_coercion)
+        } else {
+            (receiver_coercion, argument_coercion)
+        };
+        let ty = if left.ty == never || right.ty == never {
             never
         } else {
             self.types.builtin(BuiltinType::Bool)
@@ -224,13 +271,14 @@ impl BodyChecker<'_, '_> {
         let checked = self.add_node(
             node,
             ty,
-            CheckedOperation::Primitive(PrimitiveOperation::Comparison {
+            CheckedOperation::Comparison(CheckedComparison::new(
                 operation,
-                left,
-                right,
+                CheckedComparisonOperand::new(left.value, left.preparation, left_coercion),
+                CheckedComparisonOperand::new(right.value, right.preparation, right_coercion),
+                implementation,
                 reverse,
                 negate,
-            }),
+            )),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
@@ -271,36 +319,55 @@ impl BodyChecker<'_, '_> {
         })
     }
 
-    fn primitive_equality(&self, ty: TypeId) -> Result<bool, BodyCheckError> {
-        match self.types.get(ty) {
-            Some(TypeKind::Builtin(BuiltinType::Bool)) => Ok(true),
-            Some(_) if is_integer_type(self.types, ty) => Ok(true),
-            Some(TypeKind::Nominal { definition, .. }) => {
-                let declaration = self
-                    .graph
-                    .declarations()
-                    .nominal_types()
-                    .get(*definition)
-                    .ok_or(BodyCheckInternalError::UnknownType(ty))?;
-                let NominalShape::Enum { variants } = declaration.shape() else {
-                    return Ok(false);
-                };
-                for variant in variants {
-                    let variant = self
-                        .graph
-                        .declarations()
-                        .variants()
-                        .get(*variant)
-                        .ok_or(BodyCheckInternalError::UnknownType(ty))?;
-                    if !variant.payload().is_empty() {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
-            }
-            Some(_) => Ok(false),
-            None => Err(BodyCheckInternalError::UnknownType(ty).into()),
+    fn check_comparison_operand(
+        &mut self,
+        root: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<ComparisonOperandDraft, BodyCheckError> {
+        let mut syntax = root;
+        while self.kind(syntax).is_ok_and(is_transparent_expression) {
+            let children = direct_nodes(self.tree(), syntax);
+            let [child] = children.as_slice() else {
+                break;
+            };
+            syntax = *child;
         }
+        let place = match self.kind(syntax)? {
+            NodeKind::ReferenceExpression => Some(self.named_place(syntax)?),
+            NodeKind::PostfixExpression => {
+                Some(self.postfix_place(syntax, BorrowCapability::Readonly)?)
+            }
+            _ => None,
+        };
+        let (value, ty, is_place) = if let Some(place) = place {
+            (
+                self.add_node(syntax, place.ty, CheckedOperation::Place(place.id))?,
+                place.ty,
+                true,
+            )
+        } else {
+            let value = self.check_expression(root, expected)?;
+            (value, self.node_type(value)?, false)
+        };
+        let (owner, preparation) = match self.types.get(ty) {
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent,
+            }) => (*referent, ReadonlyOperandPreparation::UseReadonlyBorrow),
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::ReadWrite,
+                referent,
+            }) => (*referent, ReadonlyOperandPreparation::WeakenReadwriteBorrow),
+            Some(_) if is_place => (ty, ReadonlyOperandPreparation::BorrowPlace),
+            Some(_) => (ty, ReadonlyOperandPreparation::BorrowTemporary),
+            None => return Err(BodyCheckInternalError::UnknownType(ty).into()),
+        };
+        Ok(ComparisonOperandDraft {
+            value,
+            ty,
+            owner,
+            preparation,
+        })
     }
 }
 
@@ -366,14 +433,14 @@ fn direct_integer_literal(
     }
 }
 
-fn comparison_derivation(punctuation: Punctuation) -> Option<(PrimitiveComparison, bool, bool)> {
+fn comparison_derivation(punctuation: Punctuation) -> Option<(ComparisonOperation, bool, bool)> {
     match punctuation {
-        Punctuation::EqualEqual => Some((PrimitiveComparison::Equal, false, false)),
-        Punctuation::BangEqual => Some((PrimitiveComparison::Equal, false, true)),
-        Punctuation::Less => Some((PrimitiveComparison::Less, false, false)),
-        Punctuation::LessEqual => Some((PrimitiveComparison::Less, true, true)),
-        Punctuation::Greater => Some((PrimitiveComparison::Less, true, false)),
-        Punctuation::GreaterEqual => Some((PrimitiveComparison::Less, false, true)),
+        Punctuation::EqualEqual => Some((ComparisonOperation::Equal, false, false)),
+        Punctuation::BangEqual => Some((ComparisonOperation::Equal, false, true)),
+        Punctuation::Less => Some((ComparisonOperation::Less, false, false)),
+        Punctuation::LessEqual => Some((ComparisonOperation::Less, true, true)),
+        Punctuation::Greater => Some((ComparisonOperation::Less, true, false)),
+        Punctuation::GreaterEqual => Some((ComparisonOperation::Less, false, true)),
         _ => None,
     }
 }

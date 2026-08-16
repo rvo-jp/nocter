@@ -235,10 +235,11 @@ Source-backed checked-body diagnostics:
   side.
 - `E0387`: a readwrite borrow does not target a writable place.
 - `E0388`: no unique accessible index operation accepts both the receiver and index type.
+- `E0389`: no unique accessible equality or strict-ordering operation accepts both operands.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
-the program-wide instance-operation table. `E0388` covers both absence and ambiguity; it never
-reports a declaration selected only by source order.
+the program-wide instance-operation table. `E0388` and `E0389` cover both absence and ambiguity;
+neither reports a declaration selected only by source order.
 
 Source-backed callable contract diagnostics:
 
