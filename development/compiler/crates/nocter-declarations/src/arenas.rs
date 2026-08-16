@@ -53,6 +53,7 @@ macro_rules! definition_slots {
 definition_slots!(NominalTypeId);
 definition_slots!(TypeAliasId);
 definition_slots!(InterfaceId);
+definition_slots!(AssociatedTypeId);
 definition_slots!(CallableId);
 definition_slots!(ConstructionId);
 definition_slots!(InstanceId);
@@ -172,7 +173,7 @@ pub struct DeclarationArenaBuilder {
     nominal_types: DefinitionSlots<NominalTypeId, NominalTypeDeclaration>,
     type_aliases: DefinitionSlots<TypeAliasId, TypeAliasDeclaration>,
     interfaces: DefinitionSlots<InterfaceId, InterfaceDeclaration>,
-    associated_types: ArenaBuilder<AssociatedTypeId, AssociatedTypeDeclaration>,
+    associated_types: DefinitionSlots<AssociatedTypeId, AssociatedTypeDeclaration>,
     callables: DefinitionSlots<CallableId, CallableDeclaration>,
     constructions: DefinitionSlots<ConstructionId, ConstructionDeclaration>,
     instances: DefinitionSlots<InstanceId, InstanceDeclaration>,
@@ -233,6 +234,13 @@ impl DeclarationArenaBuilder {
         InterfaceDeclaration
     );
     reservation_methods!(
+        reserve_associated_type,
+        define_associated_type,
+        associated_types,
+        AssociatedTypeId,
+        AssociatedTypeDeclaration
+    );
+    reservation_methods!(
         reserve_callable,
         define_callable,
         callables,
@@ -277,10 +285,6 @@ impl DeclarationArenaBuilder {
         OpaqueTypeDeclaration
     );
 
-    pub fn add_associated_type(&mut self, value: AssociatedTypeDeclaration) -> AssociatedTypeId {
-        self.associated_types.insert(value)
-    }
-
     pub fn add_field(&mut self, value: FieldDeclaration) -> FieldId {
         self.fields.insert(value)
     }
@@ -311,7 +315,7 @@ impl DeclarationArenaBuilder {
             nominal_types: self.nominal_types.finish("nominal type")?,
             type_aliases: self.type_aliases.finish("type alias")?,
             interfaces: self.interfaces.finish("interface")?,
-            associated_types: self.associated_types.finish(),
+            associated_types: self.associated_types.finish("associated type")?,
             callables: self.callables.finish("callable")?,
             constructions: self.constructions.finish("construction")?,
             instances: self.instances.finish("instance")?,
@@ -393,5 +397,13 @@ mod tests {
         let _callable = builder.reserve_callable();
 
         assert_eq!(builder.finish().unwrap_err().kind(), "callable");
+    }
+
+    #[test]
+    fn recursively_named_associated_types_are_reserved_before_definition() {
+        let mut builder = DeclarationArenaBuilder::new();
+        let _associated = builder.reserve_associated_type();
+
+        assert_eq!(builder.finish().unwrap_err().kind(), "associated type");
     }
 }

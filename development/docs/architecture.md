@@ -149,6 +149,14 @@ used only to carry matched bodies map to the contract representative; missing, m
 duplicate bodies fail before reservation. This prevents a later name resolver from trying to
 merge already-distinct semantic IDs.
 
+Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
+associated types, callables, construction surfaces, instances, conformances, variants, drops,
+tests, and opaque result types receive their final typed IDs before any header type is resolved.
+Fields, generic parameters, ordinary parameters, requirements, and bodies are added later because
+their identities cannot participate in recursive header lookup before their owner exists. Source
+projection is populated in the same pass; a joined body is an implementation binding of the
+contract entity rather than a second declaration.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no

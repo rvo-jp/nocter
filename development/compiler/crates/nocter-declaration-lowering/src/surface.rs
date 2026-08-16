@@ -207,6 +207,28 @@ impl<'syntax> DeclarationSurface<'syntax> {
     pub const fn declarations(&self) -> &[SurfaceDeclaration] {
         &self.declarations
     }
+
+    pub(crate) fn into_parts(self) -> SurfaceParts<'syntax> {
+        SurfaceParts {
+            source_map: self.source_map,
+            symbols: self.symbols,
+            packages: self.packages,
+            modules: self.modules,
+            sources: self.sources,
+            imports: self.imports,
+            declarations: self.declarations,
+        }
+    }
+}
+
+pub(crate) struct SurfaceParts<'syntax> {
+    pub(crate) source_map: &'syntax SourceMap,
+    pub(crate) symbols: SymbolTable,
+    pub(crate) packages: Box<[PackageInput<'syntax>]>,
+    pub(crate) modules: Box<[ModuleIdentity]>,
+    pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
+    pub(crate) imports: Box<[SurfaceImport]>,
+    pub(crate) declarations: Box<[SurfaceDeclaration]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

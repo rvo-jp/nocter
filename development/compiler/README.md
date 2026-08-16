@@ -68,16 +68,18 @@ be introduced to make an unresolved syntax choice.
   projections. The temporary surface inventory also enforces the root-source-only API boundary
   before semantic reservation. A canonical-header pass joins eligible public bodyless contracts
   to exactly one private implementation body without resolving names or types; both source forms
-  therefore enter reservation through one representative identity.
+  therefore enter reservation through one representative identity. The reservation pass then
+  allocates every recursively referenceable typed ID—including associated types—in canonical
+  surface order and records declaration/implementation source roles before resolving headers.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will reserve declaration identities from the canonical surface in one
-pass, resolve headers in a second pass, populate the declaration arenas and source index together,
-and discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns
-checked body semantics.
+The next Phase 2 increment will resolve generic binders, declaration names, visibility, structural
+types, and requirements against the complete reservation set, define every arena slot, and discard
+the temporary syntax-owned inventory and all mutable builders. No crate yet owns checked body
+semantics.
 
 ## Verification
 

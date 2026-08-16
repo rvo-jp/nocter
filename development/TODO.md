@@ -8,10 +8,10 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Traverse every module source into a declaration-surface inventory, reject duplicate or illegal
-   cross-file surface ownership, and reserve all declaration/member identities in canonical order
-   without checking bodies. Package/module/source topology canonicalization is complete.
-2. Resolve declaration headers, aliases, associated declarations, callable provenance, and generic
+1. Resolve generic binders, declaration names, normalized visibility, and module-local type names
+   against the completed canonical reservation set. Package/module/source topology, surface
+   inventory, cross-file callable joining, and recursive identity reservation are complete.
+2. Define declaration headers, aliases, associated declarations, callable provenance, and generic
    requirements into the structural type store, then freeze the declaration program and separate
    `SourceIndex`.
 3. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-

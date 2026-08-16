@@ -6,6 +6,7 @@
 
 mod contract;
 mod input;
+mod reservation;
 mod surface;
 mod topology;
 
@@ -13,6 +14,9 @@ pub use contract::{CallableContractError, CallableContracts, analyze_callable_co
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+};
+pub use reservation::{
+    ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };
 pub use surface::{
     DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
