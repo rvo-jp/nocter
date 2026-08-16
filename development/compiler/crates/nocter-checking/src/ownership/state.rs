@@ -54,6 +54,7 @@ impl MovePath {
                 PlaceProjection::Field(field) => path = path.field(*field),
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
+                | PlaceProjection::CoercedBuiltinIndex { .. }
                 | PlaceProjection::SelectedIndex { .. } => break,
             }
         }

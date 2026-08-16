@@ -190,6 +190,8 @@ Source-backed conformance diagnostics:
   refinement. No more-specific declaration wins.
 - `E0354`: a selected associated type does not satisfy an interface or callable capability declared
   by its associated-type declaration.
+- `E0355`: two instance target patterns can denote the same type after binder refinement. No
+  declaration-order or more-specific rule selects one.
 
 These rules consume one program-wide normalized conformance table. Signature checking substitutes
 interface arguments, `Self`, associated bindings, method generics, and binder refinements before
@@ -206,10 +208,37 @@ Source-backed normalized type-position diagnostics:
 - `E0364`: `void` appears in a data-bearing position instead of as completion, the direct success
   payload of `void!`, or the pointee of `*void`.
 - `E0365`: unsized `str` or `[T]` appears by value rather than behind an indirection.
+- `E0366`: a field of a `copy struct` is move-only for every specialization of that declaration.
 
 These rules run on normalized semantic types after alias expansion and again after concrete generic
 substitution. A type alias may directly name `void`, `never`, `str`, or `[T]`; the position where
 that alias is used determines whether the expanded type is valid.
+
+Source-backed checked-body diagnostics:
+
+- `E0370`: an expression type is incompatible with its expected destination type.
+- `E0371`: using a place would require an implicit ownership move.
+- `E0372`: a non-final expression statement produces an unused value.
+- `E0373`: a callable can complete without producing its declared result.
+- `E0375`: an integer literal is outside the expected integer type's range.
+- `E0376`: explicit `move` targets a copyable value.
+- `E0377`: explicit `move` targets storage that the place does not own.
+- `E0378`: a place may be uninitialized at the selected use.
+- `E0379`: a selected field does not exist on the base type.
+- `E0380`: a selected field is outside its visibility boundary.
+- `E0381`: a field move would partially initialize a struct with its own drop declaration.
+- `E0382`: `break` or `continue` has no enclosing loop in the callable body.
+- `E0383`: explicit `drop` does not target a move-only owned binding.
+- `E0384`: an assignment target is not a writable place.
+- `E0385`: a field cannot be reinitialized through an unavailable parent place.
+- `E0386`: compound assignment lacks a writable initialized integer target or matching right-hand
+  side.
+- `E0387`: a readwrite borrow does not target a writable place.
+- `E0388`: no unique accessible index operation accepts both the receiver and index type.
+
+Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
+the program-wide instance-operation table. `E0388` covers both absence and ambiguity; it never
+reports a declaration selected only by source order.
 
 Source-backed callable contract diagnostics:
 

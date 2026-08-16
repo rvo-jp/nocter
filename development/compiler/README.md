@@ -169,7 +169,10 @@ be introduced to make an unresolved syntax choice.
   binder refinements before storing target/interface patterns, substitutes `Self`, generic, and
   associated identities into method contracts, rejects unifiable patterns, selects required or
   default methods, and proves associated interface/callable bounds through the same table. It does
-  not discover bodies by source containment or filesystem paths. One iterative type-position
+  not discover bodies by source containment or filesystem paths. Its separate program-wide
+  instance-operation table normalizes binder refinements and retained predicates, rejects
+  overlapping target patterns, and indexes operation members without using declaration order as
+  candidate priority. One iterative type-position
   validator covers declaration data, callable results, type operands, borrow/raw-pointer pointees,
   structural callables, generic arguments, outcomes, and unsized forms after alias expansion. The
   same source-independent validator remains open for concrete generic substitution. Typed
@@ -228,6 +231,11 @@ be introduced to make an unresolved syntax choice.
   retain one RHS and one place rather than a desugared binary expression. Body failures keep their
   semantic rule identity beside the independent source diagnostic, allowing contextual diagnostic
   selection without comparing presentation strings or error codes.
+  Built-in and source-defined indexing share one postfix-place constructor. Instance and lexical
+  structural requirements select an exact dispatch plus canonical generic arguments; one-step
+  receiver coercion is explicit in the place projection, direct operations take priority, and
+  ambiguity never depends on declaration order. Readwrite selection preserves both operation
+  capability and the original receiver's writability.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.

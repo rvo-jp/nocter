@@ -2,7 +2,7 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, CaptureId, FieldId, LocalBindingId, ParameterId, TypeId,
 };
 
-use super::StaticDispatch;
+use super::StaticSelection;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PlaceRoot {
@@ -28,10 +28,14 @@ pub enum PlaceProjection {
     BuiltinIndex {
         index: BodyNodeId,
     },
+    CoercedBuiltinIndex {
+        index: BodyNodeId,
+        receiver_coercion: StaticSelection,
+    },
     SelectedIndex {
         index: BodyNodeId,
-        operation: StaticDispatch,
-        receiver_coercion: Option<StaticDispatch>,
+        operation: StaticSelection,
+        receiver_coercion: Option<StaticSelection>,
     },
 }
 
@@ -42,6 +46,7 @@ pub struct CheckedPlace {
     projections: Box<[PlaceProjection]>,
     ty: TypeId,
     access: PlaceAccess,
+    writable: bool,
 }
 
 impl CheckedPlace {
@@ -50,12 +55,14 @@ impl CheckedPlace {
         projections: impl Into<Box<[PlaceProjection]>>,
         ty: TypeId,
         access: PlaceAccess,
+        writable: bool,
     ) -> Self {
         Self {
             root,
             projections: projections.into(),
             ty,
             access,
+            writable,
         }
     }
 
@@ -80,6 +87,11 @@ impl CheckedPlace {
     }
 
     #[must_use]
+    pub const fn is_writable(&self) -> bool {
+        self.writable
+    }
+
+    #[must_use]
     pub fn is_move_source(&self) -> bool {
         self.access == PlaceAccess::Owned
             && self
@@ -93,6 +105,7 @@ impl CheckedPlace {
             .iter()
             .filter_map(|projection| match projection {
                 PlaceProjection::BuiltinIndex { index }
+                | PlaceProjection::CoercedBuiltinIndex { index, .. }
                 | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
                 PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => None,
             })
@@ -123,6 +136,7 @@ mod tests {
             projections: Box::new([PlaceProjection::Field(field)]),
             ty: types.builtin(BuiltinType::I32),
             access: PlaceAccess::Owned,
+            writable: true,
         };
         let borrowed = CheckedPlace {
             access: PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite),

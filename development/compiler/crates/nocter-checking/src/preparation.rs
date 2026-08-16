@@ -9,8 +9,10 @@ use nocter_source_index::SourceIndex;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
 use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityBuildError,
-    CopyabilityTable, DeclarationTypeValidityError, DropTable, DropTableError, NameResolutionError,
-    ResolvedBodyNames, build_conformance_table, catalog_body_sources, validate_declaration_types,
+    CopyabilityTable, DeclarationTypeValidityError, DropTable, DropTableError,
+    InstanceOperationBuildError, InstanceOperationTable, NameResolutionError, ResolvedBodyNames,
+    build_conformance_table, build_instance_operation_table, catalog_body_sources,
+    validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -23,6 +25,7 @@ pub struct PreparedChecking<'syntax> {
     graph: DeclarationGraph,
     types: TypeStore,
     conformances: ConformanceTable,
+    instance_operations: InstanceOperationTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     body_sources: BodySourceCatalog<'syntax>,
@@ -44,6 +47,11 @@ impl<'syntax> PreparedChecking<'syntax> {
     #[must_use]
     pub const fn conformances(&self) -> &ConformanceTable {
         &self.conformances
+    }
+
+    #[must_use]
+    pub const fn instance_operations(&self) -> &InstanceOperationTable {
+        &self.instance_operations
     }
 
     #[must_use]
@@ -76,6 +84,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             graph: self.graph,
             types: self.types,
             conformances: self.conformances,
+            instance_operations: self.instance_operations,
             copyabilities: self.copyabilities,
             drops: self.drops,
             body_sources: self.body_sources,
@@ -89,6 +98,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) graph: DeclarationGraph,
     pub(crate) types: TypeStore,
     pub(crate) conformances: ConformanceTable,
+    pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
@@ -102,6 +112,7 @@ pub enum PreparationError {
     Copyability(CopyabilityBuildError),
     DropTable(DropTableError),
     Conformance(ConformanceBuildError),
+    InstanceOperations(InstanceOperationBuildError),
     NameResolution(NameResolutionError),
 }
 
@@ -113,6 +124,7 @@ impl PreparationError {
             Self::Copyability(error) => error.source_diagnostic(),
             Self::DropTable(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
+            Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
         }
     }
@@ -125,6 +137,7 @@ impl fmt::Display for PreparationError {
             Self::Copyability(error) => error.fmt(formatter),
             Self::DropTable(error) => error.fmt(formatter),
             Self::Conformance(error) => error.fmt(formatter),
+            Self::InstanceOperations(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
     }
@@ -141,6 +154,12 @@ impl From<DeclarationTypeValidityError> for PreparationError {
 impl From<ConformanceBuildError> for PreparationError {
     fn from(error: ConformanceBuildError) -> Self {
         Self::Conformance(error)
+    }
+}
+
+impl From<InstanceOperationBuildError> for PreparationError {
+    fn from(error: InstanceOperationBuildError) -> Self {
+        Self::InstanceOperations(error)
     }
 }
 
@@ -186,12 +205,14 @@ pub fn prepare_program_checking<'syntax>(
     let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)?;
     let drops = DropTable::build(&graph, &types)?;
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
+    let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)?;
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
         graph,
         types,
         conformances,
+        instance_operations,
         copyabilities,
         drops,
         body_sources,

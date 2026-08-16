@@ -12,8 +12,10 @@ mod copyability;
 mod expected;
 mod field_selection;
 mod inference;
+mod instance_operations;
 mod names;
 mod ownership;
+mod pattern_requirements;
 mod preparation;
 mod syntax;
 mod type_relations;
@@ -33,7 +35,7 @@ pub use checked::{
     CleanupTiming, ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments,
     InterpolationPart, IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot,
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
-    StaticDispatch, TypedIteration,
+    StaticDispatch, StaticSelection, TypedIteration,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
@@ -49,6 +51,11 @@ pub use expected::{
     plan_expected_type,
 };
 pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
+pub use instance_operations::{
+    CheckedInstanceOperations, InstanceOperationBuildError, InstanceOperationInternalError,
+    InstanceOperationRule, InstanceOperationTable, InstanceSelectionError,
+    build_instance_operation_table,
+};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,

@@ -113,6 +113,8 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     assert_eq!(table.entries().len(), 2);
     for (_, conformance) in table.entries().iter() {
         assert!(conformance.requirements().is_empty());
+        assert_eq!(conformance.generic_parameters().len(), 1);
+        assert_eq!(conformance.refinements().len(), 1);
         let nocter_model::TypeKind::Nominal { arguments, .. } =
             types.get(conformance.target()).unwrap()
         else {
@@ -124,6 +126,7 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
                 nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::U32
             ))
         ));
+        assert_eq!(conformance.refinements()[0].ty(), arguments[0]);
     }
 }
 

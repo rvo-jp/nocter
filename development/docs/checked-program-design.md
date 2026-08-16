@@ -37,6 +37,7 @@ authored/internal failure. No public partial checked program exists.
 | Header, body, closure, inferred, and specialized structural type identity | the single inherited and extended `TypeStore` | every semantic stage |
 | Block imports, lexical scopes, parameters, locals, pattern payloads, catch bindings, loop bindings, and closure captures | body checker | checked nodes and source projection |
 | Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide Phase 3 conformance checker | body dispatch and instantiation |
+| Instance target normalization, retained requirements, operation members, and overlap | program-wide instance-operation table | body operation selection and instantiation |
 | Data-position type well-formedness after normalization | Phase 3 type-validity checker | every checked destination and generic constraint |
 | Expected types, inference constraints, outcome injection, direct/abstract calls, members, operators, coercions, construction, literals, iteration, and interpolation | typed body node construction | instantiation and MIR |
 | Reachability, initialization, moves, copies, loans, provenance, regions, destruction, and generated semantic operations | checked control-flow and ownership analysis | target validation and MIR |
@@ -113,7 +114,8 @@ the program's `DropTable` and structural drop glue without recovering timing fro
 ## Construction Order
 
 1. Validate and index every `BodyId` projection against the supplied immutable syntax snapshots.
-2. Validate program-wide conformance and normalized type-position rules needed by all bodies.
+2. Validate program-wide conformances, instance-operation patterns, and normalized type-position
+   rules needed by all bodies.
 3. Check bodies in canonical `BodyId` order while assigning only body-local dense identities.
 4. Infer and validate body-owned callable provenance and opaque witnesses.
 5. Freeze all body arenas, consume temporary scope/origin tables, and validate every cross-ID edge.
@@ -289,8 +291,29 @@ therefore `owned.borrow_field.member` retains `owned.borrow_field` as its initia
 without pretending that the selected member is owned. Built-in fixed arrays, slices, and `str`
 store each checked `usize` index node once and preserve nested source order. Ownership evaluation
 visits the RHS before assignment target nodes, and visits target nodes before replacement cleanup
-or storage. Source-defined selected indexes and temporary ownership for unsupported expression
-families remain subsequent increments.
+or storage.
+
+For a non-built-in receiver, the constructor queries the program-wide `InstanceOperationTable`.
+That table stores each instance target after binder refinement, the declaration's retained
+requirements, its operation member identities, and a canonical refinement substitution. It rejects
+overlapping target patterns before any body is checked; declaration order and specificity never
+rank candidates. A body selector combines the pattern match with lexical assumptions, proves
+instance and member requirements, applies visibility, and emits one `StaticSelection`. That value
+contains both the direct or structural dispatch identity and every declaration-generic argument,
+so instantiation and MIR cannot repeat matching.
+
+Declaration lookup is restricted to fully concrete receiver types. A receiver that still contains
+a lexical generic, interface `Self`, or associated projection can select only an exact lexical
+requirement. Concrete instance dispatch is deferred until executable specialization; generic body
+checking cannot silently assume that a future type argument will match an instance.
+
+Index selection permits exactly one receiver coercion. A unique direct operation outranks all
+coercion-derived candidates; equally ranked candidates are ambiguous. Readonly and readwrite
+selections preserve their capability in the place, while writability also depends on the original
+receiver storage. A selected index, a selected index after coercion, and a coerced built-in index
+are distinct projections. Lexical `where (&C[K]): &V` and `where (&+C[K]): &+V` requirements emit
+structural dispatch by exact `RequirementId`. Temporary ownership for unsupported expression
+families remains a subsequent increment.
 
 Integer `+`, `-`, `*`, `/`, and `%` select the closed `PrimitiveBinary` operation once. An
 authoritative destination integer type contextualizes literal operands; otherwise the typed left
@@ -313,7 +336,7 @@ cannot schedule a second action. Unreachable valid drop source remains typed HIR
 executable cleanup schedule. Loan conflicts remain subsequent work in the general loan analysis.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
-facade owns the declaration graph, extended type store, conformance table, checked-body arena, and
-source projection only after every body succeeds. Unsupported valid syntax remains an internal
+facade owns the declaration graph, extended type store, conformance table, instance-operation
+table, checked-body arena, and source projection only after every body succeeds. Unsupported valid syntax remains an internal
 incomplete-implementation error, preventing both a partial program and a misleading source
 diagnostic.

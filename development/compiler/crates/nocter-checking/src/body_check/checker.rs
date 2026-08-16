@@ -12,6 +12,7 @@ use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
 
+use super::assumptions::body_assumptions;
 use super::context::{BodyProgramFacts, body_result_type};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
@@ -80,6 +81,7 @@ pub fn check_prepared_program<'syntax>(
         graph,
         mut types,
         conformances,
+        instance_operations,
         mut copyabilities,
         drops,
         body_sources,
@@ -88,7 +90,13 @@ pub fn check_prepared_program<'syntax>(
     } = prepared.into_parts();
     let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
     let mut projections = Vec::new();
-    let facts = BodyProgramFacts::new(&graph, &drops, &source_index);
+    let facts = BodyProgramFacts::new(
+        &graph,
+        &drops,
+        &conformances,
+        &instance_operations,
+        &source_index,
+    );
 
     for (body, _) in graph.declarations().bodies().iter() {
         let source = body_sources
@@ -124,6 +132,7 @@ pub fn check_prepared_program<'syntax>(
             graph,
             types,
             conformances,
+            instance_operations,
             copyabilities,
             drops,
             bodies.finish(),
@@ -143,6 +152,8 @@ struct BodyChecker<'input, 'syntax> {
     types: &'input mut TypeStore,
     copyabilities: &'input mut CopyabilityTable,
     drops: &'input DropTable,
+    conformances: &'input crate::ConformanceTable,
+    instance_operations: &'input crate::InstanceOperationTable,
     source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
@@ -155,6 +166,7 @@ struct BodyChecker<'input, 'syntax> {
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
+    assumptions: Vec<crate::CheckedRequirement>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -168,6 +180,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     ) -> Result<Self, BodyCheckError> {
         let graph = facts.graph();
         let drops = facts.drops();
+        let conformances = facts.conformances();
+        let instance_operations = facts.instance_operations();
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
@@ -189,12 +203,16 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         let result_type = body_result_type(graph, types, source)?;
+        let assumptions = body_assumptions(graph, types, conformances, instance_operations, source)
+            .map_err(BodyCheckInternalError::BodyAssumptions)?;
         Ok(Self {
             input,
             graph,
             types,
             copyabilities,
             drops,
+            conformances,
+            instance_operations,
             source_index,
             source,
             names,
@@ -207,6 +225,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             node_origins: HashMap::new(),
             loops: Vec::new(),
             flow_reachable: true,
+            assumptions,
         })
     }
 
@@ -492,9 +511,13 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         {
             return Err(self.rule(BodyRule::InvalidExplicitDrop, statement)?);
         }
-        let place =
-            self.builder
-                .add_place(root, Vec::<PlaceProjection>::new(), ty, PlaceAccess::Owned);
+        let place = self.builder.add_place(
+            root,
+            Vec::<PlaceProjection>::new(),
+            ty,
+            PlaceAccess::Owned,
+            false,
+        );
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
@@ -658,7 +681,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn check_postfix_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
-        let place = self.postfix_place(node)?;
+        let place = self.postfix_place(node, BorrowCapability::Readonly)?;
         self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
     }
 
@@ -722,7 +745,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 BodyCheckInternalError::UnsupportedSyntax(node, NodeKind::UnaryExpression).into(),
             );
         }
-        let place = self.postfix_place(operands[0])?;
+        let place = self.postfix_place(operands[0], capability)?;
         if capability == BorrowCapability::ReadWrite && !self.is_writable_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operands[0])?);
         }

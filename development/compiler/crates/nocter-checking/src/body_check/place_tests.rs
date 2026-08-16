@@ -210,3 +210,217 @@ fn borrow_dereference_preserves_the_initialized_owned_field_prefix() {
         PlaceAccess::Borrowed(nocter_model::BorrowCapability::Readonly)
     );
 }
+
+#[test]
+fn source_defined_readonly_index_is_selected_once_as_a_place_projection() {
+    let output = check(
+        "struct Buffer { values: [i32; 2] }\ninstance Buffer {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n}\nfunc read(buffer: &Buffer): i32 {\n    buffer[0]\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(body, _)| {
+            matches!(
+                output.program().graph().declarations().bodies().get(*body).unwrap().owner(),
+                nocter_declarations::BodyOwner::Callable(callable)
+                    if output.program().graph().declarations().callables().get(callable).unwrap().kind()
+                        == nocter_declarations::CallableKind::Function
+            )
+        })
+        .unwrap();
+    let selected = body
+        .places()
+        .iter()
+        .find_map(|(_, place)| match place.projections().last() {
+            Some(PlaceProjection::SelectedIndex {
+                operation,
+                receiver_coercion,
+                ..
+            }) => Some((operation, receiver_coercion)),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(matches!(
+        selected.0.dispatch(),
+        crate::StaticDispatch::Direct(_)
+    ));
+    assert!(selected.0.generic_arguments().as_slice().is_empty());
+    assert!(selected.1.is_none());
+}
+
+#[test]
+fn generic_index_selection_retains_the_complete_instance_substitution() {
+    let output = check(
+        "struct Buffer<T> { values: [T; 1] }\ninstance Buffer<T> {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n}\nfunc read(buffer: &Buffer<i32>): i32 {\n    buffer[0]\n}\n",
+    )
+    .unwrap();
+    let generic_arguments = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.places().iter())
+        .find_map(|(_, place)| match place.projections().last() {
+            Some(PlaceProjection::SelectedIndex { operation, .. })
+                if !operation.generic_arguments().as_slice().is_empty() =>
+            {
+                Some(operation.generic_arguments())
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    assert_eq!(generic_arguments.as_slice().len(), 1);
+    assert_eq!(
+        generic_arguments.as_slice()[0].ty(),
+        output
+            .program()
+            .types()
+            .builtin(nocter_model::BuiltinType::I32)
+    );
+}
+
+#[test]
+fn one_receiver_coercion_can_reach_a_builtin_index_projection() {
+    let output = check(
+        "struct Wrapper { values: [i32; 1] }\ninstance Wrapper {\n    pub coerce &self as &[i32; 1] {\n        return &self.values\n    }\n}\nfunc read(wrapper: &Wrapper): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap();
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::CoercedBuiltinIndex { .. })
+            )
+        })
+    }));
+}
+
+#[test]
+fn lexical_index_requirement_dispatches_a_generic_place() {
+    let output = check(
+        "func read<C, V>(source: &C, index: usize): &V where (&C[usize]): &V {\n    return &source[index]\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let selection = body
+        .places()
+        .iter()
+        .find_map(|(_, place)| match place.projections().last() {
+            Some(PlaceProjection::SelectedIndex { operation, .. }) => Some(operation),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(matches!(
+        selection.dispatch(),
+        crate::StaticDispatch::StructuralRequirement(_)
+    ));
+    assert!(selection.generic_arguments().as_slice().is_empty());
+}
+
+#[test]
+fn unresolved_generic_receiver_does_not_use_concrete_instance_lookup() {
+    let missing = check(
+        "struct Buffer<T> { values: [T; 1] }\ninstance Buffer<T> {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n}\nfunc invalid<T>(source: &Buffer<T>): &T {\n    return &source[0]\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(missing.source_diagnostic().unwrap().code(), "E0388");
+}
+
+#[test]
+fn instance_requirements_control_concrete_index_applicability() {
+    let available = check(
+        "struct Buffer<T> { values: [T; 1] }\ninstance Buffer<T> where copy T {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n}\nfunc read(buffer: &Buffer<i32>): i32 {\n    buffer[0]\n}\n",
+    )
+    .unwrap();
+    assert!(available.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::SelectedIndex { .. })
+            )
+        })
+    }));
+
+    let unavailable = check(
+        "struct Owned { value: i32 }\nstruct Buffer<T> { values: [T; 1] }\ninstance Buffer<T> where copy T {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n}\nfunc invalid(buffer: &Buffer<Owned>): void {\n    let _ = &buffer[0]\n    return\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(unavailable.source_diagnostic().unwrap().code(), "E0388");
+}
+
+#[test]
+fn direct_index_operation_has_priority_over_receiver_coercion() {
+    let output = check(
+        "struct Wrapper { values: [i32; 1] }\ninstance Wrapper {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n    pub coerce &self as &[i32; 1] {\n        return &self.values\n    }\n}\nfunc read(wrapper: &Wrapper): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap();
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::SelectedIndex {
+                    receiver_coercion: None,
+                    ..
+                })
+            )
+        })
+    }));
+}
+
+#[test]
+fn lower_ranked_coercion_cannot_change_direct_index_context() {
+    let output = check(
+        "struct Alternate { values: [i32; 1] }\ninstance Alternate {\n    pub operator (&self[index: i32]): &i32 {\n        return &self.values[0]\n    }\n}\nstruct Wrapper { values: [i32; 1]\n    alternate: Alternate\n}\ninstance Wrapper {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n    pub coerce &self as &Alternate {\n        return &self.alternate\n    }\n}\nfunc read(wrapper: &Wrapper): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(body, _)| {
+            matches!(
+                output.program().graph().declarations().bodies().get(*body).unwrap().owner(),
+                nocter_declarations::BodyOwner::Callable(callable)
+                    if output.program().graph().declarations().callables().get(callable).unwrap().kind()
+                        == nocter_declarations::CallableKind::Function
+            )
+        })
+        .unwrap();
+    let (index, receiver_coercion) = body
+        .places()
+        .iter()
+        .find_map(|(_, place)| match place.projections().last() {
+            Some(PlaceProjection::SelectedIndex {
+                index,
+                receiver_coercion,
+                ..
+            }) => Some((*index, receiver_coercion)),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(receiver_coercion.is_none());
+    assert_eq!(
+        body.nodes().get(index).unwrap().ty(),
+        output
+            .program()
+            .types()
+            .builtin(nocter_model::BuiltinType::Usize)
+    );
+}
+
+#[test]
+fn equally_ranked_coercion_paths_are_rejected_as_ambiguous() {
+    let error = check(
+        "struct Left { values: [i32; 1] }\ninstance Left {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n}\nstruct Right { values: [i32; 1] }\ninstance Right {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n}\nstruct Wrapper { left: Left\n    right: Right\n}\ninstance Wrapper {\n    pub coerce &self as &Left {\n        return &self.left\n    }\n    pub coerce &self as &Right {\n        return &self.right\n    }\n}\nfunc invalid(wrapper: &Wrapper): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0388");
+}

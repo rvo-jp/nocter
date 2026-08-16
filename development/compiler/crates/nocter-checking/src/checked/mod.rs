@@ -22,4 +22,6 @@ pub use node::{
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub use program::{CheckedProgram, CheckedProgramOutput};
-pub use selection::{DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch};
+pub use selection::{
+    DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+};

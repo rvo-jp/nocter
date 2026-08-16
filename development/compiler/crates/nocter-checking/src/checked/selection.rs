@@ -37,7 +37,7 @@ impl GenericArgument {
 }
 
 /// Canonically ordered substitution selected for one generic operation.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct GenericArguments(Box<[GenericArgument]>);
 
 impl GenericArguments {
@@ -72,6 +72,33 @@ impl GenericArguments {
             .binary_search_by_key(&parameter, |argument| argument.parameter())
             .ok()
             .map(|index| self.0[index].ty())
+    }
+}
+
+/// One exact static dispatch edge and the complete declaration-generic substitution it requires.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct StaticSelection {
+    dispatch: StaticDispatch,
+    generic_arguments: GenericArguments,
+}
+
+impl StaticSelection {
+    #[must_use]
+    pub const fn new(dispatch: StaticDispatch, generic_arguments: GenericArguments) -> Self {
+        Self {
+            dispatch,
+            generic_arguments,
+        }
+    }
+
+    #[must_use]
+    pub const fn dispatch(&self) -> StaticDispatch {
+        self.dispatch
+    }
+
+    #[must_use]
+    pub const fn generic_arguments(&self) -> &GenericArguments {
+        &self.generic_arguments
     }
 }
 

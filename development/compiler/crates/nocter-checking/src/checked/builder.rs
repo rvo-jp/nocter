@@ -63,9 +63,10 @@ impl CheckedBodyBuilder {
         projections: impl Into<Box<[PlaceProjection]>>,
         ty: TypeId,
         access: PlaceAccess,
+        writable: bool,
     ) -> PlaceId {
         self.places
-            .insert(CheckedPlace::new(root, projections, ty, access))
+            .insert(CheckedPlace::new(root, projections, ty, access, writable))
     }
 
     pub(crate) fn place(&self, place: PlaceId) -> Option<&CheckedPlace> {

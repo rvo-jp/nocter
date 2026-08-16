@@ -436,3 +436,69 @@ fn rhs_partial_move_does_not_invalidate_the_disjoint_indexed_base() {
 
     assert!(body.cleanups().schedule(assignment_node(body)).is_some());
 }
+
+#[test]
+fn source_defined_readwrite_index_supports_assignment() {
+    let output = check(
+        "struct Owned { value: i32 }\nstruct Buffer { values: [Owned; 2] }\ninstance Buffer {\n    pub operator (&+self[index: usize]): &+Owned {\n        return &+self.values[index]\n    }\n}\nfunc update(buffer: &+Buffer, replacement: Owned): void {\n    buffer[0] = move replacement\n    return\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(body, _)| {
+            matches!(
+                output.program().graph().declarations().bodies().get(*body).unwrap().owner(),
+                nocter_declarations::BodyOwner::Callable(callable)
+                    if output.program().graph().declarations().callables().get(callable).unwrap().kind()
+                        == nocter_declarations::CallableKind::Function
+            )
+        })
+        .unwrap();
+    let assign = assignment_node(body);
+    let CheckedOperation::Control(CheckedControl::Assign { target, .. }) =
+        body.nodes().get(assign).unwrap().operation()
+    else {
+        unreachable!();
+    };
+    let place = body.places().get(*target).unwrap();
+
+    assert!(matches!(
+        place.projections().last(),
+        Some(PlaceProjection::SelectedIndex { .. })
+    ));
+    assert!(place.is_writable());
+    assert_eq!(
+        body.cleanups().schedule(assign).unwrap().timing(),
+        CleanupTiming::BeforeStore
+    );
+}
+
+#[test]
+fn readwrite_coercion_can_produce_an_indexed_assignment_place() {
+    let output = check(
+        "struct Owned { value: i32 }\nstruct Wrapper { values: [Owned; 1] }\ninstance Wrapper {\n    pub coerce &+self as &+[Owned; 1] {\n        return &+self.values\n    }\n}\nfunc update(wrapper: &+Wrapper, replacement: Owned): void {\n    wrapper[0] = move replacement\n    return\n}\n",
+    )
+    .unwrap();
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            place.is_writable()
+                && matches!(
+                    place.projections().last(),
+                    Some(PlaceProjection::CoercedBuiltinIndex { .. })
+                )
+        })
+    }));
+}
+
+#[test]
+fn readwrite_index_selection_does_not_make_an_immutable_receiver_writable() {
+    let error = check(
+        "struct Wrapper { values: [i32; 1] }\ninstance Wrapper {\n    pub coerce &+self as &+[i32; 1] {\n        return &+self.values\n    }\n}\nfunc invalid(wrapper: Wrapper): void {\n    wrapper[0] = 1\n    return\n}\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0384");
+}

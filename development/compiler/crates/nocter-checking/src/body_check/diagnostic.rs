@@ -20,6 +20,7 @@ pub enum BodyRule {
     InvalidReinitialization,
     InvalidCompoundAssignment,
     InvalidReadWriteBorrow,
+    InvalidIndexOperation,
 }
 
 impl BodyRule {
@@ -41,6 +42,7 @@ impl BodyRule {
         Self::InvalidReinitialization,
         Self::InvalidCompoundAssignment,
         Self::InvalidReadWriteBorrow,
+        Self::InvalidIndexOperation,
     ];
 
     #[must_use]
@@ -63,6 +65,7 @@ impl BodyRule {
             Self::InvalidReinitialization => "E0385",
             Self::InvalidCompoundAssignment => "E0386",
             Self::InvalidReadWriteBorrow => "E0387",
+            Self::InvalidIndexOperation => "E0388",
         }
     }
 
@@ -143,6 +146,10 @@ impl BodyRule {
             Self::InvalidReadWriteBorrow => (
                 "readwrite borrow requires a writable place",
                 "borrow a `var` binding, writable field, or readwrite index place",
+            ),
+            Self::InvalidIndexOperation => (
+                "no unique accessible index operation accepts this receiver and index",
+                "use an index type with one applicable operation or add an accessible index declaration",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

@@ -1,7 +1,8 @@
 use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication};
-use nocter_model::{Arena, CallableId, ConformanceId, InterfaceId, TypeId};
+use nocter_model::{Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, TypeId};
 
 use super::predicate::CheckedRequirement;
+use crate::GenericArgument;
 
 /// Callable selected for one interface method under an explicit conformance.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,6 +42,8 @@ impl ConformanceMethod {
 pub struct CheckedConformance {
     interface: InterfaceApplication,
     target: TypeId,
+    generic_parameters: Box<[GenericParameterId]>,
+    refinements: Box<[GenericArgument]>,
     requirements: Box<[CheckedRequirement]>,
     associated_types: Box<[AssociatedTypeBinding]>,
     methods: Box<[ConformanceMethod]>,
@@ -50,6 +53,8 @@ impl CheckedConformance {
     pub(super) fn new(
         interface: InterfaceApplication,
         target: TypeId,
+        generic_parameters: impl Into<Box<[GenericParameterId]>>,
+        refinements: impl Into<Box<[GenericArgument]>>,
         requirements: impl Into<Box<[CheckedRequirement]>>,
         associated_types: impl Into<Box<[AssociatedTypeBinding]>>,
         methods: impl Into<Box<[ConformanceMethod]>>,
@@ -57,6 +62,8 @@ impl CheckedConformance {
         Self {
             interface,
             target,
+            generic_parameters: generic_parameters.into(),
+            refinements: refinements.into(),
             requirements: requirements.into(),
             associated_types: associated_types.into(),
             methods: methods.into(),
@@ -71,6 +78,16 @@ impl CheckedConformance {
     #[must_use]
     pub const fn target(&self) -> TypeId {
         self.target
+    }
+
+    #[must_use]
+    pub const fn generic_parameters(&self) -> &[GenericParameterId] {
+        &self.generic_parameters
+    }
+
+    #[must_use]
+    pub const fn refinements(&self) -> &[GenericArgument] {
+        &self.refinements
     }
 
     #[must_use]

@@ -6,6 +6,9 @@ use super::{BodyChecker, NodeProjection, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
+use crate::instance_operations::{
+    IndexOperationCandidate, select_coerced_index_operations, select_index_operations,
+};
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, identifier_tokens, is_transparent_expression,
 };
@@ -15,6 +18,7 @@ struct PlaceDraft {
     root: PlaceRoot,
     ty: TypeId,
     access: PlaceAccess,
+    writable: bool,
     projections: Vec<PlaceProjection>,
     partial_parents: Vec<nocter_model::NominalTypeId>,
 }
@@ -33,7 +37,11 @@ impl BodyChecker<'_, '_> {
         Ok(self.finish_place(draft))
     }
 
-    pub(super) fn postfix_place(&mut self, node: NodeId) -> Result<ResolvedPlace, BodyCheckError> {
+    pub(super) fn postfix_place(
+        &mut self,
+        node: NodeId,
+        capability: BorrowCapability,
+    ) -> Result<ResolvedPlace, BodyCheckError> {
         let syntax = match collect_postfix_operations(self.tree(), node) {
             Ok(syntax) => syntax,
             Err(PlaceSyntaxError::NotPlace(invalid)) => {
@@ -48,7 +56,7 @@ impl BodyChecker<'_, '_> {
                 return Err(BodyCheckInternalError::InvalidSyntax(invalid).into());
             }
         };
-        self.resolve_place_syntax(syntax)
+        self.resolve_place_syntax(syntax, capability)
     }
 
     pub(super) fn assignment_place(
@@ -66,12 +74,13 @@ impl BodyChecker<'_, '_> {
                 return Err(BodyCheckInternalError::InvalidSyntax(invalid).into());
             }
         };
-        self.resolve_place_syntax(syntax)
+        self.resolve_place_syntax(syntax, BorrowCapability::ReadWrite)
     }
 
     fn resolve_place_syntax(
         &mut self,
         syntax: PlaceSyntax,
+        capability: BorrowCapability,
     ) -> Result<ResolvedPlace, BodyCheckError> {
         let token = direct_identifier(self.tree(), syntax.root)
             .ok_or(BodyCheckInternalError::InvalidSyntax(syntax.root))?;
@@ -83,7 +92,7 @@ impl BodyChecker<'_, '_> {
                         .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
                     self.push_field(suffix, &mut draft, field)?;
                 }
-                PlaceOperation::Index(suffix) => self.push_builtin_index(suffix, &mut draft)?,
+                PlaceOperation::Index(suffix) => self.push_index(suffix, &mut draft, capability)?,
             }
         }
         Ok(self.finish_place(draft))
@@ -97,18 +106,7 @@ impl BodyChecker<'_, '_> {
             .builder
             .place(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
-        match place.access() {
-            PlaceAccess::Borrowed(BorrowCapability::Readonly) => Ok(false),
-            PlaceAccess::Borrowed(BorrowCapability::ReadWrite) => Ok(true),
-            PlaceAccess::Owned => match place.root() {
-                PlaceRoot::Local(local) => Ok(self
-                    .names
-                    .locals()
-                    .get(local)
-                    .is_some_and(|local| local.kind() == LocalBindingKind::Mutable)),
-                PlaceRoot::Parameter(_) | PlaceRoot::Capture(_) => Ok(false),
-            },
-        }
+        Ok(place.is_writable())
     }
 
     fn start_place(
@@ -117,10 +115,19 @@ impl BodyChecker<'_, '_> {
         token: SyntaxToken,
     ) -> Result<PlaceDraft, BodyCheckError> {
         let (root, ty) = self.place_root(node, token)?;
+        let writable = match root {
+            PlaceRoot::Local(local) => self
+                .names
+                .locals()
+                .get(local)
+                .is_some_and(|local| local.kind() == LocalBindingKind::Mutable),
+            PlaceRoot::Parameter(_) | PlaceRoot::Capture(_) => false,
+        };
         Ok(PlaceDraft {
             root,
             ty,
             access: PlaceAccess::Owned,
+            writable,
             projections: Vec::new(),
             partial_parents: Vec::new(),
         })
@@ -176,35 +183,106 @@ impl BodyChecker<'_, '_> {
         Ok(())
     }
 
-    fn push_builtin_index(
+    fn push_index(
         &mut self,
         suffix: NodeId,
         draft: &mut PlaceDraft,
+        capability: BorrowCapability,
     ) -> Result<(), BodyCheckError> {
         let base = self.place_projection_base(draft)?;
-        let element = match self.types.get(base) {
-            Some(TypeKind::FixedArray { element, .. } | TypeKind::Slice(element)) => *element,
+        let builtin = match self.types.get(base) {
+            Some(TypeKind::FixedArray { element, .. } | TypeKind::Slice(element)) => Some(*element),
             Some(TypeKind::Builtin(BuiltinType::Str)) => {
                 draft.access = PlaceAccess::Borrowed(BorrowCapability::Readonly);
-                self.types.builtin(BuiltinType::U8)
+                draft.writable = false;
+                Some(self.types.builtin(BuiltinType::U8))
             }
-            Some(_) => {
-                return Err(BodyCheckInternalError::UnsupportedSyntax(
-                    suffix,
-                    NodeKind::IndexSuffix,
-                )
-                .into());
-            }
+            Some(_) => None,
             None => return Err(BodyCheckInternalError::UnknownType(base).into()),
         };
         let expression = direct_child(self.tree(), suffix, NodeKind::Expression)
             .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
-        let index =
-            self.check_expression(expression, Some(self.types.builtin(BuiltinType::Usize)))?;
-        draft
-            .projections
-            .push(PlaceProjection::BuiltinIndex { index });
-        draft.ty = element;
+        if let Some(element) = builtin {
+            let index =
+                self.check_expression(expression, Some(self.types.builtin(BuiltinType::Usize)))?;
+            draft
+                .projections
+                .push(PlaceProjection::BuiltinIndex { index });
+            draft.ty = element;
+            return Ok(());
+        }
+        let receiver_writable = draft.writable;
+        let mut candidates = select_index_operations(
+            self.graph,
+            self.types,
+            self.conformances,
+            self.copyabilities,
+            self.instance_operations,
+            &self.assumptions,
+            self.source.module(),
+            base,
+            capability,
+        )
+        .map_err(BodyCheckInternalError::from)?;
+        candidates.extend(
+            select_coerced_index_operations(
+                self.graph,
+                self.types,
+                self.conformances,
+                self.copyabilities,
+                self.instance_operations,
+                &self.assumptions,
+                self.source.module(),
+                base,
+                capability,
+            )
+            .map_err(BodyCheckInternalError::from)?,
+        );
+        if candidates.iter().any(IndexOperationCandidate::is_direct) {
+            candidates.retain(IndexOperationCandidate::is_direct);
+        }
+        let expected = candidates
+            .first()
+            .map(IndexOperationCandidate::index)
+            .filter(|expected| {
+                candidates
+                    .iter()
+                    .all(|candidate| candidate.index() == *expected)
+            });
+        let index = self.check_expression(expression, expected)?;
+        let index_ty = self.node_type(index)?;
+        let candidates = candidates
+            .into_iter()
+            .filter(|candidate| candidate.index() == index_ty)
+            .collect::<Vec<_>>();
+        let mut candidates = candidates.into_iter();
+        let Some(selected) = candidates.next() else {
+            return Err(self.rule(BodyRule::InvalidIndexOperation, suffix)?);
+        };
+        if candidates.next().is_some() {
+            return Err(self.rule(BodyRule::InvalidIndexOperation, suffix)?);
+        }
+        match (selected.operation(), selected.receiver_coercion()) {
+            (Some(operation), receiver_coercion) => {
+                draft.projections.push(PlaceProjection::SelectedIndex {
+                    index,
+                    operation: operation.clone(),
+                    receiver_coercion: receiver_coercion.cloned(),
+                });
+            }
+            (None, Some(receiver_coercion)) => {
+                draft
+                    .projections
+                    .push(PlaceProjection::CoercedBuiltinIndex {
+                        index,
+                        receiver_coercion: receiver_coercion.clone(),
+                    });
+            }
+            (None, None) => return Err(BodyCheckInternalError::IndexSelection.into()),
+        }
+        draft.ty = selected.result();
+        draft.access = PlaceAccess::Borrowed(capability);
+        draft.writable = capability == BorrowCapability::ReadWrite && receiver_writable;
         Ok(())
     }
 
@@ -227,6 +305,10 @@ impl BodyChecker<'_, '_> {
                             BorrowCapability::ReadWrite,
                         ) => BorrowCapability::ReadWrite,
                     });
+                    draft.writable = matches!(
+                        draft.access,
+                        PlaceAccess::Borrowed(BorrowCapability::ReadWrite)
+                    );
                     ty = *referent;
                 }
                 Some(_) => return Ok(ty),
@@ -237,9 +319,13 @@ impl BodyChecker<'_, '_> {
 
     fn finish_place(&mut self, draft: PlaceDraft) -> ResolvedPlace {
         ResolvedPlace {
-            id: self
-                .builder
-                .add_place(draft.root, draft.projections, draft.ty, draft.access),
+            id: self.builder.add_place(
+                draft.root,
+                draft.projections,
+                draft.ty,
+                draft.access,
+                draft.writable,
+            ),
             ty: draft.ty,
             access: draft.access,
             partial_parents: draft.partial_parents.into_boxed_slice(),
@@ -260,13 +346,38 @@ impl BodyChecker<'_, '_> {
         self.consumed_uses.insert(origin);
         Ok(match target {
             NameTarget::Parameter(parameter) => {
-                let ty = self
+                let declaration = self
                     .graph
                     .declarations()
                     .parameters()
                     .get(parameter)
-                    .map(|parameter| parameter.ty())
                     .ok_or(BodyCheckInternalError::MissingParameterType(target))?;
+                let ty = match declaration.role() {
+                    nocter_declarations::ParameterRole::Receiver(capability) => {
+                        let capability = match capability {
+                            nocter_model::CallableCapability::Readonly => {
+                                Some(BorrowCapability::Readonly)
+                            }
+                            nocter_model::CallableCapability::ReadWrite => {
+                                Some(BorrowCapability::ReadWrite)
+                            }
+                            nocter_model::CallableCapability::Owned => None,
+                        };
+                        if let Some(capability) = capability {
+                            self.types
+                                .intern(TypeKind::Borrow {
+                                    capability,
+                                    referent: declaration.ty(),
+                                })
+                                .map_err(|_| {
+                                    BodyCheckInternalError::UnknownType(declaration.ty())
+                                })?
+                        } else {
+                            declaration.ty()
+                        }
+                    }
+                    nocter_declarations::ParameterRole::Ordinary { .. } => declaration.ty(),
+                };
                 (PlaceRoot::Parameter(parameter), ty)
             }
             NameTarget::Local(local) => (

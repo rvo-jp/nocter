@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
 use nocter_declarations::{
-    AssociatedTypeBinding, CallableDeclaration, CallableProvenanceContract, ConformanceDeclaration,
-    DeclarationGraph, InterfaceApplication, ProvenanceOrigin, RequirementKind,
+    AssociatedTypeBinding, CallableDeclaration, CallableProvenanceContract, DeclarationGraph,
+    InterfaceApplication, ProvenanceOrigin,
 };
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
@@ -16,6 +16,7 @@ use super::model::{CheckedConformance, ConformanceMethod, ConformanceTable, Meth
 use super::overlap::patterns_overlap;
 use super::predicate::{CheckedRequirement, normalize_requirements};
 use super::validate::validate_associated_bounds;
+use crate::pattern_requirements::PatternRequirements;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// Authored conformance failure or an inconsistent semantic boundary.
@@ -132,7 +133,8 @@ pub fn build_conformance_table(
     let mut preceding_patterns = BTreeMap::<InterfaceId, Vec<_>>::new();
 
     for (id, conformance) in declarations.conformances().iter() {
-        let pattern_substitution = conformance_pattern_substitution(graph, conformance)?;
+        let pattern_requirements = PatternRequirements::collect(graph, conformance.requirements())?;
+        let pattern_substitution = pattern_requirements.substitution();
         let normalized_interface = InterfaceApplication::new(
             conformance.interface().interface(),
             conformance
@@ -148,36 +150,17 @@ pub fn build_conformance_table(
             .interfaces()
             .get(interface_id)
             .ok_or(ConformanceInternalError::MissingInterface(interface_id))?;
-        if let Some(preceding) = preceding_patterns.get(&interface_id) {
-            for (previous, previous_interface, previous_target) in preceding {
-                if patterns_overlap(
-                    types,
-                    previous_interface,
-                    *previous_target,
-                    &normalized_interface,
-                    normalized_target,
-                )? {
-                    return Err(diagnostic::overlapping(
-                        site_origin(graph, source_index, conformance.site())?,
-                        site_origin(
-                            graph,
-                            source_index,
-                            declarations
-                                .conformances()
-                                .get(*previous)
-                                .ok_or(ConformanceInternalError::MissingConformance(*previous))?
-                                .site(),
-                        )?,
-                    )
-                    .into());
-                }
-            }
-        }
-        preceding_patterns.entry(interface_id).or_default().push((
-            id,
-            normalized_interface.clone(),
-            normalized_target,
-        ));
+        record_nonoverlapping_pattern(
+            graph,
+            types,
+            source_index,
+            &mut preceding_patterns,
+            ConformancePattern {
+                site: conformance.site(),
+                interface: normalized_interface.clone(),
+                target: normalized_target,
+            },
+        )?;
 
         let mut associated_types = conformance
             .associated_types()
@@ -206,11 +189,19 @@ pub fn build_conformance_table(
             actual_substitution: &pattern_substitution,
             conformance_site: conformance.site(),
         })?;
-        let requirements =
-            normalize_conformance_requirements(graph, types, &pattern_substitution, conformance)?;
+        let requirements = normalize_requirements(
+            graph,
+            types,
+            &pattern_substitution,
+            pattern_requirements.retained(),
+        )?;
+        let refinements =
+            pattern_requirements.normalized_refinements(types, conformance.generic_parameters())?;
         let actual = entries.insert(CheckedConformance::new(
             normalized_interface,
             normalized_target,
+            conformance.generic_parameters(),
+            refinements,
             requirements,
             associated_types,
             methods,
@@ -226,6 +217,45 @@ pub fn build_conformance_table(
     let table = ConformanceTable::new(entries.finish(), by_interface_arena.finish());
     validate_associated_bounds(graph, types, source_index, &table)?;
     Ok(table)
+}
+
+struct ConformancePattern {
+    site: nocter_model::DeclarationSiteId,
+    interface: InterfaceApplication,
+    target: nocter_model::TypeId,
+}
+
+type ConformancePatterns = BTreeMap<InterfaceId, Vec<ConformancePattern>>;
+
+fn record_nonoverlapping_pattern(
+    graph: &DeclarationGraph,
+    types: &mut TypeStore,
+    source_index: &SourceIndex,
+    preceding_patterns: &mut ConformancePatterns,
+    current: ConformancePattern,
+) -> Result<(), ConformanceBuildError> {
+    if let Some(preceding) = preceding_patterns.get(&current.interface.interface()) {
+        for previous in preceding {
+            if patterns_overlap(
+                types,
+                &previous.interface,
+                previous.target,
+                &current.interface,
+                current.target,
+            )? {
+                return Err(diagnostic::overlapping(
+                    site_origin(graph, source_index, current.site)?,
+                    site_origin(graph, source_index, previous.site)?,
+                )
+                .into());
+            }
+        }
+    }
+    preceding_patterns
+        .entry(current.interface.interface())
+        .or_default()
+        .push(current);
+    Ok(())
 }
 
 struct MethodSelectionInput<'program> {
@@ -420,57 +450,6 @@ fn conformance_substitution(
         substitution.bind_associated(binding.declaration(), binding.ty());
     }
     Ok(substitution)
-}
-
-fn conformance_pattern_substitution(
-    graph: &DeclarationGraph,
-    conformance: &ConformanceDeclaration,
-) -> Result<TypeSubstitution, ConformanceBuildError> {
-    let mut substitution = TypeSubstitution::default();
-    for requirement in conformance.requirements() {
-        let requirement = graph
-            .declarations()
-            .requirements()
-            .get(*requirement)
-            .ok_or(SubstitutionError::InvalidStore)?;
-        if let RequirementKind::BinderRefinement {
-            parameter,
-            replacement,
-        } = requirement.kind()
-        {
-            substitution.bind_generic(*parameter, *replacement);
-        }
-    }
-    Ok(substitution)
-}
-
-fn normalize_conformance_requirements(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    substitution: &TypeSubstitution,
-    conformance: &ConformanceDeclaration,
-) -> Result<Vec<CheckedRequirement>, ConformanceBuildError> {
-    let retained = conformance
-        .requirements()
-        .iter()
-        .copied()
-        .filter(|requirement| {
-            !matches!(
-                graph
-                    .declarations()
-                    .requirements()
-                    .get(*requirement)
-                    .map(nocter_declarations::Requirement::kind),
-                Some(RequirementKind::BinderRefinement { .. })
-            )
-        })
-        .collect::<Vec<_>>();
-    Ok(normalize_requirements(
-        graph,
-        types,
-        substitution,
-        &retained,
-    )?)
 }
 
 fn same_predicates(left: &[CheckedRequirement], right: &[CheckedRequirement]) -> bool {

@@ -32,3 +32,4 @@ pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckInternalError};
 
 pub use checker::check_prepared_program;
+mod assumptions;

@@ -6,6 +6,7 @@ use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
 use crate::checked::BuildCheckedBodyError;
+use crate::instance_operations::InstanceSelectionError;
 use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget};
 
 #[derive(Debug)]
@@ -92,6 +93,9 @@ pub enum BodyCheckInternalError {
     NonCanonicalBody(BodyId),
     OwnershipState,
     FieldSelection,
+    InstanceSelection(InstanceSelectionError),
+    IndexSelection,
+    BodyAssumptions(crate::SubstitutionError),
     CleanupPlanning,
 }
 
@@ -124,6 +128,12 @@ impl From<ExpectedTypeError> for BodyCheckInternalError {
 impl From<CopyabilityError> for BodyCheckInternalError {
     fn from(error: CopyabilityError) -> Self {
         Self::Copyability(error)
+    }
+}
+
+impl From<InstanceSelectionError> for BodyCheckInternalError {
+    fn from(error: InstanceSelectionError) -> Self {
+        Self::InstanceSelection(error)
     }
 }
 

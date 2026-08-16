@@ -65,7 +65,7 @@ impl CheckedRequirement {
     }
 }
 
-pub(super) fn normalize_requirements(
+pub(crate) fn normalize_requirements(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     substitution: &TypeSubstitution,
@@ -85,7 +85,7 @@ pub(super) fn normalize_requirements(
         .collect()
 }
 
-pub(super) fn substitute_predicate(
+pub(crate) fn substitute_predicate(
     types: &mut TypeStore,
     substitution: &TypeSubstitution,
     predicate: &CheckedPredicate,

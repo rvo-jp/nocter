@@ -5,7 +5,7 @@ use nocter_model::{
 
 use crate::expected::OutcomeLayer;
 
-use super::{GenericArguments, StaticDispatch};
+use super::StaticSelection;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedNode {
@@ -44,7 +44,7 @@ pub enum CheckedOperation {
     Coerce {
         value: BodyNodeId,
         target: TypeId,
-        dispatch: StaticDispatch,
+        selection: StaticSelection,
     },
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),
@@ -69,7 +69,7 @@ pub enum ConstantValue {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CallTarget {
-    Static(StaticDispatch),
+    Static(StaticSelection),
     CallableValue {
         value: BodyNodeId,
         capability: CallableCapability,
@@ -81,7 +81,6 @@ pub struct CheckedCall {
     target: CallTarget,
     receiver: Option<BodyNodeId>,
     arguments: Box<[BodyNodeId]>,
-    generic_arguments: GenericArguments,
 }
 
 impl CheckedCall {
@@ -98,11 +97,6 @@ impl CheckedCall {
     #[must_use]
     pub const fn arguments(&self) -> &[BodyNodeId] {
         &self.arguments
-    }
-
-    #[must_use]
-    pub const fn generic_arguments(&self) -> &GenericArguments {
-        &self.generic_arguments
     }
 }
 
@@ -217,7 +211,7 @@ pub enum AllocationSelection {
 pub struct TypedIteration {
     source: BodyNodeId,
     acquisition: IterationAcquisition,
-    next: StaticDispatch,
+    next: StaticSelection,
     item: TypeId,
 }
 
@@ -233,8 +227,8 @@ impl TypedIteration {
     }
 
     #[must_use]
-    pub const fn next(&self) -> StaticDispatch {
-        self.next
+    pub const fn next(&self) -> &StaticSelection {
+        &self.next
     }
 
     #[must_use]
@@ -246,7 +240,7 @@ impl TypedIteration {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IterationAcquisition {
     Direct,
-    Expansion(StaticDispatch),
+    Expansion(StaticSelection),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -262,7 +256,7 @@ pub enum SequenceElement {
     Spread {
         mode: SpreadMode,
         iteration: TypedIteration,
-        exact_size: StaticDispatch,
+        exact_size: StaticSelection,
     },
 }
 
@@ -295,7 +289,7 @@ pub enum InterpolationPart {
     Text(Box<str>),
     Formatted {
         value: BodyNodeId,
-        formatter: StaticDispatch,
+        formatter: StaticSelection,
     },
 }
 

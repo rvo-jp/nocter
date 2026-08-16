@@ -3,13 +3,15 @@ use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SourceIndex;
 
 use super::error::BodyCheckInternalError;
-use crate::{BodySource, DropTable};
+use crate::{BodySource, ConformanceTable, DropTable, InstanceOperationTable};
 
 /// Immutable program-wide authorities shared by every body checker.
 #[derive(Clone, Copy)]
 pub(super) struct BodyProgramFacts<'program> {
     graph: &'program DeclarationGraph,
     drops: &'program DropTable,
+    conformances: &'program ConformanceTable,
+    instance_operations: &'program InstanceOperationTable,
     source_index: &'program SourceIndex,
 }
 
@@ -36,11 +38,15 @@ impl<'program> BodyProgramFacts<'program> {
     pub(super) const fn new(
         graph: &'program DeclarationGraph,
         drops: &'program DropTable,
+        conformances: &'program ConformanceTable,
+        instance_operations: &'program InstanceOperationTable,
         source_index: &'program SourceIndex,
     ) -> Self {
         Self {
             graph,
             drops,
+            conformances,
+            instance_operations,
             source_index,
         }
     }
@@ -51,6 +57,14 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn drops(self) -> &'program DropTable {
         self.drops
+    }
+
+    pub(super) const fn conformances(self) -> &'program ConformanceTable {
+        self.conformances
+    }
+
+    pub(super) const fn instance_operations(self) -> &'program InstanceOperationTable {
+        self.instance_operations
     }
 
     pub(super) const fn source_index(self) -> &'program SourceIndex {

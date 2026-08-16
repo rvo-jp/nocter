@@ -434,6 +434,13 @@ constraints. It completes the unique substitution before checked injection nodes
 Contextual tag literals contribute no payload constraint, and injection never feeds a guessed type
 back into callable selection.
 
+The program-wide instance-operation table owns normalized target patterns, binder refinements,
+retained requirements, member identities, and overlap rejection. Body checking queries it for
+source-defined indexing and the permitted one-step receiver coercion. A unique direct operation
+outranks coercion-derived candidates; peers are ambiguous. The resulting checked place freezes the
+selected dispatch and canonical declaration-generic arguments together, so instantiation and MIR
+cannot rescan instance declarations or derive priority from source order.
+
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once
 through one conformance table. MIR and later stages have no dispatch API.

@@ -8,7 +8,7 @@ use super::overlap::match_pattern;
 use super::predicate::{CheckedPredicate, CheckedRequirement, substitute_predicate};
 use crate::type_relations::SubstitutionError;
 
-pub(super) fn proves(
+pub(crate) fn proves(
     types: &mut TypeStore,
     table: &ConformanceTable,
     assumptions: &[CheckedRequirement],

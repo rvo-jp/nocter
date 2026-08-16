@@ -2,19 +2,19 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by implementing indexed writable-place planning and the remaining closed
-primitive operator families on top of the completed assignment transition.
+Continue v0.14.0 Phase 3 by implementing the remaining closed primitive operator families on top
+of the completed assignment and source-defined indexed-place transitions.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Build the program-wide instance-operation selector, then use it for source-defined index
-   projections and the permitted one-step receiver coercion. It must prove conditional
-   requirements without rescanning declarations or ranking candidates by input order.
-2. Complete unary numeric, shift, logical, primitive equality, and primitive ordering selection
+1. Complete unary numeric, shift, logical, primitive equality, and primitive ordering selection
    without mixing source-defined operator dispatch into the primitive path.
+2. Generalize the completed instance-operation authority from indexing and coercion to the
+   remaining source-defined operator families. Each selector must share requirement proof,
+   visibility, generic substitution, and ambiguity rules.
 3. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 
@@ -39,7 +39,10 @@ layer.
 The program-wide `ConformanceTable` now owns refinement normalization, overlap unification, exact
 required/default method selection, signature substitution, conditional requirements, associated
 bindings, and associated interface/callable bound proof. Generic matching and bound proof query
-that table; they do not reconstruct declaration patterns or rank a more-specific conformance.
+that table; they do not reconstruct declaration patterns or rank a more-specific conformance. A
+parallel `InstanceOperationTable` is the sole normalized index for instance-owned operations. It
+consumes binder refinements and retained predicates once, rejects overlapping instance target
+patterns as `E0355`, and supplies identity-keyed generic substitutions to body selection.
 One iterative normalized-type validator now covers every declaration-owned data position,
 callable result, non-value type operand, borrow/raw-pointer pointee, generic argument, structural
 callable, and outcome layer. It is source-independent so concrete substitution can invoke the same
@@ -66,7 +69,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, calls, general operators, aggregates, pattern conditionals,
+branch-local paths. Annotation binding, calls, remaining operators, aggregates, pattern conditionals,
 `match`, loops, closures, literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
@@ -104,9 +107,14 @@ codes. Built-in fixed-array, slice, and `str` indexing now uses the same checked
 as field reads and borrows. Every implicit borrow dereference is an explicit place projection, so
 the owned initialization prefix and final storage authority remain distinct. Index expressions
 occur once in projection order. Simple and compound indexed assignment visit the RHS first, then
-those index nodes, and retain the evaluated place for pre-store cleanup. Source-defined index
-selection, remaining operators, temporary cleanup for calls and aggregates, and executable MIR
-lowering remain incomplete.
+those index nodes, and retain the evaluated place for pre-store cleanup. Source-defined readonly
+and readwrite index operations and the permitted one-step receiver coercion now enter that same
+place model. Selection prefers a unique direct operation over coercion paths, rejects equally
+ranked paths as `E0388`, and carries one complete `StaticSelection` containing dispatch identity
+and generic arguments. Lexical structural index requirements dispatch through their exact
+`RequirementId`; concrete instance candidates must satisfy normalized declaration and callable
+requirements, while unresolved generic receivers require lexical evidence. Remaining operators,
+temporary cleanup for calls and aggregates, and executable MIR lowering remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop
