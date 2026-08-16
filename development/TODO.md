@@ -2,21 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by defining the immutable checked-program model and implementing
-body-owned name resolution without importing syntax into canonical checked semantics.
+Continue v0.14.0 Phase 3 with program-wide normalized conformance and data-position type validity,
+then define the closed typed-body node model those decisions feed.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Define the immutable checked-program and body-owned HIR contracts, including stable body-local
-   identities and a one-way source projection boundary. Do not create expression side maps or a
-   second declaration/name authority.
-2. Implement lexical body scopes and exact name resolution as the first checked-program slice,
-   with source-backed diagnostics and ordering-invariant conformance cases.
-3. Move block-import selection into those lexical scopes, consuming discovery-owned module targets
-   and the frozen module export namespace without mutating `DeclarationProgram`.
+1. Define one normalized conformance table keyed by semantic interface application and target type;
+   validate associated bindings, method signatures, completeness, and overlap once.
+2. Validate every normalized data-position type, including `void`, `never`, unsized, optional, and
+   fallible placement, before body expected-type checking can consume it.
+3. Define the immutable checked-program and typed-body node contracts from those closed decisions.
+   Do not create expression side maps or a second declaration/name authority.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -30,6 +29,12 @@ The Phase 3 responsibility map is recorded in `development/docs/checked-program-
 body-lookup authority. `nocter-checking` catalogs every `BodyId` from exact source projection and
 validates its physical source against the semantic owner module. Missing or inconsistent
 projections remain internal boundary errors.
+Body-owned resolution now creates dense scope, local, and explicit-capture identities for every
+lexical construct. It resolves value uses to parameter, local, capture, exported, or built-in
+identity; rejects implicit captures; selects block imports through exact discovery-to-module
+projection; extends `SourceIndex`; and compares complete diagnostics under reversed input order.
+The synthetic prelude is consistently a shadowable fallback rather than an authored collision
+layer.
 
 ## Guardrails
 

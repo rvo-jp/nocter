@@ -5,5 +5,11 @@
 //! checked semantic identities. Target validation and later lowering cannot depend on this crate.
 
 mod body_sources;
+mod names;
 
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
+pub use names::{
+    BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
+    NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
+    resolve_body_names,
+};

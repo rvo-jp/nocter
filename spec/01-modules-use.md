@@ -403,9 +403,12 @@ Unqualified lookup uses the shared module namespace plus lexical scopes:
 4. explicit imported names and synthetic prelude names
 5. built-in types and syntax forms
 
-Shadowing is not supported. Parameters, locals, module declarations, imports, prelude names, and
-built-in type names must not introduce the same visible name. Duplicate top-level declarations are
-diagnosed across every source in the module, independent of source traversal order.
+Shadowing authored names is not supported. Parameters, locals, block imports, module declarations,
+authored imports, built-in type names, and the contextual `Self` type form must not introduce the
+same visible name. The synthetic prelude is the sole exception: it is a fallback layer, so any
+authored module name or valid lexical name with the same spelling takes precedence. Duplicate
+top-level declarations are diagnosed across every source in the module, independent of source
+traversal order.
 
 ## Visibility
 

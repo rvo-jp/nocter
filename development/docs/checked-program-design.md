@@ -78,8 +78,9 @@ One temporary scope stack covers parameters, locals, block imports, pattern payl
 bindings, loop bindings, closure parameters, and explicit captures. A declaration records its
 semantic identity at the point where its name becomes visible. A reference immediately resolves to
 that identity or to one exact module namespace entity. Because Nocter forbids shadowing, insertion
-checks every enclosing lexical binding, parameter, authored module name, prelude fallback, and
-built-in type name before accepting a new visible name.
+checks every enclosing lexical binding, parameter, authored module name, and built-in type name
+before accepting a new visible name. Compiler-selected prelude names remain a distinct fallback
+layer and are deliberately shadowable by valid authored or lexical names.
 
 Closure capture lookup is a distinct operation over enclosing callable bindings. The capture list
 selects exact outer identities first; the closure body resolves the capture spelling to a new

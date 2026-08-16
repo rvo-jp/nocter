@@ -1,0 +1,898 @@
+use std::collections::{BTreeMap, HashMap};
+
+use nocter_declaration_lowering::CompileUnitInput;
+use nocter_declarations::{BodyOwner, DeclarationProgram, ExportedEntity};
+use nocter_model::{
+    ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
+};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin};
+use nocter_syntax::{
+    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
+};
+
+use super::diagnostic;
+use super::model::{
+    BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget, ResolvedBodyNames,
+    ResolvedNameUse,
+};
+use super::syntax::{
+    direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
+    token_symbol, token_text,
+};
+use super::{NameResolutionError, NameResolutionInternalError, Projection};
+use crate::BodySource;
+
+pub(super) struct ResolvedBody {
+    pub(super) body: ResolvedBodyNames,
+    pub(super) projections: Vec<Projection>,
+}
+
+#[derive(Clone, Copy)]
+struct ActiveBinding {
+    target: NameTarget,
+    origin: Option<SourceOrigin>,
+}
+
+struct ActiveScope {
+    id: BodyScopeId,
+    names: BTreeMap<Symbol, ActiveBinding>,
+}
+
+#[derive(Clone, Copy)]
+struct Introduction {
+    token: SyntaxToken,
+    kind: LocalBindingKind,
+}
+
+enum Action {
+    Visit(NodeId),
+    EnterBlock {
+        block: NodeId,
+        introductions: Vec<Introduction>,
+    },
+    ExitScope,
+    Declare(Introduction),
+    EnterClosure(NodeId),
+    ExitClosure {
+        outer_scope_count: usize,
+    },
+}
+
+pub(super) struct BodyNameResolver<'input, 'syntax> {
+    input: &'input CompileUnitInput<'syntax>,
+    program: &'input DeclarationProgram,
+    source_index: &'input SourceIndex,
+    import_targets: &'input HashMap<NodeId, ModuleId>,
+    source: BodySource<'syntax>,
+    scopes: ArenaBuilder<BodyScopeId, BodyScope>,
+    locals: ArenaBuilder<LocalBindingId, LocalBinding>,
+    captures: ArenaBuilder<CaptureId, Capture>,
+    active: Vec<ActiveScope>,
+    callable_boundaries: Vec<usize>,
+    uses: Vec<ResolvedNameUse>,
+    projections: Vec<Projection>,
+}
+
+impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
+    pub(super) fn new(
+        input: &'input CompileUnitInput<'syntax>,
+        program: &'input DeclarationProgram,
+        source_index: &'input SourceIndex,
+        import_targets: &'input HashMap<NodeId, ModuleId>,
+        source: BodySource<'syntax>,
+    ) -> Self {
+        Self {
+            input,
+            program,
+            source_index,
+            import_targets,
+            source,
+            scopes: ArenaBuilder::new(),
+            locals: ArenaBuilder::new(),
+            captures: ArenaBuilder::new(),
+            active: Vec::new(),
+            callable_boundaries: Vec::new(),
+            uses: Vec::new(),
+            projections: Vec::new(),
+        }
+    }
+
+    pub(super) fn resolve(mut self) -> Result<ResolvedBody, NameResolutionError> {
+        self.push_scope(None);
+        self.callable_boundaries.push(0);
+        self.seed_parameters()?;
+        let mut actions = Vec::new();
+        actions.push(Action::ExitClosure {
+            outer_scope_count: 0,
+        });
+        self.schedule_block_contents(self.source.block(), &mut actions)?;
+        self.run(actions)?;
+        if !self.active.is_empty() || !self.callable_boundaries.is_empty() {
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.block()).into());
+        }
+        Ok(ResolvedBody {
+            body: ResolvedBodyNames::new(
+                self.source.body(),
+                self.scopes.finish(),
+                self.locals.finish(),
+                self.captures.finish(),
+                self.uses,
+            ),
+            projections: self.projections,
+        })
+    }
+
+    fn run(&mut self, mut actions: Vec<Action>) -> Result<(), NameResolutionError> {
+        while let Some(action) = actions.pop() {
+            match action {
+                Action::Visit(node) => self.visit(node, &mut actions)?,
+                Action::EnterBlock {
+                    block,
+                    introductions,
+                } => {
+                    let parent = self.active.last().map(|scope| scope.id);
+                    self.push_scope(parent);
+                    for introduction in introductions {
+                        self.declare_local(introduction)?;
+                    }
+                    actions.push(Action::ExitScope);
+                    self.schedule_block_contents(block, &mut actions)?;
+                }
+                Action::ExitScope => {
+                    self.active.pop().ok_or_else(|| {
+                        NameResolutionInternalError::InvalidSyntaxNode(self.source.block())
+                    })?;
+                }
+                Action::Declare(introduction) => self.declare_local(introduction)?,
+                Action::EnterClosure(node) => self.enter_closure(node, &mut actions)?,
+                Action::ExitClosure { outer_scope_count } => {
+                    if self.active.len() != outer_scope_count + 1 {
+                        return Err(NameResolutionInternalError::InvalidSyntaxNode(
+                            node_for_error(self.source),
+                        )
+                        .into());
+                    }
+                    self.active.pop();
+                    self.callable_boundaries.pop();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn visit(
+        &mut self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionError> {
+        let kind = self.node_kind(node)?;
+        match kind {
+            NodeKind::Block => actions.push(Action::EnterBlock {
+                block: node,
+                introductions: Vec::new(),
+            }),
+            NodeKind::BindingStatement => self.visit_binding(node, actions)?,
+            NodeKind::ForStatement => self.visit_for(node, actions)?,
+            NodeKind::RegionStatement => self.visit_region(node, actions)?,
+            NodeKind::IfExpression => self.visit_if(node, actions)?,
+            NodeKind::MatchExpression => self.visit_match(node, actions),
+            NodeKind::MatchArm => self.visit_match_arm(node, actions)?,
+            NodeKind::RecoveryClause => self.visit_recovery_clause(node, actions)?,
+            NodeKind::ClosureExpression => actions.push(Action::EnterClosure(node)),
+            NodeKind::ReferenceExpression | NodeKind::NamedPlace | NodeKind::DropStatement => {
+                self.resolve_node_name(node)?;
+            }
+            NodeKind::Type
+            | NodeKind::TypeAnnotation
+            | NodeKind::ClosureResult
+            | NodeKind::EnumPattern
+            | NodeKind::BlockUseDeclaration => {}
+            _ => {
+                for child in direct_nodes(self.tree(), node).into_iter().rev() {
+                    actions.push(Action::Visit(child));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn visit_binding(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let target = direct_child(self.tree(), node, NodeKind::BindingTarget)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let token = direct_identifier(self.tree(), target)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(target))?;
+        let kind = if self.tree().children(node).iter().any(|element| {
+            matches!(
+                element,
+                SyntaxElement::Token(token)
+                    if token.kind() == TokenKind::Keyword(Keyword::Var)
+            )
+        }) {
+            LocalBindingKind::Mutable
+        } else {
+            LocalBindingKind::Immutable
+        };
+        actions.push(Action::Declare(Introduction { token, kind }));
+        let expression = direct_child(self.tree(), node, NodeKind::Expression)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        actions.push(Action::Visit(expression));
+        Ok(())
+    }
+
+    fn visit_for(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let token = direct_identifier(self.tree(), node)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let source = direct_child(self.tree(), node, NodeKind::ForSource)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let block = direct_child(self.tree(), node, NodeKind::Block)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        actions.push(Action::EnterBlock {
+            block,
+            introductions: vec![Introduction {
+                token,
+                kind: LocalBindingKind::Loop,
+            }],
+        });
+        actions.push(Action::Visit(source));
+        Ok(())
+    }
+
+    fn visit_region(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let token = direct_identifier(self.tree(), node)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let allocator = direct_child(self.tree(), node, NodeKind::AllocatorPlace)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let block = direct_child(self.tree(), node, NodeKind::Block)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        actions.push(Action::EnterBlock {
+            block,
+            introductions: vec![Introduction {
+                token,
+                kind: LocalBindingKind::Region,
+            }],
+        });
+        actions.push(Action::Visit(allocator));
+        Ok(())
+    }
+
+    fn visit_if(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let nodes = direct_nodes(self.tree(), node);
+        let condition = nodes
+            .first()
+            .copied()
+            .filter(|node| self.node_kind(*node).ok() == Some(NodeKind::IfCondition))
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        for child in nodes.iter().skip(1).rev().copied() {
+            let introductions = if self.node_kind(child)? == NodeKind::Block {
+                self.pattern_introductions(condition)?
+            } else {
+                Vec::new()
+            };
+            if self.node_kind(child)? == NodeKind::Block {
+                actions.push(Action::EnterBlock {
+                    block: child,
+                    introductions,
+                });
+            } else {
+                actions.push(Action::Visit(child));
+            }
+        }
+        actions.push(Action::Visit(condition));
+        Ok(())
+    }
+
+    fn visit_match(&self, node: NodeId, actions: &mut Vec<Action>) {
+        let nodes = direct_nodes(self.tree(), node);
+        for child in nodes.into_iter().rev() {
+            actions.push(Action::Visit(child));
+        }
+    }
+
+    fn visit_match_arm(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let block = direct_child(self.tree(), node, NodeKind::Block)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        actions.push(Action::EnterBlock {
+            block,
+            introductions: self.pattern_introductions(node)?,
+        });
+        Ok(())
+    }
+
+    fn visit_recovery_clause(
+        &self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let block = direct_child(self.tree(), node, NodeKind::Block)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let introductions = direct_identifier(self.tree(), node)
+            .filter(|token| token_text(self.input.sources(), *token).ok() != Some("_"))
+            .map(|token| {
+                vec![Introduction {
+                    token,
+                    kind: LocalBindingKind::Catch,
+                }]
+            })
+            .unwrap_or_default();
+        actions.push(Action::EnterBlock {
+            block,
+            introductions,
+        });
+        Ok(())
+    }
+
+    fn enter_closure(
+        &mut self,
+        node: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionError> {
+        let head = direct_child(self.tree(), node, NodeKind::ClosureHead)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let block = direct_child(self.tree(), node, NodeKind::Block)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let capture_nodes = direct_child(self.tree(), head, NodeKind::ClosureCaptures)
+            .map(|captures| direct_children(self.tree(), captures, NodeKind::ClosureCapture))
+            .unwrap_or_default();
+        let parameter_nodes = direct_child(self.tree(), head, NodeKind::ClosureParameters)
+            .map(|parameters| direct_children(self.tree(), parameters, NodeKind::ClosureParameter))
+            .unwrap_or_default();
+
+        let outer_scope_count = self.active.len();
+        let mut captures = Vec::with_capacity(capture_nodes.len());
+        let mut captured_names = BTreeMap::new();
+        for capture_node in capture_nodes {
+            let token = direct_identifier(self.tree(), capture_node)
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(capture_node))?;
+            let name = self.symbol(token)?;
+            let primary = self.origin(token)?;
+            if let Some(first) = captured_names.insert(name, primary) {
+                return Err(diagnostic::capture_collision(
+                    self.spelling(name)?,
+                    primary,
+                    Some(first),
+                )
+                .into());
+            }
+            let Some(binding) = self.lookup_current_callable(name) else {
+                return Err(
+                    diagnostic::invalid_capture_target(self.spelling(name)?, primary).into(),
+                );
+            };
+            if !binding.target.is_callable_binding() {
+                return Err(
+                    diagnostic::invalid_capture_target(self.spelling(name)?, primary).into(),
+                );
+            }
+            captures.push((
+                name,
+                token,
+                binding.target,
+                self.capture_mode(capture_node)?,
+            ));
+        }
+
+        self.callable_boundaries.push(outer_scope_count);
+        let scope = self.push_scope(None);
+        for (name, token, source, mode) in captures {
+            let origin = self.origin(token)?;
+            let id = self
+                .captures
+                .insert(Capture::new(name, scope, source, mode));
+            self.current_names_mut()?.insert(
+                name,
+                ActiveBinding {
+                    target: NameTarget::Capture(id),
+                    origin: Some(origin),
+                },
+            );
+            self.projections.push(Projection::new(
+                SemanticEntity::Capture(self.source.body(), id),
+                SourceRole::Declaration,
+                origin,
+            ));
+        }
+        for parameter in parameter_nodes {
+            let token = direct_identifier(self.tree(), parameter)
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(parameter))?;
+            let name = self.symbol(token)?;
+            if let Some(capture) = captured_names.get(&name).copied() {
+                return Err(diagnostic::capture_collision(
+                    self.spelling(name)?,
+                    self.origin(token)?,
+                    Some(capture),
+                )
+                .into());
+            }
+            self.declare_local(Introduction {
+                token,
+                kind: LocalBindingKind::ClosureParameter,
+            })?;
+        }
+
+        actions.push(Action::ExitClosure { outer_scope_count });
+        self.schedule_block_contents(block, actions)?;
+        Ok(())
+    }
+
+    fn schedule_block_contents(
+        &mut self,
+        block: NodeId,
+        actions: &mut Vec<Action>,
+    ) -> Result<(), NameResolutionError> {
+        let sequence = direct_child(self.tree(), block, NodeKind::ExecutableSequence);
+        if let Some(sequence) = sequence {
+            actions.push(Action::Visit(sequence));
+        }
+        for import in direct_children(self.tree(), block, NodeKind::BlockUseDeclaration) {
+            self.declare_block_import(import)?;
+        }
+        Ok(())
+    }
+
+    fn declare_block_import(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
+        let target_module = self
+            .import_targets
+            .get(&node)
+            .copied()
+            .ok_or(NameResolutionInternalError::MissingUseResolution(node))?;
+        let path = direct_child(self.tree(), node, NodeKind::ModulePath)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        self.projections.push(Projection::new(
+            SemanticEntity::Module(target_module),
+            SourceRole::Reference,
+            SourceOrigin::from_node(self.tree(), path).map_err(|_| {
+                NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Node(path))
+            })?,
+        ));
+        if let Some(selection) = direct_child(self.tree(), node, NodeKind::ImportSelection) {
+            for selected in direct_children(self.tree(), selection, NodeKind::SelectedName) {
+                let tokens = identifier_tokens(self.tree(), selected);
+                let exported = *tokens
+                    .first()
+                    .ok_or(NameResolutionInternalError::InvalidSyntaxNode(selected))?;
+                let local = *tokens
+                    .last()
+                    .ok_or(NameResolutionInternalError::InvalidSyntaxNode(selected))?;
+                let exported_name = self.symbol(exported)?;
+                let local_name = self.symbol(local)?;
+                let Some(entry) = self
+                    .program
+                    .module_namespaces()
+                    .get(target_module)
+                    .and_then(|namespace| namespace.lookup_authored(exported_name))
+                else {
+                    return Err(diagnostic::missing_block_import(
+                        self.spelling(exported_name)?,
+                        self.origin(exported)?,
+                    )
+                    .into());
+                };
+                if !self.program.is_visible_from(
+                    entry.visibility(),
+                    self.source.module(),
+                    target_module,
+                ) {
+                    return Err(diagnostic::inaccessible_block_import(
+                        self.spelling(exported_name)?,
+                        self.origin(exported)?,
+                    )
+                    .into());
+                }
+                let target = NameTarget::Exported(entry.target());
+                self.insert_authored_name(local_name, local, target, false)?;
+                self.project_use(exported, target)?;
+                if local != exported {
+                    self.project_use(local, target)?;
+                }
+            }
+        } else {
+            let token = *identifier_tokens(self.tree(), path)
+                .last()
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(path))?;
+            let name = self.symbol(token)?;
+            let target = NameTarget::Exported(ExportedEntity::Module(target_module));
+            self.insert_authored_name(name, token, target, false)?;
+            self.project_use(token, target)?;
+        }
+        Ok(())
+    }
+
+    fn seed_parameters(&mut self) -> Result<(), NameResolutionError> {
+        let declarations = self.program.declarations();
+        let parameters: Vec<ParameterId> = match self.source.owner() {
+            BodyOwner::Callable(owner) => {
+                let callable = declarations.callables().get(owner).ok_or(
+                    NameResolutionInternalError::InvalidBodyOwner(self.source.body()),
+                )?;
+                callable
+                    .receiver()
+                    .into_iter()
+                    .chain(callable.parameters().iter().copied())
+                    .collect()
+            }
+            BodyOwner::Drop(owner) => vec![
+                declarations
+                    .drops()
+                    .get(owner)
+                    .ok_or(NameResolutionInternalError::InvalidBodyOwner(
+                        self.source.body(),
+                    ))?
+                    .receiver(),
+            ],
+            BodyOwner::Test(_) => Vec::new(),
+        };
+        for parameter in parameters {
+            let declaration = declarations.parameters().get(parameter).copied().ok_or(
+                NameResolutionInternalError::InvalidBodyOwner(self.source.body()),
+            )?;
+            let origin = self.parameter_origin(parameter)?;
+            self.insert_name(
+                declaration.name(),
+                origin,
+                NameTarget::Parameter(parameter),
+                false,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn declare_local(&mut self, introduction: Introduction) -> Result<(), NameResolutionError> {
+        if token_text(self.input.sources(), introduction.token)? == "_" {
+            return Ok(());
+        }
+        let name = self.symbol(introduction.token)?;
+        let origin = self.origin(introduction.token)?;
+        self.check_collision(name, origin, false)?;
+        let scope = self.active.last().map(|scope| scope.id).ok_or(
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+        )?;
+        let id = self
+            .locals
+            .insert(LocalBinding::new(name, scope, introduction.kind));
+        self.current_names_mut()?.insert(
+            name,
+            ActiveBinding {
+                target: NameTarget::Local(id),
+                origin: Some(origin),
+            },
+        );
+        self.projections.push(Projection::new(
+            SemanticEntity::LocalBinding(self.source.body(), id),
+            SourceRole::Declaration,
+            origin,
+        ));
+        Ok(())
+    }
+
+    fn insert_authored_name(
+        &mut self,
+        name: Symbol,
+        token: SyntaxToken,
+        target: NameTarget,
+        capture_collision: bool,
+    ) -> Result<(), NameResolutionError> {
+        let origin = self.origin(token)?;
+        self.insert_name(name, origin, target, capture_collision)
+    }
+
+    fn insert_name(
+        &mut self,
+        name: Symbol,
+        origin: SourceOrigin,
+        target: NameTarget,
+        capture_collision: bool,
+    ) -> Result<(), NameResolutionError> {
+        self.check_collision(name, origin, capture_collision)?;
+        self.current_names_mut()?.insert(
+            name,
+            ActiveBinding {
+                target,
+                origin: Some(origin),
+            },
+        );
+        Ok(())
+    }
+
+    fn check_collision(
+        &self,
+        name: Symbol,
+        primary: SourceOrigin,
+        capture_collision: bool,
+    ) -> Result<(), NameResolutionError> {
+        if let Some(existing) = self.lookup_all_scopes(name) {
+            let diagnostic =
+                if capture_collision || matches!(existing.target, NameTarget::Capture(_)) {
+                    diagnostic::capture_collision(self.spelling(name)?, primary, existing.origin)
+                } else {
+                    diagnostic::name_collision(self.spelling(name)?, primary, existing.origin)
+                };
+            return Err(diagnostic.into());
+        }
+        if self
+            .program
+            .module_namespaces()
+            .get(self.source.module())
+            .is_some_and(|namespace| namespace.lookup_authored(name).is_some())
+            || self.builtin(name)?.is_some()
+            || self.spelling(name)? == "Self"
+        {
+            return Err(diagnostic::name_collision(self.spelling(name)?, primary, None).into());
+        }
+        Ok(())
+    }
+
+    fn resolve_node_name(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
+        let identifiers = identifier_tokens(self.tree(), node);
+        let token = if self.node_kind(node)? == NodeKind::DropStatement {
+            identifiers.last().copied()
+        } else {
+            direct_identifier(self.tree(), node).or_else(|| identifiers.first().copied())
+        }
+        .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let name = self.symbol(token)?;
+        if let Some(binding) = self.lookup_current_callable(name) {
+            self.record_use(token, binding.target)?;
+            return Ok(());
+        }
+        let boundary = *self.callable_boundaries.last().ok_or(
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+        )?;
+        if let Some(binding) = self.lookup_scopes_before(name, boundary) {
+            if binding.target.is_callable_binding() {
+                return Err(diagnostic::implicit_capture(
+                    self.spelling(name)?,
+                    self.origin(token)?,
+                    binding.origin,
+                )
+                .into());
+            }
+            self.record_use(token, binding.target)?;
+            return Ok(());
+        }
+        if let Some(target) = self.program.lookup_local(self.source.module(), name) {
+            self.record_use(token, NameTarget::Exported(target))?;
+            return Ok(());
+        }
+        if let Some(builtin) = self.builtin(name)? {
+            self.record_use(token, NameTarget::Builtin(builtin))?;
+            return Ok(());
+        }
+        Err(diagnostic::unknown_name(self.spelling(name)?, self.origin(token)?).into())
+    }
+
+    fn record_use(
+        &mut self,
+        token: SyntaxToken,
+        target: NameTarget,
+    ) -> Result<(), NameResolutionInternalError> {
+        self.uses
+            .push(ResolvedNameUse::new(SyntaxOrigin::Token(token), target));
+        self.project_use(token, target)
+    }
+
+    fn project_use(
+        &mut self,
+        token: SyntaxToken,
+        target: NameTarget,
+    ) -> Result<(), NameResolutionInternalError> {
+        let Some(entity) = semantic_entity(self.source.body(), target) else {
+            return Ok(());
+        };
+        self.projections.push(Projection::new(
+            entity,
+            SourceRole::Reference,
+            self.origin(token)?,
+        ));
+        Ok(())
+    }
+
+    fn pattern_introductions(
+        &self,
+        root: NodeId,
+    ) -> Result<Vec<Introduction>, NameResolutionInternalError> {
+        let Some(pattern) = descendant(self.tree(), root, NodeKind::EnumPattern) else {
+            return Ok(Vec::new());
+        };
+        let mut result = Vec::new();
+        for slot in descendants(self.tree(), pattern, NodeKind::PayloadSlot) {
+            let token = direct_identifier(self.tree(), slot)
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(slot))?;
+            result.push(Introduction {
+                token,
+                kind: LocalBindingKind::PatternPayload,
+            });
+        }
+        Ok(result)
+    }
+
+    fn capture_mode(&self, node: NodeId) -> Result<CaptureMode, NameResolutionInternalError> {
+        self.tree()
+            .children(node)
+            .iter()
+            .find_map(|element| match element {
+                SyntaxElement::Token(token) => match token.kind() {
+                    TokenKind::Punctuation(Punctuation::Ampersand) => Some(CaptureMode::Readonly),
+                    TokenKind::Punctuation(Punctuation::ReadWrite) => Some(CaptureMode::ReadWrite),
+                    TokenKind::Keyword(Keyword::Move) => Some(CaptureMode::Move),
+                    _ => None,
+                },
+                SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
+            })
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))
+    }
+
+    fn lookup_current_callable(&self, name: Symbol) -> Option<ActiveBinding> {
+        let boundary = *self.callable_boundaries.last()?;
+        self.active[boundary..]
+            .iter()
+            .rev()
+            .find_map(|scope| scope.names.get(&name).copied())
+    }
+
+    fn lookup_all_scopes(&self, name: Symbol) -> Option<ActiveBinding> {
+        self.active
+            .iter()
+            .rev()
+            .find_map(|scope| scope.names.get(&name).copied())
+    }
+
+    fn lookup_scopes_before(&self, name: Symbol, end: usize) -> Option<ActiveBinding> {
+        self.active[..end]
+            .iter()
+            .rev()
+            .find_map(|scope| scope.names.get(&name).copied())
+    }
+
+    fn push_scope(&mut self, parent: Option<BodyScopeId>) -> BodyScopeId {
+        let id = self.scopes.insert(BodyScope::new(parent));
+        self.active.push(ActiveScope {
+            id,
+            names: BTreeMap::new(),
+        });
+        id
+    }
+
+    fn current_names_mut(
+        &mut self,
+    ) -> Result<&mut BTreeMap<Symbol, ActiveBinding>, NameResolutionInternalError> {
+        self.active.last_mut().map(|scope| &mut scope.names).ok_or(
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+        )
+    }
+
+    fn parameter_origin(
+        &self,
+        parameter: ParameterId,
+    ) -> Result<SourceOrigin, NameResolutionInternalError> {
+        self.source_index
+            .bindings_for(SemanticEntity::Parameter(parameter))
+            .iter()
+            .find(|binding| binding.origin().source() == self.tree().source())
+            .or_else(|| {
+                self.source_index
+                    .bindings_for(SemanticEntity::Parameter(parameter))
+                    .first()
+            })
+            .map(|binding| binding.origin())
+            .ok_or(NameResolutionInternalError::MissingParameterProjection(
+                parameter,
+            ))
+    }
+
+    fn symbol(&self, token: SyntaxToken) -> Result<Symbol, NameResolutionInternalError> {
+        token_symbol(self.input.sources(), self.program.symbols(), token)
+    }
+
+    fn spelling(&self, symbol: Symbol) -> Result<&str, NameResolutionInternalError> {
+        self.program
+            .symbols()
+            .spelling(symbol)
+            .ok_or_else(|| NameResolutionInternalError::MissingSymbol(format!("{symbol:?}").into()))
+    }
+
+    fn builtin(
+        &self,
+        symbol: Symbol,
+    ) -> Result<Option<nocter_model::BuiltinType>, NameResolutionInternalError> {
+        Ok(match self.spelling(symbol)? {
+            "bool" => Some(nocter_model::BuiltinType::Bool),
+            "i8" => Some(nocter_model::BuiltinType::I8),
+            "i16" => Some(nocter_model::BuiltinType::I16),
+            "i32" => Some(nocter_model::BuiltinType::I32),
+            "i64" => Some(nocter_model::BuiltinType::I64),
+            "u8" => Some(nocter_model::BuiltinType::U8),
+            "u16" => Some(nocter_model::BuiltinType::U16),
+            "u32" => Some(nocter_model::BuiltinType::U32),
+            "u64" => Some(nocter_model::BuiltinType::U64),
+            "usize" => Some(nocter_model::BuiltinType::Usize),
+            "isize" => Some(nocter_model::BuiltinType::Isize),
+            "str" => Some(nocter_model::BuiltinType::Str),
+            "error" => Some(nocter_model::BuiltinType::Error),
+            "void" => Some(nocter_model::BuiltinType::Void),
+            "never" => Some(nocter_model::BuiltinType::Never),
+            _ => None,
+        })
+    }
+
+    fn origin(&self, token: SyntaxToken) -> Result<SourceOrigin, NameResolutionInternalError> {
+        SourceOrigin::from_token(self.tree(), token).map_err(|_| {
+            NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Token(token))
+        })
+    }
+
+    fn tree(&self) -> &'syntax nocter_syntax::SyntaxTree {
+        self.source.syntax()
+    }
+
+    fn node_kind(&self, node: NodeId) -> Result<NodeKind, NameResolutionInternalError> {
+        self.tree()
+            .node(node)
+            .map(nocter_syntax::SyntaxNode::kind)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))
+    }
+}
+
+const fn semantic_entity(body: nocter_model::BodyId, target: NameTarget) -> Option<SemanticEntity> {
+    match target {
+        NameTarget::Parameter(id) => Some(SemanticEntity::Parameter(id)),
+        NameTarget::Local(id) => Some(SemanticEntity::LocalBinding(body, id)),
+        NameTarget::Capture(id) => Some(SemanticEntity::Capture(body, id)),
+        NameTarget::Exported(entity) => Some(match entity {
+            ExportedEntity::Module(id) => SemanticEntity::Module(id),
+            ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
+            ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
+            ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
+            ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
+        }),
+        NameTarget::Builtin(_) => None,
+    }
+}
+
+fn descendant(
+    tree: &nocter_syntax::SyntaxTree,
+    root: NodeId,
+    expected: NodeKind,
+) -> Option<NodeId> {
+    descendants(tree, root, expected).into_iter().next()
+}
+
+fn descendants(tree: &nocter_syntax::SyntaxTree, root: NodeId, expected: NodeKind) -> Vec<NodeId> {
+    let mut found = Vec::new();
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        if node != root && tree.node(node).is_some_and(|node| node.kind() == expected) {
+            found.push(node);
+            continue;
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    found
+}
+
+const fn node_for_error(source: BodySource<'_>) -> NodeId {
+    source.block()
+}

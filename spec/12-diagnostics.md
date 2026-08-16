@@ -162,6 +162,24 @@ These rules are selected while normalized header information is converted into d
 definitions. Their exact syntax subjects are retained in the failure value; the production
 diagnostic adapter does not reconstruct them from a rendered declaration.
 
+Source-backed body-name diagnostics:
+
+- `E0340`: a value-position name is unknown in the current lexical and module lookup context.
+- `E0341`: a parameter, local binding, pattern binding, loop binding, region binding, closure
+  parameter, catch binding, or block import collides with an enclosing lexical name, an authored
+  module name, a built-in type name, or the contextual `Self` type form. Synthetic prelude
+  fallback names do not cause this error.
+- `E0342`: a block import selects a name that the target module does not export.
+- `E0343`: a block import selects an authored name outside its visibility boundary.
+- `E0344`: an explicit closure capture does not name a local, parameter, or capture in the
+  immediately enclosing callable body.
+- `E0345`: a closure capture is repeated, or a closure parameter collides with a capture.
+- `E0346`: a closure body uses an enclosing callable binding without listing an explicit capture.
+
+These diagnostics are selected by the body-owned lexical resolver. The resolver retains the exact
+declaration or reference token that selected the rule and never scans rendered source text to
+recover a binding after lookup.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

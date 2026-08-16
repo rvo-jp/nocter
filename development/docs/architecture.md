@@ -363,6 +363,22 @@ moves of a closure retain the same capture and loan identities through ordinary 
 
 ## Checked Program
 
+Body name resolution is a one-way checking input, not a second program graph. One iterative action
+machine creates dense body-local scope, local, and capture identities while walking each exact
+`BodyId` source projection. Initializers are resolved before their binding is inserted; loop,
+region, pattern, catch, and closure names are inserted only into the scope defined by the language.
+Closure roots cut the ordinary lexical lookup edge, resolve explicit captures to immediately
+enclosing callable bindings, and expose new capture identities inside the closure body. A free use
+cannot become an implicit capture.
+
+Block imports enter the same lexical insertion path as body bindings but create no storage
+identity. Their discovery-owned module identities are converted to `ModuleId` only through exact
+physical-source projections, then selected names use the frozen authored export namespace and
+normalized visibility rules. Synthetic prelude names remain a separate shadowable fallback.
+Successful resolution extends `SourceIndex` with local/capture declarations and exact references
+only after every body succeeds; temporary syntax-keyed uses are consumed by typed-node
+construction.
+
 Every checked body owns one typed node arena. Authored and compiler-generated operations use the
 same node model and carry explicit body ownership. Comparison, indexing, conversion, iteration,
 interpolation, construction, calls, ownership transitions, and failure handling are not retained as
