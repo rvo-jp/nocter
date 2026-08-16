@@ -2,7 +2,10 @@ use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
-use super::{BoundDeclarationPattern, BoundTypeKind, TypeBindingError, bind_header_type_syntax};
+use super::{
+    BoundCapability, BoundDeclarationPattern, BoundTypeKind, TypeBindingError,
+    bind_header_type_syntax,
+};
 use crate::test_support::module_use;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
@@ -76,13 +79,21 @@ fn bind<'syntax>(
 }
 
 fn first_node(tree: &SyntaxTree, kind: NodeKind) -> NodeId {
+    all_nodes(tree, kind)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("missing {kind:?}"))
+}
+
+fn all_nodes(tree: &SyntaxTree, kind: NodeKind) -> Vec<NodeId> {
+    let mut found = Vec::new();
     let mut pending = vec![tree.root_id()];
     while let Some(node) = pending.pop() {
         if tree
             .node(node)
             .is_some_and(|candidate| candidate.kind() == kind)
         {
-            return node;
+            found.push(node);
         }
         for child in tree.children(node).iter().rev() {
             if let SyntaxElement::Node(child) = child {
@@ -90,7 +101,7 @@ fn first_node(tree: &SyntaxTree, kind: NodeKind) -> NodeId {
             }
         }
     }
-    panic!("missing {kind:?}");
+    found
 }
 
 #[test]
@@ -224,7 +235,14 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "struct Pair<T> {}\ninterface Show<T> {}\ninstance Pair<T> {}\nconform Show<T> for Pair<T> {}\n",
+        concat!(
+            "struct Pair<T> {}\n",
+            "interface Show<T> {}\n",
+            "instance Pair<T> {}\n",
+            "conform Show<T> for Pair<T> {}\n",
+            "func inspect<T>(value: &T): void ",
+            "where T: Show<T> + &func(value: &T): &T from value { return }\n",
+        ),
     );
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
@@ -270,5 +288,18 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
         [BoundDeclarationPattern::Interface { arguments: interface, .. },
          BoundDeclarationPattern::Nominal { arguments: target, .. }]
             if interface == target && interface.len() == 1
+    ));
+    let capabilities = all_nodes(&app, NodeKind::Capability);
+    assert!(matches!(
+        bound.capability_for(capabilities[0]),
+        Some(BoundCapability::Interface { arguments, .. }) if arguments.len() == 1
+    ));
+    let Some(BoundCapability::Callable(callable)) = bound.capability_for(capabilities[1]) else {
+        panic!("expected structural callable capability");
+    };
+    assert!(matches!(
+        bound.kind(*callable),
+        Some(BoundTypeKind::Callable(contract))
+            if contract.explicit_origins() == Some([ParameterOrigin::new(0)].as_slice())
     ));
 }

@@ -1,4 +1,6 @@
+mod capability;
 mod context;
+mod names;
 mod pattern;
 mod projection;
 mod syntax;
@@ -55,6 +57,15 @@ impl BoundCallableType {
     pub fn explicit_origins(&self) -> Option<&[ParameterOrigin]> {
         self.explicit_origins.as_deref()
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BoundCapability {
+    Interface {
+        definition: InterfaceId,
+        arguments: Box<[BoundTypeId]>,
+    },
+    Callable(BoundTypeId),
 }
 
 /// A syntax-independent type expression with every lexical type name bound to semantic identity.
@@ -179,6 +190,7 @@ pub struct PreparedTypeBindings<'syntax> {
     kinds: Box<[BoundTypeKind]>,
     roots: HashMap<NodeId, BoundTypeId>,
     patterns: Box<[Box<[BoundDeclarationPattern]>]>,
+    capabilities: HashMap<NodeId, BoundCapability>,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -203,6 +215,11 @@ impl PreparedTypeBindings<'_> {
         declaration: SurfaceDeclarationId,
     ) -> Option<&[BoundDeclarationPattern]> {
         self.patterns.get(declaration.index()).map(AsRef::as_ref)
+    }
+
+    #[must_use]
+    pub fn capability_for(&self, node: NodeId) -> Option<&BoundCapability> {
+        self.capabilities.get(&node)
     }
 
     #[must_use]
@@ -241,6 +258,7 @@ pub fn bind_header_type_syntax(
         .collect();
     let mut kinds = Vec::new();
     let mut roots = HashMap::new();
+    let mut capabilities = HashMap::new();
     let declaration_count = namespaces
         .imports
         .generics
@@ -276,6 +294,22 @@ pub fn bind_header_type_syntax(
                 &mut roots,
             )?;
         }
+        for capability in header_nodes(
+            tree,
+            surface.node(),
+            &declaration_nodes,
+            NodeKind::Capability,
+        ) {
+            let bound = capability::bind(
+                &mut namespaces,
+                declaration,
+                tree,
+                capability,
+                &mut kinds,
+                &mut roots,
+            )?;
+            capabilities.insert(capability, bound);
+        }
         patterns.push(
             pattern::bind_all(&mut namespaces, declaration, tree, surface.node())?
                 .into_boxed_slice(),
@@ -287,6 +321,7 @@ pub fn bind_header_type_syntax(
         kinds: kinds.into_boxed_slice(),
         roots,
         patterns: patterns.into_boxed_slice(),
+        capabilities,
     })
 }
 
@@ -294,6 +329,15 @@ fn header_type_roots(
     tree: &nocter_syntax::SyntaxTree,
     declaration: NodeId,
     declaration_nodes: &HashSet<NodeId>,
+) -> Vec<NodeId> {
+    header_nodes(tree, declaration, declaration_nodes, NodeKind::Type)
+}
+
+fn header_nodes(
+    tree: &nocter_syntax::SyntaxTree,
+    declaration: NodeId,
+    declaration_nodes: &HashSet<NodeId>,
+    expected: NodeKind,
 ) -> Vec<NodeId> {
     let mut roots = Vec::new();
     let mut pending: Vec<_> = tree.children(declaration).iter().rev().copied().collect();
@@ -307,7 +351,7 @@ fn header_type_roots(
         if syntax.kind() == NodeKind::Block || declaration_nodes.contains(&node) {
             continue;
         }
-        if syntax.kind() == NodeKind::Type {
+        if syntax.kind() == expected {
             roots.push(node);
             continue;
         }

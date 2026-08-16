@@ -8,7 +8,8 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
-use super::context::{builtin_type, declaration_module, require_arity, token_symbol, token_text};
+use super::context::{builtin_type, require_arity, token_symbol, token_text};
+use super::names::{resolve_exported, segments};
 use super::{BoundCallableType, BoundTypeId, BoundTypeKind, TypeBindingError, projection, push};
 
 pub(super) fn bind(
@@ -23,6 +24,10 @@ pub(super) fn bind(
     let mut pending = vec![(root, false)];
     while let Some((node, expanded)) = pending.pop() {
         if !expanded {
+            if let Some(existing) = roots.get(&node).copied() {
+                values.insert(node, existing);
+                continue;
+            }
             pending.push((node, true));
             for child in tree.children(node).iter().rev() {
                 if let SyntaxElement::Node(child) = child {
@@ -124,61 +129,45 @@ fn bind_named(
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
-    let segments = named_segments(tree, node, values)?;
+    let segments = segments(tree, node, values)?;
     let first = segments
         .first()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
-    let mut current = if token_text(namespaces, tree, first.token)? == "Self" {
+    if token_text(namespaces, tree, first.token)? == "Self" {
         if !first.arguments.is_empty() {
             return Err(TypeBindingError::InvalidTypeArguments(node));
         }
         let owner =
             self_owner(namespaces, declaration).ok_or(TypeBindingError::InvalidSelfType(node))?;
-        NameState::Type(push(kinds, BoundTypeKind::SelfType(owner)))
-    } else {
-        let name = token_symbol(namespaces, tree, first.token)?;
-        if let Some(parameter) = namespaces.imports.generics.lookup(declaration, name) {
-            if !first.arguments.is_empty() {
-                return Err(TypeBindingError::InvalidTypeArguments(node));
-            }
-            projection::generic(namespaces, tree, parameter, first.token)?;
-            NameState::Type(push(kinds, BoundTypeKind::GenericParameter(parameter)))
-        } else {
-            let module = declaration_module(namespaces, declaration)?;
-            let entity = namespaces
-                .lookup_local(module, name)
-                .ok_or(TypeBindingError::UnknownName(node))?;
-            projection::reference(namespaces, tree, entity, first.token)?;
-            bind_entity(namespaces, node, entity, &first.arguments, kinds)?
-        }
-    };
+        let base = push(kinds, BoundTypeKind::SelfType(owner));
+        return bind_associated_tail(namespaces, tree, node, base, &segments[1..], kinds);
+    }
 
-    for segment in segments.iter().skip(1) {
-        let name = token_symbol(namespaces, tree, segment.token)?;
-        current = match current {
-            NameState::Module(module) => {
-                let from = declaration_module(namespaces, declaration)?;
-                let entity = namespaces
-                    .lookup_export(from, module, name)
-                    .ok_or(TypeBindingError::UnknownName(node))?;
-                projection::reference(namespaces, tree, entity, segment.token)?;
-                bind_entity(namespaces, node, entity, &segment.arguments, kinds)?
-            }
-            NameState::Type(base) => {
-                if !segment.arguments.is_empty() {
-                    return Err(TypeBindingError::InvalidTypeArguments(node));
-                }
-                NameState::Type(push(
-                    kinds,
-                    BoundTypeKind::AssociatedSelection { base, name },
-                ))
-            }
-        };
+    let name = token_symbol(namespaces, tree, first.token)?;
+    if let Some(parameter) = namespaces.imports.generics.lookup(declaration, name) {
+        if !first.arguments.is_empty() {
+            return Err(TypeBindingError::InvalidTypeArguments(node));
+        }
+        projection::generic(namespaces, tree, parameter, first.token)?;
+        let base = push(kinds, BoundTypeKind::GenericParameter(parameter));
+        return bind_associated_tail(namespaces, tree, node, base, &segments[1..], kinds);
     }
-    match current {
-        NameState::Type(ty) => Ok(ty),
-        NameState::Module(_) => Err(TypeBindingError::InvalidTypeEntity(node)),
+
+    let path = resolve_exported(namespaces, declaration, tree, node, segments)?;
+    let mut current = bind_entity(namespaces, node, path.entity, &path.arguments, kinds)?;
+    for selection in path.trailing {
+        if !selection.arguments.is_empty() {
+            return Err(TypeBindingError::InvalidTypeArguments(node));
+        }
+        current = push(
+            kinds,
+            BoundTypeKind::AssociatedSelection {
+                base: current,
+                name: selection.name,
+            },
+        );
     }
+    Ok(current)
 }
 
 fn bind_entity(
@@ -187,15 +176,9 @@ fn bind_entity(
     entity: ExportedEntity,
     arguments: &[BoundTypeId],
     kinds: &mut Vec<BoundTypeKind>,
-) -> Result<NameState, TypeBindingError> {
+) -> Result<BoundTypeId, TypeBindingError> {
     match entity {
-        ExportedEntity::Module(module) => {
-            if arguments.is_empty() {
-                Ok(NameState::Module(module))
-            } else {
-                Err(TypeBindingError::InvalidTypeArguments(node))
-            }
-        }
+        ExportedEntity::Module(_) => Err(TypeBindingError::InvalidTypeEntity(node)),
         ExportedEntity::NominalType(definition) => {
             require_arity(
                 namespaces,
@@ -203,13 +186,13 @@ fn bind_entity(
                 ReservedEntity::NominalType(definition),
                 arguments.len(),
             )?;
-            Ok(NameState::Type(push(
+            Ok(push(
                 kinds,
                 BoundTypeKind::Nominal {
                     definition,
                     arguments: arguments.into(),
                 },
-            )))
+            ))
         }
         ExportedEntity::TypeAlias(definition) => {
             require_arity(
@@ -218,18 +201,41 @@ fn bind_entity(
                 ReservedEntity::TypeAlias(definition),
                 arguments.len(),
             )?;
-            Ok(NameState::Type(push(
+            Ok(push(
                 kinds,
                 BoundTypeKind::Alias {
                     definition,
                     arguments: arguments.into(),
                 },
-            )))
+            ))
         }
         ExportedEntity::Interface(_) | ExportedEntity::Callable(_) => {
             Err(TypeBindingError::InvalidTypeEntity(node))
         }
     }
+}
+
+fn bind_associated_tail(
+    namespaces: &PreparedNamespaces<'_>,
+    tree: &SyntaxTree,
+    node: NodeId,
+    mut base: BoundTypeId,
+    segments: &[super::names::NameSegment],
+    kinds: &mut Vec<BoundTypeKind>,
+) -> Result<BoundTypeId, TypeBindingError> {
+    for segment in segments {
+        if !segment.arguments.is_empty() {
+            return Err(TypeBindingError::InvalidTypeArguments(node));
+        }
+        base = push(
+            kinds,
+            BoundTypeKind::AssociatedSelection {
+                base,
+                name: token_symbol(namespaces, tree, segment.token)?,
+            },
+        );
+    }
+    Ok(base)
 }
 
 fn bind_callable(
@@ -324,60 +330,6 @@ fn callable_parameter_name(
     direct_identifier(tree, parameter)
         .map(|token| token_symbol(namespaces, tree, token))
         .transpose()
-}
-
-fn named_segments(
-    tree: &SyntaxTree,
-    node: NodeId,
-    values: &HashMap<NodeId, BoundTypeId>,
-) -> Result<Vec<NameSegment>, TypeBindingError> {
-    let mut segments = Vec::<NameSegment>::new();
-    for element in tree.children(node) {
-        match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
-                segments.push(NameSegment {
-                    token: *token,
-                    arguments: Vec::new(),
-                });
-            }
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == NodeKind::SelfType) =>
-            {
-                let token = direct_identifier(tree, *child)
-                    .ok_or(TypeBindingError::InvalidSyntax(*child))?;
-                segments.push(NameSegment {
-                    token,
-                    arguments: Vec::new(),
-                });
-            }
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == NodeKind::TypeArguments) =>
-            {
-                let segment = segments
-                    .last_mut()
-                    .ok_or(TypeBindingError::InvalidSyntax(node))?;
-                segment.arguments = direct_nodes(tree, *child, NodeKind::Type)
-                    .into_iter()
-                    .map(|argument| {
-                        values
-                            .get(&argument)
-                            .copied()
-                            .ok_or(TypeBindingError::InvalidSyntax(argument))
-                    })
-                    .collect::<Result<_, _>>()?;
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
-        }
-    }
-    if segments.is_empty() {
-        Err(TypeBindingError::InvalidSyntax(node))
-    } else {
-        Ok(segments)
-    }
 }
 
 fn self_owner(
@@ -527,14 +479,4 @@ fn direct_punctuation(tree: &SyntaxTree, node: NodeId) -> Option<Punctuation> {
             },
             _ => None,
         })
-}
-
-struct NameSegment {
-    token: SyntaxToken,
-    arguments: Vec<BoundTypeId>,
-}
-
-enum NameState {
-    Module(nocter_model::ModuleId),
-    Type(BoundTypeId),
 }

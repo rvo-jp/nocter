@@ -95,7 +95,9 @@ be introduced to make an unresolved syntax choice.
   applications and associated selections remain explicit bound nodes until the normalization pass
   has the requirements needed to resolve them. Declaration target patterns use the same module,
   symbol, arity, and source-projection context and bind their bare argument names directly to the
-  generic identities already allocated for that declaration.
+  generic identities already allocated for that declaration. Nominal interface and structural
+  callable capabilities also reuse this path resolver and flat type arena; capability syntax
+  cannot establish an alternate lookup or callable-provenance path.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
