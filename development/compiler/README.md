@@ -97,7 +97,12 @@ be introduced to make an unresolved syntax choice.
   symbol, arity, and source-projection context and bind their bare argument names directly to the
   generic identities already allocated for that declaration. Nominal interface and structural
   callable capabilities also reuse this path resolver and flat type arena; capability syntax
-  cannot establish an alternate lookup or callable-provenance path.
+  cannot establish an alternate lookup or callable-provenance path. Generic predicates and
+  associated-type bounds are then bound into one closed requirement representation. Directed
+  pattern refinements, general equalities, capabilities, copy, operators, borrow coercions, and
+  expansion retain semantic IDs and bound types only. The parser now represents mandatory
+  interface-member `pub` with the same `Visibility` node used by every other declaration, so this
+  boundary requires no interface-specific visibility recovery.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

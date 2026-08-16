@@ -3,11 +3,13 @@ mod context;
 mod names;
 mod pattern;
 mod projection;
+mod requirements;
 mod syntax;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
     BorrowCapability, BuiltinType, CallableCapability, GenericParameterId, InterfaceId,
     NominalTypeId, ParameterOrigin, Symbol, TypeAliasId,
@@ -117,6 +119,44 @@ pub enum BoundDeclarationPattern {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BoundRequirementKind {
+    Capability {
+        subject: RequirementSubject,
+        capability: BoundCapability,
+    },
+    Copy(GenericParameterId),
+    TypeEquality {
+        left: BoundTypeId,
+        right: BoundTypeId,
+    },
+    Equality {
+        operand: GenericParameterId,
+    },
+    Ordering {
+        operand: GenericParameterId,
+    },
+    Index {
+        capability: BorrowCapability,
+        container: GenericParameterId,
+        index: BoundTypeId,
+        result: BoundTypeId,
+    },
+    Coercion {
+        source: BoundTypeId,
+        target: BoundTypeId,
+    },
+    Expansion {
+        capability: ExpansionCapability,
+        source: GenericParameterId,
+        result: BoundTypeId,
+    },
+    BinderRefinement {
+        parameter: GenericParameterId,
+        replacement: BoundTypeId,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeBindingError {
     MissingSource(SurfaceDeclarationId),
     InvalidSyntax(NodeId),
@@ -128,6 +168,8 @@ pub enum TypeBindingError {
     DuplicateCallableParameter(NodeId),
     UnknownProvenanceOrigin(NodeId),
     DuplicateProvenanceOrigin(NodeId),
+    InvalidRequirement(NodeId),
+    RecursiveBinderRefinement(NodeId),
     InconsistentSource(SourceId),
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
@@ -167,6 +209,16 @@ impl fmt::Display for TypeBindingError {
             Self::DuplicateProvenanceOrigin(node) => {
                 write!(formatter, "callable type {node:?} repeats a result origin")
             }
+            Self::InvalidRequirement(node) => {
+                write!(
+                    formatter,
+                    "generic requirement {node:?} has an invalid semantic shape"
+                )
+            }
+            Self::RecursiveBinderRefinement(node) => write!(
+                formatter,
+                "binder refinement {node:?} contains the binder it replaces"
+            ),
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent type origin")
             }
@@ -191,6 +243,7 @@ pub struct PreparedTypeBindings<'syntax> {
     roots: HashMap<NodeId, BoundTypeId>,
     patterns: Box<[Box<[BoundDeclarationPattern]>]>,
     capabilities: HashMap<NodeId, BoundCapability>,
+    requirements: Box<[Box<[BoundRequirementKind]>]>,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -220,6 +273,16 @@ impl PreparedTypeBindings<'_> {
     #[must_use]
     pub fn capability_for(&self, node: NodeId) -> Option<&BoundCapability> {
         self.capabilities.get(&node)
+    }
+
+    #[must_use]
+    pub fn declaration_requirements(
+        &self,
+        declaration: SurfaceDeclarationId,
+    ) -> Option<&[BoundRequirementKind]> {
+        self.requirements
+            .get(declaration.index())
+            .map(AsRef::as_ref)
     }
 
     #[must_use]
@@ -268,6 +331,7 @@ pub fn bind_header_type_syntax(
         .len();
 
     let mut patterns = Vec::with_capacity(declaration_count);
+    let mut requirements = Vec::with_capacity(declaration_count);
     for index in 0..declaration_count {
         let declaration = SurfaceDeclarationId::from_index(index);
         let surface = namespaces.imports.generics.headers.reserved.declarations[index];
@@ -314,6 +378,18 @@ pub fn bind_header_type_syntax(
             pattern::bind_all(&mut namespaces, declaration, tree, surface.node())?
                 .into_boxed_slice(),
         );
+        requirements.push(
+            requirements::bind_all(
+                &mut namespaces,
+                declaration,
+                tree,
+                surface.node(),
+                &mut kinds,
+                &roots,
+                &capabilities,
+            )?
+            .into_boxed_slice(),
+        );
     }
 
     Ok(PreparedTypeBindings {
@@ -322,6 +398,7 @@ pub fn bind_header_type_syntax(
         roots,
         patterns: patterns.into_boxed_slice(),
         capabilities,
+        requirements: requirements.into_boxed_slice(),
     })
 }
 
@@ -366,5 +443,9 @@ pub(super) fn push(kinds: &mut Vec<BoundTypeKind>, kind: BoundTypeKind) -> Bound
     id
 }
 
+#[cfg(test)]
+mod requirement_tests;
+#[cfg(test)]
+mod test_support;
 #[cfg(test)]
 mod tests;
