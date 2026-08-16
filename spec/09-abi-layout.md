@@ -141,16 +141,22 @@ Rules:
 - `copy struct` and ordinary `struct` use the same layout rules.
 - `drop` presence does not change layout.
 
-Field alignment follows the field's ABI type. Current target alignments:
+Field size and alignment follow the field's stored ABI layout. Current target scalar and view
+layouts:
 
-```text
-bool, u8, i8       align 1
-u16, i16           align 2
-u32, i32           align 4
-u64, i64           align 8
-usize, isize       align 8
-pointer, borrow    align 8
-```
+| Type | Size | Alignment |
+| --- | ---: | ---: |
+| `bool`, `u8`, `i8` | 1 | 1 |
+| `u16`, `i16` | 2 | 2 |
+| `u32`, `i32` | 4 | 4 |
+| `u64`, `i64` | 8 | 8 |
+| `usize`, `isize` | 8 | 8 |
+| `*T`, `&T`, `&+T` | 8 | 8 |
+| `&str`, `&[T]`, `&+[T]` | 16 | 8 |
+
+The stored size of `bool` is one byte, and its only valid live representations are byte values `0`
+and `1`. Small scalar argument and return extension to a 64-bit ABI word does not change stored
+size or aggregate field layout.
 
 Aggregates use their computed aggregate alignment.
 
