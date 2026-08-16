@@ -114,11 +114,12 @@ impl OwnershipAnalyzer<'_> {
             | CheckedOperation::Constant(_)
             | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {
-                self.require_initialized(node, *place, state)?;
-                Ok(true)
+                self.visit_place_use(node, *place, state)
             }
             CheckedOperation::Copy(place) => {
-                self.require_initialized(node, *place, state)?;
+                if !self.visit_place_use(node, *place, state)? {
+                    return Ok(false);
+                }
                 self.validate_copy(node, checked.ty())?;
                 Ok(true)
             }
@@ -359,31 +360,39 @@ impl OwnershipAnalyzer<'_> {
             .get(target)
             .cloned()
             .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
+        if !self.visit_place_evaluation(&place, state)? {
+            return Ok(false);
+        }
+        if place.has_dynamic_evaluation() || place.access() != PlaceAccess::Owned {
+            self.require_path_initialized(node, &MovePath::initialized_base(&place), state)?;
+        }
         let actions = match place.access() {
             PlaceAccess::Owned => {
-                let path = MovePath::from_place(&place)
-                    .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
-                let actions = self.replacement_path_cleanup(&path, place.ty(), state)?;
-                if let Err(error) = state.assign(&path) {
-                    return match error {
-                        OwnershipStateError::UnavailableAssignmentParent { .. } => {
-                            Err(self.rule(BodyRule::InvalidReinitialization, node)?)
-                        }
-                        OwnershipStateError::DuplicatePath(_)
-                        | OwnershipStateError::UnknownPath(_)
-                        | OwnershipStateError::NotInitialized { .. } => {
-                            Err(BodyCheckInternalError::OwnershipState.into())
-                        }
-                    };
+                if let Some(path) = MovePath::from_place(&place) {
+                    let actions = self.replacement_path_cleanup(&path, place.ty(), state)?;
+                    if let Err(error) = state.assign(&path) {
+                        return match error {
+                            OwnershipStateError::UnavailableAssignmentParent { .. } => {
+                                Err(self.rule(BodyRule::InvalidReinitialization, node)?)
+                            }
+                            OwnershipStateError::DuplicatePath(_)
+                            | OwnershipStateError::UnknownPath(_)
+                            | OwnershipStateError::NotInitialized { .. } => {
+                                Err(BodyCheckInternalError::OwnershipState.into())
+                            }
+                        };
+                    }
+                    actions
+                } else {
+                    self.replacement_place_cleanup(target, place.ty())?
+                        .into_iter()
+                        .collect()
                 }
-                actions
             }
-            PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite) => {
-                self.require_initialized(node, target, state)?;
-                self.replacement_place_cleanup(target, place.ty())?
-                    .into_iter()
-                    .collect()
-            }
+            PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite) => self
+                .replacement_place_cleanup(target, place.ty())?
+                .into_iter()
+                .collect(),
             PlaceAccess::Borrowed(nocter_model::BorrowCapability::Readonly) => {
                 return Err(BodyCheckInternalError::OwnershipState.into());
             }
@@ -402,7 +411,53 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit(value, state)? {
             return Ok(false);
         }
-        self.require_initialized(node, target, state)?;
+        let place = self
+            .body
+            .places()
+            .get(target)
+            .cloned()
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
+        if !self.visit_place_evaluation(&place, state)? {
+            return Ok(false);
+        }
+        let required =
+            MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+        self.require_path_initialized(node, &required, state)?;
+        Ok(true)
+    }
+
+    fn visit_place_evaluation(
+        &mut self,
+        place: &crate::CheckedPlace,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        let nodes = place.evaluation_nodes().collect::<Vec<_>>();
+        for node in nodes {
+            if !self.visit(node, state)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn visit_place_use(
+        &mut self,
+        node: BodyNodeId,
+        place: nocter_model::PlaceId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        let place = self
+            .body
+            .places()
+            .get(place)
+            .cloned()
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
+        if !self.visit_place_evaluation(&place, state)? {
+            return Ok(false);
+        }
+        let required =
+            MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+        self.require_path_initialized(node, &required, state)?;
         Ok(true)
     }
 
@@ -654,16 +709,6 @@ impl OwnershipAnalyzer<'_> {
             self.cleanup_schedules
                 .insert(node, CleanupSchedule::new(timing, actions));
         }
-    }
-
-    fn require_initialized(
-        &self,
-        node: BodyNodeId,
-        place: nocter_model::PlaceId,
-        state: &OwnershipState,
-    ) -> Result<(), BodyCheckError> {
-        let path = self.move_path(place)?;
-        self.require_path_initialized(node, &path, state)
     }
 
     fn validate_copy(

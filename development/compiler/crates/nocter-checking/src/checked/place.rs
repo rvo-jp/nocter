@@ -21,6 +21,10 @@ pub enum PlaceAccess {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaceProjection {
     Field(FieldId),
+    /// An implicit dereference required to continue projecting through a borrow value.
+    BorrowDeref {
+        capability: BorrowCapability,
+    },
     BuiltinIndex {
         index: BodyNodeId,
     },
@@ -82,6 +86,20 @@ impl CheckedPlace {
                 .projections
                 .iter()
                 .all(|projection| matches!(projection, PlaceProjection::Field(_)))
+    }
+
+    pub(crate) fn evaluation_nodes(&self) -> impl Iterator<Item = BodyNodeId> + '_ {
+        self.projections
+            .iter()
+            .filter_map(|projection| match projection {
+                PlaceProjection::BuiltinIndex { index }
+                | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
+                PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => None,
+            })
+    }
+
+    pub(crate) fn has_dynamic_evaluation(&self) -> bool {
+        self.evaluation_nodes().next().is_some()
     }
 }
 

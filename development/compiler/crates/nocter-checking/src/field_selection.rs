@@ -1,10 +1,6 @@
-use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{
-    BorrowCapability, FieldId, ModuleId, NominalTypeId, TypeId, TypeKind, TypeStore,
-};
-
-use crate::PlaceAccess;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
+use nocter_declarations::{DeclarationGraph, NominalShape};
+use nocter_model::{FieldId, ModuleId, NominalTypeId, TypeId, TypeKind, TypeStore};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SelectedField {
@@ -98,34 +94,6 @@ pub(crate) fn select_field(
         field,
         ty,
     })
-}
-
-/// Peels borrow layers before field selection while preserving the weakest storage authority.
-pub(crate) fn field_selection_base(
-    types: &TypeStore,
-    mut ty: TypeId,
-    access: &mut PlaceAccess,
-) -> Result<TypeId, FieldSelectionError> {
-    loop {
-        match types.get(ty) {
-            Some(TypeKind::Borrow {
-                capability,
-                referent,
-            }) => {
-                *access = PlaceAccess::Borrowed(match (*access, *capability) {
-                    (PlaceAccess::Borrowed(BorrowCapability::Readonly), _)
-                    | (_, BorrowCapability::Readonly) => BorrowCapability::Readonly,
-                    (
-                        PlaceAccess::Owned | PlaceAccess::Borrowed(BorrowCapability::ReadWrite),
-                        BorrowCapability::ReadWrite,
-                    ) => BorrowCapability::ReadWrite,
-                });
-                ty = *referent;
-            }
-            Some(_) => return Ok(ty),
-            None => return Err(FieldSelectionError::UnknownType(ty)),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

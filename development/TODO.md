@@ -10,8 +10,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Introduce one evaluated-place plan for built-in and selected indexes. Both simple and compound
-   assignment must evaluate the right-hand side first and the target components exactly once.
+1. Build the program-wide instance-operation selector, then use it for source-defined index
+   projections and the permitted one-step receiver coercion. It must prove conditional
+   requirements without rescanning declarations or ranking candidates by input order.
 2. Complete unary numeric, shift, logical, primitive equality, and primitive ordering selection
    without mixing source-defined operator dispatch into the primitive path.
 3. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
@@ -99,8 +100,13 @@ operands left-to-right. Compound assignment reuses that selection, retains one t
 requires a definitely initialized numeric place, and never constructs a fictional binary
 expression. Body errors retain their `BodyRule` identity separately from the projected diagnostic,
 so the compound boundary can classify its required dedicated diagnostic without comparing rendered
-codes. Indexed assignment, remaining operators, temporary cleanup for calls and aggregates, and
-executable MIR lowering remain incomplete.
+codes. Built-in fixed-array, slice, and `str` indexing now uses the same checked-place constructor
+as field reads and borrows. Every implicit borrow dereference is an explicit place projection, so
+the owned initialization prefix and final storage authority remain distinct. Index expressions
+occur once in projection order. Simple and compound indexed assignment visit the RHS first, then
+those index nodes, and retain the evaluated place for pre-store cleanup. Source-defined index
+selection, remaining operators, temporary cleanup for calls and aggregates, and executable MIR
+lowering remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

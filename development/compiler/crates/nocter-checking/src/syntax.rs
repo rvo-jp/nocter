@@ -54,24 +54,6 @@ pub(crate) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToke
         })
 }
 
-pub(crate) fn single_descendant(
-    tree: &SyntaxTree,
-    root: NodeId,
-    expected: NodeKind,
-) -> Option<NodeId> {
-    let mut current = root;
-    loop {
-        let children = direct_nodes(tree, current);
-        if children.len() != 1 {
-            return None;
-        }
-        current = children[0];
-        if tree.node(current)?.kind() == expected {
-            return Some(current);
-        }
-    }
-}
-
 pub(crate) fn is_transparent_expression(kind: NodeKind) -> bool {
     matches!(
         kind,

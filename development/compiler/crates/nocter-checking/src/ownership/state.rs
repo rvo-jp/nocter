@@ -33,7 +33,7 @@ impl MovePath {
     pub(crate) fn from_place(place: &CheckedPlace) -> Option<Self> {
         let mut path = Self::root(place.root());
         if place.access() != PlaceAccess::Owned {
-            return Some(path);
+            return None;
         }
         for projection in place.projections() {
             let PlaceProjection::Field(field) = projection else {
@@ -42,6 +42,22 @@ impl MovePath {
             path = path.field(*field);
         }
         Some(path)
+    }
+
+    /// Returns the owned named prefix that must remain initialized while evaluating a dynamic
+    /// place. Projections after the first dynamic selection belong to externally addressed
+    /// storage and do not become local move-path identities.
+    pub(crate) fn initialized_base(place: &CheckedPlace) -> Self {
+        let mut path = Self::root(place.root());
+        for projection in place.projections() {
+            match projection {
+                PlaceProjection::Field(field) => path = path.field(*field),
+                PlaceProjection::BorrowDeref { .. }
+                | PlaceProjection::BuiltinIndex { .. }
+                | PlaceProjection::SelectedIndex { .. } => break,
+            }
+        }
+        path
     }
 
     pub(crate) fn root_identity(&self) -> PlaceRoot {

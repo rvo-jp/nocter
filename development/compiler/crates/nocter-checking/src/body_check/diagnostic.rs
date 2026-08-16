@@ -19,6 +19,7 @@ pub enum BodyRule {
     InvalidAssignmentTarget,
     InvalidReinitialization,
     InvalidCompoundAssignment,
+    InvalidReadWriteBorrow,
 }
 
 impl BodyRule {
@@ -39,6 +40,7 @@ impl BodyRule {
         Self::InvalidAssignmentTarget,
         Self::InvalidReinitialization,
         Self::InvalidCompoundAssignment,
+        Self::InvalidReadWriteBorrow,
     ];
 
     #[must_use]
@@ -60,6 +62,7 @@ impl BodyRule {
             Self::InvalidAssignmentTarget => "E0384",
             Self::InvalidReinitialization => "E0385",
             Self::InvalidCompoundAssignment => "E0386",
+            Self::InvalidReadWriteBorrow => "E0387",
         }
     }
 
@@ -136,6 +139,10 @@ impl BodyRule {
             Self::InvalidCompoundAssignment => (
                 "compound assignment requires a writable initialized integer place and matching RHS",
                 "use a mutable integer destination and a right-hand side of the same integer type",
+            ),
+            Self::InvalidReadWriteBorrow => (
+                "readwrite borrow requires a writable place",
+                "borrow a `var` binding, writable field, or readwrite index place",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

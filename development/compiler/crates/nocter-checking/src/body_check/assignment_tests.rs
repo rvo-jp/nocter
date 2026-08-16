@@ -4,7 +4,7 @@ use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
     CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, CleanupTiming, PlaceAccess,
-    PrimitiveBinary, PrimitiveOperation, prepare_program_checking,
+    PlaceProjection, PrimitiveBinary, PrimitiveOperation, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -341,4 +341,98 @@ fn compound_assignment_operator_may_follow_its_continuation_newline() {
         node.operation(),
         CheckedOperation::Control(CheckedControl::CompoundAssign { .. })
     )));
+}
+
+#[test]
+fn fixed_array_assignment_builds_one_index_without_requiring_index_reads() {
+    let output = check(
+        "func replace(input: [i32; 4], index: usize, replacement: i32): void {\n    var values = input\n    values[index] = replacement\n    return\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let assign = assignment_node(body);
+    let CheckedOperation::Control(CheckedControl::Assign { target, .. }) =
+        body.nodes().get(assign).unwrap().operation()
+    else {
+        unreachable!();
+    };
+    let place = body.places().get(*target).unwrap();
+
+    assert_eq!(place.projections().len(), 1);
+    assert!(matches!(
+        place.projections()[0],
+        PlaceProjection::BuiltinIndex { .. }
+    ));
+    assert!(body.cleanups().actions(assign).unwrap().is_empty());
+}
+
+#[test]
+fn indexed_move_only_replacement_uses_a_pre_store_place_cleanup() {
+    let output = check(&format!(
+        "{OWNED}func replace(input: [Owned; 2], index: usize, replacement: Owned): void {{\n    var values = move input\n    values[index] = move replacement\n    return\n}}\n"
+    ))
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let assign = assignment_node(body);
+    let [action] = body.cleanups().actions(assign).unwrap() else {
+        panic!("indexed replacement must destroy its old move-only element");
+    };
+
+    assert_eq!(
+        body.cleanups().schedule(assign).unwrap().timing(),
+        CleanupTiming::BeforeStore
+    );
+    assert!(matches!(action.target(), CleanupTarget::Place { .. }));
+}
+
+#[test]
+fn readwrite_slice_supports_simple_and_compound_index_assignment() {
+    let output = check(
+        "func update(values: &+[i32], index: usize): void {\n    values[index] = 1\n    values[index] += 2\n    return\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let targets = body
+        .nodes()
+        .iter()
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Control(
+                CheckedControl::Assign { target, .. }
+                | CheckedControl::CompoundAssign { target, .. },
+            ) => Some(*target),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(targets.len(), 2);
+    assert!(targets.iter().all(|target| {
+        body.places().get(*target).unwrap().access()
+            == PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite)
+    }));
+}
+
+#[test]
+fn readonly_slice_and_wrong_index_type_are_rejected() {
+    let readonly = check(
+        "func invalid(values: &[i32], index: usize): void {\n    values[index] = 1\n    return\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(readonly.source_diagnostic().unwrap().code(), "E0384");
+
+    let wrong_index = check(
+        "func invalid(input: [i32; 2], index: i32): void {\n    var values = input\n    values[index] = 1\n    return\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(wrong_index.source_diagnostic().unwrap().code(), "E0370");
+}
+
+#[test]
+fn rhs_partial_move_does_not_invalidate_the_disjoint_indexed_base() {
+    let output = check(&format!(
+        "{OWNED}struct Holder {{\n    values: [Owned; 1]\n    replacement: Owned\n}}\nfunc replace(input: Holder): void {{\n    var holder = move input\n    holder.values[0] = move holder.replacement\n    return\n}}\n"
+    ))
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+
+    assert!(body.cleanups().schedule(assignment_node(body)).is_some());
 }

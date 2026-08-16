@@ -19,22 +19,22 @@ use super::literal::{fits_integer, integer_type, parse_integer};
 use super::ownership::analyze_body_ownership;
 use crate::checked::{CheckedBodyBuilder, CheckedProgram, CheckedProgramOutput};
 use crate::copyability::{Copyability, CopyabilityTable};
-use crate::field_selection::{FieldSelectionError, field_selection_base, select_field};
 use crate::preparation::PreparedCheckingParts;
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
-    is_transparent_expression, single_descendant, token_text,
+    is_transparent_expression, token_text,
 };
 use crate::{
     BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, ConstantValue,
     DropTable, ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, NameTarget,
-    OutcomeLayer, PlaceAccess, PlaceProjection, PlaceRoot, PreparedChecking, ResolvedBodyNames,
+    OutcomeLayer, PlaceAccess, PlaceProjection, PreparedChecking, ResolvedBodyNames,
     plan_expected_type,
 };
 
 mod arithmetic;
 mod assignment;
 mod loops;
+mod place;
 use loops::LoopConstruction;
 
 struct NodeProjection {
@@ -42,7 +42,7 @@ struct NodeProjection {
     origin: SourceOrigin,
 }
 
-struct NamedPlace {
+struct ResolvedPlace {
     id: PlaceId,
     ty: TypeId,
     access: PlaceAccess,
@@ -64,9 +64,10 @@ enum BlockExpectation {
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
 ///
 /// The current construction slice accepts blocks, scalar literals, named places and field moves,
-/// readonly borrows, bindings, conditionals, while/infinite/integer-range loops, loop control,
-/// expression statements, body results, and returns. Other valid syntax is reported as an internal
-/// incomplete-implementation boundary; no partial checked program escapes.
+/// readonly/readwrite borrows, field and built-in index places, bindings, conditionals,
+/// while/infinite/integer-range loops, loop control, expression statements, body results, and
+/// returns. Other valid syntax is reported as an internal incomplete-implementation boundary; no
+/// partial checked program escapes.
 ///
 /// # Errors
 ///
@@ -522,6 +523,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
                     return self.check_arithmetic(current, expected);
                 }
+                NodeKind::PostfixExpression => self.check_postfix_reference(current)?,
                 NodeKind::ReferenceExpression => self.check_reference(current)?,
                 NodeKind::MoveExpression => self.check_move(current)?,
                 NodeKind::UnaryExpression => self.check_unary(current)?,
@@ -655,6 +657,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
     }
 
+    fn check_postfix_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+        let place = self.postfix_place(node)?;
+        self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
+    }
+
     fn check_move(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         if self.tree().children(node).iter().any(|element| {
             matches!(
@@ -698,18 +705,31 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn check_unary(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let token =
             direct_token(self.tree(), node).ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        if token.kind() != TokenKind::Punctuation(Punctuation::Ampersand) {
+        let capability = match token.kind() {
+            TokenKind::Punctuation(Punctuation::Ampersand) => BorrowCapability::Readonly,
+            TokenKind::Punctuation(Punctuation::ReadWrite) => BorrowCapability::ReadWrite,
+            _ => {
+                return Err(BodyCheckInternalError::UnsupportedSyntax(
+                    node,
+                    NodeKind::UnaryExpression,
+                )
+                .into());
+            }
+        };
+        let operands = direct_nodes(self.tree(), node);
+        if operands.len() != 1 {
             return Err(
                 BodyCheckInternalError::UnsupportedSyntax(node, NodeKind::UnaryExpression).into(),
             );
         }
-        let operand = single_descendant(self.tree(), node, NodeKind::ReferenceExpression)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let place = self.named_place(operand)?;
+        let place = self.postfix_place(operands[0])?;
+        if capability == BorrowCapability::ReadWrite && !self.is_writable_place(place.id)? {
+            return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operands[0])?);
+        }
         let ty = self
             .types
             .intern(TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
+                capability,
                 referent: place.ty,
             })
             .map_err(|_| BodyCheckInternalError::UnknownType(place.ty))?;
@@ -717,108 +737,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             node,
             ty,
             CheckedOperation::Borrow {
-                capability: BorrowCapability::Readonly,
+                capability,
                 place: place.id,
             },
         )
-    }
-
-    fn named_place(&mut self, node: NodeId) -> Result<NamedPlace, BodyCheckError> {
-        let tokens = identifier_tokens(self.tree(), node);
-        let token = tokens
-            .first()
-            .copied()
-            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let (root, mut ty) = self.place_root(node, token)?;
-        let mut access = PlaceAccess::Owned;
-        let mut projections = Vec::new();
-        let mut partial_parents = Vec::new();
-        for field_token in tokens.into_iter().skip(1) {
-            let base =
-                field_selection_base(self.types, ty, &mut access).map_err(|error| match error {
-                    FieldSelectionError::UnknownType(unknown) => {
-                        BodyCheckInternalError::UnknownType(unknown)
-                    }
-                    _ => BodyCheckInternalError::FieldSelection,
-                })?;
-            let spelling = self.token_text(field_token)?.to_owned();
-            let selected = match select_field(
-                self.graph,
-                self.types,
-                self.source.module(),
-                base,
-                &spelling,
-            ) {
-                Ok(selected) => selected,
-                Err(FieldSelectionError::NoFields(_) | FieldSelectionError::MissingField(_)) => {
-                    return Err(self.token_rule(BodyRule::UnknownField, field_token)?);
-                }
-                Err(FieldSelectionError::InaccessibleField(_)) => {
-                    return Err(self.token_rule(BodyRule::InaccessibleField, field_token)?);
-                }
-                Err(FieldSelectionError::UnknownType(unknown)) => {
-                    return Err(BodyCheckInternalError::UnknownType(unknown).into());
-                }
-                Err(
-                    FieldSelectionError::UnknownNominal(_)
-                    | FieldSelectionError::UnknownField(_)
-                    | FieldSelectionError::UnknownFieldSite(_)
-                    | FieldSelectionError::AmbiguousField(_)
-                    | FieldSelectionError::GenericArity(_)
-                    | FieldSelectionError::Substitution(_),
-                ) => return Err(BodyCheckInternalError::FieldSelection.into()),
-            };
-            if access == PlaceAccess::Owned {
-                partial_parents.push(selected.owner());
-            }
-            let origin = SourceOrigin::from_token(self.tree(), field_token)
-                .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-            self.projections.push(NodeProjection {
-                entity: SemanticEntity::Field(selected.field()),
-                origin,
-            });
-            projections.push(PlaceProjection::Field(selected.field()));
-            ty = selected.ty();
-        }
-        Ok(NamedPlace {
-            id: self.builder.add_place(root, projections, ty, access),
-            ty,
-            access,
-            partial_parents: partial_parents.into_boxed_slice(),
-        })
-    }
-
-    fn place_root(
-        &mut self,
-        node: NodeId,
-        token: SyntaxToken,
-    ) -> Result<(PlaceRoot, TypeId), BodyCheckError> {
-        let origin = SyntaxOrigin::Token(token);
-        let target = self
-            .uses
-            .get(&origin)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
-        self.consumed_uses.insert(origin);
-        Ok(match target {
-            NameTarget::Parameter(parameter) => {
-                let ty = self
-                    .graph
-                    .declarations()
-                    .parameters()
-                    .get(parameter)
-                    .map(|parameter| parameter.ty())
-                    .ok_or(BodyCheckInternalError::MissingParameterType(target))?;
-                (PlaceRoot::Parameter(parameter), ty)
-            }
-            NameTarget::Local(local) => (
-                PlaceRoot::Local(local),
-                self.builder
-                    .local_type(local)
-                    .ok_or(BodyCheckInternalError::MissingLocalType(local))?,
-            ),
-            _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
-        })
     }
 
     fn apply_expected(

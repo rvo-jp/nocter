@@ -160,8 +160,9 @@ closed node operation distinguishes constants, places, copy/move/borrow, static 
 calls, selected coercions, primitive operations, aggregates, outcomes, closures, typed literals,
 iteration/spread, interpolation, and control. `StaticDispatch` is the only operation-selection
 edge and records a direct callable, an exact interface requirement plus method, or an exact
-structural requirement. A place records its owned or borrowed root and exact field/builtin-index/
-selected-index projection path; only an owned field-only path is an eligible explicit move source.
+structural requirement. A place records its root, final storage authority, and exact
+field/implicit-borrow-dereference/builtin-index/selected-index projection path; only an owned
+field-only path is an eligible explicit move source.
 This schema prevents MIR from repeating member, conformance, coercion, iterator, or move-place
 selection.
 
@@ -269,17 +270,27 @@ the consumed value node itself, so cleanup does not invent a hidden local or los
 value.
 
 Simple assignment owns one destination place and one RHS node. Construction accepts a complete
-`var` binding, a statically named field below it, or a field reached through a readwrite borrow;
-immutable bindings, owned parameters, readonly fields, and call-shaped targets project `E0384`.
+`var` binding, a statically named field below it, a built-in fixed-array index below writable owned
+storage, or a field/index reached through a readwrite borrow; immutable bindings, owned parameters,
+readonly projections, and call-shaped targets project `E0384`.
 The ownership walk visits the complete RHS first, then asks the shared cleanup planner for the old
 destination state. Initialized values produce unconditional cleanup, maybe-initialized values
 produce conditional cleanup, and moved fields produce none. Whole replacement of a partial struct
 expands only its remaining fields. A successful transition removes subordinate partial facts and
 marks the destination initialized; a field cannot recreate storage below a moved whole parent.
 Replacement actions use `BeforeStore`, while scope and transfer cleanup uses
-`BeforeTransfer`. Readwrite-borrowed fields retain their evaluated `PlaceId` as the cleanup
-target because they are not owned `MovePath` identities. Indexed assignment and temporary
-ownership for unsupported expression families remain subsequent increments.
+`BeforeTransfer`. Readwrite-borrowed and dynamically indexed targets retain their evaluated
+`PlaceId` as the cleanup target because they are not owned `MovePath` identities.
+
+One postfix-place constructor now serves field/index reads, readonly and readwrite borrows, simple
+assignment, and compound assignment. It classifies call-shaped syntax once instead of maintaining
+an assignment-only syntax walker. Each implicit borrow dereference is a first-class projection;
+therefore `owned.borrow_field.member` retains `owned.borrow_field` as its initialization prefix
+without pretending that the selected member is owned. Built-in fixed arrays, slices, and `str`
+store each checked `usize` index node once and preserve nested source order. Ownership evaluation
+visits the RHS before assignment target nodes, and visits target nodes before replacement cleanup
+or storage. Source-defined selected indexes and temporary ownership for unsupported expression
+families remain subsequent increments.
 
 Integer `+`, `-`, `*`, `/`, and `%` select the closed `PrimitiveBinary` operation once. An
 authoritative destination integer type contextualizes literal operands; otherwise the typed left

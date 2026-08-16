@@ -395,6 +395,13 @@ ownership walker may revisit immutable control nodes to compute loop fixed point
 allocate a node, place, local, or loop identity. This separation prevents analysis order and the
 number of fixed-point iterations from changing semantic identity or source projection.
 
+One checked-place construction path handles field and index projections for reads, borrows, and
+assignment. It records implicit borrow dereferences rather than collapsing them into the final
+readonly/readwrite authority. This preserves the exact owned field prefix required by
+initialization analysis and gives MIR an ordered projection plan. Dynamic index expressions are
+stored as checked node identities once; consumers execute those nodes in projection order instead
+of reconstructing an index expression from syntax.
+
 Name resolution assigns each syntax block one exact body-scope identity and checked construction
 stores that identity on the block node. Ownership analysis therefore computes scope-exit edges
 without source containment queries. Its dense cleanup table is keyed by the operation that owns
