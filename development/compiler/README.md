@@ -93,7 +93,9 @@ be introduced to make an unresolved syntax choice.
   It resolves module selections, authored and prelude names, generic identities and arity, `Self`
   ownership, fixed-array lengths, and structural-callable origin names exactly once. Alias
   applications and associated selections remain explicit bound nodes until the normalization pass
-  has the requirements needed to resolve them.
+  has the requirements needed to resolve them. Declaration target patterns use the same module,
+  symbol, arity, and source-projection context and bind their bare argument names directly to the
+  generic identities already allocated for that declaration.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -8,6 +8,7 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
+use super::context::{builtin_type, declaration_module, require_arity, token_symbol, token_text};
 use super::{BoundCallableType, BoundTypeId, BoundTypeKind, TypeBindingError, projection, push};
 
 pub(super) fn bind(
@@ -59,7 +60,7 @@ fn bind_node(
         NodeKind::Type => bind_type_wrapper(tree, node, values, kinds)?,
         NodeKind::BuiltinType => push(
             kinds,
-            BoundTypeKind::Builtin(builtin(namespaces, tree, node)?),
+            BoundTypeKind::Builtin(builtin_type(namespaces, tree, node)?),
         ),
         NodeKind::NamedType => bind_named(namespaces, declaration, tree, node, values, kinds)?,
         NodeKind::PointerType => push(
@@ -123,7 +124,7 @@ fn bind_named(
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
-    let segments = named_segments(namespaces, tree, node, values)?;
+    let segments = named_segments(tree, node, values)?;
     let first = segments
         .first()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
@@ -231,28 +232,6 @@ fn bind_entity(
     }
 }
 
-fn require_arity(
-    namespaces: &PreparedNamespaces<'_>,
-    node: NodeId,
-    entity: ReservedEntity,
-    actual: usize,
-) -> Result<(), TypeBindingError> {
-    let generics = &namespaces.imports.generics;
-    let expected = generics
-        .headers
-        .reserved
-        .entities
-        .iter()
-        .position(|candidate| *candidate == Some(entity))
-        .and_then(|index| generics.own.get(index))
-        .map_or(0, |parameters| parameters.len());
-    if expected == actual {
-        Ok(())
-    } else {
-        Err(TypeBindingError::InvalidTypeArguments(node))
-    }
-}
-
 fn bind_callable(
     namespaces: &PreparedNamespaces<'_>,
     tree: &SyntaxTree,
@@ -348,7 +327,6 @@ fn callable_parameter_name(
 }
 
 fn named_segments(
-    namespaces: &PreparedNamespaces<'_>,
     tree: &SyntaxTree,
     node: NodeId,
     values: &HashMap<NodeId, BoundTypeId>,
@@ -398,7 +376,6 @@ fn named_segments(
     if segments.is_empty() {
         Err(TypeBindingError::InvalidSyntax(node))
     } else {
-        let _ = namespaces;
         Ok(segments)
     }
 }
@@ -424,20 +401,6 @@ fn self_owner(
         }
         declaration = surface.owner()?;
     }
-}
-
-fn declaration_module(
-    namespaces: &PreparedNamespaces<'_>,
-    declaration: SurfaceDeclarationId,
-) -> Result<nocter_model::ModuleId, TypeBindingError> {
-    let reserved = &namespaces.imports.generics.headers.reserved;
-    let surface = reserved
-        .declarations
-        .get(declaration.index())
-        .ok_or(TypeBindingError::MissingSource(declaration))?;
-    reserved
-        .module_for_source(surface.source())
-        .ok_or(TypeBindingError::MissingSource(declaration))
 }
 
 fn child_value(
@@ -469,39 +432,6 @@ fn descendant_value(
         }
     }
     None
-}
-
-fn builtin(
-    namespaces: &PreparedNamespaces<'_>,
-    tree: &SyntaxTree,
-    node: NodeId,
-) -> Result<nocter_model::BuiltinType, TypeBindingError> {
-    let token = tree
-        .children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) => Some(*token),
-            _ => None,
-        })
-        .ok_or(TypeBindingError::InvalidSyntax(node))?;
-    match token_text(namespaces, tree, token)? {
-        "bool" => Ok(nocter_model::BuiltinType::Bool),
-        "i8" => Ok(nocter_model::BuiltinType::I8),
-        "i16" => Ok(nocter_model::BuiltinType::I16),
-        "i32" => Ok(nocter_model::BuiltinType::I32),
-        "i64" => Ok(nocter_model::BuiltinType::I64),
-        "u8" => Ok(nocter_model::BuiltinType::U8),
-        "u16" => Ok(nocter_model::BuiltinType::U16),
-        "u32" => Ok(nocter_model::BuiltinType::U32),
-        "u64" => Ok(nocter_model::BuiltinType::U64),
-        "usize" => Ok(nocter_model::BuiltinType::Usize),
-        "isize" => Ok(nocter_model::BuiltinType::Isize),
-        "str" => Ok(nocter_model::BuiltinType::Str),
-        "error" => Ok(nocter_model::BuiltinType::Error),
-        "void" => Ok(nocter_model::BuiltinType::Void),
-        "never" => Ok(nocter_model::BuiltinType::Never),
-        _ => Err(TypeBindingError::InvalidSyntax(node)),
-    }
 }
 
 fn borrow_capability(
@@ -539,41 +469,6 @@ fn array_length(
         text.parse()
     };
     parsed.map_err(|_| TypeBindingError::InvalidArrayLength(node))
-}
-
-fn token_symbol(
-    namespaces: &PreparedNamespaces<'_>,
-    tree: &SyntaxTree,
-    token: SyntaxToken,
-) -> Result<Symbol, TypeBindingError> {
-    let text = token_text(namespaces, tree, token)?;
-    namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .program
-        .symbols()
-        .get(text)
-        .ok_or(TypeBindingError::InconsistentSource(tree.source()))
-}
-
-fn token_text<'a>(
-    namespaces: &'a PreparedNamespaces<'_>,
-    tree: &SyntaxTree,
-    token: SyntaxToken,
-) -> Result<&'a str, TypeBindingError> {
-    let source = namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .source_map
-        .get(token.source())
-        .ok_or(TypeBindingError::InconsistentSource(tree.source()))?;
-    source
-        .text_at(token.range())
-        .ok_or(TypeBindingError::InconsistentSource(tree.source()))
 }
 
 fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {

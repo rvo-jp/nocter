@@ -12,7 +12,8 @@ behavior, or implementation document may be used as an implementation input.
    applications and associated selections together with their requirement environment; do not add
    either as a temporary canonical `TypeKind`. Package/module/source topology, surface inventory,
    cross-file callable joining, recursive identity reservation, names, visibility, generic binders,
-   authored imports/re-exports, prelude fallback, and lexical type-name binding are complete.
+   authored imports/re-exports, prelude fallback, lexical type-name binding, and declaration target
+   pattern binding are complete.
 2. Define declaration headers, associated declarations, callable provenance, and generic
    requirements, then freeze the declaration program and separate `SourceIndex`.
 3. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-

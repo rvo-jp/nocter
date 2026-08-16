@@ -1,3 +1,5 @@
+mod context;
+mod pattern;
 mod projection;
 mod syntax;
 
@@ -5,8 +7,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use nocter_model::{
-    BorrowCapability, CallableCapability, GenericParameterId, NominalTypeId, ParameterOrigin,
-    Symbol, TypeAliasId,
+    BorrowCapability, BuiltinType, CallableCapability, GenericParameterId, InterfaceId,
+    NominalTypeId, ParameterOrigin, Symbol, TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_source_index::DuplicateSourceBinding;
@@ -88,6 +90,21 @@ pub enum BoundTypeKind {
     Fallible(BoundTypeId),
 }
 
+/// A declaration target pattern after its type head and binder occurrences are resolved.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BoundDeclarationPattern {
+    Builtin(BuiltinType),
+    Slice(GenericParameterId),
+    Nominal {
+        definition: NominalTypeId,
+        arguments: Box<[GenericParameterId]>,
+    },
+    Interface {
+        definition: InterfaceId,
+        arguments: Box<[GenericParameterId]>,
+    },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeBindingError {
     MissingSource(SurfaceDeclarationId),
@@ -161,6 +178,7 @@ pub struct PreparedTypeBindings<'syntax> {
     namespaces: PreparedNamespaces<'syntax>,
     kinds: Box<[BoundTypeKind]>,
     roots: HashMap<NodeId, BoundTypeId>,
+    patterns: Box<[Box<[BoundDeclarationPattern]>]>,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -177,6 +195,14 @@ impl PreparedTypeBindings<'_> {
     #[must_use]
     pub fn type_for(&self, node: NodeId) -> Option<BoundTypeId> {
         self.roots.get(&node).copied()
+    }
+
+    #[must_use]
+    pub fn declaration_patterns(
+        &self,
+        declaration: SurfaceDeclarationId,
+    ) -> Option<&[BoundDeclarationPattern]> {
+        self.patterns.get(declaration.index()).map(AsRef::as_ref)
     }
 
     #[must_use]
@@ -223,6 +249,7 @@ pub fn bind_header_type_syntax(
         .declarations
         .len();
 
+    let mut patterns = Vec::with_capacity(declaration_count);
     for index in 0..declaration_count {
         let declaration = SurfaceDeclarationId::from_index(index);
         let surface = namespaces.imports.generics.headers.reserved.declarations[index];
@@ -249,12 +276,17 @@ pub fn bind_header_type_syntax(
                 &mut roots,
             )?;
         }
+        patterns.push(
+            pattern::bind_all(&mut namespaces, declaration, tree, surface.node())?
+                .into_boxed_slice(),
+        );
     }
 
     Ok(PreparedTypeBindings {
         namespaces,
         kinds: kinds.into_boxed_slice(),
         roots,
+        patterns: patterns.into_boxed_slice(),
     })
 }
 

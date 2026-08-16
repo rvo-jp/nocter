@@ -2,13 +2,14 @@ use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
-use super::{BoundTypeKind, TypeBindingError, bind_header_type_syntax};
+use super::{BoundDeclarationPattern, BoundTypeKind, TypeBindingError, bind_header_type_syntax};
 use crate::test_support::module_use;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    apply_standard_prelude, collect_declaration_surface, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
+    UseResolutionInput, apply_standard_prelude, collect_declaration_surface,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -213,4 +214,61 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
         callable.explicit_origins(),
         Some([ParameterOrigin::new(0), ParameterOrigin::new(1)].as_slice())
     );
+}
+
+#[test]
+fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "struct Pair<T> {}\ninterface Show<T> {}\ninstance Pair<T> {}\nconform Show<T> for Pair<T> {}\n",
+    );
+    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
+    let bound = bind(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+        ],
+        vec![
+            module("workspace:app", &[], "/app/index.nct", &app),
+            module("builtin:std", &[], "/std/index.nct", &std_root),
+            module(
+                "builtin:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude,
+            ),
+        ],
+        vec![],
+        &prelude_identity,
+    )
+    .unwrap();
+    let instance = bound
+        .declaration_patterns(SurfaceDeclarationId::from_index(2))
+        .unwrap();
+    let conform = bound
+        .declaration_patterns(SurfaceDeclarationId::from_index(3))
+        .unwrap();
+
+    assert!(matches!(
+        instance,
+        [BoundDeclarationPattern::Nominal { arguments, .. }] if arguments.len() == 1
+    ));
+    assert!(matches!(
+        conform,
+        [BoundDeclarationPattern::Interface { arguments: interface, .. },
+         BoundDeclarationPattern::Nominal { arguments: target, .. }]
+            if interface == target && interface.len() == 1
+    ));
 }
