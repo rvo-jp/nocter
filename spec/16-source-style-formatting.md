@@ -129,6 +129,8 @@ Rules:
 - Multi-line parameter lists put one parameter per line and keep a trailing comma.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
 - A generic parameter list contains names only: `<T, U>`.
+- Complete explicit generic owner arguments are attached to the owner name, as in
+  `Vec<i32>.with_capacity(16)` and `Vec<i32> []`.
 - A capability predicate uses no space before `:` and one space after it:
   `where T: Interface<U>`.
 - Multiple bounds use one space around `+`:

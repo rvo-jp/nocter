@@ -73,6 +73,11 @@ delimiter definitions are not supported.
 Typed sequence syntax contains whitespace between the target and delimiter. `Vec [1]` is typed
 construction; `values[1]` is indexing.
 
+A generic target may omit all owner arguments when the elements or expected result type determine
+them uniquely, as in `Vec [1, 2, 3]`. Otherwise it uses the complete owner type, as in
+`Vec<i32> []`. Partial owner arguments are invalid. The uniform rule is specified in
+[Generic Owner Arguments](19-construction-surfaces.md#generic-owner-arguments).
+
 ## Element Packs
 
 A sequence definition accepts one final `...items: T` capture. Required parameters before the

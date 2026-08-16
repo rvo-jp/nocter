@@ -33,8 +33,8 @@ member uses its unqualified member name. At call sites the established syntax re
 
 ```nct
 let values = Vec [1, 2, 3]
-let empty = Vec.new()
-let reserved = Vec.with_capacity(16)
+let empty: Vec<i32> = Vec.new()
+let reserved = Vec<i32>.with_capacity(16)
 ```
 
 Rules:
@@ -59,6 +59,46 @@ Functions that do not directly produce the target are ordinary module functions 
 qualified type owner. Receiver methods remain in `instance`; destruction uses an independent
 `destruct Type(&+self)` declaration; interface conformance members remain in
 `conform Interface for Type`.
+
+## Generic Owner Arguments
+
+Every generic construction entry uses one owner-argument rule. This includes construction
+functions, typed literals, named-field struct literals, and enum variants.
+
+The caller may omit all owner type arguments when one unique substitution follows from construction
+arguments, field initializers, literal elements, or the expected type of the complete construction
+expression:
+
+```nct
+let empty: Vec<i32> = Vec.new()
+let one = Vec.from_value(1)
+let boxed = Box { value: 1 }
+let present = Maybe.some(1)
+```
+
+When those inputs do not determine every owner parameter, the caller writes the complete owner type:
+
+```nct
+let reserved = Vec<i32>.with_capacity(16)
+let empty = Vec<i32> []
+let boxed = Box<i32> { value: 1 }
+```
+
+Rules:
+
+- Explicit owner arguments precede the construction member name or typed-literal delimiter.
+- Explicit owner arguments supply every owner parameter in declaration order. Partial lists and `_`
+  placeholders are invalid.
+- Omitted owner arguments are inferred only from ordinary parameter/argument matching, field and
+  element matching, and the expected result type.
+- A generic requirement validates an inferred or explicit substitution but never chooses one.
+- Return provenance, allocation context, declaration order, default-entry status, and body contents
+  do not infer owner arguments.
+- If a parameter remains unknown or multiple substitutions remain viable, construction is an error.
+- Nocter does not define default generic arguments.
+
+These rules concern the generic parameters of the constructed owner. Explicit type arguments for a
+callable's own generic parameter list are a separate part of call syntax.
 
 ## Default Construction Entry
 
