@@ -245,6 +245,9 @@ Rules:
 
 - The parser may stop after the first syntax error.
 - After parsing succeeds, later compiler phases may report multiple independent errors.
+- A statement after proven terminal control flow still reports independent name, visibility, type,
+  call-contract, and structural-place errors. It does not report diagnostics that require a
+  fictional post-terminal initialization, move, loan, or provenance state.
 - Cascaded errors should be suppressed when they are caused by an earlier error.
 - The compiler may use internal error placeholders to continue analysis, but diagnostics must not mention those placeholders.
 - If too many independent errors are found, the compiler may stop after a limit and report that additional errors were suppressed.

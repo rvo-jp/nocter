@@ -22,6 +22,12 @@ nocter lsp
 Diagnostics use the envelope specified in [Diagnostics](12-diagnostics.md). The language server
 reuses the full compiler pipeline and package model.
 
+Source after a proven terminal statement remains name-resolved and typed when independently valid,
+so definition, references, hover, completion, and semantic tokens use the same declaration and type
+identities there. Flow-sensitive ownership facts are absent rather than fabricated for that
+unreachable continuation. Tooling may later expose an unreachable-code lint, but such a lint is not
+a language diagnostic.
+
 ## Documentation
 
 Hover and generated API documentation use compiler-attached Markdown documentation:

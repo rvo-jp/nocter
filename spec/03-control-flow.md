@@ -504,6 +504,18 @@ Rules:
   definite-initialization joins, move/drop liveness on later reachable paths, or buildability.
 - Unreachable statements after a proven terminal statement are accepted. A future lint may report
   them, but unreachable code is not a required compile-time error.
+- Accepted unreachable statements are still parsed, name-resolved, and type-checked. Visibility,
+  call arity, generic requirements, member selection, type compatibility, and structural place
+  requirements such as whether `&+` names a writable kind of place remain enforced.
+- Flow-dependent ownership, initialization, loan-liveness, and provenance checks do not invent a
+  continuation after the terminal statement. The compiler does not report use-after-move,
+  maybe-initialized use, borrow conflicts, or an escaping local provenance solely inside that
+  unreachable continuation.
+- Declarations and expressions wholly inside unreachable code may provide semantic identities for
+  diagnostics and editor features, but they never become executable reachability roots.
+- A final `_` match arm that is unreachable only because all current enum variants were listed is
+  not covered by this relaxed flow rule. That arm is fully checked under the enum fallback rules
+  because a future dependency variant may select it.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.

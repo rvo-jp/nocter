@@ -52,6 +52,11 @@ same node model and carry explicit body ownership. Comparison, indexing, convers
 interpolation, construction, calls, ownership transitions, and failure handling are not retained as
 unrelated side maps selected by source containment.
 
+A checked body records reachability on its control-flow nodes. Source after a proven terminal node
+still receives declaration and type identities, but no synthetic initialization, move, loan, or
+provenance state is created for the impossible continuation. Such nodes remain available to
+diagnostics and editor projections and are excluded from executable reachability and MIR.
+
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once
 through one conformance table. MIR and later stages have no dispatch API.

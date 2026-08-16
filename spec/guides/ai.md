@@ -222,6 +222,12 @@ Temporary values in an ordinary `if` or `while` boolean condition are dropped af
 is computed and before the body begins. Bind an RAII value first when it must remain live in the
 body.
 
+## Unreachable Source
+
+Source after `return`, `break`, `continue`, or `never` still must use valid names, visible APIs, and
+compatible types. It has no fictional post-terminal ownership state and does not affect executable
+reachability. Remove stale unreachable source instead of relying on suppressed flow analysis.
+
 ## Documentation Comments
 
 Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.
