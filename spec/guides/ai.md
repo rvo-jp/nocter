@@ -44,6 +44,8 @@ Rules for generated code:
   arrays, generic arguments, or associated types. Use an empty struct for a storable unit value.
 - A `void` expression may feed an expected `void` completion such as `return log()`, or construct
   payloadless success at a concrete expected `void!` boundary. It does not infer a generic type.
+- Inside interpolation, postfix `?` performs ordinary propagation and cleanup, while postfix `!`
+  traps without dropping the partial `String`. A bare fallible call never propagates implicitly.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

@@ -600,7 +600,12 @@ Rules:
 - Interpolation expressions are evaluated left to right with the surrounding literal text segments.
 - Each `${expr}` expression is evaluated exactly once.
 - Side effects in interpolation expressions occur at the interpolation position in left-to-right order.
-- If any interpolation expression fails through `?`, `!`, or an explicitly fallible call, normal fallible propagation rules apply.
+- If an interpolation expression propagates through postfix `?` or explicit `return`, the partial
+  owned `String` is dropped by normal scope-exit cleanup before control leaves.
+- Postfix `!` inside interpolation uses the ordinary non-recoverable safety trap and performs no
+  cleanup. The partial `String` is not dropped on that path.
+- A bare fallible call does not propagate. Its complete outcome value must itself be legally
+  formattable or the interpolation is a type error; use `?` to interpolate only its success value.
 - Unsupported interpolation values are rejected statically. Recoverable allocation
   uses explicit `try_*` formatting APIs rather than changing interpolation to `String!`.
 - `String` remains an ordinary standard-library type. The compiler must not make the identifier `String` a built-in type name.

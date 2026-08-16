@@ -147,6 +147,10 @@ expression; compound assignment additionally owns the selected numeric operation
 evaluation before the place plan and emits that plan only once. No stage expands compound
 assignment into source-shaped duplicate target expressions.
 
+Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
+use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation
+cannot install a special failure rule for bare calls or forced unwrap.
+
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
 MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
 destruction merely because a layout has size zero.
