@@ -33,11 +33,13 @@ use crate::{
     ResolvedBodyNames, plan_expected_type,
 };
 
+mod aggregates;
 mod arithmetic;
 mod assignment;
 mod call_planning;
 mod callable_values;
 mod calls;
+mod construction_planning;
 mod constructions;
 mod expected;
 mod loops;
@@ -45,6 +47,7 @@ mod methods;
 mod operators;
 mod place;
 mod type_uses;
+mod value_planning;
 use loops::LoopConstruction;
 
 struct NodeProjection {
@@ -560,6 +563,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
             let value = match kind {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
+                NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
+                NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
                 NodeKind::IfExpression => return self.check_if(current, expected),
                 NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
                     return self.check_arithmetic(current, expected);
@@ -577,7 +582,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_call(current, expected);
                 }
                 NodeKind::PostfixExpression => {
+                    if let Some((owner, member)) = calls::construction_member_syntax(self, current)?
+                    {
+                        return self
+                            .check_inferred_construction_member(current, owner, member, expected);
+                    }
                     return self.check_postfix_reference(current, expected);
+                }
+                NodeKind::GenericOwnerMember => {
+                    return self.check_explicit_construction_member(current, expected);
                 }
                 NodeKind::ReferenceExpression => {
                     return self.check_reference(current, expected);

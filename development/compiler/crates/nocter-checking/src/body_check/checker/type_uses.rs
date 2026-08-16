@@ -26,12 +26,83 @@ pub(super) struct InferredConstructionOwner {
     pub(super) target: NameTarget,
 }
 
+pub(super) enum NominalOwnerArguments {
+    Inferred(Box<[GenericParameterId]>),
+    Fixed(Box<[TypeId]>),
+}
+
+pub(super) struct NominalConstructionOwner {
+    pub(super) definition: NominalTypeId,
+    pub(super) arguments: NominalOwnerArguments,
+}
+
 struct NamedSegment {
     token: SyntaxToken,
     arguments: Vec<NodeId>,
 }
 
 impl BodyChecker<'_, '_> {
+    pub(super) fn inferred_nominal_construction_type(
+        &self,
+        definition: NominalTypeId,
+    ) -> Result<NominalConstructionOwner, BodyCheckInternalError> {
+        let declaration = self
+            .graph
+            .declarations()
+            .nominal_types()
+            .get(definition)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        Ok(NominalConstructionOwner {
+            definition,
+            arguments: NominalOwnerArguments::Inferred(
+                declaration.generic_parameters().to_vec().into_boxed_slice(),
+            ),
+        })
+    }
+
+    /// Resolves the nominal owner of a structural or variant construction without prematurely
+    /// rejecting omitted generic arguments.
+    ///
+    /// Ordinary type-use resolution requires complete type identity. Construction differs: a
+    /// bare generic owner contributes its generic parameters to inference, while explicit owner
+    /// arguments and lexical `Self` are already fixed types.
+    pub(super) fn resolve_nominal_construction_type(
+        &mut self,
+        node: NodeId,
+    ) -> Result<NominalConstructionOwner, BodyCheckError> {
+        let segments = self.named_segments(node)?;
+        let fixed = segments.iter().any(|segment| !segment.arguments.is_empty())
+            || (segments.len() == 1 && self.token_text(segments[0].token)? == "Self");
+        if fixed {
+            let ty = self.resolve_named_segments(node, segments)?;
+            let Some(TypeKind::Nominal {
+                definition,
+                arguments,
+            }) = self.types.get(ty)
+            else {
+                return Err(self.rule(BodyRule::InvalidCall, node)?);
+            };
+            return Ok(NominalConstructionOwner {
+                definition: *definition,
+                arguments: NominalOwnerArguments::Fixed(arguments.clone()),
+            });
+        }
+
+        let definition = self.resolve_unapplied_nominal(node, &segments)?;
+        let declaration = self
+            .graph
+            .declarations()
+            .nominal_types()
+            .get(definition)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        Ok(NominalConstructionOwner {
+            definition,
+            arguments: NominalOwnerArguments::Inferred(
+                declaration.generic_parameters().to_vec().into_boxed_slice(),
+            ),
+        })
+    }
+
     pub(super) fn resolve_inferred_construction_owner(
         &mut self,
         node: NodeId,
@@ -406,6 +477,40 @@ impl BodyChecker<'_, '_> {
         self.resolve_type_entity(node, entity, Vec::new())
     }
 
+    fn resolve_unapplied_nominal(
+        &mut self,
+        node: NodeId,
+        segments: &[NamedSegment],
+    ) -> Result<NominalTypeId, BodyCheckError> {
+        let Some(first) = segments.first() else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        if segments.iter().any(|segment| !segment.arguments.is_empty()) {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
+        let first_name = self.segment_symbol(first.token)?;
+        let Some(mut entity) = self.graph.lookup_local(self.source.module(), first_name) else {
+            return Err(self.rule(BodyRule::InvalidCall, node)?);
+        };
+        self.project_exported(first.token, entity)?;
+        for segment in &segments[1..] {
+            let ExportedEntity::Module(module) = entity else {
+                return Err(self.rule(BodyRule::InvalidCall, node)?);
+            };
+            let name = self.segment_symbol(segment.token)?;
+            let Some(selected) = self.graph.lookup_export(self.source.module(), module, name)
+            else {
+                return Err(self.rule(BodyRule::InvalidCall, node)?);
+            };
+            entity = selected;
+            self.project_exported(segment.token, entity)?;
+        }
+        match entity {
+            ExportedEntity::NominalType(definition) => Ok(definition),
+            _ => Err(self.rule(BodyRule::InvalidCall, node)?),
+        }
+    }
+
     fn resolve_type_entity(
         &mut self,
         node: NodeId,
@@ -598,7 +703,10 @@ impl BodyChecker<'_, '_> {
         Ok(ty)
     }
 
-    fn segment_symbol(&self, token: SyntaxToken) -> Result<Symbol, BodyCheckInternalError> {
+    pub(super) fn segment_symbol(
+        &self,
+        token: SyntaxToken,
+    ) -> Result<Symbol, BodyCheckInternalError> {
         self.graph
             .symbols()
             .get(self.token_text(token)?)
@@ -620,7 +728,7 @@ impl BodyChecker<'_, '_> {
         self.project_type_entity(token, entity)
     }
 
-    fn project_type_entity(
+    pub(super) fn project_type_entity(
         &mut self,
         token: SyntaxToken,
         entity: SemanticEntity,

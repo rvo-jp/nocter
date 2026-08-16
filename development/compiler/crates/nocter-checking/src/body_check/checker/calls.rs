@@ -96,7 +96,7 @@ impl BodyChecker<'_, '_> {
     }
 }
 
-fn member_owner_is_value(
+pub(super) fn member_owner_is_value(
     checker: &BodyChecker<'_, '_>,
     mut node: NodeId,
 ) -> Result<bool, BodyCheckInternalError> {
@@ -130,6 +130,20 @@ fn member_owner_is_value(
             _ => return Ok(true),
         }
     }
+}
+
+pub(super) fn construction_member_syntax(
+    checker: &BodyChecker<'_, '_>,
+    node: NodeId,
+) -> Result<Option<(NodeId, NodeId)>, BodyCheckInternalError> {
+    let children = direct_nodes(checker.tree(), node);
+    let [owner, member] = children.as_slice() else {
+        return Ok(None);
+    };
+    if checker.kind(*member)? != NodeKind::MemberSuffix || member_owner_is_value(checker, *owner)? {
+        return Ok(None);
+    }
+    Ok(Some((*owner, *member)))
 }
 
 #[derive(Clone, Copy)]

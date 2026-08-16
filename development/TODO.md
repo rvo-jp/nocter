@@ -2,16 +2,16 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by adding aggregate construction and outcome control to the closed checked
-body model, then connect their temporary ownership and cleanup edges to the existing analysis.
+Continue v0.14.0 Phase 3 by adding outcome propagation and recovery to the closed checked body
+model, then connect temporary ownership and cleanup edges to the existing analysis.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
-   control enter body construction. No new construct may carry a private ownership side channel.
+1. Extend the closed checked-operation traversal as outcomes and pattern control enter body
+   construction. No new construct may carry a private ownership side channel.
 2. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
    analysis to rediscover callable semantics.
 3. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
@@ -166,6 +166,18 @@ preservation/weakening, selected coercion dispatch, and post-coercion weakening.
 freeze their implementation/default callable; generic calls retain the exact interface
 requirement. Closure expressions, temporary cleanup/loan escape, and program-wide
 result-provenance inference remain incomplete.
+
+`ConstructionSurfaceTable` now indexes the complete construction surface of every nominal family:
+structural field identity and declaration order, enum variants by semantic name, and any authored
+`construct` declaration. Structural visibility restrictions from explicit defaults and empty
+construct declarations are answered there, while the shared field selector remains the sole
+field-visibility authority. Named struct literals, payload and payloadless enum variants, and
+fixed-array literals now produce closed aggregate operations. Struct fields and variant payloads
+reuse the same source-order contextual-inference planner as callable arguments, so omitted owner
+arguments, expected result evidence, deferred absence, explicit moves, and nominal requirements do
+not form a parallel inference system. Aggregate ownership traverses retained children in source
+order. Cleanup of a partially initialized aggregate on a later propagating child remains coupled
+to the upcoming outcome-control edge work.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

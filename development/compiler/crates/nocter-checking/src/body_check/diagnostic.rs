@@ -23,6 +23,7 @@ pub enum BodyRule {
     InvalidIndexOperation,
     InvalidComparisonOperation,
     InvalidCall,
+    InvalidConstruction,
 }
 
 impl BodyRule {
@@ -47,6 +48,7 @@ impl BodyRule {
         Self::InvalidIndexOperation,
         Self::InvalidComparisonOperation,
         Self::InvalidCall,
+        Self::InvalidConstruction,
     ];
 
     #[must_use]
@@ -72,6 +74,7 @@ impl BodyRule {
             Self::InvalidIndexOperation => "E0388",
             Self::InvalidComparisonOperation => "E0389",
             Self::InvalidCall => "E0390",
+            Self::InvalidConstruction => "E0391",
         }
     }
 
@@ -164,6 +167,10 @@ impl BodyRule {
             Self::InvalidCall => (
                 "this call has no valid callee, argument, and substitution plan",
                 "use a callable target with matching capability, arity, argument types, and type evidence",
+            ),
+            Self::InvalidConstruction => (
+                "this expression has no valid construction entry and type plan",
+                "use an accessible structural or variant entry with complete fields, payloads, and type evidence",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

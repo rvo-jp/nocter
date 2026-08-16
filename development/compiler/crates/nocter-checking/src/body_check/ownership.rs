@@ -11,9 +11,9 @@ use super::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::{
-    BodySource, CallTarget, CheckedBody, CheckedCall, CheckedControl, CheckedOperation,
-    CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming, DropTable,
-    LoopKind, PlaceAccess, PrimitiveOperation,
+    AggregateConstruction, BodySource, CallTarget, CheckedBody, CheckedCall, CheckedControl,
+    CheckedOperation, CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming,
+    DropTable, LoopKind, PlaceAccess, PrimitiveOperation,
 };
 use cleanup::CleanupPlanner;
 
@@ -153,8 +153,8 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
             CheckedOperation::Call(call) => self.visit_call(call, state),
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
-            CheckedOperation::Aggregate(_)
-            | CheckedOperation::Outcome(
+            CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),
+            CheckedOperation::Outcome(
                 CheckedOutcome::Propagate { .. } | CheckedOutcome::Recover { .. },
             )
             | CheckedOperation::Closure(_)
@@ -164,6 +164,31 @@ impl OwnershipAnalyzer<'_> {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }
+    }
+
+    fn visit_aggregate(
+        &mut self,
+        aggregate: &AggregateConstruction,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        match aggregate {
+            AggregateConstruction::Struct { fields, .. } => {
+                for (_, value) in fields {
+                    if !self.visit(*value, state)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            AggregateConstruction::Enum { payload, .. }
+            | AggregateConstruction::FixedArray(payload) => {
+                for value in payload {
+                    if !self.visit(*value, state)? {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        Ok(true)
     }
 
     fn visit_control(

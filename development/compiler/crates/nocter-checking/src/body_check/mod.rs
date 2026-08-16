@@ -6,6 +6,8 @@ mod literal;
 mod ownership;
 
 #[cfg(test)]
+mod aggregate_tests;
+#[cfg(test)]
 mod arithmetic_tests;
 #[cfg(test)]
 mod assignment_tests;

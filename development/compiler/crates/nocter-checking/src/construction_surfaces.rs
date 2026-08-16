@@ -1,20 +1,45 @@
 use std::collections::BTreeMap;
 
-use nocter_declarations::{CallableKind, CallableOwner, DeclarationGraph};
+use nocter_declarations::{CallableKind, CallableOwner, DeclarationGraph, NominalShape};
 use nocter_model::{
-    CallableId, ConstructionId, ModuleId, NominalTypeId, Symbol, TypeId, TypeStore,
+    CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId, Symbol, TypeId, TypeStore,
+    VariantId,
 };
 
 use crate::type_relations::InherentTypeFamily;
 
+/// The source-independent entries owned by one constructible type family.
+#[derive(Debug)]
+struct ConstructionSurface {
+    declaration: Option<ConstructionId>,
+    structural: Option<StructuralSurface>,
+    variants: BTreeMap<Symbol, VariantId>,
+}
+
+#[derive(Debug)]
+struct StructuralSurface {
+    fields: Box<[FieldId]>,
+    by_name: BTreeMap<Symbol, FieldId>,
+}
+
+impl ConstructionSurface {
+    fn builtin(declaration: ConstructionId) -> Self {
+        Self {
+            declaration: Some(declaration),
+            structural: None,
+            variants: BTreeMap::new(),
+        }
+    }
+}
+
 /// Canonical construction-surface lookup prepared once for the complete program.
 ///
-/// Declaration validation has already guaranteed one construction declaration per target family.
-/// Keeping the index in the checked program gives body checking and later editor queries the same
-/// authority instead of making each consumer scan declarations independently.
+/// A surface includes structural struct entry, intrinsic enum variants, and an optional authored
+/// `construct` declaration. Body checking, editor queries, and later lowering therefore share the
+/// same entry identities instead of independently scanning nominal and construction declarations.
 #[derive(Debug)]
 pub struct ConstructionSurfaceTable {
-    by_family: BTreeMap<InherentTypeFamily, ConstructionId>,
+    by_family: BTreeMap<InherentTypeFamily, ConstructionSurface>,
 }
 
 impl ConstructionSurfaceTable {
@@ -23,14 +48,82 @@ impl ConstructionSurfaceTable {
         types: &TypeStore,
     ) -> Result<Self, ConstructionSurfaceBuildError> {
         let mut by_family = BTreeMap::new();
+        for (nominal, declaration) in graph.declarations().nominal_types().iter() {
+            let (structural, variants) = match declaration.shape() {
+                NominalShape::Struct { fields, .. } => {
+                    let mut by_name = BTreeMap::new();
+                    for field in fields.iter().copied() {
+                        let declaration = graph
+                            .declarations()
+                            .fields()
+                            .get(field)
+                            .ok_or(ConstructionSurfaceBuildError::MissingField(field))?;
+                        if declaration.owner() != nominal {
+                            return Err(ConstructionSurfaceBuildError::InvalidFieldOwner(field));
+                        }
+                        if by_name.insert(declaration.name(), field).is_some() {
+                            return Err(ConstructionSurfaceBuildError::DuplicateFieldName(
+                                nominal,
+                                declaration.name(),
+                            ));
+                        }
+                    }
+                    (
+                        Some(StructuralSurface {
+                            fields: fields.clone(),
+                            by_name,
+                        }),
+                        BTreeMap::new(),
+                    )
+                }
+                NominalShape::Enum { variants } => {
+                    let mut by_name = BTreeMap::new();
+                    for variant in variants.iter().copied() {
+                        let declaration = graph
+                            .declarations()
+                            .variants()
+                            .get(variant)
+                            .ok_or(ConstructionSurfaceBuildError::MissingVariant(variant))?;
+                        if declaration.owner() != nominal {
+                            return Err(ConstructionSurfaceBuildError::InvalidVariantOwner(
+                                variant,
+                            ));
+                        }
+                        if by_name.insert(declaration.name(), variant).is_some() {
+                            return Err(ConstructionSurfaceBuildError::DuplicateVariantName(
+                                nominal,
+                                declaration.name(),
+                            ));
+                        }
+                    }
+                    (None, by_name)
+                }
+            };
+            by_family.insert(
+                InherentTypeFamily::Nominal(nominal),
+                ConstructionSurface {
+                    declaration: None,
+                    structural,
+                    variants,
+                },
+            );
+        }
+
         for (construction, declaration) in graph.declarations().constructions().iter() {
             let family = InherentTypeFamily::of(types, declaration.target()).ok_or(
                 ConstructionSurfaceBuildError::InvalidTarget(declaration.target()),
             )?;
-            if by_family.insert(family, construction).is_some() {
-                return Err(ConstructionSurfaceBuildError::DuplicateTarget(
-                    declaration.target(),
-                ));
+            match by_family.get_mut(&family) {
+                Some(surface) => {
+                    if surface.declaration.replace(construction).is_some() {
+                        return Err(ConstructionSurfaceBuildError::DuplicateTarget(
+                            declaration.target(),
+                        ));
+                    }
+                }
+                None => {
+                    by_family.insert(family, ConstructionSurface::builtin(construction));
+                }
             }
         }
         Ok(Self { by_family })
@@ -40,11 +133,98 @@ impl ConstructionSurfaceTable {
     pub fn for_nominal(&self, nominal: NominalTypeId) -> Option<ConstructionId> {
         self.by_family
             .get(&InherentTypeFamily::Nominal(nominal))
-            .copied()
+            .and_then(|surface| surface.declaration)
     }
 
     pub(crate) fn for_type(&self, types: &TypeStore, ty: TypeId) -> Option<ConstructionId> {
-        InherentTypeFamily::of(types, ty).and_then(|family| self.by_family.get(&family).copied())
+        InherentTypeFamily::of(types, ty)
+            .and_then(|family| self.by_family.get(&family))
+            .and_then(|surface| surface.declaration)
+    }
+
+    /// Returns the declared field identities when structural construction is accessible here.
+    ///
+    /// Field-level visibility remains the field selector's responsibility. This query owns the
+    /// independent construction-surface restriction introduced by `default` and empty `construct`
+    /// declarations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the surface and declaration graph disagree.
+    pub fn structural_fields<'a>(
+        &'a self,
+        graph: &DeclarationGraph,
+        nominal: NominalTypeId,
+        from: ModuleId,
+    ) -> Result<Option<&'a [FieldId]>, ConstructionSurfaceSelectionError> {
+        let surface = self
+            .by_family
+            .get(&InherentTypeFamily::Nominal(nominal))
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        let Some(structural) = surface.structural.as_ref() else {
+            return Ok(None);
+        };
+        let declaration = graph
+            .declarations()
+            .nominal_types()
+            .get(nominal)
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        let site = graph.declaration_sites().get(declaration.site()).ok_or(
+            ConstructionSurfaceSelectionError::MissingNominalSite(nominal),
+        )?;
+        if site.module() == from {
+            return Ok(Some(&structural.fields));
+        }
+        if let Some(construction) = surface.declaration {
+            let declaration = graph
+                .declarations()
+                .constructions()
+                .get(construction)
+                .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(
+                    construction,
+                ))?;
+            if declaration.default_member().is_some() || declaration.members().is_empty() {
+                return Ok(None);
+            }
+        }
+        Ok(Some(&structural.fields))
+    }
+
+    /// Selects one named field from the already-authorized structural entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the nominal surface is missing.
+    pub fn structural_field(
+        &self,
+        nominal: NominalTypeId,
+        name: Symbol,
+    ) -> Result<Option<FieldId>, ConstructionSurfaceSelectionError> {
+        let surface = self
+            .by_family
+            .get(&InherentTypeFamily::Nominal(nominal))
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        Ok(surface
+            .structural
+            .as_ref()
+            .and_then(|structural| structural.by_name.get(&name).copied()))
+    }
+
+    /// Selects one intrinsic variant entry by semantic owner and interned name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the nominal surface is missing.
+    pub fn variant(
+        &self,
+        nominal: NominalTypeId,
+        name: Symbol,
+    ) -> Result<Option<VariantId>, ConstructionSurfaceSelectionError> {
+        let surface = self
+            .by_family
+            .get(&InherentTypeFamily::Nominal(nominal))
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        Ok(surface.variants.get(&name).copied())
     }
 
     /// Selects one accessible named construction function from an already resolved owner family.
@@ -120,6 +300,12 @@ impl ConstructionSurfaceTable {
 pub enum ConstructionSurfaceBuildError {
     InvalidTarget(TypeId),
     DuplicateTarget(TypeId),
+    MissingField(FieldId),
+    InvalidFieldOwner(FieldId),
+    DuplicateFieldName(NominalTypeId, Symbol),
+    MissingVariant(VariantId),
+    InvalidVariantOwner(VariantId),
+    DuplicateVariantName(NominalTypeId, Symbol),
 }
 
 impl std::fmt::Display for ConstructionSurfaceBuildError {
@@ -131,6 +317,20 @@ impl std::fmt::Display for ConstructionSurfaceBuildError {
             Self::DuplicateTarget(target) => {
                 write!(formatter, "duplicate construction target {target:?}")
             }
+            Self::MissingField(field) => write!(formatter, "missing field {field:?}"),
+            Self::InvalidFieldOwner(field) => {
+                write!(formatter, "invalid owner for field {field:?}")
+            }
+            Self::DuplicateFieldName(nominal, name) => {
+                write!(formatter, "duplicate field name {name:?} in {nominal:?}")
+            }
+            Self::MissingVariant(variant) => write!(formatter, "missing variant {variant:?}"),
+            Self::InvalidVariantOwner(variant) => {
+                write!(formatter, "invalid owner for variant {variant:?}")
+            }
+            Self::DuplicateVariantName(nominal, name) => {
+                write!(formatter, "duplicate variant name {name:?} in {nominal:?}")
+            }
         }
     }
 }
@@ -139,6 +339,8 @@ impl std::error::Error for ConstructionSurfaceBuildError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstructionSurfaceSelectionError {
+    MissingNominal(NominalTypeId),
+    MissingNominalSite(NominalTypeId),
     MissingConstruction(ConstructionId),
     MissingCallable(CallableId),
     MissingCallableSite(CallableId),

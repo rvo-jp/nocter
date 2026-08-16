@@ -1,21 +1,31 @@
-use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity};
-use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind};
+use nocter_declarations::{
+    CallableKind, CallableOwner, ExportedEntity, ParameterOwner, ParameterRole,
+};
+use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind, VariantId};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, SyntaxToken};
 
 use super::BodyChecker;
 use super::call_planning::DeclaredCallGenerics;
+use super::construction_planning::bind_inferred_arguments;
+use super::type_uses::{NominalConstructionOwner, NominalOwnerArguments};
+use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    CallTarget, CheckedCall, CheckedOperation, GenericArgument, NameTarget, StaticDispatch,
-    StaticSelection,
+    AggregateConstruction, CallTarget, CheckedCall, CheckedOperation, GenericArgument, NameTarget,
+    StaticDispatch, StaticSelection,
 };
 
 enum ConstructionOwnerArguments {
     Inferred,
     Explicit(Box<[TypeId]>),
+}
+
+enum VariantInvocation {
+    Member,
+    Call(Vec<NodeId>),
 }
 
 impl BodyChecker<'_, '_> {
@@ -30,8 +40,35 @@ impl BodyChecker<'_, '_> {
         let owner = self.resolve_inferred_construction_owner(owner)?;
         let owner_reference = owner.reference;
         let owner_target = owner.target;
+        let member_token = crate::syntax::direct_identifier(self.tree(), member)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
+        let member_name = self
+            .graph
+            .symbols()
+            .get(self.token_text(member_token)?)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        self.consumed_uses
+            .insert(super::calls::call_origin(self, owner_reference)?);
         let construction = match owner_target {
             NameTarget::Exported(ExportedEntity::NominalType(nominal)) => {
+                if let Some(variant) = self
+                    .construction_surfaces
+                    .variant(nominal, member_name)
+                    .map_err(BodyCheckInternalError::from)?
+                {
+                    let owner = self.inferred_nominal_construction_type(nominal)?;
+                    return self.finish_variant_construction(
+                        node,
+                        owner,
+                        variant,
+                        member_token,
+                        VariantInvocation::Call(crate::syntax::direct_nodes(
+                            self.tree(),
+                            call_suffix,
+                        )),
+                        expected,
+                    );
+                }
                 let Some(construction) = self.construction_surfaces.for_nominal(nominal) else {
                     return Err(self.rule(BodyRule::InvalidCall, member)?);
                 };
@@ -46,11 +83,6 @@ impl BodyChecker<'_, '_> {
             }
             _ => return Err(self.rule(BodyRule::InvalidCall, member)?),
         };
-        self.consumed_uses
-            .insert(super::calls::call_origin(self, owner_reference)?);
-
-        let member_token = crate::syntax::direct_identifier(self.tree(), member)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
         self.finish_construction_function_call(
             node,
             construction,
@@ -69,6 +101,28 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let owner = self.resolve_explicit_construction_owner(owner)?;
+        let member_name = self
+            .graph
+            .symbols()
+            .get(self.token_text(owner.member)?)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        if let Some(variant) = self
+            .construction_surfaces
+            .variant(owner.definition, member_name)
+            .map_err(BodyCheckInternalError::from)?
+        {
+            return self.finish_variant_construction(
+                node,
+                NominalConstructionOwner {
+                    definition: owner.definition,
+                    arguments: NominalOwnerArguments::Fixed(owner.arguments),
+                },
+                variant,
+                owner.member,
+                VariantInvocation::Call(crate::syntax::direct_nodes(self.tree(), call_suffix)),
+                expected,
+            );
+        }
         let construction = self
             .construction_surfaces
             .for_nominal(owner.definition)
@@ -85,6 +139,171 @@ impl BodyChecker<'_, '_> {
             ConstructionOwnerArguments::Explicit(owner.arguments),
             expected,
         )
+    }
+
+    pub(super) fn check_inferred_construction_member(
+        &mut self,
+        node: NodeId,
+        owner: NodeId,
+        member: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let owner = self.resolve_inferred_construction_owner(owner)?;
+        let reference = owner.reference;
+        let NameTarget::Exported(ExportedEntity::NominalType(nominal)) = owner.target else {
+            return Err(self.rule(BodyRule::InvalidConstruction, node)?);
+        };
+        self.consumed_uses
+            .insert(super::calls::call_origin(self, reference)?);
+        let token = crate::syntax::direct_identifier(self.tree(), member)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
+        let name = self.segment_symbol(token)?;
+        let Some(variant) = self
+            .construction_surfaces
+            .variant(nominal, name)
+            .map_err(BodyCheckInternalError::from)?
+        else {
+            return Err(self.token_rule(BodyRule::InvalidConstruction, token)?);
+        };
+        let owner = self.inferred_nominal_construction_type(nominal)?;
+        self.finish_variant_construction(
+            node,
+            owner,
+            variant,
+            token,
+            VariantInvocation::Member,
+            expected,
+        )
+    }
+
+    pub(super) fn check_explicit_construction_member(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let owner = self.resolve_explicit_construction_owner(node)?;
+        let name = self.segment_symbol(owner.member)?;
+        let Some(variant) = self
+            .construction_surfaces
+            .variant(owner.definition, name)
+            .map_err(BodyCheckInternalError::from)?
+        else {
+            return Err(self.token_rule(BodyRule::InvalidConstruction, owner.member)?);
+        };
+        self.finish_variant_construction(
+            node,
+            NominalConstructionOwner {
+                definition: owner.definition,
+                arguments: NominalOwnerArguments::Fixed(owner.arguments),
+            },
+            variant,
+            owner.member,
+            VariantInvocation::Member,
+            expected,
+        )
+    }
+
+    fn finish_variant_construction(
+        &mut self,
+        node: NodeId,
+        owner: NominalConstructionOwner,
+        variant: VariantId,
+        member_token: SyntaxToken,
+        invocation: VariantInvocation,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let mut plan = self.nominal_construction_plan(node, owner)?;
+        if plan.definition
+            != self
+                .graph
+                .declarations()
+                .variants()
+                .get(variant)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(node))?
+                .owner()
+        {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
+        let payload = self
+            .graph
+            .declarations()
+            .variants()
+            .get(variant)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?
+            .payload()
+            .to_vec();
+        let (called, argument_syntax) = match invocation {
+            VariantInvocation::Member => (false, Vec::new()),
+            VariantInvocation::Call(arguments) => (true, arguments),
+        };
+        if called == payload.is_empty() {
+            return Err(self.token_rule(BodyRule::InvalidConstruction, member_token)?);
+        }
+        if payload.len() != argument_syntax.len() {
+            return Err(self.token_rule(BodyRule::InvalidConstruction, member_token)?);
+        }
+        let destination_types = payload
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                let parameter = self
+                    .graph
+                    .declarations()
+                    .parameters()
+                    .get(*parameter)
+                    .copied()
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                if parameter.owner() != ParameterOwner::Variant(variant)
+                    || parameter.role()
+                        != (ParameterRole::Ordinary {
+                            position,
+                            variadic: false,
+                        })
+                {
+                    return Err(BodyCheckInternalError::InvalidSyntax(node));
+                }
+                plan.substitution
+                    .apply_type(self.types, parameter.ty())
+                    .map_err(BodyCheckInternalError::CallSubstitution)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let result_pattern = plan
+            .substitution
+            .apply_type(self.types, plan.result_pattern)
+            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let (drafts, inferred) = self.infer_positional_values(
+            argument_syntax,
+            PositionalValueContext {
+                owner: node,
+                result: result_pattern,
+                inference_parameters: &plan.inference_parameters,
+                destination_types: &destination_types,
+                expected,
+                failure_rule: BodyRule::InvalidConstruction,
+            },
+        )?;
+        bind_inferred_arguments(&mut plan.substitution, &inferred);
+        if !self.nominal_construction_requirements_hold(plan.definition, &plan.substitution)? {
+            return Err(self.rule(BodyRule::InvalidConstruction, node)?);
+        }
+        let values =
+            self.materialize_positional_values(drafts, destination_types, &plan.substitution)?;
+        let ty = plan
+            .substitution
+            .apply_type(self.types, plan.result_pattern)
+            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        self.project_variant_member(member_token, variant)?;
+        let aggregate = self.add_node(
+            node,
+            ty,
+            CheckedOperation::Aggregate(AggregateConstruction::Enum {
+                variant,
+                payload: values.into_boxed_slice(),
+            }),
+        )?;
+        expected.map_or(Ok(aggregate), |expected| {
+            self.apply_expected(node, aggregate, expected)
+        })
     }
 
     fn finish_construction_function_call(
@@ -194,6 +413,20 @@ impl BodyChecker<'_, '_> {
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
         self.projections.push(super::NodeProjection {
             entity: SemanticEntity::Callable(callable),
+            origin,
+        });
+        Ok(())
+    }
+
+    fn project_variant_member(
+        &mut self,
+        token: SyntaxToken,
+        variant: VariantId,
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_token(self.tree(), token)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        self.projections.push(super::NodeProjection {
+            entity: SemanticEntity::Variant(variant),
             origin,
         });
         Ok(())

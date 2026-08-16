@@ -9,6 +9,22 @@ pub(crate) struct SelectedField {
     ty: TypeId,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SelectedStructuralField {
+    field: FieldId,
+    ty: TypeId,
+}
+
+impl SelectedStructuralField {
+    pub(crate) const fn field(self) -> FieldId {
+        self.field
+    }
+
+    pub(crate) const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
+
 impl SelectedField {
     pub(crate) const fn owner(self) -> NominalTypeId {
         self.owner
@@ -93,6 +109,37 @@ pub(crate) fn select_field(
         owner: definition,
         field,
         ty,
+    })
+}
+
+/// Validates one field identity selected by the construction-surface table.
+///
+/// The returned type is the owner's generic pattern. Aggregate inference specializes it only
+/// after all source-order field evidence has been collected.
+pub(crate) fn select_structural_field(
+    graph: &DeclarationGraph,
+    from: ModuleId,
+    owner: NominalTypeId,
+    field: FieldId,
+) -> Result<SelectedStructuralField, FieldSelectionError> {
+    let declaration = graph
+        .declarations()
+        .fields()
+        .get(field)
+        .ok_or(FieldSelectionError::UnknownField(field))?;
+    if declaration.owner() != owner {
+        return Err(FieldSelectionError::UnknownField(field));
+    }
+    let site = graph
+        .declaration_sites()
+        .get(declaration.site())
+        .ok_or(FieldSelectionError::UnknownFieldSite(field))?;
+    if !graph.is_visible_from(site.visibility(), from, site.module()) {
+        return Err(FieldSelectionError::InaccessibleField(field));
+    }
+    Ok(SelectedStructuralField {
+        field,
+        ty: declaration.ty(),
     })
 }
 

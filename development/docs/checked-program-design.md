@@ -388,15 +388,26 @@ move-only readonly callback remains repeatedly callable and a copyable consuming
 uses consuming-call semantics. Callable arguments use the same expected-type conversion boundary
 as static calls.
 
-`ConstructionSurfaceTable` indexes each validated `construct` declaration by its inherent target
-family once during preparation and remains part of `CheckedProgram`. Construction-function calls
-resolve their owner through semantic module/type identity and select an accessible named member
-through that table; body checking never scans all declarations or treats a rendered path as type
-identity. Omitted owner arguments join callable arguments and the result context in the ordinary
-inference problem. Complete explicit owner arguments become fixed substitutions before callable
-generic inference. Both forms then enter the same declared-call planner, expected-type conversion,
-callable-requirement proof, and specialized nominal-requirement proof. The member token projects to
-the exact callable identity for editor consumers.
+`ConstructionSurfaceTable` indexes every nominal family once during preparation and remains part
+of `CheckedProgram`. Each entry owns structural field identity and declaration order, intrinsic
+enum variants by semantic name, and any validated `construct` declaration. It independently
+answers whether an explicit default or empty construct hides raw structural entry outside the
+defining module; the common field selector still owns field visibility. Construction-function
+calls resolve their owner through semantic module/type identity and select an accessible named
+member through that table. Named struct literals and enum variants select their exact field or
+variant identities from the same surface. No consumer scans declarations or treats a rendered path
+as type identity.
+
+Omitted nominal owner arguments join source-order fields, variant payloads, callable arguments,
+and the result context in the common contextual-inference planner. Complete explicit owner
+arguments become fixed substitutions first. Construction functions then use declared-call and
+callable-requirement planning; aggregates use their field or payload destinations and the same
+specialized nominal-requirement proof. Struct aggregates preserve authored field evaluation order
+independently of declaration order. Payloadless variants require member syntax, payload variants
+require call syntax, and both retain the exact `VariantId`. Fixed arrays either consume a matching
+expected element/length contract or infer one data-valid element type, then retain all element
+nodes in source order. Aggregate ownership traverses those retained children directly. A later
+propagating child still requires partial-aggregate cleanup from the outcome-control increment.
 
 Method lookup uses the same normalized instance and conformance authorities. A name-index stored
 with `ConformanceTable` finds interface surfaces without a declaration scan at each call. Exact
