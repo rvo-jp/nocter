@@ -21,6 +21,11 @@ Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
 - A non-fallible, non-optional function returning a non-`void` type must produce a value through the function body result or explicit `return` on every reachable normal path, unless the path terminates with `never`.
+- A value-producing function body result or explicit `return expression` is checked against the
+  complete declared result type by
+  [recursive outcome injection](04-errors-optionals.md#recursive-outcome-injection). This is one
+  rule for `T?`, `T!`, `T?!`, and `(T!)?`; these forms do not have independent return-conversion
+  rules.
 - A fallible function `T!` must produce a success value through the function body result or explicit `return`, return an `error` failure value, or terminate with `never` on every reachable path.
 - A fallible `void!` function may use bare `return` or reach the end of the
   function body for success; `return error_value` returns failure.

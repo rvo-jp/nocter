@@ -529,8 +529,13 @@ Rules:
 - Moved bindings are not dropped.
 - Copy parameters may be returned with `return parameter`.
 - Move-only owned parameters require `return move parameter`.
-- `return none` is valid for optional return type `T?` and for fallible optional return type `T?!`, where it returns success absence.
-- Bare `return` is valid only for `void` return type.
+- Optional and fallible return layers are constructed by
+  [recursive outcome injection](04-errors-optionals.md#recursive-outcome-injection).
+- Injection transfers or copies the recursively accepted value into the active payload exactly
+  once. It does not copy a move-only value or relax the explicit-`move` requirement.
+- Cleanup owns only the active payload of the constructed outcome. A returned active payload is not
+  also dropped as a callee local.
+- Bare `return` is valid for `void` and for successful completion of `void!`.
 
 Examples:
 

@@ -345,6 +345,64 @@ Rules:
 - Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
 
+### Recursive Outcome Injection
+
+A value-producing function body result or `return expression` is checked against the complete
+declared result type by one outer-to-inner rule. This rule is the only implicit construction of
+optional and fallible return layers.
+
+Given an expression and an expected result type:
+
+1. If the expression already has exactly the expected type, return that value unchanged. Do not
+   add another outcome layer.
+2. If the expected type is `U?`, `none` constructs absence. Every other expression is recursively
+   injected into `U`, then wrapped as presence.
+3. If the expected type is `U!`, an expression of type `error` constructs failure. Every other
+   expression is recursively injected into `U`, then wrapped as success.
+4. At a non-outcome expected type, the expression must be assignable to that type under the
+   ordinary contextual typing rules.
+
+The exact-type check occurs before opening an outcome layer. Returning an existing complete
+outcome therefore preserves its tags rather than nesting or reinterpreting it. One optional layer
+and one fallible layer are the maximum supported depth, and `error` cannot be a success base type,
+so the injection path is unique.
+
+The order of the declared type determines the meaning of contextual `none` and `error`:
+
+| Declared result | Returned expression | Constructed result |
+| --- | --- | --- |
+| `T?!` | `value: T` | success with present `T` |
+| `T?!` | `none` | success with absence |
+| `T?!` | `failure: error` | outer failure |
+| `(T!)?` | `value: T` | presence containing success `T` |
+| `(T!)?` | `failure: error` | presence containing inner failure |
+| `(T!)?` | `none` | outer absence |
+
+For example:
+
+```nct
+func cached_name(): (String!)? {
+    if cache_disabled {
+        return none
+    }
+
+    if load_failed {
+        return error.new("app.cache.load_failed", "failed to load cached name")
+    }
+
+    return String.copy("Nocter")
+}
+```
+
+A result expression whose type is already `String!` is injected only into the outer optional
+layer of `(String!)?`. A result whose type is already `(String!)?` is returned unchanged. The same
+recursive rule applies to the final expression of a callable body.
+
+Outcome injection does not weaken ownership rules or manufacture a copy. An existing move-only
+binding still requires explicit `move`, whether it supplies the complete declared result or a
+payload that the injection wraps. A newly produced temporary is transferred into the constructed
+outcome normally.
+
 Example:
 
 ```nct

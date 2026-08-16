@@ -314,6 +314,10 @@ Required diagnostic families:
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
+- A callable body result or `return` expression that recursive outcome injection cannot make
+  assignable to the complete declared result type. The diagnostic must identify the first expected
+  payload layer that rejected the expression and must not describe the mismatch as an implicit
+  cast or subtype failure.
 - Reachable value-producing result expression in a `while`, `loop`, range `for`, or collection
   `for` body. Loop statements do not implicitly discard iteration results.
 - Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.

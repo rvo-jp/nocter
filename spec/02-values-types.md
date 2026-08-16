@@ -321,6 +321,11 @@ payload is copyable, assigned, passed as arguments, returned, and consumed later
 tag branch is initialized. Absence never initializes a success payload, and failure initializes the
 `error` payload instead of the success payload.
 
+Outcome construction at a callable return boundary is contextual, not a subtype conversion. The
+checker records each presence or success injection required by the complete declared result type;
+an expression that already has that complete type keeps its existing tags unchanged. The normative
+algorithm is [Recursive Outcome Injection](04-errors-optionals.md#recursive-outcome-injection).
+
 Nocter supports one optional layer, one fallible layer, or one of each in either order. Repeated
 equal layers and deeper recursive outcome types are not supported.
 

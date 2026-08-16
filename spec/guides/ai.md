@@ -46,6 +46,10 @@ Rules for generated code:
   valid and has a different grammar.
 - A failed or absent postfix `!` immediately traps without Nocter-provided output or cleanup. Use
   `catch` or `otherwise` when a stable error message, exit status, or cleanup is required.
+- Return values are injected through declared outcome layers from outermost to innermost. For
+  `T?!`, `error` is outer failure and `none` is success absence. For `(T!)?`, `none` is outer
+  absence and `error` is a present inner failure. A value already having the complete declared
+  result type is returned unchanged.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 
