@@ -86,16 +86,18 @@ be introduced to make an unresolved syntax choice.
   use the same table and collision rule. Dependency modules are completed before importers;
   selected names must be accessible, re-exports cannot widen their targets, and source imports add
   no semantic import identity. Exact module paths and selected-name tokens project back to their
-  resolved semantic entities.
+  resolved semantic entities. The compiler-selected standard prelude is a separate fallback table:
+  authored names shadow it, it never becomes an implicit re-export, standard-package modules do
+  not receive it, and source code cannot import the compiler-managed prelude explicitly.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will add the compiler-managed prelude fallback, then resolve structural
-types and requirements against the complete reservation, authored namespace, and generic-scope
-set. It will define every arena slot and discard the temporary syntax-owned inventory and all
-mutable builders. No crate yet owns checked body semantics.
+The next Phase 2 increment will resolve structural types and requirements against the complete
+reservation, authored namespace with standard-prelude fallback, and generic-scope set. It will
+define every arena slot and discard the temporary syntax-owned inventory and all mutable builders.
+No crate yet owns checked body semantics.
 
 ## Verification
 

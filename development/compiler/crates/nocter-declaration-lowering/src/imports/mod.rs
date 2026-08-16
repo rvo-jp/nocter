@@ -1,4 +1,5 @@
 mod access;
+mod prelude;
 mod projection;
 mod syntax;
 
@@ -20,6 +21,8 @@ use crate::{
 };
 use access::{module_index_by_id, module_index_by_identity, visibility_is_within, visible_from};
 use projection::project_import;
+
+pub use prelude::{PreludeError, PreparedNamespaces, apply_standard_prelude};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportError {
@@ -110,19 +113,19 @@ impl From<DuplicateSourceBinding> for ImportError {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct NamespaceBinding {
-    entity: ExportedEntity,
-    visibility: Visibility,
+pub(super) struct NamespaceBinding {
+    pub(super) entity: ExportedEntity,
+    pub(super) visibility: Visibility,
     origin: NodeId,
 }
 
-type ModuleNamespace = Box<[(Symbol, NamespaceBinding)]>;
+pub(super) type ModuleNamespace = Box<[(Symbol, NamespaceBinding)]>;
 
 /// Generic scopes plus resolved authored module namespaces and semantic import declarations.
 #[derive(Debug)]
 pub struct PreparedImports<'syntax> {
     pub(crate) generics: PreparedGenerics<'syntax>,
-    namespaces: Box<[ModuleNamespace]>,
+    pub(super) namespaces: Box<[ModuleNamespace]>,
     import_ids: Box<[Option<ImportId>]>,
 }
 

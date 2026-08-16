@@ -20,7 +20,10 @@ mod test_support;
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
-pub use imports::{ImportError, PreparedImports, prepare_authored_imports};
+pub use imports::{
+    ImportError, PreludeError, PreparedImports, PreparedNamespaces, apply_standard_prelude,
+    prepare_authored_imports,
+};
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
