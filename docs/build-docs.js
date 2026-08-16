@@ -11,7 +11,10 @@ const DOCS_DIR = __dirname;
 const OUTPUT_ROOT = DOCS_DIR;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
-const SKIP_SOURCE_PREFIXES = ["development/compiler/tests/fixtures/"];
+const SKIP_SOURCE_PREFIXES = [
+    "development/archive/",
+    "development/compiler/tests/fixtures/"
+];
 const AUTO_INDEX_SOURCE_DIRS = new Set(["examples"]);
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;

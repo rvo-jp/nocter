@@ -1,6 +1,0 @@
-// Valid source-corpus fixture with a relative import.
-use ./config.answer
-
-func main(): i32 {
-    return answer()
-}

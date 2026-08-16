@@ -1,8 +1,0 @@
-// Invalid: postfix `?` on T! requires a fallible return layer.
-func main(): i32 {
-    return answer()?
-}
-
-func answer(): i32! {
-    return 0
-}

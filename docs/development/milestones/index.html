@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Development Milestones - Nocter</title>
-    <meta name="description" content="This directory owns active and historical milestone scope, acceptance criteria, and qualification state. Public language behavior belongs in spec/; compile">
+    <meta name="description" content="This directory contains historical milestone records and the active compiler-rewrite milestone. Public language behavior belongs in spec/; published qualif">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/">
@@ -13,19 +13,19 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Development Milestones - Nocter">
-    <meta property="og:description" content="This directory owns active and historical milestone scope, acceptance criteria, and qualification state. Public language behavior belongs in spec/; compile">
+    <meta property="og:description" content="This directory contains historical milestone records and the active compiler-rewrite milestone. Public language behavior belongs in spec/; published qualif">
     <meta property="og:url" content="https://nocter.dev/development/milestones/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-15">
+    <meta property="article:modified_time" content="2026-08-16">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Development Milestones - Nocter">
-    <meta name="twitter:description" content="This directory owns active and historical milestone scope, acceptance criteria, and qualification state. Public language behavior belongs in spec/; compile">
+    <meta name="twitter:description" content="This directory contains historical milestone records and the active compiler-rewrite milestone. Public language behavior belongs in spec/; published qualif">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Milestones - Nocter","description":"This directory owns active and historical milestone scope, acceptance criteria, and qualification state. Public language behavior belongs in spec/; compile","url":"https://nocter.dev/development/milestones/","mainEntityOfPage":"https://nocter.dev/development/milestones/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Milestones - Nocter","description":"This directory contains historical milestone records and the active compiler-rewrite milestone. Public language behavior belongs in spec/; published qualif","url":"https://nocter.dev/development/milestones/","mainEntityOfPage":"https://nocter.dev/development/milestones/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -120,17 +120,9 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/milestones/</p>
             <ul class="directory-toc-list">
+                <li><a href="../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="./v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="./v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../releases/v0.13.0/index.html#content">the v0.13.0 release record</a></li>
-                <li><a href="./v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../releases/v0.12.0/index.html#content">the release record</a></li>
-                <li><a href="./v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../releases/v0.11.0/index.html#content">the release record</a></li>
-                <li><a href="./v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="./v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../releases/v0.10.0/index.html#content">the release record</a></li>
-                <li><a href="./v0.9.0/index.html#content">v0.9.0</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -138,7 +130,7 @@
                 <span class="markdown-path-text">/development/milestones/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="development-milestones">Development Milestones</h1><p>This directory owns active and historical milestone scope, acceptance criteria, and qualification state. Public language behavior belongs in <code>spec/</code>; compiler architecture belongs in <code>development/docs/</code>.</p><p>The active milestone is <a href="./v0.14.0/index.html#content">v0.14.0</a>. Phases 0 through 4 completed typed compile-unit identity, checker-owned partial typed HIR, indexed editor projection, checked control-flow MIR, and the convergence of checked type, ABI, parameter, integer, and aggregate machine projection. Phase 5 stabilization is next. The milestone does not add public language features.</p><p>The latest completed milestone is <a href="./v0.13.0/index.html#content">v0.13.0</a>. Phases 0 through 6 are complete, and the exact release is published and independently audited. Phase 1 replaced the obsolete <code>Error</code> alias with a source-backed built-in <code>error</code> construction surface, added explicit <code>catch _</code>, generalized built-in source authority, and established the owning-type and iterator core prelude. Phase 2 made reachable <code>catch</code> blocks value-producing through the common fallback, branch-state, destination, provenance, ownership, cleanup, and editor models. Phase 3 replaced collection conversion interfaces with source-defined readonly, readwrite, and consuming expansion operators, moved collection <code>for</code> and sequence spread onto one selector, and completed mutable collection iteration. Phase 4 made strict less-than source-defined and derived the other ordering comparisons from the same semantic plan, with lexical ordering owned by standard <code>str</code> and slice source. Phase 5 removed superseded forwarding surfaces and gave each canonical standard operation one public declaration identity. Phase 6 moved borrow coercions into <code>instance</code>, removed the parallel declaration path, and added structural generic coercion evidence through the common one-step selector. The qualification evidence is preserved in <a href="../releases/v0.13.0/index.html#content">the v0.13.0 release record</a>.</p><p>The latest completed milestone is <a href="./v0.12.0/index.html#content">v0.12.0</a>. Phases 0 through 3 are complete: closed interpolation formatting was replaced with a source-defined <code>Format</code> contract, fixed instance-owned equality now drives generic and collection comparison, and equality plus indexing share uniform structural operator requirements with coercion-driven execution. Phase 3 completed the semantic audit, candidate identity, incremental and clean verification, and archive qualification. Its publication and independent public-asset audit are preserved in <a href="../releases/v0.12.0/index.html#content">the release record</a>, and the published baseline is v0.12.0. No later release has been qualified.</p><p>The latest completed milestone record is <a href="./v0.11.0/index.html#content">v0.11.0</a>. Phases 0 through 8 completed unified generic requirements, associated types and bounds, declaration-wide <code>where</code> clauses, separate <code>instance</code> and <code>conform</code> declarations, declaration type patterns, independent destruction declarations, path-sensitive aggregate cleanup for native control flow, and static opaque result types for interface-based APIs. No later phase is active. Its published qualification is preserved in <a href="../releases/v0.11.0/index.html#content">the release record</a>, and the published baseline is v0.11.0.</p><p><a href="./v0.10.0/index.html#content">v0.10.0</a> is complete and historical. Phase 0 completed native value capabilities, Phase 1 completed directory modules and explicit source composition, Phase 2 completed source-backed callable contracts plus standard-library boundary normalization, and Phase 3 completed hierarchical visibility plus the implicit standard-library package. Its frozen Phase 3 record is <a href="./v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a>, and its published qualification is preserved in <a href="../releases/v0.10.0/index.html#content">the release record</a>.</p><p><a href="./v0.9.0/index.html#content">v0.9.0</a> is complete and historical. Its qualified archive was published and audited on 2026-08-08.</p><p>Do not reuse or reopen a completed release qualification record as an active plan.</p>
+                <h1 id="development-milestones">Development Milestones</h1><p>This directory contains historical milestone records and the active compiler-rewrite milestone. Public language behavior belongs in <a href="../../spec/index.html#content"><code>spec/</code></a>; published qualification belongs in <a href="../releases/index.html#content"><code>development/releases/</code></a>.</p><p>The active milestone is <a href="./v0.14.0/index.html#content">v0.14.0</a>. Earlier v0.14.0 internal refactoring was superseded before publication by a specification-first compiler rewrite. The published v0.13.0 release remains unchanged.</p><p>Historical milestone files record past work only. They are not normative language sources and must not be used to reconstruct behavior missing from the current specification.</p>
             </div>
         </main>
     </div>

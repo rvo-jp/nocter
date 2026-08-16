@@ -1,5 +1,0 @@
-// Invalid: the body result does not match the declared return type.
-func main(): i32 {
-    // invalid: `main` returns `i32`, but this return value is `str`.
-    return "hello"
-}

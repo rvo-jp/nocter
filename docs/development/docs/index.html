@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter Development Documents - Nocter</title>
-    <meta name="description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
+    <meta name="description" content="This directory contains the active implementation policy for the specification-first compiler rewrite. Public language and standard-library behavior belong">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/docs/">
@@ -13,19 +13,19 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter Development Documents - Nocter">
-    <meta property="og:description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
+    <meta property="og:description" content="This directory contains the active implementation policy for the specification-first compiler rewrite. Public language and standard-library behavior belong">
     <meta property="og:url" content="https://nocter.dev/development/docs/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-12">
+    <meta property="article:modified_time" content="2026-08-16">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Development Documents - Nocter">
-    <meta name="twitter:description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
+    <meta name="twitter:description" content="This directory contains the active implementation policy for the specification-first compiler rewrite. Public language and standard-library behavior belong">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-12","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"This directory contains the active implementation policy for the specification-first compiler rewrite. Public language and standard-library behavior belong","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -120,43 +120,11 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">specification</a></li>
-                <li><a href="./semantic-model/index.html#content">Semantic Identity and Typed Model</a></li>
-                <li><a href="./packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="./lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./interface-conformances/index.html#content">Body-Bearing Interface Implementations</a></li>
-                <li><a href="./destruction-declarations/index.html#content">Destruction Declarations</a></li>
-                <li><a href="./control-flow-drop-state/index.html#content">Path-Sensitive Aggregate Cleanup</a></li>
-                <li><a href="./construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="./borrow-coercions/index.html#content">Borrow Coercions</a></li>
-                <li><a href="./coercion-requirements/index.html#content">Generic Coercion Evidence</a></li>
-                <li><a href="./equality-operators/index.html#content">Equality Operators</a></li>
-                <li><a href="./ordering-operators/index.html#content">Strict Ordering Operators</a></li>
-                <li><a href="./indexing/index.html#content">Index Selection and Lowering</a></li>
-                <li><a href="./builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
-                <li><a href="./architecture/index.html#content">Architecture</a></li>
-                <li><a href="./region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="./typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
-                <li><a href="./iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="./interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="./provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="./outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="./outcome-values/index.html#content">First-Class Outcome Values</a></li>
-                <li><a href="./value-producing-catch/index.html#content">Catch Recovery Lowering</a></li>
-                <li><a href="./iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
-                <li><a href="./iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="./callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="./generic-requirements/index.html#content">Generic Requirement Architecture</a></li>
-                <li><a href="./associated-types/index.html#content">Associated Type Identity and Projection Normalization</a></li>
-                <li><a href="./opaque-result-types/index.html#content">Static Opaque Result Types</a></li>
-                <li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="./standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="./lsp/index.html#content">LSP</a></li>
-                <li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li>
-                <li><a href="./testing/index.html#content">Test Ownership and Integration Boundaries</a></li>
+                <li><a href="../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./architecture/index.html#content">Compiler Rewrite Architecture</a></li>
                 <li><a href="./maintenance/index.html#content">Maintenance</a></li>
-                <li><a href="../milestones/index.html#content">Active Milestones</a></li>
-                <li><a href="../releases/index.html#content">Release Qualification Records</a></li>
+                <li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../milestones/v0.14.0/index.html#content">v0.14.0 Rewrite Milestone</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -164,38 +132,7 @@
                 <span class="markdown-path-text">/development/docs/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>This directory contains compiler and distributed-standard-library implementation design. The public language <a href="../../spec/index.html#content">specification</a> is the sole authority for source behavior and public APIs. Implementation documents explain responsibility, data flow, invariants, and verification; they must link to a specification rule instead of restating it.</p><p>Candidate scope and qualification live in <code>development/milestones/</code>. Frozen release evidence lives in <code>development/releases/</code>. Short-lived handoff state lives only in <code>development/TODO.md</code>.</p><h2 id="documents">Documents</h2><ul><li><a href="./semantic-model/index.html#content">Semantic Identity and Typed Model</a>: compile-unit ID domains, semantic
-  database ownership, authored syntax boundary, typed results, and migration enforcement</li><li><a href="./packages/index.html#content">Packages, Dependencies, and Locks</a>: package files, semantic identities,
-  dependency graphs, exact locks, stores, and compiler boundaries</li><li><a href="./lsp-snapshots/index.html#content">Immutable LSP Snapshots</a>: editor generations, package contexts, source
-  overlays, invalidation, and request consistency</li><li><a href="./interface-conformances/index.html#content">Body-Bearing Interface Implementations</a>: canonical conformance
-  member identity, lookup, validation, migration, and editor boundaries</li><li><a href="./destruction-declarations/index.html#content">Destruction Declarations</a>: independent destructor identity,
-  type-family uniqueness, cleanup integration, and editor traversal</li><li><a href="./control-flow-drop-state/index.html#content">Path-Sensitive Aggregate Cleanup</a>: promoted runtime live state,
-  ownership transitions, control-flow joins, and common cleanup lowering</li><li><a href="./construction-surfaces/index.html#content">Construction Surfaces</a>: compiler-owned construction entries,
-  default selection, lowering reuse, and editor boundaries</li><li><a href="./borrow-coercions/index.html#content">Borrow Coercions</a>: type-owned view declarations, contextual plans,
-  ownership, lowering, and editor boundaries</li><li><a href="./coercion-requirements/index.html#content">Generic Coercion Evidence</a>: structural coercion requirements,
-  delayed declaration authority, specialization, and common-selector reuse</li><li><a href="./equality-operators/index.html#content">Equality Operators</a>: fixed instance-owned equality, structural generic
-  requirements, coercion selection, plans, lowering, and editor identity</li><li><a href="./ordering-operators/index.html#content">Strict Ordering Operators</a>: shared fixed-comparison selection, derived
-  token orientation, evaluation order, standard lexical ordering, and editor identity</li><li><a href="./indexing/index.html#content">Index Selection and Lowering</a>: source-defined index declarations, structural
-  requirements, coercion selection, immutable typecheck plans, and native evaluation order</li><li><a href="./builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a>: installed construction, instance,
-  and conformance authority, receiver plans, trusted representation primitives, and editor identity</li><li><a href="./architecture/index.html#content">Architecture</a>: compiler phase responsibilities and boundaries</li><li><a href="./region-provenance/index.html#content">Region, Provenance, and Allocation Context</a>: shared storage-origin,
-  allocation-effect, lexical-region, and lowering design</li><li><a href="./typed-literals/index.html#content">Typed Literals and Composable Element Packs</a>: literal shapes, definitions,
-  spread segments, context selection, and lowering boundaries</li><li><a href="./iteration/index.html#content">Explicit Iteration and Collection Access</a>: readonly and owned iterator invariants,
-  optional access, shifting, cleanup, and LSP boundaries</li><li><a href="./interpolation/index.html#content">Owned String Interpolation and Formatting</a>: runtime declarations, semantic
-  plans, formatting policy, lowering, cleanup, and LSP boundaries</li><li><a href="./provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a>: explicit
-  result origins, generic capability lookup, static specialization, and editor boundaries</li><li><a href="./outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a>: recursive callable
-  result channels, native ABI, process storage, and ambient/recoverable process APIs</li><li><a href="./outcome-values/index.html#content">First-Class Outcome Values</a>: recursive stored outcome layout, callable
-  bridging, active-payload ownership, consumers, and tooling</li><li><a href="./value-producing-catch/index.html#content">Catch Recovery Lowering</a>: value-producing failure handlers,
-  destination joins, cleanup, nested outcomes, and editor facts</li><li><a href="./iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a>: trusted protocol roles, collection
-  conversion, loop ownership, cleanup, and editor boundaries</li><li><a href="./iterator-composition/index.html#content">Composable Iterators and Collection Builders</a>: capability sets,
-  conditional conformance, adapter state, collection construction, and editor boundaries</li><li><a href="./callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a>: method generics,
-  required/default methods, closure ownership, callable specialization, and iterator chains</li><li><a href="./generic-requirements/index.html#content">Generic Requirement Architecture</a>: authored and resolved requirements,
-  intrinsic copyability, specialization, and editor integration</li><li><a href="./associated-types/index.html#content">Associated Type Identity and Projection Normalization</a>: interface-owned
-  member identity, conformance bindings, normalization, and editor integration</li><li><a href="./opaque-result-types/index.html#content">Static Opaque Result Types</a>: declaration identity, hidden witness
-  elaboration, public interface view, and concrete lowering view</li><li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a>: the shared allocation, ownership, partial
-  initialization, <code>String</code>, and <code>Vec&lt;T&gt;</code> foundation</li><li><a href="./standard-library/index.html#content">Standard Library</a>: runtime responsibilities, ownership invariants, target
-  boundaries, and distributed-home verification</li><li><a href="./lsp/index.html#content">LSP</a>: compiler-backed semantic, presentation, recovery, protocol, and verification
-  boundaries</li><li><a href="./site-generation/index.html#content">Documentation Site Generation</a>: public Markdown build and generated output</li><li><a href="./testing/index.html#content">Test Ownership and Integration Boundaries</a>: layer ownership, redundancy rules,
-  distributed-home scope, and verification profiles</li><li><a href="./maintenance/index.html#content">Maintenance</a>: update ownership, verification, and commit policy</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>: internal short-term handoff state</li><li><a href="../milestones/index.html#content">Active Milestones</a>: candidate scope and qualification</li><li><a href="../releases/index.html#content">Release Qualification Records</a>: frozen compiler release evidence</li></ul><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>Public language rules</td><td><code>spec/</code></td></tr><tr><td>Runnable user programs and packages</td><td><code>examples/</code></td></tr><tr><td>Compiler source-corpus fixtures</td><td><code>../compiler/tests/fixtures/source_corpus/</code></td></tr><tr><td>Published downloads and public release status</td><td><code>releases/README.md</code></td></tr><tr><td>Candidate scope, status, and qualification</td><td><code>../milestones/&lt;version&gt;.md</code></td></tr><tr><td>Published release qualification</td><td><code>../releases/&lt;version&gt;.md</code></td></tr><tr><td>Package/compiler responsibility boundary</td><td><code>packages.md</code></td></tr><tr><td>Package-wide editor state and invalidation</td><td><code>lsp-snapshots.md</code></td></tr><tr><td>Compiler responsibility boundaries</td><td><code>architecture.md</code></td></tr><tr><td>Semantic identities, database ownership, and typed model</td><td><code>semantic-model.md</code></td></tr><tr><td>Region, provenance, and allocation-context implementation design</td><td><code>region-provenance.md</code></td></tr><tr><td>Typed literal and ephemeral element-pack implementation design</td><td><code>typed-literals.md</code></td></tr><tr><td>Explicit readonly/owned iteration and collection access design</td><td><code>iteration.md</code></td></tr><tr><td>Owned interpolation and formatting implementation design</td><td><code>interpolation.md</code></td></tr><tr><td>Public provenance contracts and generic interface-bound dispatch</td><td><code>provenance-contracts.md</code></td></tr><tr><td>Nested outcome lowering and executable process context</td><td><code>outcomes-process-context.md</code></td></tr><tr><td>First-class stored outcome values</td><td><code>outcome-values.md</code></td></tr><tr><td>Value-producing catch analysis and lowering</td><td><code>value-producing-catch.md</code></td></tr><tr><td>Protocol-driven collection iteration</td><td><code>iteration-protocol.md</code></td></tr><tr><td>Composable iterators and collection builders</td><td><code>iterator-composition.md</code></td></tr><tr><td>Callable values, interface default methods, and iterator chains</td><td><code>callable-default-methods.md</code></td></tr><tr><td>Generic requirement identity, copyability, and specialization</td><td><code>generic-requirements.md</code></td></tr><tr><td>Associated type identity, projection normalization, and conformance bindings</td><td><code>associated-types.md</code></td></tr><tr><td>Instance/conformance declaration ownership and member identity</td><td><code>interface-conformances.md</code></td></tr><tr><td>Independent destruction declarations and cleanup identity</td><td><code>destruction-declarations.md</code></td></tr><tr><td>Path-sensitive aggregate cleanup and runtime live state</td><td><code>control-flow-drop-state.md</code></td></tr><tr><td>Construction declarations and type-owned creation APIs</td><td><code>construction-surfaces.md</code></td></tr><tr><td>Borrow coercion declaration, selection, and lowering</td><td><code>borrow-coercions.md</code></td></tr><tr><td>Structural generic coercion evidence and concrete specialization</td><td><code>coercion-requirements.md</code></td></tr><tr><td>Equality operator declaration, selection, and lowering</td><td><code>equality-operators.md</code></td></tr><tr><td>Strict ordering declaration, derivation, and lowering</td><td><code>ordering-operators.md</code></td></tr><tr><td>Index declarations, requirements, coercion selection, and lowering</td><td><code>indexing.md</code></td></tr><tr><td>Canonical standard-library public declaration ownership</td><td><code>canonical-api-surfaces.md</code></td></tr><tr><td>Built-in construction, instance, and conformance authority</td><td><code>builtin-type-surfaces.md</code></td></tr><tr><td>Allocator, ownership, and drop design</td><td><code>allocator-ownership.md</code></td></tr><tr><td>Distributed <code>std</code> implementation state</td><td><code>standard-library.md</code></td></tr><tr><td>LSP capabilities and analysis boundary</td><td><code>lsp.md</code></td></tr><tr><td>Next concrete internal task</td><td><code>../TODO.md</code></td></tr><tr><td>Documentation build process</td><td><code>site-generation.md</code></td></tr><tr><td>Test ownership, integration boundaries, and redundancy policy</td><td><code>testing.md</code></td></tr></tbody></table><p>Entry points may summarize an owned fact in one sentence and link to its owner. They must not carry independent completion lists, qualification details, or mutable status. Git owns chronological history.</p>
+                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>This directory contains the active implementation policy for the specification-first compiler rewrite. Public language and standard-library behavior belongs exclusively in <a href="../../spec/index.html#content"><code>spec/</code></a>.</p><h2 id="active-documents">Active Documents</h2><ul><li><a href="./architecture/index.html#content">Compiler Rewrite Architecture</a></li><li><a href="./maintenance/index.html#content">Maintenance</a></li><li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">Current Handoff</a></li><li><a href="../milestones/v0.14.0/index.html#content">v0.14.0 Rewrite Milestone</a></li></ul><p>Historical implementation design was removed from the active tree when the compiler rewrite started. Git history and published release records preserve it for archival purposes, but it must not be consulted to determine new compiler structure or unspecified language behavior.</p><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Sole owner</th></tr></thead><tbody><tr><td>Public language and standard-library behavior</td><td><code>spec/</code></td></tr><tr><td>New compiler dependency and authority boundaries</td><td><code>architecture.md</code></td></tr><tr><td>Rewrite scope and completion gates</td><td><code>../milestones/v0.14.0.md</code></td></tr><tr><td>Next concrete work and blockers</td><td><code>../TODO.md</code></td></tr><tr><td>Published qualification evidence</td><td><code>../releases/</code></td></tr><tr><td>Documentation generation</td><td><code>site-generation.md</code></td></tr></tbody></table><p>Do not duplicate normative rules in development documents. Link to the owning specification rule.</p>
             </div>
         </main>
     </div>

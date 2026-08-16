@@ -1,7 +1,0 @@
-// Valid source-corpus fixture.
-use std/io.print
-
-func main(): i32! {
-    print("Hello")?
-    return 0
-}

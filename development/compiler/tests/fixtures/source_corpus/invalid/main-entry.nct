@@ -1,4 +1,0 @@
-// Invalid: entry functions do not accept value parameters.
-func main(args: &[&str]): i32 {
-    return 0
-}

@@ -1,103 +1,55 @@
 # Contributor Documentation
 
-This directory is the entry point for compiler contributors. It contains the Rust bootstrap
-compiler, distributed standard-library source, release packaging inputs, implementation design,
-milestone records, and release qualification evidence. See the [repository README](../README.md)
-for the product overview and the [specification](../spec/README.md) for public language behavior.
+Nocter is rebuilding its compiler from the language specification. The published v0.13.0 release
+remains available to users, but its compiler implementation is not an input to the rewrite.
 
-The [current handoff](TODO.md) owns the next concrete task. The
-[milestone index](milestones/README.md) identifies an active candidate when one exists. Do not copy
-either state into this entry point.
+The active work first closes every normative gap in [`spec/`](../spec/README.md). Compiler code is
+added only after the relevant syntax, static semantics, dynamic semantics, target behavior, and
+tooling contract can be implemented without guessing.
 
-## Quick Start
+## Current Work
 
-Run the complete verification suite from the repository root:
+- [Current handoff](TODO.md)
+- [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
+- [New compiler architecture](docs/architecture.md)
+- [Rewrite maintenance policy](docs/maintenance.md)
+- [New compiler boundary](compiler/README.md)
 
-```sh
-./development/compiler/scripts/verify.sh
-```
+There is currently no repository-local compiler build command. The previous compiler is preserved
+by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
+reference.
 
-To verify only the compiler:
+## Specification Workflow
 
-```sh
-cargo test --manifest-path development/compiler/Cargo.toml
-```
+When a public rule is incomplete, implementation pauses. The ambiguity is reduced to a minimal
+program, alternatives are compared, and the user selects the language behavior. The adopted rule
+is written in the owning specification chapter before implementation or conformance tests proceed.
 
-The development and test profiles retain source line tables but disable incremental compilation
-and macOS split debug objects. This is intentional: the compiler's large test crate otherwise
-leaves hundreds of thousands of unpacked object files and can grow `development/compiler/target/`
-by tens of gigabytes. To discard local compiler artifacts manually, run:
+The specification is the sole source for:
 
-```sh
-cargo clean --manifest-path development/compiler/Cargo.toml -p nocter
-```
+- lexical and syntactic grammar
+- name resolution and visibility
+- type identity, inference, conversion, and dispatch
+- ownership, borrowing, provenance, regions, and destruction
+- evaluation order, failure, allocation, and cleanup
+- target ABI and executable behavior
+- command-line and editor contracts
+- public standard-library APIs
 
-To build and run a repository-local distribution:
-
-```sh
-./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter check examples/hello.nct
-./dist/.nocter/nocter run examples/hello.nct
-```
-
-The canonical standard-library source is tracked in `development/std/`, and release metadata lives
-in `development/packaging/`. The packaging script creates a local installation image at
-`dist/.nocter/` and an archive named `dist/nocter-v<version>-arm64-darwin.tar.gz`.
-
-Rust and Cargo are required only for development. The release archive runs from a single
-`.nocter/` home containing the compiler and `std/`; users do not need LLVM, `clang`, `as`, `ld`, an
-external runtime library, or the Xcode Command Line Tools.
-
-## Documents
-
-- [Implementation Documentation](docs/README.md)
-- [Active Milestones](milestones/README.md)
-- [Release Qualification Records](releases/README.md)
-- [Packages, Dependencies, and Locks](docs/packages.md)
-- [Immutable LSP Snapshots](docs/lsp-snapshots.md)
-- [Compiler Architecture](docs/architecture.md)
-- [Semantic Identity and Typed Model](docs/semantic-model.md)
-- [Region, Provenance, and Allocation Context](docs/region-provenance.md)
-- [Typed Literal Core](docs/typed-literals.md)
-- [Borrow Coercion Compiler Boundary](docs/borrow-coercions.md)
-- [Built-in Type Source Surfaces](docs/builtin-type-surfaces.md)
-- [Explicit Iteration and Collection Access](docs/iteration.md)
-- [Extensible String Interpolation and Formatting](docs/interpolation.md)
-- [Public Provenance Contracts and Compiler-Owned Result Storage](docs/provenance-contracts.md)
-- [Composable Iterators and Collection Builders](docs/iterator-composition.md)
-- [Callable Values and Interface Default Methods](docs/callable-default-methods.md)
-- [Nested Outcomes and Executable Process Context](docs/outcomes-process-context.md)
-- [Catch Recovery Lowering](docs/value-producing-catch.md)
-- [Allocator and Ownership](docs/allocator-ownership.md)
-- [Standard Library Runtime](docs/standard-library.md)
-- [Language Server](docs/lsp.md)
-- [Documentation Site Generation](docs/site-generation.md)
-- [Maintenance](docs/maintenance.md)
-- [Internal Handoff](TODO.md)
-
-## Layout
+## Repository Layout
 
 ```text
 development/
 ├── AGENTS.md
 ├── README.md
 ├── TODO.md
-├── compiler/
-│   ├── Cargo.toml
-│   ├── scripts/
-│   ├── src/
-│   └── tests/
-├── docs/
-├── milestones/
-├── packaging/
-├── releases/
-└── std/
+├── compiler/          # new implementation; intentionally empty during specification closure
+├── docs/              # rewrite architecture and maintenance policy
+├── milestones/        # active and historical milestone records
+├── packaging/         # published-package inputs, unchanged during specification closure
+├── releases/          # immutable published qualification records
+└── std/               # existing source, not a bootstrap oracle for the new compiler
 ```
 
-- `compiler/src`: compiler implementation
-- `compiler/tests`: CLI, runtime, distributed-home, LSP, and corpus integration tests
-- `std`: canonical source for the packaged standard library
-- `packaging`: release metadata copied into generated homes
-- `docs`: compiler and standard-library implementation design
-- `milestones`: active candidate scope, completion criteria, and qualification
-- `releases`: frozen compiler-developer qualification records
+Rust and Cargo will become development requirements again when the new workspace is introduced.
+Users of the published v0.13.0 release remain unaffected by the rewrite.

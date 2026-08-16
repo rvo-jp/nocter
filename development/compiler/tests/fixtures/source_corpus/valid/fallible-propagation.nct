@@ -1,8 +1,0 @@
-// Valid source-corpus fixture.
-func main(): i32! {
-    return answer()?
-}
-
-func answer(): i32! {
-    return 0
-}

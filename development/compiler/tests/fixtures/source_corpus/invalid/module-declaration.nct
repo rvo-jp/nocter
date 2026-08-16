@@ -1,6 +1,0 @@
-// Invalid: Nocter module identity comes from the file path.
-module app/main
-
-func main(): i32 {
-    return 0
-}

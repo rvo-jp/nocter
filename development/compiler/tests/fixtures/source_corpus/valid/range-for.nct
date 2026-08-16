@@ -1,8 +1,0 @@
-// Valid source-corpus fixture.
-func main(): i32 {
-    for i in 0..<4 {
-        return i
-    }
-
-    return 0
-}

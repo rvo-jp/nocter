@@ -120,17 +120,9 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/milestones/</p>
             <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../../releases/v0.13.0/index.html#content">the v0.13.0 release record</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../../releases/v0.12.0/index.html#content">the release record</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.11.0</a></li>
-                <li><a href="../../releases/v0.11.0/index.html#content">the release record</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../../releases/v0.10.0/index.html#content">the release record</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -479,7 +471,7 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   remain local to lowering and are not treated as a join result</li><li>condition moves are recorded by expression lowering at their evaluation point, including within
   short-circuit expressions; a condition-wide postlude may not clear a value that was not evaluated</li><li>loops use the same state transitions on each executed edge; ownership analysis, not lowering,
   decides whether a later iteration may legally read the value</li><li>copy aggregates and aggregates without destruction do not acquire cleanup flags merely because
-  they occur in control flow</li></ul><p>The design and lowering responsibilities are owned by <a href="../../docs/control-flow-drop-state/index.html#content">Path-Sensitive Aggregate Cleanup</a>.</p><h3 id="implementation-order-8">Implementation Order</h3><ol><li>1. Extend aggregate-local and pending-drop state with an optional runtime live location, plus one
+  they occur in control flow</li></ul><p>The design and lowering responsibilities are owned by <a href="../docs/control-flow-drop-state.md">Path-Sensitive Aggregate Cleanup</a>.</p><h3 id="implementation-order-8">Implementation Order</h3><ol><li>1. Extend aggregate-local and pending-drop state with an optional runtime live location, plus one
    promotion operation that reserves and initializes the flag.</li><li>Guard complete and partial aggregate cleanup through the pending-drop boundary so function
    returns, branch exits, loop exits, error paths, and normal scope exits cannot diverge.</li><li>Centralize move/drop/initialization state transitions beside the IR operations that complete
    them; make call-argument and short-circuit lowering preserve exact evaluation order.</li><li>Promote affected outer locals before lowering non-terminal <code>if</code>, <code>match</code>, <code>while</code>, <code>loop</code>, and
@@ -518,7 +510,7 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   independent result-storage contract</li><li>every reachable value return and body result must normalize to the same concrete witness; aliases
   do not create distinct witnesses and different branch result types are rejected</li><li>the witness must satisfy the advertised interface and every named associated binding</li><li>callers may use only the advertised interface surface. Two opaque declarations remain distinct
   even when they select the same witness and advertise the same interface</li><li>opaque results are conservatively move-only at the public contract boundary in Phase 8; hidden
-  copyability is not an observable capability</li></ul><p>The compiler architecture is owned by <a href="../../docs/opaque-result-types/index.html#content">Static Opaque Result Types</a>.</p><h3 id="compiler-contract-2">Compiler Contract</h3><ul><li>one <code>OpaqueResultIdentity</code> is derived from callable declaration identity and survives imports,
+  copyability is not an observable capability</li></ul><p>The compiler architecture is owned by <a href="../docs/opaque-result-types.md">Static Opaque Result Types</a>.</p><h3 id="compiler-contract-2">Compiler Contract</h3><ul><li>one <code>OpaqueResultIdentity</code> is derived from callable declaration identity and survives imports,
   re-exports, same-module implementation sources, aliases, and generic specialization</li><li>source AST retains the authored interface contract; an elaboration fact attaches the inferred
   concrete witness without replacing the public type</li><li>associated projection normalisation selects advertised bindings from the opaque contract and
   never discovers them by rendering a type or inspecting a witness name</li><li>type checking exposes only the interface contract, while sizing, ABI classification, cleanup,

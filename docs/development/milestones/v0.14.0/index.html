@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter v0.14.0 Semantic Architecture Migration - Nocter</title>
-    <meta name="description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
+    <title>v0.14.0: Specification-First Compiler Rewrite - Nocter</title>
+    <meta name="description" content="Build a new Nocter compiler from the public specification without consulting, executing, copying, or behavior-matching the previous compiler. v0.14.0 is no">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0/">
@@ -12,20 +12,20 @@
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta property="og:description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
+    <meta property="og:title" content="v0.14.0: Specification-First Compiler Rewrite - Nocter">
+    <meta property="og:description" content="Build a new Nocter compiler from the public specification without consulting, executing, copying, or behavior-matching the previous compiler. v0.14.0 is no">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-15">
+    <meta property="article:modified_time" content="2026-08-16">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0 through 5 complete. Release qualification has not started.">
+    <meta name="twitter:title" content="v0.14.0: Specification-First Compiler Rewrite - Nocter">
+    <meta name="twitter:description" content="Build a new Nocter compiler from the public specification without consulting, executing, copying, or behavior-matching the previous compiler. v0.14.0 is no">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phases 0 through 5 complete. Release qualification has not started.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-15","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0: Specification-First Compiler Rewrite - Nocter","description":"Build a new Nocter compiler from the public specification without consulting, executing, copying, or behavior-matching the previous compiler. v0.14.0 is no","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -120,17 +120,9 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/milestones/</p>
             <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="./index.html#content" aria-current="page">v0.14.0</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../../releases/v0.13.0/index.html#content">the v0.13.0 release record</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../../releases/v0.12.0/index.html#content">the release record</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../../releases/v0.11.0/index.html#content">the release record</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../../releases/v0.10.0/index.html#content">the release record</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -138,313 +130,8 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phases 0 through 5 complete. Release qualification has not started.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
-  semantic identities by inventing source names or treating byte ranges as identifiers.</li><li>Each compile-unit definition, body, expression, type, requirement, intrinsic, and monomorphized
-  item receives a typed ID from one semantic database.</li><li>A span is location metadata owned by the database. It may diagnose or navigate an ID, but map
-  equality on spans must not decide whether two semantic entities are identical.</li><li>The checker produces the semantic result consumed by ownership, provenance, LSP, specialization,
-  and lowering. No post-check AST walker may recompute a successful semantic decision.</li><li>Recovery produces explicit error or partial semantic nodes. LSP support for incomplete source is
-  not permission to create a second successful-language model.</li><li>Every temporary adapter has a named consumer, an explicit removal phase, and a regression that
-  prevents new callers after the removal boundary.</li><li>Old paths are deleted in the same phase that completes their replacement. The migration never
-  ends with two permanent type systems, call identities, or lowering pipelines.</li></ul><h2 id="phase-0-semantic-identity-and-declaration-core">Phase 0: Semantic Identity and Declaration Core</h2><h3 id="goal">Goal</h3><p>Establish one compile-unit identity domain and make authored declarations structurally honest before typed HIR depends on them. Phase 0 removes the most edit-sensitive identities first: instance member ordering, operator/coercion synthetic names, callable summary keys, trusted declaration roles, and source-backed editor targets.</p><h3 id="semantic-ids">Semantic IDs</h3><p>Phase 0 and Phase 1 introduce opaque IDs with separate domains:</p><pre><code class="language-text">DefId          source declaration or member
-BodyId         executable authored body
-ExprId         expression in one body
-TyId           interned semantic type
-</code></pre><p><code>RequirementId</code>, <code>IntrinsicId</code>, and <code>MonoItemId</code> remain names for later migration boundaries, not empty Phase 0 scaffolding. They are introduced only when the requirement, intrinsic, and backend convergence phases can replace their old authorities in the same change.</p><p><code>SemanticDb</code> owns definition, body, and expression source records plus their locations. The checker-owned typed HIR owns the <code>TyId</code> arena for each checked file in the same semantic generation. IDs are meaningful only inside that generation. Package-wide LSP generations retain their existing stable source identity for edit planning, but they map that identity to a fresh <code>DefId</code> instead of making a stable byte span the compiler's internal identity.</p><p>Anonymous opaque result declarations use a separate <code>OpaqueTypeId</code>. They are not named declarations and therefore do not borrow an enclosing <code>DefId</code>; their authored <code>some</code> span is only the diagnostic and navigation projection of the opaque type identity.</p><p>The first implementation may add typed IDs and definition records while existing span-bearing diagnostic fields remain. It may not call a span wrapper a semantic ID or make raw numeric IDs public API.</p><h3 id="declaration-model">Declaration Model</h3><p><code>InstanceDecl</code> owns one source-ordered <code>Vec&lt;InstanceMember&gt;</code>:</p><pre><code class="language-text">InstanceMember::Method(MethodDecl)
-InstanceMember::Operator(OperatorDecl)
-InstanceMember::Coercion(CoercionDecl)
-</code></pre><p>Filtering iterators serve method, operator, coercion, and callable consumers without creating parallel vectors. Formatting and AST JSON preserve authored member order.</p><p>Method, operator, coercion, literal, function, construct, conformance, and destructor bodies share a name-free semantic callable record after resolution. Source declarations retain their actual syntax; an operator or coercion is not represented as a <code>MethodDecl</code> with a name beginning <code>__nocter$</code>. Resolved lookup and lowering dispatch by <code>DefId</code> and callable kind.</p><h3 id="work-order">Work Order</h3><ol><li>1. Replace parallel instance member vectors with one source-ordered enum and migrate every AST
-   visitor, formatter, serializer, declaration-surface filter, resolver, checker, analysis query,
-   and lowering entry point.</li><li>Add opaque ID types and an immutable compile-unit <code>SemanticDb</code> definition index with typed
-   source-location records and deterministic construction tests.</li><li>Introduce a name-free callable signature/body abstraction. Give every authored callable a
-   <code>DefId</code>; remove operator and coercion synthetic names from parser AST.</li><li>Migrate callable provenance summaries, allocation summaries, trusted roles, coercion plans,
-   operator plans, specialization targets, editor occurrences, and lowering call targets to IDs.</li><li>Remove span-keyed callable identity and string-keyed target dispatch from migrated paths. Keep
-   spans only as database metadata and diagnostic locations.</li><li>Run the complete repository and distributed-home matrix, update architecture documentation, and
-   record the exact removed paths and remaining Phase 1 boundary.</li></ol><h3 id="completion-definition">Completion Definition</h3><p>Phase 0 is complete only when every source declaration and executable body in a compile unit has one typed semantic identity; instance members retain source order in one collection; operator and coercion declarations contain no synthetic method or name; callable summaries, trusted roles, selection plans, specialization indexes, lowering resolution, and editor targets use <code>DefId</code> or <code>BodyId</code> for semantic equality; diagnostic, navigation, and backend symbol locations project from those IDs; no span-to-span callable adapter remains; all public behavior is unchanged except deliberate diagnostic improvements; and the complete verification, documentation, formatting, Clippy, and diff gates pass. String backend labels may exist after semantic target selection, but they are presentation and linkage output rather than source-level identity.</p><h3 id="non-goals">Non-goals</h3><p>Phase 0 does not add language syntax, standard-library APIs, dynamic dispatch, persistent IDs across compiler processes, incremental query execution, typed HIR, MIR, a new ABI, or another target. It does not rename old fields without changing their authority.</p><h3 id="completion-record">Completion Record</h3><ul><li><code>InstanceDecl</code> now stores one source-ordered <code>Vec&lt;InstanceMember&gt;</code>; formatting, AST JSON,
-  resolution, checking, analysis, and lowering no longer reconstruct mixed member order from
-  parallel collections.</li><li>One compile-unit <code>SemanticDb</code> assigns deterministic <code>DefId</code> values to top-level, member, and
-  block-scoped import declarations. Every per-file resolver and the post-opaque-elaboration pass
-  share the same database generation.</li><li>Resolver symbols retain their table-local <code>SymbolId</code> only as an indexing handle and separately
-  carry the declaration's compile-unit <code>DefId</code>.</li><li>Borrow-coercion selection carries <code>DefId</code> through resolved type surfaces, conversion selection,
-  type-check facts, generic requirement specialization, call-specialization collection, and IR
-  callable indexing. Its former declaration-span and synthetic-target-name identity fields have
-  been removed; backend symbol spelling is generated only at the IR boundary.</li><li>Trusted-library validation now produces pre-semantic <code>TrustedDeclarationInputs</code>; analysis binds
-  those registrations once into <code>HashMap&lt;DefId, TrustedDeclarationRole&gt;</code>. Type checking no longer
-  uses byte spans as trusted-role identity.</li><li>Protocol-method and ordinary method specialization records carry <code>DefId</code>. Collection,
-  interpolation, comparison, expansion, and indexing plans feed one <code>DefId</code>-keyed specialization
-  table shared by buildability and IR indexing.</li><li>Callable contract/body pairs and their receivers, parameters, and literal captures are keyed by
-  <code>DefId</code>. The index retains source locations only to project existing diagnostics and editor
-  ranges, while all consumers share the same <code>Arc&lt;SemanticDb&gt;</code> owned by the compile unit.</li><li>Every authored callable block and nested closure has a source-ordered <code>BodyId</code> with an owning
-  <code>DefId</code> and optional parent <code>BodyId</code>. Function, method, coercion, destructor, literal, and closure
-  specialization tables use the appropriate definition or body domain.</li><li>Trusted interpolation and iteration discovery remains a pre-semantic shape-validation step, but
-  it binds String, constructor, Format, Iterator, method, and associated-type locations to <code>DefId</code>
-  before type checking. Semantic consumers no longer use those spans as identity.</li><li>Editor declarations use <code>DefId</code> across package indexes and convert IDs to source ranges only at
-  navigation and edit boundaries. Generic parameters use explicit ordinal identity instead of
-  stable byte ranges.</li><li><code>CallableDecl</code> is name-free. <code>MethodDecl</code> alone owns a source name, while operator and coercion
-  kinds remain semantic enums through selection and specialization; no synthetic method AST node
-  or callable identity remains.</li><li>Callable names used by buildability and IR are keyed by canonical <code>DefId</code>. Contract/body lookup
-  asks <code>SemanticDb</code> for the declaration body owned by a definition, so functions, methods,
-  operators, and coercions do not depend on matching focused spans or pretending every callable is
-  a named method.</li><li>The complete repository test suite, including the distributed installed-home iteration,
-  sequence-spread, ordering, and standard-library runtime matrix, passes with formatting and
-  warnings-denied Clippy.</li></ul><h2 id="phase-1-partial-typed-hir">Phase 1: Partial Typed HIR</h2><h3 id="goal-2">Goal</h3><p>Make one checker invocation own the semantic product consumed by analysis, specialization, buildability, and lowering. Establish expression and type identity plus explicit error semantics before Phase 2 migrates the remaining editor-facing fact tables and Phase 3 introduces MIR.</p><h3 id="implemented-boundary">Implemented Boundary</h3><ul><li><code>SemanticDb</code> assigns every authored expression an <code>ExprId</code> and owning <code>BodyId</code>.</li><li>A checked-file type arena interns normalized <code>TypeExpr</code> values as <code>TyId</code>; a <code>TyId</code> is never used
-  as source spelling or across semantic generations.</li><li><code>TypedExpression</code> records <code>ExprId</code>, <code>BodyId</code>, and <code>PartialSemantic&lt;TyId&gt;</code>. Unresolved expressions
-  record <code>PartialSemantic::Error</code> rather than disappearing or receiving a guessed type.</li><li><code>TypecheckOutput</code> returns diagnostics and the exact <code>TypedHir</code> from one checker invocation.
-  Ordinary compile-unit analysis and single-file LSP recovery retain that result; downstream
-  consumers cannot invoke the raw typed-HIR builder.</li><li>The only provisional entry point is the explicitly named opaque-result prepass. It exists before
-  final result witnesses are known, is inaccessible outside type checking and analysis
-  orchestration, and its result is replaced by the ordinary checker output after elaboration.</li><li>Legacy fact collections inside <code>TypedHir</code> remain a compatibility payload, not a second checker.
-  Their keys are migrated to expression/definition records in Phase 2 and control-flow records in
-  Phase 3; no new consumer may rebuild successful semantics from AST.</li></ul><h3 id="completion-definition-2">Completion Definition</h3><p>Phase 1 is complete when authored expressions have body-scoped identity; known and erroneous expression types survive diagnostics in one partial semantic product; normal compilation and LSP recovery consume <code>TypecheckOutput</code>; no post-check collector or externally callable successful semantic recomputation path remains; existing downstream consumers receive the checker-owned instance; the provisional opaque prepass is explicit and isolated; and the complete repository, formatting, Clippy, and diff gates pass.</p><h3 id="completion-record-2">Completion Record</h3><p>Phase 1 satisfies the definition above. Tests cover deterministic expression/body identity, type interning, explicit error expressions, preservation of checker output after diagnostics, and LSP single-file recovery. The full verification matrix passes after Phase 0's final callable-identity migration.</p><h2 id="later-phases">Later Phases</h2><h2 id="phase-2-editor-projection">Phase 2: Editor Projection</h2><h3 id="goal-3">Goal</h3><p>Build hover, completion, navigation, semantic tokens, signature help, and edits from one semantic occurrence index plus analysis-time syntax projections. A successful editor query must not rescan the complete AST, rediscover a resolver member by span, or recompute compile-unit specialization.</p><h3 id="completed-work">Completed Work</h3><ul><li><code>SemanticOccurrenceIndex</code> uses <code>DefId</code> and <code>LocalSymbolId</code>; navigation, references, and rename
-  project source locations only after semantic selection.</li><li><code>EditorSyntaxIndex</code> owns calls, literal sites and expressions, interpolation sites, module paths,
-  import selectors, export surfaces, documentation, callable syntax, destructor syntax, and source
-  edit targets built once per analyzed file.</li><li>Resolver declarations have one <code>DefId</code>-keyed projection index covering top-level symbols,
-  fields, variants, associated types and functions, methods, conformance methods, destructors,
-  literals, and coercions. Hover no longer scans every resolved type surface by declaration span.</li><li>Semantic token classification and lexical-region facts are computed once per file. Literal,
-  interpolation, region, signature-help, hover, and import-completion queries consume retained
-  projections.</li><li>Opaque results use <code>OpaqueTypeId</code>; callable contract/body records carry <code>DefId</code> directly rather
-  than resolving an identity span after matching.</li><li>Call specializations are lazily computed once per compile unit and shared by buildability, IR
-  lowering, and literal editor facts.</li><li><code>EditorSyntaxIndex</code> also owns member gaps, enum patterns, struct fields, literal shapes, region
-  allocators, result-provenance clauses, <code>where</code> requirements, and instance operator slots.
-  <code>LexicalScopeIndex</code> owns visible local bindings and scoped imports. Successful completion queries
-  therefore perform indexed lookup; AST scope walkers exist only in explicitly named recovery
-  paths for incomplete source.</li><li>Type occurrences identify their selected declarations by <code>DefId</code>. Generic-parameter occurrences
-  carry the parameter's <code>DefId</code>, and binding type, scalar-view, mutability, and payload facts are
-  keyed by <code>LocalSymbolId</code>. Declaration and reference spans are resolved to that local identity
-  once rather than serving as fact identity.</li><li>Every instance callable syntax record covers methods, operators, and coercions together with its
-  generic owner. Specialization no longer loses owner substitutions for an operator or coercion.</li></ul><h3 id="completion-definition-3">Completion Definition</h3><p>Phase 2 is complete when successful-source editor requests perform indexed lookup rather than AST or resolver-surface discovery; every declaration target is selected by semantic identity; all retained syntax-only sites are built once per file; incomplete-source recovery is isolated and cannot override successful semantics; and the complete repository, documentation, formatting, Clippy, and diff gates pass.</p><h3 id="completion-record-3">Completion Record</h3><p>Phase 2 satisfies the definition above. The complete repository matrix passes, including 2,557 library tests, 223 distributed installed-home tests, public examples, source-corpus tests, formatting, and warnings-denied Clippy. The matrix caught and permanently covered one missing instance-operator syntax identity that had removed generic owner substitutions from sequence expansion lowering.</p><h2 id="phase-3-control-flow-mir">Phase 3: Control-Flow MIR</h2><h3 id="goal-4">Goal</h3><p>Replace AST-shaped buildability and backend lowering with one checked control-flow representation. MIR owns places, operands, rvalues, basic blocks, terminators, loans, initialization state, and explicit drops. Source AST remains an input to typed-HIR-to-MIR construction and source spans remain diagnostic metadata; neither may determine backend semantics after MIR construction.</p><h3 id="migration-order">Migration Order</h3><ol><li>1. Introduce typed local and basic-block identities, the MIR body model, and a structural verifier.
-   Cover deterministic construction, valid control flow, invalid targets, terminator completeness,
-   and local/projection validity before routing production code through it.</li><li>Migrate straight-line scalar evaluation and native control flow: local initialization,
-   assignment, return, <code>if</code>, loops, <code>break</code>, <code>continue</code>, and short-circuit operations.</li><li>Represent calls and outcome edges explicitly, then migrate optional/fallible propagation,
-   <code>catch</code>, and <code>otherwise</code> without terminal/nonterminal lowering variants.</li><li>Add aggregate places and projections, moves, borrows, loans, initialization/drop flags, and
-   explicit cleanup edges. Migrate records, variants, arrays, fields, indexing, and destructors.</li><li>Migrate regions, closures, typed literals, interpolation, collection expansion, and iteration.
-   Lower MIR to the existing machine IR and delete each AST-driven lowering family when its MIR
-   route becomes authoritative.</li></ol><h3 id="completion-record-4">Completion Record</h3><ul><li><code>mir</code> owns body-local <code>LocalId</code>, <code>BasicBlockId</code>, and <code>ScopeId</code> domains, typed scalar locals,
-  places, constants, copy operands, arithmetic and comparison rvalues, assignments, <code>Goto</code>,
-  <code>Switch</code>, direct <code>Call</code>, failure propagation, loops, and <code>Return</code>.</li><li>MIR locals retain <code>LocalSymbolId</code> for parameters and bindings, <code>ExprId</code> for temporaries, <code>TyId</code>
-  for checked type equality, and independent checked representation, ownership, logical-storage,
-  source-origin, and lexical-scope contracts. Basic blocks retain the same validated <code>ScopeId</code>
-  tree; MIR parameter storage is a source ordinal, while machine-local and parameter ABI indexes
-  are projected only while lowering MIR to machine IR.</li><li>One backend parameter projection maps those ordinals to scalar ABI word positions or aggregate
-  staging slots. A parameter after a multiword value no longer relies on ordinal/ABI-index
-  coincidence.</li><li>Copy aggregate parameters now remain aggregate MIR locals. Checked field selection becomes a
-  typed <code>ProjectionPath</code>, and MIR-to-machine-IR maps that path onto the parameter's ABI staging
-  slot. Scalar field reads therefore no longer recover an aggregate member from source AST.</li><li>MIR construction receives one immutable compile-unit semantic input bundle. Aggregate layout
-  follows the shared source-resolution map, so fields following cross-source aggregate members use
-  the same layout authority as function ABI classification.</li><li>Copy aggregate parameters can flow through MIR calls as whole-place arguments. Backend
-  projection preserves the validated direct/indirect ABI classification; indirect stack-backed
-  arguments also disable tail-call frame reuse instead of leaking an address into a destroyed
-  caller frame.</li><li>MIR call edges retain a semantic callable instance made from canonical <code>DefId</code>, optional concrete
-  receiver <code>TyId</code>, and ordered concrete type-argument <code>TyId</code> values. Runtime symbol spelling stays
-  in the backend index, and buildability uses the same canonical instance-key projection instead of
-  a competing <code>DefId -&gt; name</code> map. Direct and nested generic calls therefore cannot collide across
-  monomorphizations.</li><li>Method calls now enter that same edge. Typed HIR retains the method's concrete receiver parameter
-  <code>TyId</code>; MIR passes view receivers as views, models aggregate receiver borrows as ordinary loans,
-  and moves owned receivers through the existing operand path. Generic instance methods and
-  concrete receiver specializations consequently share one backend target projection.</li><li>Calls through closure and generic callable values retain callable type <code>TyId</code> plus capability as
-  a closed semantic identity. Their receiver parameter type is fixed during type checking, and the
-  shared instance registry alone projects the callable identity to its monomorphized runtime name.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
-  as whole-place call arguments. ABI projection maps the source ordinal to the existing borrow
-  parameter word; one IR-level frame-dependence predicate prevents both borrow and indirect
-  aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Borrow bindings over stored scalar identifiers create explicit <code>Loan</code> records and <code>BeginLoan</code>
-  statements. Cleanup derives <code>EndLoan</code> statements from lexical scope exits on the CFG, before
-  backend projection materializes the borrow pointer; loan lifetimes are not inferred from AST
-  block endings or kept as backend-only local metadata.</li><li>Copy aggregate call results may initialize MIR locals and feed checked field projections. The
-  backend derives local aggregate slots after retained parameter/outcome slots, reserves them from
-  the aggregate's checked ABI layout, and uses the same location projection for field reads and
-  whole-place call arguments. Local forwarding preserves direct/indirect ABI classification from
-  the checked <code>TyId</code> instead of treating only parameters as aggregate storage.</li><li>Nested checked member selections build parent-linked MIR projection paths from the root local to
-  the selected field. Backend lowering folds relative layout offsets along that path, so nested and
-  cross-source aggregate access does not flatten or rediscover source member syntax.</li><li>MIR scalar identity now covers every built-in integer. Narrow and wide integer parameters,
-  constants, arithmetic, shifts, comparisons, calls, aggregate-field loads, and plain or fallible
-  returns project to the existing machine IR without returning to AST lowering.</li><li><code>u8</code> retains a dedicated MIR scalar representation because the current machine IR gives it
-  dedicated locations and calls. One parameter projection now maps it to the <code>U8</code> ABI slot rather
-  than pretending it occupies the generic-integer slot; all ten integer types therefore reach the
-  MIR route without a hidden storage exception.</li><li>The structural verifier rejects missing locals and blocks, type or scalar-representation drift,
-  invalid local or scope contracts, non-boolean conditions, invalid control-flow targets, and
-  malformed loop regions before machine IR is produced.</li><li>A fixed-point definite-initialization verifier checks reachable operands and returns. Branch joins
-  intersect initialized sets, while fallible calls initialize their destination only along the
-  success edge.</li><li>Initialization and drop-obligation state is place-sensitive rather than local-sensitive. Whole
-  roots, explicitly initialized projections, and invalidated projections remain distinct, so a
-  partial move preserves sibling fields, prevents a later whole-value move, and survives CFG joins
-  without flattening the aggregate into one bit.</li><li>Owned values and borrows now have independent path-sensitive MIR domains. Explicit drop edges
-  are checked with may-live and must-live obligations; <code>LoanId</code> plus begin/end statements detect
-  alias conflicts, moves or mutations while borrowed, and loans that cross an exit.</li><li>Loan conflicts compare projected-place overlap rather than only root-local equality. Root/child
-  and ancestor/descendant accesses conflict, while distinct fields may carry independent mutable
-  loans; unresolved index aliasing remains conservatively overlapping.</li><li>Aggregate places use typed, parent-linked <code>ProjectionPathId</code> records for fields and indexes. The
-  verifier rejects scalar bases, forward parents, base drift, invalid index operands, and place
-  references outside the body's projection arena.</li><li>Definite-initialization retains per-edge and per-exit states. A dedicated cleanup pass combines
-  them with the validated scope tree and materializes explicit <code>Drop</code> chains without walking AST
-  blocks or flattening outcome success and failure into one state.</li><li>Cleanup selects whole owned roots when available and maximal remaining owned projections after a
-  partial move. This prevents both whole-value destruction of moved storage and loss of sibling
-  field destructors.</li><li>Primitive lowering now uses a closed <code>IntrinsicId</code> after resolution. Pointer, view, process,
-  allocation, I/O, and syscall operations no longer select backend behavior with string equality.</li><li>Every executable body is built and validated through MIR. A construction or validation failure
-  is authoritative; no AST-driven buildability or machine-IR fallback remains.</li><li>Value <code>if</code> and terminal <code>if</code> normalize to the same control-flow diamond with one return join.
-  The same conditional builder handles nested values inside arithmetic and call arguments, assigns
-  both child scopes into one destination place, and rejoins in the parent scope. Nested scalar
-  evaluation uses explicit MIR temporaries, so evaluation order is not reconstructed by backend
-  lowering.</li><li>Scalar calls, fallible success/failure edges, <code>while</code>, unconditional <code>loop</code>, and i32/usize range
-  loops now use the retained MIR body in both buildability and machine-IR lowering. Range setup
-  uses an explicit loop-scope preheader, and branch joins plus loop exits derive innermost-first
-  exited scopes from CFG block identities.</li><li>Scalar <code>otherwise</code> recovery is an ordinary MIR outcome failure branch that assigns the result
-  place and rejoins the success block. Machine lowering derives <code>OutcomeFailureMode::Recover</code> from
-  that edge shape for optional and fallible callees; it does not inspect the source expression.</li><li>Discarding scalar <code>catch _</code> uses the same recovery edge and creates no synthetic error local.
-  An unused named catch instead owns one logical <code>error</code> local initialized only by its failure
-  edge; late machine-storage projection expands that value into code and message views. Named
-  catches use typed <code>BuiltinErrorField</code> projections for code and message views, so those views may
-  flow into ordinary call arguments without exposing their machine offsets. Returning the complete
-  error payload uses the same logical MIR value and typed projections as failure returns.</li><li><code>str</code> is the first nonnumeric MIR view representation. String literals, source parameters,
-  ordinary calls, aliases, and returns keep logical locals while late storage projection assigns
-  their two ABI words; pointer borrows and string views are no longer conflated.</li><li>Boolean <code>&amp;&amp;</code> and <code>||</code> normalize to a MIR switch, a selected right-hand or constant
-  short-circuit path, and one join. Right-hand calls and failures therefore cannot be evaluated by
-  eager backend expression lowering.</li><li>Numeric negation and boolean inversion remain explicit unary MIR rvalues through structural
-  validation. Only machine-IR projection rewrites them to target-independent arithmetic or boolean
-  values, preventing invalid operator/scalar combinations from reaching code generation.</li><li>Exact and typechecked-lossless integer <code>as</code> expressions become MIR casts with explicit source
-  and target types. MIR validation independently rejects narrowing or signed-to-unsigned drift;
-  machine projection performs sign/zero extension without re-reading conversion syntax.</li><li>Scalar <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, and <code>%=</code> normalize to ordinary MIR binary rvalues whose left
-  operand and destination are the same place. Backend lowering no longer maintains a separate
-  compound-assignment semantic path for MIR-routed integers.</li><li>One construction-only <code>LoweringContext</code> owns locals, semantic-symbol bindings, projections,
-  scopes, loop regions, and the open CFG. Statement, expression, conditional, and outcome
-  lowering mutate that authority directly instead of threading and potentially desynchronizing
-  parallel state references through every recursive lowering call.</li><li>Scalar value blocks use one statement-plus-tail normalization path in conditional branches and
-  outcome recovery. Leading bindings and nested conditionals no longer fall back to an AST route;
-  backend structuring discovers the nearest shared MIR join recursively rather than requiring a
-  one-block failure path.</li><li>Outcome recovery distinguishes implicit values from explicit returns in MIR. An explicit return
-  writes function return storage and exits instead of being assigned at the recovery join.</li><li>Backend projection preserves one return after a shared terminal join. Redundant tests that fixed
-  legacy AST-lowering temporary numbers or nested instruction shape were removed; MIR construction
-  tests retain short-circuit and evaluation-order semantics, while representative backend tests
-  retain the projection boundary.</li><li><code>Drop</code> now names a body-local semantic destruction plan. Plans contain destructor <code>DefId</code>s and
-  recursive struct or fixed-array structure, never linker names or machine-IR call targets.
-  Backend projection alone selects runtime symbols and ABI offsets.</li><li>Owned aggregate parameters enter MIR, receive path-sensitive cleanup edges, and lower
-  direct, recursively contained, and reverse-order array element destruction from those plans.
-  A move-only type with no runtime destructor retains a no-op plan so ownership consumption is not
-  confused with emitted cleanup code. Payload enums and outcome storage use the same plan domain.</li><li>MIR validation rejects missing or mismatched local/projection plans, invalid terminator plan
-  references, and forward or cyclic plan references.</li><li>Scalar-field struct literals now use an aggregate MIR rvalue. Construction reserves its checked
-  ABI slot, stores fields in resolved declaration order, activates the ownership obligation, and
-  reaches the same semantic cleanup plan as owned parameters. Branch and loop structuring follow
-  cleanup <code>Goto</code>/<code>Drop</code> chains instead of assuming syntax-shaped direct edges.</li><li>Aggregate construction now records scalar leaves under semantic field/index paths rather than
-  embedding ABI offsets in MIR. Nested struct and fixed-array literals share this representation;
-  validation rejects empty or duplicate leaf paths, and only backend projection computes offsets.</li><li>Struct and fixed-array construction is now staged explicitly: <code>BeginAggregate</code> reserves logical
-  storage, projected assignments initialize fields in evaluation order, and <code>FinishAggregate</code>
-  consolidates completed children into their parent. If a later field propagates failure, ordinary
-  place-state cleanup drops only completed owned children; AST-era runtime live flags and the
-  atomic aggregate rvalue have been removed from this route.</li><li>Borrow bindings over aggregate fields now create loans from projected MIR places; backend
-  storage projection alone converts those places to slot offsets. Owned aggregate call arguments
-  use explicit move operands, transferring initialization and drop obligations at the call edge.</li><li>Direct scalar and aggregate-field borrow arguments now materialize the same temporary MIR loan
-  as stored borrow bindings. A one-definition/one-use backend projection elides only the machine
-  borrow slot, preserving the checked loan without adding runtime work.</li><li>Fixed-array element borrows now use <code>ProjectionElement::Index</code> in production MIR. The checked
-  projection retains its <code>usize</code> operand, array length, and element stride; backend projection
-  emits the existing bounds-checked aggregate address for constant and dynamic indexes. Array
-  fields and root arrays therefore share the same place and loan analyses.</li><li>Fixed-array scalar reads, assignments, and compound assignments now use that same index place.
-  MIR validation checks the projected destination contract rather than the aggregate root type;
-  one backend scalar projection emits field or bounds-checked index loads and stores for every
-  built-in scalar representation.</li><li>Lexical allocation regions now have body-local <code>RegionId</code> records containing their scope,
-  allocator capability, parent place, and saved allocation-context locals. MIR cleanup inserts
-  <code>ExitRegion</code> on every scope-exiting CFG edge after owned-value cleanup; backend lowering no
-  longer walks <code>RegionStmt</code> blocks or maintains a parallel region-cleanup stack for routed bodies.</li><li>Generic destructor plans keep semantic <code>DefId</code> identity plus the concrete <code>TyId</code>; a dedicated
-  backend index selects the corresponding monomorphized symbol without putting that symbol in MIR.</li><li>Payload-variant construction retains the selected variant definition and semantic payload paths
-  in MIR. Enum cleanup tests the stored tag and recursively destroys only the active payload.
-  Optional and fallible cleanup retains ordered outcome layers plus a typed payload plan; backend
-  projection derives offsets from the shared outcome storage layout.</li><li>Named-field moves retain projected place identity through calls. MIR expands the owned sibling
-  projection tree before the partial move, and cleanup destroys only the remaining live fields.
-  Machine IR addresses the selected aggregate range directly rather than staging a copy.</li><li>Value-block tails distinguish implicit results from explicit returns. Outcome recovery can now
-  either assign its call destination and rejoin success or write function return storage and
-  terminate; machine-IR failure modes derive that distinction from reachability.</li><li>Effect-only calls use destination-free MIR continuations. Plain <code>void</code> calls have one successor;
-  fallible <code>void!</code> calls retain distinct success and failure edges for trapping or propagation.
-  Initialization, ownership, loans, cleanup, and backend projection consume those same edges
-  without inventing a scalar result local.</li><li>Plain aggregate literal and call returns now use aggregate MIR return locals. MIR retains value
-  ownership without encoding direct or indirect return passing; machine-storage projection alone
-  selects <code>DirectReturn</code> or the indirect return pointer. Direct literals write return registers
-  without a staging slot, and eligible aggregate calls remain tail calls.</li><li>Conditional value blocks use one representation-independent MIR builder. Scalar, string-view,
-  and aggregate branches assign the same logical destination and retain child scopes, calls,
-  ownership cleanup, and nested conditionals without selecting separate AST-shaped return
-  implementations. Shared post-branch cleanup executes once after the join.</li><li>Stored optional, fallible, and composed-outcome call results now enter aggregate MIR locals. The
-  checked body retains the outcome's semantic <code>TyId</code>; only machine-IR projection derives recursive
-  tag, error, and payload storage from the shared outcome layout authority. MIR does not encode
-  ABI offsets or introduce a second outcome-layout model.</li><li>One semantic <code>InspectOutcome</code> terminator now owns stored single-layer optional/fallible recovery,
-  propagation, trapping, and catch edges. Definite initialization, cleanup, drop obligations, and
-  loans consume those edges directly. A dedicated backend projection derives tag, error, and
-  payload offsets and emits the existing machine-IR inspection operations without consulting AST.</li><li>Stored optional and composed-outcome forwarding now uses an ownership-aware <code>ReturnOutcome</code> MIR
-  edge. Validation checks the source operand's aggregate representation and copy/move contract;
-  backend projection independently verifies the callable result shape before emitting recursive
-  outcome ABI unpacking. Whole-place aggregate copies use the same checked local/location boundary.</li><li>Static and evaluated <code>error.new(code, message)</code> failure returns now terminate MIR with logical
-  string-view operands. Evaluation order, initialization, loans, and cleanup are checked before
-  backend projection emits <code>ReturnFallibleFailure</code>; the backend no longer parses constructor AST
-  for this route.</li><li>Buildability now walks reachable MIR call instances and validates the retained body used by
-  machine-IR projection. Static error helpers are classified from checked MIR rather than by a
-  special AST body parser.</li><li>Closures, typed literals, interpolation, expansion, iteration, composed outcomes, aggregate
-  indexing, and specialized calls all use the same production MIR route.</li><li>The temporary feature routers and AST-driven buildability and lowering families were deleted.
-  Machine-IR projection reads checked MIR and uses source blocks only at the separate cache/build
-  boundary; it never inspects source expressions or statements for execution semantics.</li><li>The complete verification matrix passes after the migration, including 2,028 library tests and
-  223 distributed installed-home tests, formatting, warnings-denied Clippy, documentation
-  generation, and diff checks.</li></ul><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="phase-4-backend-convergence">Phase 4: Backend Convergence</h2><h3 id="goal-5">Goal</h3><p>Make checked types and finalized MIR the only semantic inputs to native storage projection. Phase 4 does not change the language or calling convention. It removes parallel representations at the MIR-to-machine boundary so buildability, machine IR, and the backend cannot independently classify the same callable, integer operation, parameter, or aggregate access.</p><h3 id="completion-record-5">Completion Record</h3><ul><li><code>IntrinsicId</code>, introduced before this phase while completing executable MIR coverage, remains the
-  closed primitive-operation domain. Backend lowering receives an intrinsic identity and never
-  selects compiler authority by comparing a source function name.</li><li><code>AbiTypeContract</code> is the shared checked-type boundary for <code>void</code>, <code>never</code>, <code>error</code>, and ordinary
-  ABI values. Both buildability and machine-IR lowering obtain MIR return representation from the
-  same <code>CallableReturnContract</code> projection.</li><li>The specialized declared type produces one return contract containing representation, return
-  mode, and ordered outcome layers. MIR builders accept that contract as one value and bind its
-  layers to the normalized payload <code>TyId</code>; callers no longer repeat those facts in parallel
-  arguments.</li><li>Each machine-IR body owns a <code>TypeProjection</code> cache keyed by <code>TyId</code>. ABI value and outcome layout
-  queries for MIR locals flow through that cache rather than repeatedly resolving source types in
-  unrelated lowering branches.</li><li>Native integer instructions carry one <code>IntegerBinaryOperator</code> under their storage class. The 21
-  former type-and-operation variants were removed, and backend arithmetic dispatch shares the same
-  operator projection for <code>i32</code>, <code>u8</code>, <code>usize</code>, and the canonical-width integer path.</li><li>Parameter lowering records the ABI storage selected for each source ordinal when it creates the
-  signature. MIR-to-machine projection consumes that ordinal table directly; it no longer
-  reconstructs parameter storage by matching source names across parallel word arrays.</li><li>Aggregate scalar load/store instruction selection lives in one aggregate projection module. A
-  validated <code>AggregateRange</code> carries the location, byte offset, and optional checked index, so
-  field access, indexed access, initialization, and projected writes do not maintain separate
-  scalar type switches.</li><li>The removed integer variants, name-based parameter rematching, direct machine-body ABI/outcome
-  resolvers, and split MIR return-builder contract have no production callers.</li><li>The complete compiler regression matrix, public examples, source corpus, documentation build,
-  formatting, warnings-denied Clippy, and diff checks pass without changing public behavior.</li></ul><h3 id="completion-definition-5">Completion Definition</h3><p>Phase 4 is complete when primitive operations have typed identity before backend dispatch; one checked-type projection owns callable representation and ABI layout; body-local type projection is cached by <code>TyId</code>; integer and aggregate instruction selection have one type-directed boundary; source parameter ordinals map directly to their ABI storage; MIR builders receive one return contract instead of parallel facts; removed variants and adapters have no production references; and the complete verification gates pass.</p><h2 id="phase-5-semantic-convergence">Phase 5: Semantic Convergence</h2><h3 id="goal-6">Goal</h3><p>Finish the migration by removing the remaining places where source locations, rendered type text, or repeated AST interpretation still act as successful-program semantics. Phase 5 is an internal architecture phase. It does not change language syntax, the native ABI, or published v0.13.0 artifacts, and it does not publish v0.14.0.</p><h3 id="authority-boundaries">Authority Boundaries</h3><ul><li>Checked expression and statement decisions use <code>ExprId</code> and <code>StmtId</code>. <code>ByteSpan</code> remains only a
-  source-location projection for diagnostics and editor features.</li><li>A monomorphized callable has one structured <code>MonoItemId</code>. Canonical type structure selects that
-  identity; formatted type text and progressively less-specific fallback keys cannot select code.</li><li>Type checking owns local type, value-category, copy/move intent, borrow capability, and
-  provenance decisions. MIR owns control-flow-sensitive initialization, moves, active loans,
-  cleanup, and destruction. MIR construction consumes checked decisions rather than inferring
-  them again from names or AST shape.</li><li>Machine-IR storage projection consumes tagged ABI bindings and reusable instruction operand and
-  effect views. Generic backend analyses do not each enumerate the complete instruction set.</li><li>Production MIR construction requires its checked callable return contract. Tests may use an
-  explicit test builder, but optional production input and contextual fallbacks are removed.</li></ul><h3 id="work-order-2">Work Order</h3><ol><li>1. Add statement identity to the semantic database and move all executable compatibility facts in
-   <code>TypedHir</code> from <code>ByteSpan</code> keys to <code>ExprId</code> or <code>StmtId</code>. Migrate type checking, analysis,
-   buildability, and MIR consumers, then prevent new span-keyed semantic fact collections.</li><li>Introduce a structural canonical type key and <code>MonoItemId</code> registry. Move callable, drop, and
-   literal instance selection to exact structured keys; delete rendered-type equality and
-   unqualified or missing-type-argument fallback indexes.</li><li>Record checked ownership operations by semantic identity and define the handoff to MIR. Remove
-   duplicate name/span-based execution inference while preserving diagnostics for checked but
-   non-buildable source.</li><li>Replace parallel optional ABI parameter arrays with tagged bindings. Centralize generic
-   instruction operand/effect traversal, bind primitive identity before MIR lowering, and require
-   declared return contracts in the production MIR API.</li><li>Split implementation files only where the preceding changes create a new responsibility. Run
-   focused regression tests after each boundary, then the complete repository, installed-home,
-   examples, corpus, documentation, formatting, warnings-denied Clippy, and diff gates.</li></ol><h3 id="completion-definition-6">Completion Definition</h3><p>Phase 5 is complete only when production semantic maps no longer key executable facts by <code>ByteSpan</code>; monomorphized selection never compares rendered types or tries a less-specific fallback; the type-checker/MIR ownership handoff names one owner for every decision; generic machine-IR analyses consume centralized instruction views; ABI parameter bindings cannot express misaligned parallel arrays; production MIR construction cannot omit its return contract; removed adapters have no callers; architecture regression tests protect these boundaries; and the complete verification matrix passes. Publication and release qualification are separate, explicitly authorized work after this phase.</p><h3 id="completion-record-6">Completion Record</h3><ul><li><code>SemanticDb</code> assigns <code>StmtId</code> alongside <code>BodyId</code> and <code>ExprId</code>. Checked expression plans use
-  <code>ExprId</code>, checked statement plans use <code>StmtId</code>, and non-expression syntax sites use an explicit
-  <code>SemanticSiteId</code> arena whose span index is only an input projection. No checked executable fact
-  collection uses a source range as semantic equality.</li><li><code>TypeIdentity</code> is a span-free structural key for every source type form used by specialization,
-  including callable capability, provenance, opaque witnesses, projections, outcome layers, and
-  closure captures. <code>CallInstanceKey</code> and body specialization use this structure, and one
-  <code>MonoItemRegistry</code> interns exact keys as <code>MonoItemId</code> values.</li><li>Buildability and machine lowering use exact specialization keys. Receiver-unqualification,
-  missing-type-argument, runtime-name, and method-alias fallback indexes were deleted. Linkage
-  strings are produced only after a semantic instance has been selected.</li><li>Generic type substitution and dispatch specialization are separate operations. Once a receiver
-  is concrete, one compile-unit query rebinds an interface requirement <code>DefId</code> to its conformance
-  method <code>DefId</code>; interface identity is compared by <code>DefId</code>, never by resolver-relative canonical
-  spelling. Instance-owner type parameters remain in the receiver key, while only method-owned
-  parameters occupy call type-argument slots.</li><li>The source ownership checker remains the sole user-visible authority for copy/move intent,
-  borrow capability, and provenance. Its place and provenance dataflow roots use <code>LocalSymbolId</code>;
-  equal source names or edited locations cannot merge shadowed bindings. Finalized MIR consumes
-  those decisions and independently verifies CFG-sensitive initialization, moves, loans, cleanup,
-  and destruction without defining a second acceptance policy.</li><li>Machine ABI parameters use one tagged ABI-word sequence plus a source-ordinal storage projection.
-  The eight parallel optional word arrays and unused name/borrow side tables were deleted, so a
-  word cannot acquire several incompatible binding kinds or drift out of alignment.</li><li>One exhaustive machine-instruction effect view owns call targets, call operands, outgoing ABI
-  word counts, nested control-flow bodies, and failure-handler bodies. Reachability and frame
-  outgoing-argument analysis traverse that view rather than maintaining separate complete
-  instruction enumerations.</li><li>Recognized primitive declarations bind their closed <code>IntrinsicId</code> in <code>SemanticDb</code>. MIR lowering
-  no longer derives an intrinsic from a resolver symbol name. Unknown primitive spellings have no
-  compiler role.</li><li>Production <code>BuildInputs</code> requires a declared return <code>TyId</code>. Missing return contracts stop MIR
-  construction at the buildability or lowering boundary; contextual expression types cannot stand
-  in for a callable ABI contract. Tests also pass the authored declaration type explicitly, except
-  for the isolated scalar test helper that derives it before calling the production builder.</li><li>Static error payload indexing obtains checked MIR through the same cache-or-build boundary as
-  ordinary lowering. It no longer depends on another traversal having populated the body cache
-  first, so buildability and IR projection are independent of callable discovery order.</li><li>Architecture regressions cover statement identity, structural specialization, exact registry
-  lookup, distinct shadowed ownership/provenance roots, tagged multiword ABI slots, nested
-  instruction traversal, imported and failure-path reachability, primitive binding, and explicit
-  outcome-success returns.</li><li>The complete compiler, distributed-home, public-example, source-corpus, documentation,
-  formatting, warnings-denied Clippy, and diff matrix passes. No public language or ABI behavior
-  changed, and no v0.14.0 artifact was published.</li></ul>
+                <h1 id="v0-14-0-specification-first-compiler-rewrite">v0.14.0: Specification-First Compiler Rewrite</h1><h2 id="goal">Goal</h2><p>Build a new Nocter compiler from the public specification without consulting, executing, copying, or behavior-matching the previous compiler. v0.14.0 is not released until the specification is closed, the new architecture has one authority for each semantic decision, and the required public language, standard-library, CLI, editor, and native-runtime contracts are implemented.</p><h2 id="rewrite-rules">Rewrite Rules</h2><ul><li><code>spec/</code> is the sole source of public behavior.</li><li>A missing observable rule blocks implementation and requires a user decision.</li><li>The archived compiler, its tests, its diagnostics, and released behavior are not oracles.</li><li>Existing standard-library implementation details are not bootstrap semantics.</li><li>New responsibilities receive new files or crates with acyclic dependencies.</li><li>Compatibility adapters, fallback selection, reverse semantic lookup, and duplicate program
+  indexes are prohibited.</li><li>A phase cannot complete while its superseded authority remains active.</li></ul><h2 id="phase-0-isolation-and-specification-audit">Phase 0: Isolation and Specification Audit</h2><p>Phase 0 removes the previous compiler from the active tree, establishes the rewrite rules, and audits every specification chapter. Each gap is classified as:</p><ul><li>derivable from an existing normative rule</li><li>an internal implementation freedom</li><li>explicitly deferred scope</li><li>a user-visible ambiguity requiring a decision</li></ul><p>The phase stops for each user-visible ambiguity. The decision is written to the owning chapter and receives valid, boundary, and invalid conformance cases before the audit continues.</p><h3 id="grammar-gate">Grammar Gate</h3><p>Before compiler code begins, the specification must define complete lexical and syntactic grammar for source files, directives, declarations, types, requirements, statements, expressions, patterns, operators, literals, construction, instances, conformances, and tests.</p><h2 id="phase-1-source-and-syntax">Phase 1: Source and Syntax</h2><p>Introduce source storage, tokenization, parsing, syntax diagnostics, immutable syntax trees, and source projections from the closed grammar. No semantic crate exists in this phase.</p><h2 id="phase-2-declarations-and-structural-types">Phase 2: Declarations and Structural Types</h2><p>Introduce package, module, declaration, callable, generic-parameter, body, and structural type identities. Resolve headers into one compile-unit declaration graph and type store. Source ranges and rendered names cannot enter semantic identity.</p><h2 id="phase-3-checked-program">Phase 3: Checked Program</h2><p>Implement name resolution, type checking, generic requirements, conversions, dispatch contracts, ownership, borrowing, provenance, regions, destruction, outcomes, and compiler-generated semantic operations in body-owned checked HIR.</p><h2 id="phase-4-executable-program-and-mir">Phase 4: Executable Program and MIR</h2><p>Instantiate one entry-driven monomorphized program graph, resolve concrete conformance dispatch once, and lower it to validated MIR with explicit control flow, calls, moves, loans, regions, and cleanup.</p><h2 id="phase-5-machine-program-and-native-target">Phase 5: Machine Program and Native Target</h2><p>Project MIR through the specified ABI into target-independent machine operations, deterministic linkage, ARM64 encoding, and Mach-O output. Code generation cannot access syntax, resolver state, or runtime names as semantic input.</p><h2 id="phase-6-tooling-packages-and-standard-library">Phase 6: Tooling, Packages, and Standard Library</h2><p>Implement formatting, JSON structures, package commands, testing, LSP snapshots, semantic presentation, and newly authored standard-library source from their specification contracts.</p><h2 id="completion-definition">Completion Definition</h2><p>v0.14.0 is complete only when:</p><ul><li>every implemented public behavior traces to one normative specification section</li><li>no unresolved observable ambiguity remains</li><li>the complete grammar and semantic conformance suites pass</li><li>public examples and newly authored standard-library packages check and run</li><li>CLI and editor contracts pass protocol-level tests</li><li>native ABI and runtime behavior pass target conformance tests</li><li>source and declaration ordering cannot change semantic or machine results</li><li>later phases cannot import representations owned by earlier phases to repeat decisions</li><li>no archived implementation source, test, output, or compatibility path exists in the active tree</li><li>clean builds are deterministic and full verification passes</li></ul><p>Publication and release qualification require separate explicit authorization after this milestone is complete.</p>
             </div>
         </main>
     </div>

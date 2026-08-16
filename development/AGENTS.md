@@ -1,104 +1,95 @@
 # Nocter Development Agent Rules
 
-These rules apply to work under `development/` and long-running compiler sessions.
+These rules apply to work under `development/` during the specification-first compiler rewrite.
 
 ## Session Start
 
-Before compiler changes, read:
+Before rewrite work, read:
 
 - `../README.md`
 - `../spec/README.md`
 - `README.md`
 - `TODO.md`
-- `docs/README.md`
+- `compiler/README.md`
 - `milestones/README.md`
+- `milestones/v0.14.0.md`
 - `docs/architecture.md`
-- `docs/region-provenance.md`
-- the focused design document for the area being changed
 - `docs/maintenance.md`
 
 Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
 rewrite them.
 
-## Milestone State
+## Specification-First Isolation
 
-Do not record mutable version status in this instruction file. Read [TODO.md](TODO.md) for the next
-task, [milestones/](milestones/README.md) for active candidate scope and qualification, and
-[releases/](releases/README.md) for frozen compiler release evidence. Use exact version numbers;
-never use `v0` as shorthand for a release scope.
+The compiler preserved by commit `f6c08da3` is historical evidence, not a design input. During the
+rewrite:
 
-## Engineering Priority
+- do not read, restore, copy, port, execute, or depend on the archived compiler source
+- do not use archived compiler tests, diagnostics, generated structures, or runtime behavior as a
+  language oracle
+- do not infer missing behavior from published binaries or historical implementation documents
+- do not copy the previous standard-library implementation to bootstrap compiler behavior
+- derive public behavior only from `spec/` and external platform standards explicitly cited by it
 
-Prefer long-term maintainability over small diffs. Do not add logic to a busy file when a focused
-module gives the responsibility a stable name and API.
+Historical milestone and release records may be consulted only for release-history work explicitly
+requested by the user. They are never evidence for language semantics or new compiler structure.
 
-Inside `compiler/src/`:
+## Specification Closure
 
-- `ast/` owns syntax tree data.
-- `resolve/` owns imports, scopes, symbols, visibility, and name lookup.
-- `typecheck/` owns type, generic, ownership, borrow, and drop semantics.
-- `analysis/` exposes compiler-backed query results for tooling.
-- `ir/` owns explicit lower-level compiler representation.
-- `abi/` owns data layout and call/return classification.
-- `backend/` and `target/` own code generation and binary output.
-- `diagnostics/` owns structured diagnostics and rendering.
-- `driver/` owns CLI and protocol orchestration.
-- `driver/lsp/` owns editor protocol behavior and must reuse `analysis` facts.
+Do not guess when the specification permits materially different user-visible behavior. Instead:
 
-When a new concept does not fit an existing responsibility, create or propose a focused module before
-adding broad logic to an existing file.
+1. identify the exact conflicting or incomplete normative text
+2. provide a minimal Nocter program that distinguishes the alternatives
+3. compare the alternatives against the design principles
+4. recommend one alternative with concrete consequences
+5. ask the user to decide
+6. record the decision in English in the owning `spec/` chapter
+7. derive valid, boundary, and invalid conformance cases from the adopted rule
 
-## Refactoring Policy
+Internal choices that cannot affect accepted programs, diagnostics required by the specification,
+observable execution, ABI, CLI behavior, or editor contracts do not require a language decision.
 
-Refactor before feature work when:
+## New Compiler Boundaries
 
-- one file mixes transport, semantic analysis, and presentation
-- one function must know details from several compiler phases
-- a feature would copy AST traversal, lookup, type formatting, or drop logic
-- tests require full-pipeline setup because no narrow production API exists
-- a module name no longer describes most of its contents
+The new compiler is built as an acyclic sequence of authorities:
 
-Keep structural changes and behavior changes in separate commits when practical.
+```text
+source -> syntax -> declarations and types -> checked program
+       -> executable program -> MIR -> machine program -> code generation
+```
 
-## Documentation Updates
+Source locations are diagnostic and editor projections, never semantic identity. Semantic types do
+not contain source syntax or rendered names. Dispatch is selected once, monomorphized items form one
+program graph, and later stages cannot repeat earlier decisions.
 
-Update only the owner of the changed fact:
+Create a focused file or crate for every new responsibility. Do not introduce compatibility
+adapters to archived concepts, fallback lookup, name-based semantic equality, or parallel indexes.
 
-- `TODO.md`: next concrete task, blockers, uncommitted handoff state
-- `milestones/<version>.md`: active candidate status, completion gate, scope, non-goal, or
-  qualification
-- `releases/<version>.md`: frozen compiler qualification evidence for a published release
-- `docs/architecture.md`: phase/module responsibility or data flow
-- `docs/region-provenance.md`: region, storage-origin, allocation-effect, or callable-summary design
-- `docs/typed-literals.md`: literal shape, definition, element-pack, or per-literal context design
-- `docs/iteration.md`: readonly/owned iteration, element access, transient shift, or iterator LSP
-  design
-- `docs/iterator-composition.md`: capability sets, conditional conformance, adapters, or collection
-  builder design
-- `docs/callable-default-methods.md`: method generics, interface default methods, closure ownership,
-  callable specialization, or chainable iterator design
-- `docs/interpolation.md`: interpolation runtime binding, formatting, evaluation, cleanup, or LSP
-  design
-- `docs/provenance-contracts.md`: explicit result-origin contracts, interface bounds, static bound
-  dispatch, or their editor integration
-- `docs/allocator-ownership.md`: allocator, ownership, drop, String/Vec invariants
-- `docs/standard-library.md`: distributed std runtime behavior
-- `docs/lsp.md`: editor capability or compiler-analysis contract
-- `docs/maintenance.md`: long-lived engineering policy
+## Documentation Ownership
 
-Do not append chronological logs or commit lists to design documents. Git owns history.
+- `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
+  behavior
+- `development/milestones/v0.14.0.md`: rewrite scope and completion gates
+- `development/docs/architecture.md`: new compiler dependency and authority boundaries
+- `development/TODO.md`: short-lived handoff and unresolved work
+- `development/releases/`: immutable published release evidence only
+
+Write public documentation in English. Edit source Markdown and regenerate the website with
+`node docs/build-docs.js`.
 
 ## Verification
 
-Use the narrowest test that proves the change, then prefer
-`./development/compiler/scripts/verify.sh` before commits that touch shared compiler behavior.
-Always run `git diff --check`.
+Until the new Cargo workspace exists, documentation checkpoints must run:
 
-Report what changed, what was verified, what remains uncommitted, and which unrelated files were left
-alone. If required verification cannot run, record the reason in the final response and in `TODO.md`
-when it affects the next session.
+```sh
+node docs/build-docs.js
+git diff --check
+```
+
+Once a compiler verification entry point is introduced, document it in `compiler/README.md` and
+run the narrowest authoritative test before the complete gate.
 
 ## Commit Checkpoints
 
-Commit each coherent verified chunk before continuing. Keep unrelated local changes unstaged. Prefer
-one behavior change plus tests and docs, or one behavior-preserving structural refactor.
+Commit each coherent verified boundary. A phase is not complete while an older authority or a
+temporary compatibility path remains. Passing tests do not replace an adversarial authority audit.

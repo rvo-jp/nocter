@@ -1,7 +1,0 @@
-// Invalid: range `for` requires matching integer bounds.
-func main(): i32 {
-    for i in "a"..<4 {
-    }
-
-    return 0
-}

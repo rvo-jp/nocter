@@ -1,9 +1,0 @@
-instance str {
-    pub method &self.extra(): usize {
-        return 0
-    }
-}
-
-func main(): i32 {
-    return 0
-}
