@@ -7,6 +7,7 @@ rewrite. Public language and standard-library behavior belongs exclusively in
 ## Active Documents
 
 - [Compiler Rewrite Architecture](architecture.md)
+- [Grammar Closure Audit](grammar-audit.md)
 - [Maintenance](maintenance.md)
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
@@ -22,6 +23,7 @@ not be consulted to determine new compiler structure or unspecified language beh
 |---|---|
 | Public language and standard-library behavior | `spec/` |
 | New compiler dependency and authority boundaries | `architecture.md` |
+| Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Rewrite scope and completion gates | `../milestones/v0.14.0.md` |
 | Next concrete work and blockers | `../TODO.md` |
 | Published qualification evidence | `../releases/` |
