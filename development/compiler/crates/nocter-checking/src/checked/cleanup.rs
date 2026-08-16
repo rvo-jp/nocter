@@ -1,4 +1,4 @@
-use nocter_model::{Arena, BodyNodeId, FieldId, TypeId};
+use nocter_model::{Arena, BodyNodeId, FieldId, PlaceId, TypeId};
 
 use super::PlaceRoot;
 
@@ -44,6 +44,7 @@ impl CleanupPath {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CleanupTarget {
     Path(CleanupPath),
+    Place { place: PlaceId, ty: TypeId },
     Value { node: BodyNodeId, ty: TypeId },
 }
 
@@ -51,6 +52,40 @@ pub enum CleanupTarget {
 pub struct CleanupAction {
     target: CleanupTarget,
     condition: CleanupCondition,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CleanupTiming {
+    /// Runs after child evaluation and before the node performs its outgoing control transfer.
+    BeforeTransfer,
+    /// Runs after right-hand-side and target evaluation, immediately before assignment storage.
+    BeforeStore,
+}
+
+/// One ordered cleanup event attached to an exact checked operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CleanupSchedule {
+    timing: CleanupTiming,
+    actions: Box<[CleanupAction]>,
+}
+
+impl CleanupSchedule {
+    pub(crate) fn new(timing: CleanupTiming, actions: impl Into<Box<[CleanupAction]>>) -> Self {
+        Self {
+            timing,
+            actions: actions.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn timing(&self) -> CleanupTiming {
+        self.timing
+    }
+
+    #[must_use]
+    pub const fn actions(&self) -> &[CleanupAction] {
+        &self.actions
+    }
 }
 
 impl CleanupAction {
@@ -69,29 +104,37 @@ impl CleanupAction {
     }
 }
 
-/// Cleanup actions keyed by the checked node whose outgoing edge runs them.
+/// Cleanup schedules keyed by the checked node that owns their exact execution point.
 #[derive(Debug)]
 pub struct CleanupTable {
-    actions: Arena<BodyNodeId, Box<[CleanupAction]>>,
+    schedules: Arena<BodyNodeId, Option<CleanupSchedule>>,
 }
 
 impl CleanupTable {
-    pub(crate) const fn new(actions: Arena<BodyNodeId, Box<[CleanupAction]>>) -> Self {
-        Self { actions }
+    pub(crate) const fn new(schedules: Arena<BodyNodeId, Option<CleanupSchedule>>) -> Self {
+        Self { schedules }
     }
 
     #[must_use]
-    pub fn get(&self, node: BodyNodeId) -> Option<&[CleanupAction]> {
-        self.actions.get(node).map(Box::as_ref)
+    pub fn schedule(&self, node: BodyNodeId) -> Option<&CleanupSchedule> {
+        self.schedules.get(node).and_then(Option::as_ref)
+    }
+
+    /// Returns the actions for a known node, including an empty slice when it has no schedule.
+    #[must_use]
+    pub fn actions(&self, node: BodyNodeId) -> Option<&[CleanupAction]> {
+        self.schedules
+            .get(node)
+            .map(|schedule| schedule.as_ref().map_or(&[][..], CleanupSchedule::actions))
     }
 
     #[must_use]
     pub const fn len(&self) -> usize {
-        self.actions.len()
+        self.schedules.len()
     }
 
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.actions.is_empty()
+        self.schedules.is_empty()
     }
 }

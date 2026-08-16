@@ -32,6 +32,7 @@ use crate::{
     plan_expected_type,
 };
 
+mod assignment;
 mod loops;
 use loops::LoopConstruction;
 
@@ -342,6 +343,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 result: false,
                 reaches_next: true,
             }),
+            NodeKind::AssignmentStatement => {
+                let node = self.check_assignment(executable)?;
+                Ok(CheckedExecutable {
+                    node,
+                    result: false,
+                    reaches_next: self.node_type(node)? != never,
+                })
+            }
             NodeKind::ReturnStatement => Ok(CheckedExecutable {
                 node: self.check_return(executable)?,
                 result: false,

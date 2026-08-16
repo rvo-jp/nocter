@@ -282,8 +282,8 @@
   valid specialization facts. Callable signatures never stand in for closure-environment
   ownership. <code>check_prepared_program</code> is now the production consuming boundary for the current
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  recursive-outcome, copy, named-field move, conditional, and while/infinite/integer-range loop
-  nodes. Semantic move paths track initialized
+  recursive-outcome, copy, named-field move, simple assignment, conditional, and
+  while/infinite/integer-range loop nodes. Semantic move paths track initialized
   parameter/local state independently of syntax, inherit field state from the nearest ancestor,
   preserve disjoint siblings, invalidate partially moved parents, and join only paths visible at a
   control-flow entry. Named-field selection is one visibility-aware authority that substitutes
@@ -309,7 +309,12 @@
   same state used for move validation. Normal exits, returns, breaks, and continues clean inner
   locals in reverse declaration order; return then cleans owned parameters. Maybe-initialized
   paths become conditional actions, moved paths disappear, partially moved structs expand to their
-  remaining fields, and discarded move-only values remain explicit value cleanup targets.
+  remaining fields, and discarded move-only values remain explicit value cleanup targets. Each
+  nonempty cleanup schedule declares either pre-transfer or pre-store timing. Simple assignment
+  uses the destination type as the RHS expectation, evaluates ownership effects on the RHS first,
+  and then reuses the partial-path cleanup planner and initialization transition for whole mutable
+  bindings, writable fields, and fields reached through readwrite borrows. Replacement therefore
+  cannot accidentally destroy the newly stored value or maintain a second reinitialization model.
   Explicit <code>drop name</code> uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>

@@ -397,10 +397,13 @@ number of fixed-point iterations from changing semantic identity or source proje
 
 Name resolution assigns each syntax block one exact body-scope identity and checked construction
 stores that identity on the block node. Ownership analysis therefore computes scope-exit edges
-without source containment queries. Its dense cleanup table is keyed by the node whose outgoing
-edge runs the action. Path actions retain only an owned root, exact field identities, type, and
-unconditional-or-conditional state; discarded owned temporaries name their checked value node.
-MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue.
+without source containment queries. Its dense cleanup table is keyed by the operation that owns
+the schedule. Each nonempty entry distinguishes cleanup immediately before control transfer from
+replacement cleanup immediately before assignment storage. Path actions retain only an owned
+root, exact field identities, type, and unconditional-or-conditional state; borrowed replacement
+actions retain an already evaluated place; discarded owned temporaries name their checked value
+node. MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue
+without inferring execution order from a control-operation variant.
 Explicit source `drop` is a checked control operation over the same owned root path. It attaches an
 unconditional action to that statement's outgoing edge and consumes the path state; it does not
 call a method, allocate hidden storage, or maintain a second explicit-destruction liveness table.
@@ -479,9 +482,11 @@ Checked division and remainder nodes retain signedness and width. Machine loweri
 signed-minimum/`-1` guards before either operation and cannot inherit a target's overflow result or
 remainder convention.
 Checked assignment and compound assignment each own one target-place plan and one right-hand-side
-expression; compound assignment additionally owns the selected numeric operation. MIR emits RHS
-evaluation before the place plan and emits that plan only once. No stage expands compound
-assignment into source-shaped duplicate target expressions.
+expression; compound assignment additionally owns the selected numeric operation. Simple named-
+place assignment already records old-value destruction as a `BeforeStore` cleanup schedule and
+uses the same ownership-state transition for reassignment, reinitialization, and partial-field
+repair. MIR emits RHS evaluation before the place plan and emits that plan only once. No stage
+expands compound assignment into source-shaped duplicate target expressions.
 
 Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
 use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation

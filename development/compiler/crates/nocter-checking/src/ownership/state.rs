@@ -134,6 +134,29 @@ impl OwnershipState {
         Ok(())
     }
 
+    /// Replaces one writable owned path after its right-hand side has completed.
+    ///
+    /// A field may repair its own partial state, but it cannot synthesize storage below an
+    /// unavailable parent. Replacing a complete path removes every more-specific partial fact.
+    pub(crate) fn assign(&mut self, path: &MovePath) -> Result<(), OwnershipStateError> {
+        let mut prefix = MovePath::root(path.root_identity());
+        for field in path.fields() {
+            let state = self.state_at(&prefix)?;
+            if state != InitializationState::Initialized {
+                return Err(OwnershipStateError::UnavailableAssignmentParent {
+                    path: prefix,
+                    state,
+                });
+            }
+            prefix = prefix.field(*field);
+        }
+        self.paths
+            .retain(|candidate, _| candidate == path || !path.is_prefix_of(candidate));
+        self.paths
+            .insert(path.clone(), InitializationState::Initialized);
+        Ok(())
+    }
+
     fn state_at(&self, path: &MovePath) -> Result<InitializationState, OwnershipStateError> {
         let mut current = Some(path.clone());
         while let Some(candidate) = current {
@@ -203,6 +226,10 @@ pub(crate) enum OwnershipStateError {
     DuplicatePath(MovePath),
     UnknownPath(MovePath),
     NotInitialized {
+        path: MovePath,
+        state: InitializationState,
+    },
+    UnavailableAssignmentParent {
         path: MovePath,
         state: InitializationState,
     },
@@ -329,5 +356,37 @@ mod tests {
                 state: InitializationState::MaybeInitialized,
             })
         );
+    }
+
+    #[test]
+    fn assignment_repairs_a_field_and_then_the_complete_parent() {
+        let root = local_path();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = root.field(fields.insert(()));
+        let _ = fields.finish();
+        let mut state = OwnershipState::default();
+        state.declare_initialized(root.clone()).unwrap();
+        state.move_out(&field).unwrap();
+
+        state.assign(&field).unwrap();
+
+        assert!(state.require_initialized(&field).is_ok());
+        assert!(state.require_initialized(&root).is_ok());
+    }
+
+    #[test]
+    fn field_assignment_cannot_recreate_a_moved_parent() {
+        let root = local_path();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = root.field(fields.insert(()));
+        let _ = fields.finish();
+        let mut state = OwnershipState::default();
+        state.declare_initialized(root.clone()).unwrap();
+        state.move_out(&root).unwrap();
+
+        assert!(matches!(
+            state.assign(&field),
+            Err(OwnershipStateError::UnavailableAssignmentParent { .. })
+        ));
     }
 }

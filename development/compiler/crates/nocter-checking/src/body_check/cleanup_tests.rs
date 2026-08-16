@@ -35,12 +35,14 @@ fn return_cleanup_reverses_locals_then_owned_parameters() {
         .unwrap();
     let roots = body
         .cleanups()
-        .get(return_)
+        .actions(return_)
         .unwrap()
         .iter()
         .map(|action| match action.target() {
             CleanupTarget::Path(path) => path.root(),
-            CleanupTarget::Value { .. } => panic!("scope cleanup must target storage"),
+            CleanupTarget::Place { .. } | CleanupTarget::Value { .. } => {
+                panic!("scope cleanup must target an owned path")
+            }
         })
         .collect::<Vec<_>>();
 
@@ -67,7 +69,7 @@ fn returned_move_is_not_cleaned_in_the_callee() {
         })
         .unwrap();
 
-    assert!(body.cleanups().get(return_).unwrap().is_empty());
+    assert!(body.cleanups().actions(return_).unwrap().is_empty());
 }
 
 #[test]
@@ -77,7 +79,7 @@ fn normal_callable_fallthrough_cleans_owned_parameters() {
          func finish(value: Owned): void {}\n",
     );
     let (_, body) = output.program().bodies().iter().next().unwrap();
-    let actions = body.cleanups().get(body.root()).unwrap();
+    let actions = body.cleanups().actions(body.root()).unwrap();
 
     assert_eq!(actions.len(), 1);
     assert!(matches!(
@@ -112,7 +114,7 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
         })
         .unwrap();
     assert!(matches!(
-        body.cleanups().get(discard).unwrap()[0].target(),
+        body.cleanups().actions(discard).unwrap()[0].target(),
         CleanupTarget::Value { .. }
     ));
 
@@ -126,7 +128,7 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
             )
         })
         .unwrap();
-    let [remaining] = body.cleanups().get(return_).unwrap() else {
+    let [remaining] = body.cleanups().actions(return_).unwrap() else {
         panic!("expected exactly one remaining field cleanup");
     };
     let CleanupTarget::Path(path) = remaining.target() else {
@@ -155,7 +157,7 @@ fn branch_move_produces_conditional_return_cleanup() {
             )
         })
         .unwrap();
-    let actions = body.cleanups().get(return_).unwrap();
+    let actions = body.cleanups().actions(return_).unwrap();
 
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].condition(), CleanupCondition::IfInitialized);
@@ -178,7 +180,7 @@ fn break_cleans_loop_scopes_before_joining_the_exit() {
             )
         })
         .unwrap();
-    let [action] = body.cleanups().get(break_).unwrap() else {
+    let [action] = body.cleanups().actions(break_).unwrap() else {
         panic!("break must clean its live loop local");
     };
 
@@ -203,5 +205,5 @@ fn copy_and_borrow_bindings_create_no_cleanup_action() {
         })
         .unwrap();
 
-    assert!(body.cleanups().get(return_).unwrap().is_empty());
+    assert!(body.cleanups().actions(return_).unwrap().is_empty());
 }

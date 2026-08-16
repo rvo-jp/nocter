@@ -34,7 +34,7 @@ fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
             )
         })
         .unwrap();
-    let [action] = body.cleanups().get(drop_).unwrap() else {
+    let [action] = body.cleanups().actions(drop_).unwrap() else {
         panic!("explicit drop must own exactly one cleanup action");
     };
 
@@ -43,7 +43,7 @@ fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
         action.target(),
         CleanupTarget::Path(path) if matches!(path.root(), PlaceRoot::Parameter(_)) && path.fields().is_empty()
     ));
-    assert!(body.cleanups().get(body.root()).unwrap().is_empty());
+    assert!(body.cleanups().actions(body.root()).unwrap().is_empty());
 }
 
 #[test]
@@ -103,5 +103,5 @@ fn unreachable_valid_drop_has_no_executable_cleanup_edge() {
         })
         .unwrap();
 
-    assert!(body.cleanups().get(drop_).unwrap().is_empty());
+    assert!(body.cleanups().actions(drop_).unwrap().is_empty());
 }

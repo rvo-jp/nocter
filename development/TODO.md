@@ -2,18 +2,19 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by implementing assignment and reinitialization on the same ownership and
-cleanup state.
+Continue v0.14.0 Phase 3 by implementing primitive binary operations, compound assignment, and
+indexed writable-place planning on top of the completed simple-assignment transition.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Implement whole-binding assignment and eligible field reinitialization. Replacement and scope
-   exit must consume the existing cleanup planner rather than create a second initialization
-   model.
-2. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
+1. Implement checked primitive numeric operations, then make compound assignment select the same
+   operation without duplicating or reordering its target expression.
+2. Introduce one evaluated-place plan for built-in and selected indexes. Both simple and compound
+   assignment must evaluate the right-hand side first and the target components exactly once.
+3. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -64,7 +65,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, calls, operators, aggregates, pattern conditionals,
+branch-local paths. Annotation binding, calls, general operators, aggregates, pattern conditionals,
 `match`, loops, closures, literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
@@ -81,14 +82,20 @@ conditionals, and `match` remain incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
-analysis materializes one dense `CleanupTable` keyed by the checked node whose outgoing edge runs
-the actions. Normal block exits, `return`, `break`, and `continue` all derive cleanup from the same
+analysis materializes one dense `CleanupTable` keyed by the checked node that owns each scheduled
+event. Normal block exits, `return`, `break`, and `continue` all derive cleanup from the same
 field-sensitive initialization state. Actions preserve reverse declaration order, distinguish
 unconditional from maybe-initialized destruction, omit moved roots and non-owning borrows, expand a
 partially moved struct to only its remaining fields, and represent a discarded move-only result as
 a value cleanup rather than an invented local. Loop-edge cleanup removes loop-local roots before
-the fixed-point join. Replacement assignment, temporary cleanup for calls and aggregates, and
-executable MIR lowering remain incomplete.
+the fixed-point join. Simple assignment accepts whole mutable bindings, their statically named
+fields, and fields reached through readwrite borrows. It checks the RHS before replacement, applies
+the destination expected type, restores moved and maybe-initialized paths, rejects immutable or
+unavailable-parent targets, and obtains old-value cleanup from the same partial-path planner used
+by scope exit. Each cleanup schedule declares whether it runs before control transfer or before
+assignment storage, so later MIR cannot infer ordering from the node kind. Compound and indexed
+assignment, temporary cleanup for calls and aggregates, and executable MIR lowering remain
+incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

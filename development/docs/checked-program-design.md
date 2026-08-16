@@ -103,10 +103,12 @@ name-resolved and type-checked, but flow-dependent initialization, move, loan, a
 does not invent an incoming executable edge. Scope exit records generated drops in reverse
 declaration order and conditional drops for maybe-initialized storage.
 
-`CleanupTable` is a dense checked-node-indexed edge annotation. A cleanup target is either an owned
-root plus exact `FieldId` path or a consumed temporary value node. Its condition is `Always` or
-`IfInitialized`; it never embeds a source name, syntax range, or independently inferred liveness
-bit. Later MIR expands the target type through the program's `DropTable` and structural drop glue.
+`CleanupTable` is a dense checked-node-indexed schedule annotation. A nonempty schedule declares
+an exact `BeforeTransfer` or `BeforeStore` timing and an ordered action list. A target is an
+owned root plus exact `FieldId` path, an already evaluated writable `PlaceId`, or a consumed
+temporary value node. Its condition is `Always` or `IfInitialized`; it never embeds a source name,
+syntax range, or independently inferred liveness bit. Later MIR expands the target type through
+the program's `DropTable` and structural drop glue without recovering timing from the node kind.
 
 ## Construction Order
 
@@ -186,8 +188,9 @@ body results must consume this plan rather than encode their own optional or fal
 
 The production checked-body slice consumes `PreparedChecking` through
 `check_prepared_program`. It builds blocks, scalar constants, inferred local bindings,
-parameter/local/named-field places, readonly borrows, explicit discards, returns, body results,
-ordinary `if`/`else if` control, and while/infinite/integer-range loops. Bare completion uses an
+parameter/local/named-field places, readonly borrows, explicit discards, simple named-place
+assignment, returns, body results, ordinary `if`/`else if` control, and
+while/infinite/integer-range loops. Bare completion uses an
 explicit `Complete` checked operation only when an enclosing fallible success
 must be represented; it is never exposed as a source value. Outcome plans become concrete
 `CheckedOutcome` nodes from the payload outward. Each constructed node extends `SourceIndex`
@@ -252,7 +255,7 @@ initialized only on the body edge. A nonbreaking infinite loop has no continuati
 unreachable `break` does not change its `never` result. Collection iteration, pattern
 conditionals, and `match` remain subsequent increments.
 
-The same ownership walk materializes cleanup after each outgoing edge reaches its final abstract
+The same ownership walk materializes cleanup after each operation reaches its final abstract
 state. Normal block fallthrough removes that block's locals. `return` removes active scopes from
 inner to outer and then owned parameters. `break` and `continue` remove scopes through the target
 loop body's exact scope before their states enter the exit or backedge join. Locals are considered
@@ -262,16 +265,27 @@ When a named-field override makes a struct partial, cleanup recursively follows 
 reverse order and emits actions only for remaining live field paths; the earlier partial-move rule
 guarantees no expanded parent has a type-owned drop body. Discarding a move-only expression records
 the consumed value node itself, so cleanup does not invent a hidden local or lose the transferred
-value. Assignment/reinitialization and temporary ownership for unsupported expression families
-remain subsequent increments.
+value.
+
+Simple assignment owns one destination place and one RHS node. Construction accepts a complete
+`var` binding, a statically named field below it, or a field reached through a readwrite borrow;
+immutable bindings, owned parameters, readonly fields, and call-shaped targets project `E0384`.
+The ownership walk visits the complete RHS first, then asks the shared cleanup planner for the old
+destination state. Initialized values produce unconditional cleanup, maybe-initialized values
+produce conditional cleanup, and moved fields produce none. Whole replacement of a partial struct
+expands only its remaining fields. A successful transition removes subordinate partial facts and
+marks the destination initialized; a field cannot recreate storage below a moved whole parent.
+Replacement actions use `BeforeStore`, while scope and transfer cleanup uses
+`BeforeTransfer`. Readwrite-borrowed fields retain their evaluated `PlaceId` as the cleanup
+target because they are not owned `MovePath` identities. Indexed and compound assignment and
+temporary ownership for unsupported expression families remain subsequent increments.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
 ownership analysis requires the exact path to be initialized, attaches one unconditional path
 action to the checked drop node, and transitions that path to uninitialized. Scope exit therefore
 cannot schedule a second action. Unreachable valid drop source remains typed HIR but receives no
-executable cleanup edge. Loan conflicts, assignment, and reinitialization remain subsequent
-increments.
+executable cleanup schedule. Loan conflicts remain subsequent work in the general loan analysis.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

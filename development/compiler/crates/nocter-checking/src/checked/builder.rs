@@ -68,6 +68,10 @@ impl CheckedBodyBuilder {
             .insert(CheckedPlace::new(root, projections, ty, access))
     }
 
+    pub(crate) fn place(&self, place: PlaceId) -> Option<&CheckedPlace> {
+        self.places.get(place)
+    }
+
     pub(crate) fn add_node(&mut self, ty: TypeId, operation: CheckedOperation) -> BodyNodeId {
         self.nodes.insert(CheckedNode::new(ty, operation))
     }
@@ -118,9 +122,10 @@ impl CheckedBodyBuilder {
             LoopSlot::Defined(definition) => Ok(definition),
         })?;
         let nodes = self.nodes.finish();
-        let mut cleanup_actions = ArenaBuilder::<BodyNodeId, Box<[super::CleanupAction]>>::new();
+        let mut cleanup_schedules =
+            ArenaBuilder::<BodyNodeId, Option<super::CleanupSchedule>>::new();
         for _ in 0..nodes.len() {
-            cleanup_actions.insert(Vec::new().into_boxed_slice());
+            cleanup_schedules.insert(None);
         }
         Ok(CheckedBody::new(
             CheckedBodyDomains {
@@ -131,7 +136,7 @@ impl CheckedBodyBuilder {
                 loops,
                 nodes,
             },
-            CleanupTable::new(cleanup_actions.finish()),
+            CleanupTable::new(cleanup_schedules.finish()),
             root,
         ))
     }

@@ -29,11 +29,11 @@ pub use checked::{
     CheckedCall, CheckedCapture, CheckedClosure, CheckedControl, CheckedInterpolation,
     CheckedLocal, CheckedLoop, CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome,
     CheckedPattern, CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence,
-    CleanupAction, CleanupCondition, CleanupPath, CleanupTable, CleanupTarget, ConstantValue,
-    DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
-    IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary,
-    PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode, StaticDispatch,
-    TypedIteration,
+    CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
+    CleanupTiming, ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments,
+    InterpolationPart, IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
+    StaticDispatch, TypedIteration,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,

@@ -12,7 +12,8 @@ use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::{
     BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CleanupAction,
-    CleanupTable, DropTable, LoopKind, PrimitiveOperation,
+    CleanupSchedule, CleanupTable, CleanupTiming, DropTable, LoopKind, PlaceAccess,
+    PrimitiveOperation,
 };
 use cleanup::CleanupPlanner;
 
@@ -44,7 +45,7 @@ pub(super) fn analyze_body_ownership(
         origins,
         loops: Vec::new(),
         scopes: Vec::new(),
-        cleanup_actions: HashMap::new(),
+        cleanup_schedules: HashMap::new(),
     };
     analyzer.visit(body.root(), &mut state)?;
     analyzer.validate_all_copies()?;
@@ -61,7 +62,7 @@ struct OwnershipAnalyzer<'program> {
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopFlow>,
     scopes: Vec<BodyScopeId>,
-    cleanup_actions: HashMap<BodyNodeId, Vec<CleanupAction>>,
+    cleanup_schedules: HashMap<BodyNodeId, CleanupSchedule>,
 }
 
 struct LoopFlow {
@@ -76,22 +77,17 @@ impl OwnershipAnalyzer<'_> {
         if !self.scopes.is_empty() || !self.loops.is_empty() {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
-        let mut actions = ArenaBuilder::new();
+        let mut schedules = ArenaBuilder::new();
         for (node, _) in self.body.nodes().iter() {
-            let actual = actions.insert(
-                self.cleanup_actions
-                    .remove(&node)
-                    .unwrap_or_default()
-                    .into_boxed_slice(),
-            );
+            let actual = schedules.insert(self.cleanup_schedules.remove(&node));
             if actual != node {
                 return Err(BodyCheckInternalError::CleanupPlanning);
             }
         }
-        if !self.cleanup_actions.is_empty() {
+        if !self.cleanup_schedules.is_empty() {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
-        Ok(CleanupTable::new(actions.finish()))
+        Ok(CleanupTable::new(schedules.finish()))
     }
 
     fn validate_all_copies(&mut self) -> Result<(), BodyCheckError> {
@@ -195,7 +191,7 @@ impl OwnershipAnalyzer<'_> {
                     return Ok(false);
                 }
                 let actions = self.all_scope_cleanup(state)?;
-                self.record_cleanup(node, actions);
+                self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
                 Ok(false)
             }
             CheckedControl::If {
@@ -207,9 +203,11 @@ impl OwnershipAnalyzer<'_> {
             CheckedControl::Break(loop_) => self.visit_loop_control(node, *loop_, true, state),
             CheckedControl::Continue(loop_) => self.visit_loop_control(node, *loop_, false, state),
             CheckedControl::Drop(place) => self.visit_drop(node, *place, state),
+            CheckedControl::Assign { target, value } => {
+                self.visit_assignment(node, *target, *value, state)
+            }
             CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
-            CheckedControl::Assign { .. }
-            | CheckedControl::CompoundAssign { .. }
+            CheckedControl::CompoundAssign { .. }
             | CheckedControl::Match { .. }
             | CheckedControl::Region { .. } => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
@@ -241,7 +239,7 @@ impl OwnershipAnalyzer<'_> {
             if self.scopes.len() == 1 {
                 actions.extend(self.parameter_cleanup(state)?);
             }
-            self.record_cleanup(node, actions);
+            self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
         }
         self.leave_scope(scope)?;
         Ok(reaches)
@@ -263,7 +261,7 @@ impl OwnershipAnalyzer<'_> {
             .map(crate::CheckedNode::ty)
             .ok_or(BodyCheckInternalError::MissingNode(value))?;
         if let Some(action) = self.value_cleanup(value, ty)? {
-            self.record_cleanup(node, vec![action]);
+            self.record_cleanup(node, CleanupTiming::BeforeTransfer, vec![action]);
         }
         Ok(true)
     }
@@ -309,7 +307,7 @@ impl OwnershipAnalyzer<'_> {
             return Err(BodyCheckInternalError::LoopStack.into());
         };
         let actions = self.loop_scope_cleanup(frame.body_scope, state)?;
-        self.record_cleanup(node, actions);
+        self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
         let frame = self
             .loops
             .last_mut()
@@ -340,7 +338,56 @@ impl OwnershipAnalyzer<'_> {
         state
             .move_out(&path)
             .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-        self.record_cleanup(node, vec![action]);
+        self.record_cleanup(node, CleanupTiming::BeforeTransfer, vec![action]);
+        Ok(true)
+    }
+
+    fn visit_assignment(
+        &mut self,
+        node: BodyNodeId,
+        target: nocter_model::PlaceId,
+        value: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(value, state)? {
+            return Ok(false);
+        }
+        let place = self
+            .body
+            .places()
+            .get(target)
+            .cloned()
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
+        let actions = match place.access() {
+            PlaceAccess::Owned => {
+                let path = MovePath::from_place(&place)
+                    .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
+                let actions = self.replacement_path_cleanup(&path, place.ty(), state)?;
+                if let Err(error) = state.assign(&path) {
+                    return match error {
+                        OwnershipStateError::UnavailableAssignmentParent { .. } => {
+                            Err(self.rule(BodyRule::InvalidReinitialization, node)?.into())
+                        }
+                        OwnershipStateError::DuplicatePath(_)
+                        | OwnershipStateError::UnknownPath(_)
+                        | OwnershipStateError::NotInitialized { .. } => {
+                            Err(BodyCheckInternalError::OwnershipState.into())
+                        }
+                    };
+                }
+                actions
+            }
+            PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite) => {
+                self.require_initialized(node, target, state)?;
+                self.replacement_place_cleanup(target, place.ty())?
+                    .into_iter()
+                    .collect()
+            }
+            PlaceAccess::Borrowed(nocter_model::BorrowCapability::Readonly) => {
+                return Err(BodyCheckInternalError::OwnershipState.into());
+            }
+        };
+        self.record_cleanup(node, CleanupTiming::BeforeStore, actions);
         Ok(true)
     }
 
@@ -518,6 +565,39 @@ impl OwnershipAnalyzer<'_> {
         .explicit_path_action(path, ty)
     }
 
+    fn replacement_path_cleanup(
+        &mut self,
+        path: &MovePath,
+        ty: nocter_model::TypeId,
+        state: &OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .replacement_path_actions(path, ty, state)
+    }
+
+    fn replacement_place_cleanup(
+        &mut self,
+        place: nocter_model::PlaceId,
+        ty: nocter_model::TypeId,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .replacement_place_action(place, ty)
+    }
+
     fn all_scope_cleanup(
         &mut self,
         state: &mut OwnershipState,
@@ -547,8 +627,18 @@ impl OwnershipAnalyzer<'_> {
         Ok(actions)
     }
 
-    fn record_cleanup(&mut self, node: BodyNodeId, actions: Vec<CleanupAction>) {
-        self.cleanup_actions.insert(node, actions);
+    fn record_cleanup(
+        &mut self,
+        node: BodyNodeId,
+        timing: CleanupTiming,
+        actions: Vec<CleanupAction>,
+    ) {
+        if actions.is_empty() {
+            self.cleanup_schedules.remove(&node);
+        } else {
+            self.cleanup_schedules
+                .insert(node, CleanupSchedule::new(timing, actions));
+        }
     }
 
     fn require_initialized(
@@ -587,9 +677,11 @@ impl OwnershipAnalyzer<'_> {
             Err(OwnershipStateError::NotInitialized { .. }) => {
                 Err(self.rule(BodyRule::UninitializedPlace, node)?.into())
             }
-            Err(OwnershipStateError::DuplicatePath(_) | OwnershipStateError::UnknownPath(_)) => {
-                Err(BodyCheckInternalError::OwnershipState.into())
-            }
+            Err(
+                OwnershipStateError::DuplicatePath(_)
+                | OwnershipStateError::UnknownPath(_)
+                | OwnershipStateError::UnavailableAssignmentParent { .. },
+            ) => Err(BodyCheckInternalError::OwnershipState.into()),
         }
     }
 

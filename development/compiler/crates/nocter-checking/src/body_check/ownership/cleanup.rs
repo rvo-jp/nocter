@@ -1,5 +1,5 @@
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{BodyScopeId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BodyScopeId, PlaceId, TypeId, TypeKind, TypeStore};
 
 use super::super::error::BodyCheckInternalError;
 use crate::copyability::{Copyability, CopyabilityTable};
@@ -97,6 +97,27 @@ impl<'program> CleanupPlanner<'program> {
             CleanupTarget::Path(CleanupPath::new(path.root_identity(), path.fields(), ty)),
             CleanupCondition::Always,
         ))
+    }
+
+    pub(super) fn replacement_path_actions(
+        &mut self,
+        path: &MovePath,
+        ty: TypeId,
+        state: &OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let mut actions = Vec::new();
+        self.plan_path(path, ty, state, &mut actions)?;
+        Ok(actions)
+    }
+
+    pub(super) fn replacement_place_action(
+        &mut self,
+        place: PlaceId,
+        ty: TypeId,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        Ok(self.needs_cleanup(ty)?.then(|| {
+            CleanupAction::new(CleanupTarget::Place { place, ty }, CleanupCondition::Always)
+        }))
     }
 
     fn plan_path(

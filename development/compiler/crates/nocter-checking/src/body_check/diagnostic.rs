@@ -16,6 +16,8 @@ pub enum BodyRule {
     PartialMoveThroughDrop,
     InvalidLoopControl,
     InvalidExplicitDrop,
+    InvalidAssignmentTarget,
+    InvalidReinitialization,
 }
 
 impl BodyRule {
@@ -33,6 +35,8 @@ impl BodyRule {
         Self::PartialMoveThroughDrop,
         Self::InvalidLoopControl,
         Self::InvalidExplicitDrop,
+        Self::InvalidAssignmentTarget,
+        Self::InvalidReinitialization,
     ];
 
     #[must_use]
@@ -51,6 +55,8 @@ impl BodyRule {
             Self::PartialMoveThroughDrop => "E0381",
             Self::InvalidLoopControl => "E0382",
             Self::InvalidExplicitDrop => "E0383",
+            Self::InvalidAssignmentTarget => "E0384",
+            Self::InvalidReinitialization => "E0385",
         }
     }
 
@@ -115,6 +121,14 @@ impl BodyRule {
             Self::InvalidExplicitDrop => (
                 "explicit drop requires a move-only owned binding",
                 "remove `drop` for a copy or borrow binding",
+            ),
+            Self::InvalidAssignmentTarget => (
+                "assignment target is not a writable place",
+                "assign to a `var` binding, writable field, or readwrite index place",
+            ),
+            Self::InvalidReinitialization => (
+                "this field cannot be initialized through an unavailable parent",
+                "reinitialize the complete `var` binding before assigning through its fields",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

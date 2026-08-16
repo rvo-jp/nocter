@@ -6,6 +6,8 @@ mod literal;
 mod ownership;
 
 #[cfg(test)]
+mod assignment_tests;
+#[cfg(test)]
 mod cleanup_tests;
 #[cfg(test)]
 mod construction_tests;

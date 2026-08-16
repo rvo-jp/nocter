@@ -190,8 +190,8 @@ be introduced to make an unresolved syntax choice.
   valid specialization facts. Callable signatures never stand in for closure-environment
   ownership. `check_prepared_program` is now the production consuming boundary for the current
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  recursive-outcome, copy, named-field move, conditional, and while/infinite/integer-range loop
-  nodes. Semantic move paths track initialized
+  recursive-outcome, copy, named-field move, simple assignment, conditional, and
+  while/infinite/integer-range loop nodes. Semantic move paths track initialized
   parameter/local state independently of syntax, inherit field state from the nearest ancestor,
   preserve disjoint siblings, invalidate partially moved parents, and join only paths visible at a
   control-flow entry. Named-field selection is one visibility-aware authority that substitutes
@@ -217,7 +217,12 @@ be introduced to make an unresolved syntax choice.
   same state used for move validation. Normal exits, returns, breaks, and continues clean inner
   locals in reverse declaration order; return then cleans owned parameters. Maybe-initialized
   paths become conditional actions, moved paths disappear, partially moved structs expand to their
-  remaining fields, and discarded move-only values remain explicit value cleanup targets.
+  remaining fields, and discarded move-only values remain explicit value cleanup targets. Each
+  nonempty cleanup schedule declares either pre-transfer or pre-store timing. Simple assignment
+  uses the destination type as the RHS expectation, evaluates ownership effects on the RHS first,
+  and then reuses the partial-path cleanup planner and initialization transition for whole mutable
+  bindings, writable fields, and fields reached through readwrite borrows. Replacement therefore
+  cannot accidentally destroy the newly stored value or maintain a second reinitialization model.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
