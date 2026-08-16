@@ -178,9 +178,10 @@ Rules:
 - One such newline is instead a continuation newline when the first token on the next physical line
   is a continuation leader. A continuation leader is a token that cannot begin an expression or
   statement in that position and can extend the expression immediately before the newline.
-- The continuation leaders are `.`, `+`, `*`, `/`, `%`, `<<`, `>>`, `<`, `<=`, `>`, `>=`, `==`,
-  `!=`, `&&`, `||`, `as`, `catch`, and `otherwise`. The context-specific `is` and `..<` tokens are
-  also continuation leaders in `if` pattern conditions and range `for` headers respectively.
+- The continuation leaders are `.`, `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `+`, `*`, `/`, `%`,
+  `<<`, `>>`, `<`, `<=`, `>`, `>=`, `==`, `!=`, `&&`, `||`, `as`, `catch`, and `otherwise`. The
+  context-specific `is` and `..<` tokens are also continuation leaders in `if` pattern conditions
+  and range `for` headers respectively.
 - `-` is not a continuation leader because it can begin a unary expression. Put binary `-` at the
   end of the previous line when its right operand continues on the next line.
 - `!`, `&`, `&+`, and `move` are not continuation leaders because they can begin expressions.
@@ -218,6 +219,9 @@ let difference = left -
 let result = values
     .map(transform)
     .filter(predicate)
+
+count
+    += 1
 
 let rendered = render(
     input,

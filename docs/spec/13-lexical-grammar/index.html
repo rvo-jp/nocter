@@ -230,9 +230,10 @@ std/process
 </code></pre><p>Rules:</p><ul><li>Module path segments must use lowercase ASCII letters, digits, and underscores.</li><li>A module path segment must not start with a digit.</li><li>A module path segment must not be a reserved keyword.</li><li>A module path segment must not be <code>_</code>.</li></ul><h2 id="statement-separation">Statement Separation</h2><p>Nocter does not use semicolons as statement terminators. The <code>;</code> token is reserved for grammar positions that explicitly require it: fixed-size array types <code>[T; N]</code> and the separator between explicit closure captures and closure parameters.</p><p>Rules:</p><ul><li>At statement-capable nesting depth, a newline separates statements when the tokens before it can
   end a statement.</li><li>One such newline is instead a continuation newline when the first token on the next physical line
   is a continuation leader. A continuation leader is a token that cannot begin an expression or
-  statement in that position and can extend the expression immediately before the newline.</li><li>The continuation leaders are <code>.</code>, <code>+</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>==</code>,
-  <code>!=</code>, <code>&amp;&amp;</code>, <code>||</code>, <code>as</code>, <code>catch</code>, and <code>otherwise</code>. The context-specific <code>is</code> and <code>..&lt;</code> tokens are
-  also continuation leaders in <code>if</code> pattern conditions and range <code>for</code> headers respectively.</li><li><code>-</code> is not a continuation leader because it can begin a unary expression. Put binary <code>-</code> at the
+  statement in that position and can extend the expression immediately before the newline.</li><li>The continuation leaders are <code>.</code>, <code>=</code>, <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code>, <code>+</code>, <code>*</code>, <code>/</code>, <code>%</code>,
+  <code>&lt;&lt;</code>, <code>&gt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code>, <code>&amp;&amp;</code>, <code>||</code>, <code>as</code>, <code>catch</code>, and <code>otherwise</code>. The
+  context-specific <code>is</code> and <code>..&lt;</code> tokens are also continuation leaders in <code>if</code> pattern conditions
+  and range <code>for</code> headers respectively.</li><li><code>-</code> is not a continuation leader because it can begin a unary expression. Put binary <code>-</code> at the
   end of the previous line when its right operand continues on the next line.</li><li><code>!</code>, <code>&amp;</code>, <code>&amp;+</code>, and <code>move</code> are not continuation leaders because they can begin expressions.
   Postfix <code>?</code> and postfix <code>!</code> remain attached to the expression they modify and cannot begin a
   continuation line.</li><li><code>move</code> consumes a syntactic move place before immediately following outcome suffixes are attached.
@@ -255,6 +256,9 @@ std/process
 <span class="token-keyword">let</span> result <span class="token-operator">=</span> values
     <span class="token-operator">.</span><span class="token-function">map</span><span class="token-operator">(</span>transform<span class="token-operator">)</span>
     <span class="token-operator">.</span><span class="token-function">filter</span><span class="token-operator">(</span>predicate<span class="token-operator">)</span>
+
+count
+    <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
 
 <span class="token-keyword">let</span> rendered <span class="token-operator">=</span> <span class="token-function">render</span><span class="token-operator">(</span>
     input<span class="token-operator">,</span>
