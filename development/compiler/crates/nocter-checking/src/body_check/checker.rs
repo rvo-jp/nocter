@@ -32,6 +32,7 @@ use crate::{
     plan_expected_type,
 };
 
+mod arithmetic;
 mod assignment;
 mod loops;
 use loops::LoopConstruction;
@@ -324,9 +325,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     self.types.get(ty),
                     Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
                 ) {
-                    return Err(self
-                        .rule(BodyRule::InvalidStatementValue, executable)?
-                        .into());
+                    return Err(self.rule(BodyRule::InvalidStatementValue, executable)?);
                 }
                 Ok(CheckedExecutable {
                     node: self.add_node(
@@ -414,9 +413,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 *result = Some(node);
                 Ok(self.node_type(node)?)
             }
-            Err(BodyCheckError::Rule(_)) => {
-                Err(self.rule(BodyRule::MissingBodyResult, block)?.into())
-            }
+            Err(BodyCheckError::Rule { .. }) => Err(self.rule(BodyRule::MissingBodyResult, block)?),
             Err(error) => Err(error),
         }
     }
@@ -492,7 +489,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 .map_err(BodyCheckInternalError::Copyability)?
                 == Copyability::Copy
         {
-            return Err(self.rule(BodyRule::InvalidExplicitDrop, statement)?.into());
+            return Err(self.rule(BodyRule::InvalidExplicitDrop, statement)?);
         }
         let place =
             self.builder
@@ -522,6 +519,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             let value = match kind {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
                 NodeKind::IfExpression => return self.check_if(current, expected),
+                NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
+                    return self.check_arithmetic(current, expected);
+                }
                 NodeKind::ReferenceExpression => self.check_reference(current)?,
                 NodeKind::MoveExpression => self.check_move(current)?,
                 NodeKind::UnaryExpression => self.check_unary(current)?,
@@ -619,7 +619,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
             TokenKind::Keyword(Keyword::None) => {
                 let Some(expected) = expected else {
-                    return Err(self.rule(BodyRule::TypeMismatch, node)?.into());
+                    return Err(self.rule(BodyRule::TypeMismatch, node)?);
                 };
                 self.materialize_plan(
                     node,
@@ -633,7 +633,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let Some(value) = parse_integer(self.token_text(token)?)
                     .filter(|value| fits_integer(self.types, ty, *value))
                 else {
-                    return Err(self.rule(BodyRule::IntegerOutOfRange, node)?.into());
+                    return Err(self.rule(BodyRule::IntegerOutOfRange, node)?);
                 };
                 let checked = self.add_node(
                     node,
@@ -678,14 +678,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .map_err(BodyCheckInternalError::Copyability)?
         {
             Copyability::Copy => {
-                return Err(self.rule(BodyRule::MoveCopyValue, node)?.into());
+                return Err(self.rule(BodyRule::MoveCopyValue, node)?);
             }
             Copyability::MoveOnly => {}
         }
         if place.access != PlaceAccess::Owned
             || matches!(self.types.get(place.ty), Some(TypeKind::Borrow { .. }))
         {
-            return Err(self.rule(BodyRule::InvalidMoveSource, node)?.into());
+            return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
         }
         for parent in place.partial_parents.iter().rev() {
             if let Some(drop) = self.drops.get(*parent) {
@@ -751,12 +751,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             ) {
                 Ok(selected) => selected,
                 Err(FieldSelectionError::NoFields(_) | FieldSelectionError::MissingField(_)) => {
-                    return Err(self.token_rule(BodyRule::UnknownField, field_token)?.into());
+                    return Err(self.token_rule(BodyRule::UnknownField, field_token)?);
                 }
                 Err(FieldSelectionError::InaccessibleField(_)) => {
-                    return Err(self
-                        .token_rule(BodyRule::InaccessibleField, field_token)?
-                        .into());
+                    return Err(self.token_rule(BodyRule::InaccessibleField, field_token)?);
                 }
                 Err(FieldSelectionError::UnknownType(unknown)) => {
                     return Err(BodyCheckInternalError::UnknownType(unknown).into());
@@ -882,7 +880,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         match error {
             ExpectedTypeError::Mismatch { .. } => self
                 .rule(BodyRule::TypeMismatch, node)
-                .map_or_else(BodyCheckError::Internal, BodyCheckError::Rule),
+                .unwrap_or_else(BodyCheckError::Internal),
             ExpectedTypeError::UnknownType(ty) => BodyCheckInternalError::UnknownType(ty).into(),
         }
     }
@@ -927,24 +925,20 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))
     }
 
-    fn rule(
-        &self,
-        rule: BodyRule,
-        node: NodeId,
-    ) -> Result<nocter_diagnostics::SourceDiagnostic, BodyCheckInternalError> {
+    fn rule(&self, rule: BodyRule, node: NodeId) -> Result<BodyCheckError, BodyCheckInternalError> {
         let origin = SourceOrigin::from_node(self.tree(), node)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-        Ok(rule.diagnostic(origin))
+        Ok(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
     }
 
     fn token_rule(
         &self,
         rule: BodyRule,
         token: SyntaxToken,
-    ) -> Result<nocter_diagnostics::SourceDiagnostic, BodyCheckInternalError> {
+    ) -> Result<BodyCheckError, BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
-        Ok(rule.diagnostic(origin))
+        Ok(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
     }
 
     fn partial_move_drop(
@@ -967,7 +961,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             })
             .map(|binding| binding.origin())
             .ok_or(BodyCheckInternalError::MissingSource(entity))?;
-        Ok(BodyCheckError::Rule(
+        Ok(BodyCheckError::from_rule(
+            BodyRule::PartialMoveThroughDrop,
             BodyRule::PartialMoveThroughDrop.diagnostic_with_notes(
                 primary,
                 [DiagnosticNote::new(

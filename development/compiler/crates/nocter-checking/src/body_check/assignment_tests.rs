@@ -4,7 +4,7 @@ use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
     CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, CleanupTiming, PlaceAccess,
-    prepare_program_checking,
+    PrimitiveBinary, PrimitiveOperation, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -215,4 +215,130 @@ fn continuation_newline_does_not_obscure_the_assignment_operator() {
         body.nodes().get(assignment_node(body)).unwrap().operation(),
         CheckedOperation::Control(CheckedControl::Assign { .. })
     ));
+}
+
+#[test]
+fn compound_assignment_selects_each_numeric_operation_without_desugaring() {
+    let output = check(
+        "func calculate(input: i32): i32 {\n    var value = input\n    value += 1\n    value -= 1\n    value *= 2\n    value /= 2\n    value %= 2\n    value\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let operations = body
+        .nodes()
+        .iter()
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Control(CheckedControl::CompoundAssign { operation, .. }) => {
+                Some(*operation)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        operations,
+        vec![
+            PrimitiveBinary::Add,
+            PrimitiveBinary::Subtract,
+            PrimitiveBinary::Multiply,
+            PrimitiveBinary::Divide,
+            PrimitiveBinary::Remainder,
+        ]
+    );
+    assert!(!body.nodes().iter().any(|(_, node)| matches!(
+        node.operation(),
+        CheckedOperation::Primitive(PrimitiveOperation::Binary { .. })
+    )));
+}
+
+#[test]
+fn compound_assignment_uses_the_target_type_for_rhs_literals() {
+    let output = check(
+        "func calculate(input: u64): u64 {\n    var value = input\n    value += 1\n    value\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let (_, value) = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| match checked.operation() {
+            CheckedOperation::Control(CheckedControl::CompoundAssign { value, .. }) => {
+                Some((node, *value))
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    assert_eq!(
+        body.nodes().get(value).unwrap().ty(),
+        output
+            .program()
+            .types()
+            .builtin(nocter_model::BuiltinType::U64)
+    );
+}
+
+#[test]
+fn compound_assignment_has_one_dedicated_structural_diagnostic() {
+    for source in [
+        "func invalid(): void {\n    let value = 1\n    value += 1\n    return\n}\n",
+        "func invalid(): void {\n    var value = true\n    value += true\n    return\n}\n",
+        "func invalid(left: u16, right: u32): void {\n    var value = left\n    value += right\n    return\n}\n",
+        "func make(): i32 { 1 }\nfunc invalid(): void {\n    make() += 1\n    return\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0386");
+        assert_eq!(
+            error.rule(),
+            Some(crate::BodyRule::InvalidCompoundAssignment)
+        );
+    }
+}
+
+#[test]
+fn compound_assignment_requires_the_complete_target_to_be_initialized() {
+    let error = check(&format!(
+        "{OWNED}struct Pair {{\n    number: i32\n    owned: Owned\n}}\nfunc invalid(input: Pair): void {{\n    var pair = move input\n    let _ = move pair\n    pair.number += 1\n    return\n}}\n"
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0378");
+}
+
+#[test]
+fn compound_assignment_writes_a_readwrite_borrowed_integer_field() {
+    let output = check(
+        "struct Counter { value: i32 }\nfunc increment(counter: &+Counter): void {\n    counter.value += 1\n    return\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let (_, target) = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| match checked.operation() {
+            CheckedOperation::Control(CheckedControl::CompoundAssign { target, .. }) => {
+                Some((node, *target))
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    assert_eq!(
+        body.places().get(target).unwrap().access(),
+        PlaceAccess::Borrowed(nocter_model::BorrowCapability::ReadWrite)
+    );
+}
+
+#[test]
+fn compound_assignment_operator_may_follow_its_continuation_newline() {
+    let output = check(
+        "func increment(input: i32): i32 {\n    var value = input\n    value\n        += 1\n    value\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+
+    assert!(body.nodes().iter().any(|(_, node)| matches!(
+        node.operation(),
+        CheckedOperation::Control(CheckedControl::CompoundAssign { .. })
+    )));
 }

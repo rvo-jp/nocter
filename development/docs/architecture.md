@@ -485,8 +485,11 @@ Checked assignment and compound assignment each own one target-place plan and on
 expression; compound assignment additionally owns the selected numeric operation. Simple named-
 place assignment already records old-value destruction as a `BeforeStore` cleanup schedule and
 uses the same ownership-state transition for reassignment, reinitialization, and partial-field
-repair. MIR emits RHS evaluation before the place plan and emits that plan only once. No stage
-expands compound assignment into source-shaped duplicate target expressions.
+repair. Integer compound assignment uses the same closed arithmetic selector as ordinary integer
+expressions, but remains one control operation rather than a desugared expression tree. Ownership
+analysis visits its RHS first and then requires the target to be initialized. MIR emits RHS
+evaluation before the place plan and emits that plan only once. No stage expands compound
+assignment into source-shaped duplicate target expressions.
 
 Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
 use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation

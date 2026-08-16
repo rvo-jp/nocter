@@ -69,7 +69,7 @@ impl BodyChecker<'_, '_> {
         let start = self.check_expression(start_syntax, None)?;
         let ty = self.node_type(start)?;
         if !is_integer_type(self.types, ty) {
-            return Err(self.rule(BodyRule::TypeMismatch, start_syntax)?.into());
+            return Err(self.rule(BodyRule::TypeMismatch, start_syntax)?);
         }
         let end = self.check_expression(*end, Some(ty))?;
         let token = direct_identifier(self.tree(), statement)
@@ -93,7 +93,7 @@ impl BodyChecker<'_, '_> {
         is_break: bool,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let Some(frame) = self.loops.last_mut() else {
-            return Err(self.rule(BodyRule::InvalidLoopControl, statement)?.into());
+            return Err(self.rule(BodyRule::InvalidLoopControl, statement)?);
         };
         if is_break && self.flow_reachable {
             frame.has_break = true;

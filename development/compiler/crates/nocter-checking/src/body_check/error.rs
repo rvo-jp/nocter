@@ -6,11 +6,14 @@ use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
 use crate::checked::BuildCheckedBodyError;
-use crate::{CopyabilityError, ExpectedTypeError, NameTarget};
+use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget};
 
 #[derive(Debug)]
 pub enum BodyCheckError {
-    Rule(SourceDiagnostic),
+    Rule {
+        rule: BodyRule,
+        diagnostic: SourceDiagnostic,
+    },
     Internal(BodyCheckInternalError),
 }
 
@@ -18,16 +21,28 @@ impl BodyCheckError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
-            Self::Rule(diagnostic) => Some(diagnostic),
+            Self::Rule { diagnostic, .. } => Some(diagnostic),
             Self::Internal(_) => None,
         }
+    }
+
+    #[must_use]
+    pub const fn rule(&self) -> Option<BodyRule> {
+        match self {
+            Self::Rule { rule, .. } => Some(*rule),
+            Self::Internal(_) => None,
+        }
+    }
+
+    pub(super) const fn from_rule(rule: BodyRule, diagnostic: SourceDiagnostic) -> Self {
+        Self::Rule { rule, diagnostic }
     }
 }
 
 impl fmt::Display for BodyCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Rule(diagnostic) => {
+            Self::Rule { diagnostic, .. } => {
                 write!(formatter, "{}: {}", diagnostic.code(), diagnostic.message())
             }
             Self::Internal(error) => error.fmt(formatter),
@@ -36,12 +51,6 @@ impl fmt::Display for BodyCheckError {
 }
 
 impl std::error::Error for BodyCheckError {}
-
-impl From<SourceDiagnostic> for BodyCheckError {
-    fn from(diagnostic: SourceDiagnostic) -> Self {
-        Self::Rule(diagnostic)
-    }
-}
 
 impl From<BodyCheckInternalError> for BodyCheckError {
     fn from(error: BodyCheckInternalError) -> Self {

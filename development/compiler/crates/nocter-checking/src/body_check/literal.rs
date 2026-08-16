@@ -1,10 +1,16 @@
 use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
 
 pub(super) fn integer_type(types: &TypeStore, expected: Option<TypeId>) -> TypeId {
+    contextual_integer_type(types, expected).unwrap_or_else(|| types.builtin(BuiltinType::I32))
+}
+
+pub(super) fn contextual_integer_type(
+    types: &TypeStore,
+    expected: Option<TypeId>,
+) -> Option<TypeId> {
     expected
         .and_then(|expected| outcome_leaf(types, expected))
         .filter(|expected| is_integer_type(types, *expected))
-        .unwrap_or_else(|| types.builtin(BuiltinType::I32))
 }
 
 pub(super) fn is_integer_type(types: &TypeStore, ty: TypeId) -> bool {

@@ -206,10 +206,11 @@ impl OwnershipAnalyzer<'_> {
             CheckedControl::Assign { target, value } => {
                 self.visit_assignment(node, *target, *value, state)
             }
+            CheckedControl::CompoundAssign { target, value, .. } => {
+                self.visit_compound_assignment(node, *target, *value, state)
+            }
             CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
-            CheckedControl::CompoundAssign { .. }
-            | CheckedControl::Match { .. }
-            | CheckedControl::Region { .. } => {
+            CheckedControl::Match { .. } | CheckedControl::Region { .. } => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }
@@ -366,7 +367,7 @@ impl OwnershipAnalyzer<'_> {
                 if let Err(error) = state.assign(&path) {
                     return match error {
                         OwnershipStateError::UnavailableAssignmentParent { .. } => {
-                            Err(self.rule(BodyRule::InvalidReinitialization, node)?.into())
+                            Err(self.rule(BodyRule::InvalidReinitialization, node)?)
                         }
                         OwnershipStateError::DuplicatePath(_)
                         | OwnershipStateError::UnknownPath(_)
@@ -388,6 +389,20 @@ impl OwnershipAnalyzer<'_> {
             }
         };
         self.record_cleanup(node, CleanupTiming::BeforeStore, actions);
+        Ok(true)
+    }
+
+    fn visit_compound_assignment(
+        &mut self,
+        node: BodyNodeId,
+        target: nocter_model::PlaceId,
+        value: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(value, state)? {
+            return Ok(false);
+        }
+        self.require_initialized(node, target, state)?;
         Ok(true)
     }
 
@@ -662,7 +677,7 @@ impl OwnershipAnalyzer<'_> {
             .map_err(BodyCheckInternalError::Copyability)?
         {
             Copyability::Copy => Ok(()),
-            Copyability::MoveOnly => Err(self.rule(BodyRule::ImplicitMove, node)?.into()),
+            Copyability::MoveOnly => Err(self.rule(BodyRule::ImplicitMove, node)?),
         }
     }
 
@@ -675,7 +690,7 @@ impl OwnershipAnalyzer<'_> {
         match state.require_initialized(path) {
             Ok(()) => Ok(()),
             Err(OwnershipStateError::NotInitialized { .. }) => {
-                Err(self.rule(BodyRule::UninitializedPlace, node)?.into())
+                Err(self.rule(BodyRule::UninitializedPlace, node)?)
             }
             Err(
                 OwnershipStateError::DuplicatePath(_)
@@ -697,12 +712,12 @@ impl OwnershipAnalyzer<'_> {
         &self,
         rule: BodyRule,
         node: BodyNodeId,
-    ) -> Result<nocter_diagnostics::SourceDiagnostic, BodyCheckInternalError> {
+    ) -> Result<BodyCheckError, BodyCheckInternalError> {
         let origin = self
             .origins
             .get(&node)
             .copied()
             .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?;
-        Ok(rule.diagnostic(origin))
+        Ok(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
     }
 }

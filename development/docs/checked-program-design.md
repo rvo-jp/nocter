@@ -188,8 +188,9 @@ body results must consume this plan rather than encode their own optional or fal
 
 The production checked-body slice consumes `PreparedChecking` through
 `check_prepared_program`. It builds blocks, scalar constants, inferred local bindings,
-parameter/local/named-field places, readonly borrows, explicit discards, simple named-place
-assignment, returns, body results, ordinary `if`/`else if` control, and
+parameter/local/named-field places, readonly borrows, explicit discards, simple and compound named-
+place assignment, checked integer arithmetic, returns, body results, ordinary `if`/`else if`
+control, and
 while/infinite/integer-range loops. Bare completion uses an
 explicit `Complete` checked operation only when an enclosing fallible success
 must be represented; it is never exposed as a source value. Outcome plans become concrete
@@ -277,8 +278,21 @@ expands only its remaining fields. A successful transition removes subordinate p
 marks the destination initialized; a field cannot recreate storage below a moved whole parent.
 Replacement actions use `BeforeStore`, while scope and transfer cleanup uses
 `BeforeTransfer`. Readwrite-borrowed fields retain their evaluated `PlaceId` as the cleanup
-target because they are not owned `MovePath` identities. Indexed and compound assignment and
-temporary ownership for unsupported expression families remain subsequent increments.
+target because they are not owned `MovePath` identities. Indexed assignment and temporary
+ownership for unsupported expression families remain subsequent increments.
+
+Integer `+`, `-`, `*`, `/`, and `%` select the closed `PrimitiveBinary` operation once. An
+authoritative destination integer type contextualizes literal operands; otherwise the typed left
+operand contextualizes the right literal. Both operands must have the same integer identity, and
+the checked operation retains the result type that later MIR uses for width, signedness, overflow,
+division, and remainder guards. Compound assignment stores the same selected operation alongside
+one target place and one RHS node. It requires a writable integer target and a matching RHS, then
+the ownership walk visits the RHS before requiring the target to be definitely initialized. It
+does not build or analyze a duplicate ordinary binary expression. `BodyCheckError` retains the
+exact `BodyRule` that produced its separate `SourceDiagnostic`, allowing this boundary to replace a
+nested general mismatch with required compound rule `E0386` without inspecting a rendered code.
+Unary numeric, shift, logical, primitive comparison, and source-defined operator selection remain
+subsequent increments.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

@@ -2,18 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by implementing primitive binary operations, compound assignment, and
-indexed writable-place planning on top of the completed simple-assignment transition.
+Continue v0.14.0 Phase 3 by implementing indexed writable-place planning and the remaining closed
+primitive operator families on top of the completed assignment transition.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Implement checked primitive numeric operations, then make compound assignment select the same
-   operation without duplicating or reordering its target expression.
-2. Introduce one evaluated-place plan for built-in and selected indexes. Both simple and compound
+1. Introduce one evaluated-place plan for built-in and selected indexes. Both simple and compound
    assignment must evaluate the right-hand side first and the target components exactly once.
+2. Complete unary numeric, shift, logical, primitive equality, and primitive ordering selection
+   without mixing source-defined operator dispatch into the primitive path.
 3. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 
@@ -93,9 +93,14 @@ fields, and fields reached through readwrite borrows. It checks the RHS before r
 the destination expected type, restores moved and maybe-initialized paths, rejects immutable or
 unavailable-parent targets, and obtains old-value cleanup from the same partial-path planner used
 by scope exit. Each cleanup schedule declares whether it runs before control transfer or before
-assignment storage, so later MIR cannot infer ordering from the node kind. Compound and indexed
-assignment, temporary cleanup for calls and aggregates, and executable MIR lowering remain
-incomplete.
+assignment storage, so later MIR cannot infer ordering from the node kind. Checked integer
+arithmetic selects `Add`, `Subtract`, `Multiply`, `Divide`, or `Remainder` once and evaluates
+operands left-to-right. Compound assignment reuses that selection, retains one target and one RHS,
+requires a definitely initialized numeric place, and never constructs a fictional binary
+expression. Body errors retain their `BodyRule` identity separately from the projected diagnostic,
+so the compound boundary can classify its required dedicated diagnostic without comparing rendered
+codes. Indexed assignment, remaining operators, temporary cleanup for calls and aggregates, and
+executable MIR lowering remain incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

@@ -18,6 +18,7 @@ pub enum BodyRule {
     InvalidExplicitDrop,
     InvalidAssignmentTarget,
     InvalidReinitialization,
+    InvalidCompoundAssignment,
 }
 
 impl BodyRule {
@@ -37,6 +38,7 @@ impl BodyRule {
         Self::InvalidExplicitDrop,
         Self::InvalidAssignmentTarget,
         Self::InvalidReinitialization,
+        Self::InvalidCompoundAssignment,
     ];
 
     #[must_use]
@@ -57,6 +59,7 @@ impl BodyRule {
             Self::InvalidExplicitDrop => "E0383",
             Self::InvalidAssignmentTarget => "E0384",
             Self::InvalidReinitialization => "E0385",
+            Self::InvalidCompoundAssignment => "E0386",
         }
     }
 
@@ -129,6 +132,10 @@ impl BodyRule {
             Self::InvalidReinitialization => (
                 "this field cannot be initialized through an unavailable parent",
                 "reinitialize the complete `var` binding before assigning through its fields",
+            ),
+            Self::InvalidCompoundAssignment => (
+                "compound assignment requires a writable initialized integer place and matching RHS",
+                "use a mutable integer destination and a right-hand side of the same integer type",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))
