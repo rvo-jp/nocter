@@ -1,0 +1,27 @@
+ModuleSource
+  UseDeclaration
+    Visibility
+    ModulePath
+    ImportSelection
+      SelectedName
+      SelectedName
+  Item
+    TargetDirective
+      StringLiteral
+    FunctionDeclaration
+      Visibility
+      GenericParameters
+      Parameters
+        Parameter
+          Type
+            BorrowType
+              NamedType
+        Parameter
+          Type
+            BorrowType
+              NamedType
+      CallableTail
+        Type
+          BorrowType
+            NamedType
+        ProvenanceClause

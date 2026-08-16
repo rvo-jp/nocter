@@ -3,6 +3,8 @@ mod declaration;
 mod requirements;
 mod root;
 #[cfg(test)]
+mod snapshots;
+#[cfg(test)]
 mod tests;
 mod types;
 

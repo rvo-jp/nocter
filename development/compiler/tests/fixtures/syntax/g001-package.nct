@@ -1,0 +1,4 @@
+#name: "p"
+#dependencies: {
+    json: "https://example.test/json",
+}

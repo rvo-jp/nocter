@@ -9,11 +9,10 @@ input.
 
 ## Immediate Work
 
-1. Expand G001 onward from the
-   [grammar conformance plan](docs/grammar-conformance.md) into accepted and rejected parser
-   fixtures and stable tree-shape snapshots; keep semantic-boundary cases parseable.
-2. Implement block imports, executable sequences, bindings, and terminal statements in G019-G021
+1. Implement block imports, executable sequences, bindings, and terminal statements in G019-G021
    on the shared line-sequence and block-delimiter boundary.
+2. Extend accepted, rejected, and semantic-boundary fixtures plus tree-shape snapshots with each
+   newly implemented conformance row.
 3. Continue through control flow and expressions in grammar dependency order. Do not introduce
    declaration or checked semantic crates during Phase 1.
 

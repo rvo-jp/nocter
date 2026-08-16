@@ -7,7 +7,7 @@ implementation.
 
 ## Test Layers
 
-The source and syntax workspace will keep three distinct expectations:
+The source and syntax workspace keeps three distinct expectations:
 
 - **parse**: the token sequence has one grammar path and produces no syntax diagnostic
 - **syntax reject**: no complete production consumes the token sequence
@@ -17,6 +17,11 @@ The source and syntax workspace will keep three distinct expectations:
 Parser tests must not resolve a name, inspect a type, or invoke a semantic fallback to decide any
 of these expectations. Each accepted case also records a lossless syntax-tree snapshot so later
 error recovery cannot silently change its shape.
+
+The implemented G001-G018 boundary has grouped accepted node-shape snapshots plus rejected and
+semantic-boundary source fixtures under `development/compiler/tests/fixtures/syntax/`. Focused
+unit cases exercise the individual optional, repeated, and recovery branches inside those groups.
+Every later row must add the same three fixture classes when its parser production is introduced.
 
 ## Conformance Matrix
 

@@ -1,0 +1,7 @@
+type Projection<T> = &parser.Buffer<T>.Item?
+type Matrix<T> = [[T; 4]]
+
+func values<T, U, C, I>(
+    source: &T,
+    callback: &+func(input: &T): &T from input,
+): some Source<T, Item = &T>?! from source where T: Interface<U>, copy U, T.Item = U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, &T as &str, (...&C): I

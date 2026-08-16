@@ -1,0 +1,2 @@
+func late(): void {}
+use std/io

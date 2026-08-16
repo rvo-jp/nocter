@@ -1,0 +1,25 @@
+enum Maybe<T> {
+    some(value: T)
+    missing
+}
+
+interface Source {
+    pub type Item
+    pub method &self.next(): Self.Item?
+}
+
+construct Maybe<T> {
+    pub func empty(): Self {}
+}
+
+instance Maybe<T> {
+    method &self.item(): &T from self
+}
+
+conform Source for Maybe<T> {
+    type Item = T
+    method &self.next(): Self.Item? {}
+}
+
+drop Maybe<T>(&+self) {}
+test empty {}

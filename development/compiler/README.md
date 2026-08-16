@@ -49,6 +49,10 @@ be introduced to make an unresolved syntax choice.
   structure. Blocks currently establish their owning delimiter boundary and accept empty bodies;
   block imports, statements, and expressions are the next parser boundary.
 
+Accepted fixtures through G018 have human-readable node-shape snapshots. Accepted, rejected, and
+semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
+silently discard a token.
+
 Neither crate owns declaration identity, name resolution, types, or checked semantics.
 
 ## Verification

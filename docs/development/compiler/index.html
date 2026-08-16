@@ -144,7 +144,7 @@
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
   lossless syntax tree. Its current grammar coverage includes declaration and member-container
   structure. Blocks currently establish their owning delimiter boundary and accept empty bodies;
-  block imports, statements, and expressions are the next parser boundary.</li></ul><p>Neither crate owns declaration identity, name resolution, types, or checked semantics.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  block imports, statements, and expressions are the next parser boundary.</li></ul><p>Accepted fixtures through G018 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Neither crate owns declaration identity, name resolution, types, or checked semantics.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>

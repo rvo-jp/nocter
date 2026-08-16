@@ -1,0 +1,2 @@
+type Dynamic = [u8; size]
+func unsupported<T>(): T where (&T <= &T): bool

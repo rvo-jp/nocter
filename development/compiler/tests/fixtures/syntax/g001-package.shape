@@ -1,0 +1,10 @@
+PackageFile
+  PackageDirective
+    DirectiveValue
+      StringLiteral
+  PackageDirective
+    DirectiveValue
+      DirectiveRecord
+        DirectiveField
+          DirectiveValue
+            StringLiteral

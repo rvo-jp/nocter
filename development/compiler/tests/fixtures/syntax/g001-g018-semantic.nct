@@ -1,0 +1,5 @@
+func missing_body(): i32
+enum Empty {}
+construct External {}
+instance Pair<T, T> {}
+func equality<T, U>(): T where T = U
