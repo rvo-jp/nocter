@@ -859,7 +859,8 @@ Rules:
   trailing comma on any layout.
 - Payloadless variants are constructed as `EnumName.variant_name`.
 - Payload variants are constructed as `EnumName.variant_name(args...)`.
-- Payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
+- Every enum uses a `u8` ABI tag and must declare between 1 and 256 variants, inclusive, whether
+  or not its variants carry payloads.
 - Variant construction requires the payload arity and types to match the variant declaration.
 - Variant payload arguments are evaluated left to right.
 - Variant constructors are qualified with the enum name, such as `AppError.open_failed(path)`.
