@@ -104,10 +104,20 @@ impl InstanceOperationSelector<'_> {
         let Some((target_capability, target)) = borrow_result(self.types, target) else {
             return Ok(false);
         };
-        if source_capability != target_capability {
+        if source == target
+            && source_capability == BorrowCapability::ReadWrite
+            && target_capability == BorrowCapability::Readonly
+        {
+            return Ok(true);
+        }
+        if source_capability != target_capability
+            && (source_capability != BorrowCapability::ReadWrite
+                || target_capability != BorrowCapability::Readonly)
+        {
             return Ok(false);
         }
-        let candidates = self.select_coercions(source, source_capability)?;
+        let candidates =
+            self.select_borrow_coercions(source, source_capability, target_capability)?;
         Ok(candidates
             .iter()
             .filter(|candidate| candidate.target == target)

@@ -1,6 +1,8 @@
 use std::fmt;
 
-use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_model::{
+    BorrowCapability, BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore,
+};
 
 use crate::checked::{GenericArgument, GenericArguments};
 use crate::expected::{ExpectedTypeError, plan_expected_type};
@@ -75,6 +77,30 @@ impl CallableInference {
                 .get(projected)
                 .ok_or(InferenceFailure::UnknownType(projected))?;
             match (expected_kind, evidence) {
+                (
+                    TypeKind::Borrow {
+                        capability: BorrowCapability::Readonly,
+                        referent: expected_referent,
+                    },
+                    InferenceEvidence::Typed(actual),
+                ) if matches!(
+                    types.get(actual),
+                    Some(TypeKind::Borrow {
+                        capability: BorrowCapability::ReadWrite,
+                        ..
+                    })
+                ) =>
+                {
+                    let Some(TypeKind::Borrow {
+                        referent: actual_referent,
+                        ..
+                    }) = types.get(actual)
+                    else {
+                        unreachable!("the guard established a borrowed actual type")
+                    };
+                    self.equations.push((*expected_referent, *actual_referent));
+                    return Ok(());
+                }
                 (TypeKind::Optional(_), InferenceEvidence::Absent)
                 | (TypeKind::Fallible(_), InferenceEvidence::Failure) => {
                     self.deferred
@@ -168,7 +194,9 @@ impl CallableInference {
     pub fn finish(self, types: &mut TypeStore) -> Result<GenericArguments, InferenceFailure> {
         let candidates = self
             .result_context
-            .map_or(Ok(vec![None]), |context| context.candidates(types))?;
+            .map_or(Ok(vec![ResultCandidate::None]), |context| {
+                context.candidates(types)
+            })?;
         let mut first_failure = None;
         for candidate in candidates {
             match self.finish_candidate(types, candidate) {
@@ -184,16 +212,23 @@ impl CallableInference {
     fn finish_candidate(
         &self,
         types: &mut TypeStore,
-        result_candidate: Option<TypeId>,
+        result_candidate: ResultCandidate,
     ) -> Result<GenericArguments, InferenceFailure> {
         let mut equations = self.equations.clone();
-        if let (Some(context), Some(candidate)) = (self.result_context, result_candidate)
+        if let Some(context) = self.result_context
             && !matches!(
                 types.get(context.result),
                 Some(TypeKind::Builtin(BuiltinType::Never))
             )
         {
-            equations.push((context.result, candidate));
+            match result_candidate {
+                ResultCandidate::None => {}
+                ResultCandidate::Exact(candidate) => equations.push((context.result, candidate)),
+                ResultCandidate::BorrowWeakening {
+                    result_referent,
+                    expected_referent,
+                } => equations.push((result_referent, expected_referent)),
+            }
         }
         let bindings = unify_type_pairs(types, self.parameters.iter().copied(), equations)?;
         let mut substitution = TypeSubstitution::default();
@@ -219,17 +254,16 @@ impl CallableInference {
                 });
             }
         }
-        if let Some(context) = self.result_context {
+        if let Some(context) = self.result_context
+            && !matches!(result_candidate, ResultCandidate::None)
+        {
             let result = substitution.apply_type(types, context.result)?;
-            plan_expected_type(types, context.expected, InferenceEvidence::Typed(result)).map_err(
-                |error| match error {
-                    ExpectedTypeError::Mismatch { .. } => InferenceFailure::ContextualMismatch {
-                        expected: context.expected,
-                        evidence: InferenceEvidence::Typed(result),
-                    },
-                    ExpectedTypeError::UnknownType(ty) => InferenceFailure::UnknownType(ty),
-                },
-            )?;
+            if !result_context_compatible(types, context.expected, result)? {
+                return Err(InferenceFailure::ContextualMismatch {
+                    expected: context.expected,
+                    evidence: InferenceEvidence::Typed(result),
+                });
+            }
         }
         GenericArguments::new(arguments).map_err(|_| InferenceFailure::DuplicateParameter)
     }
@@ -241,25 +275,100 @@ struct ResultContext {
     expected: TypeId,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum ResultCandidate {
+    None,
+    Exact(TypeId),
+    BorrowWeakening {
+        result_referent: TypeId,
+        expected_referent: TypeId,
+    },
+}
+
 impl ResultContext {
-    fn candidates(self, types: &TypeStore) -> Result<Vec<Option<TypeId>>, InferenceFailure> {
+    fn candidates(self, types: &TypeStore) -> Result<Vec<ResultCandidate>, InferenceFailure> {
         if matches!(
             types.get(self.result),
             Some(TypeKind::Builtin(BuiltinType::Never))
         ) {
-            return Ok(vec![None]);
+            return Ok(vec![ResultCandidate::None]);
         }
         let mut candidates = Vec::new();
         let mut current = self.expected;
         loop {
-            candidates.push(Some(current));
+            candidates.push(result_candidate(types, self.result, current)?);
             match types
                 .get(current)
                 .ok_or(InferenceFailure::UnknownType(current))?
             {
                 TypeKind::Optional(payload) | TypeKind::Fallible(payload) => current = *payload,
-                _ => return Ok(candidates),
+                _ => {
+                    candidates.push(ResultCandidate::None);
+                    return Ok(candidates);
+                }
             }
+        }
+    }
+}
+
+fn result_candidate(
+    types: &TypeStore,
+    result: TypeId,
+    expected: TypeId,
+) -> Result<ResultCandidate, InferenceFailure> {
+    let result_kind = types
+        .get(result)
+        .ok_or(InferenceFailure::UnknownType(result))?;
+    let expected_kind = types
+        .get(expected)
+        .ok_or(InferenceFailure::UnknownType(expected))?;
+    match (result_kind, expected_kind) {
+        (
+            TypeKind::Borrow {
+                capability: BorrowCapability::ReadWrite,
+                referent: result_referent,
+            },
+            TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent: expected_referent,
+            },
+        ) => Ok(ResultCandidate::BorrowWeakening {
+            result_referent: *result_referent,
+            expected_referent: *expected_referent,
+        }),
+        _ => Ok(ResultCandidate::Exact(expected)),
+    }
+}
+
+fn result_context_compatible(
+    types: &TypeStore,
+    expected: TypeId,
+    result: TypeId,
+) -> Result<bool, InferenceFailure> {
+    match plan_expected_type(types, expected, InferenceEvidence::Typed(result)) {
+        Ok(_) => return Ok(true),
+        Err(ExpectedTypeError::UnknownType(ty)) => return Err(InferenceFailure::UnknownType(ty)),
+        Err(ExpectedTypeError::Mismatch { .. }) => {}
+    }
+    let mut target = expected;
+    loop {
+        match (types.get(result), types.get(target)) {
+            (
+                Some(TypeKind::Borrow {
+                    capability: BorrowCapability::ReadWrite,
+                    referent: result_referent,
+                }),
+                Some(TypeKind::Borrow {
+                    capability: BorrowCapability::Readonly,
+                    referent: expected_referent,
+                }),
+            ) => return Ok(result_referent == expected_referent),
+            (_, Some(TypeKind::Optional(payload) | TypeKind::Fallible(payload))) => {
+                target = *payload;
+            }
+            (None, _) => return Err(InferenceFailure::UnknownType(result)),
+            (_, None) => return Err(InferenceFailure::UnknownType(target)),
+            _ => return Ok(false),
         }
     }
 }

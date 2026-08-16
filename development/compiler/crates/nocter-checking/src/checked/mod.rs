@@ -14,7 +14,8 @@ pub use cleanup::{
     CleanupTiming,
 };
 pub use node::{
-    AggregateConstruction, AllocationSelection, CallTarget, CheckedCall, CheckedClosure,
+    AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
+    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall, CheckedClosure,
     CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedInterpolation, CheckedLoop,
     CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
     CheckedSequence, ComparisonImplementation, ComparisonOperation, ConstantValue,

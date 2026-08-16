@@ -152,8 +152,8 @@ impl OwnershipAnalyzer<'_> {
             }
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
             CheckedOperation::Call(call) => self.visit_call(call, state),
-            CheckedOperation::Coerce { .. }
-            | CheckedOperation::Aggregate(_)
+            CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
+            CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(
                 CheckedOutcome::Propagate { .. } | CheckedOutcome::Recover { .. },
             )

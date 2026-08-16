@@ -84,3 +84,16 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     assert_eq!(entry.generic_parameters().len(), 1);
     assert!(entry.refinements().is_empty());
 }
+
+#[test]
+fn duplicate_coercion_identity_is_rejected_before_body_selection() {
+    let fixture = Fixture::new(
+        "struct View { value: i32 }\nstruct Source { first: View\n    second: View\n}\ninstance Source {\n    pub coerce &self as &View {\n        return &self.first\n    }\n    pub coerce &self as &View {\n        return &self.second\n    }\n}\n",
+    );
+    let (input, prelude) = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0356");
+}

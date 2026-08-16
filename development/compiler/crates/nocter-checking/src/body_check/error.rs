@@ -99,6 +99,7 @@ pub enum BodyCheckInternalError {
     BodyAssumptions(crate::SubstitutionError),
     CallSubstitution(crate::SubstitutionError),
     CallInference(crate::InferenceFailure),
+    ExpectedConversion,
     CleanupPlanning,
 }
 

@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{ArenaBuilder, InstanceId, TypeStore};
+use nocter_model::{ArenaBuilder, CallableCapability, CallableId, InstanceId, TypeId, TypeStore};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use super::diagnostic;
@@ -63,6 +63,8 @@ impl From<SubstitutionError> for InstanceOperationBuildError {
 pub enum InstanceOperationInternalError {
     InvalidTarget(nocter_model::TypeId),
     MissingInstance(InstanceId),
+    MissingCallable(CallableId),
+    MissingReceiver(CallableId),
     MissingSource(SemanticEntity),
     Substitution(SubstitutionError),
 }
@@ -72,6 +74,10 @@ impl fmt::Display for InstanceOperationInternalError {
         match self {
             Self::InvalidTarget(target) => write!(formatter, "invalid instance target {target:?}"),
             Self::MissingInstance(instance) => write!(formatter, "missing instance {instance:?}"),
+            Self::MissingCallable(callable) => write!(formatter, "missing callable {callable:?}"),
+            Self::MissingReceiver(callable) => {
+                write!(formatter, "missing coercion receiver for {callable:?}")
+            }
             Self::MissingSource(entity) => write!(formatter, "missing source for {entity:?}"),
             Self::Substitution(error) => error.fmt(formatter),
         }
@@ -127,6 +133,13 @@ pub fn build_instance_operation_table(
             &pattern_substitution,
             pattern_requirements.retained(),
         )?;
+        validate_coercion_identities(
+            graph,
+            types,
+            source_index,
+            instance.members(),
+            &pattern_substitution,
+        )?;
         let actual = entries.insert(CheckedInstanceOperations::new(
             target,
             instance.generic_parameters(),
@@ -147,6 +160,42 @@ pub fn build_instance_operation_table(
     ))
 }
 
+fn validate_coercion_identities(
+    graph: &DeclarationGraph,
+    types: &mut TypeStore,
+    source_index: &SourceIndex,
+    members: &[CallableId],
+    substitution: &crate::type_relations::TypeSubstitution,
+) -> Result<(), InstanceOperationBuildError> {
+    let declarations = graph.declarations();
+    let mut identities = BTreeMap::<(CallableCapability, TypeId), CallableId>::new();
+    for member in members.iter().copied() {
+        let callable = declarations
+            .callables()
+            .get(member)
+            .ok_or(InstanceOperationInternalError::MissingCallable(member))?;
+        if callable.kind() != CallableKind::Coercion {
+            continue;
+        }
+        let receiver = callable
+            .receiver()
+            .and_then(|receiver| declarations.parameters().get(receiver))
+            .ok_or(InstanceOperationInternalError::MissingReceiver(member))?;
+        let ParameterRole::Receiver(capability) = receiver.role() else {
+            return Err(InstanceOperationInternalError::MissingReceiver(member).into());
+        };
+        let target = substitution.apply_type(types, callable.result())?;
+        if let Some(previous) = identities.insert((capability, target), member) {
+            return Err(diagnostic::duplicate_coercion(
+                entity_origin(source_index, SemanticEntity::Callable(member))?,
+                entity_origin(source_index, SemanticEntity::Callable(previous))?,
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 fn site_origin(
     source_index: &SourceIndex,
     site: nocter_model::DeclarationSiteId,
@@ -164,4 +213,21 @@ fn site_origin(
         .ok_or(InstanceOperationInternalError::MissingSource(
             SemanticEntity::DeclarationSite(site),
         ))
+}
+
+fn entity_origin(
+    source_index: &SourceIndex,
+    entity: SemanticEntity,
+) -> Result<SourceOrigin, InstanceOperationInternalError> {
+    source_index
+        .bindings_for(entity)
+        .iter()
+        .find(|binding| {
+            matches!(
+                binding.role(),
+                SourceRole::Declaration | SourceRole::Implementation
+            )
+        })
+        .map(|binding| binding.origin())
+        .ok_or(InstanceOperationInternalError::MissingSource(entity))
 }

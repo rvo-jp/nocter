@@ -18,6 +18,8 @@ mod construction_tests;
 #[cfg(test)]
 mod control_tests;
 #[cfg(test)]
+mod conversion_tests;
+#[cfg(test)]
 mod copy_tests;
 #[cfg(test)]
 mod drop_tests;

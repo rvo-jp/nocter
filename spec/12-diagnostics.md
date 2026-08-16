@@ -192,11 +192,14 @@ Source-backed conformance diagnostics:
   by its associated-type declaration.
 - `E0355`: two instance target patterns can denote the same type after binder refinement. No
   declaration-order or more-specific rule selects one.
+- `E0356`: one instance repeats a borrow-coercion identity with the same receiver capability and
+  canonical target type.
 
-These rules consume one program-wide normalized conformance table. Signature checking substitutes
+These rules consume the program-wide normalized conformance and instance-operation tables.
+Signature checking substitutes
 interface arguments, `Self`, associated bindings, method generics, and binder refinements before
-comparison. Bound proof and later dispatch query that same table rather than repeating pattern
-selection.
+comparison. Instance validation normalizes binder refinements before comparing coercion identities.
+Bound proof and later dispatch query those tables rather than repeating pattern selection.
 
 Source-backed normalized type-position diagnostics:
 

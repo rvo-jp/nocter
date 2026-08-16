@@ -2,21 +2,19 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by completing the common expected-type conversion boundary used by static
-calls, bindings, returns, and aggregate elements.
+Continue v0.14.0 Phase 3 by extending the closed call model from direct static functions to
+callable values, construction entries, and methods.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Add one-step readonly/readwrite borrow coercion and capability weakening to the common
-   expected-type plan. The plan must record its exact preparation and selection once.
-2. Generalize direct static calls to callable values, construction functions, and methods only
-   after they can consume that same expected-type conversion operation.
-3. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
+1. Generalize direct static calls to callable values, construction functions, and methods while
+   keeping one argument-inference/materialization pipeline and the common expected-type boundary.
+2. Extend the closed checked-operation traversal as aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
-4. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
+3. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
    analysis to rediscover callable semantics.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -134,8 +132,17 @@ contextualize literals before inference, `none` remains deferred until another c
 payload, and the result context prefers complete identity before outcome injection. `CheckedCall`
 retains exact static dispatch and source-order arguments. Ownership visits the callee value (when
 later supported), receiver, and arguments in language order, so explicit moves and use-after-move
-share ordinary place state. Contextual borrow coercion, callable values, methods, construction
-calls, temporary cleanup, and program-wide result-provenance inference remain incomplete.
+share ordinary place state. The common expected-type boundary now owns exact compatibility,
+recursive outcome injection, built-in readwrite-to-readonly weakening, and one-step source-defined
+borrow coercion. It records the exact target, source preparation, and static selection in
+`CheckedBorrowConversion` and never chains conversions. Readwrite place arguments remain place
+drafts through generic inference so a reborrow cannot be misclassified as an implicit copy.
+Generic parameter and result evidence admit the same built-in capability weakening. The operation
+selector prefers minimum receiver authority, falls back to a readwrite receiver only when required,
+and uses lexical coercion requirements in generic bodies. Duplicate coercion identities are
+rejected by the program-wide table as `E0356` before body selection. Callable values, methods,
+construction calls, temporary cleanup, and program-wide result-provenance inference remain
+incomplete.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

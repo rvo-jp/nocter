@@ -26,15 +26,15 @@ use crate::syntax::{
     is_transparent_expression, token_text,
 };
 use crate::{
-    BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, ConstantValue,
-    DropTable, ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, NameTarget,
-    OutcomeLayer, PlaceAccess, PlaceProjection, PreparedChecking, ResolvedBodyNames,
-    plan_expected_type,
+    BodySource, CheckedBody, CheckedControl, CheckedOperation, ConstantValue, DropTable,
+    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, PreparedChecking,
+    ResolvedBodyNames, plan_expected_type,
 };
 
 mod arithmetic;
 mod assignment;
 mod calls;
+mod expected;
 mod loops;
 mod operators;
 mod place;
@@ -561,8 +561,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 {
                     return self.check_static_call(current, expected);
                 }
-                NodeKind::PostfixExpression => self.check_postfix_reference(current)?,
-                NodeKind::ReferenceExpression => self.check_reference(current)?,
+                NodeKind::PostfixExpression => {
+                    return self.check_postfix_reference(current, expected);
+                }
+                NodeKind::ReferenceExpression => {
+                    return self.check_reference(current, expected);
+                }
                 NodeKind::MoveExpression => self.check_move(current)?,
                 NodeKind::UnaryExpression => return self.check_unary(current, expected),
                 _ => return Err(BodyCheckInternalError::UnsupportedSyntax(current, kind).into()),
@@ -690,14 +694,30 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
     }
 
-    fn check_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+    fn check_reference(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let place = self.named_place(node)?;
-        self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
+        if let Some(expected) = expected {
+            self.apply_expected_place(node, place.id, place.ty, expected)
+        } else {
+            self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
+        }
     }
 
-    fn check_postfix_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+    fn check_postfix_reference(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let place = self.postfix_place(node, BorrowCapability::Readonly)?;
-        self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
+        if let Some(expected) = expected {
+            self.apply_expected_place(node, place.id, place.ty, expected)
+        } else {
+            self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
+        }
     }
 
     fn check_move(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
@@ -738,70 +758,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         self.add_node(node, place.ty, CheckedOperation::Move(place.id))
-    }
-
-    fn apply_expected(
-        &mut self,
-        node: NodeId,
-        value: BodyNodeId,
-        expected: TypeId,
-    ) -> Result<BodyNodeId, BodyCheckError> {
-        let actual = self.node_type(value)?;
-        let plan = plan_expected_type(self.types, expected, ExpectedEvidence::Typed(actual))
-            .map_err(|error| self.expected_error(node, error))?;
-        self.materialize_plan(node, plan, Some(value))
-    }
-
-    fn materialize_plan(
-        &mut self,
-        node: NodeId,
-        plan: ExpectedTypePlan,
-        payload: Option<BodyNodeId>,
-    ) -> Result<BodyNodeId, BodyCheckError> {
-        let (base, injections) = plan.into_parts();
-        let mut current = match base {
-            ExpectedBase::Exact(_) | ExpectedBase::Diverges(_) => {
-                payload.ok_or(BodyCheckInternalError::InvalidSyntax(node))?
-            }
-            ExpectedBase::Absent(ty) => {
-                self.add_node(node, ty, CheckedOperation::Outcome(CheckedOutcome::Absent))?
-            }
-            ExpectedBase::Failure(ty) => self.add_node(
-                node,
-                ty,
-                CheckedOperation::Outcome(CheckedOutcome::Failure(
-                    payload.ok_or(BodyCheckInternalError::InvalidSyntax(node))?,
-                )),
-            )?,
-        };
-        for layer in injections {
-            let payload_type = self.node_type(current)?;
-            let ty = self
-                .types
-                .intern(match layer {
-                    OutcomeLayer::Optional => TypeKind::Optional(payload_type),
-                    OutcomeLayer::Fallible => TypeKind::Fallible(payload_type),
-                })
-                .map_err(|_| BodyCheckInternalError::UnknownType(payload_type))?;
-            current = self.add_node(
-                node,
-                ty,
-                CheckedOperation::Outcome(CheckedOutcome::Inject {
-                    layer,
-                    payload: current,
-                }),
-            )?;
-        }
-        Ok(current)
-    }
-
-    fn expected_error(&self, node: NodeId, error: ExpectedTypeError) -> BodyCheckError {
-        match error {
-            ExpectedTypeError::Mismatch { .. } => self
-                .rule(BodyRule::TypeMismatch, node)
-                .unwrap_or_else(BodyCheckError::Internal),
-            ExpectedTypeError::UnknownType(ty) => BodyCheckInternalError::UnknownType(ty).into(),
-        }
     }
 
     fn add_node(

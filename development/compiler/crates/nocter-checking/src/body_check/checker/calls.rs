@@ -1,7 +1,7 @@
 use nocter_declarations::{
     CallableDeclaration, CallableKind, CallableOwner, ExportedEntity, ParameterRole,
 };
-use nocter_model::{BodyNodeId, TypeId};
+use nocter_model::{BodyNodeId, BorrowCapability, PlaceId, TypeId};
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{Keyword, NodeId, NodeKind, SyntaxToken, TokenKind};
 
@@ -10,7 +10,9 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::conformance::normalize_requirements;
 use crate::instance_operations::InstanceOperationSelector;
-use crate::syntax::{direct_identifier, direct_nodes, direct_token, is_transparent_expression};
+use crate::syntax::{
+    direct_child, direct_identifier, direct_nodes, direct_token, is_transparent_expression,
+};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
     CallTarget, CallableInference, CheckedCall, CheckedOperation, GenericArguments,
@@ -18,8 +20,18 @@ use crate::{
 };
 
 enum ArgumentDraft {
-    Checked { syntax: NodeId, value: BodyNodeId },
-    Deferred { syntax: NodeId },
+    Checked {
+        syntax: NodeId,
+        value: BodyNodeId,
+    },
+    Place {
+        syntax: NodeId,
+        place: PlaceId,
+        ty: TypeId,
+    },
+    Deferred {
+        syntax: NodeId,
+    },
 }
 
 impl BodyChecker<'_, '_> {
@@ -153,6 +165,17 @@ impl BodyChecker<'_, '_> {
             let known = !generics
                 .iter()
                 .any(|parameter| callable.generic_parameters().contains(parameter));
+            if !known && let Some(place) = self.static_argument_place(syntax)? {
+                inference
+                    .constrain_contextual(self.types, parameter, InferenceEvidence::Typed(place.ty))
+                    .map_err(|error| self.call_inference_error(syntax, error))?;
+                arguments.push(ArgumentDraft::Place {
+                    syntax,
+                    place: place.id,
+                    ty: place.ty,
+                });
+                continue;
+            }
             let value = self.check_expression(syntax, known.then_some(parameter))?;
             inference
                 .constrain_contextual(
@@ -222,12 +245,39 @@ impl BodyChecker<'_, '_> {
                     ArgumentDraft::Checked { syntax, value } => {
                         self.apply_expected(syntax, value, parameter)
                     }
+                    ArgumentDraft::Place { syntax, place, ty } => {
+                        self.apply_expected_place(syntax, place, ty, parameter)
+                    }
                     ArgumentDraft::Deferred { syntax } => {
                         self.check_expression(syntax, Some(parameter))
                     }
                 }
             })
             .collect()
+    }
+
+    fn static_argument_place(
+        &mut self,
+        root: NodeId,
+    ) -> Result<Option<super::ResolvedPlace>, BodyCheckError> {
+        let mut syntax = root;
+        while self.kind(syntax).is_ok_and(is_transparent_expression) {
+            let children = direct_nodes(self.tree(), syntax);
+            let [child] = children.as_slice() else {
+                break;
+            };
+            syntax = *child;
+        }
+        match self.kind(syntax)? {
+            NodeKind::ReferenceExpression => self.named_place(syntax).map(Some),
+            NodeKind::PostfixExpression
+                if direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
+            {
+                self.postfix_place(syntax, BorrowCapability::Readonly)
+                    .map(Some)
+            }
+            _ => Ok(None),
+        }
     }
 
     fn consume_static_callable(

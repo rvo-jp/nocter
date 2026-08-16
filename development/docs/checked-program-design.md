@@ -176,9 +176,12 @@ call inference independent of argument or declaration order.
 
 `CallableInference` collects exact receiver/equality constraints and contextual argument/result
 constraints before selection. A result context tries complete expected-type identity first, then
-its optional/fallible payload chain from outermost to innermost. The first rank producing a
-complete, valid substitution is revalidated by the ordinary expected-type planner. This preserves
-exact complete-result identity ahead of outcome injection without a call-site inference fork. A
+its optional/fallible payload chain from outermost to innermost. The first contextual rank producing
+a complete, valid substitution is revalidated by the ordinary expected-type planner. A final
+context-free rank is allowed only when argument evidence already determines every generic; the
+common expected-type boundary then selects any permitted result coercion or reports the mismatch.
+This preserves exact complete-result identity ahead of outcome injection without making generic
+inference a second coercion selector. A
 statically known optional or fallible parameter shape projects to its payload before ordinary
 evidence is unified; a source value already carrying the matching complete layer is unified
 exactly. Absence, contextual failure, `never`, and `void` contribute no payload constraint. They are
@@ -300,8 +303,8 @@ or storage.
 For a non-built-in receiver, the constructor queries the program-wide `InstanceOperationTable`.
 That table stores each instance target after binder refinement, the declaration's retained
 requirements, its operation member identities, and a canonical refinement substitution. It rejects
-overlapping target patterns before any body is checked; declaration order and specificity never
-rank candidates. A body selector combines the pattern match with lexical assumptions, proves
+overlapping target patterns and duplicate receiver-capability/target coercion identities before
+any body is checked; declaration order and specificity never rank candidates. A body selector combines the pattern match with lexical assumptions, proves
 instance and member requirements, applies visibility, and emits one `StaticSelection`. That value
 contains both the direct or structural dispatch identity and every declaration-generic argument,
 so instantiation and MIR cannot repeat matching.
@@ -361,10 +364,21 @@ looking up source spelling again. It validates positional arity, checks already-
 contexts early, collects generic argument evidence plus one ranked result context, and freezes one
 `StaticSelection` only after normalized callable requirements pass through the same recursive
 instance-operation proof authority. `none` is retained as deferred evidence and materialized once
-the substitution supplies its exact optional type. The checked call stores arguments in authored
-order; ownership visits them in that order and applies ordinary copy/move rules. Callable-value,
-construction, method, contextual borrow-coercion, temporary-cleanup, and result-provenance passes
-remain subsequent increments rather than alternate paths inside direct-call checking.
+the substitution supplies its exact optional type. Generic inference admits the built-in
+readwrite-to-readonly relation for both parameter and result evidence without treating the two
+borrow types as equal.
+
+One common expected-type boundary first preserves exact complete type identity, then projects
+optional and fallible destinations to one leaf. At that leaf it may freeze either built-in
+readwrite-to-readonly weakening or one selected source-defined borrow coercion. A
+`CheckedBorrowConversion` records the source value or place, exact target, receiver preparation,
+and direct or structural dispatch once; coercions never chain. Place arguments are retained as
+place drafts until generic inference supplies their final expected type, preventing a readwrite
+reborrow from becoming an implicit copy. Minimum-authority selection prefers a readonly receiver
+entry and uses a readwrite receiver returning readonly only as a fallback. The checked call stores
+arguments in authored order; ownership visits them in that order and applies ordinary copy/move
+rules. Callable-value, construction, method, temporary-cleanup, and result-provenance passes remain
+subsequent increments rather than alternate paths inside direct-call checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,

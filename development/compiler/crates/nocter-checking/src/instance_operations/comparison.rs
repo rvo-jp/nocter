@@ -73,7 +73,11 @@ impl InstanceOperationSelector<'_> {
         }
 
         let mut coerced = Vec::new();
-        for receiver_coercion in self.select_coercions(left, BorrowCapability::Readonly)? {
+        for receiver_coercion in self.select_borrow_coercions(
+            left,
+            BorrowCapability::Readonly,
+            BorrowCapability::Readonly,
+        )? {
             for selection in
                 self.select_direct_comparison_operations(receiver_coercion.target, operation)?
             {
@@ -206,7 +210,11 @@ impl InstanceOperationSelector<'_> {
             return Ok(vec![None]);
         }
         Ok(self
-            .select_coercions(source, BorrowCapability::Readonly)?
+            .select_borrow_coercions(
+                source,
+                BorrowCapability::Readonly,
+                BorrowCapability::Readonly,
+            )?
             .into_iter()
             .filter(|coercion| coercion.target == target)
             .map(|coercion| Some(coercion.selection))

@@ -50,9 +50,25 @@ pub(super) struct ApplicableInstance {
     pub(super) generic_arguments: GenericArguments,
 }
 
-pub(super) struct CoercionCandidate {
+pub(crate) struct CoercionCandidate {
     pub(super) target: TypeId,
+    pub(super) receiver_capability: BorrowCapability,
+    pub(super) result_capability: BorrowCapability,
     pub(super) selection: StaticSelection,
+}
+
+impl CoercionCandidate {
+    pub(crate) const fn target(&self) -> TypeId {
+        self.target
+    }
+
+    pub(crate) const fn receiver_capability(&self) -> BorrowCapability {
+        self.receiver_capability
+    }
+
+    pub(crate) const fn selection(&self) -> &StaticSelection {
+        &self.selection
+    }
 }
 
 #[derive(Debug)]
@@ -292,7 +308,7 @@ impl<'program> InstanceOperationSelector<'program> {
         source: TypeId,
         capability: BorrowCapability,
     ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
-        let coercions = self.select_coercions(source, capability)?;
+        let coercions = self.select_borrow_coercions(source, capability, capability)?;
         let mut selected = Vec::new();
         for coercion in coercions {
             if let Some(result) = builtin_index_result(self.types, coercion.target, capability) {
@@ -317,7 +333,7 @@ impl<'program> InstanceOperationSelector<'program> {
         source: TypeId,
         capability: BorrowCapability,
     ) -> Result<Vec<CoercionCandidate>, InstanceSelectionError> {
-        let mut selected = Vec::new();
+        let mut selected = self.structural_coercions(source, capability);
         for applicable in self.applicable_instances(source)? {
             let members = self
                 .table
@@ -353,9 +369,6 @@ impl<'program> InstanceOperationSelector<'program> {
                 let result = applicable.substitution.apply_type(self.types, result_id)?;
                 let (result_capability, target) = borrow_result(self.types, result)
                     .ok_or(InstanceSelectionError::InvalidCoercionSignature(member))?;
-                if result_capability != capability {
-                    return Err(InstanceSelectionError::InvalidCoercionSignature(member));
-                }
                 let callable_requirements = normalize_requirements(
                     self.graph,
                     self.types,
@@ -367,6 +380,8 @@ impl<'program> InstanceOperationSelector<'program> {
                 }
                 selected.push(CoercionCandidate {
                     target,
+                    receiver_capability: capability,
+                    result_capability,
                     selection: StaticSelection::new(
                         StaticDispatch::Direct(member),
                         applicable.generic_arguments.clone(),
@@ -375,6 +390,68 @@ impl<'program> InstanceOperationSelector<'program> {
             }
         }
         Ok(selected)
+    }
+
+    fn structural_coercions(
+        &self,
+        source: TypeId,
+        capability: BorrowCapability,
+    ) -> Vec<CoercionCandidate> {
+        self.assumptions
+            .iter()
+            .filter_map(|assumption| {
+                let CheckedPredicate::Coercion {
+                    source: required_source,
+                    target,
+                } = assumption.predicate()
+                else {
+                    return None;
+                };
+                let (required_capability, required_owner) =
+                    borrow_result(self.types, *required_source)?;
+                let (result_capability, target) = borrow_result(self.types, *target)?;
+                (required_capability == capability && required_owner == source).then(|| {
+                    CoercionCandidate {
+                        target,
+                        receiver_capability: capability,
+                        result_capability,
+                        selection: StaticSelection::new(
+                            StaticDispatch::StructuralRequirement(assumption.declaration()),
+                            GenericArguments::default(),
+                        ),
+                    }
+                })
+            })
+            .collect()
+    }
+
+    /// Selects one borrow coercion under capability weakening and minimum-authority priority.
+    pub(crate) fn select_borrow_coercions(
+        &mut self,
+        source: TypeId,
+        source_capability: BorrowCapability,
+        target_capability: BorrowCapability,
+    ) -> Result<Vec<CoercionCandidate>, InstanceSelectionError> {
+        let preferred_receiver = match (source_capability, target_capability) {
+            (BorrowCapability::ReadWrite, BorrowCapability::Readonly) => BorrowCapability::Readonly,
+            (capability, _) => capability,
+        };
+        let preferred = self
+            .select_coercions(source, preferred_receiver)?
+            .into_iter()
+            .filter(|candidate| candidate.result_capability == target_capability)
+            .collect::<Vec<_>>();
+        if !preferred.is_empty()
+            || source_capability != BorrowCapability::ReadWrite
+            || target_capability != BorrowCapability::Readonly
+        {
+            return Ok(preferred);
+        }
+        Ok(self
+            .select_coercions(source, BorrowCapability::ReadWrite)?
+            .into_iter()
+            .filter(|candidate| candidate.result_capability == BorrowCapability::Readonly)
+            .collect())
     }
 
     pub(super) fn applicable_instances(

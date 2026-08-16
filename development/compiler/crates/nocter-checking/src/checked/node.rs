@@ -41,11 +41,7 @@ pub enum CheckedOperation {
         place: PlaceId,
     },
     Call(CheckedCall),
-    Coerce {
-        value: BodyNodeId,
-        target: TypeId,
-        selection: StaticSelection,
-    },
+    BorrowConversion(CheckedBorrowConversion),
     Comparison(CheckedComparison),
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),
@@ -59,6 +55,64 @@ pub enum CheckedOperation {
     },
     Interpolation(CheckedInterpolation),
     Control(CheckedControl),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BorrowConversionPreparation {
+    PreserveReadonly,
+    PreserveReadwrite,
+    WeakenReadwrite,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BorrowConversionImplementation {
+    CapabilityWeakening,
+    Selected(StaticSelection),
+}
+
+/// One complete expected-type borrow conversion selected before ownership and lowering.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedBorrowConversion {
+    value: BodyNodeId,
+    target: TypeId,
+    preparation: BorrowConversionPreparation,
+    implementation: BorrowConversionImplementation,
+}
+
+impl CheckedBorrowConversion {
+    pub(crate) const fn new(
+        value: BodyNodeId,
+        target: TypeId,
+        preparation: BorrowConversionPreparation,
+        implementation: BorrowConversionImplementation,
+    ) -> Self {
+        Self {
+            value,
+            target,
+            preparation,
+            implementation,
+        }
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> BodyNodeId {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> TypeId {
+        self.target
+    }
+
+    #[must_use]
+    pub const fn preparation(&self) -> BorrowConversionPreparation {
+        self.preparation
+    }
+
+    #[must_use]
+    pub const fn implementation(&self) -> &BorrowConversionImplementation {
+        &self.implementation
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
