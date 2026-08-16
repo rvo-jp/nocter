@@ -867,6 +867,11 @@ Rules:
 - Nested patterns, literal patterns, binding modifiers, field-name patterns, and rest patterns are
   not supported.
 - `_ { ... }` is the fallback arm and matches any remaining value.
+- Each enum variant may appear in at most one explicit arm of a `match`. Repeating the same
+  qualified variant is a compile error even when its payload slots use different binding names or
+  `_` positions.
+- Enum variant patterns are tag patterns, not value refinements. Payload binding names and `_`
+  control projection only; they cannot make two arms for the same variant disjoint.
 - A `match` may have at most one `_` fallback arm.
 - The `_` fallback arm must be the last arm.
 - When `match` is used as an expression, each selected arm body result is the expression value.

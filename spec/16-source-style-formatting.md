@@ -240,6 +240,8 @@ Rules:
 - Single-pattern enum checks use `if expr is Pattern { ... }`.
 - `match` arms use `Pattern { ... }`.
 - `match` fallback arms use `_ { ... }` and must be written last.
+- A formatter does not merge, delete, or reorder duplicate variant arms. Duplicate variants are
+  semantic errors reported by checking.
 - Enum pattern payload slots use the common comma-list formatting. Keep one `_` for every ignored
   payload position; the formatter never collapses multiple slots into one wildcard.
 - A pattern target keeps its ownership prefix adjacent to the target expression: `match &value`,

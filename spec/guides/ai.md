@@ -168,6 +168,8 @@ Rules:
   target capability.
 - Supply one positional identifier or `_` for every payload field. `_` ignores exactly one field;
   it never stands for a complete multi-field payload.
+- Write each explicit variant at most once in a `match`. Payload names and `_` do not distinguish
+  repeated variant arms.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
 
