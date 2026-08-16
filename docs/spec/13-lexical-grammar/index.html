@@ -237,7 +237,9 @@ std/process
   Postfix <code>?</code> and postfix <code>!</code> remain attached to the expression they modify and cannot begin a
   continuation line.</li><li><code>move</code> consumes a syntactic move place before immediately following outcome suffixes are attached.
   Consequently <code>move value?</code> tokenizes and parses as <code>(move value)?</code>; whitespace does not turn it
-  into <code>move (value?)</code>.</li><li><code>(</code> and <code>[</code> are not continuation leaders. A call or index opener must remain on the same line as
+  into <code>move (value?)</code>.</li><li>At most one <code>?</code> or <code>!</code> outcome suffix may attach at one expression layer. Adjacent <code>??</code>, <code>!!</code>,
+  <code>?!</code>, and <code>!?</code> are syntax errors regardless of whitespace. Parentheses create another expression
+  layer, so <code>(value?)?</code> is distinct and valid when both type layers support propagation.</li><li><code>(</code> and <code>[</code> are not continuation leaders. A call or index opener must remain on the same line as
   its callee or indexed expression.</li><li>Two or more consecutive newline tokens at statement-capable nesting depth are never collapsed
   into a continuation newline. A blank or comment-only intervening line therefore ends any
   possible leading-token continuation.</li><li>A closing brace <code>}</code> ends the current block or arm.</li><li>A semicolon does not terminate a statement. Outside <code>[T; N]</code> or a closure capture separator, it

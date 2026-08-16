@@ -662,6 +662,11 @@ Rules:
 - `move` has a place-only operand grammar rather than the unrestricted operand grammar of `!`,
   `-`, `&`, and `&+`. An immediately following outcome suffix applies after that place is moved:
   `move value?` means `(move value)?`, and `move value!` means `(move value)!`.
+- One unparenthesized expression layer accepts at most one postfix outcome suffix. Adjacent
+  expression suffixes `??`, `!!`, `?!`, and `!?` are invalid. Apply another layer only after an
+  explicit grouping boundary, such as `(move result?)?`, or through an intermediate binding.
+- This restriction does not affect type syntax: `T?!` remains the canonical fallible optional
+  success type.
 - The move place may include eligible named struct fields, so `move holder.result?` first moves
   `holder.result` and then propagates its outcome. Calls, indexes, dereferences, and parenthesized
   complex expressions do not become move places through this rule.

@@ -41,6 +41,9 @@ Rules for generated code:
 - Existing move-only outcome places require `move` before elimination: `move value?`,
   `move value!`, `move value catch error { ... }`, or `move value otherwise { ... }`. New
   temporaries and copyable outcomes omit `move`.
+- Do not concatenate expression suffixes as `??`, `!!`, `?!`, or `!?`. Use an intermediate binding
+  or parentheses such as `(move result?)?` for a second outcome layer. Type syntax `T?!` remains
+  valid and has a different grammar.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 

@@ -189,6 +189,9 @@ Rules:
 - `move` consumes a syntactic move place before immediately following outcome suffixes are attached.
   Consequently `move value?` tokenizes and parses as `(move value)?`; whitespace does not turn it
   into `move (value?)`.
+- At most one `?` or `!` outcome suffix may attach at one expression layer. Adjacent `??`, `!!`,
+  `?!`, and `!?` are syntax errors regardless of whitespace. Parentheses create another expression
+  layer, so `(value?)?` is distinct and valid when both type layers support propagation.
 - `(` and `[` are not continuation leaders. A call or index opener must remain on the same line as
   its callee or indexed expression.
 - Two or more consecutive newline tokens at statement-capable nesting depth are never collapsed

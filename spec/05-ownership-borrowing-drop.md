@@ -428,7 +428,7 @@ Move syntax has a place-specific grammar:
 ```text
 MovePlace = binding ("." field_name)*
 MoveExpression = "move" MovePlace
-MoveOutcomeExpression = MoveExpression ("?" | "!")*
+MoveOutcomeExpression = MoveExpression ["?" | "!"]
 ```
 
 An outcome suffix is applied to the completed move expression. Therefore `move maybe?` is
@@ -446,8 +446,10 @@ Rules:
 - `move place` has the same type as the selected place.
 - Evaluating `move place` transfers ownership out of that place.
 - `move place?` and `move place!` first transfer the complete optional or fallible value and then
-  apply each outcome suffix from left to right. `move place catch ...` and
+  apply their one outcome suffix. `move place catch ...` and
   `move place otherwise ...` likewise move the place before the lower-precedence eliminator.
+- A second outcome layer requires a new expression boundary, as in `(move result?)?`. The
+  parentheses are semantically relevant grammar and are not removed as redundant grouping.
 - After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
   named-field move, that field is uninitialized and the parent is partially initialized; disjoint
   initialized fields remain usable and retain their own cleanup obligations.

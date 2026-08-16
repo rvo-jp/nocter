@@ -299,6 +299,8 @@ Required diagnostic families:
   `move place catch ...`, or `move place otherwise ...` as appropriate.
 - Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
   `move place?`.
+- Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic
+  should suggest an intermediate binding or explicit grouping such as `(expression?)?`.
 - Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.

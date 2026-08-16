@@ -145,6 +145,8 @@ Rules:
 - If `expr!` sees failure or `none`, execution terminates immediately through a trap-like non-recoverable path.
 - `expr!` does not return `error` or `none` to the caller.
 - `expr!` has result type `T`.
+- One expression layer accepts only one postfix `?` or `!`. To eliminate a second composed outcome
+  layer, use an intermediate binding or explicit grouping such as `(load()?)!`.
 - `expr!` is intended for tests, prototypes, and truly unrecoverable assumptions.
 - Normal code should prefer `?`, `catch`, or `otherwise`.
 - `expr!` is not stack unwinding.
@@ -324,6 +326,8 @@ Rules:
 - `otherwise` applied after that `catch` handles only successful absence; it does not enter the
   catch block.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
+- The second application is written through an intermediate binding or grouping. Adjacent
+  `expr??` is invalid; `(expr?)?` exposes the two elimination boundaries explicitly.
 - In a function returning `T?!`, a compatible function body result or `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.

@@ -110,6 +110,8 @@ Rules:
 - Outcome elimination of an existing move-only place is formatted without redundant grouping:
   `move value?`, `move value!`, `move value catch error { ... }`, and
   `move value otherwise { ... }`. The formatter rewrites `(move value)?` to `move value?`.
+- Parentheses that separate two outcome elimination layers are retained: `(move result?)?` is not
+  rewritten as the invalid `move result??`.
 
 Examples:
 
