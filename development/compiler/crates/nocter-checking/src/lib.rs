@@ -7,6 +7,7 @@
 mod body_sources;
 mod checked;
 mod conformance;
+mod expected;
 mod inference;
 mod names;
 mod preparation;
@@ -23,14 +24,18 @@ pub use checked::{
     CheckedLoop, CheckedMatchArm, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
     CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedSequence, ConstantValue,
     DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
-    IterationAcquisition, LoopKind, OutcomeLayer, PlaceAccess, PlaceProjection, PlaceRoot,
-    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode,
-    StaticDispatch, TypedIteration,
+    IterationAcquisition, LoopKind, PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary,
+    PrimitiveOperation, PrimitiveUnary, SequenceElement, SpreadMode, StaticDispatch,
+    TypedIteration,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
+};
+pub use expected::{
+    ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
+    plan_expected_type,
 };
 pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
 pub use names::{

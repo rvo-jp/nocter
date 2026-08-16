@@ -3,6 +3,8 @@ use nocter_model::{
     LocalBindingId, LoopId, NominalTypeId, PlaceId, TypeId, VariantId,
 };
 
+use crate::expected::OutcomeLayer;
+
 use super::{GenericArguments, StaticDispatch};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -148,12 +150,6 @@ pub enum AggregateConstruction {
         payload: Box<[BodyNodeId]>,
     },
     FixedArray(Box<[BodyNodeId]>),
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum OutcomeLayer {
-    Optional,
-    Fallible,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

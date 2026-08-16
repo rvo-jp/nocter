@@ -170,3 +170,9 @@ payload constraint. They are validated after other evidence has produced a compl
 Every inferred argument is structurally rewritten to its final canonical `TypeId` and rerun through
 the common data-position validator, so `void`, `never`, unsized, and invalid outcome substitutions
 cannot enter a checked call.
+
+`plan_expected_type` is the single syntax-independent recursive outcome-injection rule used after
+inference or other leaf selection. It checks exact complete type identity before opening a layer,
+classifies absence, failure, and divergence explicitly, and returns presence/success injections in
+inner-to-outer construction order. Binding initializers, arguments, fields, fallbacks, returns, and
+body results must consume this plan rather than encode their own optional or fallible cases.

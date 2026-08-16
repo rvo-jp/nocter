@@ -47,7 +47,8 @@ static dispatch retain exact decisions, and generic arguments are identity-keyed
 No production path constructs checked bodies yet. The shared type unifier now has an explicit
 variable set, conformance matching no longer treats requester-owned generics as pattern variables,
 and `CallableInference` produces one canonical, fully validated `GenericArguments` value from
-order-independent evidence. Typed syntax construction is the active increment.
+order-independent evidence. Recursive outcome injection now produces one reusable explicit plan
+for every authoritative expected-type boundary. Typed syntax construction is the active increment.
 
 ## Guardrails
 

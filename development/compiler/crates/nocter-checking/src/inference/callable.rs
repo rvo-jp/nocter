@@ -3,21 +3,13 @@ use std::fmt;
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
 
 use crate::checked::{GenericArgument, GenericArguments};
+use crate::expected::{ExpectedTypeError, plan_expected_type};
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, unify_type_pairs,
 };
 use crate::{TypePosition, TypeValidityFailure, validate_type};
 
-/// Type-producing classifications that participate in contextual generic inference.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InferenceEvidence {
-    /// An ordinary expression with a normalized type.
-    Typed(TypeId),
-    /// The contextual `none` tag. It never determines an unknown payload.
-    Absent,
-    /// An `error` value already classified as a contextual failure tag.
-    Failure,
-}
+pub use crate::expected::ExpectedEvidence as InferenceEvidence;
 
 /// Order-independent constraint collector for one generic callable or construction selection.
 ///
@@ -177,34 +169,10 @@ struct DeferredCompatibility {
 
 impl DeferredCompatibility {
     fn is_compatible(self, types: &TypeStore, expected: TypeId) -> Result<bool, InferenceFailure> {
-        let mut current = expected;
-        loop {
-            let kind = types
-                .get(current)
-                .ok_or(InferenceFailure::UnknownType(current))?;
-            match (self.evidence, kind) {
-                (InferenceEvidence::Absent, TypeKind::Optional(_))
-                | (InferenceEvidence::Failure, TypeKind::Fallible(_)) => return Ok(true),
-                (
-                    InferenceEvidence::Absent | InferenceEvidence::Failure,
-                    TypeKind::Optional(payload) | TypeKind::Fallible(payload),
-                ) => current = *payload,
-                (InferenceEvidence::Typed(actual), _)
-                    if actual == types.builtin(BuiltinType::Never) =>
-                {
-                    return Ok(true);
-                }
-                (InferenceEvidence::Typed(actual), TypeKind::Builtin(BuiltinType::Void)) => {
-                    return Ok(actual == types.builtin(BuiltinType::Void));
-                }
-                (InferenceEvidence::Typed(actual), TypeKind::Fallible(payload)) => {
-                    if actual == types.builtin(BuiltinType::Error) {
-                        return Ok(true);
-                    }
-                    current = *payload;
-                }
-                _ => return Ok(false),
-            }
+        match plan_expected_type(types, expected, self.evidence) {
+            Ok(_) => Ok(true),
+            Err(ExpectedTypeError::Mismatch { .. }) => Ok(false),
+            Err(ExpectedTypeError::UnknownType(ty)) => Err(InferenceFailure::UnknownType(ty)),
         }
     }
 }
