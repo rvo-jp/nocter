@@ -315,6 +315,9 @@ Required diagnostic families:
 - An optional type whose eventual payload is `void`, including a generic or alias-expanded
   `void?`, `void?!`, or `(void!)?`. The diagnostic should recommend `void!` when only recoverable
   failure is needed, or an enum when absence and completion must remain distinct.
+- An optional or fallible type whose eventual payload is `never`, including after alias expansion
+  or generic substitution. The diagnostic should recommend `void!` for a recoverable operation
+  without success data, or an enum for a value-level state.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
 - A callable body result or `return` expression that recursive outcome injection cannot make

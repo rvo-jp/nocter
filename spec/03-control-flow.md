@@ -525,6 +525,8 @@ Rules:
   because a future dependency variant may select it.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type.
+- `never` cannot be the eventual payload of an optional or fallible type. Outcome constructors
+  represent values and do not turn terminating control flow into a value-level state.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
 - If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `break`, or `continue` path.
 - Fallible failure is recoverable failure and is valid only through fallible type `T!`.

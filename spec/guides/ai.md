@@ -34,6 +34,8 @@ Rules for generated code:
 - Write fallible optional success values as `T?!`.
 - Use `void!` for a recoverable operation with no success value. Do not generate `void?`,
   `void?!`, or `(void!)?`; model an observable absence/completion distinction with an enum.
+- Use `never` only for terminating control flow. Do not wrap it in `?` or `!`; use `void!` for an
+  operation that can recoverably fail without returning success data.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

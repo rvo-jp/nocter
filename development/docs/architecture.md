@@ -47,7 +47,8 @@ syntax lowering and presentation; it does not cross into checked semantics.
 
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual
-payload is `void`, cannot enter checked bodies, monomorphized keys, MIR, or ABI layout.
+payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,
+monomorphized keys, MIR, or ABI layout.
 
 ## Checked Program
 

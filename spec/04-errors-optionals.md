@@ -38,6 +38,8 @@ Rules:
 - `error` is not looked up through imports and cannot be redefined as a type declaration.
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
+- `T` must not be `never`, including after alias expansion or generic substitution. Use `void!`
+  when failure is recoverable but success carries no value.
 - `std/error` owns the source-backed `error.new(code: &str, message: &str)` construction member.
   The built-in type identity selects that validated surface; the compiler does not recognize the
   member name `new` or rewrite an alias.
@@ -307,6 +309,8 @@ Rules:
 - `T` must not be `void`, including after alias expansion or generic substitution. Optional
   `void` has no source value for its present branch; use an enum when that state distinction is
   required.
+- `T` must not be `never`. Optional values contain data or absence; they do not capture a
+  terminating control path as a payload.
 - A compatible function body result or `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - Postfix `?` on `T?` propagates `none` through the current optional return layer.
@@ -347,6 +351,7 @@ Rules:
 - `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
 - An optional layer must not have `void` as its eventual payload. Consequently `void?!` and
   `(void!)?` are invalid even though `void!` is valid.
+- `never` must not be the eventual payload of any optional or fallible composition.
 - Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
 

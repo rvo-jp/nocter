@@ -335,6 +335,10 @@ restriction is checked after alias expansion and generic substitution, so an oth
 generic `T?` cannot be instantiated with `T = void`. Use an enum when absence and successful
 completion are observably different states.
 
+`never` is a control-flow termination type, not an outcome payload. `never?`, `never!`,
+`never?!`, and `(never!)?` are invalid after alias expansion and generic substitution. Use `void!`
+for a recoverable operation that has no success value, and use an enum for a value-level state.
+
 Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
 type syntax group a type without creating a new type.
