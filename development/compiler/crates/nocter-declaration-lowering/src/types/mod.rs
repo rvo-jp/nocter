@@ -398,6 +398,7 @@ pub fn bind_header_type_syntax(
                 &mut arena.kinds,
                 &arena.roots,
                 &capabilities,
+                &mut arena.origins,
             )?
             .into_boxed_slice(),
         );

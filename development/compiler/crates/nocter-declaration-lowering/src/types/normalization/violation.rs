@@ -7,14 +7,16 @@ pub enum TypeNormalizationRule {
     UnknownAssociatedType,
     AmbiguousAssociatedType,
     AmbiguousCallableProvenance,
+    EqualityWithoutAssociatedProjection,
 }
 
 impl TypeNormalizationRule {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::RecursiveAlias,
         Self::UnknownAssociatedType,
         Self::AmbiguousAssociatedType,
         Self::AmbiguousCallableProvenance,
+        Self::EqualityWithoutAssociatedProjection,
     ];
 
     #[must_use]
@@ -24,6 +26,7 @@ impl TypeNormalizationRule {
             Self::UnknownAssociatedType => "E0311",
             Self::AmbiguousAssociatedType => "E0312",
             Self::AmbiguousCallableProvenance => "E0313",
+            Self::EqualityWithoutAssociatedProjection => "E0320",
         }
     }
 
@@ -35,6 +38,9 @@ impl TypeNormalizationRule {
             Self::AmbiguousAssociatedType => "type selection does not identify one associated type",
             Self::AmbiguousCallableProvenance => {
                 "structural callable result provenance cannot be inferred uniquely"
+            }
+            Self::EqualityWithoutAssociatedProjection => {
+                "type equality contains no associated projection"
             }
         }
     }
@@ -52,6 +58,9 @@ impl TypeNormalizationRule {
             Self::AmbiguousCallableProvenance => {
                 "add an explicit from clause naming the result's parameter origins"
             }
+            Self::EqualityWithoutAssociatedProjection => {
+                "use type equality only to constrain an associated projection"
+            }
         }
     }
 
@@ -61,7 +70,8 @@ impl TypeNormalizationRule {
             Self::RecursiveAlias => Some("another alias in this cycle is declared here"),
             Self::UnknownAssociatedType
             | Self::AmbiguousAssociatedType
-            | Self::AmbiguousCallableProvenance => None,
+            | Self::AmbiguousCallableProvenance
+            | Self::EqualityWithoutAssociatedProjection => None,
         }
     }
 }

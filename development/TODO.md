@@ -2,58 +2,30 @@
 
 ## Current Task
 
-Complete the source-backed semantic diagnostic boundary for v0.14.0 Phase 2. The previous compiler
-is preserved by commit `f6c08da3` and removed from the active working tree. No previous source,
-test, binary behavior, or implementation document may be used as an implementation input.
+Begin v0.14.0 Phase 3 by defining the checked-program boundary from the specification, then
+implement body-owned name resolution without importing syntax into canonical checked semantics.
+The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
+No previous source, test, binary behavior, or implementation document may be used as an
+implementation input.
 
 ## Immediate Work
 
-1. Audit every production-facade failure variant and record why it is an authored language rule or
-   an internal compiler/discovery integrity error.
-2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
-   cannot change the selected code, semantic subject, primary range, or related range.
-3. Close Phase 2 only after every production-facade failure is classified as an authored rule or an
-   explicit compiler/discovery integrity error.
+1. Derive the Phase 3 semantic inventory and ownership map from G011 and G014-G033 plus the topical
+   specification chapters. Record which decision belongs to declaration data, checked HIR, target
+   validation, instantiation, or MIR.
+2. Define the immutable checked-program and body-owned HIR contracts, including stable body-local
+   identities and a one-way source projection boundary. Do not create expression side maps or a
+   second declaration/name authority.
+3. Implement lexical body scopes and exact name resolution as the first checked-program slice,
+   with source-backed diagnostics and ordering-invariant conformance cases.
 
-Complete foundations: the lowering boundary now defines every reserved declaration, member,
-parameter, requirement, body, and opaque-result identity from the normalized type graph; separates
-authored and inferred callable provenance; projects contract and implementation sources onto shared
-semantic identities; records exact standard-package and built-in attachment authority; validates
-the frozen graph; and returns only an immutable `DeclarationProgram` plus `SourceIndex`.
-Freeze-time authored-rule failures now carry stable `E0200`-`E0212` codes, exact primary and related
-declaration-site identities, correction guidance, and source projections. Malformed compiler graph
-errors remain a separate internal integrity category. Callable contract failures now project
-`E0250`-`E0253` through the same diagnostic envelope before semantic reservation. The production
-`lower_compile_unit_declarations` facade owns the only complete pass ordering and returns typed
-stage failures rather than allowing callers to assemble partial pipelines. Authored module-surface
-violations project `E0230`-`E0232` directly from their exact syntax subjects; invalid syntax trees
-and inconsistent discovery inputs remain internal pipeline failures. Header preparation records
-exact name tokens and visibility nodes in shared namespace violations before consuming temporary
-surface identities, then projects `E0240`-`E0242` without reverse lookup. Authored imports reuse
-those namespace rules and add `E0260`, `E0261`, and `E0412` for missing, widening, and inaccessible
-selected names. Namespace bindings retain exact local-name origins, so collision and access notes
-never expand to a whole `use` declaration. Source-composition violations and module cycles project
-`E0270`-`E0271`; module edges retain their authored `use` nodes, and cycle selection is canonical
-under compile-unit input reordering. Missing, duplicate, stale, and unreachable discovery inputs
-remain internal contract errors. Generic binder declarations project `E0280`-`E0282`; lexical
-scopes retain exact declaration tokens, so duplicate declarations and inherited shadowing produce
-different rules and related spans without reverse syntax lookup. Repeated binders in a declaration
-target pattern remain references to the first binding.
-Header type binding now projects `E0290`-`E0302`. Unknown names, invalid entities and arguments,
-`Self`, fixed-array lengths, callable parameter/provenance duplicates, opaque bindings, and generic
-requirements retain their exact syntax subjects when their rules are selected. Invalid parser
-snapshots, missing discovery state, and duplicate source-index insertion remain internal errors.
-Prelude composition reuses the import rule domain for `E0262`. Authored import preparation retains
-each module-path node alongside its semantic import identity, so the later compiler-selected
-prelude check reports the exact path without reparsing or reverse lookup. A missing selected
-prelude, a missing retained path, and program-builder authority failures remain internal.
-Type normalization projects `E0310`-`E0313`. A temporary `BindingArena` owns bound kinds, root
-indexes, and `NormalizationOrigins` as one lowering state. Alias declarations and selected bound
-types retain only the syntax subjects normalization may need; that side index is consumed before
-the immutable declaration graph is frozen. Recursive aliases produce a canonical complete cycle,
-and associated selections and ambiguous callable provenance retain their exact authored subjects.
-Malformed bound IDs, missing alias definitions, invalid `Self` state, and inconsistent associated
-indexes remain internal.
+Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
+and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
+failure is exhaustively classified as an authored rule or an internal compiler/discovery integrity
+error. Declaration-owned G006-G010, G012-G013, and G015-G018 fixtures compare complete projected
+diagnostics under reversed package and module input order. Type equalities are validated after
+alias expansion, and projection-free general equalities project `E0320` without retaining syntax
+inside canonical requirement identity.
 
 ## Guardrails
 
@@ -62,8 +34,8 @@ indexes remain internal.
 - Do not run a released compiler to discover unspecified behavior.
 - Do not treat the existing standard-library implementation as language semantics.
 - Do not mark specification closure complete while an observable choice remains implicit.
-- Do not let Phase 2 revisit parser ambiguity, infer syntax from resolved names, or place source
-  ranges and rendered names in semantic identity.
+- Do not let Phase 3 reparse declaration headers, infer syntax from resolved names, or place source
+  ranges and rendered names in checked semantic identity.
 
 ## Verification
 

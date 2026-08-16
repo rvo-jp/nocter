@@ -154,21 +154,21 @@ be introduced to make an unresolved syntax choice.
   remain internal `PreludeError` variants.
   Type binding owns a `BindingArena` containing bound kinds, root indexes, and the temporary
   `NormalizationOrigins` side index. Normalization consumes that index to project recursive alias
-  cycles, unknown or ambiguous associated selections, and ambiguous callable provenance as
-  `E0310`-`E0313`. The alias cycle witness is complete and canonically rotated by declaration
-  identity. No source coordinate enters a `BoundTypeKind`, canonical `TypeKind`, or semantic ID.
+  cycles, unknown or ambiguous associated selections, ambiguous callable provenance, and general
+  equalities without an associated projection as `E0310`-`E0313` and `E0320`. The alias cycle
+  witness is complete and canonically rotated by declaration identity. General equalities are
+  validated after alias expansion. No source coordinate enters a `BoundTypeKind`, canonical
+  `TypeKind`, or semantic ID.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The remaining Phase 2 increment is a source-backed semantic diagnostic boundary. Declaration
-validation must identify the exact semantic subject so diagnostics can project it through
-`SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
-do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
-guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
-  The remaining Phase 2 work is an exhaustive production-failure classification and
-  ordering-invariance audit. No crate yet owns checked body semantics.
+Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics
+project them through `SourceIndex` without duplicating validation in lowering. Every production
+failure is classified as an authored rule or an internal compiler/discovery integrity error.
+Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
+and module input order. No crate yet owns checked body semantics; that is the Phase 3 boundary.
 
 ## Verification
 

@@ -24,6 +24,13 @@ unit cases exercise the individual optional, repeated, newline, ambiguity, and r
 inside those groups. Every future grammar production must add the same three fixture classes when
 it is introduced.
 
+Declaration-owned G006-G010, G012-G013, and G015-G018 semantic cases also enter the production
+declaration-lowering facade in both forward and reversed package/module input order. The test
+compares the complete projected diagnostic, including its family, code, primary range, related
+ranges, messages, and help. G001, G005, G014, G011 conformance compatibility, and checked data/body
+validity remain assigned to their later semantic owners; the declaration facade does not guess
+those results.
+
 ## Conformance Matrix
 
 | ID | Production coverage | Parse case | Syntax rejection | Semantic-boundary case |

@@ -136,10 +136,13 @@ Source-backed declaration-header type-normalization diagnostics:
 - `E0312`: an associated selection has more than one applicable associated declaration.
 - `E0313`: a structural callable can carry result storage but its omitted result provenance has no
   unique inference. The callable type is primary; an explicit `from` clause is required.
+- `E0320`: a general type-equality requirement contains no associated projection after alias
+  expansion. The complete equality predicate is primary.
 
-The binding-to-normalization boundary retains these syntax subjects in a temporary side index. It
-does not place source coordinates in canonical type identity, and normalization diagnostics do not
-recover subjects by scanning source or rendering semantic names.
+The binding-to-normalization boundary retains these syntax subjects in a temporary side index.
+Type-equality predicates that require post-alias validation retain their predicate node in that
+same index. The boundary does not place source coordinates in canonical type identity, and
+normalization diagnostics do not recover subjects by scanning source or rendering semantic names.
 
 Source-backed declaration-definition diagnostics:
 

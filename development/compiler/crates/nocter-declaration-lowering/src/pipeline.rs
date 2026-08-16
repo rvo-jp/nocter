@@ -1233,23 +1233,30 @@ mod tests {
             let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
             let prelude_identity =
                 ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-            let input = input_with_standard_prelude(
-                &sources,
-                &app_manifest,
-                &app,
-                &standard_manifest,
-                &standard,
-                &prelude,
-            );
-
-            let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+            let mut projected = Vec::new();
+            for reverse in [false, true] {
+                let input = input_with_standard_prelude_ordered(
+                    &sources,
+                    &app_manifest,
+                    &app,
+                    &standard_manifest,
+                    &standard,
+                    &prelude,
+                    reverse,
+                );
+                let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+                let DeclarationLoweringError::Definition(diagnostic) = error else {
+                    panic!("authored definition failure did not cross the production boundary")
+                };
+                projected.push(diagnostic);
+            }
+            assert_eq!(projected[0], projected[1]);
+            let diagnostic = &projected[0];
             assert_eq!(
-                error.source_diagnostic().map(crate::SourceDiagnostic::code),
-                Some(expected_rule.code())
+                diagnostic.source().code(),
+                expected_rule.code(),
+                "production diagnostic code changed"
             );
-            let DeclarationLoweringError::Definition(diagnostic) = error else {
-                panic!("authored definition failure did not cross the production boundary")
-            };
             assert_eq!(diagnostic.rule(), expected_rule);
             assert_eq!(diagnostic.source().primary().source(), app_id);
             assert_eq!(
@@ -1274,10 +1281,132 @@ mod tests {
         }
     }
 
+    #[test]
+    fn declaration_owned_g001_g018_boundaries_are_order_invariant() {
+        let cases = [
+            (
+                "G006",
+                "func missing_body(): i32\n",
+                "callable-contract",
+                "E0253",
+            ),
+            ("G007", "enum Empty {}\n", "declaration", "E0200"),
+            (
+                "G008",
+                "interface Source {\n    pub type Item\n    pub type Item\n}\n",
+                "namespace",
+                "E0241",
+            ),
+            (
+                "G009",
+                "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
+                "definition",
+                "E0314",
+            ),
+            ("G010", "instance str {}\n", "declaration", "E0201"),
+            ("G012", "drop str(&+self) {}\n", "declaration", "E0204"),
+            (
+                "G013",
+                "interface Source {\n    pub type Item\n}\nfunc read<T>(value: T): T.Item<i32> where T: Source { return value }\n",
+                "type-binding",
+                "E0292",
+            ),
+            (
+                "G015",
+                "type Callback = &func(input: &str): &str from missing\n",
+                "type-binding",
+                "E0296",
+            ),
+            (
+                "G016",
+                "interface Show {\n    pub method &self.show(): i32\n}\ninterface Factory {\n    pub method &self.make(): some Show\n}\n",
+                "declaration",
+                "E0212",
+            ),
+            ("G017", "struct Pair<T, T> {}\n", "generic", "E0281"),
+            (
+                "G018",
+                "func equality<T, U>(): T where T = U { return }\n",
+                "type-normalization",
+                "E0320",
+            ),
+        ];
+
+        for (grammar_row, text, expected_family, expected_code) in cases {
+            let mut sources = SourceMap::new();
+            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_id = add_source(&mut sources, "/app/index.nct", text);
+            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let standard_manifest =
+                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let prelude_identity =
+                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+            let mut projected = Vec::new();
+            for reverse in [false, true] {
+                let input = input_with_standard_prelude_ordered(
+                    &sources,
+                    &app_manifest,
+                    &app,
+                    &standard_manifest,
+                    &standard,
+                    &prelude,
+                    reverse,
+                );
+                let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+                projected.push(public_diagnostic(&error));
+            }
+
+            assert_eq!(projected[0], projected[1], "{grammar_row}");
+            assert_eq!(projected[0].0, expected_family, "{grammar_row}");
+            assert_eq!(projected[0].1.code(), expected_code, "{grammar_row}");
+            assert_eq!(projected[0].1.primary().source(), app_id, "{grammar_row}");
+        }
+    }
+
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
         sources
             .add_bytes(SourceName::new(name), text.as_bytes())
             .unwrap()
+    }
+
+    fn public_diagnostic(
+        error: &DeclarationLoweringError,
+    ) -> (&'static str, crate::SourceDiagnostic) {
+        let family = match &error {
+            DeclarationLoweringError::Topology(_) => "topology",
+            DeclarationLoweringError::Surface(_) => "surface",
+            DeclarationLoweringError::CallableContract(_) => "callable-contract",
+            DeclarationLoweringError::Namespace(_) => "namespace",
+            DeclarationLoweringError::Generic(_) => "generic",
+            DeclarationLoweringError::Import(_) => "import",
+            DeclarationLoweringError::TypeBinding(_) => "type-binding",
+            DeclarationLoweringError::TypeNormalization(_) => "type-normalization",
+            DeclarationLoweringError::Definition(_) => "definition",
+            DeclarationLoweringError::Declaration(_) => "declaration",
+            DeclarationLoweringError::InternalSurface(_)
+            | DeclarationLoweringError::InternalContract(_)
+            | DeclarationLoweringError::Reservation(_)
+            | DeclarationLoweringError::InternalHeader(_)
+            | DeclarationLoweringError::InternalGeneric(_)
+            | DeclarationLoweringError::InternalImport(_)
+            | DeclarationLoweringError::Prelude(_)
+            | DeclarationLoweringError::InternalTypeBinding(_)
+            | DeclarationLoweringError::InternalTypeNormalization(_)
+            | DeclarationLoweringError::InternalDefinition(_) => {
+                panic!("internal failure crossed an authored semantic-boundary fixture")
+            }
+        };
+        let diagnostic = error
+            .source_diagnostic()
+            .expect("projected authored error has no common diagnostic")
+            .clone();
+        (family, diagnostic)
     }
 
     fn parse_source(
@@ -1312,24 +1441,46 @@ mod tests {
         standard: &'syntax SyntaxTree,
         prelude: &'syntax SyntaxTree,
     ) -> CompileUnitInput<'syntax> {
-        CompileUnitInput::new(
+        input_with_standard_prelude_ordered(
             sources,
-            vec![
-                package("workspace:app", "app", "/app/nocter.nct", app_manifest),
-                package("toolchain:std", "std", "/std/nocter.nct", standard_manifest),
-            ],
-            vec![
-                module("workspace:app", &[], "/app/index.nct", app),
-                module("toolchain:std", &[], "/std/index.nct", standard),
-                module(
-                    "toolchain:std",
-                    &["prelude"],
-                    "/std/prelude/index.nct",
-                    prelude,
-                ),
-            ],
-            Vec::new(),
+            app_manifest,
+            app,
+            standard_manifest,
+            standard,
+            prelude,
+            false,
         )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn input_with_standard_prelude_ordered<'syntax>(
+        sources: &'syntax SourceMap,
+        app_manifest: &'syntax SyntaxTree,
+        app: &'syntax SyntaxTree,
+        standard_manifest: &'syntax SyntaxTree,
+        standard: &'syntax SyntaxTree,
+        prelude: &'syntax SyntaxTree,
+        reverse: bool,
+    ) -> CompileUnitInput<'syntax> {
+        let mut packages = vec![
+            package("workspace:app", "app", "/app/nocter.nct", app_manifest),
+            package("toolchain:std", "std", "/std/nocter.nct", standard_manifest),
+        ];
+        let mut modules = vec![
+            module("workspace:app", &[], "/app/index.nct", app),
+            module("toolchain:std", &[], "/std/index.nct", standard),
+            module(
+                "toolchain:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                prelude,
+            ),
+        ];
+        if reverse {
+            packages.reverse();
+            modules.reverse();
+        }
+        CompileUnitInput::new(sources, packages, modules, Vec::new())
     }
 
     fn module<'syntax>(

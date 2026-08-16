@@ -10,6 +10,7 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::context::token_symbol;
+use super::normalization_origins::NormalizationOrigins;
 use super::{
     BoundCapability, BoundRequirementKind, BoundTypeId, BoundTypeKind, TypeBindingError,
     TypeBindingRule, projection, push,
@@ -24,6 +25,7 @@ pub(super) fn bind_all(
     kinds: &mut Vec<BoundTypeKind>,
     roots: &HashMap<NodeId, BoundTypeId>,
     capabilities: &HashMap<NodeId, BoundCapability>,
+    origins: &mut NormalizationOrigins,
 ) -> Result<Vec<BoundRequirementKind>, TypeBindingError> {
     let mut result = Vec::new();
     for container in requirement_containers(tree, root) {
@@ -38,6 +40,7 @@ pub(super) fn bind_all(
                         kinds,
                         roots,
                         capabilities,
+                        origins,
                         &mut result,
                     )?;
                 }
@@ -67,6 +70,7 @@ fn bind_predicate(
     kinds: &mut Vec<BoundTypeKind>,
     roots: &HashMap<NodeId, BoundTypeId>,
     capabilities: &HashMap<NodeId, BoundCapability>,
+    origins: &mut NormalizationOrigins,
     result: &mut Vec<BoundRequirementKind>,
 ) -> Result<(), TypeBindingError> {
     match tree.node(predicate).map(nocter_syntax::SyntaxNode::kind) {
@@ -100,6 +104,7 @@ fn bind_predicate(
             )?));
         }
         Some(NodeKind::TypeEqualityPredicate) => {
+            let position = result.len();
             bind_equality(
                 namespaces,
                 declaration,
@@ -109,6 +114,12 @@ fn bind_predicate(
                 roots,
                 result,
             )?;
+            if matches!(
+                result.get(position),
+                Some(BoundRequirementKind::TypeEquality { .. })
+            ) {
+                origins.record_requirement(declaration, position, SyntaxOrigin::Node(predicate));
+            }
         }
         Some(NodeKind::OperatorPredicate) => {
             bind_operator(tree, predicate, kinds, roots, result)?;

@@ -428,8 +428,10 @@ impl Evaluator<'_> {
                 arguments: self.results(&key, &arguments)?,
             },
             BoundTypeKind::AssociatedSelection { base, name } => {
-                let base = self.result(&key, base)?;
-                let associated = self.resolve_associated(key.declaration, key.ty, base, name)?;
+                let bound_base = base;
+                let base = self.result(&key, bound_base)?;
+                let associated =
+                    self.resolve_associated(key.declaration, key.ty, bound_base, base, name)?;
                 TypeKind::AssociatedProjection { base, associated }
             }
             BoundTypeKind::Pointer(pointee) => TypeKind::Pointer(self.result(&key, pointee)?),
@@ -543,38 +545,47 @@ impl Evaluator<'_> {
         &self,
         declaration: SurfaceDeclarationId,
         selection: BoundTypeId,
+        bound_base: BoundTypeId,
         base: TypeId,
         name: Symbol,
     ) -> Result<AssociatedTypeId, TypeNormalizationError> {
         let mut candidates = HashSet::new();
-        let occurrences = match self.store.get(base) {
-            Some(TypeKind::InterfaceSelf(interface)) => {
-                if let Some(associated) = self.context.associated.get(&(*interface, name)) {
-                    candidates.insert(*associated);
-                    1
-                } else {
-                    0
-                }
-            }
-            Some(TypeKind::GenericParameter(parameter)) => {
+        let occurrences = match self.kinds.get(bound_base.index()) {
+            Some(BoundTypeKind::GenericParameter(parameter)) => {
                 self.collect_parameter_associated(declaration, *parameter, name, &mut candidates)
             }
-            Some(TypeKind::AssociatedProjection { associated, .. }) => {
-                if let Some(surface) = self.context.associated_surfaces.get(associated) {
-                    self.collect_subject_associated(
-                        *surface,
-                        RequirementSubject::AssociatedType(*associated),
-                        name,
-                        &mut candidates,
-                    )
-                } else {
-                    0
+            _ => match self.store.get(base) {
+                Some(TypeKind::InterfaceSelf(interface)) => {
+                    if let Some(associated) = self.context.associated.get(&(*interface, name)) {
+                        candidates.insert(*associated);
+                        1
+                    } else {
+                        0
+                    }
                 }
-            }
-            Some(_) => self.collect_conformance_associated(base, name, &mut candidates),
-            None => {
-                return Err(TypeNormalizationError::InconsistentTypeStore);
-            }
+                Some(TypeKind::GenericParameter(parameter)) => self.collect_parameter_associated(
+                    declaration,
+                    *parameter,
+                    name,
+                    &mut candidates,
+                ),
+                Some(TypeKind::AssociatedProjection { associated, .. }) => {
+                    if let Some(surface) = self.context.associated_surfaces.get(associated) {
+                        self.collect_subject_associated(
+                            *surface,
+                            RequirementSubject::AssociatedType(*associated),
+                            name,
+                            &mut candidates,
+                        )
+                    } else {
+                        0
+                    }
+                }
+                Some(_) => self.collect_conformance_associated(base, name, &mut candidates),
+                None => {
+                    return Err(TypeNormalizationError::InconsistentTypeStore);
+                }
+            },
         };
         match occurrences {
             0 => {
@@ -875,13 +886,13 @@ pub fn normalize_header_types(
     let mut requirements = Vec::with_capacity(context.bound_requirements.len());
     for (index, bound) in context.bound_requirements.iter().enumerate() {
         let declaration = SurfaceDeclarationId::from_index(index);
-        requirements.push(
-            bound
-                .iter()
-                .map(|requirement| normalize_requirement(&mut evaluator, declaration, requirement))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_boxed_slice(),
-        );
+        let mut normalized = Vec::with_capacity(bound.len());
+        for (position, requirement) in bound.iter().enumerate() {
+            let requirement = normalize_requirement(&mut evaluator, declaration, requirement)?;
+            validate_requirement(&evaluator, declaration, position, &requirement)?;
+            normalized.push(requirement);
+        }
+        requirements.push(normalized.into_boxed_slice());
     }
 
     Ok(PreparedTypes {
@@ -1029,4 +1040,62 @@ fn normalize_requirement(
             replacement: evaluator.normalize(*replacement, declaration)?,
         },
     })
+}
+
+fn validate_requirement(
+    evaluator: &Evaluator<'_>,
+    declaration: SurfaceDeclarationId,
+    position: usize,
+    requirement: &RequirementKind,
+) -> Result<(), TypeNormalizationError> {
+    let RequirementKind::TypeEquality { left, right } = requirement else {
+        return Ok(());
+    };
+    if contains_associated_projection(evaluator.store, *left)
+        || contains_associated_projection(evaluator.store, *right)
+    {
+        return Ok(());
+    }
+    let origin = evaluator
+        .origins
+        .requirement(declaration, position)
+        .ok_or(TypeNormalizationError::InconsistentTypeStore)?;
+    Err(TypeNormalizationViolation::new(
+        TypeNormalizationRule::EqualityWithoutAssociatedProjection,
+        origin,
+    )
+    .into())
+}
+
+fn contains_associated_projection(store: &TypeStore, root: TypeId) -> bool {
+    let mut pending = vec![root];
+    let mut visited = HashSet::new();
+    while let Some(ty) = pending.pop() {
+        if !visited.insert(ty) {
+            continue;
+        }
+        match store.get(ty) {
+            Some(TypeKind::AssociatedProjection { .. }) => return true,
+            Some(TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. }) => {
+                pending.extend(arguments.iter().copied());
+            }
+            Some(
+                TypeKind::Pointer(ty)
+                | TypeKind::Borrow { referent: ty, .. }
+                | TypeKind::Slice(ty)
+                | TypeKind::FixedArray { element: ty, .. }
+                | TypeKind::Optional(ty)
+                | TypeKind::Fallible(ty),
+            ) => pending.push(*ty),
+            Some(TypeKind::Callable(callable)) => {
+                pending.push(callable.result());
+                pending.extend(callable.parameters().iter().copied());
+            }
+            Some(
+                TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_),
+            )
+            | None => {}
+        }
+    }
+    false
 }

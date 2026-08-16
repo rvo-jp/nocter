@@ -225,9 +225,12 @@ The mutable binding boundary is one `BindingArena`: a bound-kind arena, syntax-r
 declaration-context index, and temporary `NormalizationOrigins` side index. The side index records
 only subjects that a later normalization rule can select. It retains alias declaration tokens,
 exact associated-selection tokens, and callable type nodes without contaminating `BoundTypeKind`
-or canonical `TypeKind`. Normalization projects `E0310`-`E0313`; alias cycles are rotated by
+or canonical `TypeKind`. Normalization projects `E0310`-`E0313` and `E0320`; alias cycles are rotated by
 canonical declaration identity and retain every declaration in the cycle. Missing bound state,
 alias definitions, normalized `Self`, or associated-index invariants remain internal failures.
+General type equalities are validated only after alias expansion. Their temporary requirement
+origins are keyed by declaration and predicate position, so the normalizer can reject an equality
+without an associated projection without retaining syntax in `RequirementKind`.
 
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable

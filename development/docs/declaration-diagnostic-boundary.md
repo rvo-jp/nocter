@@ -66,7 +66,7 @@ one row have the same classification and boundary reason.
 |---|---|---|
 | `TypeBindingError::Rule` | authored rule | `E0290`-`E0302` retain exact type, name, argument, requirement, and duplicate subjects. |
 | `TypeBindingError::MissingSource`, `InvalidSyntax`, `InconsistentSource`, `DuplicateSourceBinding` | compiler integrity | Binding accepts syntax-complete declarations and canonical source/symbol projections. |
-| `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0313` consume subjects retained in `NormalizationOrigins`. |
+| `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0313` and `E0320` consume subjects retained in `NormalizationOrigins`. |
 | `TypeNormalizationError::InvalidBoundType`, `InconsistentTypeStore`, `MissingCapabilityContext`, `MissingAlias`, `InvalidSelf`, `InconsistentAssociatedIndex` | compiler integrity | Every item is a broken binding-arena, canonical-store, declaration-context, or semantic-index invariant. |
 
 | Definition/freeze error | Class | Reason |

@@ -3,7 +3,7 @@ use nocter_source::SourceMap;
 use nocter_syntax::{NodeKind, ParseGoal};
 
 use super::test_support::{add_source, all_nodes, bind, module, package, parse_source};
-use super::{TypeNormalizationError, normalize_header_types};
+use super::{TypeNormalizationError, TypeNormalizationRule, normalize_header_types};
 use crate::{ModuleIdentity, PackageIdentity};
 
 fn normalized_app<'syntax>(
@@ -100,6 +100,55 @@ fn expands_generic_aliases_without_creating_canonical_alias_types() {
             store.get(*element) == Some(&TypeKind::Builtin(BuiltinType::I32))
         });
     assert!(expanded.is_some());
+}
+
+#[test]
+fn type_equality_requires_an_associated_projection_after_alias_expansion() {
+    let mut invalid_sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut invalid_sources,
+        "func equality<T, U>(): T where T = U { return }\n",
+    );
+    let error = normalized_app(
+        &invalid_sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap_err();
+    let TypeNormalizationError::Rule(violation) = error else {
+        panic!("projection-free equality was not an authored normalization rule")
+    };
+    assert_eq!(
+        violation.rule(),
+        TypeNormalizationRule::EqualityWithoutAssociatedProjection
+    );
+    assert!(matches!(
+        violation.primary(),
+        nocter_source_index::SyntaxOrigin::Node(node)
+            if app.node(node).is_some_and(|syntax| syntax.kind() == NodeKind::TypeEqualityPredicate)
+    ));
+
+    let mut valid_sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut valid_sources,
+        concat!(
+            "interface Source {\n    pub type Item\n}\n",
+            "type ItemOf<T> = T.Item where T: Source\n",
+            "func equality<T, U>(): T where T: Source, ItemOf<T> = U { return }\n",
+        ),
+    );
+    normalized_app(
+        &valid_sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
 }
 
 #[test]
