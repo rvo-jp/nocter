@@ -52,6 +52,9 @@ monomorphized keys, MIR, or ABI layout.
 The `never` semantic type is admitted only in callable result slots and as the type of terminating
 checked nodes. It cannot appear in a data layout or concrete substitution. Constraint collection
 treats a `never` expression as non-producing and never binds a generic parameter to `never`.
+The `void` semantic type is admitted only for normal-completion nodes, callable result slots, the
+payloadless success branch of `void!`, and opaque `*void`. It never receives a zero-sized value
+layout or enters a concrete data substitution.
 Declaration validation rejects zero-variant enums before semantic type interning creates usable
 enum identities. Later exhaustiveness and layout stages may therefore assume every enum has at
 least one valid tag.

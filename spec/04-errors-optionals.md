@@ -38,6 +38,8 @@ Rules:
 - `error` is not looked up through imports and cannot be redefined as a type declaration.
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
+- `void!` is the sole fallible form whose success branch carries no payload. It represents normal
+  completion or recoverable failure and remains an ordinary storable outcome value.
 - `T` must not be `never`, including after alias expansion or generic substitution. Use `void!`
   when failure is recoverable but success carries no value.
 - `std/error` owns the source-backed `error.new(code: &str, message: &str)` construction member.

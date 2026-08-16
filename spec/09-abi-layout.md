@@ -56,6 +56,8 @@ Zero-word values:
 
 A zero-word value still exists for source ownership, initialization, destruction, and evaluation
 order. Its transport consumes no argument register, return register, or stack slot.
+`void` is not a zero-word value and has no standalone stored layout; it denotes completion without
+a value.
 
 Creating a borrow of a zero-sized place still produces the ordinary one-word borrow ABI value. Its
 address is non-null and satisfies the pointee alignment, but different logical places may share
@@ -221,6 +223,9 @@ passing. Optional and fallible layers share one binary tagged-union layout:
 | --- | --- | --- |
 | `T?` | present `T` payload | `none`, no payload |
 | `T!` | successful `T` payload | built-in `error` payload |
+
+For `void!`, tag `0` has no payload and denotes successful completion. Tag `1` carries `error`.
+The union alignment and size therefore come only from the failure payload.
 
 The tag is stored at byte offset `0`. Let the layer alignment be the maximum of `1` and the
 alignment of every payload-carrying branch. The payload union begins at the first offset after the

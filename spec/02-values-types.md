@@ -346,6 +346,14 @@ pointee, aggregate field or enum payload, array element, outcome payload, generi
 associated-type binding, or any other data-bearing type position. Use `*void` for an opaque raw
 pointer.
 
+`void` is a completion type, not a zero-sized value type. After alias expansion, it may appear as
+the complete result of a function, method, closure, or structural callable type; as the direct
+success completion of `void!`; and as the pointee spelling of opaque `*void`. It is invalid as a
+binding or parameter type, borrow pointee, aggregate field or enum payload, array element, optional
+payload, generic argument, associated-type binding, or any other data-bearing type position. A
+type alias may name `void`, but does not bypass these use-site rules. Use an empty struct when a
+storable zero-sized unit or marker value is required.
+
 Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
 type syntax group a type without creating a new type.

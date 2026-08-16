@@ -39,6 +39,9 @@ Rules for generated code:
 - Write `never` only as a complete callable result type. Do not use it in parameters, aggregates,
   pointers, borrows, generic arguments, associated types, arrays, or other data positions. A
   terminating `never` expression does not infer a generic type argument.
+- Treat `void` as completion without a value. Use it as a callable result, as `void!`, or as the
+  opaque pointer spelling `*void`; do not use it for bindings, parameters, borrows, aggregates,
+  arrays, generic arguments, or associated types. Use an empty struct for a storable unit value.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

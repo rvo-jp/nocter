@@ -262,7 +262,9 @@ ByteSpan { source, start, end }
   or generic substitution. The diagnostic should recommend <code>void!</code> for a recoverable operation
   without success data, or an enum for a value-level state.</li><li><code>never</code>, including an alias to it, used anywhere except a complete callable result type. The
   diagnostic must identify the invalid data-bearing position and must not suggest wrapping or
-  storing <code>never</code>.</li><li>A generic parameter left unknown when a <code>never</code> expression is its only apparent argument or
+  storing <code>never</code>.</li><li><code>void</code>, including an alias to it, used in a data-bearing position other than the direct success
+  completion of <code>void!</code> or the opaque raw-pointer spelling <code>*void</code>. The diagnostic should recommend
+  an empty struct when a storable zero-sized unit or marker is required.</li><li>A generic parameter left unknown when a <code>never</code> expression is its only apparent argument or
   result constraint. The diagnostic must request another inference source rather than substitute
   <code>never</code> as a data type.</li><li>Reachable <code>catch</code> fallback with no result for a non-<code>void</code> success type, or with a result not
   assignable to that success type.</li><li>An expression at a contextual expected-type boundary that recursive outcome injection cannot

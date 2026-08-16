@@ -324,6 +324,9 @@ Required diagnostic families:
 - `never`, including an alias to it, used anywhere except a complete callable result type. The
   diagnostic must identify the invalid data-bearing position and must not suggest wrapping or
   storing `never`.
+- `void`, including an alias to it, used in a data-bearing position other than the direct success
+  completion of `void!` or the opaque raw-pointer spelling `*void`. The diagnostic should recommend
+  an empty struct when a storable zero-sized unit or marker is required.
 - A generic parameter left unknown when a `never` expression is its only apparent argument or
   result constraint. The diagnostic must request another inference source rather than substitute
   `never` as a data type.

@@ -153,6 +153,8 @@ Rules:
   statement, not a binding and not a body result.
 - Bindings introduced by earlier statements in the same body are in scope for the result expression.
 - A body without a result expression has type `void` unless all reachable paths terminate with `return`, `break`, `continue`, or `never`.
+- `void` records normal completion without a produced value. It is not a value that can initialize
+  a binding, parameter, field, element, or generic substitution.
 - A body whose reachable paths all terminate has type `never`.
 - Function, method, drop, `if`, `if is`, `match`, loop, and `catch` bodies use this same body form.
 - A loop body is still checked as a body, but the enclosing loop is a statement and has no consumer
