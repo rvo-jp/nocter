@@ -85,6 +85,17 @@ Distinct domains represent packages, modules, authored declaration sites, semant
 definitions, callables, fields, variants, associated types, generic parameters, parameters,
 bodies, closures, expressions, statements, types, substitutions, and monomorphized items.
 
+`nocter-model` is the syntax-independent owner of these IDs and structural type keys. It has no
+dependency on `nocter-source` or `nocter-syntax`. Identifier spellings live in one immutable symbol
+table built by sorting and deduplicating the complete input set, so symbol IDs do not depend on
+source discovery order. Symbol IDs support lookup and presentation metadata only; nominal,
+associated, generic, callable, and opaque semantic IDs form type identity.
+
+Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
+unique parameter positions. Result provenance is therefore part of the structural callable
+contract without making a rendered name part of type equality. Static and fresh storage retain no
+caller-managed place and normalize to an empty external-origin set.
+
 The compile-unit type store interns structural types. Its keys contain typed semantic IDs and
 normalized constants, never rendered names, source text, or byte positions. `TypeExpr` belongs to
 syntax lowering and presentation; it does not cross into checked semantics.

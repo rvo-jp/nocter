@@ -48,13 +48,17 @@ be introduced to make an unresolved syntax choice.
   lossless syntax tree. Its parser covers the complete normative grammar, including token-only
   ambiguity decisions, continuation-newline ownership, body-result classification, control-header
   brace ownership, and bounded malformed-source recovery.
+- `nocter-model` owns typed semantic ID domains, the canonical compile-unit symbol table,
+  normalized parameter-origin sets, and interned structural types. It has no crate dependencies;
+  source spans, syntax nodes, and rendered type names cannot enter its identities or interning
+  keys.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-Neither crate owns declaration identity, name resolution, semantic types, or checked semantics.
-Those responsibilities begin in Phase 2 and cannot alter an accepted syntax-tree shape.
+The Phase 2 lowering boundary will connect syntax to `nocter-model` while keeping its source index
+separate. No crate yet owns a declaration graph, header resolution, or checked body semantics.
 
 ## Verification
 

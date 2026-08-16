@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/nocter-model",
     "crates/nocter-source",
     "crates/nocter-syntax",
 ]
@@ -16,4 +17,3 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = "warn"
 pedantic = "warn"
-
