@@ -1,9 +1,10 @@
 use nocter_model::Symbol;
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, SyntaxElement, SyntaxToken, SyntaxTree};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
-use super::TypeBindingError;
+use super::{TypeBindingError, TypeBindingRule};
 
 pub(super) fn declaration_module(
     namespaces: &PreparedNamespaces<'_>,
@@ -21,7 +22,7 @@ pub(super) fn declaration_module(
 
 pub(super) fn require_arity(
     namespaces: &PreparedNamespaces<'_>,
-    node: nocter_syntax::NodeId,
+    origin: SyntaxOrigin,
     entity: ReservedEntity,
     actual: usize,
 ) -> Result<(), TypeBindingError> {
@@ -37,7 +38,10 @@ pub(super) fn require_arity(
     if expected == actual {
         Ok(())
     } else {
-        Err(TypeBindingError::InvalidTypeArguments(node))
+        Err(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeArguments,
+            origin,
+        ))
     }
 }
 

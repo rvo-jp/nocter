@@ -207,6 +207,14 @@ semantic import; declarations from their already-composed sources entered the mo
 the direct pass. The compiler-managed prelude remains a separate fallback layer so it cannot turn
 two authored collisions into priority rules.
 
+Header type binding owns a closed distinction between authored rules and broken compiler input.
+Authored name, entity-kind, arity, `Self`, fixed-array, callable provenance, opaque-binding, and
+requirement failures retain `SyntaxOrigin` values at rule selection and project `E0290`-`E0302`.
+Path segments retain their own name token and optional argument node, while duplicate constructs
+retain the first and later tokens. Missing syntax nodes, missing discovery-owned sources, stale
+symbols, and duplicate source-index insertion remain internal `TypeBindingError` variants. The
+production facade is the only layer that converts an authored violation to `SourceDiagnostic`.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no

@@ -177,6 +177,7 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     .unwrap_err();
     assert!(matches!(
         error,
-        TypeBindingError::RecursiveBinderRefinement(_)
+        TypeBindingError::Rule(violation)
+            if violation.rule() == crate::TypeBindingRule::RecursiveBinderRefinement
     ));
 }

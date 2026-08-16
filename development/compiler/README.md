@@ -144,7 +144,10 @@ be introduced to make an unresolved syntax choice.
   scopes retain each binder's declaration token together with its semantic identity. Reserved
   binders, same-list duplicates, and nested shadowing therefore project `E0280`-`E0282` directly;
   repeated names in declaration target patterns remain authored references rather than duplicate
-  declarations.
+  declarations. Header type binding likewise separates malformed compiler input from authored
+  rules `E0290`-`E0302`. Resolved paths retain the token for each segment and the optional argument
+  container; duplicate callable names, provenance origins, and opaque bindings retain both authored
+  tokens. The diagnostic layer consequently performs neither name lookup nor tree search.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
@@ -155,8 +158,8 @@ validation must identify the exact semantic subject so diagnostics can project i
 `SourceIndex` without duplicating validation in lowering. Freeze-time authored-rule violations now
 do this with stable `E0200`-`E0212` codes, primary and related declaration sites, and correction
 guidance; malformed compiler-produced graphs remain a separate integrity-error class. The earlier
-  type-binding pass still requires the same diagnostic projection. No crate yet owns checked body
-  semantics.
+  prelude composition and type normalization still require an authored-versus-internal failure
+  audit. No crate yet owns checked body semantics.
 
 ## Verification
 

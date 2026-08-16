@@ -4,8 +4,8 @@ use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericDiagnostic,
     GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
     LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError,
-    SourceDiagnostic, SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingError,
-    TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
+    SourceDiagnostic, SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingDiagnostic,
+    TypeBindingError, TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
     bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
     normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
     prepare_generic_binders,
@@ -26,7 +26,8 @@ pub enum DeclarationLoweringError {
     Import(ImportDiagnostic),
     InternalImport(ImportError),
     Prelude(PreludeError),
-    TypeBinding(TypeBindingError),
+    TypeBinding(TypeBindingDiagnostic),
+    InternalTypeBinding(TypeBindingError),
     TypeNormalization(TypeNormalizationError),
     Definition(HeaderDefinitionError),
 }
@@ -45,6 +46,7 @@ impl DeclarationLoweringError {
             Self::Namespace(diagnostic) => Some(diagnostic.source()),
             Self::Generic(diagnostic) => Some(diagnostic.source()),
             Self::Import(diagnostic) => Some(diagnostic.source()),
+            Self::TypeBinding(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
@@ -53,7 +55,7 @@ impl DeclarationLoweringError {
             | Self::InternalGeneric(_)
             | Self::InternalImport(_)
             | Self::Prelude(_)
-            | Self::TypeBinding(_)
+            | Self::InternalTypeBinding(_)
             | Self::TypeNormalization(_) => None,
         }
     }
@@ -76,6 +78,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::InternalImport(error) => error.fmt(formatter),
             Self::Prelude(error) => error.fmt(formatter),
             Self::TypeBinding(error) => error.fmt(formatter),
+            Self::InternalTypeBinding(error) => error.fmt(formatter),
             Self::TypeNormalization(error) => error.fmt(formatter),
             Self::Definition(error) => error.fmt(formatter),
         }
@@ -172,8 +175,18 @@ pub fn lower_compile_unit_declarations(
     };
     let namespaces =
         apply_standard_prelude(imports, prelude).map_err(DeclarationLoweringError::Prelude)?;
-    let bound =
-        bind_header_type_syntax(namespaces).map_err(DeclarationLoweringError::TypeBinding)?;
+    let bound = match bind_header_type_syntax(namespaces) {
+        Ok(bound) => bound,
+        Err(TypeBindingError::Rule(violation)) => {
+            return match TypeBindingDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::TypeBinding(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalTypeBinding(
+                    TypeBindingError::Rule(internal),
+                )),
+            };
+        }
+        Err(internal) => return Err(DeclarationLoweringError::InternalTypeBinding(internal)),
+    };
     let normalized =
         normalize_header_types(bound).map_err(DeclarationLoweringError::TypeNormalization)?;
     define_declaration_headers(normalized).map_err(DeclarationLoweringError::Definition)
@@ -189,7 +202,7 @@ mod tests {
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, GenericRule, ImportRule,
         ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, TopologyRule,
-        lower_compile_unit_declarations,
+        TypeBindingRule, lower_compile_unit_declarations,
     };
 
     #[test]
@@ -735,6 +748,170 @@ mod tests {
         assert_eq!(diagnostic.source().notes(), []);
     }
 
+    #[test]
+    fn production_pipeline_projects_the_exact_unknown_type_name() {
+        let text = "pub func run(value: Missing): void {}\n";
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = input_with_standard_prelude(
+            &sources,
+            &app_manifest,
+            &app,
+            &standard_manifest,
+            &standard,
+            &prelude,
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
+            panic!("unknown type did not produce a type-binding diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), TypeBindingRule::UnknownTypeContextName);
+        assert_eq!(diagnostic.source().code(), "E0290");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.find("Missing").unwrap()).unwrap()
+        );
+        assert!(diagnostic.source().notes().is_empty());
+    }
+
+    #[test]
+    fn production_pipeline_projects_both_duplicate_callable_parameter_names() {
+        let text = "pub func install(callback: &func(value: usize, value: usize): void): void {}\n";
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", text);
+        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let standard_manifest =
+            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        let input = input_with_standard_prelude(
+            &sources,
+            &app_manifest,
+            &app,
+            &standard_manifest,
+            &standard,
+            &prelude,
+        );
+
+        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
+            panic!("duplicate callable parameter did not produce a type-binding diagnostic");
+        };
+
+        assert_eq!(
+            diagnostic.rule(),
+            TypeBindingRule::DuplicateCallableParameter
+        );
+        assert_eq!(diagnostic.source().code(), "E0295");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.rfind("value").unwrap()).unwrap()
+        );
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(
+            diagnostic.source().notes()[0]
+                .origin()
+                .span()
+                .range()
+                .start()
+                .get(),
+            u32::try_from(text.find("value").unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn production_pipeline_projects_exact_callable_provenance_origins() {
+        let cases = [
+            (
+                "pub func install(callback: &func(input: &str): &str from missing): void {}\n",
+                TypeBindingRule::UnknownProvenanceOrigin,
+                "missing",
+                None,
+            ),
+            (
+                "pub func install(callback: &func(input: &str): &str from input | input): void {}\n",
+                TypeBindingRule::DuplicateProvenanceOrigin,
+                "input",
+                Some("input"),
+            ),
+        ];
+        for (text, expected_rule, primary_name, related_name) in cases {
+            let mut sources = SourceMap::new();
+            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_id = add_source(&mut sources, "/app/index.nct", text);
+            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let standard_manifest =
+                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let prelude_identity =
+                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+            let input = input_with_standard_prelude(
+                &sources,
+                &app_manifest,
+                &app,
+                &standard_manifest,
+                &standard,
+                &prelude,
+            );
+
+            let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+            let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
+                panic!("invalid provenance did not produce a type-binding diagnostic");
+            };
+
+            assert_eq!(diagnostic.rule(), expected_rule);
+            assert_eq!(diagnostic.source().primary().source(), app_id);
+            assert_eq!(
+                diagnostic.source().primary().span().range().start().get(),
+                u32::try_from(text.rfind(primary_name).unwrap()).unwrap()
+            );
+            if let Some(related_name) = related_name {
+                assert_eq!(diagnostic.source().notes().len(), 1);
+                let clause = text.find(" from ").unwrap();
+                assert_eq!(
+                    diagnostic.source().notes()[0]
+                        .origin()
+                        .span()
+                        .range()
+                        .start()
+                        .get(),
+                    u32::try_from(text[clause..].find(related_name).unwrap() + clause).unwrap()
+                );
+            } else {
+                assert!(diagnostic.source().notes().is_empty());
+            }
+        }
+    }
+
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
         sources
             .add_bytes(SourceName::new(name), text.as_bytes())
@@ -762,6 +939,34 @@ mod tests {
             name,
             PackageMode::Declared,
             Some(PackageDeclarationInput::new(path, manifest)),
+        )
+    }
+
+    fn input_with_standard_prelude<'syntax>(
+        sources: &'syntax SourceMap,
+        app_manifest: &'syntax SyntaxTree,
+        app: &'syntax SyntaxTree,
+        standard_manifest: &'syntax SyntaxTree,
+        standard: &'syntax SyntaxTree,
+        prelude: &'syntax SyntaxTree,
+    ) -> CompileUnitInput<'syntax> {
+        CompileUnitInput::new(
+            sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", app_manifest),
+                package("toolchain:std", "std", "/std/nocter.nct", standard_manifest),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", app),
+                module("toolchain:std", &[], "/std/index.nct", standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    prelude,
+                ),
+            ],
+            Vec::new(),
         )
     }
 

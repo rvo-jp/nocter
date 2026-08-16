@@ -1,4 +1,5 @@
 use nocter_declarations::ExportedEntity;
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
@@ -6,7 +7,7 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
 use super::context::{builtin_type, declaration_module, require_arity, token_symbol};
-use super::{BoundDeclarationPattern, TypeBindingError, projection};
+use super::{BoundDeclarationPattern, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) fn bind_all(
     namespaces: &mut PreparedNamespaces<'_>,
@@ -39,7 +40,10 @@ fn bind(
             .imports
             .generics
             .lookup(declaration, name)
-            .ok_or(TypeBindingError::UnknownName(pattern))?;
+            .ok_or(TypeBindingError::rule(
+                TypeBindingRule::UnknownTypeContextName,
+                SyntaxOrigin::Token(token),
+            ))?;
         return Ok(BoundDeclarationPattern::Slice(parameter));
     }
 
@@ -48,9 +52,13 @@ fn bind(
     let module = declaration_module(namespaces, declaration)?;
     let entity = namespaces
         .lookup_local(module, name)
-        .ok_or(TypeBindingError::UnknownName(pattern))?;
+        .ok_or(TypeBindingError::rule(
+            TypeBindingRule::UnknownTypeContextName,
+            SyntaxOrigin::Token(head),
+        ))?;
     projection::reference(namespaces, tree, entity, head)?;
-    let arguments = direct_node(tree, pattern, NodeKind::PatternArguments)
+    let arguments_node = direct_node(tree, pattern, NodeKind::PatternArguments);
+    let arguments = arguments_node
         .map(|arguments| bind_arguments(namespaces, declaration, tree, arguments))
         .transpose()?
         .unwrap_or_default();
@@ -58,7 +66,7 @@ fn bind(
         ExportedEntity::NominalType(definition) => {
             require_arity(
                 namespaces,
-                pattern,
+                arguments_node.map_or(SyntaxOrigin::Token(head), SyntaxOrigin::Node),
                 ReservedEntity::NominalType(definition),
                 arguments.len(),
             )?;
@@ -70,7 +78,7 @@ fn bind(
         ExportedEntity::Interface(definition) => {
             require_arity(
                 namespaces,
-                pattern,
+                arguments_node.map_or(SyntaxOrigin::Token(head), SyntaxOrigin::Node),
                 ReservedEntity::Interface(definition),
                 arguments.len(),
             )?;
@@ -80,7 +88,10 @@ fn bind(
             })
         }
         ExportedEntity::Module(_) | ExportedEntity::TypeAlias(_) | ExportedEntity::Callable(_) => {
-            Err(TypeBindingError::InvalidTypeEntity(pattern))
+            Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeEntity,
+                SyntaxOrigin::Token(head),
+            ))
         }
     }
 }
@@ -99,7 +110,10 @@ fn bind_arguments(
                 .imports
                 .generics
                 .lookup(declaration, name)
-                .ok_or(TypeBindingError::UnknownName(arguments))
+                .ok_or(TypeBindingError::rule(
+                    TypeBindingRule::UnknownTypeContextName,
+                    SyntaxOrigin::Token(token),
+                ))
         })
         .collect()
 }

@@ -101,6 +101,31 @@ Source-backed generic-binder diagnostics:
 Repeated names in a declaration target pattern refer to the first binder and do not constitute
 duplicate declarations.
 
+Source-backed declaration-header type diagnostics:
+
+- `E0290`: a name used by a header type, declaration pattern, capability, requirement, or opaque
+  result is unknown in that type context.
+- `E0291`: a resolved name does not denote a type entity valid in its context.
+- `E0292`: a type application supplies the wrong number of generic arguments, supplies arguments
+  to `Self` or a generic parameter, or supplies arguments to an associated selection.
+- `E0293`: `Self` appears outside a type-owning declaration.
+- `E0294`: a fixed-array length integer cannot be represented as `u64`.
+- `E0295`: a structural callable type repeats a named parameter. The later parameter is primary
+  and the first parameter is related.
+- `E0296`: a structural callable result-provenance clause names no parameter of that callable.
+- `E0297`: a structural callable result-provenance clause repeats an origin. The later origin is
+  primary and the first origin is related.
+- `E0298`: an opaque result binding names no associated type of its selected interface.
+- `E0299`: an opaque result repeats an associated-type binding. The later binding is primary and
+  the first binding is related.
+- `E0300`: an opaque positional type argument follows an associated-type binding.
+- `E0301`: a parsed generic requirement has a semantically invalid requirement shape.
+- `E0302`: a declaration-pattern binder refinement contains the binder that it replaces.
+
+These rules retain their exact name token, argument container, requirement, or duplicate pair when
+type binding selects the error. Diagnostic rendering does not search the syntax tree or repeat name
+resolution to find a span.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

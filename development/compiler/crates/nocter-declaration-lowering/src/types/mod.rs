@@ -8,6 +8,7 @@ mod projection;
 mod requirements;
 mod results;
 mod syntax;
+mod violation;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -22,6 +23,8 @@ use nocter_source_index::DuplicateSourceBinding;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
+
+pub use violation::{TypeBindingRule, TypeBindingViolation};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct BoundTypeId(usize);
@@ -185,74 +188,43 @@ pub enum BoundRequirementKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeBindingError {
+    Rule(TypeBindingViolation),
     MissingSource(SurfaceDeclarationId),
     InvalidSyntax(NodeId),
-    UnknownName(NodeId),
-    InvalidTypeEntity(NodeId),
-    InvalidTypeArguments(NodeId),
-    InvalidSelfType(NodeId),
-    InvalidArrayLength(NodeId),
-    DuplicateCallableParameter(NodeId),
-    UnknownProvenanceOrigin(NodeId),
-    DuplicateProvenanceOrigin(NodeId),
-    DuplicateOpaqueBinding(NodeId),
-    InvalidRequirement(NodeId),
-    RecursiveBinderRefinement(NodeId),
     InconsistentSource(SourceId),
     DuplicateSourceBinding(DuplicateSourceBinding),
+}
+
+impl TypeBindingError {
+    pub(crate) const fn rule(
+        rule: TypeBindingRule,
+        primary: nocter_source_index::SyntaxOrigin,
+    ) -> Self {
+        Self::Rule(TypeBindingViolation::new(rule, primary))
+    }
+
+    pub(crate) const fn duplicate_rule(
+        rule: TypeBindingRule,
+        first: nocter_source_index::SyntaxOrigin,
+        second: nocter_source_index::SyntaxOrigin,
+    ) -> Self {
+        Self::Rule(TypeBindingViolation::duplicate(rule, first, second))
+    }
 }
 
 impl fmt::Display for TypeBindingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::MissingSource(declaration) => {
                 write!(formatter, "declaration {declaration:?} has no source")
             }
             Self::InvalidSyntax(node) => write!(formatter, "type syntax {node:?} is inconsistent"),
-            Self::UnknownName(node) => write!(formatter, "type syntax {node:?} names no type"),
-            Self::InvalidTypeEntity(node) => {
-                write!(
-                    formatter,
-                    "type syntax {node:?} resolves to a non-type entity"
-                )
-            }
-            Self::InvalidTypeArguments(node) => {
-                write!(formatter, "type syntax {node:?} has invalid type arguments")
-            }
-            Self::InvalidSelfType(node) => {
-                write!(formatter, "Self has no type-owning context at {node:?}")
-            }
-            Self::InvalidArrayLength(node) => {
-                write!(formatter, "fixed-array type {node:?} has an invalid length")
-            }
-            Self::DuplicateCallableParameter(node) => {
-                write!(formatter, "callable type {node:?} repeats a parameter name")
-            }
-            Self::UnknownProvenanceOrigin(node) => {
-                write!(
-                    formatter,
-                    "callable type {node:?} names an unknown result origin"
-                )
-            }
-            Self::DuplicateProvenanceOrigin(node) => {
-                write!(formatter, "callable type {node:?} repeats a result origin")
-            }
-            Self::DuplicateOpaqueBinding(node) => {
-                write!(
-                    formatter,
-                    "opaque result {node:?} repeats an associated binding"
-                )
-            }
-            Self::InvalidRequirement(node) => {
-                write!(
-                    formatter,
-                    "generic requirement {node:?} has an invalid semantic shape"
-                )
-            }
-            Self::RecursiveBinderRefinement(node) => write!(
-                formatter,
-                "binder refinement {node:?} contains the binder it replaces"
-            ),
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent type origin")
             }
@@ -266,6 +238,12 @@ impl std::error::Error for TypeBindingError {}
 impl From<DuplicateSourceBinding> for TypeBindingError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<TypeBindingViolation> for TypeBindingError {
+    fn from(violation: TypeBindingViolation) -> Self {
+        Self::Rule(violation)
     }
 }
 

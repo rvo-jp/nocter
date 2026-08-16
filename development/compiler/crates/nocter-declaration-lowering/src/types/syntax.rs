@@ -1,7 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin, Symbol};
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
@@ -10,7 +11,10 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDec
 
 use super::context::{builtin_type, require_arity, token_symbol, token_text};
 use super::names::{resolve_exported, segments};
-use super::{BoundCallableType, BoundTypeId, BoundTypeKind, TypeBindingError, projection, push};
+use super::{
+    BoundCallableType, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule, projection,
+    push,
+};
 
 pub(super) fn bind(
     namespaces: &mut PreparedNamespaces<'_>,
@@ -137,29 +141,43 @@ fn bind_named(
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     if token_text(namespaces, tree, first.token)? == "Self" {
         if !first.arguments.is_empty() {
-            return Err(TypeBindingError::InvalidTypeArguments(node));
+            return Err(invalid_arguments(first));
         }
-        let owner =
-            self_owner(namespaces, declaration).ok_or(TypeBindingError::InvalidSelfType(node))?;
+        let owner = self_owner(namespaces, declaration).ok_or(TypeBindingError::rule(
+            TypeBindingRule::InvalidSelfType,
+            SyntaxOrigin::Token(first.token),
+        ))?;
         let base = push(kinds, BoundTypeKind::SelfType(owner));
-        return bind_associated_tail(namespaces, tree, node, base, &segments[1..], kinds);
+        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds);
     }
 
     let name = token_symbol(namespaces, tree, first.token)?;
     if let Some(parameter) = namespaces.imports.generics.lookup(declaration, name) {
         if !first.arguments.is_empty() {
-            return Err(TypeBindingError::InvalidTypeArguments(node));
+            return Err(invalid_arguments(first));
         }
         projection::generic(namespaces, tree, parameter, first.token)?;
         let base = push(kinds, BoundTypeKind::GenericParameter(parameter));
-        return bind_associated_tail(namespaces, tree, node, base, &segments[1..], kinds);
+        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds);
     }
 
     let path = resolve_exported(namespaces, declaration, tree, node, segments)?;
-    let mut current = bind_entity(namespaces, node, path.entity, &path.arguments, kinds)?;
+    let mut current = bind_entity(
+        namespaces,
+        path.entity_token,
+        path.arguments_origin,
+        path.entity,
+        &path.arguments,
+        kinds,
+    )?;
     for selection in path.trailing {
         if !selection.arguments.is_empty() {
-            return Err(TypeBindingError::InvalidTypeArguments(node));
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeArguments,
+                selection
+                    .arguments_origin
+                    .map_or(SyntaxOrigin::Token(selection.token), SyntaxOrigin::Node),
+            ));
         }
         current = push(
             kinds,
@@ -174,17 +192,17 @@ fn bind_named(
 
 fn bind_entity(
     namespaces: &PreparedNamespaces<'_>,
-    node: NodeId,
+    token: SyntaxToken,
+    arguments_origin: Option<NodeId>,
     entity: ExportedEntity,
     arguments: &[BoundTypeId],
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     match entity {
-        ExportedEntity::Module(_) => Err(TypeBindingError::InvalidTypeEntity(node)),
         ExportedEntity::NominalType(definition) => {
             require_arity(
                 namespaces,
-                node,
+                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
                 ReservedEntity::NominalType(definition),
                 arguments.len(),
             )?;
@@ -199,7 +217,7 @@ fn bind_entity(
         ExportedEntity::TypeAlias(definition) => {
             require_arity(
                 namespaces,
-                node,
+                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
                 ReservedEntity::TypeAlias(definition),
                 arguments.len(),
             )?;
@@ -211,8 +229,11 @@ fn bind_entity(
                 },
             ))
         }
-        ExportedEntity::Interface(_) | ExportedEntity::Callable(_) => {
-            Err(TypeBindingError::InvalidTypeEntity(node))
+        ExportedEntity::Module(_) | ExportedEntity::Interface(_) | ExportedEntity::Callable(_) => {
+            Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeEntity,
+                SyntaxOrigin::Token(token),
+            ))
         }
     }
 }
@@ -220,14 +241,18 @@ fn bind_entity(
 fn bind_associated_tail(
     namespaces: &PreparedNamespaces<'_>,
     tree: &SyntaxTree,
-    node: NodeId,
     mut base: BoundTypeId,
     segments: &[super::names::NameSegment],
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     for segment in segments {
         if !segment.arguments.is_empty() {
-            return Err(TypeBindingError::InvalidTypeArguments(node));
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeArguments,
+                segment
+                    .arguments_origin
+                    .map_or(SyntaxOrigin::Token(segment.token), SyntaxOrigin::Node),
+            ));
         }
         base = push(
             kinds,
@@ -262,12 +287,16 @@ fn bind_callable(
             .ok_or(TypeBindingError::InvalidSyntax(parameter))?;
         let position = parameters.len();
         parameters.push(ty);
-        let name = callable_parameter_name(namespaces, tree, parameter)?;
-        named_parameters.push(name.is_some());
-        if let Some(name) = name
-            && names.insert(name, position).is_some()
+        let parameter_name = callable_parameter_name(namespaces, tree, parameter)?;
+        named_parameters.push(parameter_name.is_some());
+        if let Some((name, token)) = parameter_name
+            && let Some((_, first)) = names.insert(name, (position, token))
         {
-            return Err(TypeBindingError::DuplicateCallableParameter(node));
+            return Err(TypeBindingError::duplicate_rule(
+                TypeBindingRule::DuplicateCallableParameter,
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(token),
+            ));
         }
     }
     let result = direct_nodes(tree, node, NodeKind::Type)
@@ -275,7 +304,7 @@ fn bind_callable(
         .find_map(|candidate| values.get(&candidate).copied())
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let explicit_origins = direct_node(tree, node, NodeKind::ProvenanceClause)
-        .map(|clause| callable_origins(namespaces, tree, node, clause, &names))
+        .map(|clause| callable_origins(namespaces, tree, clause, &names))
         .transpose()?;
     Ok(push(
         kinds,
@@ -292,27 +321,34 @@ fn bind_callable(
 fn callable_origins(
     namespaces: &PreparedNamespaces<'_>,
     tree: &SyntaxTree,
-    callable: NodeId,
     clause: NodeId,
-    names: &BTreeMap<Symbol, usize>,
+    names: &BTreeMap<Symbol, (usize, SyntaxToken)>,
 ) -> Result<Box<[ParameterOrigin]>, TypeBindingError> {
     let mut tokens = identifier_tokens(tree, clause).into_iter();
     tokens
         .next()
         .ok_or(TypeBindingError::InvalidSyntax(clause))?;
-    let mut origins = BTreeSet::new();
+    let mut origins = BTreeMap::new();
     for token in tokens {
         let name = token_symbol(namespaces, tree, token)?;
-        let position = names
-            .get(&name)
-            .copied()
-            .ok_or(TypeBindingError::UnknownProvenanceOrigin(callable))?;
-        if !origins.insert(position) {
-            return Err(TypeBindingError::DuplicateProvenanceOrigin(callable));
+        let position =
+            names
+                .get(&name)
+                .map(|(position, _)| *position)
+                .ok_or(TypeBindingError::rule(
+                    TypeBindingRule::UnknownProvenanceOrigin,
+                    SyntaxOrigin::Token(token),
+                ))?;
+        if let Some(first) = origins.insert(position, token) {
+            return Err(TypeBindingError::duplicate_rule(
+                TypeBindingRule::DuplicateProvenanceOrigin,
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(token),
+            ));
         }
     }
     Ok(origins
-        .into_iter()
+        .into_keys()
         .map(ParameterOrigin::new)
         .collect::<Vec<_>>()
         .into_boxed_slice())
@@ -322,7 +358,7 @@ fn callable_parameter_name(
     namespaces: &PreparedNamespaces<'_>,
     tree: &SyntaxTree,
     parameter: NodeId,
-) -> Result<Option<Symbol>, TypeBindingError> {
+) -> Result<Option<(Symbol, SyntaxToken)>, TypeBindingError> {
     let has_colon = tree.children(parameter).iter().any(|element| {
         matches!(
             element,
@@ -334,7 +370,7 @@ fn callable_parameter_name(
         return Ok(None);
     }
     direct_identifier(tree, parameter)
-        .map(|token| token_symbol(namespaces, tree, token))
+        .map(|token| token_symbol(namespaces, tree, token).map(|name| (name, token)))
         .transpose()
 }
 
@@ -417,7 +453,7 @@ fn array_length(
             }
             _ => None,
         })
-        .ok_or(TypeBindingError::InvalidArrayLength(node))?;
+        .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let text = token_text(namespaces, tree, token)?.replace('_', "");
     let parsed = if let Some(digits) = text.strip_prefix("0x") {
         u64::from_str_radix(digits, 16)
@@ -426,7 +462,21 @@ fn array_length(
     } else {
         text.parse()
     };
-    parsed.map_err(|_| TypeBindingError::InvalidArrayLength(node))
+    parsed.map_err(|_| {
+        TypeBindingError::rule(
+            TypeBindingRule::InvalidArrayLength,
+            SyntaxOrigin::Token(token),
+        )
+    })
+}
+
+fn invalid_arguments(segment: &super::names::NameSegment) -> TypeBindingError {
+    TypeBindingError::rule(
+        TypeBindingRule::InvalidTypeArguments,
+        segment
+            .arguments_origin
+            .map_or(SyntaxOrigin::Token(segment.token), SyntaxOrigin::Node),
+    )
 }
 
 fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {

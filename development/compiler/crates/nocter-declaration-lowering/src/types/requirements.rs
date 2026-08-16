@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{BorrowCapability, GenericParameterId};
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
@@ -11,7 +12,7 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDec
 use super::context::token_symbol;
 use super::{
     BoundCapability, BoundRequirementKind, BoundTypeId, BoundTypeKind, TypeBindingError,
-    projection, push,
+    TypeBindingRule, projection, push,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -51,7 +52,7 @@ pub(super) fn bind_all(
                     &mut result,
                 )?;
             }
-            _ => return Err(TypeBindingError::InvalidRequirement(container)),
+            _ => return Err(invalid_requirement(container)),
         }
     }
     Ok(result)
@@ -74,9 +75,7 @@ fn bind_predicate(
                 namespaces,
                 declaration,
                 tree,
-                predicate,
-                direct_identifier(tree, predicate)
-                    .ok_or(TypeBindingError::InvalidRequirement(predicate))?,
+                direct_identifier(tree, predicate).ok_or(invalid_requirement(predicate))?,
             )?;
             for capability in direct_nodes(tree, predicate, NodeKind::Capability) {
                 result.push(BoundRequirementKind::Capability {
@@ -84,7 +83,7 @@ fn bind_predicate(
                     capability: capabilities
                         .get(&capability)
                         .cloned()
-                        .ok_or(TypeBindingError::InvalidRequirement(predicate))?,
+                        .ok_or(invalid_requirement(predicate))?,
                 });
             }
         }
@@ -92,12 +91,11 @@ fn bind_predicate(
             let token = direct_identifiers(tree, predicate)
                 .get(1)
                 .copied()
-                .ok_or(TypeBindingError::InvalidRequirement(predicate))?;
+                .ok_or(invalid_requirement(predicate))?;
             result.push(BoundRequirementKind::Copy(generic_from_token(
                 namespaces,
                 declaration,
                 tree,
-                predicate,
                 token,
             )?));
         }
@@ -118,7 +116,7 @@ fn bind_predicate(
         Some(NodeKind::CoercionPredicate) => {
             let types = bound_types(tree, predicate, roots)?;
             let [referent, target] = types.as_slice() else {
-                return Err(TypeBindingError::InvalidRequirement(predicate));
+                return Err(invalid_requirement(predicate));
             };
             let capability = borrow_capability(tree, predicate)?;
             let source = push(
@@ -134,12 +132,11 @@ fn bind_predicate(
             });
         }
         Some(NodeKind::ExpansionPredicate) => {
-            let token = direct_identifier(tree, predicate)
-                .ok_or(TypeBindingError::InvalidRequirement(predicate))?;
-            let source = generic_from_token(namespaces, declaration, tree, predicate, token)?;
+            let token = direct_identifier(tree, predicate).ok_or(invalid_requirement(predicate))?;
+            let source = generic_from_token(namespaces, declaration, tree, token)?;
             let types = bound_types(tree, predicate, roots)?;
             let [result_type] = types.as_slice() else {
-                return Err(TypeBindingError::InvalidRequirement(predicate));
+                return Err(invalid_requirement(predicate));
             };
             result.push(BoundRequirementKind::Expansion {
                 capability: expansion_capability(tree, predicate),
@@ -147,7 +144,7 @@ fn bind_predicate(
                 result: *result_type,
             });
         }
-        _ => return Err(TypeBindingError::InvalidRequirement(predicate)),
+        _ => return Err(invalid_requirement(predicate)),
     }
     Ok(())
 }
@@ -163,7 +160,7 @@ fn bind_equality(
 ) -> Result<(), TypeBindingError> {
     let types = bound_types(tree, predicate, roots)?;
     let [left, right] = types.as_slice() else {
-        return Err(TypeBindingError::InvalidRequirement(predicate));
+        return Err(invalid_requirement(predicate));
     };
     let (left, right) = (*left, *right);
     let is_pattern_owner = namespaces
@@ -189,7 +186,10 @@ fn bind_equality(
         && own.contains(parameter)
     {
         if contains_generic(kinds, right, *parameter) {
-            return Err(TypeBindingError::RecursiveBinderRefinement(predicate));
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::RecursiveBinderRefinement,
+                SyntaxOrigin::Node(predicate),
+            ));
         }
         result.push(BoundRequirementKind::BinderRefinement {
             parameter: *parameter,
@@ -210,7 +210,7 @@ fn bind_operator(
 ) -> Result<(), TypeBindingError> {
     let types = bound_types(tree, predicate, roots)?;
     let [first, second, third] = types.as_slice() else {
-        return Err(TypeBindingError::InvalidRequirement(predicate));
+        return Err(invalid_requirement(predicate));
     };
     if has_punctuation(tree, predicate, Punctuation::EqualEqual)
         || has_punctuation(tree, predicate, Punctuation::Less)
@@ -223,7 +223,7 @@ fn bind_operator(
                 Some(BoundTypeKind::Builtin(nocter_model::BuiltinType::Bool))
             )
         {
-            return Err(TypeBindingError::InvalidRequirement(predicate));
+            return Err(invalid_requirement(predicate));
         }
         result.push(
             if has_punctuation(tree, predicate, Punctuation::EqualEqual) {
@@ -240,7 +240,7 @@ fn bind_operator(
             result: *third,
         });
     } else {
-        return Err(TypeBindingError::InvalidRequirement(predicate));
+        return Err(invalid_requirement(predicate));
     }
     Ok(())
 }
@@ -260,7 +260,7 @@ fn bind_associated_bounds(
         .reserved
         .entity(declaration)
     else {
-        return Err(TypeBindingError::InvalidRequirement(bounds));
+        return Err(invalid_requirement(bounds));
     };
     for capability in direct_nodes(tree, bounds, NodeKind::Capability) {
         result.push(BoundRequirementKind::Capability {
@@ -268,7 +268,7 @@ fn bind_associated_bounds(
             capability: capabilities
                 .get(&capability)
                 .cloned()
-                .ok_or(TypeBindingError::InvalidRequirement(bounds))?,
+                .ok_or(invalid_requirement(bounds))?,
         });
     }
     Ok(())
@@ -278,7 +278,6 @@ fn generic_from_token(
     namespaces: &mut PreparedNamespaces<'_>,
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
-    predicate: NodeId,
     token: SyntaxToken,
 ) -> Result<GenericParameterId, TypeBindingError> {
     let name = token_symbol(namespaces, tree, token)?;
@@ -286,7 +285,10 @@ fn generic_from_token(
         .imports
         .generics
         .lookup(declaration, name)
-        .ok_or(TypeBindingError::InvalidRequirement(predicate))?;
+        .ok_or(TypeBindingError::rule(
+            TypeBindingRule::InvalidRequirement,
+            SyntaxOrigin::Token(token),
+        ))?;
     projection::generic(namespaces, tree, parameter, token)?;
     Ok(parameter)
 }
@@ -298,7 +300,7 @@ fn generic_type(
 ) -> Result<GenericParameterId, TypeBindingError> {
     match kinds.get(ty.index()) {
         Some(BoundTypeKind::GenericParameter(parameter)) => Ok(*parameter),
-        _ => Err(TypeBindingError::InvalidRequirement(predicate)),
+        _ => Err(invalid_requirement(predicate)),
     }
 }
 
@@ -371,12 +373,7 @@ fn bound_types(
 ) -> Result<Vec<BoundTypeId>, TypeBindingError> {
     direct_nodes(tree, node, NodeKind::Type)
         .into_iter()
-        .map(|ty| {
-            roots
-                .get(&ty)
-                .copied()
-                .ok_or(TypeBindingError::InvalidRequirement(node))
-        })
+        .map(|ty| roots.get(&ty).copied().ok_or(invalid_requirement(node)))
         .collect()
 }
 
@@ -389,7 +386,7 @@ fn borrow_capability(
     } else if has_punctuation(tree, predicate, Punctuation::Ampersand) {
         Ok(BorrowCapability::Readonly)
     } else {
-        Err(TypeBindingError::InvalidRequirement(predicate))
+        Err(invalid_requirement(predicate))
     }
 }
 
@@ -401,6 +398,13 @@ fn expansion_capability(tree: &SyntaxTree, predicate: NodeId) -> ExpansionCapabi
     } else {
         ExpansionCapability::Owned
     }
+}
+
+fn invalid_requirement(node: NodeId) -> TypeBindingError {
+    TypeBindingError::rule(
+        TypeBindingRule::InvalidRequirement,
+        SyntaxOrigin::Node(node),
+    )
 }
 
 fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {

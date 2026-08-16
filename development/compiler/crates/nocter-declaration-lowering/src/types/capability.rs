@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
 use super::context::require_arity;
 use super::names::{resolve_exported, segments};
-use super::{BoundCapability, BoundTypeId, BoundTypeKind, TypeBindingError, syntax};
+use super::{
+    BoundCapability, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule, syntax,
+};
 
 pub(super) fn bind(
     namespaces: &mut PreparedNamespaces<'_>,
@@ -52,14 +55,21 @@ pub(super) fn bind(
                 segments(tree, child, roots)?,
             )?;
             let ExportedEntity::Interface(definition) = path.entity else {
-                return Err(TypeBindingError::InvalidTypeEntity(capability));
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::InvalidTypeEntity,
+                    SyntaxOrigin::Token(path.entity_token),
+                ));
             };
-            if !path.trailing.is_empty() {
-                return Err(TypeBindingError::InvalidTypeEntity(capability));
+            if let Some(selection) = path.trailing.first() {
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::InvalidTypeEntity,
+                    SyntaxOrigin::Token(selection.token),
+                ));
             }
             require_arity(
                 namespaces,
-                capability,
+                path.arguments_origin
+                    .map_or(SyntaxOrigin::Token(path.entity_token), SyntaxOrigin::Node),
                 ReservedEntity::Interface(definition),
                 path.arguments.len(),
             )?;

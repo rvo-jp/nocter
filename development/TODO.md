@@ -8,12 +8,11 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Extend the common source-backed diagnostic envelope from the completed module-topology, module-
-   surface, callable-contract, namespace, generic-binder, authored-import, and freeze-time
-   declaration rules to type binding. Internal consistency faults remain distinct and must not
-   receive user-facing error codes.
-2. Audit prelude composition failures. Compiler-selected authority and inconsistent namespace state
+1. Audit prelude composition failures. Compiler-selected authority and inconsistent namespace state
    remain internal; any authored prelude-import rule must retain its exact syntax subject.
+2. Extend the source-backed boundary to type normalization without turning malformed bound graphs
+   into user-facing errors. Alias cycles and authored associated selections must retain the syntax
+   subjects that selected them.
 3. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
 
@@ -41,6 +40,10 @@ remain internal contract errors. Generic binder declarations project `E0280`-`E0
 scopes retain exact declaration tokens, so duplicate declarations and inherited shadowing produce
 different rules and related spans without reverse syntax lookup. Repeated binders in a declaration
 target pattern remain references to the first binding.
+Header type binding now projects `E0290`-`E0302`. Unknown names, invalid entities and arguments,
+`Self`, fixed-array lengths, callable parameter/provenance duplicates, opaque bindings, and generic
+requirements retain their exact syntax subjects when their rules are selected. Invalid parser
+snapshots, missing discovery state, and duplicate source-index insertion remain internal errors.
 
 ## Guardrails
 

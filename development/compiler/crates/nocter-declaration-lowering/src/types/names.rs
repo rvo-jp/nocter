@@ -2,26 +2,32 @@ use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::Symbol;
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
 
 use crate::{PreparedNamespaces, SurfaceDeclarationId};
 
 use super::context::{declaration_module, token_symbol};
-use super::{BoundTypeId, TypeBindingError, projection};
+use super::{BoundTypeId, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) struct NameSegment {
     pub(super) token: SyntaxToken,
     pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) arguments_origin: Option<NodeId>,
 }
 
 pub(super) struct TrailingSelection {
     pub(super) name: Symbol,
     pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) token: SyntaxToken,
+    pub(super) arguments_origin: Option<NodeId>,
 }
 
 pub(super) struct ResolvedEntityPath {
     pub(super) entity: ExportedEntity,
+    pub(super) entity_token: SyntaxToken,
     pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) arguments_origin: Option<NodeId>,
     pub(super) trailing: Vec<TrailingSelection>,
 }
 
@@ -37,6 +43,7 @@ pub(super) fn segments(
                 segments.push(NameSegment {
                     token: *token,
                     arguments: Vec::new(),
+                    arguments_origin: None,
                 });
             }
             SyntaxElement::Node(child)
@@ -49,6 +56,7 @@ pub(super) fn segments(
                 segments.push(NameSegment {
                     token,
                     arguments: Vec::new(),
+                    arguments_origin: None,
                 });
             }
             SyntaxElement::Node(child)
@@ -68,6 +76,7 @@ pub(super) fn segments(
                             .ok_or(TypeBindingError::InvalidSyntax(argument))
                     })
                     .collect::<Result<_, _>>()?;
+                segment.arguments_origin = Some(*child);
             }
             SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
         }
@@ -94,23 +103,37 @@ pub(super) fn resolve_exported(
     let name = token_symbol(namespaces, tree, first.token)?;
     let mut entity = namespaces
         .lookup_local(from, name)
-        .ok_or(TypeBindingError::UnknownName(node))?;
+        .ok_or(TypeBindingError::rule(
+            TypeBindingRule::UnknownTypeContextName,
+            SyntaxOrigin::Token(first.token),
+        ))?;
     projection::reference(namespaces, tree, entity, first.token)?;
     let mut arguments = first.arguments;
+    let mut arguments_origin = first.arguments_origin;
+    let mut entity_token = first.token;
 
     while let ExportedEntity::Module(module) = entity {
         if !arguments.is_empty() {
-            return Err(TypeBindingError::InvalidTypeArguments(node));
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeArguments,
+                SyntaxOrigin::Node(arguments_origin.unwrap_or(node)),
+            ));
         }
-        let segment = segments
-            .next()
-            .ok_or(TypeBindingError::InvalidTypeEntity(node))?;
+        let segment = segments.next().ok_or(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeEntity,
+            SyntaxOrigin::Token(entity_token),
+        ))?;
         let name = token_symbol(namespaces, tree, segment.token)?;
         entity = namespaces
             .lookup_export(from, module, name)
-            .ok_or(TypeBindingError::UnknownName(node))?;
+            .ok_or(TypeBindingError::rule(
+                TypeBindingRule::UnknownTypeContextName,
+                SyntaxOrigin::Token(segment.token),
+            ))?;
         projection::reference(namespaces, tree, entity, segment.token)?;
         arguments = segment.arguments;
+        arguments_origin = segment.arguments_origin;
+        entity_token = segment.token;
     }
 
     let trailing = segments
@@ -118,12 +141,16 @@ pub(super) fn resolve_exported(
             Ok(TrailingSelection {
                 name: token_symbol(namespaces, tree, segment.token)?,
                 arguments: segment.arguments,
+                token: segment.token,
+                arguments_origin: segment.arguments_origin,
             })
         })
         .collect::<Result<_, TypeBindingError>>()?;
     Ok(ResolvedEntityPath {
         entity,
+        entity_token,
         arguments,
+        arguments_origin,
         trailing,
     })
 }

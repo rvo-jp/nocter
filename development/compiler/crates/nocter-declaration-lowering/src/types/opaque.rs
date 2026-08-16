@@ -1,7 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::{AssociatedTypeId, GenericParameterId, OpaqueTypeId};
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
@@ -9,7 +10,10 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
 use super::context::{declaration_module, require_arity, token_symbol};
-use super::{BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, projection, push};
+use super::{
+    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule, projection,
+    push,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct OpaqueSyntax {
@@ -17,6 +21,12 @@ pub(super) struct OpaqueSyntax {
     pub(super) node: NodeId,
     pub(super) callable_tail: NodeId,
     pub(super) definition: OpaqueTypeId,
+}
+
+struct BoundOpaqueArguments {
+    node: Option<NodeId>,
+    positional: Vec<BoundTypeId>,
+    associated: Vec<(AssociatedTypeId, BoundTypeId)>,
 }
 
 pub(super) fn bind(
@@ -38,11 +48,18 @@ pub(super) fn bind(
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let name = token_symbol(namespaces, tree, interface_token)?;
     let module = declaration_module(namespaces, declaration)?;
-    let ExportedEntity::Interface(interface) = namespaces
-        .lookup_local(module, name)
-        .ok_or(TypeBindingError::UnknownName(node))?
+    let ExportedEntity::Interface(interface) =
+        namespaces
+            .lookup_local(module, name)
+            .ok_or(TypeBindingError::rule(
+                TypeBindingRule::UnknownTypeContextName,
+                SyntaxOrigin::Token(interface_token),
+            ))?
     else {
-        return Err(TypeBindingError::InvalidTypeEntity(node));
+        return Err(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeEntity,
+            SyntaxOrigin::Token(interface_token),
+        ));
     };
     projection::reference(
         namespaces,
@@ -51,40 +68,14 @@ pub(super) fn bind(
         interface_token,
     )?;
 
-    let mut arguments = Vec::new();
-    let mut bindings = Vec::new();
-    let mut seen = HashSet::new();
-    if let Some(container) = direct_node(tree, node, NodeKind::OpaqueArguments) {
-        for argument in direct_nodes(tree, container, NodeKind::OpaqueArgument) {
-            let ty_node = direct_node(tree, argument, NodeKind::Type)
-                .ok_or(TypeBindingError::InvalidSyntax(argument))?;
-            let ty = roots
-                .get(&ty_node)
-                .copied()
-                .ok_or(TypeBindingError::InvalidSyntax(ty_node))?;
-            if has_punctuation(tree, argument, Punctuation::Equal) {
-                let token = direct_identifiers(tree, argument)
-                    .into_iter()
-                    .next()
-                    .ok_or(TypeBindingError::InvalidSyntax(argument))?;
-                let associated = associated_type(namespaces, declaration, interface, tree, token)?;
-                if !seen.insert(associated) {
-                    return Err(TypeBindingError::DuplicateOpaqueBinding(argument));
-                }
-                bindings.push((associated, ty));
-            } else {
-                if !bindings.is_empty() {
-                    return Err(TypeBindingError::InvalidTypeArguments(argument));
-                }
-                arguments.push(ty);
-            }
-        }
-    }
+    let arguments = bind_opaque_arguments(namespaces, tree, node, interface, roots)?;
     require_arity(
         namespaces,
-        node,
+        arguments
+            .node
+            .map_or(SyntaxOrigin::Token(interface_token), SyntaxOrigin::Node),
         ReservedEntity::Interface(interface),
-        arguments.len(),
+        arguments.positional.len(),
     )?;
 
     let generic_parameters = visible_generics(namespaces, declaration);
@@ -117,15 +108,66 @@ pub(super) fn bind(
     Ok(BoundOpaqueResult {
         generic_parameters,
         interface,
-        arguments: arguments.into_boxed_slice(),
-        associated_types: bindings.into_boxed_slice(),
+        arguments: arguments.positional.into_boxed_slice(),
+        associated_types: arguments.associated.into_boxed_slice(),
         result,
+    })
+}
+
+fn bind_opaque_arguments(
+    namespaces: &mut PreparedNamespaces<'_>,
+    tree: &SyntaxTree,
+    opaque: NodeId,
+    interface: nocter_model::InterfaceId,
+    roots: &HashMap<NodeId, BoundTypeId>,
+) -> Result<BoundOpaqueArguments, TypeBindingError> {
+    let node = direct_node(tree, opaque, NodeKind::OpaqueArguments);
+    let mut positional = Vec::new();
+    let mut associated = Vec::new();
+    let mut seen = HashMap::new();
+    for argument in node
+        .into_iter()
+        .flat_map(|container| direct_nodes(tree, container, NodeKind::OpaqueArgument))
+    {
+        let ty_node = direct_node(tree, argument, NodeKind::Type)
+            .ok_or(TypeBindingError::InvalidSyntax(argument))?;
+        let ty = roots
+            .get(&ty_node)
+            .copied()
+            .ok_or(TypeBindingError::InvalidSyntax(ty_node))?;
+        if has_punctuation(tree, argument, Punctuation::Equal) {
+            let token = direct_identifiers(tree, argument)
+                .into_iter()
+                .next()
+                .ok_or(TypeBindingError::InvalidSyntax(argument))?;
+            let binding = associated_type(namespaces, interface, tree, token)?;
+            if let Some(first) = seen.insert(binding, token) {
+                return Err(TypeBindingError::duplicate_rule(
+                    TypeBindingRule::DuplicateOpaqueBinding,
+                    SyntaxOrigin::Token(first),
+                    SyntaxOrigin::Token(token),
+                ));
+            }
+            associated.push((binding, ty));
+        } else {
+            if !associated.is_empty() {
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::OpaqueArgumentOrder,
+                    SyntaxOrigin::Node(argument),
+                ));
+            }
+            positional.push(ty);
+        }
+    }
+    Ok(BoundOpaqueArguments {
+        node,
+        positional,
+        associated,
     })
 }
 
 fn associated_type(
     namespaces: &mut PreparedNamespaces<'_>,
-    declaration: SurfaceDeclarationId,
     interface: nocter_model::InterfaceId,
     tree: &SyntaxTree,
     token: SyntaxToken,
@@ -146,27 +188,12 @@ fn associated_type(
                 && namespaces.imports.generics.headers.names[index] == Some(name))
             .then_some(associated)
         })
-        .ok_or(TypeBindingError::UnknownName(declaration_node(
-            namespaces,
-            declaration,
-        )?))?;
+        .ok_or(TypeBindingError::rule(
+            TypeBindingRule::UnknownOpaqueBinding,
+            SyntaxOrigin::Token(token),
+        ))?;
     projection::associated(namespaces, tree, found, token)?;
     Ok(found)
-}
-
-fn declaration_node(
-    namespaces: &PreparedNamespaces<'_>,
-    declaration: SurfaceDeclarationId,
-) -> Result<NodeId, TypeBindingError> {
-    namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .declarations
-        .get(declaration.index())
-        .map(|surface| surface.node())
-        .ok_or(TypeBindingError::MissingSource(declaration))
 }
 
 fn visible_generics(
