@@ -10,12 +10,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Validate each `copy struct` family as a declaration-wide conditional copy contract. Reject an
-   unconditionally move-only field with an exact authored diagnostic; retain generic-dependent
-   field conditions for specialization rather than weakening the family to move-only.
-2. Add explicit move and initialization-state transitions before named fields, calls, and
+1. Add explicit move and initialization-state transitions before named fields, calls, and
    primitive operators. Use the same place and copyability authorities for assignment, arguments,
    returns, captures, iteration, and spread.
+2. Extend the linear state transfer to branch joins before adding conditionals and loops. A
+   transfer and join must use semantic place identity rather than syntax-node or name keys.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -54,9 +53,10 @@ escapes an unsupported construct or failed rule. `CopyabilityTable` collects nor
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
 facts by canonical `TypeId`, closes over the final type store, and remains owned by
 `CheckedProgram`. Ordinary structs, unconstrained generics, readwrite borrows, and callable
-contracts are never guessed copyable. Ownership state, copy-family declaration validation,
-annotation binding, calls, operators, aggregates, branches, loops, closures, literals, and
-interpolation remain incomplete.
+contracts are never guessed copyable. Copy-struct families retain `Always`, generic `Requires`, or
+`Impossible` conditions; an unconditionally move-only field now projects `E0366` at its declaration
+instead of creating a never-copy family. Ownership state, annotation binding, calls, operators,
+aggregates, branches, loops, closures, literals, and interpolation remain incomplete.
 
 ## Guardrails
 

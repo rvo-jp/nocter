@@ -277,7 +277,9 @@
   construction. One program-wide copyability table collects normalized generic copy proofs,
   memoizes substituted <code>copy struct</code>, enum, array, outcome, pointer, and borrow classifications by
   canonical type identity, and closes over the final extended type store before becoming part of
-  <code>CheckedProgram</code>. Callable signatures never stand in for closure-environment ownership.
+  <code>CheckedProgram</code>. It also retains normalized family conditions and rejects an unconditionally
+  move-only <code>copy struct</code> field as <code>E0366</code> during preparation. Generic-dependent conditions remain
+  valid specialization facts. Callable signatures never stand in for closure-environment ownership.
   <code>check_prepared_program</code> is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
   and recursive-outcome nodes, rejects value-producing expression statements and reachable

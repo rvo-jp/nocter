@@ -37,7 +37,10 @@ pub use conformance::{
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
 };
-pub use copyability::{Copyability, CopyabilityError, CopyabilityTable};
+pub use copyability::{
+    CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,
+    CopyabilityTable,
+};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
     plan_expected_type,

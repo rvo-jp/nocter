@@ -185,7 +185,9 @@ be introduced to make an unresolved syntax choice.
   construction. One program-wide copyability table collects normalized generic copy proofs,
   memoizes substituted `copy struct`, enum, array, outcome, pointer, and borrow classifications by
   canonical type identity, and closes over the final extended type store before becoming part of
-  `CheckedProgram`. Callable signatures never stand in for closure-environment ownership.
+  `CheckedProgram`. It also retains normalized family conditions and rejects an unconditionally
+  move-only `copy struct` field as `E0366` during preparation. Generic-dependent conditions remain
+  valid specialization facts. Callable signatures never stand in for closure-environment ownership.
   `check_prepared_program` is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
   and recursive-outcome nodes, rejects value-producing expression statements and reachable

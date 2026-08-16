@@ -193,10 +193,13 @@ Every result is memoized by `TypeId`; finalization closes the table over the com
 store before moving it into `CheckedProgram`. Body checking and later stages therefore consume one
 fact instead of traversing nominal fields independently. Closure environments remain a checked-
 value responsibility because callable signature capability does not determine capture copyability.
+The same traversal retains one normalized `Always`, generic `Requires`, or `Impossible` condition
+for every `copy struct` family. Preparation rejects an impossible field as source rule `E0366` at
+the exact field declaration. A generic-dependent family remains valid and evaluates its condition
+again only after canonical argument substitution creates a distinct type identity.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and
 source projection only after every body succeeds. Unsupported valid syntax remains an internal
 incomplete-implementation error, preventing both a partial program and a misleading source
-diagnostic. Declaration-wide rejection of an invalid `copy struct` family remains the next
-copyability rule; concrete specialization and body reads already use the shared authority.
+diagnostic.

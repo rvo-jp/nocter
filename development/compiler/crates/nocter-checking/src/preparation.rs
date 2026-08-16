@@ -8,9 +8,9 @@ use nocter_source_index::SourceIndex;
 
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
 use crate::{
-    BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityTable,
-    DeclarationTypeValidityError, NameResolutionError, ResolvedBodyNames, build_conformance_table,
-    catalog_body_sources, validate_declaration_types,
+    BodySourceCatalog, ConformanceBuildError, ConformanceTable, CopyabilityBuildError,
+    CopyabilityTable, DeclarationTypeValidityError, NameResolutionError, ResolvedBodyNames,
+    build_conformance_table, catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -91,6 +91,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 #[derive(Debug)]
 pub enum PreparationError {
     TypeValidity(DeclarationTypeValidityError),
+    Copyability(CopyabilityBuildError),
     Conformance(ConformanceBuildError),
     NameResolution(NameResolutionError),
 }
@@ -100,6 +101,7 @@ impl PreparationError {
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
+            Self::Copyability(error) => error.source_diagnostic(),
             Self::Conformance(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
         }
@@ -110,6 +112,7 @@ impl fmt::Display for PreparationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::TypeValidity(error) => error.fmt(formatter),
+            Self::Copyability(error) => error.fmt(formatter),
             Self::Conformance(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
@@ -130,6 +133,12 @@ impl From<ConformanceBuildError> for PreparationError {
     }
 }
 
+impl From<CopyabilityBuildError> for PreparationError {
+    fn from(error: CopyabilityBuildError) -> Self {
+        Self::Copyability(error)
+    }
+}
+
 impl From<NameResolutionError> for PreparationError {
     fn from(error: NameResolutionError) -> Self {
         Self::NameResolution(error)
@@ -138,13 +147,15 @@ impl From<NameResolutionError> for PreparationError {
 
 /// Opens the Phase 2 program exactly once and prepares every program-wide Phase 3 authority.
 ///
-/// Body-source integrity is checked first. Authored normalized type and conformance rules are then
-/// selected before body-local name rules. No failure returns a partially prepared value.
+/// Body-source integrity is checked first. Authored normalized type, conditional copyability, and
+/// conformance rules are then selected before body-local name rules. No failure returns a
+/// partially prepared value.
 ///
 /// # Errors
 ///
 /// Returns the exact authored or internal failure selected by body-source cataloging, normalized
-/// type validation, conformance construction, or lexical name resolution.
+/// type validation, copyability construction, conformance construction, or lexical name
+/// resolution.
 pub fn prepare_program_checking<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: DeclarationProgram,
@@ -155,8 +166,8 @@ pub fn prepare_program_checking<'syntax>(
         .map_err(NameResolutionInternalError::from)
         .map_err(NameResolutionError::from)?;
     validate_declaration_types(&graph, &types, &source_index)?;
+    let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)?;
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
-    let copyabilities = CopyabilityTable::new(&graph);
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
@@ -173,8 +184,10 @@ pub fn prepare_program_checking<'syntax>(
 #[cfg(test)]
 mod tests {
     use nocter_declaration_lowering::lower_compile_unit_declarations;
+    use nocter_declarations::NominalShape;
 
     use super::prepare_program_checking;
+    use crate::CopyCondition;
     use crate::test_support::Fixture;
 
     #[test]
@@ -206,5 +219,49 @@ mod tests {
         let error = prepare_program_checking(&input, program, source_index).unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
+    }
+
+    #[test]
+    fn copy_struct_rejects_an_unconditionally_move_only_field() {
+        let fixture = Fixture::new(
+            "struct Owned {\n    value: i32\n}\n\
+             copy struct Invalid<T> {\n    owned: Owned\n    marker: &T\n}\n",
+        );
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0366");
+    }
+
+    #[test]
+    fn copy_struct_retains_its_generic_dependent_family_condition() {
+        let fixture = Fixture::new("copy struct Box<T> {\n    value: T\n}\n");
+        let (input, prelude) = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let (family, declaration) = prepared
+            .graph()
+            .declarations()
+            .nominal_types()
+            .iter()
+            .find(|(_, declaration)| {
+                matches!(
+                    declaration.shape(),
+                    NominalShape::Struct {
+                        copy_declared: true,
+                        ..
+                    }
+                )
+            })
+            .unwrap();
+        let condition = prepared.copyabilities().family_condition(family).unwrap();
+
+        assert_eq!(
+            condition,
+            &CopyCondition::Requires(declaration.generic_parameters().iter().copied().collect())
+        );
     }
 }
