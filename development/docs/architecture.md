@@ -35,6 +35,11 @@ semantic ID -> SourceIndex -> diagnostic range
 No inverse source lookup participates in type equality, dispatch, ownership, monomorphization,
 reachability, ABI selection, or code generation.
 
+When a lowering boundary creates new semantic identities, it consumes the existing `SourceIndex`
+into its duplicate-checking builder, adds exact projections, and freezes both deterministic lookup
+orders again. It does not create a phase-specific parallel source index. Canonical semantic
+programs never depend on this projection value.
+
 `SourceProgram` owns normalized UTF-8, source identities, lexical tokens, byte spans, newline
 tokens, and each token's joint-to-next fact. String starts, text segments, interpolation boundaries,
 and string ends are ordinary lexical tokens in that same stream. `SyntaxProgram` consumes those

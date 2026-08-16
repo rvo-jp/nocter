@@ -2,22 +2,21 @@
 
 ## Current Task
 
-Begin v0.14.0 Phase 3 by defining the checked-program boundary from the specification, then
-implement body-owned name resolution without importing syntax into canonical checked semantics.
+Continue v0.14.0 Phase 3 by defining the immutable checked-program model and implementing
+body-owned name resolution without importing syntax into canonical checked semantics.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Derive the Phase 3 semantic inventory and ownership map from G011 and G014-G033 plus the topical
-   specification chapters. Record which decision belongs to declaration data, checked HIR, target
-   validation, instantiation, or MIR.
-2. Define the immutable checked-program and body-owned HIR contracts, including stable body-local
+1. Define the immutable checked-program and body-owned HIR contracts, including stable body-local
    identities and a one-way source projection boundary. Do not create expression side maps or a
    second declaration/name authority.
-3. Implement lexical body scopes and exact name resolution as the first checked-program slice,
+2. Implement lexical body scopes and exact name resolution as the first checked-program slice,
    with source-backed diagnostics and ordering-invariant conformance cases.
+3. Move block-import selection into those lexical scopes, consuming discovery-owned module targets
+   and the frozen module export namespace without mutating `DeclarationProgram`.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -26,6 +25,11 @@ error. Declaration-owned G006-G010, G012-G013, and G015-G018 fixtures compare co
 diagnostics under reversed package and module input order. Type equalities are validated after
 alias expansion, and projection-free general equalities project `E0320` without retaining syntax
 inside canonical requirement identity.
+The Phase 3 responsibility map is recorded in `development/docs/checked-program-design.md`.
+`DeclarationProgram` now retains authored and prelude-fallback module namespace layers as the sole
+body-lookup authority. `nocter-checking` catalogs every `BodyId` from exact source projection and
+validates its physical source against the semantic owner module. Missing or inconsistent
+projections remain internal boundary errors.
 
 ## Guardrails
 

@@ -61,7 +61,8 @@ be introduced to make an unresolved syntax choice.
   owner edge before freezing. It depends only on `nocter-model`.
 - `nocter-source-index` owns the separate immutable projection between semantic entities and exact
   syntax-node or syntax-token origins. It indexes the same bindings independently by semantic
-  identity and by source coordinate; semantic stages do not depend on it.
+  identity and by source coordinate. A lowering stage may consume and extend the index without
+  losing duplicate detection; canonical semantic programs do not depend on it.
 - `nocter-declaration-lowering` owns the one-way syntax-to-declaration boundary. Its input is an
   explicit package graph and module/source topology supplied by discovery; it never probes the
   filesystem. It validates declared-package and single-file layouts, canonicalizes package and
@@ -162,6 +163,11 @@ be introduced to make an unresolved syntax choice.
   witness is complete and canonically rotated by declaration identity. General equalities are
   validated after alias expansion. No source coordinate enters a `BoundTypeKind`, canonical
   `TypeKind`, or semantic ID.
+- `nocter-checking` owns the Phase 3 syntax boundary. Its first completed boundary catalogs every
+  declaration `BodyId` from its exact source projection, validates the projected module against
+  the semantic body owner, and remains invariant under package/module input order. It does not
+  discover bodies by source containment or filesystem paths. Typed checked-HIR construction will
+  consume this catalog.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

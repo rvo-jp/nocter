@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 
 use nocter_source::{ByteOffset, SourceId};
@@ -84,18 +85,32 @@ impl SourceIndex {
     pub const fn is_empty(&self) -> bool {
         self.by_entity.is_empty()
     }
+
+    /// Consumes this immutable projection and opens the sole extension boundary for a later
+    /// semantic stage.
+    ///
+    /// Existing bindings remain subject to duplicate detection. Finishing the returned builder
+    /// recreates both deterministic lookup orders.
+    #[must_use]
+    pub fn into_builder(self) -> SourceIndexBuilder {
+        let bindings = self.by_entity.into_vec();
+        let unique = bindings.iter().copied().collect();
+        SourceIndexBuilder { bindings, unique }
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct SourceIndexBuilder {
     bindings: Vec<SourceBinding>,
+    unique: HashSet<SourceBinding>,
 }
 
 impl SourceIndexBuilder {
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             bindings: Vec::new(),
+            unique: HashSet::new(),
         }
     }
 
@@ -127,7 +142,7 @@ impl SourceIndexBuilder {
             role,
             origin,
         };
-        if self.bindings.contains(&binding) {
+        if !self.unique.insert(binding) {
             return Err(DuplicateSourceBinding(binding));
         }
         self.bindings.push(binding);
@@ -298,6 +313,52 @@ mod tests {
                 .insert(entity, SourceRole::Declaration, origin)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_later_stage_can_extend_without_losing_duplicate_detection() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("index.nct"),
+                b"func main(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let (module, site) = declaration_ids();
+        let module_origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
+        let name = find_token(&tree, sources.get(source).unwrap(), "main");
+        let site_origin = SourceOrigin::from_token(&tree, name).unwrap();
+        let mut initial = SourceIndexBuilder::new();
+        initial
+            .insert(
+                SemanticEntity::Module(module),
+                SourceRole::Implementation,
+                module_origin,
+            )
+            .unwrap();
+
+        let mut extended = initial.finish().into_builder();
+        assert!(
+            extended
+                .insert(
+                    SemanticEntity::Module(module),
+                    SourceRole::Implementation,
+                    module_origin,
+                )
+                .is_err()
+        );
+        extended
+            .insert(
+                SemanticEntity::DeclarationSite(site),
+                SourceRole::Declaration,
+                site_origin,
+            )
+            .unwrap();
+        let index = extended.finish();
+
+        assert_eq!(index.len(), 2);
+        assert_eq!(index.bindings_for(SemanticEntity::Module(module)).len(), 1);
     }
 
     #[test]

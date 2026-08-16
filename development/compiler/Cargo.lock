@@ -3,6 +3,18 @@
 version = 4
 
 [[package]]
+name = "nocter-checking"
+version = "0.0.0"
+dependencies = [
+ "nocter-declaration-lowering",
+ "nocter-declarations",
+ "nocter-model",
+ "nocter-source",
+ "nocter-source-index",
+ "nocter-syntax",
+]
+
+[[package]]
 name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [

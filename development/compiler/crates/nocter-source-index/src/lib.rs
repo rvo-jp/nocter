@@ -1,7 +1,8 @@
 //! Source and syntax projection kept beside the semantic program.
 //!
-//! This is the only Phase 2 data structure allowed to pair semantic identities with source or
-//! syntax identities. Checked semantics and code generation do not depend on this crate.
+//! This is the only data structure allowed to pair semantic identities with source or syntax
+//! identities. Lowering boundaries may extend it when they create new identities; canonical
+//! declaration, checked, and machine programs never depend on it.
 
 mod entity;
 mod index;

@@ -52,6 +52,10 @@ semantic_ids! {
     ParameterId,
     RequirementId,
     BodyId,
+    BodyNodeId,
+    BodyScopeId,
+    LocalBindingId,
+    CaptureId,
     OpaqueTypeId,
     TypeId,
 }
