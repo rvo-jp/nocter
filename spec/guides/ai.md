@@ -76,6 +76,8 @@ Rules for generated code:
   shift zero-fills, and signed right shift sign-fills. Negative or out-of-width counts trap.
 - Signed division truncates toward zero, and signed remainder is zero or has the dividend's sign.
   Both `/` and `%` trap for minimum signed value with divisor `-1`.
+- Compound assignment evaluates the right-hand side first and the target place exactly once
+  afterward. Do not reason about it as duplicated `target = target operator rhs` source.
 - Use `match` for enum pattern handling.
 - Declare at least one variant in every enum; zero-variant enums are invalid.
 - Do not use `match` to unwrap `T!` or `T?`.

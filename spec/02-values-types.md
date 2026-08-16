@@ -93,17 +93,31 @@ Rules:
   a readwrite index operation.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
-- For assignment, the right-hand side is evaluated first.
-- If right-hand-side evaluation succeeds, the old value in the target place is dropped and the new value is stored.
-- If right-hand-side evaluation fails through postfix `?`, the target place is not changed. Normal scope-end cleanup still applies if control leaves the scope.
+- For assignment, the complete right-hand side is evaluated first. After it succeeds, dynamic
+  target-place components are evaluated exactly once, the old value in that resolved place is
+  dropped, and the new value is stored.
+- If right-hand-side evaluation propagates or terminates, the target expression is not evaluated
+  and no assignment drop or store occurs. Side effects already performed by the right-hand side
+  remain. Normal scope-end cleanup still applies to recoverable propagation.
 - Whole-binding assignment to a maybe initialized `var` binding is allowed. If the right-hand side succeeds, the compiler conditionally drops the old value if it is initialized, then stores the new value.
 - Assigning an existing non-copy value requires explicit `move`.
 - Assigning a copy value copies it.
 - Field assignment follows the same ownership and borrow rules as local reassignment.
 - Assignment itself produces no value.
 - Chained assignment such as `a = b = c` is not supported.
-- Compound assignment such as `+=` is allowed only for numeric writable places.
-- Compound assignment follows the same writable-place and borrow rules as assignment.
+- Compound assignment operators are `+=`, `-=`, `*=`, `/=`, and `%=`. They are allowed only for
+  numeric writable places and require a right-hand side of the same numeric type.
+- A compound assignment evaluates the complete right-hand side first. If that evaluation
+  propagates or terminates, the target expression is not evaluated and no compound write occurs;
+  side effects already performed by the right-hand side remain.
+- After the right-hand side succeeds, dynamic target-place components such as an index expression
+  or source-defined readwrite index operation are evaluated exactly once. The current target value
+  is then read, the corresponding checked numeric operation is performed, and the result is stored.
+- Compound assignment uses the same overflow, division, remainder, and writable-place rules as the
+  corresponding ordinary numeric operation and assignment. It is not a textual desugaring to
+  `target = target operator rhs`, because that would duplicate or reorder target evaluation.
+- Compound assignment follows the same borrow-conflict rules as assignment at each evaluation
+  point.
 
 Examples:
 

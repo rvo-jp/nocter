@@ -139,6 +139,11 @@ target shift and cannot inherit the target instruction's count masking behavior.
 Checked division and remainder nodes retain signedness and width. Machine lowering emits zero and
 signed-minimum/`-1` guards before either operation and cannot inherit a target's overflow result or
 remainder convention.
+Checked assignment and compound assignment each own one target-place plan and one right-hand-side
+expression; compound assignment additionally owns the selected numeric operation. MIR emits RHS
+evaluation before the place plan and emits that plan only once. No stage expands compound
+assignment into source-shaped duplicate target expressions.
+
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
 MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
 destruction merely because a layout has size zero.

@@ -290,6 +290,9 @@ Required diagnostic families:
 - Readwrite borrow from a non-writable place.
 - Move while borrowed.
 - Assignment or reinitialization while borrowed.
+- Compound assignment with a non-numeric target, a mismatched right-hand side, or a target that is
+  not a writable place. Diagnostics must describe the compound operation directly rather than show
+  a fictional desugared assignment.
 - Explicit `drop` while borrowed.
 - Use after `move`.
 - Use after explicit `drop`.
