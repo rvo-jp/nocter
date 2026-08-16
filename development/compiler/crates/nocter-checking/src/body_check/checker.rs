@@ -33,6 +33,7 @@ use crate::{
 
 mod arithmetic;
 mod assignment;
+mod call_planning;
 mod callable_values;
 mod calls;
 mod expected;
