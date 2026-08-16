@@ -544,6 +544,9 @@ instance Count {
 Integer literal rules:
 
 - Accepted integer literal syntax is defined in [Lexical Grammar](13-lexical-grammar.md#integer-literals).
+- An unsigned N-bit type has the inclusive range `0` through `2^N - 1`. A signed N-bit type has
+  the inclusive range `-2^(N - 1)` through `2^(N - 1) - 1` and uses two's-complement
+  representation. On the current target, `usize` is `u64`-width and `isize` is `i64`-width.
 - Integer literals start as untyped integer literals.
 - If an integer literal has an expected integer type, it takes that type when the value fits.
 - If no context fixes the type, the literal becomes `i32`.

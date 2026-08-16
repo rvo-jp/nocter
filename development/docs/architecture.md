@@ -130,6 +130,9 @@ use the same recursive binary tagged-union layout operation. Code generation can
 second layout from rendered types or special-case a different tag width for calls.
 Stored scalar size and alignment are target facts in that layout store. ABI argument extension is
 a transport projection of an existing layout and cannot mutate or replace the stored type layout.
+The target description supplies endianness and integer width, while signed semantic types require
+two's-complement interpretation. Machine lowering cannot select an alternative signed
+representation or defer that choice to individual primitives.
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
 MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
 destruction merely because a layout has size zero.

@@ -158,6 +158,12 @@ The stored size of `bool` is one byte, and its only valid live representations a
 and `1`. Small scalar argument and return extension to a 64-bit ABI word does not change stored
 size or aggregate field layout.
 
+Every signed N-bit integer uses N-bit two's-complement representation. Signed and unsigned types
+of the same width occupy the same number of bytes; they interpret those bits with their respective
+signed or unsigned value ranges. Multi-byte integers, `usize`, `isize`, pointers, and view words
+are stored least-significant byte first under the target's little-endian rule. Signed ABI-word
+extension replicates the two's-complement sign bit.
+
 Aggregates use their computed aggregate alignment.
 
 ### Fixed-Size Array Layout

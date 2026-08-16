@@ -70,6 +70,8 @@ Rules for generated code:
   accept a payload and construct the expected outcome. Do not use `none` without an expected type.
 - A known generic shape such as `T?` may infer `T` from a payload before injection. `none` and a
   failure `error` do not infer an unknown payload type.
+- Signed integers use fixed-width two's-complement ranges. Do not assume wrapping arithmetic;
+  ordinary overflow remains an always-on trap.
 - Use `match` for enum pattern handling.
 - Declare at least one variant in every enum; zero-variant enums are invalid.
 - Do not use `match` to unwrap `T!` or `T?`.
