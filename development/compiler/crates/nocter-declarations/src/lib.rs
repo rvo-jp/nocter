@@ -37,8 +37,8 @@ pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{
-    DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module, Package,
-    ProgramBuildError,
+    DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,
+    Package, ProgramBuildError,
 };
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,

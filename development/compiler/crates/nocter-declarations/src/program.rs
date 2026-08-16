@@ -61,7 +61,7 @@ impl DeclarationSite {
 }
 
 #[derive(Debug)]
-pub struct DeclarationProgram {
+pub struct DeclarationGraph {
     symbols: SymbolTable,
     packages: Arena<PackageId, Package>,
     standard_library: Option<StandardLibrary>,
@@ -71,10 +71,16 @@ pub struct DeclarationProgram {
     imports: Arena<ImportId, ImportDeclaration>,
     package_targets: Arena<PackageTargetId, PackageTarget>,
     declarations: DeclarationArenas,
+}
+
+/// Immutable Phase 2 declaration graph and its canonical header-type store.
+#[derive(Debug)]
+pub struct DeclarationProgram {
+    graph: DeclarationGraph,
     types: TypeStore,
 }
 
-impl DeclarationProgram {
+impl DeclarationGraph {
     #[must_use]
     pub const fn symbols(&self) -> &SymbolTable {
         &self.symbols
@@ -182,10 +188,103 @@ impl DeclarationProgram {
     pub const fn declarations(&self) -> &DeclarationArenas {
         &self.declarations
     }
+}
+
+impl DeclarationProgram {
+    #[must_use]
+    pub const fn graph(&self) -> &DeclarationGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn symbols(&self) -> &SymbolTable {
+        self.graph.symbols()
+    }
+
+    #[must_use]
+    pub const fn packages(&self) -> &Arena<PackageId, Package> {
+        self.graph.packages()
+    }
+
+    #[must_use]
+    pub const fn standard_package(&self) -> Option<PackageId> {
+        self.graph.standard_package()
+    }
+
+    #[must_use]
+    pub const fn standard_library(&self) -> Option<&StandardLibrary> {
+        self.graph.standard_library()
+    }
+
+    #[must_use]
+    pub const fn modules(&self) -> &Arena<ModuleId, Module> {
+        self.graph.modules()
+    }
+
+    #[must_use]
+    pub const fn module_namespaces(&self) -> &Arena<ModuleId, ModuleNamespace> {
+        self.graph.module_namespaces()
+    }
+
+    #[must_use]
+    pub fn lookup_local(&self, module: ModuleId, name: Symbol) -> Option<ExportedEntity> {
+        self.graph.lookup_local(module, name)
+    }
+
+    #[must_use]
+    pub fn lookup_export(
+        &self,
+        from: ModuleId,
+        module: ModuleId,
+        name: Symbol,
+    ) -> Option<ExportedEntity> {
+        self.graph.lookup_export(from, module, name)
+    }
+
+    #[must_use]
+    pub fn is_visible_from(
+        &self,
+        visibility: Visibility,
+        from: ModuleId,
+        declaring_module: ModuleId,
+    ) -> bool {
+        self.graph
+            .is_visible_from(visibility, from, declaring_module)
+    }
+
+    #[must_use]
+    pub const fn declaration_sites(&self) -> &Arena<DeclarationSiteId, DeclarationSite> {
+        self.graph.declaration_sites()
+    }
+
+    #[must_use]
+    pub const fn imports(&self) -> &Arena<ImportId, ImportDeclaration> {
+        self.graph.imports()
+    }
+
+    #[must_use]
+    pub const fn package_targets(&self) -> &Arena<PackageTargetId, PackageTarget> {
+        self.graph.package_targets()
+    }
+
+    #[must_use]
+    pub const fn declarations(&self) -> &DeclarationArenas {
+        self.graph.declarations()
+    }
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    /// Opens the sole Phase 2-to-Phase 3 ownership boundary.
+    ///
+    /// The returned type store keeps every declaration `TypeId` as an immutable prefix. Phase 3
+    /// may intern body and specialization types into that owned store before freezing the checked
+    /// program; no second store or ID translation is created.
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
+        (self.graph, self.types)
     }
 }
 
@@ -426,15 +525,17 @@ impl DeclarationProgramBuilder {
                 namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
             })?;
         let program = DeclarationProgram {
-            symbols: self.symbols,
-            packages: self.packages.finish(),
-            standard_library: self.standard_library,
-            modules: self.modules.finish(),
-            module_namespaces,
-            declaration_sites: self.declaration_sites.finish(),
-            imports: self.imports.finish(),
-            package_targets: self.package_targets.finish(),
-            declarations: self.declarations.finish()?,
+            graph: DeclarationGraph {
+                symbols: self.symbols,
+                packages: self.packages.finish(),
+                standard_library: self.standard_library,
+                modules: self.modules.finish(),
+                module_namespaces,
+                declaration_sites: self.declaration_sites.finish(),
+                imports: self.imports.finish(),
+                package_targets: self.package_targets.finish(),
+                declarations: self.declarations.finish()?,
+            },
             types: self.types,
         };
         crate::validate::validate(&program)?;
@@ -545,7 +646,7 @@ impl From<ProgramValidationError> for ProgramBuildError {
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::SymbolTable;
+    use nocter_model::{BuiltinType, SymbolTable, TypeKind};
 
     use crate::{
         DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
@@ -639,5 +740,31 @@ mod tests {
             program.declaration_sites().get(site).unwrap().module(),
             root
         );
+    }
+
+    #[test]
+    fn phase_three_extends_the_single_type_store_without_translating_ids() {
+        let symbols = SymbolTable::from_spellings(["app"]);
+        let app_name = symbols.get("app").unwrap();
+        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let i32_type = builder.types().builtin(BuiltinType::I32);
+        let app = builder.add_package(app_name).unwrap();
+        let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
+        let program = builder.finish().unwrap();
+        let prefix_len = program.types().len();
+
+        let (graph, mut types) = program.into_parts();
+        let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
+
+        assert_eq!(graph.modules().len(), 1);
+        assert_eq!(
+            types.get(i32_type),
+            Some(&TypeKind::Builtin(BuiltinType::I32))
+        );
+        assert_eq!(types.get(optional), Some(&TypeKind::Optional(i32_type)));
+        assert_eq!(types.len(), prefix_len + 1);
     }
 }

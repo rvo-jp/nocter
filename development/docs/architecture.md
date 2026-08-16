@@ -249,8 +249,13 @@ contract without making a rendered name part of type equality. Static and fresh 
 caller-managed place and normalize to an empty external-origin set.
 
 The compile-unit type store interns structural types. Its keys contain typed semantic IDs and
-normalized constants, never rendered names, source text, or byte positions. `TypeExpr` belongs to
-syntax lowering and presentation; it does not cross into checked semantics.
+normalized constants, never rendered names, source text, or byte positions. Phase 2 freezes a
+`DeclarationProgram` containing the immutable declaration graph and the header-type prefix. Phase
+3 consumes that value exactly once into `DeclarationGraph` plus the owned `TypeStore`, then interns
+body, closure, inference, and specialization types after the existing IDs. The checked program
+freezes the extended store. It never copies a header store, translates a `TypeId`, or creates an
+overlay lookup authority. `TypeExpr` belongs to syntax lowering and presentation; it does not
+cross into checked semantics.
 
 Header definition consumes the normalized roots and the temporary surface inventory exactly once.
 It allocates fields, parameters, receivers, requirements, and bodies in canonical order, then

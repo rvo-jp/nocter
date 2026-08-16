@@ -6,11 +6,13 @@ when this plan and a normative rule disagree.
 
 ## Boundary
 
-`CheckedProgram` is the first complete, syntax-independent executable-semantics graph. It owns the
-immutable `DeclarationProgram` from Phase 2, so a body, type, callable, or module ID cannot be paired
-with declarations from another compile unit. Every body owns one typed node arena. Nodes contain
-the exact declaration, local binding, field, variant, requirement, conversion, dispatch, ownership,
-loan, provenance, region, and cleanup decisions selected while checking them.
+`CheckedProgram` is the first complete, syntax-independent executable-semantics graph. It consumes
+the immutable `DeclarationProgram` from Phase 2 exactly once and owns its `DeclarationGraph` plus
+the same `TypeStore` extended with checked-body types. A body, type, callable, or module ID therefore
+cannot be paired with declarations from another compile unit, and Phase 3 cannot create a parallel
+type interner. Every body owns one typed node arena. Nodes contain the exact declaration, local
+binding, field, variant, requirement, conversion, dispatch, ownership, loan, provenance, region,
+and cleanup decisions selected while checking them.
 
 Syntax trees and source ranges exist only in the checking boundary. Temporary scope tables and
 syntax-origin indexes may exist while a body is being checked, but they are consumed before the
@@ -31,7 +33,8 @@ authored/internal failure. No public partial checked program exists.
 
 | Decision | Sole authority | Later consumers |
 |---|---|---|
-| Packages, modules, declaration identity, header types, header requirements, authored module imports, and prelude fallback | `DeclarationProgram` | checker, target validation, instantiation, presentation |
+| Packages, modules, declaration identity, header requirements, authored module imports, and prelude fallback | `DeclarationGraph` frozen through `DeclarationProgram` | checker, target validation, instantiation, presentation |
+| Header, body, closure, inferred, and specialized structural type identity | the single inherited and extended `TypeStore` | every semantic stage |
 | Block imports, lexical scopes, parameters, locals, pattern payloads, catch bindings, loop bindings, and closure captures | body checker | checked nodes and source projection |
 | Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide Phase 3 conformance checker | body dispatch and instantiation |
 | Data-position type well-formedness after normalization | Phase 3 type-validity checker | every checked destination and generic constraint |
