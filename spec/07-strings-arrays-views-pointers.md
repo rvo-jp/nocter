@@ -77,6 +77,12 @@ Rules:
 - Pointer-to-integer conversion uses `std/ptr`'s `addr`, not `as usize`.
 - `from_ref` creates a raw pointer from a readonly borrow.
 - `from_ref_mut` creates a raw pointer from a readwrite borrow.
+- For a zero-sized pointee, `from_ref` and `from_ref_mut` return a non-null address satisfying the
+  pointee alignment. No other address-identity guarantee is made. Conversions of distinct logical
+  places or fixed-array elements may produce the same numeric address.
+- Equal numeric addresses do not prove that zero-sized source places are the same place. Unequal
+  numeric addresses are not promised for distinct zero-sized places, and address identity must not
+  be used as value identity for a zero-sized type.
 - `from_addr` creates a raw pointer from a `usize` address.
 - `from_addr<T>(...)` is invalid when the address is statically known to be
   zero; use `none` for a `*T?` null-like absence.

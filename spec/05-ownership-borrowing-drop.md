@@ -126,6 +126,9 @@ Rules:
 - Scope end of a plain borrow-like value does not by itself extend the borrow, because borrow-like values are non-owning and do not run `drop`.
 - A readonly borrow may overlap with other readonly borrows of the same place.
 - A readwrite borrow must not overlap with any other readonly or readwrite borrow of the same place.
+- Borrow overlap is determined from semantic places and projections, not from runtime numeric
+  addresses. Distinct zero-sized places remain distinct for ownership and exclusivity even when
+  their borrows use the same machine address.
 - `move place`, `drop name`, whole-place assignment, field assignment, and reinitialization are invalid when they conflict with an active borrow.
 - A borrow cannot outlive the storage it refers to.
 - A borrow cannot outlive a region from which its storage was allocated.

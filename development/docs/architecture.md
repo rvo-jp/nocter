@@ -119,6 +119,9 @@ second layout from rendered types or special-case a different tag width for call
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
 MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
 destruction merely because a layout has size zero.
+MIR place identities and projections remain authoritative for borrow conflicts. Machine lowering
+may coalesce zero-sized storage or synthesize aligned non-null borrow addresses, but neither it nor
+an earlier semantic stage may merge places by comparing those addresses.
 
 One target-independent trap operation represents always-on safety failure, including failed
 postfix `!`. Machine lowering does not route that operation through standard-library formatting,

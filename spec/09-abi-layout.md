@@ -57,6 +57,10 @@ Zero-word values:
 A zero-word value still exists for source ownership, initialization, destruction, and evaluation
 order. Its transport consumes no argument register, return register, or stack slot.
 
+Creating a borrow of a zero-sized place still produces the ordinary one-word borrow ABI value. Its
+address is non-null and satisfies the pointee alignment, but different logical places may share
+that address. Machine storage and pointer equality do not define source place identity.
+
 One-word values:
 
 - `bool`
