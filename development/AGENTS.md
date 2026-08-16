@@ -36,7 +36,13 @@ requested by the user. They are never evidence for language semantics or new com
 
 ## Specification Closure
 
-Do not guess when the specification permits materially different user-visible behavior. Instead:
+Ask the user only when the specification still permits at least two materially different
+user-visible behaviors after the owning chapter, cross-references, and design principles have been
+audited. Do not ask about internal representation, implementation order, unfixed diagnostic
+wording, naming cleanup, or a consequence mechanically implied by an adopted rule. Do not ask the
+user merely to confirm a recommendation.
+
+When a genuine observable ambiguity remains:
 
 1. identify the exact conflicting or incomplete normative text
 2. provide a minimal Nocter program that distinguishes the alternatives

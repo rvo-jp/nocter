@@ -8,7 +8,19 @@ implementation documents, tests, binaries, and observed behavior are not rewrite
 
 ## Resolving Specification Gaps
 
-When two observable behaviors are consistent with the current text:
+Escalate a language decision only when at least two materially different observable behaviors
+remain consistent after auditing the owning normative section, every cross-reference, and the
+design principles. Accepted source, observable execution, ABI, CLI behavior, or editor contracts
+must differ between the alternatives. Internal representation, implementation order, diagnostic
+wording not fixed by the specification, and consequences mechanically implied by an adopted rule
+do not require user confirmation.
+
+Before escalating, derive everything the current specification determines and continue the audit
+without asking. Do not ask the user merely to confirm a recommendation. Closely coupled
+consequences of one semantic choice belong to that one decision rather than a series of follow-up
+questions.
+
+When two observable behaviors still remain consistent with the current text:
 
 1. stop implementation in the affected area
 2. cite the incomplete or conflicting specification sections
