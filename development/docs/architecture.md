@@ -111,6 +111,12 @@ Target code generation consumes only the machine program, target description, an
 table. Optimizations may replace ordinary operations with constants but cannot define source
 semantics. In particular, built-in `error` values use ordinary value and call paths.
 
+One interned machine-layout store is the authority for field offsets, outcome payload offsets,
+aggregate size and alignment, argument and return classification, active-payload validation, and
+drop-glue addressing. Optional and fallible layers receive distinct semantic type identities but
+use the same recursive binary tagged-union layout operation. Code generation cannot calculate a
+second layout from rendered types or special-case a different tag width for calls.
+
 One target-independent trap operation represents always-on safety failure, including failed
 postfix `!`. Machine lowering does not route that operation through standard-library formatting,
 stderr, entry-wrapper failure, or cleanup edges.

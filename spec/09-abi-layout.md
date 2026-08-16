@@ -92,7 +92,11 @@ Rules:
 
 Small integer arguments are extended to one ABI word. Unsigned integers are zero-extended. Signed integers are sign-extended. `bool` uses `0` for false and `1` for true; other bit patterns are invalid for a live `bool` value.
 
-When a live `bool` or enum value can enter from a primitive or ABI boundary and the compiler cannot prove that its bit pattern or tag is valid, the required validation is an always-on safety check. The general safety-check policy is specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
+When a live `bool`, enum, optional, or fallible value can enter from a primitive or ABI boundary
+and the compiler cannot prove that its bit pattern or tag is valid, the required validation is an
+always-on safety check. Validation recursively follows only active aggregate and outcome payloads.
+The general safety-check policy is specified in
+[Control Flow](03-control-flow.md#safety-checks-and-build-modes).
 
 ### Returns
 
@@ -192,17 +196,31 @@ Rules:
 ### Stored Optional and Fallible Layout
 
 The stored representation is recursive and distinct from callable register
-passing. Each optional or fallible layer begins with one `usize` tag. The active branch begins at
-the next offset satisfying the maximum branch alignment, and the layer ends after the largest
-branch rounded up to that alignment.
+passing. Optional and fallible layers share one binary tagged-union layout:
 
-Tag `0` denotes presence or success. Tag `1` denotes absence or failure. Optional absence has no
-initialized payload. Fallible failure initializes the built-in `error` branch instead of the
-success branch. Nested supported outcomes apply the same rule recursively.
+| Layer | `u8` tag `0`: primary | `u8` tag `1`: alternate |
+| --- | --- | --- |
+| `T?` | present `T` payload | `none`, no payload |
+| `T!` | successful `T` payload | built-in `error` payload |
 
-Inactive union bytes and padding have unspecified contents. Copy, move, drop, equality, and control
-flow may inspect the tag but must not read or destroy an inactive payload. Callable entry and return
-lowering explicitly bridge this stored layout and the target-specific register ABI.
+The tag is stored at byte offset `0`. Let the layer alignment be the maximum of `1` and the
+alignment of every payload-carrying branch. The payload union begins at the first offset after the
+tag that satisfies that alignment. Its size is the maximum branch-payload size, treating optional
+absence as size zero. The layer size is the end of that union rounded up to the layer alignment.
+Nested supported outcomes apply this complete rule recursively.
+
+Only tag values `0` and `1` are valid for a live outcome. Optional absence has no initialized
+payload. Fallible failure initializes `error` instead of the success payload. The ABI does not use
+niche optimization and does not widen an outcome tag to `u32` or `usize` for storage.
+
+Inactive union bytes and padding have unspecified contents. Copy, move, drop, and control flow may
+inspect the tag but must not read or destroy an inactive payload. Callable entry and return lowering
+explicitly bridge this one stored layout and the target-specific register ABI.
+
+Nocter source uses contextual outcome injection to construct tags. The ABI does not reserve the
+identifiers `value`, `success`, `none`, or `failure`; the table defines binary representation, not
+additional source names. For example, `T?!` is a fallible layer whose tag-`0` success payload is
+the recursively laid-out `T?` layer.
 
 ### Built-In Error Layout
 
@@ -237,49 +255,6 @@ Rules:
 - The compiler-generated entry wrapper may report `error.code` and
   `error.message` directly from these fields without allocating or calling a
   fallible standard-library API.
-
-### Optional Layout
-
-`T?` is represented as a tag plus a payload.
-
-```text
-T?:
-  tag 0 = none
-  tag 1 = value
-```
-
-Rules:
-
-- The tag type is `u32`.
-- The payload layout is the layout of `T`.
-- The payload is live only when the tag is `1`.
-- `none` has no live payload.
-- Drop code drops the payload only when the tag is `1`.
-
-The ABI does not use niche optimization. Even if a type has unused bit patterns, `T?` still uses the explicit tag representation.
-
-### Fallible Layout
-
-`T!` is represented as a tag plus a payload union.
-
-```text
-T!:
-  tag 0 = success
-  tag 1 = failure
-```
-
-Rules:
-
-- The tag type is `u32`.
-- Success payload layout is the layout of `T`.
-- Failure payload layout is the layout of the built-in `error` type.
-- The payload area is large enough and aligned enough for either payload.
-- The payload is live only for the active tag.
-- Drop code drops only the active payload.
-
-Nocter source uses `return value` for success and `return error_value` for failure. The ABI does not reserve the identifier `success`; it defines only the binary tag meaning.
-
-Composed optional and fallible values use the same layout rules recursively. For example, `T?!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
 
 ### Drop ABI
 

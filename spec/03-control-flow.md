@@ -585,6 +585,8 @@ Always-on checks:
 - Forced unwrap of a fallible failure or optional absence through postfix `!`.
 - Invalid live `bool` bit-pattern checks where a value can enter from a primitive or ABI boundary.
 - Invalid enum tag checks where a value can enter from a primitive or ABI boundary.
+- Invalid optional or fallible tag checks where a value can enter from a primitive or ABI
+  boundary. Validation recursively follows only the active payload.
 - Reaching `unreachable()` or an equivalent impossible-path marker.
 
 Rules:
