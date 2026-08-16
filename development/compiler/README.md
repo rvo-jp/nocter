@@ -244,6 +244,10 @@ be introduced to make an unresolved syntax choice.
   operand preparation and source-order coercions separately from semantic reversal. Negative
   literal range checking produces one signed constant for exact minima, and logical ownership
   joins the RHS with its bypass path.
+  Direct module function and primitive calls retain one static selection with canonical generic
+  arguments and one source-ordered argument list. Argument and ranked result-context inference run
+  before normalized requirements use the shared recursive proof authority. Ownership visits call
+  inputs in language order and therefore uses the ordinary explicit-move state transitions.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.

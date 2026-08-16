@@ -11,9 +11,9 @@ use super::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::{
-    BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CleanupAction,
-    CleanupSchedule, CleanupTable, CleanupTiming, DropTable, LoopKind, PlaceAccess,
-    PrimitiveOperation,
+    BodySource, CallTarget, CheckedBody, CheckedCall, CheckedControl, CheckedOperation,
+    CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming, DropTable,
+    LoopKind, PlaceAccess, PrimitiveOperation,
 };
 use cleanup::CleanupPlanner;
 
@@ -151,8 +151,8 @@ impl OwnershipAnalyzer<'_> {
                 self.visit(comparison.right().value(), state)
             }
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
-            CheckedOperation::Call(_)
-            | CheckedOperation::Coerce { .. }
+            CheckedOperation::Call(call) => self.visit_call(call, state),
+            CheckedOperation::Coerce { .. }
             | CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(
                 CheckedOutcome::Propagate { .. } | CheckedOutcome::Recover { .. },
@@ -222,6 +222,29 @@ impl OwnershipAnalyzer<'_> {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }
+    }
+
+    fn visit_call(
+        &mut self,
+        call: &CheckedCall,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if let CallTarget::CallableValue { value, .. } = call.target()
+            && !self.visit(*value, state)?
+        {
+            return Ok(false);
+        }
+        if let Some(receiver) = call.receiver()
+            && !self.visit(receiver, state)?
+        {
+            return Ok(false);
+        }
+        for argument in call.arguments() {
+            if !self.visit(*argument, state)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn visit_block(

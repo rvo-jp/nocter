@@ -236,10 +236,12 @@ Source-backed checked-body diagnostics:
 - `E0387`: a readwrite borrow does not target a writable place.
 - `E0388`: no unique accessible index operation accepts both the receiver and index type.
 - `E0389`: no unique accessible equality or strict-ordering operation accepts both operands.
+- `E0390`: a static call has no valid arity, argument, generic substitution, and requirement plan.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
-the program-wide instance-operation table. `E0388` and `E0389` cover both absence and ambiguity;
-neither reports a declaration selected only by source order.
+the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and
+ambiguity where their operation admits candidates; none reports a declaration selected only by
+source order.
 
 Source-backed callable contract diagnostics:
 

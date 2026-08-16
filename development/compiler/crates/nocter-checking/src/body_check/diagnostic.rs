@@ -22,6 +22,7 @@ pub enum BodyRule {
     InvalidReadWriteBorrow,
     InvalidIndexOperation,
     InvalidComparisonOperation,
+    InvalidCall,
 }
 
 impl BodyRule {
@@ -45,6 +46,7 @@ impl BodyRule {
         Self::InvalidReadWriteBorrow,
         Self::InvalidIndexOperation,
         Self::InvalidComparisonOperation,
+        Self::InvalidCall,
     ];
 
     #[must_use]
@@ -69,6 +71,7 @@ impl BodyRule {
             Self::InvalidReadWriteBorrow => "E0387",
             Self::InvalidIndexOperation => "E0388",
             Self::InvalidComparisonOperation => "E0389",
+            Self::InvalidCall => "E0390",
         }
     }
 
@@ -157,6 +160,10 @@ impl BodyRule {
             Self::InvalidComparisonOperation => (
                 "no unique accessible comparison operation accepts these operands",
                 "use operands with one applicable primitive or source-defined comparison",
+            ),
+            Self::InvalidCall => (
+                "this static call has no valid argument and generic substitution plan",
+                "match the declared arity and argument types, and provide enough type evidence",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

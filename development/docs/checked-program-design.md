@@ -356,6 +356,16 @@ later lowering to reconstruct semantic arguments. Missing and ambiguous comparis
 `E0389`. `&&` and `||` are checked control nodes, not eager primitive binaries. Ownership evaluates
 the left operand, then joins the possible RHS state with the short-circuit bypass state.
 
+A direct module function or primitive call consumes its name-resolution identity rather than
+looking up source spelling again. It validates positional arity, checks already-concrete parameter
+contexts early, collects generic argument evidence plus one ranked result context, and freezes one
+`StaticSelection` only after normalized callable requirements pass through the same recursive
+instance-operation proof authority. `none` is retained as deferred evidence and materialized once
+the substitution supplies its exact optional type. The checked call stores arguments in authored
+order; ownership visits them in that order and applies ordinary copy/move rules. Callable-value,
+construction, method, contextual borrow-coercion, temporary-cleanup, and result-provenance passes
+remain subsequent increments rather than alternate paths inside direct-call checking.
+
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
 ownership analysis requires the exact path to be initialized, attaches one unconditional path

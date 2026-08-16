@@ -85,6 +85,18 @@ pub struct CheckedCall {
 }
 
 impl CheckedCall {
+    pub(crate) fn new(
+        target: CallTarget,
+        receiver: Option<BodyNodeId>,
+        arguments: impl Into<Box<[BodyNodeId]>>,
+    ) -> Self {
+        Self {
+            target,
+            receiver,
+            arguments: arguments.into(),
+        }
+    }
+
     #[must_use]
     pub const fn target(&self) -> &CallTarget {
         &self.target

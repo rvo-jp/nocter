@@ -514,6 +514,13 @@ analysis visits its RHS first and then requires the target to be initialized. MI
 evaluation before the place plan and emits that plan only once. No stage expands compound
 assignment into source-shaped duplicate target expressions.
 
+Checked static calls retain one exact dispatch identity, canonical generic substitution, optional
+receiver, and source-ordered arguments. Body checking resolves and proves that plan once. Ownership
+and MIR visit a callable value first when present, then the receiver, then arguments from left to
+right; they do not re-run generic inference or requirement proof. Program-wide callable provenance
+and execution-allocation summaries remain separate post-body tables, so adding those analyses does
+not change call selection identity or evaluation order.
+
 Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
 use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation
 cannot install a special failure rule for bare calls or forced unwrap.

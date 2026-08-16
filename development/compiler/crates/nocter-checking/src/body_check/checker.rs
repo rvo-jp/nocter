@@ -34,6 +34,7 @@ use crate::{
 
 mod arithmetic;
 mod assignment;
+mod calls;
 mod loops;
 mod operators;
 mod place;
@@ -67,10 +68,10 @@ enum BlockExpectation {
 ///
 /// The current construction slice accepts blocks, scalar literals, named places and field moves,
 /// readonly/readwrite borrows, built-in and selected index places, primitive and selected
-/// comparisons, primitive operators, bindings, conditionals, short-circuit logic,
-/// while/infinite/integer-range loops, loop control, expression statements, body results, and
-/// returns. Other valid syntax is reported as an internal incomplete-implementation boundary; no
-/// partial checked program escapes.
+/// comparisons, primitive operators, direct static calls, bindings, conditionals, short-circuit
+/// logic, while/infinite/integer-range loops, loop control, expression statements, body results,
+/// and returns. Other valid syntax is reported as an internal incomplete-implementation boundary;
+/// no partial checked program escapes.
 ///
 /// # Errors
 ///
@@ -554,6 +555,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 }
                 NodeKind::LogicalAndExpression | NodeKind::LogicalOrExpression => {
                     return self.check_logical(current, expected);
+                }
+                NodeKind::PostfixExpression
+                    if direct_child(self.tree(), current, NodeKind::CallSuffix).is_some() =>
+                {
+                    return self.check_static_call(current, expected);
                 }
                 NodeKind::PostfixExpression => self.check_postfix_reference(current)?,
                 NodeKind::ReferenceExpression => self.check_reference(current)?,

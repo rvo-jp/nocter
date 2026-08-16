@@ -70,6 +70,7 @@ pub enum BodyCheckInternalError {
     DuplicateNameUse(SyntaxOrigin),
     UnsupportedNameTarget(NodeId, NameTarget),
     MissingParameterType(NameTarget),
+    MissingCallable(nocter_model::CallableId),
     MissingLocalDeclaration(NodeId),
     MissingBlockScope(NodeId),
     DuplicateLocalDeclaration(SyntaxOrigin),
@@ -96,6 +97,8 @@ pub enum BodyCheckInternalError {
     InstanceSelection(InstanceSelectionError),
     IndexSelection,
     BodyAssumptions(crate::SubstitutionError),
+    CallSubstitution(crate::SubstitutionError),
+    CallInference(crate::InferenceFailure),
     CleanupPlanning,
 }
 

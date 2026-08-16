@@ -9,7 +9,7 @@ use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
 impl InstanceOperationSelector<'_> {
-    pub(super) fn requirements_hold(
+    pub(crate) fn requirements_hold(
         &mut self,
         requirements: &[CheckedRequirement],
         substitution: &TypeSubstitution,
