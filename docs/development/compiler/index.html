@@ -147,7 +147,9 @@
   brace ownership, and bounded malformed-source recovery.</li><li><code>nocter-model</code> owns typed semantic ID domains, the canonical compile-unit symbol table,
   normalized parameter-origin sets, and interned structural types. It has no crate dependencies;
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
-  keys.</li><li><code>nocter-declarations</code> owns the immutable declaration-program spine: exact package-and-module
+  keys. An interface-owned <code>Self</code> has a canonical interface-identity placeholder distinct from
+  explicit generic parameters and nominal applications; conformance specialization can therefore
+  substitute it without inventing an implicit binder.</li><li><code>nocter-declarations</code> owns the immutable declaration-program spine: exact package-and-module
   identities, normalized visibility boundaries, package targets, imports, every declaration and
   member domain, generic requirements, bodies, opaque results, and the compile-unit type store. A
   two-pass reservation builder supports recursive headers, then validates every reference and

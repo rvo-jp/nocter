@@ -51,7 +51,9 @@ be introduced to make an unresolved syntax choice.
 - `nocter-model` owns typed semantic ID domains, the canonical compile-unit symbol table,
   normalized parameter-origin sets, and interned structural types. It has no crate dependencies;
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
-  keys.
+  keys. An interface-owned `Self` has a canonical interface-identity placeholder distinct from
+  explicit generic parameters and nominal applications; conformance specialization can therefore
+  substitute it without inventing an implicit binder.
 - `nocter-declarations` owns the immutable declaration-program spine: exact package-and-module
   identities, normalized visibility boundaries, package targets, imports, every declaration and
   member domain, generic requirements, bodies, opaque results, and the compile-unit type store. A

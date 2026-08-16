@@ -3,7 +3,8 @@ use std::fmt;
 
 use crate::id::SemanticId;
 use crate::{
-    AssociatedTypeId, GenericParameterId, NominalTypeId, OpaqueTypeId, ResultProvenance, TypeId,
+    AssociatedTypeId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
+    ResultProvenance, TypeId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -129,6 +130,7 @@ impl CallableContract {
 pub enum TypeKind {
     Builtin(BuiltinType),
     GenericParameter(GenericParameterId),
+    InterfaceSelf(InterfaceId),
     Nominal {
         definition: NominalTypeId,
         arguments: Box<[TypeId]>,
@@ -159,7 +161,7 @@ pub enum TypeKind {
 impl TypeKind {
     fn references(&self, visit: &mut impl FnMut(TypeId)) {
         match self {
-            Self::Builtin(_) | Self::GenericParameter(_) => {}
+            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
             Self::Nominal { arguments, .. } | Self::Opaque { arguments, .. } => {
                 arguments.iter().copied().for_each(visit);
             }
@@ -417,5 +419,24 @@ mod tests {
         let error = types.intern(TypeKind::Optional(unknown)).unwrap_err();
 
         assert_eq!(error.id(), unknown);
+    }
+
+    #[test]
+    fn interface_self_is_keyed_by_its_declaring_interface() {
+        let mut types = TypeStore::new();
+        let first_interface = crate::InterfaceId::new(0);
+        let second_interface = crate::InterfaceId::new(1);
+        let first = types
+            .intern(TypeKind::InterfaceSelf(first_interface))
+            .unwrap();
+        let repeated = types
+            .intern(TypeKind::InterfaceSelf(first_interface))
+            .unwrap();
+        let second = types
+            .intern(TypeKind::InterfaceSelf(second_interface))
+            .unwrap();
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, second);
     }
 }

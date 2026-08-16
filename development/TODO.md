@@ -10,7 +10,8 @@ behavior, or implementation document may be used as an implementation input.
 
 1. Normalize the completed bound header-type arena into the structural type store. Resolve alias
    applications and associated selections together with their requirement environment; do not add
-   either as a temporary canonical `TypeKind`. Package/module/source topology, surface inventory,
+   either as a temporary canonical `TypeKind`. The canonical interface-owned `Self` placeholder is
+   complete. Package/module/source topology, surface inventory,
    cross-file callable joining, recursive identity reservation, names, visibility, generic binders,
    authored imports/re-exports, prelude fallback, lexical type-name binding, and declaration target
    pattern, capability, and requirement-shape binding are complete.

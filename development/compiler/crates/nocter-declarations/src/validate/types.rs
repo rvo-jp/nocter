@@ -25,6 +25,13 @@ pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), Program
                     DeclarationDomain::GenericParameter,
                 )?;
             }
+            TypeKind::InterfaceSelf(interface) => {
+                require(
+                    program.declarations().interfaces().get(*interface),
+                    DeclarationDomain::Type,
+                    DeclarationDomain::Interface,
+                )?;
+            }
             TypeKind::Nominal {
                 definition,
                 arguments,
