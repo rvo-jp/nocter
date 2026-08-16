@@ -162,8 +162,19 @@ Rules:
 - Use `_` as the fallback arm.
 - Use `return match ...` or a body-result `match` when the branches produce values.
 - Write `match` value arms as `Pattern { result }`.
+- Match `&value` to inspect payloads as readonly borrows, `&+value` to mutate payloads through
+  readwrite borrows, and `move value` to consume an existing move-only enum and own its payload.
+- Do not add borrow markers to individual payload names. Every payload binding follows the pattern
+  target capability.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
+
+```nct
+match &message {
+    Message.text(text) { print(text as &str)? } // text: &String
+    _ { ... }
+}
+```
 
 ## Documentation Comments
 

@@ -793,6 +793,40 @@ match error {
 }
 ```
 
+The pattern target chooses how payload names are bound. Borrowed matching inspects an enum without
+extracting its payload:
+
+```nct
+var message = next_message()
+
+match &message {
+    Message.text(text) {
+        inspect(text) // text: &String
+    }
+    _ {
+        ...
+    }
+}
+
+match &+message {
+    Message.text(text) {
+        text.clear() // text: &+String
+    }
+    _ {
+        ...
+    }
+}
+
+match move message {
+    Message.text(text) {
+        consume(move text) // text: String
+    }
+    _ {
+        ...
+    }
+}
+```
+
 Rules:
 
 - `match` may be used as a statement or as an expression.
@@ -810,18 +844,44 @@ Rules:
   apply recursively to payload aggregates without a separate runtime type allowlist.
 - A pattern target expression is evaluated exactly once before its tag is tested. An ordinary
   expression that produces a new owned enum temporary may be matched directly.
-- A copy payload binding copies the payload into its branch-local binding. Matching a copy enum
-  place does not invalidate the original value.
-- A move-only payload binding transfers ownership from an owned pattern target. Matching an
-  existing move-only local, parameter, or named struct field requires an explicit `move` target,
-  such as `match move result` or `match move holder.result`. The ordinary move-place restrictions
-  still apply; indexes, dereferences, and computed projections are not move sources.
+- A pattern target whose type is `Enum`, `&Enum`, or `&+Enum` selects one of the binding modes in
+  the table below. Pattern matching dereferences a borrowed target only for tag inspection and
+  payload projection; it does not introduce a general implicit dereference conversion.
+
+| Pattern target | Payload name type | Effect on the target |
+| --- | --- | --- |
+| New owned enum temporary | declared payload type | Consumes the temporary |
+| Existing enum place without `move` | declared payload type, only when that payload is copyable | Copies the named payload; retains the enum place |
+| Readonly borrow expression of type `&Enum` | `&Payload` | Retains the enum and creates a readonly payload borrow |
+| Readwrite borrow expression of type `&+Enum` | `&+Payload` | Retains the enum and creates an exclusive readwrite payload borrow |
+| `move place` | declared payload type | Consumes the enum place |
+
+- The borrowed modes apply both to an explicit target such as `match &value` or
+  `match &+value` and to any target expression already typed as `&Enum` or `&+Enum`. Using an
+  existing borrow as a pattern target is a use of that borrow, not an ownership transfer.
+- Every payload name in one pattern uses the target's binding mode. A borrowed target therefore
+  binds even a copyable payload as `&Payload` or `&+Payload`; it never performs a hidden payload
+  copy. Code that needs owned copies matches an existing enum place without a borrow.
+- Creating an `&+Enum` target follows the ordinary writable-place and exclusivity rules. Payload
+  borrows derived from a borrowed target carry the target borrow's provenance and keep that borrow
+  active through their last source-level use. A payload borrow may be returned or stored only when
+  the ordinary borrow and provenance rules permit it.
+- An existing enum place without `move` may bind copyable payloads even when another variant makes
+  the enum type move-only. Naming a move-only payload from that target is an error. A payloadless
+  pattern or `_` payload may still inspect the tag without consuming the place.
+- Binding owned move-only payloads from an existing local, parameter, or named struct field
+  requires an explicit `move` target, such as `match move result` or
+  `match move holder.result`. The ordinary move-place restrictions still apply; indexes,
+  dereferences, and computed projections are not move sources.
 - A newly produced owned enum temporary, including a call result, variant constructor, control
   expression result, or value produced through postfix `?`, postfix `!`, `catch`, or `otherwise`,
   is already owned by the pattern operation and does not use `move`.
-- Extracting a move-only payload suppresses that payload's cleanup through the consumed enum. The
-  branch-local binding assumes its drop obligation. An unselected or discarded owned enum
-  temporary retains and drops its active payload normally.
+- An owned target is consumed as a whole into pattern-operation temporary storage before arm
+  execution. Named payload bindings assume their fields' drop obligations. Unnamed fields and the
+  complete active payload in a fallback arm remain in that storage. Its residual initialized
+  fields are dropped by the ordinary statement-temporary rules after the selected arm is evaluated,
+  or by early-exit cleanup if the arm exits the statement. No field of a consumed enum is dropped
+  twice.
 - Enum cleanup reads the active tag and drops only initialized fields of that variant. Fields drop
   in reverse payload declaration order and recursively use the same struct, enum, fixed-array, and
   outcome cleanup rules. Fixed-array elements drop in reverse index order.
@@ -860,6 +920,8 @@ if error is AppError.open_failed(path) {
 Rules:
 
 - `if enum_expr is Pattern` uses the same enum pattern syntax as `match`.
+- `if` pattern targets use the same owned, copied, readonly-borrowed, readwrite-borrowed, and moved
+  binding modes as `match`.
 - Payload names are bound only inside the then body.
 - `if enum_expr is Enum.variant(_)` checks only the variant and discards the
   payload without introducing a binding.

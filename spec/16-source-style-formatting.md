@@ -240,6 +240,8 @@ Rules:
 - Single-pattern enum checks use `if expr is Pattern { ... }`.
 - `match` arms use `Pattern { ... }`.
 - `match` fallback arms use `_ { ... }` and must be written last.
+- A pattern target keeps its ownership prefix adjacent to the target expression: `match &value`,
+  `match &+value`, and `match move value`.
 - Range `for` syntax is formatted as `for i in start..<end { ... }`.
 
 Examples:

@@ -426,18 +426,59 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
         <span class="token-operator">...</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
+</code></pre><p>The pattern target chooses how payload names are bound. Borrowed matching inspects an enum without extracting its payload:</p><pre><code class="language-nct"><span class="token-keyword">var</span> message <span class="token-operator">=</span> <span class="token-function">next_message</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+<span class="token-keyword">match</span> <span class="token-operator">&amp;</span>message <span class="token-operator">{</span>
+    <span class="token-type">Message</span><span class="token-operator">.</span><span class="token-function">text</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-function">inspect</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-comment">// text: &amp;String</span>
+    <span class="token-operator">}</span>
+    _ <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">match</span> <span class="token-operator">&amp;+</span>message <span class="token-operator">{</span>
+    <span class="token-type">Message</span><span class="token-operator">.</span><span class="token-function">text</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-operator">{</span>
+        text<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-comment">// text: &amp;+String</span>
+    <span class="token-operator">}</span>
+    _ <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">match</span> <span class="token-keyword">move</span> message <span class="token-operator">{</span>
+    <span class="token-type">Message</span><span class="token-operator">.</span><span class="token-function">text</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> text<span class="token-operator">)</span> <span class="token-comment">// text: String</span>
+    <span class="token-operator">}</span>
+    _ <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
 </code></pre><p>Rules:</p><ul><li><code>match</code> may be used as a statement or as an expression.</li><li>Match arms use <code>Pattern { ... }</code>.</li><li><code>_ { ... }</code> is the fallback arm and matches any remaining value.</li><li>A <code>match</code> may have at most one <code>_</code> fallback arm.</li><li>The <code>_</code> fallback arm must be the last arm.</li><li>When <code>match</code> is used as an expression, each selected arm body result is the expression value.</li><li>A <code>match</code> expression without <code>_</code> must cover all variants to avoid a <code>void</code> missing-branch type.</li><li>Match expression arm result types must be compatible. A <code>never</code> arm is compatible with the other result type.</li><li><code>match</code> without <code>_</code> is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.</li><li><code>match</code> with <code>_</code> is treated as a terminating statement when every explicit arm and the <code>_</code> arm terminate.</li><li>Every enum payload field may use any sized type that is valid as a struct field. Construction,
   local storage, arguments, returns, assignment, optional/fallible wrapping, and pattern matching
   apply recursively to payload aggregates without a separate runtime type allowlist.</li><li>A pattern target expression is evaluated exactly once before its tag is tested. An ordinary
-  expression that produces a new owned enum temporary may be matched directly.</li><li>A copy payload binding copies the payload into its branch-local binding. Matching a copy enum
-  place does not invalidate the original value.</li><li>A move-only payload binding transfers ownership from an owned pattern target. Matching an
-  existing move-only local, parameter, or named struct field requires an explicit <code>move</code> target,
-  such as <code>match move result</code> or <code>match move holder.result</code>. The ordinary move-place restrictions
-  still apply; indexes, dereferences, and computed projections are not move sources.</li><li>A newly produced owned enum temporary, including a call result, variant constructor, control
+  expression that produces a new owned enum temporary may be matched directly.</li><li>A pattern target whose type is <code>Enum</code>, <code>&amp;Enum</code>, or <code>&amp;+Enum</code> selects one of the binding modes in
+  the table below. Pattern matching dereferences a borrowed target only for tag inspection and
+  payload projection; it does not introduce a general implicit dereference conversion.</li></ul><table><thead><tr><th>Pattern target</th><th>Payload name type</th><th>Effect on the target</th></tr></thead><tbody><tr><td>New owned enum temporary</td><td>declared payload type</td><td>Consumes the temporary</td></tr><tr><td>Existing enum place without <code>move</code></td><td>declared payload type, only when that payload is copyable</td><td>Copies the named payload; retains the enum place</td></tr><tr><td>Readonly borrow expression of type <code>&amp;Enum</code></td><td><code>&amp;Payload</code></td><td>Retains the enum and creates a readonly payload borrow</td></tr><tr><td>Readwrite borrow expression of type <code>&amp;+Enum</code></td><td><code>&amp;+Payload</code></td><td>Retains the enum and creates an exclusive readwrite payload borrow</td></tr><tr><td><code>move place</code></td><td>declared payload type</td><td>Consumes the enum place</td></tr></tbody></table><ul><li>The borrowed modes apply both to an explicit target such as <code>match &amp;value</code> or
+  <code>match &amp;+value</code> and to any target expression already typed as <code>&amp;Enum</code> or <code>&amp;+Enum</code>. Using an
+  existing borrow as a pattern target is a use of that borrow, not an ownership transfer.</li><li>Every payload name in one pattern uses the target's binding mode. A borrowed target therefore
+  binds even a copyable payload as <code>&amp;Payload</code> or <code>&amp;+Payload</code>; it never performs a hidden payload
+  copy. Code that needs owned copies matches an existing enum place without a borrow.</li><li>Creating an <code>&amp;+Enum</code> target follows the ordinary writable-place and exclusivity rules. Payload
+  borrows derived from a borrowed target carry the target borrow's provenance and keep that borrow
+  active through their last source-level use. A payload borrow may be returned or stored only when
+  the ordinary borrow and provenance rules permit it.</li><li>An existing enum place without <code>move</code> may bind copyable payloads even when another variant makes
+  the enum type move-only. Naming a move-only payload from that target is an error. A payloadless
+  pattern or <code>_</code> payload may still inspect the tag without consuming the place.</li><li>Binding owned move-only payloads from an existing local, parameter, or named struct field
+  requires an explicit <code>move</code> target, such as <code>match move result</code> or
+  <code>match move holder.result</code>. The ordinary move-place restrictions still apply; indexes,
+  dereferences, and computed projections are not move sources.</li><li>A newly produced owned enum temporary, including a call result, variant constructor, control
   expression result, or value produced through postfix <code>?</code>, postfix <code>!</code>, <code>catch</code>, or <code>otherwise</code>,
-  is already owned by the pattern operation and does not use <code>move</code>.</li><li>Extracting a move-only payload suppresses that payload's cleanup through the consumed enum. The
-  branch-local binding assumes its drop obligation. An unselected or discarded owned enum
-  temporary retains and drops its active payload normally.</li><li>Enum cleanup reads the active tag and drops only initialized fields of that variant. Fields drop
+  is already owned by the pattern operation and does not use <code>move</code>.</li><li>An owned target is consumed as a whole into pattern-operation temporary storage before arm
+  execution. Named payload bindings assume their fields' drop obligations. Unnamed fields and the
+  complete active payload in a fallback arm remain in that storage. Its residual initialized
+  fields are dropped by the ordinary statement-temporary rules after the selected arm is evaluated,
+  or by early-exit cleanup if the arm exits the statement. No field of a consumed enum is dropped
+  twice.</li><li>Enum cleanup reads the active tag and drops only initialized fields of that variant. Fields drop
   in reverse payload declaration order and recursively use the same struct, enum, fixed-array, and
   outcome cleanup rules. Fixed-array elements drop in reverse index order.</li><li>Scope-end cleanup, parameter cleanup, explicit discard initializers, call-result temporaries,
   assignment replacement, and partial control-flow cleanup all use the same active-variant rule.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
@@ -454,7 +495,8 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
 <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
     <span class="token-function">report_other</span><span class="token-operator">(</span>error<span class="token-operator">)</span>
 <span class="token-operator">}</span>
-</code></pre><p>Rules:</p><ul><li><code>if enum_expr is Pattern</code> uses the same enum pattern syntax as <code>match</code>.</li><li>Payload names are bound only inside the then body.</li><li><code>if enum_expr is Enum.variant(_)</code> checks only the variant and discards the
+</code></pre><p>Rules:</p><ul><li><code>if enum_expr is Pattern</code> uses the same enum pattern syntax as <code>match</code>.</li><li><code>if</code> pattern targets use the same owned, copied, readonly-borrowed, readwrite-borrowed, and moved
+  binding modes as <code>match</code>.</li><li>Payload names are bound only inside the then body.</li><li><code>if enum_expr is Enum.variant(_)</code> checks only the variant and discards the
   payload without introducing a binding.</li><li><code>else</code> may be used for the non-matching case.</li><li><code>else</code> is optional.</li><li><code>else if enum_expr is Pattern</code> is allowed.</li><li><code>else if enum_expr is Pattern</code> is equivalent to <code>else { if enum_expr is Pattern { ... } }</code>.</li><li>Payload names are not available in <code>else</code> or later <code>else if</code> branches.</li><li><code>if expr is Pattern</code> may be used as a statement or as an expression with the same body-result rules as ordinary <code>if</code>.</li><li><code>if is</code> does not apply to fallible values <code>T!</code>.</li><li><code>if is</code> does not apply to optional values <code>T?</code>.</li></ul>
             </div>
         </main>

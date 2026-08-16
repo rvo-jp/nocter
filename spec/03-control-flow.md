@@ -173,6 +173,10 @@ Rules:
 - Only the selected `if` branch is evaluated.
 - `if enum_expr is Enum.variant { ... }` follows the same statement/expression rules as ordinary `if`.
 - Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
+- Pattern target ownership and payload binding types are defined by
+  [Enums and Variant Construction](02-values-types.md#enums-and-variant-construction). In
+  particular, `&Enum` binds `&Payload`, `&+Enum` binds `&+Payload`, and `move place` binds owned
+  payload values while consuming the place.
 - `if expr is Enum.variant(_)` checks the variant and discards the payload
   without introducing a binding.
 - `else if ...` is syntax for an `else` body whose result is another `if` expression.

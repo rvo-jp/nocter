@@ -302,8 +302,10 @@ Required diagnostic families:
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.
 - `if is` enum pattern whose enum or variant does not match the target enum type.
-- Move-only enum payload binding from an existing owned place without an explicit `move` pattern
-  target, or from an expression that is not eligible for `move`.
+- Owned move-only enum payload binding from an existing enum place without an explicit `move`
+  pattern target, or a `move` pattern target whose operand is not an eligible move place.
+- Readwrite-borrowed enum pattern target created from a non-writable place or while a conflicting
+  borrow is active.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
 - Interpolation expression whose value type is not supported by the adopted formatting surface.

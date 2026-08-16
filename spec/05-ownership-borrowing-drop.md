@@ -135,6 +135,9 @@ Rules:
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
 - `&str`, `&[T]`, `&+[T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
+- Payload borrows introduced by `match` and `if expr is Pattern` are projections of the pattern
+  target borrow. They retain its readonly or readwrite capability and provenance through the last
+  use of any derived payload borrow.
 - Borrow-like return values are governed by [Borrow-like Return Values](#borrow-like-return-values).
 
 ### Field-Sensitive Borrows
@@ -437,6 +440,9 @@ Rules:
   or parenthesized complex expression is invalid.
 - Partial moves are field-sensitive only for statically named struct fields. Index moves from
   arrays or collections, enum-payload moves, and computed projections are not supported.
+- `match move place` and `if move place is Pattern` move the complete enum place before selecting a
+  branch. This is not a partial enum-payload move; branch payload bindings receive ownership from
+  the already consumed enum according to the enum pattern rules.
 
 Valid:
 
