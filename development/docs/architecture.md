@@ -67,6 +67,10 @@ rejects it independently of `instance` and conformance lookup. Copyability is de
 type declaration before that association and is never changed by cleanup availability. Checked
 ownership and MIR consume the resolved drop-body identity; neither performs method lookup to find
 cleanup.
+The checked place model rejects a field move when any proper-prefix aggregate would become partial
+while owning a drop body. Cleanup plans may therefore invoke a type-owned body only with complete
+`Self`, then traverse remaining structural children. They never carry a partial-self drop ABI or a
+runtime flag that conditionally suppresses user cleanup.
 The type store derives optional and fallible copyability structurally from their success or present
 payload and the built-in copyable `error` type. The result is attached to the complete semantic
 type before body checking. Flow analysis never reclassifies an outcome from its active tag, and

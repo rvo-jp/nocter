@@ -179,7 +179,10 @@ Rules:
 - If reinitialization fails through postfix `?`, the binding remains uninitialized.
 - `let` bindings cannot be reinitialized after move or explicit drop.
 - Field reinitialization after moving a whole binding is not supported.
-- Structs do not have partial initialization states.
+- Struct construction and whole-binding reinitialization do not accept field-by-field partial
+  initialization. A fully initialized struct may enter the compiler-tracked partial state only
+  after an eligible named-field move, under the restrictions in
+  [Move Expressions](05-ownership-borrowing-drop.md#move-expressions).
 - At scope end, only initialized bindings are dropped.
 - Definite initialization is checked across control flow.
 

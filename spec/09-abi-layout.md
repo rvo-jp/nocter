@@ -220,10 +220,10 @@ Rules:
 - The payload union size is the maximum payload size across variants.
 - Payload and padding bytes outside the active payload have unspecified
   contents and must not be inspected by safe source code.
-- Drop glue drops only the active payload. Multi-field payloads drop their
-  fields according to ordinary aggregate drop order. Recursive payload drop
-  glue includes fixed arrays, whose initialized elements drop in reverse index
-  order.
+- Drop glue invokes the enum's own drop declaration first when present, then drops only the active
+  payload. Multi-field payloads drop their fields according to ordinary aggregate drop order.
+  Recursive payload drop glue includes fixed arrays, whose initialized elements drop in reverse
+  index order.
 - The ABI does not use niche optimization.
 
 ### Stored Optional and Fallible Layout
@@ -324,6 +324,9 @@ Rules:
 - After `drop` returns, the caller treats that value as dead.
 - Copyable types have no source-defined drop ABI entry. A drop declaration never changes the
   target type's copyability or stored layout.
+- A source-defined drop entry always receives a complete initialized `Self`. Partial field moves
+  are rejected for every enclosing struct that owns one, so ABI lowering needs no partial-self
+  calling convention or skip flag.
 - Drop glue for structs, fixed arrays, enums, optionals, and fallible values must
   follow active-field, initialized-element, and active-payload rules.
 

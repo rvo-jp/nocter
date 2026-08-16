@@ -262,7 +262,9 @@ ByteSpan { source, start, end }
   capture names; a collision between a capture and parameter name; or a capture target that is not
   one enclosing local or parameter binding.</li><li>Invalid closure capture borrow or move. Borrow diagnostics use the ordinary source binding and
   loan conflict, while a move diagnostic identifies the captured source binding; diagnostics do
-  not expose anonymous environment fields.</li><li>Parenthesized computed outcome such as <code>move (place?)</code> used where the intended canonical form is
+  not expose anonymous environment fields.</li><li>Named-field move that would make a struct with its own drop declaration partially initialized.
+  For a nested field path, the diagnostic identifies the nearest invalid enclosing struct and its
+  drop declaration.</li><li>Parenthesized computed outcome such as <code>move (place?)</code> used where the intended canonical form is
   <code>move place?</code>.</li><li>Adjacent postfix outcome suffixes <code>??</code>, <code>!!</code>, <code>?!</code>, or <code>!?</code> in expression syntax. The diagnostic
   should suggest an intermediate binding or explicit grouping such as <code>(expression?)?</code>.</li><li>Explicit <code>drop</code> of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.</li><li>Duplicate drop declarations for one nominal type family; a drop declaration targeting another
   module's type, a type alias, or a non-nominal type; or a drop declaration with visibility,

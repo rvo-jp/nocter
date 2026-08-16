@@ -316,6 +316,9 @@ Required diagnostic families:
 - Invalid closure capture borrow or move. Borrow diagnostics use the ordinary source binding and
   loan conflict, while a move diagnostic identifies the captured source binding; diagnostics do
   not expose anonymous environment fields.
+- Named-field move that would make a struct with its own drop declaration partially initialized.
+  For a nested field path, the diagnostic identifies the nearest invalid enclosing struct and its
+  drop declaration.
 - Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
   `move place?`.
 - Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic

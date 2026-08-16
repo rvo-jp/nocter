@@ -294,9 +294,10 @@ Rules:
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
-- Struct drop glue invokes the struct's own drop declaration first when present,
-  then drops owned fields in reverse declaration order. Field drop glue follows
-  the same rule recursively.
+- Struct drop glue invokes the struct's own drop declaration first when present, then drops owned
+  fields in reverse declaration order. Payload-bearing enum drop glue invokes the enum's own drop
+  declaration first when present, then drops only the active variant payload in reverse payload
+  declaration order. Field and payload drop glue follows the same rule recursively.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
 - `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
@@ -597,6 +598,9 @@ Rules:
   is invalid.
 - Partial moves are field-sensitive only for statically named struct fields. Index moves from
   arrays or collections, enum-payload moves, and computed projections are not supported.
+- A named-field move is invalid when any proper-prefix struct made partially initialized by that
+  move has its own drop declaration. Drop bodies always receive one complete initialized `Self`;
+  the compiler neither calls one on a partial value nor silently omits it.
 - `match move place` and `if move place is Pattern` move the complete enum place before selecting a
   branch. This is not a partial enum-payload move; branch payload bindings receive ownership from
   the already consumed enum according to the enum pattern rules.
@@ -631,12 +635,34 @@ remaining initialized fields, in their ordinary reverse declaration order. The w
 cannot be used or moved while it remains partially initialized. A mutable parent may restore a
 moved field through field assignment before a later whole-value use.
 
+This partial state exists only for structs without their own drop declaration. A field whose type
+has a drop declaration may still be moved as one complete field; its drop obligation transfers to
+the destination. The prohibition concerns each enclosing struct that would otherwise require a
+drop body to observe an incomplete `Self`.
+
 ```nct
 func rename(user: User, name: String): User {
     var next = move user
     next.name = move name
     return move next
 }
+```
+
+Invalid partial move through a type-owned drop contract:
+
+```nct
+struct Session {
+    socket: Socket
+    label: String
+}
+
+drop Session(&+self) {
+    record_session_end(self)
+    return
+}
+
+let session = open_session()
+let socket = move session.socket // error: Session owns a drop declaration
 ```
 
 ## Return Values
