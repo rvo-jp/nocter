@@ -72,6 +72,10 @@ payload and the built-in copyable `error` type. The result is attached to the co
 type before body checking. Flow analysis never reclassifies an outcome from its active tag, and
 MIR consumes the same type fact instead of deciding whether a particular tagged value may be
 copied.
+Checked closure construction records one environment field for each resolved capture and derives
+copyability with the same structural operation used by aggregates. Invocation capability is a
+separate callable fact and cannot overwrite the environment's ownership class. Later
+monomorphization and MIR consume both decisions without reconstructing either from closure syntax.
 
 ## Checked Program
 

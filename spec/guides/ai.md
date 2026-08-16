@@ -62,6 +62,9 @@ Rules for generated code:
 - Outcome copyability follows the payload recursively: `T?`, `T!`, `T?!`, and `(T!)?` are copyable
   exactly when `T` is copyable, while `void!` is copyable. The currently active tag does not change
   that property.
+- Closure copyability follows stored captures: no captures and readonly captures are copyable;
+  readwrite captures and move-only owned captures make the closure move-only. Callable capability
+  controls invocation only and does not decide copyability.
 - Do not concatenate expression suffixes as `??`, `!!`, `?!`, or `!?`. Use an intermediate binding
   or parentheses such as `(move result?)?` for a second outcome layer. Type syntax `T?!` remains
   valid and has a different grammar.

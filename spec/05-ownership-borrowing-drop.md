@@ -459,6 +459,11 @@ Rules:
 - Copyability is a property of the complete outcome type, not its currently active tag. An absent
   `String?` and a failed `String!` remain move-only because another value of the same type may own a
   `String` payload.
+- A closure's anonymous environment is copyable exactly when every stored capture is copyable. A
+  capture-free closure and a closure containing only readonly-borrow captures are copyable. A
+  closure containing a readwrite-borrow capture or move-only owned capture is move-only.
+- Callable capability and closure copyability are independent. `&func`, `&+func`, and `func`
+  describe how a closure may be invoked; they never change whether its environment may be copied.
 - Type aliases to copy types are copyable. For example, a project-local alias to `i32` is copyable.
 - `&T` is copyable.
 - `&+T` is not copyable.

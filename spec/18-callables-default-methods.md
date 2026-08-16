@@ -134,6 +134,50 @@ from left to right. The closure owns moved captures and drops them in reverse fi
 captures retain their source loans for the closure value's last use. A closure carrying region-
 derived storage cannot escape that region.
 
+The anonymous closure environment follows ordinary structural copyability:
+
+- a capture-free closure is copyable
+- a readonly `&name` capture stores a copyable `&T` and preserves copyability
+- a readwrite `&+name` capture stores a non-copyable `&+T` and makes the closure move-only
+- an owned capture contributes its captured value type; a move-only owned capture makes the closure
+  move-only
+- the complete closure is copyable exactly when every stored capture is copyable
+- invocation capability does not affect this result
+
+```nct
+let threshold = 10
+let predicate = (&threshold; value: i32) {
+    value >= threshold
+}
+
+let copied = predicate
+inspect(predicate) // valid: predicate remains initialized
+```
+
+A readwrite capture is the boundary case:
+
+```nct
+var total = 0
+let accumulate = (&+total; value: i32) {
+    total += value
+}
+
+let copied = accumulate // error: the closure contains &+i32
+let owned = move accumulate
+```
+
+An owned move-only capture likewise makes the complete closure move-only:
+
+```nct
+let prefix = String.copy("item: ")
+let format = (move prefix; value: i32) {
+    "${prefix}${value}"
+}
+
+let copied = format // error: the closure owns String
+let owned = move format
+```
+
 ## Callable Capability
 
 Closure values have anonymous concrete types. Built-in structural callable contracts let generic
@@ -158,6 +202,11 @@ func finish<F>(callback: F, value: i32): i32 where F: func(value: i32): i32 {
 - `&+func(Input): Output` permits repeated invocation through readwrite access; the called place
   must be writable
 - `func(Input): Output` permits one consuming invocation; the called value is moved by the call
+
+These capabilities describe invocation access, not value copyability. A closure may satisfy a
+readonly repeated-call contract while remaining move-only because its environment owns a
+move-only value. Conversely, copying a capture-free closure does not grant a consuming invocation
+contract that its body does not satisfy.
 
 Parameter names are optional. A single eligible named parameter is inferred as the result origin,
 for example `&func(text: &str): &str`. When a result may retain one of several parameters, their

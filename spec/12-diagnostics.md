@@ -307,6 +307,9 @@ Required diagnostic families:
 - Implicit copy of an optional, fallible, or mixed outcome whose eventual payload is move-only. The
   diagnostic must identify the complete outcome type and the move-only payload; an inactive
   absence or failure tag does not make that value copyable.
+- Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
+  diagnostic must identify the first source capture that prevents copying and must not describe
+  callable capability as the cause.
 - Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
   `move place?`.
 - Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic
