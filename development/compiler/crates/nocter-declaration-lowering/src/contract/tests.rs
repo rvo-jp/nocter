@@ -2,10 +2,11 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{CallableContractError, analyze_callable_contracts};
+use crate::test_support::source_use;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    collect_declaration_surface,
+    UseResolutionInput, collect_declaration_surface,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -26,6 +27,7 @@ fn surface<'syntax>(
     sources: &'syntax SourceMap,
     manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
+    use_resolutions: Vec<UseResolutionInput>,
 ) -> crate::DeclarationSurface<'syntax> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
@@ -37,8 +39,13 @@ fn surface<'syntax>(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
         module_sources,
     );
-    collect_declaration_surface(&CompileUnitInput::new(sources, vec![package], vec![module]))
-        .unwrap()
+    collect_declaration_surface(&CompileUnitInput::new(
+        sources,
+        vec![package],
+        vec![module],
+        use_resolutions,
+    ))
+    .unwrap()
 }
 
 #[test]
@@ -48,7 +55,7 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func parse(\n    text: &str\n): usize\n\ninstance Text {\n    pub method &self.len(): usize\n}\n",
+        "use ./parse\n\npub func parse(\n    text: &str\n): usize\n\ninstance Text {\n    pub method &self.len(): usize\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -69,6 +76,7 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/parse.nct")],
     );
 
     let contracts = analyze_callable_contracts(&surface).unwrap();
@@ -90,7 +98,7 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func parse(text: &str): usize\n",
+        "use ./parse\n\npub func parse(text: &str): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -111,6 +119,7 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/parse.nct")],
     );
 
     assert!(matches!(
@@ -126,7 +135,7 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func parse(text: &str): usize\n",
+        "use ./a\nuse ./b\n\npub func parse(text: &str): usize\n",
     );
     let first_id = add_source(
         &mut sources,
@@ -149,6 +158,10 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
             ModuleSourceInput::new("/app/b.nct", ModuleSourceKind::Implementation, &second),
             ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
             ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &first),
+        ],
+        vec![
+            source_use(&root, 0, "/app/a.nct"),
+            source_use(&root, 1, "/app/b.nct"),
         ],
     );
 
@@ -173,6 +186,7 @@ fn body_omission_is_not_a_general_callable_form() {
             ModuleSourceKind::Root,
             &root,
         )],
+        Vec::new(),
     );
 
     assert!(matches!(
@@ -188,7 +202,7 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "instance Text {\n    pub coerce &self as &str\n}\n",
+        "use ./view\n\ninstance Text {\n    pub coerce &self as &str\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -209,6 +223,7 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/view.nct")],
     );
 
     let contracts = analyze_callable_contracts(&surface).unwrap();
@@ -230,7 +245,7 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "struct Value { value: usize }\n\nconstruct Value {\n    pub default func new(): Self\n}\n",
+        "use ./value\n\nstruct Value { value: usize }\n\nconstruct Value {\n    pub default func new(): Self\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -252,6 +267,7 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/value.nct")],
     );
 
     let contracts = analyze_callable_contracts(&surface).unwrap();

@@ -12,18 +12,23 @@ mod reservation;
 mod surface;
 mod topology;
 
+#[cfg(test)]
+mod test_support;
+
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
+    UseTargetInput,
 };
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };
 pub use surface::{
     DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
-    SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId, collect_declaration_surface,
+    SurfaceError, SurfaceImport, SurfaceImportTarget, SurfaceSource, SurfaceSourceId,
+    collect_declaration_surface,
 };
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};

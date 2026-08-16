@@ -2,6 +2,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{LoweringError, lower_compile_unit_topology};
+use crate::test_support::{module_use, source_use};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -45,6 +46,17 @@ fn root_module<'syntax>(
     )
 }
 
+fn child_module<'syntax>(
+    package: &str,
+    path: &[&str],
+    sources: Vec<ModuleSourceInput<'syntax>>,
+) -> ModuleInput<'syntax> {
+    ModuleInput::new(
+        ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied()),
+        sources,
+    )
+}
+
 #[test]
 fn input_order_does_not_change_semantic_topology() {
     let mut sources = SourceMap::new();
@@ -52,7 +64,7 @@ fn input_order_does_not_change_semantic_topology() {
     let app_root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func run(): void { return }\n",
+        "use ./support\n\npub func run(): void { return }\n",
     );
     let app_impl_id = add_source(
         &mut sources,
@@ -97,11 +109,13 @@ fn input_order_does_not_change_semantic_topology() {
             ],
         ),
     ];
+    let resolutions = vec![source_use(&app_root, 0, "/app/support.nct")];
 
     let forward = lower_compile_unit_topology(&CompileUnitInput::new(
         &sources,
         packages.clone(),
         modules.clone(),
+        resolutions.clone(),
     ))
     .unwrap();
     let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
@@ -116,6 +130,7 @@ fn input_order_does_not_change_semantic_topology() {
                 ModuleInput::new(module.identity().clone(), source_order)
             })
             .collect(),
+        resolutions,
     ))
     .unwrap();
 
@@ -146,6 +161,7 @@ fn rejects_a_physical_source_claimed_by_manifest_and_module() {
         &sources,
         vec![package],
         vec![module],
+        Vec::new(),
     ))
     .unwrap_err();
 
@@ -183,6 +199,7 @@ fn single_file_package_has_one_root_module_without_a_manifest() {
         &sources,
         vec![package],
         vec![module],
+        Vec::new(),
     ))
     .unwrap();
 
@@ -212,8 +229,182 @@ fn package_mode_cannot_be_smuggled_through_another_source_layout() {
         &sources,
         vec![package],
         vec![module],
+        Vec::new(),
     ))
     .unwrap_err();
 
     assert!(matches!(error, LoweringError::InvalidModuleLayout(_)));
+}
+
+#[test]
+fn every_authored_use_requires_one_discovery_owned_resolution() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "use ./parser\n");
+    let parser_id = add_source(&mut sources, "/app/parser/index.nct", "");
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let parser = parse_source(&sources, parser_id, ParseGoal::ModuleSource);
+    let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
+    let modules = vec![
+        root_module(
+            "workspace:app",
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+        ),
+        child_module(
+            "workspace:app",
+            &["parser"],
+            vec![ModuleSourceInput::new(
+                "/app/parser/index.nct",
+                ModuleSourceKind::Root,
+                &parser,
+            )],
+        ),
+    ];
+
+    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        &sources,
+        vec![package],
+        modules,
+        Vec::new(),
+    ))
+    .unwrap_err();
+
+    assert!(matches!(error, LoweringError::MissingUseResolution(_)));
+}
+
+#[test]
+fn source_imports_must_be_private_bare_edges_within_one_module() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "use ./search.find\n");
+    let search_id = add_source(&mut sources, "/app/search.nct", "func find(): void {}\n");
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let search = parse_source(&sources, search_id, ParseGoal::ModuleSource);
+    let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
+    let module = root_module(
+        "workspace:app",
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new("/app/search.nct", ModuleSourceKind::Implementation, &search),
+        ],
+    );
+
+    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        &sources,
+        vec![package],
+        vec![module],
+        vec![source_use(&root, 0, "/app/search.nct")],
+    ))
+    .unwrap_err();
+
+    assert!(matches!(error, LoweringError::InvalidSourceUse(_)));
+}
+
+#[test]
+fn source_cycles_are_valid_but_every_implementation_must_be_root_reachable() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "use ./a\n");
+    let a_id = add_source(&mut sources, "/app/a.nct", "use ./b\n");
+    let b_id = add_source(&mut sources, "/app/b.nct", "use ./a\n");
+    let orphan_id = add_source(&mut sources, "/app/orphan.nct", "func orphan(): void {}\n");
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
+    let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
+    let orphan = parse_source(&sources, orphan_id, ParseGoal::ModuleSource);
+    let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
+    let module = root_module(
+        "workspace:app",
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &a),
+            ModuleSourceInput::new("/app/b.nct", ModuleSourceKind::Implementation, &b),
+            ModuleSourceInput::new("/app/orphan.nct", ModuleSourceKind::Implementation, &orphan),
+        ],
+    );
+    let resolutions = vec![
+        source_use(&root, 0, "/app/a.nct"),
+        source_use(&a, 0, "/app/b.nct"),
+        source_use(&b, 0, "/app/a.nct"),
+    ];
+
+    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        &sources,
+        vec![package],
+        vec![module],
+        resolutions,
+    ))
+    .unwrap_err();
+
+    assert_eq!(
+        error,
+        LoweringError::UnreachableImplementationSource("/app/orphan.nct".into())
+    );
+}
+
+#[test]
+fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "use ./a\n");
+    let a_id = add_source(&mut sources, "/app/a/index.nct", "use /b\n");
+    let b_id = add_source(&mut sources, "/app/b/index.nct", "use /a\n");
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
+    let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
+    let package_identity = PackageIdentity::new("workspace:app");
+    let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
+    let b_identity = ModuleIdentity::new(package_identity.clone(), ["b"]);
+    let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
+    let modules = vec![
+        root_module(
+            "workspace:app",
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+        ),
+        child_module(
+            "workspace:app",
+            &["a"],
+            vec![ModuleSourceInput::new(
+                "/app/a/index.nct",
+                ModuleSourceKind::Root,
+                &a,
+            )],
+        ),
+        child_module(
+            "workspace:app",
+            &["b"],
+            vec![ModuleSourceInput::new(
+                "/app/b/index.nct",
+                ModuleSourceKind::Root,
+                &b,
+            )],
+        ),
+    ];
+    let resolutions = vec![
+        module_use(&root, 0, a_identity.clone()),
+        module_use(&a, 0, b_identity),
+        module_use(&b, 0, a_identity.clone()),
+    ];
+
+    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        &sources,
+        vec![package],
+        modules,
+        resolutions,
+    ))
+    .unwrap_err();
+
+    assert_eq!(error, LoweringError::ModuleImportCycle(a_identity));
 }

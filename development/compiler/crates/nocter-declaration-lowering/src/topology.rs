@@ -10,12 +10,14 @@ use nocter_source_index::{
     DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin,
     SourceRole,
 };
-use nocter_syntax::{Keyword, NodeKind, TokenKind};
+use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceKind, PackageIdentity, PackageInput,
-    PackageMode,
+    PackageMode, UseResolutionInput, UseTargetInput,
 };
+
+pub(crate) type UseResolutionKey = (SourceId, usize);
 
 #[derive(Debug)]
 pub struct LoweredDeclarations {
@@ -45,6 +47,7 @@ pub enum LoweringError {
     DuplicatePackage(PackageIdentity),
     DuplicateModule(ModuleIdentity),
     DuplicateSourcePath(Box<str>),
+    DuplicateSource(SourceId),
     UnknownPackage(PackageIdentity),
     MissingSource(SourceId),
     InvalidPackageDeclaration(PackageIdentity),
@@ -55,6 +58,13 @@ pub enum LoweringError {
     InvalidModuleLayout(ModuleIdentity),
     InvalidPackageModuleSet(PackageIdentity),
     InvalidSingleFilePackage(PackageIdentity),
+    MissingUseResolution(NodeId),
+    DuplicateUseResolution(NodeId),
+    InvalidUseResolution(NodeId),
+    UnknownUseTarget(NodeId),
+    InvalidSourceUse(NodeId),
+    UnreachableImplementationSource(Box<str>),
+    ModuleImportCycle(ModuleIdentity),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
@@ -70,6 +80,12 @@ impl fmt::Display for LoweringError {
             }
             Self::DuplicateSourcePath(path) => {
                 write!(formatter, "duplicate canonical source path {path}")
+            }
+            Self::DuplicateSource(source) => {
+                write!(
+                    formatter,
+                    "{source} is claimed by more than one physical input"
+                )
             }
             Self::UnknownPackage(package) => {
                 write!(
@@ -114,6 +130,40 @@ impl fmt::Display for LoweringError {
                 "single-file package {} does not contain exactly one single-file module",
                 package.as_str()
             ),
+            Self::MissingUseResolution(declaration) => {
+                write!(
+                    formatter,
+                    "use declaration {declaration:?} has no resolved target"
+                )
+            }
+            Self::DuplicateUseResolution(declaration) => write!(
+                formatter,
+                "use declaration {declaration:?} has more than one resolved target"
+            ),
+            Self::InvalidUseResolution(declaration) => write!(
+                formatter,
+                "resolved use {declaration:?} does not identify an authored use declaration"
+            ),
+            Self::UnknownUseTarget(declaration) => write!(
+                formatter,
+                "resolved use {declaration:?} names a target outside the compile unit"
+            ),
+            Self::InvalidSourceUse(declaration) => write!(
+                formatter,
+                "resolved source use {declaration:?} violates same-module composition rules"
+            ),
+            Self::UnreachableImplementationSource(path) => {
+                write!(
+                    formatter,
+                    "implementation source {path} is not reachable from its module root"
+                )
+            }
+            Self::ModuleImportCycle(module) => {
+                write!(
+                    formatter,
+                    "module import graph contains a cycle through {module:?}"
+                )
+            }
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
         }
@@ -195,6 +245,7 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) symbols: SymbolTable,
     pub(crate) packages: Vec<&'input PackageInput<'syntax>>,
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
+    pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
 }
 
 pub(crate) fn prepare_compile_unit<'input, 'syntax>(
@@ -203,11 +254,13 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let packages = canonical_packages(input)?;
     let modules = canonical_modules(input, &packages)?;
     validate_sources(input, &packages, &modules)?;
+    let use_resolutions = validate_use_resolutions(input, &modules)?;
     let symbols = collect_symbols(input, &packages, &modules)?;
     Ok(PreparedCompileUnit {
         symbols,
         packages,
         modules,
+        use_resolutions,
     })
 }
 
@@ -259,6 +312,7 @@ fn validate_sources(
     modules: &[&ModuleInput<'_>],
 ) -> Result<(), LoweringError> {
     let mut paths = BTreeSet::new();
+    let mut source_ids = BTreeSet::new();
     let package_modes: BTreeMap<_, _> = packages
         .iter()
         .map(|package| (package.identity(), package.mode()))
@@ -269,6 +323,11 @@ fn validate_sources(
                 if declaration.syntax().root().kind() == NodeKind::PackageFile =>
             {
                 require_source(input, declaration.syntax().source())?;
+                if !source_ids.insert(declaration.syntax().source()) {
+                    return Err(LoweringError::DuplicateSource(
+                        declaration.syntax().source(),
+                    ));
+                }
                 if !paths.insert(declaration.canonical_path()) {
                     return Err(LoweringError::DuplicateSourcePath(
                         declaration.canonical_path().into(),
@@ -293,6 +352,9 @@ fn validate_sources(
                 ));
             }
             require_source(input, source.syntax().source())?;
+            if !source_ids.insert(source.syntax().source()) {
+                return Err(LoweringError::DuplicateSource(source.syntax().source()));
+            }
             if !paths.insert(source.canonical_path()) {
                 return Err(LoweringError::DuplicateSourcePath(
                     source.canonical_path().into(),
@@ -345,6 +407,233 @@ fn validate_sources(
         }
     }
     Ok(())
+}
+
+fn validate_use_resolutions<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+    modules: &[&'input ModuleInput<'syntax>],
+) -> Result<BTreeMap<UseResolutionKey, &'input UseResolutionInput>, LoweringError> {
+    let mut authored = BTreeMap::new();
+    let mut source_owners = BTreeMap::new();
+    let mut path_owners = BTreeMap::new();
+    let module_indices: BTreeMap<_, _> = modules
+        .iter()
+        .enumerate()
+        .map(|(index, module)| (module.identity(), index))
+        .collect();
+
+    for module in modules {
+        for source in module.sources() {
+            source_owners.insert(source.syntax().source(), (module.identity(), source));
+            path_owners.insert(source.canonical_path(), (module.identity(), source));
+            collect_use_nodes(source.syntax(), &mut authored)?;
+        }
+    }
+
+    let mut resolved = BTreeMap::new();
+    let mut source_edges: BTreeMap<SourceId, Vec<SourceId>> = BTreeMap::new();
+    let mut module_edges = vec![BTreeSet::new(); modules.len()];
+    let mut input_resolutions: Vec<_> = input.use_resolutions().iter().collect();
+    input_resolutions.sort_unstable_by(|left, right| {
+        use_key(left.declaration())
+            .cmp(&use_key(right.declaration()))
+            .then_with(|| left.target().cmp(right.target()))
+    });
+    for resolution in input_resolutions {
+        let declaration = resolution.declaration();
+        let key = use_key(declaration);
+        if resolved.insert(key, resolution).is_some() {
+            return Err(LoweringError::DuplicateUseResolution(declaration));
+        }
+        if !authored.contains_key(&key) {
+            return Err(LoweringError::InvalidUseResolution(declaration));
+        }
+        let (importing_module, importing_source) = source_owners
+            .get(&declaration.source())
+            .copied()
+            .ok_or(LoweringError::InvalidUseResolution(declaration))?;
+        match resolution.target() {
+            UseTargetInput::Source(path) => {
+                let (target_module, target_source) = path_owners
+                    .get(path.as_ref())
+                    .copied()
+                    .ok_or(LoweringError::UnknownUseTarget(declaration))?;
+                if importing_module != target_module
+                    || target_source.kind() != ModuleSourceKind::Implementation
+                    || !is_source_use(importing_source.syntax(), declaration)
+                {
+                    return Err(LoweringError::InvalidSourceUse(declaration));
+                }
+                source_edges
+                    .entry(importing_source.syntax().source())
+                    .or_default()
+                    .push(target_source.syntax().source());
+            }
+            UseTargetInput::Module(target) => {
+                let importing_index = *module_indices
+                    .get(importing_module)
+                    .ok_or(LoweringError::InvalidUseResolution(declaration))?;
+                let target_index = *module_indices
+                    .get(target)
+                    .ok_or(LoweringError::UnknownUseTarget(declaration))?;
+                module_edges[importing_index].insert(target_index);
+            }
+        }
+    }
+    if let Some((_, declaration)) = authored.iter().find(|(key, _)| !resolved.contains_key(key)) {
+        return Err(LoweringError::MissingUseResolution(*declaration));
+    }
+
+    validate_source_reachability(modules, &source_edges)?;
+    validate_acyclic_modules(modules, &module_edges)?;
+    Ok(resolved)
+}
+
+fn collect_use_nodes(
+    tree: &nocter_syntax::SyntaxTree,
+    declarations: &mut BTreeMap<UseResolutionKey, NodeId>,
+) -> Result<(), LoweringError> {
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        let kind = tree
+            .node(node)
+            .ok_or(LoweringError::InconsistentSyntax(tree.source()))?
+            .kind();
+        if matches!(
+            kind,
+            NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
+        ) {
+            declarations.insert(use_key(node), node);
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_source_use(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> bool {
+    if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::UseDeclaration)
+        || direct_child(tree, declaration, NodeKind::Visibility).is_some()
+        || direct_child(tree, declaration, NodeKind::ImportSelection).is_some()
+    {
+        return false;
+    }
+    let Some(path) = direct_child(tree, declaration, NodeKind::ModulePath) else {
+        return false;
+    };
+    tree.children(path)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Token(token) => Some(token.kind()),
+            SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
+        })
+        == Some(TokenKind::Punctuation(Punctuation::Dot))
+}
+
+fn direct_child(
+    tree: &nocter_syntax::SyntaxTree,
+    node: NodeId,
+    expected: NodeKind,
+) -> Option<NodeId> {
+    tree.children(node)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Node(child)
+                if tree
+                    .node(*child)
+                    .is_some_and(|node| node.kind() == expected) =>
+            {
+                Some(*child)
+            }
+            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+        })
+}
+
+fn validate_source_reachability(
+    modules: &[&ModuleInput<'_>],
+    edges: &BTreeMap<SourceId, Vec<SourceId>>,
+) -> Result<(), LoweringError> {
+    for module in modules {
+        let root = module
+            .sources()
+            .iter()
+            .find(|source| {
+                matches!(
+                    source.kind(),
+                    ModuleSourceKind::Root | ModuleSourceKind::SingleFile
+                )
+            })
+            .expect("validated module has one root source");
+        let mut reached = BTreeSet::from([root.syntax().source()]);
+        let mut pending = vec![root.syntax().source()];
+        while let Some(source) = pending.pop() {
+            if let Some(targets) = edges.get(&source) {
+                for target in targets {
+                    if reached.insert(*target) {
+                        pending.push(*target);
+                    }
+                }
+            }
+        }
+        if let Some(source) = module
+            .sources()
+            .iter()
+            .filter(|source| {
+                source.kind() == ModuleSourceKind::Implementation
+                    && !reached.contains(&source.syntax().source())
+            })
+            .min_by_key(|source| source.canonical_path())
+        {
+            return Err(LoweringError::UnreachableImplementationSource(
+                source.canonical_path().into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_acyclic_modules(
+    modules: &[&ModuleInput<'_>],
+    edges: &[BTreeSet<usize>],
+) -> Result<(), LoweringError> {
+    let mut indegree = vec![0usize; modules.len()];
+    for targets in edges {
+        for target in targets {
+            indegree[*target] += 1;
+        }
+    }
+    let mut ready: BTreeSet<_> = indegree
+        .iter()
+        .enumerate()
+        .filter_map(|(index, degree)| (*degree == 0).then_some(index))
+        .collect();
+    let mut visited = 0;
+    while let Some(index) = ready.pop_first() {
+        visited += 1;
+        for target in &edges[index] {
+            indegree[*target] -= 1;
+            if indegree[*target] == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+    if visited != modules.len() {
+        let index = indegree
+            .iter()
+            .position(|degree| *degree != 0)
+            .expect("unvisited module has a positive indegree");
+        return Err(LoweringError::ModuleImportCycle(
+            modules[index].identity().clone(),
+        ));
+    }
+    Ok(())
+}
+
+const fn use_key(declaration: NodeId) -> UseResolutionKey {
+    (declaration.source(), declaration.index())
 }
 
 fn collect_symbols(

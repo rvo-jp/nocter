@@ -1,5 +1,5 @@
 use nocter_source::SourceMap;
-use nocter_syntax::SyntaxTree;
+use nocter_syntax::{NodeId, SyntaxTree};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PackageIdentity(Box<str>);
@@ -137,6 +137,44 @@ pub enum ModuleSourceKind {
     SingleFile,
 }
 
+/// The exact graph edge selected by package/source discovery for one authored `use`.
+///
+/// Lowering never reconstructs this distinction from a canonical path. Source targets compose a
+/// physical implementation source into the importing module; module targets enter semantic name
+/// resolution.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum UseTargetInput {
+    Source(Box<str>),
+    Module(ModuleIdentity),
+}
+
+/// One resolved `use` node and its discovery-owned target.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct UseResolutionInput {
+    declaration: NodeId,
+    target: UseTargetInput,
+}
+
+impl UseResolutionInput {
+    #[must_use]
+    pub const fn new(declaration: NodeId, target: UseTargetInput) -> Self {
+        Self {
+            declaration,
+            target,
+        }
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> NodeId {
+        self.declaration
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> &UseTargetInput {
+        &self.target
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ModuleSourceInput<'syntax> {
     canonical_path: Box<str>,
@@ -202,6 +240,7 @@ pub struct CompileUnitInput<'syntax> {
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
+    use_resolutions: Vec<UseResolutionInput>,
 }
 
 impl<'syntax> CompileUnitInput<'syntax> {
@@ -210,11 +249,13 @@ impl<'syntax> CompileUnitInput<'syntax> {
         sources: &'syntax SourceMap,
         packages: Vec<PackageInput<'syntax>>,
         modules: Vec<ModuleInput<'syntax>>,
+        use_resolutions: Vec<UseResolutionInput>,
     ) -> Self {
         Self {
             sources,
             packages,
             modules,
+            use_resolutions,
         }
     }
 
@@ -231,5 +272,10 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn modules(&self) -> &[ModuleInput<'syntax>] {
         &self.modules
+    }
+
+    #[must_use]
+    pub fn use_resolutions(&self) -> &[UseResolutionInput] {
+        &self.use_resolutions
     }
 }

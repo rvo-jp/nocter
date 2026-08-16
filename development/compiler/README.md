@@ -63,10 +63,14 @@ be introduced to make an unresolved syntax choice.
 - `nocter-declaration-lowering` owns the one-way syntax-to-declaration boundary. Its input is an
   explicit package graph and module/source topology supplied by discovery; it never probes the
   filesystem. It validates declared-package and single-file layouts, canonicalizes package and
-  module order, constructs the compile-unit symbol table, inventories every declaration and member
-  with its exact syntax owner, allocates stable topology identities, and records their source
-  projections. The temporary surface inventory also enforces the root-source-only API boundary
-  before semantic reservation. A canonical-header pass joins eligible public bodyless contracts
+  module order, and requires one discovery-owned source-or-module target for every authored `use`.
+  It validates that source composition stays private, same-module, and root-reachable, permits
+  idempotent source cycles, rejects module import cycles, and never reinterprets canonical paths to
+  recover a missing edge. It then constructs the compile-unit symbol table, inventories every
+  declaration and member with its exact syntax owner, allocates stable topology identities, and
+  records their source projections. The temporary surface inventory also enforces the root-source-
+  only API boundary before semantic reservation. A canonical-header pass joins eligible public
+  bodyless contracts
   to exactly one private implementation body without resolving names or types; both source forms
   therefore enter reservation through one representative identity. The reservation pass then
   allocates every recursively referenceable typed ID—including associated types—in canonical

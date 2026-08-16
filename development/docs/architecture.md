@@ -131,6 +131,14 @@ program. Declared packages require one package declaration and one root module; 
 requires exactly one root module source and no package declaration. The two layouts cannot be
 silently substituted for each other.
 
+Package discovery also supplies one resolved edge for every top-level or block `use` node. The
+edge identifies either an exact physical implementation source or an exact module identity;
+lowering never derives that distinction from path text or filesystem layout. Validation requires
+all implementation sources to be reachable from their module root through private bare relative
+source imports. Those edges may cycle and remain idempotent. Module edges must target a module in
+the compile unit and form an acyclic graph. The canonical surface retains the normalized edge, so
+later import lookup has no path-probing fallback.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

@@ -2,10 +2,11 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{ReservedEntity, reserve_declaration_identities};
+use crate::test_support::source_use;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    collect_declaration_surface,
+    UseResolutionInput, collect_declaration_surface,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -26,6 +27,7 @@ fn reserve<'syntax>(
     sources: &'syntax SourceMap,
     manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
+    use_resolutions: Vec<UseResolutionInput>,
 ) -> super::ReservedDeclarations<'syntax> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
@@ -37,9 +39,13 @@ fn reserve<'syntax>(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
         module_sources,
     );
-    let surface =
-        collect_declaration_surface(&CompileUnitInput::new(sources, vec![package], vec![module]))
-            .unwrap();
+    let surface = collect_declaration_surface(&CompileUnitInput::new(
+        sources,
+        vec![package],
+        vec![module],
+        use_resolutions,
+    ))
+    .unwrap();
     reserve_declaration_identities(surface).unwrap()
 }
 
@@ -67,6 +73,7 @@ fn reserves_every_recursive_identity_domain_before_header_resolution() {
             ModuleSourceKind::Root,
             &root,
         )],
+        Vec::new(),
     );
 
     assert!(matches!(
@@ -95,7 +102,7 @@ fn contract_and_implementation_receive_one_callable_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func parse(text: &str): usize\n",
+        "use ./parse\n\npub func parse(text: &str): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -117,6 +124,7 @@ fn contract_and_implementation_receive_one_callable_identity() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/parse.nct")],
     );
 
     assert_eq!(reserved.entities()[0], reserved.entities()[1]);
@@ -130,7 +138,11 @@ fn contract_and_implementation_receive_one_callable_identity() {
 fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "func root(): void {}\n");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "use ./a\nuse ./z\n\nfunc root(): void {}\n",
+    );
     let first_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let second_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
@@ -143,11 +155,21 @@ fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
         ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &first),
     ];
 
-    let forward = reserve(&sources, &manifest, source_order.clone());
+    let resolutions = vec![
+        source_use(&root, 0, "/app/a.nct"),
+        source_use(&root, 1, "/app/z.nct"),
+    ];
+    let forward = reserve(
+        &sources,
+        &manifest,
+        source_order.clone(),
+        resolutions.clone(),
+    );
     let reverse = reserve(
         &sources,
         &manifest,
         source_order.into_iter().rev().collect(),
+        resolutions,
     );
 
     assert_eq!(forward.entities(), reverse.entities());

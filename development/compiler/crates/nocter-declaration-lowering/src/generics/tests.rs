@@ -2,10 +2,12 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{GenericError, PreparedGenerics, prepare_generic_binders};
+use crate::test_support::source_use;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    collect_declaration_surface, prepare_declaration_headers, reserve_declaration_identities,
+    UseResolutionInput, collect_declaration_surface, prepare_declaration_headers,
+    reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -28,6 +30,7 @@ fn prepare<'syntax>(
     sources: &'syntax SourceMap,
     manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
+    use_resolutions: Vec<UseResolutionInput>,
 ) -> Result<PreparedGenerics<'syntax>, GenericError> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
@@ -39,7 +42,7 @@ fn prepare<'syntax>(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
         module_sources,
     );
-    let input = CompileUnitInput::new(sources, vec![package], vec![module]);
+    let input = CompileUnitInput::new(sources, vec![package], vec![module], use_resolutions);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -66,6 +69,7 @@ fn creates_owner_scopes_and_inherits_them_into_members() {
             ModuleSourceKind::Root,
             &root,
         )],
+        Vec::new(),
     )
     .unwrap();
     let pair = SurfaceDeclarationId::from_index(0);
@@ -108,6 +112,7 @@ fn repeated_pattern_names_reuse_one_identity_and_project_every_occurrence() {
             ModuleSourceKind::Root,
             &root,
         )],
+        Vec::new(),
     )
     .unwrap();
     let conformance = SurfaceDeclarationId::from_index(4);
@@ -137,6 +142,7 @@ fn duplicate_explicit_binders_and_nested_shadowing_are_rejected() {
                     ModuleSourceKind::Root,
                     &root,
                 )],
+                Vec::new(),
             ),
             Err(GenericError::DuplicateBinder(_))
         ));
@@ -150,7 +156,7 @@ fn joined_callable_sources_share_generic_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub func identity<T>(value: T): T\n",
+        "use ./identity\n\npub func identity<T>(value: T): T\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -172,6 +178,7 @@ fn joined_callable_sources_share_generic_identity() {
                 &implementation,
             ),
         ],
+        vec![source_use(&root, 0, "/app/identity.nct")],
     )
     .unwrap();
     let contract = SurfaceDeclarationId::from_index(0);

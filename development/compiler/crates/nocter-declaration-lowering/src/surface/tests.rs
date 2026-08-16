@@ -2,6 +2,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{SurfaceDeclarationKind, SurfaceError, collect_declaration_surface};
+use crate::test_support::{module_use, source_use};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -59,6 +60,7 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
             ModuleSourceKind::Root,
             &root,
         )])],
+        Vec::new(),
     );
 
     let surface = collect_declaration_surface(&input).unwrap();
@@ -95,7 +97,7 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
 }
 
 #[test]
-fn retains_imports_and_item_target_attachment_without_resolving_them() {
+fn retains_resolved_import_edges_and_unresolved_item_target_syntax() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "#name: \"app\"\n");
     let root_id = add_source(
@@ -106,16 +108,30 @@ fn retains_imports_and_item_target_attachment_without_resolving_them() {
             "/../../tests/fixtures/syntax/g002-g006-module.nct"
         )),
     );
+    let parser_id = add_source(&mut sources, "/app/parser/index.nct", "");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let parser = parse_source(&sources, parser_id, ParseGoal::ModuleSource);
+    let parser_identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["parser"]);
     let input = CompileUnitInput::new(
         &sources,
         vec![package(&manifest)],
-        vec![root_module(vec![ModuleSourceInput::new(
-            "/app/index.nct",
-            ModuleSourceKind::Root,
-            &root,
-        )])],
+        vec![
+            root_module(vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )]),
+            ModuleInput::new(
+                parser_identity.clone(),
+                vec![ModuleSourceInput::new(
+                    "/app/parser/index.nct",
+                    ModuleSourceKind::Root,
+                    &parser,
+                )],
+            ),
+        ],
+        vec![module_use(&root, 0, parser_identity)],
     );
 
     let surface = collect_declaration_surface(&input).unwrap();
@@ -133,7 +149,11 @@ fn retains_imports_and_item_target_attachment_without_resolving_them() {
 fn canonical_source_order_is_independent_of_discovery_order() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "func root(): void {}\n");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "use ./a\nuse ./z\n\nfunc root(): void {}\n",
+    );
     let a_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let z_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
@@ -145,15 +165,21 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
         ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &a),
     ];
+    let resolutions = vec![
+        source_use(&root, 0, "/app/a.nct"),
+        source_use(&root, 1, "/app/z.nct"),
+    ];
     let forward = CompileUnitInput::new(
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.clone())],
+        resolutions.clone(),
     );
     let reverse = CompileUnitInput::new(
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.into_iter().rev().collect())],
+        resolutions,
     );
 
     let forward = collect_declaration_surface(&forward).unwrap();
@@ -174,7 +200,11 @@ fn canonical_source_order_is_independent_of_discovery_order() {
 fn implementation_sources_cannot_expand_the_module_surface() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "func root(): void {}\n");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "use ./implementation\n\nfunc root(): void {}\n",
+    );
     let public_id = add_source(
         &mut sources,
         "/app/public.nct",
@@ -202,6 +232,7 @@ fn implementation_sources_cannot_expand_the_module_surface() {
                     implementation,
                 ),
             ])],
+            vec![source_use(&root, 0, "/app/implementation.nct")],
         );
 
         let error = collect_declaration_surface(&input).unwrap_err();

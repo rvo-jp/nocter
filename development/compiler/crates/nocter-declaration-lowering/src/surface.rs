@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_model::SymbolTable;
@@ -6,10 +7,9 @@ use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
 
-use crate::topology::prepare_compile_unit;
+use crate::topology::{PreparedCompileUnit, UseResolutionKey, prepare_compile_unit};
 use crate::{
-    CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceInput, ModuleSourceKind,
-    PackageInput,
+    CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput, UseTargetInput,
 };
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
@@ -99,21 +99,33 @@ impl<'syntax> SurfaceSource<'syntax> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SurfaceImportTarget {
+    Source(SurfaceSourceId),
+    Module(ModuleIdentity),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SurfaceImport {
     source: SurfaceSourceId,
     node: NodeId,
+    target: SurfaceImportTarget,
 }
 
 impl SurfaceImport {
     #[must_use]
-    pub const fn source(self) -> SurfaceSourceId {
+    pub const fn source(&self) -> SurfaceSourceId {
         self.source
     }
 
     #[must_use]
-    pub const fn node(self) -> NodeId {
+    pub const fn node(&self) -> NodeId {
         self.node
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> &SurfaceImportTarget {
+        &self.target
     }
 }
 
@@ -248,6 +260,7 @@ pub enum SurfaceError {
     ImplementationVisibility(NodeId),
     ImplementationMember(NodeId),
     MissingConstructionVisibility(NodeId),
+    InconsistentUseResolution(NodeId),
 }
 
 impl fmt::Display for SurfaceError {
@@ -278,6 +291,12 @@ impl fmt::Display for SurfaceError {
                 formatter,
                 "module-root construction member {node:?} requires explicit visibility"
             ),
+            Self::InconsistentUseResolution(node) => {
+                write!(
+                    formatter,
+                    "use declaration {node:?} lost its resolved target"
+                )
+            }
         }
     }
 }
@@ -299,12 +318,17 @@ impl From<LoweringError> for SurfaceError {
 pub fn collect_declaration_surface<'syntax>(
     input: &CompileUnitInput<'syntax>,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
-    let prepared = prepare_compile_unit(input)?;
+    let PreparedCompileUnit {
+        symbols,
+        packages,
+        modules,
+        use_resolutions,
+    } = prepare_compile_unit(input)?;
     let mut sources = Vec::new();
     let mut imports = Vec::new();
     let mut declarations = Vec::new();
 
-    for module in &prepared.modules {
+    for module in &modules {
         let mut module_sources: Vec<_> = module.sources().iter().collect();
         module_sources.sort_unstable_by(|left, right| {
             source_kind_rank(left.kind())
@@ -312,28 +336,39 @@ pub fn collect_declaration_surface<'syntax>(
                 .then_with(|| left.canonical_path().cmp(right.canonical_path()))
         });
         for source in module_sources {
-            let source_id = SurfaceSourceId(sources.len());
             sources.push(SurfaceSource {
                 module: module.identity().clone(),
                 canonical_path: source.canonical_path().into(),
                 kind: source.kind(),
                 syntax: source.syntax(),
             });
-            collect_source(source_id, source, &mut imports, &mut declarations)?;
         }
+    }
+    let source_by_path: BTreeMap<_, _> = sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| (source.canonical_path(), SurfaceSourceId(index)))
+        .collect();
+    for (index, source) in sources.iter().enumerate() {
+        collect_source(
+            SurfaceSourceId(index),
+            source,
+            &use_resolutions,
+            &source_by_path,
+            &mut imports,
+            &mut declarations,
+        )?;
     }
 
     Ok(DeclarationSurface {
         source_map: input.sources(),
-        symbols: prepared.symbols,
-        packages: prepared
-            .packages
+        symbols,
+        packages: packages
             .into_iter()
             .cloned()
             .collect::<Vec<_>>()
             .into_boxed_slice(),
-        modules: prepared
-            .modules
+        modules: modules
             .into_iter()
             .map(|module| module.identity().clone())
             .collect::<Vec<_>>()
@@ -353,7 +388,9 @@ const fn source_kind_rank(kind: ModuleSourceKind) -> u8 {
 
 fn collect_source(
     source_id: SurfaceSourceId,
-    source: &ModuleSourceInput<'_>,
+    source: &SurfaceSource<'_>,
+    use_resolutions: &BTreeMap<UseResolutionKey, &crate::UseResolutionInput>,
+    source_by_path: &BTreeMap<&str, SurfaceSourceId>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
@@ -372,9 +409,21 @@ fn collect_source(
                 {
                     return Err(SurfaceError::ImplementationVisibility(child));
                 }
+                let resolution = use_resolutions
+                    .get(&(child.source(), child.index()))
+                    .ok_or(SurfaceError::InconsistentUseResolution(child))?;
+                let target = match resolution.target() {
+                    UseTargetInput::Source(path) => SurfaceImportTarget::Source(
+                        *source_by_path
+                            .get(path.as_ref())
+                            .ok_or(SurfaceError::InconsistentUseResolution(child))?,
+                    ),
+                    UseTargetInput::Module(module) => SurfaceImportTarget::Module(module.clone()),
+                };
                 imports.push(SurfaceImport {
                     source: source_id,
                     node: child,
+                    target,
                 });
             }
             Some(NodeKind::Item) => {
