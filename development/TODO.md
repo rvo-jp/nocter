@@ -9,14 +9,12 @@ input.
 
 ## Immediate Work
 
-1. Complete the type and requirement boundaries in G013-G018, including accepted, rejected, and
-   semantic-boundary coverage not already exercised by declaration headers.
-2. Expand G001 onward from the
+1. Expand G001 onward from the
    [grammar conformance plan](docs/grammar-conformance.md) into accepted and rejected parser
    fixtures and stable tree-shape snapshots; keep semantic-boundary cases parseable.
-3. Implement block imports, executable sequences, bindings, and terminal statements in G019-G021
+2. Implement block imports, executable sequences, bindings, and terminal statements in G019-G021
    on the shared line-sequence and block-delimiter boundary.
-4. Continue through control flow and expressions in grammar dependency order. Do not introduce
+3. Continue through control flow and expressions in grammar dependency order. Do not introduce
    declaration or checked semantic crates during Phase 1.
 
 ## Guardrails

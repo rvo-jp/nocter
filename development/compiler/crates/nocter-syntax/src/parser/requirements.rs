@@ -18,7 +18,9 @@ fn predicate(parser: &mut Parser<'_>) {
     } else if parser.at_punctuation(Punctuation::Ampersand)
         || parser.at_punctuation(Punctuation::ReadWrite)
     {
-        coercion_predicate(parser);
+        if !parser.attempt(coercion_predicate) {
+            type_equality_predicate(parser);
+        }
     } else if parser.at_identifier_text("copy") && parser.nth_kind(1) == TokenKind::Identifier {
         copy_predicate(parser);
     } else if parser.at(TokenKind::Identifier)

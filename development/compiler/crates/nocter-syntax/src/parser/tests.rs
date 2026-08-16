@@ -218,7 +218,7 @@ fn rejects_empty_generics_reversed_outcomes_and_missing_results() {
 #[test]
 fn parses_every_requirement_shape_without_type_driven_disambiguation() {
     assert_syntax_ok(
-        "func constrained<T, U, C, I>(value: &T): T where T: Interface<U> + &func(&T): U, copy U, T.Item = U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
+        "func constrained<T, U, C, I>(value: &T): T where T: Interface<U> + &func(&T): U, copy U, T.Item = U, &T = &U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
         ParseGoal::ModuleSource,
     );
 }
@@ -268,6 +268,62 @@ fn nested_type_arguments_are_parsed_once_per_level() {
     let source = format!("type Deep = {}T{}\n", "Outer<".repeat(128), ">".repeat(128));
 
     assert_syntax_ok(&source, ParseGoal::ModuleSource);
+}
+
+#[test]
+fn parses_the_complete_type_atom_and_prefix_surface() {
+    let tree = assert_syntax_ok(
+        "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Callback<T> = &+func(input: &T): &T from input\n",
+        ParseGoal::ModuleSource,
+    );
+
+    for kind in [
+        NodeKind::BuiltinType,
+        NodeKind::BorrowType,
+        NodeKind::PointerType,
+        NodeKind::SliceType,
+        NodeKind::FixedArrayType,
+        NodeKind::GroupedType,
+        NodeKind::CallableType,
+    ] {
+        assert!(has_node_kind(&tree, kind));
+    }
+}
+
+#[test]
+fn rejects_closed_type_shapes_without_semantic_assistance() {
+    for source in [
+        "type Dynamic = [u8; size]\n",
+        "type Reversed = i32!?\n",
+        "type BuiltinSelection = str.Item\n",
+        "type GenericSelf = Self<T>\n",
+        "type MissingResult = func(value: i32)\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
+}
+
+#[test]
+fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
+    assert_syntax_ok(
+        "type AssociatedArguments<T, U> = T.Item<U>\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source<Item = u8>\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
+        ParseGoal::ModuleSource,
+    );
+}
+
+#[test]
+fn opaque_results_keep_their_contextual_boundary() {
+    assert_syntax_ok(
+        "func values<T>(): some Source<T, Item = &T>?! {}\n",
+        ParseGoal::ModuleSource,
+    );
+
+    for source in [
+        "func unnamed(): some {}\n",
+        "type NotCallable = some Source\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+    }
 }
 
 #[test]
