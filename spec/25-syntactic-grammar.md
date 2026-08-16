@@ -10,8 +10,8 @@ common comma-delimited-list rule. Topical chapters own name resolution, visibili
 typing, ownership, evaluation, and container-specific validity after a source form has been
 recognized.
 
-`Block` and `Expression` are referenced here but remain defined by the control-flow and expression
-chapters until their productions are consolidated into this chapter. A referenced production is
+`Expression` is referenced here but remains defined by the expression chapters until its
+productions are consolidated into this chapter. A referenced production is
 not an invitation for a compiler to infer syntax from examples: only an explicit rule in the
 linked chapter may recognize it.
 
@@ -517,3 +517,117 @@ The parser records the predicate form without proving it. Later validation disti
 general associated-type equality from a declaration-pattern binder refinement, restricts
 structural operator operands, checks callable capability multiplicity, and rejects duplicate or
 unsatisfied requirements.
+
+## Blocks and Body Results
+
+```text
+Block = "{" newline*
+        (BlockUseSequence (newline+ ExecutableSequence)? | ExecutableSequence)?
+        newline* "}"
+
+BlockUseSequence = BlockUseDeclaration (newline+ BlockUseDeclaration)*
+BlockUseDeclaration = "use" UseTree
+
+ExecutableSequence = Executable (newline+ Executable)*
+Executable = Statement | Expression
+```
+
+Block imports form one prefix and cannot use visibility. A `use` after the first executable is a
+syntax error, even inside a branch whose execution would not reach it.
+
+The final `Expression` in an `ExecutableSequence` is the block's body result. Every earlier
+`Expression` is an expression statement. This classification depends only on source position and
+does not change after typing; semantic validation requires each non-final expression statement to
+have type `void` or `never`. A trailing newline before `}` does not turn a final expression into a
+non-final statement.
+
+A block with no final expression has the normal completion type `void` unless reachability proves
+that every path terminates. There is no semicolon syntax for suppressing or creating a body result.
+`let _ = expression` is the explicit value-discard statement.
+
+## Statements
+
+```text
+Statement = BindingStatement
+          | AssignmentStatement
+          | ReturnStatement
+          | BreakStatement
+          | ContinueStatement
+          | DropStatement
+          | WhileStatement
+          | LoopStatement
+          | ForStatement
+          | RegionStatement
+
+BindingStatement = ("let" | "var") BindingTarget TypeAnnotation? "=" Expression
+BindingTarget = Name | "_"
+TypeAnnotation = ":" Type
+
+AssignmentStatement = AssignmentTarget AssignmentOperator Expression
+AssignmentOperator = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+AssignmentTarget = PostfixExpression
+
+ReturnStatement = "return" Expression?
+BreakStatement = "break"
+ContinueStatement = "continue"
+DropStatement = "drop" Name
+
+WhileStatement = "while" Expression Block
+LoopStatement = "loop" Block
+
+ForStatement = "for" Name "in" ForSource Block
+ForSource = Expression "..<" Expression | Expression
+
+RegionStatement = "region" Name "using" Expression Block
+```
+
+`PostfixExpression` is the common expression production for a primary followed by field, call,
+method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a
+writable place. The place, initialization, borrow, and operator checks happen after parsing. This
+keeps `call() = value` structurally an assignment with one invalid target rather than forcing error
+recovery to invent another expression tree.
+
+`let _ = expression` is the only discard binding. Later validation rejects `var _`, missing type
+information, invalid binding types, assignment to immutable places, assignment to borrowed
+parameter bindings, and compound assignment whose target is not definitely initialized.
+
+The `drop` spelling is contextual only at the beginning of a statement followed by one `Name`.
+Dropping a field, index, call result, or arbitrary expression has no statement production. An
+ordinary call such as `drop(value)` remains an expression using an ordinary name.
+
+`ForSource` gives `..<` a grammar role only in a `for` header. The first alternative is selected
+when that token follows the first expression; no other binary range expression exists. A
+collection source is one ordinary expression, including an explicit `&`, `&+`, or `move` prefix.
+Iteration capability and the rejection of a bare collection are semantic checks.
+
+## Control Expressions and Enum Patterns
+
+```text
+ControlExpression = IfExpression | MatchExpression
+
+IfExpression = "if" IfCondition Block ElseClause?
+IfCondition = Expression ("is" EnumPattern)?
+ElseClause = "else" Block | "else" IfExpression
+
+MatchExpression = "match" Expression
+                  "{" LineSequence(MatchArm) "}"
+
+MatchArm = EnumPattern Block | "_" Block
+
+EnumPattern = Name "." Name EnumPatternPayload?
+EnumPatternPayload = "(" Delimited(PayloadSlot)? ")"
+PayloadSlot = Name | "_"
+```
+
+`is` is recognized only between an `if` target expression and its enum pattern. `_` by itself is
+recognized only as a `match` fallback arm; inside a payload list it consumes exactly one payload
+slot. Nested, literal, named-field, rest, and binding-modifier patterns have no production.
+
+The grammar permits zero match arms and permits a fallback in any source position so the semantic
+checker can issue focused exhaustiveness, duplicate-arm, empty-match, and fallback-last
+diagnostics. It likewise recognizes any qualified names and payload arity before resolution checks
+that they select the target enum and exact variant payload.
+
+An `if`, `if is`, or `match` has one expression node whether it appears as a non-final expression
+statement or as a block result. Branch compatibility, missing `else`, exhaustiveness, ownership of
+the pattern target, and payload binding types do not affect parsing.

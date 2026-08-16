@@ -8,14 +8,12 @@ binary behavior, or implementation document may be used to answer a language-des
 
 ## Immediate Work
 
-1. Consolidate blocks, bindings, control flow, patterns, and body-result positions into
-   `spec/25-syntactic-grammar.md`.
-2. Consolidate the complete precedence expression grammar, construction, literals, closures, and
+1. Consolidate the complete precedence expression grammar, construction, literals, closures, and
    outcome elimination into the same chapter.
-3. Replace remaining duplicate formal productions with links to that sole grammar owner.
-4. Audit contextual keywords and add valid, boundary, and invalid conformance cases derived only
+2. Replace remaining duplicate formal productions with links to that sole grammar owner.
+3. Audit contextual keywords and add valid, boundary, and invalid conformance cases derived only
    from the closed grammar.
-5. Scaffold the source/syntax compiler workspace only after the grammar gate is complete.
+4. Scaffold the source/syntax compiler workspace only after the grammar gate is complete.
 
 ## Guardrails
 

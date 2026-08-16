@@ -975,13 +975,8 @@ match error {
 }
 ```
 
-Enum patterns are shallow and positional:
-
-```text
-EnumPattern = EnumName "." VariantName
-            | EnumName "." VariantName "(" DelimitedList(PayloadSlot) ")"
-PayloadSlot = identifier | "_"
-```
+Enum patterns are shallow and positional. Their source form is centralized under
+[Control Expressions and Enum Patterns](25-syntactic-grammar.md#control-expressions-and-enum-patterns).
 
 The payload list uses the common comma-delimited-list grammar. A payloadless variant uses the first
 form. A payload-bearing variant uses the second form and supplies exactly one slot for every

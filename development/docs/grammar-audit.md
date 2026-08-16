@@ -55,8 +55,8 @@ recognized by one production.
    [`spec/25-syntactic-grammar.md`](../../spec/25-syntactic-grammar.md).
 2. **Complete:** define the complete type, generic, requirement, and result-contract grammar in
    that same normative chapter.
-3. Define blocks, block imports, bindings, assignment, control flow, patterns, and body-result
-   positions.
+3. **Complete:** define blocks, block imports, bindings, assignment, control flow, patterns, and
+   body-result positions.
 4. Define expressions from postfix forms through binary precedence, outcome elimination,
    assignment exclusion, closures, construction, and literals.
 5. Replace scattered formal productions with links to the canonical owner while preserving each

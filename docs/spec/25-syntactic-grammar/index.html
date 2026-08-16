@@ -157,7 +157,7 @@
                 <span class="markdown-path-text">/spec/25-syntactic-grammar.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="syntactic-grammar">Syntactic Grammar</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><p>This chapter is the normative recognition grammar for the source forms whose productions it defines. The <a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a> owns token formation, comments, newline tokens, and the common comma-delimited-list rule. Topical chapters own name resolution, visibility reachability, typing, ownership, evaluation, and container-specific validity after a source form has been recognized.</p><p><code>Block</code> and <code>Expression</code> are referenced here but remain defined by the control-flow and expression chapters until their productions are consolidated into this chapter. A referenced production is not an invitation for a compiler to infer syntax from examples: only an explicit rule in the linked chapter may recognize it.</p><h2 id="notation">Notation</h2><p>Productions use this notation:</p><pre><code class="language-text">Name        = one production
+                <h1 id="syntactic-grammar">Syntactic Grammar</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><p>This chapter is the normative recognition grammar for the source forms whose productions it defines. The <a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a> owns token formation, comments, newline tokens, and the common comma-delimited-list rule. Topical chapters own name resolution, visibility reachability, typing, ownership, evaluation, and container-specific validity after a source form has been recognized.</p><p><code>Expression</code> is referenced here but remains defined by the expression chapters until its productions are consolidated into this chapter. A referenced production is not an invitation for a compiler to infer syntax from examples: only an explicit rule in the linked chapter may recognize it.</p><h2 id="notation">Notation</h2><p>Productions use this notation:</p><pre><code class="language-text">Name        = one production
 "token"     = one exact token spelling
 X?          = zero or one X
 X*          = zero or more X
@@ -416,7 +416,61 @@ CoercionPredicate = ("&amp;" | "&amp;+") Type "as" Type
 
 ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
 ExpansionRequirementSource = Type | "&amp;" Type | "&amp;+" Type
-</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p>
+</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p><h2 id="blocks-and-body-results">Blocks and Body Results</h2><pre><code class="language-text">Block = "{" newline*
+        (BlockUseSequence (newline+ ExecutableSequence)? | ExecutableSequence)?
+        newline* "}"
+
+BlockUseSequence = BlockUseDeclaration (newline+ BlockUseDeclaration)*
+BlockUseDeclaration = "use" UseTree
+
+ExecutableSequence = Executable (newline+ Executable)*
+Executable = Statement | Expression
+</code></pre><p>Block imports form one prefix and cannot use visibility. A <code>use</code> after the first executable is a syntax error, even inside a branch whose execution would not reach it.</p><p>The final <code>Expression</code> in an <code>ExecutableSequence</code> is the block's body result. Every earlier <code>Expression</code> is an expression statement. This classification depends only on source position and does not change after typing; semantic validation requires each non-final expression statement to have type <code>void</code> or <code>never</code>. A trailing newline before <code>}</code> does not turn a final expression into a non-final statement.</p><p>A block with no final expression has the normal completion type <code>void</code> unless reachability proves that every path terminates. There is no semicolon syntax for suppressing or creating a body result. <code>let _ = expression</code> is the explicit value-discard statement.</p><h2 id="statements">Statements</h2><pre><code class="language-text">Statement = BindingStatement
+          | AssignmentStatement
+          | ReturnStatement
+          | BreakStatement
+          | ContinueStatement
+          | DropStatement
+          | WhileStatement
+          | LoopStatement
+          | ForStatement
+          | RegionStatement
+
+BindingStatement = ("let" | "var") BindingTarget TypeAnnotation? "=" Expression
+BindingTarget = Name | "_"
+TypeAnnotation = ":" Type
+
+AssignmentStatement = AssignmentTarget AssignmentOperator Expression
+AssignmentOperator = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+AssignmentTarget = PostfixExpression
+
+ReturnStatement = "return" Expression?
+BreakStatement = "break"
+ContinueStatement = "continue"
+DropStatement = "drop" Name
+
+WhileStatement = "while" Expression Block
+LoopStatement = "loop" Block
+
+ForStatement = "for" Name "in" ForSource Block
+ForSource = Expression "..&lt;" Expression | Expression
+
+RegionStatement = "region" Name "using" Expression Block
+</code></pre><p><code>PostfixExpression</code> is the common expression production for a primary followed by field, call, method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a writable place. The place, initialization, borrow, and operator checks happen after parsing. This keeps <code>call() = value</code> structurally an assignment with one invalid target rather than forcing error recovery to invent another expression tree.</p><p><code>let _ = expression</code> is the only discard binding. Later validation rejects <code>var _</code>, missing type information, invalid binding types, assignment to immutable places, assignment to borrowed parameter bindings, and compound assignment whose target is not definitely initialized.</p><p>The <code>drop</code> spelling is contextual only at the beginning of a statement followed by one <code>Name</code>. Dropping a field, index, call result, or arbitrary expression has no statement production. An ordinary call such as <code>drop(value)</code> remains an expression using an ordinary name.</p><p><code>ForSource</code> gives <code>..&lt;</code> a grammar role only in a <code>for</code> header. The first alternative is selected when that token follows the first expression; no other binary range expression exists. A collection source is one ordinary expression, including an explicit <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> prefix. Iteration capability and the rejection of a bare collection are semantic checks.</p><h2 id="control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</h2><pre><code class="language-text">ControlExpression = IfExpression | MatchExpression
+
+IfExpression = "if" IfCondition Block ElseClause?
+IfCondition = Expression ("is" EnumPattern)?
+ElseClause = "else" Block | "else" IfExpression
+
+MatchExpression = "match" Expression
+                  "{" LineSequence(MatchArm) "}"
+
+MatchArm = EnumPattern Block | "_" Block
+
+EnumPattern = Name "." Name EnumPatternPayload?
+EnumPatternPayload = "(" Delimited(PayloadSlot)? ")"
+PayloadSlot = Name | "_"
+</code></pre><p><code>is</code> is recognized only between an <code>if</code> target expression and its enum pattern. <code>_</code> by itself is recognized only as a <code>match</code> fallback arm; inside a payload list it consumes exactly one payload slot. Nested, literal, named-field, rest, and binding-modifier patterns have no production.</p><p>The grammar permits zero match arms and permits a fallback in any source position so the semantic checker can issue focused exhaustiveness, duplicate-arm, empty-match, and fallback-last diagnostics. It likewise recognizes any qualified names and payload arity before resolution checks that they select the target enum and exact variant payload.</p><p>An <code>if</code>, <code>if is</code>, or <code>match</code> has one expression node whether it appears as a non-final expression statement or as a block result. Branch compatibility, missing <code>else</code>, exhaustiveness, ownership of the pattern target, and payload binding types do not affect parsing.</p>
             </div>
         </main>
     </div>

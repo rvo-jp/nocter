@@ -501,10 +501,7 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
         <span class="token-operator">...</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
-</code></pre><p>Enum patterns are shallow and positional:</p><pre><code class="language-text">EnumPattern = EnumName "." VariantName
-            | EnumName "." VariantName "(" DelimitedList(PayloadSlot) ")"
-PayloadSlot = identifier | "_"
-</code></pre><p>The payload list uses the common comma-delimited-list grammar. A payloadless variant uses the first form. A payload-bearing variant uses the second form and supplies exactly one slot for every declared payload field.</p><pre><code class="language-nct"><span class="token-keyword">enum</span> <span class="token-type">Pair</span> <span class="token-operator">{</span>
+</code></pre><p>Enum patterns are shallow and positional. Their source form is centralized under <a href="../25-syntactic-grammar/index.html#control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</a>.</p><p>The payload list uses the common comma-delimited-list grammar. A payloadless variant uses the first form. A payload-bearing variant uses the second form and supplies exactly one slot for every declared payload field.</p><pre><code class="language-nct"><span class="token-keyword">enum</span> <span class="token-type">Pair</span> <span class="token-operator">{</span>
     <span class="token-function">values</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
