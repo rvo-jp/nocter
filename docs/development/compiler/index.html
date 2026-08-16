@@ -201,7 +201,9 @@
   expansion retain semantic IDs and bound types only. Their normalized forms use the same type
   evaluator, so capability and predicate types cannot diverge from declaration types. Structural
   callable parameter spellings disappear after named origin candidates become canonical parameter
-  positions. The parser now represents mandatory
+  positions. Opaque results use a dedicated binding path for their interface application,
+  associated bindings, captured generic identities, outcome layers, and canonical opaque type;
+  they do not become a callable-header exception. The parser now represents mandatory
   interface-member <code>pub</code> with the same <code>Visibility</code> node used by every other declaration, so this
   boundary requires no interface-specific visibility recovery. Declaration-surface traversal is
   non-recursive, keeping the complete boundary safe for the parser's 5,000-layer type contract.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>The next Phase 2 increment will define every declaration arena slot from the canonical type graph, then discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns checked body semantics.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>

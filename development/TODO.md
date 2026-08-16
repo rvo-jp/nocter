@@ -12,7 +12,8 @@ behavior, or implementation document may be used as an implementation input.
    requirements from the completed canonical type graph, then freeze the declaration program and
    separate `SourceIndex`. Generic alias substitution, recursive-alias rejection, canonical
    `Self`, exact associated identities, normalized declaration patterns/capabilities/requirements,
-   callable-type origin elision, and non-recursive 5,000-layer type lowering are complete.
+   callable-type origin elision, opaque result identities/interfaces/associated bindings, every
+   specialized callable result shape, and non-recursive 5,000-layer type lowering are complete.
 2. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
    permutation tests for the complete lowering result.
 

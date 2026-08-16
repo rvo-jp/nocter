@@ -48,6 +48,27 @@ pub(super) fn generic(
     Ok(())
 }
 
+pub(super) fn associated(
+    namespaces: &mut PreparedNamespaces<'_>,
+    tree: &SyntaxTree,
+    associated: nocter_model::AssociatedTypeId,
+    token: SyntaxToken,
+) -> Result<(), TypeBindingError> {
+    namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_index
+        .insert(
+            SemanticEntity::AssociatedType(associated),
+            SourceRole::Reference,
+            SourceOrigin::from_token(tree, token)
+                .map_err(|_| TypeBindingError::InconsistentSource(tree.source()))?,
+        )?;
+    Ok(())
+}
+
 const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {
     match entity {
         ExportedEntity::Module(id) => SemanticEntity::Module(id),

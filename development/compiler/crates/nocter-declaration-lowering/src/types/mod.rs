@@ -2,9 +2,11 @@ mod capability;
 mod context;
 mod names;
 mod normalization;
+mod opaque;
 mod pattern;
 mod projection;
 mod requirements;
+mod results;
 mod syntax;
 
 use std::collections::{HashMap, HashSet};
@@ -12,8 +14,8 @@ use std::fmt;
 
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, GenericParameterId, InterfaceId,
-    NominalTypeId, ParameterOrigin, Symbol, TypeAliasId,
+    AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, GenericParameterId,
+    InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol, TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_source_index::DuplicateSourceBinding;
@@ -69,7 +71,8 @@ impl BoundCallableType {
 }
 
 pub use normalization::{
-    NormalizedDeclarationPattern, PreparedTypes, TypeNormalizationError, normalize_header_types,
+    NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypes, TypeNormalizationError,
+    normalize_header_types,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -89,6 +92,10 @@ pub enum BoundTypeKind {
     SelfType(ReservedEntity),
     Nominal {
         definition: NominalTypeId,
+        arguments: Box<[BoundTypeId]>,
+    },
+    Opaque {
+        definition: OpaqueTypeId,
         arguments: Box<[BoundTypeId]>,
     },
     Alias {
@@ -112,6 +119,15 @@ pub enum BoundTypeKind {
     Callable(BoundCallableType),
     Optional(BoundTypeId),
     Fallible(BoundTypeId),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BoundOpaqueResult {
+    generic_parameters: Box<[GenericParameterId]>,
+    interface: InterfaceId,
+    arguments: Box<[BoundTypeId]>,
+    associated_types: Box<[(AssociatedTypeId, BoundTypeId)]>,
+    result: BoundTypeId,
 }
 
 /// A declaration target pattern after its type head and binder occurrences are resolved.
@@ -179,6 +195,7 @@ pub enum TypeBindingError {
     DuplicateCallableParameter(NodeId),
     UnknownProvenanceOrigin(NodeId),
     DuplicateProvenanceOrigin(NodeId),
+    DuplicateOpaqueBinding(NodeId),
     InvalidRequirement(NodeId),
     RecursiveBinderRefinement(NodeId),
     InconsistentSource(SourceId),
@@ -220,6 +237,12 @@ impl fmt::Display for TypeBindingError {
             Self::DuplicateProvenanceOrigin(node) => {
                 write!(formatter, "callable type {node:?} repeats a result origin")
             }
+            Self::DuplicateOpaqueBinding(node) => {
+                write!(
+                    formatter,
+                    "opaque result {node:?} repeats an associated binding"
+                )
+            }
             Self::InvalidRequirement(node) => {
                 write!(
                     formatter,
@@ -257,6 +280,8 @@ pub struct PreparedTypeBindings<'syntax> {
     patterns: Box<[Box<[BoundDeclarationPattern]>]>,
     capabilities: HashMap<NodeId, BoundCapability>,
     capability_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    opaque_results: HashMap<OpaqueTypeId, BoundOpaqueResult>,
+    callable_results: Box<[Option<BoundTypeId>]>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
 }
 
@@ -321,6 +346,7 @@ impl PreparedTypeBindings<'_> {
 /// Returns [`TypeBindingError`] for unknown or non-type names, inaccessible selections, invalid
 /// arity, invalid `Self`, malformed fixed-array lengths or callable provenance, inconsistent source
 /// projection, or duplicate source bindings.
+#[allow(clippy::too_many_lines)]
 pub fn bind_header_type_syntax(
     mut namespaces: PreparedNamespaces<'_>,
 ) -> Result<PreparedTypeBindings<'_>, TypeBindingError> {
@@ -412,6 +438,13 @@ pub fn bind_header_type_syntax(
         );
     }
 
+    let (opaque_results, callable_results) = results::bind_all(
+        &mut namespaces,
+        &mut kinds,
+        &mut roots,
+        &mut root_declarations,
+    )?;
+
     Ok(PreparedTypeBindings {
         namespaces,
         kinds: kinds.into_boxed_slice(),
@@ -421,6 +454,8 @@ pub fn bind_header_type_syntax(
         patterns: patterns.into_boxed_slice(),
         capabilities,
         capability_declarations,
+        opaque_results,
+        callable_results,
         requirements: requirements.into_boxed_slice(),
     })
 }

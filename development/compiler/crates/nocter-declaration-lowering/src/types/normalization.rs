@@ -2,10 +2,11 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use nocter_declarations::{
-    InterfaceApplication, RequirementKind, RequirementSubject, StructuralCapability,
+    AssociatedTypeBinding, InterfaceApplication, RequirementKind, RequirementSubject,
+    StructuralCapability,
 };
 use nocter_model::{
-    AssociatedTypeId, BuiltinType, CallableContract, GenericParameterId, InterfaceId,
+    AssociatedTypeId, BuiltinType, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
     ParameterOrigin, ResultProvenance, Symbol, TypeAliasId, TypeId, TypeKind, TypeStore,
 };
 use nocter_syntax::NodeId;
@@ -13,7 +14,8 @@ use nocter_syntax::NodeId;
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId};
 
 use super::{
-    BoundCapability, BoundRequirementKind, BoundTypeId, BoundTypeKind, PreparedTypeBindings,
+    BoundCapability, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
+    PreparedTypeBindings,
 };
 
 mod preparation;
@@ -24,6 +26,36 @@ use preparation::prepare_context;
 pub enum NormalizedDeclarationPattern {
     Type(TypeId),
     Interface(InterfaceApplication),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NormalizedOpaqueResult {
+    generic_parameters: Box<[GenericParameterId]>,
+    interface: InterfaceApplication,
+    associated_types: Box<[AssociatedTypeBinding]>,
+    result: TypeId,
+}
+
+impl NormalizedOpaqueResult {
+    #[must_use]
+    pub const fn generic_parameters(&self) -> &[GenericParameterId] {
+        &self.generic_parameters
+    }
+
+    #[must_use]
+    pub const fn interface(&self) -> &InterfaceApplication {
+        &self.interface
+    }
+
+    #[must_use]
+    pub const fn associated_types(&self) -> &[AssociatedTypeBinding] {
+        &self.associated_types
+    }
+
+    #[must_use]
+    pub const fn result(&self) -> TypeId {
+        self.result
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,6 +118,8 @@ pub struct PreparedTypes<'syntax> {
     alias_targets: HashMap<TypeAliasId, TypeId>,
     patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
     capabilities: HashMap<NodeId, StructuralCapability>,
+    opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
+    callable_results: Box<[Option<TypeId>]>,
     requirements: Box<[Box<[RequirementKind]>]>,
 }
 
@@ -116,6 +150,19 @@ impl PreparedTypes<'_> {
     #[must_use]
     pub fn capability_for(&self, node: NodeId) -> Option<&StructuralCapability> {
         self.capabilities.get(&node)
+    }
+
+    #[must_use]
+    pub fn opaque_result(&self, opaque: OpaqueTypeId) -> Option<&NormalizedOpaqueResult> {
+        self.opaque_results.get(&opaque)
+    }
+
+    #[must_use]
+    pub fn callable_result(&self, declaration: SurfaceDeclarationId) -> Option<TypeId> {
+        self.callable_results
+            .get(declaration.index())
+            .copied()
+            .flatten()
     }
 
     #[must_use]
@@ -372,6 +419,13 @@ impl Evaluator<'_> {
                 definition,
                 arguments: self.results(&key, &arguments)?,
             },
+            BoundTypeKind::Opaque {
+                definition,
+                arguments,
+            } => TypeKind::Opaque {
+                definition,
+                arguments: self.results(&key, &arguments)?,
+            },
             BoundTypeKind::AssociatedSelection { base, name } => {
                 let base = self.result(&key, base)?;
                 let associated = self.resolve_associated(key.declaration, base, name)?;
@@ -620,7 +674,9 @@ impl Evaluator<'_> {
 
 fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey> {
     let children: Vec<_> = match kind {
-        BoundTypeKind::Nominal { arguments, .. } => arguments.to_vec(),
+        BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Opaque { arguments, .. } => {
+            arguments.to_vec()
+        }
         BoundTypeKind::AssociatedSelection { base, .. }
         | BoundTypeKind::Pointer(base)
         | BoundTypeKind::Borrow { referent: base, .. }
@@ -722,6 +778,8 @@ pub fn normalize_header_types(
         patterns: bound_patterns,
         capabilities: bound_capabilities,
         capability_declarations,
+        opaque_results: bound_opaque_results,
+        callable_results: bound_callable_results,
         requirements: bound_requirements,
     } = bindings;
     let context = prepare_context(
@@ -781,6 +839,18 @@ pub fn normalize_header_types(
         );
     }
 
+    let callable_results = bound_callable_results
+        .iter()
+        .enumerate()
+        .map(|(index, result)| {
+            result
+                .map(|result| evaluator.normalize(result, SurfaceDeclarationId::from_index(index)))
+                .transpose()
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_boxed_slice();
+    let opaque_results = normalize_opaque_results(&mut evaluator, &bound_opaque_results)?;
+
     let mut requirements = Vec::with_capacity(context.bound_requirements.len());
     for (index, bound) in context.bound_requirements.iter().enumerate() {
         let declaration = SurfaceDeclarationId::from_index(index);
@@ -799,8 +869,61 @@ pub fn normalize_header_types(
         alias_targets,
         patterns: context.patterns.clone(),
         capabilities,
+        opaque_results,
+        callable_results,
         requirements: requirements.into_boxed_slice(),
     })
+}
+
+fn normalize_opaque_results(
+    evaluator: &mut Evaluator<'_>,
+    bound: &HashMap<OpaqueTypeId, BoundOpaqueResult>,
+) -> Result<HashMap<OpaqueTypeId, NormalizedOpaqueResult>, TypeNormalizationError> {
+    let mut ordered: Vec<_> = bound.iter().collect();
+    ordered.sort_by_key(|(opaque, _)| {
+        evaluator
+            .context
+            .entities
+            .iter()
+            .position(|entity| *entity == Some(ReservedEntity::OpaqueType(**opaque)))
+            .unwrap_or(usize::MAX)
+    });
+    let mut normalized = HashMap::with_capacity(ordered.len());
+    for (opaque, result) in ordered {
+        let declaration = evaluator
+            .context
+            .entities
+            .iter()
+            .position(|entity| *entity == Some(ReservedEntity::OpaqueType(*opaque)))
+            .map(SurfaceDeclarationId::from_index)
+            .ok_or(TypeNormalizationError::InvalidSelf(
+                ReservedEntity::OpaqueType(*opaque),
+            ))?;
+        let arguments = result
+            .arguments
+            .iter()
+            .map(|argument| evaluator.normalize(*argument, declaration))
+            .collect::<Result<Vec<_>, _>>()?;
+        let associated_types = result
+            .associated_types
+            .iter()
+            .map(|(associated, ty)| {
+                evaluator
+                    .normalize(*ty, declaration)
+                    .map(|ty| AssociatedTypeBinding::new(*associated, ty))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        normalized.insert(
+            *opaque,
+            NormalizedOpaqueResult {
+                generic_parameters: result.generic_parameters.clone(),
+                interface: InterfaceApplication::new(result.interface, arguments),
+                associated_types: associated_types.into_boxed_slice(),
+                result: evaluator.normalize(result.result, declaration)?,
+            },
+        );
+    }
+    Ok(normalized)
 }
 
 fn normalize_capability(

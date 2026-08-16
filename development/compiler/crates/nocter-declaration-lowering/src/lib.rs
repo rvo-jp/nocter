@@ -41,6 +41,7 @@ pub use surface::{
 pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};
 pub use types::{
     BoundCallableType, BoundCapability, BoundDeclarationPattern, BoundRequirementKind, BoundTypeId,
-    BoundTypeKind, NormalizedDeclarationPattern, PreparedTypeBindings, PreparedTypes,
-    TypeBindingError, TypeNormalizationError, bind_header_type_syntax, normalize_header_types,
+    BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypeBindings,
+    PreparedTypes, TypeBindingError, TypeNormalizationError, bind_header_type_syntax,
+    normalize_header_types,
 };

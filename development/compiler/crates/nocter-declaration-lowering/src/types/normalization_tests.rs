@@ -252,3 +252,61 @@ fn normalization_is_non_recursive_for_deep_prefix_types() {
             .is_some()
     );
 }
+
+#[test]
+fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "interface Source<T> { pub type Item }\n",
+            "func values<T>(): some Source<T, Item = &T>?! { return }\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+    let store = normalized
+        .namespaces()
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+    let result = normalized
+        .callable_result(crate::SurfaceDeclarationId::from_index(2))
+        .expect("function has a result");
+    let Some(TypeKind::Fallible(optional)) = store.get(result) else {
+        panic!("expected fallible opaque result");
+    };
+    let Some(TypeKind::Optional(opaque)) = store.get(*optional) else {
+        panic!("expected optional opaque result");
+    };
+    let Some(TypeKind::Opaque {
+        definition,
+        arguments,
+    }) = store.get(*opaque)
+    else {
+        panic!("expected opaque identity");
+    };
+    let contract = normalized
+        .opaque_result(*definition)
+        .expect("opaque result contract exists");
+
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(contract.generic_parameters().len(), 1);
+    assert_eq!(contract.interface().arguments(), arguments.as_ref());
+    assert_eq!(contract.associated_types().len(), 1);
+    assert_eq!(contract.result(), result);
+    assert!(matches!(
+        store.get(contract.associated_types()[0].ty()),
+        Some(TypeKind::Borrow { .. })
+    ));
+}

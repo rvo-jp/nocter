@@ -311,7 +311,9 @@ fn contains_generic(
     while let Some(current) = pending.pop() {
         match &kinds[current.index()] {
             BoundTypeKind::GenericParameter(candidate) if *candidate == parameter => return true,
-            BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Alias { arguments, .. } => {
+            BoundTypeKind::Nominal { arguments, .. }
+            | BoundTypeKind::Opaque { arguments, .. }
+            | BoundTypeKind::Alias { arguments, .. } => {
                 pending.extend(arguments.iter().copied());
             }
             BoundTypeKind::AssociatedSelection { base, .. }
