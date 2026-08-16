@@ -71,10 +71,17 @@ Source-backed module-surface diagnostics:
 
 Source-backed namespace diagnostics:
 
-- `E0240`: a declaration uses a name reserved for a built-in type.
+- `E0240`: a declaration name or import alias uses a name reserved for a built-in type.
 - `E0241`: declarations or imports introduce the same name more than once in one namespace.
 - `E0242`: an authored visibility boundary uses more `../` components than its declaring module
   has ancestors.
+
+Source-backed import diagnostics:
+
+- `E0260`: a selected import name does not exist in the target module.
+- `E0261`: a re-export visibility boundary is wider than the selected name's visibility boundary.
+- `E0412`: a selected import name is outside its declared visibility boundary from the importing
+  module.
 
 Source-backed callable contract diagnostics:
 

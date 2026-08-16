@@ -1,22 +1,22 @@
 use std::fmt;
 
 use crate::{
-    CompileUnitInput, NamespaceRule, NamespaceViolation, SourceDiagnostic,
+    CompileUnitInput, ImportRule, ImportViolation, SourceDiagnostic,
     diagnostic::project_syntax_diagnostic,
 };
 
-/// One namespace rule projected to exact source syntax.
+/// One import rule projected to exact source syntax.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NamespaceDiagnostic {
-    rule: NamespaceRule,
+pub struct ImportDiagnostic {
+    rule: ImportRule,
     source: Box<SourceDiagnostic>,
 }
 
-impl NamespaceDiagnostic {
+impl ImportDiagnostic {
     pub(crate) fn project(
-        violation: NamespaceViolation,
+        violation: ImportViolation,
         input: &CompileUnitInput<'_>,
-    ) -> Result<Self, NamespaceViolation> {
+    ) -> Result<Self, ImportViolation> {
         let rule = violation.rule();
         let source = project_syntax_diagnostic(
             input,
@@ -35,7 +35,7 @@ impl NamespaceDiagnostic {
     }
 
     #[must_use]
-    pub const fn rule(&self) -> NamespaceRule {
+    pub const fn rule(&self) -> ImportRule {
         self.rule
     }
 
@@ -45,7 +45,7 @@ impl NamespaceDiagnostic {
     }
 }
 
-impl fmt::Display for NamespaceDiagnostic {
+impl fmt::Display for ImportDiagnostic {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -56,4 +56,4 @@ impl fmt::Display for NamespaceDiagnostic {
     }
 }
 
-impl std::error::Error for NamespaceDiagnostic {}
+impl std::error::Error for ImportDiagnostic {}

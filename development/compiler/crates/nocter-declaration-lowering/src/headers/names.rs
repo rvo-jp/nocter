@@ -43,9 +43,7 @@ fn resolve_name(
         .text_at(token.range())
         .ok_or(HeaderError::InconsistentSource(token.source()))?;
     if spelling == "Self" {
-        return Err(
-            NamespaceViolation::reserved_declaration_name(SyntaxOrigin::Token(token)).into(),
-        );
+        return Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into());
     }
     reserved
         .program
@@ -118,10 +116,7 @@ fn reject_builtin_name(
         .spelling(name)
         .ok_or(HeaderError::MissingName(declaration))?;
     if nocter_syntax::BuiltinType::from_spelling(spelling).is_some() {
-        Err(
-            NamespaceViolation::reserved_declaration_name(name_origin(reserved, declaration)?)
-                .into(),
-        )
+        Err(NamespaceViolation::reserved_name(name_origin(reserved, declaration)?).into())
     } else {
         Ok(())
     }

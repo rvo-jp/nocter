@@ -2,12 +2,12 @@ use std::fmt;
 
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericError,
-    HeaderDefinitionError, HeaderError, ImportError, LoweredDeclarations, ModuleIdentity,
-    NamespaceDiagnostic, PreludeError, ReservationError, SourceDiagnostic, SurfaceDiagnostic,
-    SurfaceError, TypeBindingError, TypeNormalizationError, analyze_callable_contracts,
-    apply_standard_prelude, bind_header_type_syntax, collect_declaration_surface,
-    define_declaration_headers, normalize_header_types, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders,
+    HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
+    ModuleIdentity, NamespaceDiagnostic, PreludeError, ReservationError, SourceDiagnostic,
+    SurfaceDiagnostic, SurfaceError, TypeBindingError, TypeNormalizationError,
+    analyze_callable_contracts, apply_standard_prelude, bind_header_type_syntax,
+    collect_declaration_surface, define_declaration_headers, normalize_header_types,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -20,7 +20,8 @@ pub enum DeclarationLoweringError {
     Namespace(NamespaceDiagnostic),
     InternalHeader(HeaderError),
     Generic(GenericError),
-    Import(ImportError),
+    Import(ImportDiagnostic),
+    InternalImport(ImportError),
     Prelude(PreludeError),
     TypeBinding(TypeBindingError),
     TypeNormalization(TypeNormalizationError),
@@ -38,13 +39,14 @@ impl DeclarationLoweringError {
             Self::Surface(diagnostic) => Some(diagnostic.source()),
             Self::CallableContract(diagnostic) => Some(diagnostic.source()),
             Self::Namespace(diagnostic) => Some(diagnostic.source()),
+            Self::Import(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
             | Self::InternalHeader(_)
             | Self::Generic(_)
-            | Self::Import(_)
+            | Self::InternalImport(_)
             | Self::Prelude(_)
             | Self::TypeBinding(_)
             | Self::TypeNormalization(_) => None,
@@ -64,6 +66,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::InternalHeader(error) => error.fmt(formatter),
             Self::Generic(error) => error.fmt(formatter),
             Self::Import(error) => error.fmt(formatter),
+            Self::InternalImport(error) => error.fmt(formatter),
             Self::Prelude(error) => error.fmt(formatter),
             Self::TypeBinding(error) => error.fmt(formatter),
             Self::TypeNormalization(error) => error.fmt(formatter),
@@ -121,7 +124,26 @@ pub fn lower_compile_unit_declarations(
         Err(internal) => return Err(DeclarationLoweringError::InternalHeader(internal)),
     };
     let generics = prepare_generic_binders(headers).map_err(DeclarationLoweringError::Generic)?;
-    let imports = prepare_authored_imports(generics).map_err(DeclarationLoweringError::Import)?;
+    let imports = match prepare_authored_imports(generics) {
+        Ok(imports) => imports,
+        Err(ImportError::Namespace(violation)) => {
+            return match NamespaceDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Namespace(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalImport(
+                    ImportError::Namespace(internal),
+                )),
+            };
+        }
+        Err(ImportError::Rule(violation)) => {
+            return match ImportDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Import(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalImport(ImportError::Rule(
+                    internal,
+                ))),
+            };
+        }
+        Err(internal) => return Err(DeclarationLoweringError::InternalImport(internal)),
+    };
     let namespaces =
         apply_standard_prelude(imports, prelude).map_err(DeclarationLoweringError::Prelude)?;
     let bound =
@@ -136,11 +158,12 @@ mod tests {
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-    use crate::test_support::source_use;
+    use crate::test_support::{module_use, source_use};
     use crate::{
-        CallableContractRule, CompileUnitInput, DeclarationLoweringError, ModuleIdentity,
-        ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule, PackageDeclarationInput,
-        PackageIdentity, PackageInput, PackageMode, lower_compile_unit_declarations,
+        CallableContractRule, CompileUnitInput, DeclarationLoweringError, ImportRule,
+        ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
+        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+        lower_compile_unit_declarations,
     };
 
     #[test]
@@ -268,7 +291,7 @@ mod tests {
             panic!("reserved name did not produce a namespace diagnostic");
         };
 
-        assert_eq!(diagnostic.rule(), NamespaceRule::ReservedDeclarationName);
+        assert_eq!(diagnostic.rule(), NamespaceRule::ReservedName);
         assert_eq!(diagnostic.source().code(), "E0240");
         assert_eq!(diagnostic.source().primary().source(), root_id);
         assert!(diagnostic.source().primary().token().is_some());
@@ -320,6 +343,161 @@ mod tests {
         assert_eq!(diagnostic.source().code(), "E0242");
         assert_eq!(diagnostic.source().primary().source(), child_id);
         assert!(diagnostic.source().primary().node().is_some());
+    }
+
+    #[test]
+    fn production_pipeline_projects_import_access_with_its_declaration() {
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", "use dep.Hidden\n");
+        let dependency_id = add_source(&mut sources, "/dep/index.nct", "struct Hidden {}\n");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let dependency_manifest =
+            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let dependency_identity =
+            ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package(
+                    "resolved:dep",
+                    "dep",
+                    "/dep/nocter.nct",
+                    &dependency_manifest,
+                ),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &app),
+                module("resolved:dep", &[], "/dep/index.nct", &dependency),
+            ],
+            vec![module_use(&app, 0, dependency_identity)],
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Import(diagnostic) = error else {
+            panic!("inaccessible import did not produce an import diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), ImportRule::InaccessibleImportedName);
+        assert_eq!(diagnostic.source().code(), "E0412");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(
+            diagnostic.source().notes()[0].origin().source(),
+            dependency_id
+        );
+        assert!(diagnostic.source().notes()[0].origin().token().is_some());
+    }
+
+    #[test]
+    fn production_pipeline_projects_missing_imported_names() {
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_id = add_source(&mut sources, "/app/index.nct", "use dep.Missing\n");
+        let dependency_id = add_source(&mut sources, "/dep/index.nct", "pub struct Present {}\n");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let dependency_manifest =
+            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let dependency_identity =
+            ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package(
+                    "resolved:dep",
+                    "dep",
+                    "/dep/nocter.nct",
+                    &dependency_manifest,
+                ),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &app),
+                module("resolved:dep", &[], "/dep/index.nct", &dependency),
+            ],
+            vec![module_use(&app, 0, dependency_identity)],
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Import(diagnostic) = error else {
+            panic!("missing name did not produce an import diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), ImportRule::MissingImportedName);
+        assert_eq!(diagnostic.source().code(), "E0260");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert!(diagnostic.source().notes().is_empty());
+    }
+
+    #[test]
+    fn import_collisions_reuse_the_namespace_diagnostic() {
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "use dep.Value as Item\n\nstruct Item {}\n",
+        );
+        let dependency_id = add_source(&mut sources, "/dep/index.nct", "pub struct Value {}\n");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let dependency_manifest =
+            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let dependency_identity =
+            ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package(
+                    "resolved:dep",
+                    "dep",
+                    "/dep/nocter.nct",
+                    &dependency_manifest,
+                ),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &app),
+                module("resolved:dep", &[], "/dep/index.nct", &dependency),
+            ],
+            vec![module_use(&app, 0, dependency_identity)],
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Namespace(diagnostic) = error else {
+            panic!("import collision did not produce a namespace diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), NamespaceRule::NameCollision);
+        assert_eq!(diagnostic.source().code(), "E0241");
+        assert_eq!(diagnostic.source().primary().source(), app_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(diagnostic.source().notes()[0].origin().source(), app_id);
+        assert!(diagnostic.source().notes()[0].origin().token().is_some());
     }
 
     #[test]

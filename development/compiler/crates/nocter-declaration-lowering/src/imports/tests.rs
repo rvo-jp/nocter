@@ -210,7 +210,11 @@ fn imported_names_cannot_collide_with_module_declarations() {
     )
     .unwrap_err();
 
-    assert!(matches!(error, ImportError::DuplicateName { .. }));
+    assert!(matches!(
+        error,
+        ImportError::Namespace(violation)
+            if violation.rule() == crate::NamespaceRule::NameCollision
+    ));
 }
 
 #[test]
@@ -257,7 +261,11 @@ fn selected_imports_reject_private_targets() {
     )
     .unwrap_err();
 
-    assert!(matches!(error, ImportError::InaccessibleImportedName(_)));
+    assert!(matches!(
+        error,
+        ImportError::Rule(violation)
+            if violation.rule() == crate::ImportRule::InaccessibleImportedName
+    ));
 }
 
 #[test]
@@ -327,7 +335,18 @@ fn chained_reexports_cannot_widen_a_descendant_boundary() {
     )
     .unwrap_err();
 
-    assert!(matches!(error, ImportError::WideningReexport(_)));
+    let ImportError::Rule(violation) = error else {
+        panic!("widening re-export did not select an import rule");
+    };
+    assert_eq!(violation.rule(), crate::ImportRule::WideningReexport);
+    assert!(matches!(
+        violation.primary(),
+        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == facade_id
+    ));
+    assert!(matches!(
+        violation.related(),
+        Some(nocter_source_index::SyntaxOrigin::Token(token)) if token.source() == core_id
+    ));
 }
 
 #[test]

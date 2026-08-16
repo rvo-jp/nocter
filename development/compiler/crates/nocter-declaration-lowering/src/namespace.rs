@@ -3,7 +3,7 @@ use nocter_source_index::SyntaxOrigin;
 /// Stable source-level rule for names and authored visibility boundaries.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum NamespaceRule {
-    ReservedDeclarationName,
+    ReservedName,
     NameCollision,
     VisibilityAbovePackageRoot,
 }
@@ -12,7 +12,7 @@ impl NamespaceRule {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
-            Self::ReservedDeclarationName => "E0240",
+            Self::ReservedName => "E0240",
             Self::NameCollision => "E0241",
             Self::VisibilityAbovePackageRoot => "E0242",
         }
@@ -21,7 +21,7 @@ impl NamespaceRule {
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
-            Self::ReservedDeclarationName => "declaration name is reserved",
+            Self::ReservedName => "name is reserved and cannot be introduced into this namespace",
             Self::NameCollision => "name is introduced more than once in the same namespace",
             Self::VisibilityAbovePackageRoot => "visibility boundary moves above the package root",
         }
@@ -30,7 +30,7 @@ impl NamespaceRule {
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
-            Self::ReservedDeclarationName => "rename the declaration",
+            Self::ReservedName => "choose a different declaration name or import alias",
             Self::NameCollision => "rename or remove one of the declarations or imports",
             Self::VisibilityAbovePackageRoot => {
                 "use fewer ../ components or use pub(/) for package visibility"
@@ -42,7 +42,7 @@ impl NamespaceRule {
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
             Self::NameCollision => Some("the first introduction of this name is here"),
-            Self::ReservedDeclarationName | Self::VisibilityAbovePackageRoot => None,
+            Self::ReservedName | Self::VisibilityAbovePackageRoot => None,
         }
     }
 }
@@ -57,9 +57,9 @@ pub struct NamespaceViolation {
 
 impl NamespaceViolation {
     #[must_use]
-    pub const fn reserved_declaration_name(name: SyntaxOrigin) -> Self {
+    pub const fn reserved_name(name: SyntaxOrigin) -> Self {
         Self {
-            rule: NamespaceRule::ReservedDeclarationName,
+            rule: NamespaceRule::ReservedName,
             primary: name,
             related: None,
         }

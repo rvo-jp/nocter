@@ -244,6 +244,13 @@ subjects in a `NamespaceViolation` at rule-selection time, before its temporary 
 consumed. Diagnostic projection therefore never searches by rendered name or reevaluates a
 namespace to recover the first declaration.
 
+Authored import resolution consumes that same namespace-rule domain for reserved local names,
+collisions, and visibility boundaries. Every namespace binding records the exact token that
+introduced its local name rather than the enclosing declaration node. Import-specific violations
+record the selected-name token and, for access or widening failures, the target binding's exact
+origin. Missing names, access boundaries, and re-export boundaries are therefore selected once and
+projected without repeating import lookup in a diagnostic adapter.
+
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual
 payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,

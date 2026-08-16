@@ -10,6 +10,7 @@ mod definitions;
 mod diagnostic;
 mod generics;
 mod headers;
+mod import_diagnostic;
 mod imports;
 mod input;
 mod namespace;
@@ -32,9 +33,10 @@ pub use definitions::{DeclarationDiagnostic, HeaderDefinitionError, define_decla
 pub use diagnostic::{DiagnosticNote, SourceDiagnostic};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
+pub use import_diagnostic::ImportDiagnostic;
 pub use imports::{
-    ImportError, PreludeError, PreparedImports, PreparedNamespaces, apply_standard_prelude,
-    prepare_authored_imports,
+    ImportError, ImportRule, ImportViolation, PreludeError, PreparedImports, PreparedNamespaces,
+    apply_standard_prelude, prepare_authored_imports,
 };
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,

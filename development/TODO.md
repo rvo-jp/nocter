@@ -8,12 +8,14 @@ test, binary behavior, or implementation document may be used as an implementati
 
 ## Immediate Work
 
-1. Extend the common source-backed diagnostic envelope from the completed module-surface, callable-
-   contract, namespace-header, and freeze-time declaration rules to generic, import, and type-
+1. Project authored topology failures that precede surface collection, especially invalid source-
+   composition edges and module import cycles. Missing, duplicated, or stale discovery-owned edges
+   remain internal contract failures.
+2. Extend the common source-backed diagnostic envelope from the completed module-surface, callable-
+   contract, namespace, authored-import, and freeze-time declaration rules to generic and type-
    binding passes. Internal consistency faults remain distinct and must not receive user-facing
-   error codes. Import name collisions and visibility boundaries must reuse the existing namespace
-   rules rather than define import-stage equivalents.
-2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
+   error codes.
+3. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
 
 Complete foundations: the lowering boundary now defines every reserved declaration, member,
@@ -30,7 +32,10 @@ stage failures rather than allowing callers to assemble partial pipelines. Autho
 violations project `E0230`-`E0232` directly from their exact syntax subjects; invalid syntax trees
 and inconsistent discovery inputs remain internal pipeline failures. Header preparation records
 exact name tokens and visibility nodes in shared namespace violations before consuming temporary
-surface identities, then projects `E0240`-`E0242` without reverse lookup.
+surface identities, then projects `E0240`-`E0242` without reverse lookup. Authored imports reuse
+those namespace rules and add `E0260`, `E0261`, and `E0412` for missing, widening, and inaccessible
+selected names. Namespace bindings retain exact local-name origins, so collision and access notes
+never expand to a whole `use` declaration.
 
 ## Guardrails
 

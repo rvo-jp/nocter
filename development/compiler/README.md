@@ -134,7 +134,10 @@ be introduced to make an unresolved syntax choice.
   violations; malformed syntax snapshots and incomplete discovery edges stay internal. Name and
   visibility rules retain exact syntax subjects when selected, before temporary surface identities
   are consumed. The shared namespace rule domain prevents declaration and import collisions from
-  acquiring stage-specific codes or messages.
+  acquiring stage-specific codes or messages. Import namespaces retain the exact declaration name,
+  selected name, or alias token that introduced each binding. Missing selections, inaccessible
+  names, and widening re-exports preserve their source subject and the target declaration before
+  the temporary import state is consumed.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

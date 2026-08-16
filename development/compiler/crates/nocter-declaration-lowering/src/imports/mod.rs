@@ -2,6 +2,7 @@ mod access;
 mod prelude;
 mod projection;
 mod syntax;
+mod violation;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -12,32 +13,30 @@ use nocter_declarations::{
 };
 use nocter_model::{ImportId, ModuleId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::DuplicateSourceBinding;
+use nocter_source_index::{DuplicateSourceBinding, SyntaxOrigin};
 use nocter_syntax::{NodeId, SyntaxToken};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
-    PreparedGenerics, ReservedEntity, SurfaceDeclarationId, SurfaceImportTarget, SurfaceSourceId,
+    NamespaceViolation, PreparedGenerics, ReservedEntity, SurfaceDeclarationId,
+    SurfaceImportTarget, SurfaceSourceId,
 };
 use access::{module_index_by_id, module_index_by_identity, visibility_is_within, visible_from};
 use projection::project_import;
 
 pub use prelude::{PreludeError, PreparedNamespaces, apply_standard_prelude};
+pub use violation::{ImportRule, ImportViolation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportError {
+    Rule(ImportViolation),
+    Namespace(NamespaceViolation),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
     MissingSource(SurfaceSourceId),
     InvalidSyntax(NodeId),
     UnknownModule(NodeId),
-    MissingImportedName(NodeId),
-    InaccessibleImportedName(NodeId),
-    WideningReexport(NodeId),
-    InvalidLocalName(NodeId),
-    DuplicateName { first: NodeId, second: NodeId },
     InvalidVisibility(NodeId),
-    VisibilityAbovePackageRoot(NodeId),
     DependencyCycle(ModuleId),
     InconsistentSource(SourceId),
 }
@@ -45,6 +44,18 @@ pub enum ImportError {
 impl fmt::Display for ImportError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
+            Self::Namespace(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::MissingSource(source) => {
@@ -56,35 +67,9 @@ impl fmt::Display for ImportError {
             Self::UnknownModule(declaration) => {
                 write!(formatter, "import {declaration:?} names an unknown module")
             }
-            Self::MissingImportedName(declaration) => {
-                write!(
-                    formatter,
-                    "import {declaration:?} names an unknown exported name"
-                )
-            }
-            Self::InaccessibleImportedName(declaration) => write!(
-                formatter,
-                "import {declaration:?} cannot access its selected name"
-            ),
-            Self::WideningReexport(declaration) => write!(
-                formatter,
-                "re-export {declaration:?} is wider than its selected name"
-            ),
-            Self::InvalidLocalName(declaration) => write!(
-                formatter,
-                "import {declaration:?} introduces a reserved local name"
-            ),
-            Self::DuplicateName { first, second } => write!(
-                formatter,
-                "imports or declarations {first:?} and {second:?} introduce the same module name"
-            ),
             Self::InvalidVisibility(declaration) => {
                 write!(formatter, "import {declaration:?} has invalid visibility")
             }
-            Self::VisibilityAbovePackageRoot(declaration) => write!(
-                formatter,
-                "import {declaration:?} moves visibility above its package root"
-            ),
             Self::DependencyCycle(module) => {
                 write!(
                     formatter,
@@ -112,11 +97,23 @@ impl From<DuplicateSourceBinding> for ImportError {
     }
 }
 
+impl From<ImportViolation> for ImportError {
+    fn from(violation: ImportViolation) -> Self {
+        Self::Rule(violation)
+    }
+}
+
+impl From<NamespaceViolation> for ImportError {
+    fn from(violation: NamespaceViolation) -> Self {
+        Self::Namespace(violation)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct NamespaceBinding {
     pub(super) entity: ExportedEntity,
     pub(super) visibility: Visibility,
-    origin: NodeId,
+    origin: SyntaxOrigin,
 }
 
 pub(super) type ModuleNamespace = Box<[(Symbol, NamespaceBinding)]>;
@@ -218,25 +215,25 @@ pub fn prepare_authored_imports(
                     &generics,
                     &namespaces[target_index],
                     import.node(),
-                    importing_module,
-                    target_module,
-                    visibility,
+                    ImportAccess {
+                        importing_module,
+                        target_module,
+                        visibility,
+                        authored_visibility: authored.visibility,
+                    },
                     selected,
                 )?
             } else {
                 let token = syntax::final_path_name(tree, import.node(), authored.path)?;
                 let name = symbol(&generics, import.node(), token)?;
-                validate_local_name(&generics, import.node(), name)?;
+                validate_local_name(&generics, import.node(), name, token)?;
                 ResolvedImport::Namespace {
                     local_name: name,
+                    local_token: token,
                     target: ExportedEntity::Module(target_module),
                 }
             };
-            validate_collisions(
-                &namespaces[module_index],
-                import.node(),
-                resolved.bindings(),
-            )?;
+            validate_collisions(&namespaces[module_index], resolved.bindings())?;
 
             let declaration = ImportDeclaration::new(
                 ImportScope::Module(importing_module),
@@ -253,13 +250,13 @@ pub fn prepare_authored_imports(
                 target_module,
                 &resolved,
             )?;
-            for (name, entity) in resolved.bindings() {
+            for (name, entity, origin) in resolved.bindings() {
                 namespaces[module_index].insert(
                     name,
                     NamespaceBinding {
                         entity,
                         visibility,
-                        origin: import.node(),
+                        origin: SyntaxOrigin::Token(origin),
                     },
                 );
             }
@@ -281,6 +278,7 @@ pub fn prepare_authored_imports(
 enum ResolvedImport {
     Namespace {
         local_name: Symbol,
+        local_token: SyntaxToken,
         target: ExportedEntity,
     },
     Selected(Vec<ResolvedSelected>),
@@ -295,13 +293,25 @@ struct ResolvedSelected {
     target: ExportedEntity,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ImportAccess {
+    importing_module: ModuleId,
+    target_module: ModuleId,
+    visibility: Visibility,
+    authored_visibility: Option<NodeId>,
+}
+
 impl ResolvedImport {
-    fn bindings(&self) -> Vec<(Symbol, ExportedEntity)> {
+    fn bindings(&self) -> Vec<(Symbol, ExportedEntity, SyntaxToken)> {
         match self {
-            Self::Namespace { local_name, target } => vec![(*local_name, *target)],
+            Self::Namespace {
+                local_name,
+                local_token,
+                target,
+            } => vec![(*local_name, *target, *local_token)],
             Self::Selected(names) => names
                 .iter()
-                .map(|name| (name.local_name, name.target))
+                .map(|name| (name.local_name, name.target, name.local_token))
                 .collect(),
         }
     }
@@ -354,13 +364,21 @@ fn collect_direct_declarations(
             NamespaceBinding {
                 entity,
                 visibility,
-                origin: declaration.node(),
+                origin: SyntaxOrigin::Token(
+                    declaration
+                        .name()
+                        .ok_or(ImportError::InvalidSyntax(declaration.node()))?,
+                ),
             },
         ) {
-            return Err(ImportError::DuplicateName {
-                first: first.origin,
-                second: declaration.node(),
-            });
+            let second = declaration
+                .name()
+                .ok_or(ImportError::InvalidSyntax(declaration.node()))?;
+            return Err(NamespaceViolation::name_collision(
+                first.origin,
+                SyntaxOrigin::Token(second),
+            )
+            .into());
         }
     }
     Ok(())
@@ -436,39 +454,55 @@ fn resolve_selected(
     generics: &PreparedGenerics<'_>,
     target_namespace: &BTreeMap<Symbol, NamespaceBinding>,
     declaration: NodeId,
-    importing_module: ModuleId,
-    target_module: ModuleId,
-    visibility: Visibility,
+    access: ImportAccess,
     selected: Vec<syntax::SelectedNameSyntax>,
 ) -> Result<ResolvedImport, ImportError> {
     let mut resolved = Vec::with_capacity(selected.len());
-    let mut local_names = BTreeSet::new();
+    let mut local_names = BTreeMap::new();
     for selected in selected {
         let exported_name = symbol(generics, declaration, selected.exported)?;
         let local_name = symbol(generics, declaration, selected.local)?;
-        validate_local_name(generics, declaration, local_name)?;
-        if !local_names.insert(local_name) {
-            return Err(ImportError::DuplicateName {
-                first: declaration,
-                second: declaration,
-            });
+        validate_local_name(generics, declaration, local_name, selected.local)?;
+        if let Some(first) = local_names.insert(local_name, selected.local) {
+            return Err(NamespaceViolation::name_collision(
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(selected.local),
+            )
+            .into());
         }
         let binding = target_namespace
             .get(&exported_name)
             .copied()
-            .ok_or(ImportError::MissingImportedName(declaration))?;
+            .ok_or_else(|| {
+                ImportViolation::missing_imported_name(SyntaxOrigin::Token(selected.exported))
+            })?;
         if !visible_from(
             &generics.headers.reserved,
             binding.visibility,
-            importing_module,
-            target_module,
+            access.importing_module,
+            access.target_module,
         ) {
-            return Err(ImportError::InaccessibleImportedName(declaration));
+            return Err(ImportViolation::inaccessible_imported_name(
+                SyntaxOrigin::Token(selected.exported),
+                binding.origin,
+            )
+            .into());
         }
-        if visibility != Visibility::Private
-            && !visibility_is_within(&generics.headers.reserved, visibility, binding.visibility)
+        if access.visibility != Visibility::Private
+            && !visibility_is_within(
+                &generics.headers.reserved,
+                access.visibility,
+                binding.visibility,
+            )
         {
-            return Err(ImportError::WideningReexport(declaration));
+            let visibility = access
+                .authored_visibility
+                .ok_or(ImportError::InvalidVisibility(declaration))?;
+            return Err(ImportViolation::widening_reexport(
+                SyntaxOrigin::Node(visibility),
+                binding.origin,
+            )
+            .into());
         }
         resolved.push(ResolvedSelected {
             exported_name,
@@ -483,22 +517,16 @@ fn resolve_selected(
 
 fn validate_collisions(
     namespace: &BTreeMap<Symbol, NamespaceBinding>,
-    declaration: NodeId,
-    bindings: Vec<(Symbol, ExportedEntity)>,
+    bindings: Vec<(Symbol, ExportedEntity, SyntaxToken)>,
 ) -> Result<(), ImportError> {
-    let mut local = BTreeSet::new();
-    for (name, _) in bindings {
-        if !local.insert(name) {
-            return Err(ImportError::DuplicateName {
-                first: declaration,
-                second: declaration,
-            });
+    let mut local = BTreeMap::new();
+    for (name, _, token) in bindings {
+        let origin = SyntaxOrigin::Token(token);
+        if let Some(first) = local.insert(name, origin) {
+            return Err(NamespaceViolation::name_collision(first, origin).into());
         }
         if let Some(first) = namespace.get(&name) {
-            return Err(ImportError::DuplicateName {
-                first: first.origin,
-                second: declaration,
-            });
+            return Err(NamespaceViolation::name_collision(first.origin, origin).into());
         }
     }
     Ok(())
@@ -531,6 +559,7 @@ fn validate_local_name(
     generics: &PreparedGenerics<'_>,
     declaration: NodeId,
     name: Symbol,
+    token: SyntaxToken,
 ) -> Result<(), ImportError> {
     let spelling = generics
         .headers
@@ -540,7 +569,7 @@ fn validate_local_name(
         .spelling(name)
         .ok_or(ImportError::InvalidSyntax(declaration))?;
     if nocter_syntax::BuiltinType::from_spelling(spelling).is_some() || spelling == "Self" {
-        Err(ImportError::InvalidLocalName(declaration))
+        Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into())
     } else {
         Ok(())
     }
@@ -567,8 +596,8 @@ fn import_visibility_error(declaration: NodeId, error: VisibilityResolutionError
     match error {
         VisibilityResolutionError::MissingSource(source) => ImportError::MissingSource(source),
         VisibilityResolutionError::Invalid(_) => ImportError::InvalidVisibility(declaration),
-        VisibilityResolutionError::AbovePackageRoot(_) => {
-            ImportError::VisibilityAbovePackageRoot(declaration)
+        VisibilityResolutionError::AbovePackageRoot(node) => {
+            NamespaceViolation::visibility_above_package_root(SyntaxOrigin::Node(node)).into()
         }
     }
 }

@@ -125,6 +125,34 @@ pub(crate) fn input_trees<'input, 'syntax: 'input>(
         }))
 }
 
+pub(crate) fn project_syntax_diagnostic(
+    input: &CompileUnitInput<'_>,
+    primary: SyntaxOrigin,
+    related: Option<SyntaxOrigin>,
+    code: &'static str,
+    message: &'static str,
+    related_message: Option<&'static str>,
+    help: &'static str,
+) -> Option<SourceDiagnostic> {
+    let primary = origin_from_syntax(input_trees(input), primary)?;
+    let related = match related {
+        Some(syntax) => Some(origin_from_syntax(input_trees(input), syntax)?),
+        None => None,
+    };
+    let notes = related
+        .zip(related_message)
+        .map(|(origin, message)| DiagnosticNote::new(message, origin))
+        .into_iter()
+        .collect::<Vec<_>>();
+    Some(SourceDiagnostic::new(
+        code,
+        message,
+        primary,
+        notes,
+        Some(help),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use nocter_source::{SourceMap, SourceName};
