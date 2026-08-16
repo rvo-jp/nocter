@@ -260,10 +260,13 @@ ByteSpan { source, start, end }
   failure is needed, or an enum when absence and completion must remain distinct.</li><li>An optional or fallible type whose eventual payload is <code>never</code>, including after alias expansion
   or generic substitution. The diagnostic should recommend <code>void!</code> for a recoverable operation
   without success data, or an enum for a value-level state.</li><li>Reachable <code>catch</code> fallback with no result for a non-<code>void</code> success type, or with a result not
-  assignable to that success type.</li><li>A callable body result or <code>return</code> expression that recursive outcome injection cannot make
-  assignable to the complete declared result type. The diagnostic must identify the first expected
+  assignable to that success type.</li><li>An expression at a contextual expected-type boundary that recursive outcome injection cannot
+  make assignable to the complete expected type. The diagnostic must identify the first expected
   payload layer that rejected the expression and must not describe the mismatch as an implicit
-  cast or subtype failure.</li><li>Reachable value-producing result expression in a <code>while</code>, <code>loop</code>, range <code>for</code>, or collection
+  cast or subtype failure.</li><li><code>none</code> without an expected optional type. The compiler must not infer that type from a sibling
+  branch or invent a payload type.</li><li>A generic outcome parameter left unknown because every contributing expression is <code>none</code> or a
+  failure <code>error</code>. The diagnostic must name the unresolved generic parameter and the available
+  sources that could constrain it; it must not guess from a default payload type.</li><li>Reachable value-producing result expression in a <code>while</code>, <code>loop</code>, range <code>for</code>, or collection
   <code>for</code> body. Loop statements do not implicitly discard iteration results.</li><li>Mixed optional/fallible type syntax where grouping changes meaning, such as <code>(T!)?</code>.</li><li><code>if is</code> used on a non-enum expression.</li><li><code>if is</code> pattern that does not use <code>Enum.variant</code>.</li><li><code>if is</code> enum pattern whose enum or variant does not match the target enum type.</li><li>Enum pattern payload arity mismatch, including one <code>_</code> used for a variant with more than one
   payload field.</li><li>Unsupported nested, literal, binding-modifier, field-name, or rest pattern syntax.</li><li>Duplicate explicit variant arms in one <code>match</code>, regardless of payload binding names or <code>_</code>
   positions.</li><li>Errors inside a currently unreachable exhaustive <code>_</code> arm are reported normally. Merely having

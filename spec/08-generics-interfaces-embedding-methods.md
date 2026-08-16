@@ -158,11 +158,26 @@ conformances, overload ranking, return provenance, and callable body contents do
 If any callable parameter remains unknown or multiple substitutions remain viable, the call is an
 error and the caller must provide an expected type at the surrounding expression boundary.
 
+When a parameter has statically known optional or fallible structure, inference projects through
+that structure before contextual outcome injection. A plain payload argument can therefore infer
+the projected parameter and is wrapped only after inference succeeds. `none` and an `error` used
+as failure select an outcome tag but add no constraint for the projected payload type. Another
+argument, the receiver, a contextual closure, or the expected call result must determine it.
+
 ```nct
 func decode<T>(bytes: &[u8]): T!
 
 let config: Config = decode(bytes)?
 let unknown = decode(bytes)? // error: T cannot be inferred
+```
+
+```nct
+func inspect<T>(value: T?): void {
+    return
+}
+
+inspect(42)   // T = i32
+inspect(none) // error: T cannot be inferred
 ```
 
 Forms such as `decode<Config>(bytes)` and `iterator.map<U>(transform)` are not call syntax. Nocter

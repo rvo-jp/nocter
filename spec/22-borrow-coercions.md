@@ -100,21 +100,11 @@ only when both of these facts are known:
 - the expression already has a borrowed nominal source type
 - the surrounding boundary requires a concrete borrowed target type
 
-The compiler supplies a concrete expected type at these boundaries:
-
-- an explicitly typed binding initializer
-- a simple assignment
-- a callable argument
-- a struct field initializer
-- a fixed-array element initializer
-- a typed-sequence literal capture
-- an enum payload argument
-- an explicit or final-expression return
-
-Grouped expressions propagate that expectation to their inner expression. `if`, `if is`, and
-`match` propagate it independently to every value-producing branch. Optional and fallible
-projection preserves the expectation on the projected success or present value. Each resulting
-leaf owns at most one selected conversion.
+The compiler supplies expected types through the common
+[Contextual Expected Types](02-values-types.md#contextual-expected-types) boundaries. Grouping and
+control-flow branches preserve that expectation. Optional and fallible injection recursively
+projects it onto the success or present payload before ordinary compatibility and coercion are
+tested. Each resulting leaf owns at most one selected conversion.
 
 For example, every use of `source` below selects the same `&Box<i32> as &i32` entry independently:
 

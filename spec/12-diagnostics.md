@@ -321,10 +321,15 @@ Required diagnostic families:
   without success data, or an enum for a value-level state.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
-- A callable body result or `return` expression that recursive outcome injection cannot make
-  assignable to the complete declared result type. The diagnostic must identify the first expected
+- An expression at a contextual expected-type boundary that recursive outcome injection cannot
+  make assignable to the complete expected type. The diagnostic must identify the first expected
   payload layer that rejected the expression and must not describe the mismatch as an implicit
   cast or subtype failure.
+- `none` without an expected optional type. The compiler must not infer that type from a sibling
+  branch or invent a payload type.
+- A generic outcome parameter left unknown because every contributing expression is `none` or a
+  failure `error`. The diagnostic must name the unresolved generic parameter and the available
+  sources that could constrain it; it must not guess from a default payload type.
 - Reachable value-producing result expression in a `while`, `loop`, range `for`, or collection
   `for` body. Loop statements do not implicitly discard iteration results.
 - Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.

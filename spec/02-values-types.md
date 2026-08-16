@@ -343,6 +343,54 @@ Prefix type operators bind more tightly than postfix outcome operators. Therefor
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
 type syntax group a type without creating a new type.
 
+### Contextual Expected Types
+
+An authoritative expected type flows from a destination into its expression at these boundaries:
+
+- an explicitly typed binding initializer
+- a simple assignment
+- a callable argument
+- a struct field initializer
+- a fixed-array element initializer
+- a typed-sequence literal capture
+- an enum payload argument
+- a `catch` or `otherwise` fallback result
+- an explicit `return` or callable body result
+- a contextually typed closure result
+
+Grouping preserves the same expectation. `if`, `if is`, and `match` propagate an enclosing
+expectation independently to every value-producing branch. The expected payload type of `catch`
+and `otherwise` comes from the operated-on outcome; it does not need a further enclosing
+destination.
+
+Optional and fallible values use
+[Recursive Outcome Injection](04-errors-optionals.md#recursive-outcome-injection) at these
+boundaries. Outcome injection is directional: it consumes an expected type already supplied by
+the program context. It does not infer an outcome wrapper from an unannotated initializer or from
+a sibling control-flow branch.
+
+```nct
+let present: i32? = 42
+let absent: i32? = none
+let failed: i32! = error.new("app.failed", "operation failed")
+
+let missing = none // error: no expected optional type
+```
+
+For a generic expected type with statically known outcome structure, inference may project through
+those outcome layers and collect constraints for the payload. Injection occurs only after the
+substitution is unique. `none` and a failure `error` select tags but contribute no payload-type
+constraint, so they cannot determine an otherwise unknown generic parameter.
+
+```nct
+func inspect<T>(value: T?): void {
+    return
+}
+
+inspect(42)   // T = i32; inject presence after inference
+inspect(none) // error: T cannot be inferred from absence
+```
+
 ### Self Type Syntax
 
 `Self` is type-position syntax, not an ordinary user-defined name.

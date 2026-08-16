@@ -365,9 +365,10 @@ Rules:
 
 ### Recursive Outcome Injection
 
-A value-producing function body result or `return expression` is checked against the complete
-declared result type by one outer-to-inner rule. This rule is the only implicit construction of
-optional and fallible return layers.
+An expression at an authoritative
+[contextual expected-type boundary](02-values-types.md#contextual-expected-types) is checked
+against the complete expected type by one outer-to-inner rule. This rule is the only implicit
+construction of optional and fallible layers; return checking is one use of the general rule.
 
 Given an expression and an expected result type:
 
@@ -385,9 +386,9 @@ outcome therefore preserves its tags rather than nesting or reinterpreting it. O
 and one fallible layer are the maximum supported depth, and `error` cannot be a success base type,
 so the injection path is unique.
 
-The order of the declared type determines the meaning of contextual `none` and `error`:
+The order of the expected type determines the meaning of contextual `none` and `error`:
 
-| Declared result | Returned expression | Constructed result |
+| Expected type | Source expression | Constructed value |
 | --- | --- | --- |
 | `T?!` | `value: T` | success with present `T` |
 | `T?!` | `none` | success with absence |
@@ -412,14 +413,16 @@ func cached_name(): (String!)? {
 }
 ```
 
-A result expression whose type is already `String!` is injected only into the outer optional
-layer of `(String!)?`. A result whose type is already `(String!)?` is returned unchanged. The same
-recursive rule applies to the final expression of a callable body.
+An expression whose type is already `String!` is injected only into the outer optional layer of
+`(String!)?`. An expression whose type is already `(String!)?` is accepted unchanged. The same
+recursive rule applies to initializers, assignments, arguments, aggregate payloads, fallbacks, and
+callable returns.
 
 Outcome injection does not weaken ownership rules or manufacture a copy. An existing move-only
-binding still requires explicit `move`, whether it supplies the complete declared result or a
+binding still requires explicit `move`, whether it supplies the complete expected value or a
 payload that the injection wraps. A newly produced temporary is transferred into the constructed
-outcome normally.
+outcome normally. Injection is not a coercion, does not unwrap a source outcome, and does not
+participate in selecting an expected type.
 
 Example:
 

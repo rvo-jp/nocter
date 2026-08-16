@@ -62,13 +62,19 @@ still receives declaration and type identities, but no synthetic initialization,
 provenance state is created for the impossible continuation. Such nodes remain available to
 diagnostics and editor projections and are excluded from executable reachability and MIR.
 
-Contextual return checking lowers optional and fallible construction into explicit checked nodes.
-Each node names its expected outcome type, selected tag, and recursively checked payload. An
-expression already having the complete expected outcome type requires no injection node. MIR must
-consume these decisions; it cannot reopen a rendered type spelling or reconstruct outcome order.
+Contextual expression checking lowers optional and fallible construction into explicit checked
+nodes at every authoritative expected-type boundary. Each node names its expected outcome type,
+selected tag, and recursively checked payload. An expression already having the complete expected
+outcome type requires no injection node. MIR must consume these decisions; it cannot reopen a
+rendered type spelling or reconstruct outcome order.
 Checked propagation nodes identify the exact declared outcome layer they target and reuse the same
 injection path as an explicit `return`; they do not encode only an unqualified "failure" or
 "absence" action.
+
+Generic inference may project a statically known expected outcome shape to collect payload
+constraints. It completes the unique substitution before checked injection nodes are built.
+Contextual tag literals contribute no payload constraint, and injection never feeds a guessed type
+back into callable selection.
 
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once

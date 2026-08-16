@@ -57,6 +57,11 @@ Rules for generated code:
 - Postfix `?` propagates through the matching declared layer without reordering outcomes. A
   fallible failure in `(T!)?` becomes a present inner failure; optional absence in `T?!` remains
   outer success with inner absence.
+- Expected-type boundaries use the same recursive injection for optional and fallible values.
+  Annotated initializers, assignments, arguments, aggregate payloads, fallbacks, and returns may
+  accept a payload and construct the expected outcome. Do not use `none` without an expected type.
+- A known generic shape such as `T?` may infer `T` from a payload before injection. `none` and a
+  failure `error` do not infer an unknown payload type.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 
