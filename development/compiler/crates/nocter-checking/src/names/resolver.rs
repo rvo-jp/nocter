@@ -67,6 +67,7 @@ pub(super) struct BodyNameResolver<'input, 'syntax> {
     scopes: ArenaBuilder<BodyScopeId, BodyScope>,
     locals: ArenaBuilder<LocalBindingId, LocalBinding>,
     captures: ArenaBuilder<CaptureId, Capture>,
+    block_scopes: HashMap<NodeId, BodyScopeId>,
     active: Vec<ActiveScope>,
     callable_boundaries: Vec<usize>,
     uses: Vec<ResolvedNameUse>,
@@ -90,6 +91,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             scopes: ArenaBuilder::new(),
             locals: ArenaBuilder::new(),
             captures: ArenaBuilder::new(),
+            block_scopes: HashMap::new(),
             active: Vec::new(),
             callable_boundaries: Vec::new(),
             uses: Vec::new(),
@@ -98,7 +100,8 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     pub(super) fn resolve(mut self) -> Result<ResolvedBody, NameResolutionError> {
-        self.push_scope(None);
+        let root_scope = self.push_scope(None);
+        self.record_block_scope(self.source.block(), root_scope)?;
         self.callable_boundaries.push(0);
         self.seed_parameters()?;
         let mut actions = Vec::new();
@@ -116,6 +119,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 self.scopes.finish(),
                 self.locals.finish(),
                 self.captures.finish(),
+                self.block_scopes,
                 self.uses,
             ),
             projections: self.projections,
@@ -131,7 +135,8 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     introductions,
                 } => {
                     let parent = self.active.last().map(|scope| scope.id);
-                    self.push_scope(parent);
+                    let scope = self.push_scope(parent);
+                    self.record_block_scope(block, scope)?;
                     for introduction in introductions {
                         self.declare_local(introduction)?;
                     }
@@ -393,6 +398,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
         self.callable_boundaries.push(outer_scope_count);
         let scope = self.push_scope(None);
+        self.record_block_scope(block, scope)?;
         for (name, token, source, mode) in captures {
             let origin = self.origin(token)?;
             let id = self
@@ -770,6 +776,17 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             names: BTreeMap::new(),
         });
         id
+    }
+
+    fn record_block_scope(
+        &mut self,
+        block: NodeId,
+        scope: BodyScopeId,
+    ) -> Result<(), NameResolutionInternalError> {
+        if self.block_scopes.insert(block, scope).is_some() {
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(block));
+        }
+        Ok(())
     }
 
     fn current_names_mut(

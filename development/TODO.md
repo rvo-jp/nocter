@@ -2,16 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by materializing scope-exit cleanup from the checked ownership flow.
+Continue v0.14.0 Phase 3 by implementing explicit destruction, assignment, and reinitialization on
+the same ownership and cleanup state.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Materialize scope-exit cleanup from the same initialization state. Complete and remaining
-   fields must be dropped in normative order without creating a second liveness analysis.
-2. Extend the closed checked-operation traversal as new calls, aggregates, outcomes, and pattern
+1. Implement explicit `drop`, whole-binding assignment, and eligible field reinitialization.
+   Replacement and scope exit must consume the existing cleanup planner rather than create a
+   second initialization model.
+2. Extend the closed checked-operation traversal as calls, aggregates, outcomes, and pattern
    control enter body construction. No new construct may carry a private ownership side channel.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -75,7 +77,18 @@ iteration. A repeated move is therefore rejected without rebuilding HIR or alloc
 semantic identities on an analysis pass. Unreachable source after a terminal remains under an
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. Collection iteration, pattern
-conditionals, `match`, and generated cleanup remain incomplete.
+conditionals, and `match` remain incomplete.
+
+Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
+directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
+analysis materializes one dense `CleanupTable` keyed by the checked node whose outgoing edge runs
+the actions. Normal block exits, `return`, `break`, and `continue` all derive cleanup from the same
+field-sensitive initialization state. Actions preserve reverse declaration order, distinguish
+unconditional from maybe-initialized destruction, omit moved roots and non-owning borrows, expand a
+partially moved struct to only its remaining fields, and represent a discarded move-only result as
+a value cleanup rather than an invented local. Loop-edge cleanup removes loop-local roots before
+the fixed-point join. Explicit `drop`, replacement assignment, temporary cleanup for calls and
+aggregates, and executable MIR lowering remain incomplete.
 
 ## Guardrails
 

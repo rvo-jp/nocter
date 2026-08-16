@@ -1,5 +1,6 @@
 mod body;
 mod builder;
+mod cleanup;
 mod node;
 mod place;
 mod program;
@@ -8,6 +9,7 @@ mod selection;
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;
+pub use cleanup::{CleanupAction, CleanupCondition, CleanupPath, CleanupTable, CleanupTarget};
 pub use node::{
     AggregateConstruction, AllocationSelection, CallTarget, CheckedCall, CheckedClosure,
     CheckedControl, CheckedInterpolation, CheckedLoop, CheckedMatchArm, CheckedNode,

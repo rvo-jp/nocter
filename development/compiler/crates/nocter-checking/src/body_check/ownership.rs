@@ -1,27 +1,31 @@
 use std::collections::HashMap;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{BodyNodeId, LoopId, TypeStore};
+use nocter_model::{ArenaBuilder, BodyNodeId, BodyScopeId, LoopId, TypeStore};
 use nocter_source_index::SourceOrigin;
+
+mod cleanup;
 
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::{
-    BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, LoopKind,
-    PrimitiveOperation,
+    BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CleanupAction,
+    CleanupTable, DropTable, LoopKind, PrimitiveOperation,
 };
+use cleanup::CleanupPlanner;
 
 /// Validates flow-dependent ownership after typed HIR construction.
 pub(super) fn analyze_body_ownership(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     copyabilities: &mut CopyabilityTable,
+    drops: &DropTable,
     source: BodySource<'_>,
     body: &CheckedBody,
     origins: &HashMap<BodyNodeId, SourceOrigin>,
-) -> Result<(), BodyCheckError> {
+) -> Result<CleanupTable, BodyCheckError> {
     let mut state = OwnershipState::default();
     for root in initialized_body_roots(graph, source)
         .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?
@@ -34,31 +38,62 @@ pub(super) fn analyze_body_ownership(
         graph,
         types,
         copyabilities,
+        drops,
+        source,
         body,
         origins,
         loops: Vec::new(),
+        scopes: Vec::new(),
+        cleanup_actions: HashMap::new(),
     };
     analyzer.visit(body.root(), &mut state)?;
     analyzer.validate_all_copies()?;
-    Ok(())
+    analyzer.finish_cleanups().map_err(Into::into)
 }
 
 struct OwnershipAnalyzer<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut TypeStore,
     copyabilities: &'program mut CopyabilityTable,
+    drops: &'program DropTable,
+    source: BodySource<'program>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopFlow>,
+    scopes: Vec<BodyScopeId>,
+    cleanup_actions: HashMap<BodyNodeId, Vec<CleanupAction>>,
 }
 
 struct LoopFlow {
     id: LoopId,
+    body_scope: BodyScopeId,
     breaks: Vec<OwnershipState>,
     continues: Vec<OwnershipState>,
 }
 
 impl OwnershipAnalyzer<'_> {
+    fn finish_cleanups(mut self) -> Result<CleanupTable, BodyCheckInternalError> {
+        if !self.scopes.is_empty() || !self.loops.is_empty() {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        let mut actions = ArenaBuilder::new();
+        for (node, _) in self.body.nodes().iter() {
+            let actual = actions.insert(
+                self.cleanup_actions
+                    .remove(&node)
+                    .unwrap_or_default()
+                    .into_boxed_slice(),
+            );
+            if actual != node {
+                return Err(BodyCheckInternalError::CleanupPlanning);
+            }
+        }
+        if !self.cleanup_actions.is_empty() {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        Ok(CleanupTable::new(actions.finish()))
+    }
+
     fn validate_all_copies(&mut self) -> Result<(), BodyCheckError> {
         for (node, checked) in self.body.nodes().iter() {
             if matches!(checked.operation(), CheckedOperation::Copy(_)) {
@@ -135,14 +170,11 @@ impl OwnershipAnalyzer<'_> {
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
         match control {
-            CheckedControl::Block { statements, result } => {
-                for statement in statements {
-                    if !self.visit(*statement, state)? {
-                        return Ok(false);
-                    }
-                }
-                result.map_or(Ok(true), |result| self.visit(result, state))
-            }
+            CheckedControl::Block {
+                scope,
+                statements,
+                result,
+            } => self.visit_block(node, *scope, statements, *result, state),
             CheckedControl::Bind {
                 binding,
                 initializer,
@@ -155,55 +187,25 @@ impl OwnershipAnalyzer<'_> {
                     .map_err(|_| BodyCheckInternalError::OwnershipState)?;
                 Ok(true)
             }
-            CheckedControl::Discard(value) => self.visit(*value, state),
+            CheckedControl::Discard(value) => self.visit_discard(node, *value, state),
             CheckedControl::Return(value) => {
-                if let Some(value) = value {
-                    self.visit(*value, state)?;
+                if let Some(value) = value
+                    && !self.visit(*value, state)?
+                {
+                    return Ok(false);
                 }
+                let actions = self.all_scope_cleanup(state)?;
+                self.record_cleanup(node, actions);
                 Ok(false)
             }
             CheckedControl::If {
                 condition,
                 then_branch,
                 else_branch,
-            } => {
-                if !self.visit(*condition, state)? {
-                    return Ok(false);
-                }
-                let entry = state.clone();
-                let mut incoming = Vec::new();
-                let mut then_state = entry.clone();
-                if self.visit(*then_branch, &mut then_state)? {
-                    incoming.push(then_state);
-                }
-                let mut else_state = entry.clone();
-                if let Some(else_branch) = else_branch {
-                    if self.visit(*else_branch, &mut else_state)? {
-                        incoming.push(else_state);
-                    }
-                } else {
-                    incoming.push(else_state);
-                }
-                *state = entry
-                    .join_reachable(&incoming)
-                    .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-                Ok(!incoming.is_empty())
-            }
+            } => self.visit_if(*condition, *then_branch, *else_branch, state),
             CheckedControl::Unreachable(_) => Ok(false),
-            CheckedControl::Break(loop_) => {
-                let Some(frame) = self.loops.last_mut().filter(|frame| frame.id == *loop_) else {
-                    return Err(BodyCheckInternalError::LoopStack.into());
-                };
-                frame.breaks.push(state.clone());
-                Ok(false)
-            }
-            CheckedControl::Continue(loop_) => {
-                let Some(frame) = self.loops.last_mut().filter(|frame| frame.id == *loop_) else {
-                    return Err(BodyCheckInternalError::LoopStack.into());
-                };
-                frame.continues.push(state.clone());
-                Ok(false)
-            }
+            CheckedControl::Break(loop_) => self.visit_loop_control(node, *loop_, true, state),
+            CheckedControl::Continue(loop_) => self.visit_loop_control(node, *loop_, false, state),
             CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
             CheckedControl::Assign { .. }
             | CheckedControl::CompoundAssign { .. }
@@ -213,6 +215,111 @@ impl OwnershipAnalyzer<'_> {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }
+    }
+
+    fn visit_block(
+        &mut self,
+        node: BodyNodeId,
+        scope: BodyScopeId,
+        statements: &[BodyNodeId],
+        result: Option<BodyNodeId>,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        self.enter_scope(scope)?;
+        let mut reaches = true;
+        for statement in statements {
+            if !self.visit(*statement, state)? {
+                reaches = false;
+                break;
+            }
+        }
+        if reaches && let Some(result) = result {
+            reaches = self.visit(result, state)?;
+        }
+        if reaches {
+            let mut actions = self.scope_cleanup(scope, state)?;
+            if self.scopes.len() == 1 {
+                actions.extend(self.parameter_cleanup(state)?);
+            }
+            self.record_cleanup(node, actions);
+        }
+        self.leave_scope(scope)?;
+        Ok(reaches)
+    }
+
+    fn visit_discard(
+        &mut self,
+        node: BodyNodeId,
+        value: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(value, state)? {
+            return Ok(false);
+        }
+        let ty = self
+            .body
+            .nodes()
+            .get(value)
+            .map(crate::CheckedNode::ty)
+            .ok_or(BodyCheckInternalError::MissingNode(value))?;
+        if let Some(action) = self.value_cleanup(value, ty)? {
+            self.record_cleanup(node, vec![action]);
+        }
+        Ok(true)
+    }
+
+    fn visit_if(
+        &mut self,
+        condition: BodyNodeId,
+        then_branch: BodyNodeId,
+        else_branch: Option<BodyNodeId>,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(condition, state)? {
+            return Ok(false);
+        }
+        let entry = state.clone();
+        let mut incoming = Vec::new();
+        let mut then_state = entry.clone();
+        if self.visit(then_branch, &mut then_state)? {
+            incoming.push(then_state);
+        }
+        let mut else_state = entry.clone();
+        if let Some(else_branch) = else_branch {
+            if self.visit(else_branch, &mut else_state)? {
+                incoming.push(else_state);
+            }
+        } else {
+            incoming.push(else_state);
+        }
+        *state = entry
+            .join_reachable(&incoming)
+            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        Ok(!incoming.is_empty())
+    }
+
+    fn visit_loop_control(
+        &mut self,
+        node: BodyNodeId,
+        loop_: LoopId,
+        is_break: bool,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        let Some(frame) = self.loops.last().filter(|frame| frame.id == loop_) else {
+            return Err(BodyCheckInternalError::LoopStack.into());
+        };
+        let actions = self.loop_scope_cleanup(frame.body_scope, state)?;
+        self.record_cleanup(node, actions);
+        let frame = self
+            .loops
+            .last_mut()
+            .ok_or(BodyCheckInternalError::LoopStack)?;
+        if is_break {
+            frame.breaks.push(state.clone());
+        } else {
+            frame.continues.push(state.clone());
+        }
+        Ok(false)
     }
 
     fn visit_loop(
@@ -231,11 +338,13 @@ impl OwnershipAnalyzer<'_> {
         {
             return Ok(false);
         }
+        let body_scope = self.block_scope(definition.body())?;
         let preheader = state.clone();
         let mut header = preheader.clone();
         loop {
             self.loops.push(LoopFlow {
                 id: loop_,
+                body_scope,
                 breaks: Vec::new(),
                 continues: Vec::new(),
             });
@@ -287,6 +396,121 @@ impl OwnershipAnalyzer<'_> {
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
             return Ok(!exits.is_empty());
         }
+    }
+
+    fn enter_scope(&mut self, scope: BodyScopeId) -> Result<(), BodyCheckInternalError> {
+        let expected_parent = self.scopes.last().copied();
+        let actual_parent = self
+            .body
+            .scopes()
+            .get(scope)
+            .copied()
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?
+            .parent();
+        if actual_parent != expected_parent {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        self.scopes.push(scope);
+        Ok(())
+    }
+
+    fn leave_scope(&mut self, scope: BodyScopeId) -> Result<(), BodyCheckInternalError> {
+        if self.scopes.pop() != Some(scope) {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        Ok(())
+    }
+
+    fn block_scope(&self, node: BodyNodeId) -> Result<BodyScopeId, BodyCheckInternalError> {
+        match self
+            .body
+            .nodes()
+            .get(node)
+            .map(crate::CheckedNode::operation)
+        {
+            Some(CheckedOperation::Control(CheckedControl::Block { scope, .. })) => Ok(*scope),
+            Some(_) | None => Err(BodyCheckInternalError::CleanupPlanning),
+        }
+    }
+
+    fn scope_cleanup(
+        &mut self,
+        scope: BodyScopeId,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .scope_actions(scope, state)
+    }
+
+    fn parameter_cleanup(
+        &mut self,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .parameter_actions(state)
+    }
+
+    fn value_cleanup(
+        &mut self,
+        node: BodyNodeId,
+        ty: nocter_model::TypeId,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        CleanupPlanner::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.body,
+            self.source,
+        )
+        .value_action(node, ty)
+    }
+
+    fn all_scope_cleanup(
+        &mut self,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let scopes = self.scopes.clone();
+        let mut actions = Vec::new();
+        for scope in scopes.into_iter().rev() {
+            actions.extend(self.scope_cleanup(scope, state)?);
+        }
+        actions.extend(self.parameter_cleanup(state)?);
+        Ok(actions)
+    }
+
+    fn loop_scope_cleanup(
+        &mut self,
+        body_scope: BodyScopeId,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let Some(target) = self.scopes.iter().rposition(|scope| *scope == body_scope) else {
+            return Err(BodyCheckInternalError::LoopStack);
+        };
+        let scopes = self.scopes[target..].to_vec();
+        let mut actions = Vec::new();
+        for scope in scopes.into_iter().rev() {
+            actions.extend(self.scope_cleanup(scope, state)?);
+        }
+        Ok(actions)
+    }
+
+    fn record_cleanup(&mut self, node: BodyNodeId, actions: Vec<CleanupAction>) {
+        self.cleanup_actions.insert(node, actions);
     }
 
     fn require_initialized(

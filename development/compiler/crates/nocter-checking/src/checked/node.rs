@@ -1,5 +1,5 @@
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CallableCapability, CallableId, CaptureId, FieldId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId, FieldId,
     LocalBindingId, LoopId, NominalTypeId, PlaceId, TypeId, VariantId,
 };
 
@@ -390,6 +390,7 @@ impl CheckedLoop {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CheckedControl {
     Block {
+        scope: BodyScopeId,
         statements: Box<[BodyNodeId]>,
         result: Option<BodyNodeId>,
     },

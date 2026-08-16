@@ -7,9 +7,10 @@ use nocter_model::{
 
 use crate::{BodyScope, Capture, LocalBinding, ResolvedBodyNames};
 
+use super::body::CheckedBodyDomains;
 use super::{
     CheckedBody, CheckedCapture, CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation,
-    CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot,
+    CheckedPlace, CleanupTable, PlaceAccess, PlaceProjection, PlaceRoot,
 };
 
 /// Sole mutable construction path for one checked body.
@@ -116,13 +117,21 @@ impl CheckedBodyBuilder {
             LoopSlot::Reserved => Err(BuildCheckedBodyError::IncompleteLoop(loop_)),
             LoopSlot::Defined(definition) => Ok(definition),
         })?;
+        let nodes = self.nodes.finish();
+        let mut cleanup_actions = ArenaBuilder::<BodyNodeId, Box<[super::CleanupAction]>>::new();
+        for _ in 0..nodes.len() {
+            cleanup_actions.insert(Vec::new().into_boxed_slice());
+        }
         Ok(CheckedBody::new(
-            self.scopes,
-            self.locals.finish(),
-            self.captures.finish(),
-            self.places.finish(),
-            loops,
-            self.nodes.finish(),
+            CheckedBodyDomains {
+                scopes: self.scopes,
+                locals: self.locals.finish(),
+                captures: self.captures.finish(),
+                places: self.places.finish(),
+                loops,
+                nodes,
+            },
+            CleanupTable::new(cleanup_actions.finish()),
             root,
         ))
     }
@@ -152,6 +161,10 @@ pub enum BuildCheckedBodyError {
     UnknownLoop(LoopId),
     DuplicateLoop(LoopId),
     IncompleteLoop(LoopId),
+    InvalidCleanupCount {
+        expected: usize,
+        actual: usize,
+    },
 }
 
 impl fmt::Display for BuildCheckedBodyError {

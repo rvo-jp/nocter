@@ -213,14 +213,16 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
         }
         let body = self.builder.finish(root)?;
-        analyze_body_ownership(
+        let cleanups = analyze_body_ownership(
             self.graph,
             self.types,
             self.copyabilities,
+            self.drops,
             self.source,
             &body,
             &self.node_origins,
         )?;
+        let body = body.with_cleanups(cleanups)?;
         Ok(CheckedBodyOutput {
             body,
             projections: self.projections,
@@ -271,6 +273,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             block,
             ty,
             CheckedOperation::Control(CheckedControl::Block {
+                scope: self
+                    .names
+                    .block_scope(block)
+                    .ok_or(BodyCheckInternalError::MissingBlockScope(block))?,
                 statements: statements.into_boxed_slice(),
                 result,
             }),

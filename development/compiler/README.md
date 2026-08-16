@@ -212,6 +212,12 @@ be introduced to make an unresolved syntax choice.
   their preheader with normal and `continue` backedges until stable, then expose only reachable
   breaks and possible false-condition exits. Integer ranges evaluate both endpoints once and
   initialize a typed loop binding on each body edge; loop-local paths cannot escape the join.
+  Name resolution also maps every syntax block directly to its semantic `BodyScopeId`, which the
+  checked block retains. The ownership walk produces a dense node-indexed cleanup table from the
+  same state used for move validation. Normal exits, returns, breaks, and continues clean inner
+  locals in reverse declaration order; return then cleans owned parameters. Maybe-initialized
+  paths become conditional actions, moved paths disappear, partially moved structs expand to their
+  remaining fields, and discarded move-only values remain explicit value cleanup targets.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

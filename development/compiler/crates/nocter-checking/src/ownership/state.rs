@@ -44,8 +44,12 @@ impl MovePath {
         Some(path)
     }
 
-    fn root_identity(&self) -> PlaceRoot {
+    pub(crate) fn root_identity(&self) -> PlaceRoot {
         self.root
+    }
+
+    pub(crate) fn fields(&self) -> &[FieldId] {
+        &self.fields
     }
 
     fn is_prefix_of(&self, another: &Self) -> bool {
@@ -174,6 +178,23 @@ impl OwnershipState {
             joined.insert(path, state);
         }
         Ok(Self { paths: joined })
+    }
+
+    pub(crate) fn initialization(
+        &self,
+        path: &MovePath,
+    ) -> Result<InitializationState, OwnershipStateError> {
+        self.state_at(path)
+    }
+
+    pub(crate) fn has_descendant(&self, path: &MovePath) -> bool {
+        self.paths
+            .keys()
+            .any(|candidate| candidate != path && path.is_prefix_of(candidate))
+    }
+
+    pub(crate) fn forget_root(&mut self, root: PlaceRoot) {
+        self.paths.retain(|path, _| path.root_identity() != root);
     }
 }
 

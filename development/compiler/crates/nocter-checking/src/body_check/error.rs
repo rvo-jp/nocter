@@ -61,6 +61,7 @@ pub enum BodyCheckInternalError {
     UnsupportedNameTarget(NodeId, NameTarget),
     MissingParameterType(NameTarget),
     MissingLocalDeclaration(NodeId),
+    MissingBlockScope(NodeId),
     DuplicateLocalDeclaration(SyntaxOrigin),
     MissingLocalType(LocalBindingId),
     InvalidLiteral(NodeId),
@@ -82,6 +83,7 @@ pub enum BodyCheckInternalError {
     NonCanonicalBody(BodyId),
     OwnershipState,
     FieldSelection,
+    CleanupPlanning,
 }
 
 impl fmt::Display for BodyCheckInternalError {

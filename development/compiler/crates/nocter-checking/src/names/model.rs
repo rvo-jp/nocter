@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use nocter_declarations::ExportedEntity;
 use nocter_model::{Arena, BodyId, BodyScopeId, CaptureId, LocalBindingId, ParameterId, Symbol};
 use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::NodeId;
 
 /// One exact value/name target selected during body lookup.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -164,6 +167,7 @@ pub struct ResolvedBodyNames {
     scopes: Arena<BodyScopeId, BodyScope>,
     locals: Arena<LocalBindingId, LocalBinding>,
     captures: Arena<CaptureId, Capture>,
+    block_scopes: HashMap<NodeId, BodyScopeId>,
     uses: Box<[ResolvedNameUse]>,
 }
 
@@ -173,6 +177,7 @@ impl ResolvedBodyNames {
         scopes: Arena<BodyScopeId, BodyScope>,
         locals: Arena<LocalBindingId, LocalBinding>,
         captures: Arena<CaptureId, Capture>,
+        block_scopes: HashMap<NodeId, BodyScopeId>,
         uses: impl Into<Box<[ResolvedNameUse]>>,
     ) -> Self {
         Self {
@@ -180,6 +185,7 @@ impl ResolvedBodyNames {
             scopes,
             locals,
             captures,
+            block_scopes,
             uses: uses.into(),
         }
     }
@@ -202,6 +208,11 @@ impl ResolvedBodyNames {
     #[must_use]
     pub const fn captures(&self) -> &Arena<CaptureId, Capture> {
         &self.captures
+    }
+
+    #[must_use]
+    pub fn block_scope(&self, block: NodeId) -> Option<BodyScopeId> {
+        self.block_scopes.get(&block).copied()
     }
 
     #[must_use]

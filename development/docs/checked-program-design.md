@@ -92,7 +92,8 @@ environment projection identity. Free-name scanning and implicit capture are pro
 ## Checked Body Shape
 
 Each body owns dense arenas for scopes, local/capture identities, typed nodes, places, and
-control-flow edges. A typed node stores its `TypeId` and one closed operation variant. Examples are
+control-flow edges. Every checked block carries the exact `BodyScopeId` produced by name
+resolution. A typed node stores its `TypeId` and one closed operation variant. Examples are
 direct call, abstract requirement call, selected coercion, outcome injection, field place, index
 place, move, borrow, branch, loop, propagation, cleanup, and terminal operation. Compiler-generated
 operations use the same variants and differ only in source role.
@@ -101,6 +102,11 @@ Reachability is an explicit control-flow fact, not an absent node. Unreachable s
 name-resolved and type-checked, but flow-dependent initialization, move, loan, and provenance state
 does not invent an incoming executable edge. Scope exit records generated drops in reverse
 declaration order and conditional drops for maybe-initialized storage.
+
+`CleanupTable` is a dense checked-node-indexed edge annotation. A cleanup target is either an owned
+root plus exact `FieldId` path or a consumed temporary value node. Its condition is `Always` or
+`IfInitialized`; it never embeds a source name, syntax range, or independently inferred liveness
+bit. Later MIR expands the target type through the program's `DropTable` and structural drop glue.
 
 ## Construction Order
 
@@ -224,7 +230,7 @@ selection, so writable field access through `&+T` still cannot become an owned m
 checked program. A field move examines its enclosing nominal families from nearest to farthest;
 the first family with a type-owned drop body projects `E0381` and the exact drop declaration as a
 related source. Cleanup planning can therefore assume a user drop body always receives a complete
-`Self`. Conditional control-flow consumers and generated cleanup remain subsequent increments.
+`Self`.
 
 Ordinary conditional ownership analysis snapshots state after the condition, checks each branch
 from that exact entry, and feeds only normally completing exits to
@@ -244,7 +250,20 @@ for `while` and integer ranges. Entry-relative joining filters the per-iteration
 endpoints execute once, left-to-right, before the preheader; their typed immutable binding becomes
 initialized only on the body edge. A nonbreaking infinite loop has no continuation, while an
 unreachable `break` does not change its `never` result. Collection iteration, pattern
-conditionals, `match`, and generated cleanup remain subsequent increments.
+conditionals, and `match` remain subsequent increments.
+
+The same ownership walk materializes cleanup after each outgoing edge reaches its final abstract
+state. Normal block fallthrough removes that block's locals. `return` removes active scopes from
+inner to outer and then owned parameters. `break` and `continue` remove scopes through the target
+loop body's exact scope before their states enter the exit or backedge join. Locals are considered
+in reverse declaration order. A complete initialized path becomes an unconditional action, a
+maybe-initialized path becomes a conditional action, and an uninitialized path produces no action.
+When a named-field override makes a struct partial, cleanup recursively follows declared fields in
+reverse order and emits actions only for remaining live field paths; the earlier partial-move rule
+guarantees no expanded parent has a type-owned drop body. Discarding a move-only expression records
+the consumed value node itself, so cleanup does not invent a hidden local or lose the transferred
+value. Explicit `drop`, assignment/reinitialization, and temporary ownership for unsupported
+expression families remain subsequent increments.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

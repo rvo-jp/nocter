@@ -4,7 +4,7 @@ use nocter_model::{
 
 use crate::{BodyScope, Capture, LocalBinding};
 
-use super::{CheckedLoop, CheckedNode, CheckedPlace};
+use super::{CheckedLoop, CheckedNode, CheckedPlace, CleanupTable};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CheckedLocal {
@@ -55,26 +55,33 @@ pub struct CheckedBody {
     places: Arena<PlaceId, CheckedPlace>,
     loops: Arena<LoopId, CheckedLoop>,
     nodes: Arena<BodyNodeId, CheckedNode>,
+    cleanups: CleanupTable,
     root: BodyNodeId,
+}
+
+pub(super) struct CheckedBodyDomains {
+    pub(super) scopes: Arena<BodyScopeId, BodyScope>,
+    pub(super) locals: Arena<LocalBindingId, CheckedLocal>,
+    pub(super) captures: Arena<CaptureId, CheckedCapture>,
+    pub(super) places: Arena<PlaceId, CheckedPlace>,
+    pub(super) loops: Arena<LoopId, CheckedLoop>,
+    pub(super) nodes: Arena<BodyNodeId, CheckedNode>,
 }
 
 impl CheckedBody {
     pub(super) fn new(
-        scopes: Arena<BodyScopeId, BodyScope>,
-        locals: Arena<LocalBindingId, CheckedLocal>,
-        captures: Arena<CaptureId, CheckedCapture>,
-        places: Arena<PlaceId, CheckedPlace>,
-        loops: Arena<LoopId, CheckedLoop>,
-        nodes: Arena<BodyNodeId, CheckedNode>,
+        domains: CheckedBodyDomains,
+        cleanups: CleanupTable,
         root: BodyNodeId,
     ) -> Self {
         Self {
-            scopes,
-            locals,
-            captures,
-            places,
-            loops,
-            nodes,
+            scopes: domains.scopes,
+            locals: domains.locals,
+            captures: domains.captures,
+            places: domains.places,
+            loops: domains.loops,
+            nodes: domains.nodes,
+            cleanups,
             root,
         }
     }
@@ -107,6 +114,25 @@ impl CheckedBody {
     #[must_use]
     pub const fn nodes(&self) -> &Arena<BodyNodeId, CheckedNode> {
         &self.nodes
+    }
+
+    #[must_use]
+    pub const fn cleanups(&self) -> &CleanupTable {
+        &self.cleanups
+    }
+
+    pub(crate) fn with_cleanups(
+        mut self,
+        cleanups: CleanupTable,
+    ) -> Result<Self, super::BuildCheckedBodyError> {
+        if cleanups.len() != self.nodes.len() {
+            return Err(super::BuildCheckedBodyError::InvalidCleanupCount {
+                expected: self.nodes.len(),
+                actual: cleanups.len(),
+            });
+        }
+        self.cleanups = cleanups;
+        Ok(self)
     }
 
     #[must_use]

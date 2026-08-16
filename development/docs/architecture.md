@@ -395,6 +395,13 @@ ownership walker may revisit immutable control nodes to compute loop fixed point
 allocate a node, place, local, or loop identity. This separation prevents analysis order and the
 number of fixed-point iterations from changing semantic identity or source projection.
 
+Name resolution assigns each syntax block one exact body-scope identity and checked construction
+stores that identity on the block node. Ownership analysis therefore computes scope-exit edges
+without source containment queries. Its dense cleanup table is keyed by the node whose outgoing
+edge runs the action. Path actions retain only an owned root, exact field identities, type, and
+unconditional-or-conditional state; discarded owned temporaries name their checked value node.
+MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue.
+
 A checked body records reachability on its control-flow nodes. Source after a proven terminal node
 still receives declaration and type identities, but no synthetic initialization, move, loan, or
 provenance state is created for the impossible continuation. Such nodes remain available to
