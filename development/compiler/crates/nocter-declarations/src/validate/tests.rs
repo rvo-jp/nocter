@@ -4,8 +4,8 @@ use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
     CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
     DeclarationProgramBuilder, DeclarationRule, DeclarationViolation, DropDeclaration,
-    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModulePath,
-    NominalShape, NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole,
+    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModuleNamespace,
+    ModulePath, NominalShape, NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole,
     ProgramBuildError, ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin,
     VariantDeclaration, Visibility,
 };
@@ -20,6 +20,9 @@ fn two_pass_definitions_support_recursive_header_identity() {
     let mut program = DeclarationProgramBuilder::new(symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
     let type_site = program
         .add_declaration_site(module, Visibility::Public)
         .unwrap();
@@ -78,6 +81,9 @@ fn orphaned_members_cannot_enter_the_immutable_program() {
     let mut program = DeclarationProgramBuilder::new(symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
     let site = program
         .add_declaration_site(module, Visibility::Private)
         .unwrap();
@@ -120,6 +126,9 @@ fn empty_enums_cannot_enter_the_immutable_program() {
     let mut program = DeclarationProgramBuilder::new(symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
     let site = program
         .add_declaration_site(module, Visibility::Private)
         .unwrap();
@@ -159,6 +168,9 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
     let mut program = DeclarationProgramBuilder::new(symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
     let site = program
         .add_declaration_site(module, Visibility::Private)
         .unwrap();
@@ -248,6 +260,12 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
         let standard_str = program
             .add_module(standard, ModulePath::from_segments([str_name]))
             .unwrap();
+        program
+            .define_module_namespace(app_str, ModuleNamespace::default())
+            .unwrap();
+        program
+            .define_module_namespace(standard_str, ModuleNamespace::default())
+            .unwrap();
         program.set_standard_package(standard).unwrap();
         program
             .set_builtin_attachment_module(BuiltinAttachment::Str, standard_str)
@@ -287,6 +305,9 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
     let mut program = DeclarationProgramBuilder::new(symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
     let site = program
         .add_declaration_site(module, Visibility::Private)
         .unwrap();
@@ -365,6 +386,9 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         let mut program = DeclarationProgramBuilder::new(symbols);
         let package = program.add_package(app_name).unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
+        program
+            .define_module_namespace(module, ModuleNamespace::default())
+            .unwrap();
         let site = program
             .add_declaration_site(module, Visibility::Private)
             .unwrap();

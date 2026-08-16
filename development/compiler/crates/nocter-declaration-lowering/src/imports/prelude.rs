@@ -3,7 +3,10 @@ use std::fmt;
 use super::access::{module_index_by_id, module_index_by_identity, visible_from};
 use super::{ModuleNamespace, PreparedImports, lookup};
 use crate::{ImportViolation, ModuleIdentity, SurfaceImportTarget};
-use nocter_declarations::{BuiltinAttachment, ExportedEntity, ProgramBuildError};
+use nocter_declarations::{
+    BuiltinAttachment, ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace,
+    NamespaceEntry, ProgramBuildError,
+};
 use nocter_model::{ModuleId, Symbol};
 use nocter_syntax::NodeId;
 
@@ -72,6 +75,41 @@ impl PreparedNamespaces<'_> {
         name: Symbol,
     ) -> Option<ExportedEntity> {
         self.imports.lookup_export(from, module, name)
+    }
+
+    /// Freezes the already-selected authored and prelude namespace layers into the declaration
+    /// program. Later semantic stages consume that authority instead of rebuilding lookup tables.
+    pub(crate) fn define_program_namespaces(&mut self) -> Result<(), ProgramBuildError> {
+        let namespaces = self
+            .imports
+            .namespaces
+            .iter()
+            .zip(self.prelude.iter())
+            .map(|(authored, fallback)| {
+                SemanticModuleNamespace::new(
+                    authored.iter().map(|(name, binding)| {
+                        NamespaceEntry::new(*name, binding.entity, binding.visibility)
+                    }),
+                    fallback
+                        .iter()
+                        .map(|(name, binding)| FallbackEntry::new(*name, binding.entity)),
+                )
+                .map_err(|error| ProgramBuildError::DuplicateModuleNamespaceName(error.name()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let modules = self.imports.generics.headers.reserved.module_ids.clone();
+        if modules.len() != namespaces.len() {
+            return Err(ProgramBuildError::UnknownModule);
+        }
+        for (module, namespace) in modules.into_iter().zip(namespaces) {
+            self.imports
+                .generics
+                .headers
+                .reserved
+                .program
+                .define_module_namespace(module, namespace)?;
+        }
+        Ok(())
     }
 }
 

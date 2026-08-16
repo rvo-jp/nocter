@@ -8,8 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_declarations::{
-    ExportedEntity, ImportDeclaration, ImportScope, ImportTarget, ImportedName, ProgramBuildError,
-    Visibility,
+    ExportedEntity, ImportDeclaration, ImportTarget, ImportedName, ProgramBuildError, Visibility,
 };
 use nocter_model::{ImportId, ModuleId, Symbol};
 use nocter_source::SourceId;
@@ -243,7 +242,7 @@ pub fn prepare_authored_imports(
             validate_collisions(&namespaces[module_index], resolved.bindings())?;
 
             let declaration = ImportDeclaration::new(
-                ImportScope::Module(importing_module),
+                importing_module,
                 visibility,
                 resolved.target(target_module),
             );

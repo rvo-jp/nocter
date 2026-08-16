@@ -220,7 +220,7 @@ impl std::error::Error for DuplicateSourceBinding {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_declarations::{DeclarationProgramBuilder, ModulePath, Visibility};
+    use nocter_declarations::{DeclarationProgramBuilder, ModuleNamespace, ModulePath, Visibility};
     use nocter_model::{DeclarationSiteId, ModuleId, Symbol, SymbolTable};
     use nocter_source::{ByteOffset, SourceFile, SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxToken, SyntaxTree, parse};
@@ -336,6 +336,9 @@ mod tests {
         let mut builder = DeclarationProgramBuilder::new(symbols);
         let package = builder.add_package(app_name).unwrap();
         let module = builder.add_module(package, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(module, ModuleNamespace::default())
+            .unwrap();
         let site = builder
             .add_declaration_site(module, Visibility::Private)
             .unwrap();

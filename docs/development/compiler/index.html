@@ -244,7 +244,10 @@
   Prelude composition adds no second import diagnostic system: authored import preparation retains
   every module-path origin, and an explicit compiler-managed prelude import reuses <code>ImportRule</code>
   <code>E0262</code>. Missing compiler-selected modules, missing retained origins, and invalid builder state
-  remain internal <code>PreludeError</code> variants.
+  remain internal <code>PreludeError</code> variants. The frozen program retains authored and fallback module
+  namespace layers separately. Later body lookup consumes them directly; fallback names remain
+  shadowable and non-exportable. Block imports belong to checked lexical scopes rather than the
+  declaration import arena.
   Type binding owns a <code>BindingArena</code> containing bound kinds, root indexes, and the temporary
   <code>NormalizationOrigins</code> side index. Normalization consumes that index to project recursive alias
   cycles, unknown or ambiguous associated selections, ambiguous callable provenance, and general

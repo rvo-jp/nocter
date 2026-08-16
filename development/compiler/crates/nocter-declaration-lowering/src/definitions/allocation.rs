@@ -115,9 +115,10 @@ pub(super) fn allocate(
 }
 
 pub(super) fn finish(
-    types: PreparedTypes<'_>,
+    mut types: PreparedTypes<'_>,
     _allocated: AllocatedHeaders,
 ) -> Result<LoweredDeclarations, HeaderDefinitionError> {
+    types.namespaces.define_program_namespaces()?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
     let source_index = reserved.source_index.finish();
     match reserved.program.finish() {

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_declarations::{
-    DeclarationProgram, DeclarationProgramBuilder, ModulePath, ProgramBuildError,
+    DeclarationProgram, DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError,
 };
 use nocter_model::{ModuleId, SymbolTable};
 use nocter_source::SourceId;
@@ -240,6 +240,7 @@ pub fn lower_compile_unit_topology(
             })
             .collect::<Result<Vec<_>, _>>()?;
         let id = program.add_module(package, ModulePath::from_segments(path))?;
+        program.define_module_namespace(id, ModuleNamespace::default())?;
         project_module_sources(&mut source_index, id, module)?;
     }
 

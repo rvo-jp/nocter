@@ -213,6 +213,12 @@ import of the compiler-selected standard prelude is therefore the shared import 
 a missing selected prelude, an absent retained origin, or rejected program authority is an internal
 composition failure.
 
+Declaration freezing stores the authored namespace and compiler-selected fallback as separate
+tables in `DeclarationProgram`. Authored entries retain effective visibility; fallback entries are
+local-only and cannot become re-exports. Body checking consumes these tables directly instead of
+rebuilding lookup from declaration/import iteration. Block imports remain lexical checked-body
+data and are not represented as declaration imports.
+
 Header type binding owns a closed distinction between authored rules and broken compiler input.
 Authored name, entity-kind, arity, `Self`, fixed-array, callable provenance, opaque-binding, and
 requirement failures retain `SyntaxOrigin` values at rule selection and project `E0290`-`E0302`.

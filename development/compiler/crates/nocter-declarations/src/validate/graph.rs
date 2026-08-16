@@ -1,9 +1,6 @@
-use nocter_model::{BodyId, ModuleId};
+use nocter_model::ModuleId;
 
-use crate::{
-    BodyOwner, CallableOwner, DeclarationProgram, ExportedEntity, ImportScope, ImportTarget,
-    Visibility,
-};
+use crate::{CallableOwner, DeclarationProgram, ExportedEntity, ImportTarget};
 
 use super::{
     DeclarationDomain, ProgramIntegrityError, require, require_site, require_symbol,
@@ -44,30 +41,18 @@ pub(super) fn validate_packages_modules_sites(
 
 pub(super) fn validate_imports(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
     for (_, import) in program.imports().iter() {
-        let source_module = match import.scope() {
-            ImportScope::Module(module) => {
-                require(
-                    program.modules().get(module),
-                    DeclarationDomain::Import,
-                    DeclarationDomain::Module,
-                )?;
-                module
-            }
-            ImportScope::Body(body) => body_module(program, body)?,
-        };
+        let source_module = import.module();
+        require(
+            program.modules().get(source_module),
+            DeclarationDomain::Import,
+            DeclarationDomain::Module,
+        )?;
         validate_visibility(
             program,
             source_module,
             import.visibility(),
             DeclarationDomain::Import,
         )?;
-        if matches!(import.scope(), ImportScope::Body(_))
-            && import.visibility() != Visibility::Private
-        {
-            return Err(ProgramIntegrityError::InvalidVisibility(
-                DeclarationDomain::Import,
-            ));
-        }
         require(
             program.modules().get(import.target().module()),
             DeclarationDomain::Import,
@@ -89,7 +74,8 @@ pub(super) fn validate_imports(program: &DeclarationProgram) -> Result<(), Progr
                 for name in names {
                     require_symbol(program, name.exported_name(), DeclarationDomain::Import)?;
                     require_symbol(program, name.local_name(), DeclarationDomain::Import)?;
-                    let target_module = exported_entity_module(program, name.target())?;
+                    let target_module =
+                        exported_entity_module(program, name.target(), DeclarationDomain::Import)?;
                     if target_module != import.target().module() {
                         return Err(ProgramIntegrityError::OwnerMismatch(
                             DeclarationDomain::Import,
@@ -102,46 +88,79 @@ pub(super) fn validate_imports(program: &DeclarationProgram) -> Result<(), Progr
     Ok(())
 }
 
+pub(super) fn validate_namespaces(
+    program: &DeclarationProgram,
+) -> Result<(), ProgramIntegrityError> {
+    for (module, namespace) in program.module_namespaces().iter() {
+        require(
+            program.modules().get(module),
+            DeclarationDomain::Module,
+            DeclarationDomain::Module,
+        )?;
+        for entry in namespace.authored() {
+            require_symbol(program, entry.name(), DeclarationDomain::Namespace)?;
+            validate_visibility(
+                program,
+                module,
+                entry.visibility(),
+                DeclarationDomain::Namespace,
+            )?;
+            exported_entity_module(program, entry.target(), DeclarationDomain::Namespace)?;
+        }
+        for entry in namespace.fallback() {
+            require_symbol(program, entry.name(), DeclarationDomain::Namespace)?;
+            exported_entity_module(program, entry.target(), DeclarationDomain::Namespace)?;
+        }
+    }
+    Ok(())
+}
+
 fn exported_entity_module(
     program: &DeclarationProgram,
     entity: ExportedEntity,
+    owner: DeclarationDomain,
 ) -> Result<ModuleId, ProgramIntegrityError> {
     let declarations = program.declarations();
     let site = match entity {
-        ExportedEntity::Module(module) => return Ok(module),
+        ExportedEntity::Module(module) => {
+            require(
+                program.modules().get(module),
+                owner,
+                DeclarationDomain::Module,
+            )?;
+            return Ok(module);
+        }
         ExportedEntity::NominalType(id) => require(
             declarations.nominal_types().get(id),
-            DeclarationDomain::Import,
+            owner,
             DeclarationDomain::NominalType,
         )?
         .site(),
         ExportedEntity::TypeAlias(id) => require(
             declarations.type_aliases().get(id),
-            DeclarationDomain::Import,
+            owner,
             DeclarationDomain::TypeAlias,
         )?
         .site(),
         ExportedEntity::Interface(id) => require(
             declarations.interfaces().get(id),
-            DeclarationDomain::Import,
+            owner,
             DeclarationDomain::Interface,
         )?
         .site(),
         ExportedEntity::Callable(id) => {
             let callable = require(
                 declarations.callables().get(id),
-                DeclarationDomain::Import,
+                owner,
                 DeclarationDomain::Callable,
             )?;
             if !matches!(callable.owner(), CallableOwner::Module(_)) {
-                return Err(ProgramIntegrityError::OwnerMismatch(
-                    DeclarationDomain::Import,
-                ));
+                return Err(ProgramIntegrityError::OwnerMismatch(owner));
             }
             callable.site()
         }
     };
-    Ok(require_site(program, site, DeclarationDomain::Import)?.module())
+    Ok(require_site(program, site, owner)?.module())
 }
 
 pub(super) fn validate_package_targets(
@@ -166,36 +185,4 @@ pub(super) fn validate_package_targets(
         }
     }
     Ok(())
-}
-
-fn body_module(
-    program: &DeclarationProgram,
-    body: BodyId,
-) -> Result<ModuleId, ProgramIntegrityError> {
-    let body = require(
-        program.declarations().bodies().get(body),
-        DeclarationDomain::Import,
-        DeclarationDomain::Body,
-    )?;
-    let site = match body.owner() {
-        BodyOwner::Callable(owner) => require(
-            program.declarations().callables().get(owner),
-            DeclarationDomain::Import,
-            DeclarationDomain::Callable,
-        )?
-        .site(),
-        BodyOwner::Drop(owner) => require(
-            program.declarations().drops().get(owner),
-            DeclarationDomain::Import,
-            DeclarationDomain::Drop,
-        )?
-        .site(),
-        BodyOwner::Test(owner) => require(
-            program.declarations().tests().get(owner),
-            DeclarationDomain::Import,
-            DeclarationDomain::Test,
-        )?
-        .site(),
-    };
-    Ok(require_site(program, site, DeclarationDomain::Import)?.module())
 }

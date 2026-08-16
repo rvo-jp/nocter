@@ -7,9 +7,9 @@ use nocter_model::{
 };
 
 use crate::{
-    BuiltinAttachment, DeclarationArenaBuilder, DeclarationArenas, ImportDeclaration,
-    IncompleteDefinition, ModulePath, PackageTarget, ProgramValidationError, StandardLibrary,
-    Visibility,
+    BuiltinAttachment, DeclarationArenaBuilder, DeclarationArenas, ExportedEntity,
+    ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
+    ProgramValidationError, StandardLibrary, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -66,6 +66,7 @@ pub struct DeclarationProgram {
     packages: Arena<PackageId, Package>,
     standard_library: Option<StandardLibrary>,
     modules: Arena<ModuleId, Module>,
+    module_namespaces: Arena<ModuleId, ModuleNamespace>,
     declaration_sites: Arena<DeclarationSiteId, DeclarationSite>,
     imports: Arena<ImportId, ImportDeclaration>,
     package_targets: Arena<PackageTargetId, PackageTarget>,
@@ -107,6 +108,62 @@ impl DeclarationProgram {
     }
 
     #[must_use]
+    pub const fn module_namespaces(&self) -> &Arena<ModuleId, ModuleNamespace> {
+        &self.module_namespaces
+    }
+
+    /// Resolves one exact module-local authored or compiler-selected fallback name.
+    #[must_use]
+    pub fn lookup_local(&self, module: ModuleId, name: Symbol) -> Option<ExportedEntity> {
+        self.module_namespaces.get(module)?.lookup_local(name)
+    }
+
+    /// Resolves an authored export visible from another module.
+    ///
+    /// Compiler-selected prelude fallback names never participate in this lookup.
+    #[must_use]
+    pub fn lookup_export(
+        &self,
+        from: ModuleId,
+        module: ModuleId,
+        name: Symbol,
+    ) -> Option<ExportedEntity> {
+        let entry = self.module_namespaces.get(module)?.lookup_authored(name)?;
+        self.is_visible_from(entry.visibility(), from, module)
+            .then_some(entry.target())
+    }
+
+    /// Tests one normalized visibility boundary without reinterpreting source path syntax.
+    #[must_use]
+    pub fn is_visible_from(
+        &self,
+        visibility: Visibility,
+        from: ModuleId,
+        declaring_module: ModuleId,
+    ) -> bool {
+        if self.modules.get(declaring_module).is_none() {
+            return false;
+        }
+        match visibility {
+            Visibility::Private => from == declaring_module,
+            Visibility::Public => self.modules.get(from).is_some(),
+            Visibility::Package(package) => self
+                .modules
+                .get(from)
+                .is_some_and(|module| module.package() == package),
+            Visibility::Descendants(boundary) => {
+                let Some(boundary) = self.modules.get(boundary) else {
+                    return false;
+                };
+                let Some(from) = self.modules.get(from) else {
+                    return false;
+                };
+                boundary.package() == from.package() && boundary.path().is_ancestor_of(from.path())
+            }
+        }
+    }
+
+    #[must_use]
     pub const fn declaration_sites(&self) -> &Arena<DeclarationSiteId, DeclarationSite> {
         &self.declaration_sites
     }
@@ -138,6 +195,7 @@ pub struct DeclarationProgramBuilder {
     packages: ArenaBuilder<PackageId, Package>,
     standard_library: Option<StandardLibrary>,
     modules: ArenaBuilder<ModuleId, Module>,
+    module_namespaces: ArenaBuilder<ModuleId, Option<ModuleNamespace>>,
     module_ids: HashMap<(PackageId, ModulePath), ModuleId>,
     declaration_sites: ArenaBuilder<DeclarationSiteId, DeclarationSite>,
     imports: ArenaBuilder<ImportId, ImportDeclaration>,
@@ -154,6 +212,7 @@ impl DeclarationProgramBuilder {
             packages: ArenaBuilder::new(),
             standard_library: None,
             modules: ArenaBuilder::new(),
+            module_namespaces: ArenaBuilder::new(),
             module_ids: HashMap::new(),
             declaration_sites: ArenaBuilder::new(),
             imports: ArenaBuilder::new(),
@@ -247,8 +306,32 @@ impl DeclarationProgramBuilder {
             return Err(ProgramBuildError::DuplicateModule(*existing));
         }
         let id = self.modules.insert(Module { package, path });
+        let namespace = self.module_namespaces.insert(None);
+        debug_assert_eq!(id, namespace);
         self.module_ids.insert(key, id);
         Ok(id)
+    }
+
+    /// Defines the canonical authored and prelude-fallback namespace for one module.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unknown module or a second definition of the same namespace.
+    pub fn define_module_namespace(
+        &mut self,
+        module: ModuleId,
+        namespace: ModuleNamespace,
+    ) -> Result<(), ProgramBuildError> {
+        self.require_module(module)?;
+        let slot = self
+            .module_namespaces
+            .get_mut(module)
+            .ok_or(ProgramBuildError::UnknownModule)?;
+        if slot.is_some() {
+            return Err(ProgramBuildError::ModuleNamespaceAlreadyDefined(module));
+        }
+        *slot = Some(namespace);
+        Ok(())
     }
 
     /// Adds an authored declaration site after resolving its visibility boundary.
@@ -337,11 +420,17 @@ impl DeclarationProgramBuilder {
     ///
     /// Returns an error when an identity reservation was not completed.
     pub fn finish(self) -> Result<DeclarationProgram, ProgramBuildError> {
+        let module_namespaces = self
+            .module_namespaces
+            .try_finish_with(|module, namespace| {
+                namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
+            })?;
         let program = DeclarationProgram {
             symbols: self.symbols,
             packages: self.packages.finish(),
             standard_library: self.standard_library,
             modules: self.modules.finish(),
+            module_namespaces,
             declaration_sites: self.declaration_sites.finish(),
             imports: self.imports.finish(),
             package_targets: self.package_targets.finish(),
@@ -378,6 +467,9 @@ pub enum ProgramBuildError {
     UnknownPackage,
     UnknownModule,
     DuplicateModule(ModuleId),
+    MissingModuleNamespace(ModuleId),
+    ModuleNamespaceAlreadyDefined(ModuleId),
+    DuplicateModuleNamespaceName(Symbol),
     ConflictingStandardPackage,
     StandardPackageNotSelected,
     StandardModuleOutsidePackage,
@@ -397,6 +489,15 @@ impl fmt::Display for ProgramBuildError {
             Self::UnknownModule => formatter.write_str("module is not part of the program"),
             Self::DuplicateModule(existing) => {
                 write!(formatter, "module identity duplicates {existing:?}")
+            }
+            Self::MissingModuleNamespace(module) => {
+                write!(formatter, "module {module:?} has no canonical namespace")
+            }
+            Self::ModuleNamespaceAlreadyDefined(module) => {
+                write!(formatter, "module {module:?} namespace was already defined")
+            }
+            Self::DuplicateModuleNamespaceName(name) => {
+                write!(formatter, "module namespace repeats symbol {name:?}")
             }
             Self::ConflictingStandardPackage => {
                 formatter.write_str("a different standard package is already selected")
@@ -446,7 +547,9 @@ impl From<ProgramValidationError> for ProgramBuildError {
 mod tests {
     use nocter_model::SymbolTable;
 
-    use crate::{DeclarationProgramBuilder, ModulePath, ProgramBuildError, Visibility};
+    use crate::{
+        DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
+    };
 
     #[test]
     fn module_identity_is_exact_package_and_normalized_path() {
@@ -522,6 +625,9 @@ mod tests {
         let mut builder = DeclarationProgramBuilder::new(symbols);
         let app = builder.add_package(app_name).unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
         let site = builder
             .add_declaration_site(root, Visibility::Private)
             .unwrap();

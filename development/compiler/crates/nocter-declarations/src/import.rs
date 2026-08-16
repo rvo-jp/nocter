@@ -1,4 +1,4 @@
-use nocter_model::{BodyId, CallableId, InterfaceId, ModuleId, NominalTypeId, Symbol, TypeAliasId};
+use nocter_model::{CallableId, InterfaceId, ModuleId, NominalTypeId, Symbol, TypeAliasId};
 
 use crate::Visibility;
 
@@ -9,12 +9,6 @@ pub enum ExportedEntity {
     TypeAlias(TypeAliasId),
     Interface(InterfaceId),
     Callable(CallableId),
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum ImportScope {
-    Module(ModuleId),
-    Body(BodyId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -87,30 +81,31 @@ impl ImportTarget {
     }
 }
 
-/// One resolved module import or re-export.
+/// One resolved top-level module import or re-export.
 ///
 /// Same-module source composition is absent: after source loading, its declarations belong to the
 /// shared module and its physical edge remains in source-side data rather than semantic lookup.
+/// Block imports belong to checked lexical scopes and do not enter this declaration arena.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportDeclaration {
-    scope: ImportScope,
+    module: ModuleId,
     visibility: Visibility,
     target: ImportTarget,
 }
 
 impl ImportDeclaration {
     #[must_use]
-    pub const fn new(scope: ImportScope, visibility: Visibility, target: ImportTarget) -> Self {
+    pub const fn new(module: ModuleId, visibility: Visibility, target: ImportTarget) -> Self {
         Self {
-            scope,
+            module,
             visibility,
             target,
         }
     }
 
     #[must_use]
-    pub const fn scope(&self) -> ImportScope {
-        self.scope
+    pub const fn module(&self) -> ModuleId {
+        self.module
     }
 
     #[must_use]

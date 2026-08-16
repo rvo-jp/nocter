@@ -1,5 +1,5 @@
 use nocter_declarations::{
-    CallableKind, CallableProvenanceContract, DeclarationRule, NominalShape,
+    CallableKind, CallableProvenanceContract, DeclarationRule, ExportedEntity, NominalShape,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -180,7 +180,11 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
-    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let prelude_id = add_source(
+        &mut sources,
+        "/std/prelude/index.nct",
+        "pub func shared(): void { return }\n",
+    );
     let app_id = add_source(&mut sources, "/app/index.nct", FULL_HEADER_SOURCE);
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
@@ -224,6 +228,34 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     assert!(!declarations.parameters().is_empty());
     assert!(!declarations.requirements().is_empty());
     assert!(!declarations.bodies().is_empty());
+
+    let app_package = program
+        .packages()
+        .iter()
+        .find(|(_, package)| program.symbols().spelling(package.display_name()) == Some("app"))
+        .map(|(id, _)| id)
+        .unwrap();
+    let app_module = program
+        .modules()
+        .iter()
+        .find(|(_, module)| module.package() == app_package && module.path().segments().is_empty())
+        .map(|(id, _)| id)
+        .unwrap();
+    let box_name = program.symbols().get("Box").unwrap();
+    let shared_name = program.symbols().get("shared").unwrap();
+    assert!(matches!(
+        program.lookup_local(app_module, box_name),
+        Some(ExportedEntity::NominalType(_))
+    ));
+    assert!(matches!(
+        program.lookup_local(app_module, shared_name),
+        Some(ExportedEntity::Callable(_))
+    ));
+    assert_eq!(
+        program.lookup_export(app_module, app_module, shared_name),
+        None,
+        "prelude fallback must not become an authored export"
+    );
 
     let (_, boxed) = declarations.nominal_types().iter().next().unwrap();
     assert!(matches!(
@@ -498,6 +530,10 @@ fn complete_header_identity_is_independent_of_input_order() {
     assert_eq!(
         format!("{:?}", first.program().modules()),
         format!("{:?}", second.program().modules())
+    );
+    assert_eq!(
+        first.program().module_namespaces(),
+        second.program().module_namespaces()
     );
     assert_eq!(
         format!("{:?}", first.program().declarations()),

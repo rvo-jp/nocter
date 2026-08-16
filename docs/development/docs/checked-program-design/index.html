@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/io/core.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/io/core.nct.">
+    <title>Checked Program Design - Nocter</title>
+    <meta name="description" content="This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the public specification and does not define language behavio">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/io/core/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/checked-program-design/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/io/core.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/io/core.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/io/core/">
+    <meta property="og:title" content="Checked Program Design - Nocter">
+    <meta property="og:description" content="This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the public specification and does not define language behavio">
+    <meta property="og:url" content="https://nocter.dev/development/docs/checked-program-design/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-11">
+    <meta property="article:modified_time" content="2026-08-16">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/io/core.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/io/core.nct.">
+    <meta name="twitter:title" content="Checked Program Design - Nocter">
+    <meta name="twitter:description" content="This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the public specification and does not define language behavio">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/io/core.nct - Nocter","description":"Nocter source code for development/std/io/core.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/io/core/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Io","item":"https://nocter.dev/development/std/io/"},{"@type":"ListItem","position":5,"name":"Core","item":"https://nocter.dev/development/std/io/core/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Checked Program Design - Nocter","description":"This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the public specification and does not define language behavio","url":"https://nocter.dev/development/docs/checked-program-design/","mainEntityOfPage":"https://nocter.dev/development/docs/checked-program-design/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Checked Program Design","item":"https://nocter.dev/development/docs/checked-program-design/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,68 +120,29 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">v0.14.0 rewrite milestone</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">New compiler architecture</a></li>
-                <li><a href="../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
-                <li><a href="../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
-                <li><a href="../../../docs/maintenance/index.html#content">Rewrite maintenance policy</a></li>
-                <li><a href="../../../compiler/index.html#content">New compiler boundary</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../architecture/index.html#content">Compiler Rewrite Architecture</a></li>
+                <li><a href="./index.html#content" aria-current="page">Checked Program Design</a></li>
+                <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
+                <li><a href="../grammar-audit/index.html#content">Grammar Closure Audit</a></li>
+                <li><a href="../grammar-conformance/index.html#content">Grammar Conformance Plan</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../../milestones/v0.14.0/index.html#content">v0.14.0 Rewrite Milestone</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/io/core.nct</span>
+                <span class="markdown-path-text">/development/docs/checked-program-design.md</span>
             </div>
             <div class="markdown-body">
-                <h1>core.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Portable byte-stream implementation bodies.</span>
-
-<span class="token-keyword">func</span> collect_bytes<span class="token-operator">&lt;</span><span class="token-type">R</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">R</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">!</span> where <span class="token-type">R</span><span class="token-operator">:</span> <span class="token-type">Reader</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> scratch<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-function">initialized_scratch</span><span class="token-operator">(</span><span class="token-number">8192</span><span class="token-operator">)</span>
-    <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> received<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> reader<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>scratch <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">if</span> received <span class="token-operator">&gt;</span> scratch<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> received <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">break</span>
-        <span class="token-operator">}</span>
-        result<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>received<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> initialized<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>scratch <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
-        <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> received <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>initialized<span class="token-operator">[</span>offset<span class="token-operator">]</span><span class="token-operator">)</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">initialized_scratch</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> scratch<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>size<span class="token-operator">)</span>
-    <span class="token-keyword">while</span> scratch<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> size <span class="token-operator">{</span>
-        scratch<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-keyword">move</span> scratch
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> write_text_to<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span><span class="token-operator">:</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> encoded<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">string_bytes</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
-    writer<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>encoded<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>
-        <span class="token-string">"std.io.invalid_read_count"</span><span class="token-operator">,</span>
-        <span class="token-string">"reader returned more bytes than the supplied buffer can hold"</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="checked-program-design">Checked Program Design</h1><p>This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the public specification and does not define language behavior. The specification remains authoritative when this plan and a normative rule disagree.</p><h2 id="boundary">Boundary</h2><p><code>CheckedProgram</code> is the first complete, syntax-independent executable-semantics graph. It owns the immutable <code>DeclarationProgram</code> from Phase 2, so a body, type, callable, or module ID cannot be paired with declarations from another compile unit. Every body owns one typed node arena. Nodes contain the exact declaration, local binding, field, variant, requirement, conversion, dispatch, ownership, loan, provenance, region, and cleanup decisions selected while checking them.</p><p>Syntax trees and source ranges exist only in the checking boundary. Temporary scope tables and syntax-origin indexes may exist while a body is being checked, but they are consumed before the <code>CheckedProgram</code> is frozen. Source projection remains a separate value that is extended with checked-node and body-local identities. A canonical checked node never contains a syntax node, byte range, rendered name, or reverse lookup key.</p><p>The production checker consumes the complete declaration-lowering result and the same explicit compile-unit syntax snapshots. It locates each body by the existing <code>BodyId</code> projection; it never finds a declaration by source containment. It returns a complete <code>CheckedProgram</code> or one typed authored/internal failure. No public partial checked program exists.</p><h2 id="authority-map">Authority Map</h2><table><thead><tr><th>Decision</th><th>Sole authority</th><th>Later consumers</th></tr></thead><tbody><tr><td>Packages, modules, declaration identity, header types, header requirements, authored module imports, and prelude fallback</td><td><code>DeclarationProgram</code></td><td>checker, target validation, instantiation, presentation</td></tr><tr><td>Block imports, lexical scopes, parameters, locals, pattern payloads, catch bindings, loop bindings, and closure captures</td><td>body checker</td><td>checked nodes and source projection</td></tr><tr><td>Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap</td><td>program-wide Phase 3 conformance checker</td><td>body dispatch and instantiation</td></tr><tr><td>Data-position type well-formedness after normalization</td><td>Phase 3 type-validity checker</td><td>every checked destination and generic constraint</td></tr><tr><td>Expected types, inference constraints, outcome injection, direct/abstract calls, members, operators, coercions, construction, literals, iteration, and interpolation</td><td>typed body node construction</td><td>instantiation and MIR</td></tr><tr><td>Reachability, initialization, moves, copies, loans, provenance, regions, destruction, and generated semantic operations</td><td>checked control-flow and ownership analysis</td><td>target validation and MIR</td></tr><tr><td>Target gates, selected primitive availability, entry validity, and toolchain capability</td><td><code>TargetProgram</code></td><td>executable instantiation</td></tr><tr><td>Concrete generic substitution, requirement proof, conformance dispatch, opaque witness, and reachable callable graph</td><td>executable-program instantiation</td><td>MIR</td></tr><tr><td>Basic blocks, explicit cleanup edges, concrete places, and operation sequencing</td><td>MIR</td><td>machine lowering</td></tr></tbody></table><p>The checker may record an abstract interface or structural requirement selected for a generic operation. It must not choose a concrete conformance until instantiation supplies a concrete type. Conversely, MIR never receives a method name or requirement set from which it could repeat dispatch.</p><h2 id="grammar-conformance-ownership">Grammar Conformance Ownership</h2><p>The remaining grammar semantic boundaries enter Phase 3 as follows:</p><table><thead><tr><th>Rows</th><th>Phase 3 responsibility</th></tr></thead><tbody><tr><td>G011</td><td>normalized conformance signature compatibility and overlap</td></tr><tr><td>G014</td><td><code>void</code>, <code>never</code>, unsized, optional, and fallible data-position validity</td></tr><tr><td>G019-G021</td><td>body result, assignment, and control-transfer checking</td></tr><tr><td>G022-G024</td><td>loops, regions, iteration, pattern branches, recovery, and fallback</td></tr><tr><td>G025-G030</td><td>operators, conversions, moves, calls, construction, literals, spread, and interpolation</td></tr><tr><td>G031-G032</td><td>explicit closure capture and contextual control-expression typing</td></tr><tr><td>G033</td><td>contextual source spellings already bound by syntax/declarations; remaining value uses follow ordinary body lookup</td></tr></tbody></table><p>Each row receives a valid, boundary, and invalid case through the production checking facade. Package and module input permutations must not change the selected semantic target or complete diagnostic.</p><h2 id="name-resolution">Name Resolution</h2><p>The immutable declaration program retains two namespace layers for every module:</p><ul><li>authored declarations and imports, including effective visibility and re-exports</li><li>compiler-selected prelude fallback, which is shadowable and never exportable</li></ul><p>The body checker consumes those layers directly. It does not reconstruct a namespace by iterating declarations or imports. Block imports are body-owned because their visibility and collision scope are lexical; they do not enter <code>DeclarationProgram</code> as hypothetical declaration imports.</p><p>One temporary scope stack covers parameters, locals, block imports, pattern payloads, catch bindings, loop bindings, closure parameters, and explicit captures. A declaration records its semantic identity at the point where its name becomes visible. A reference immediately resolves to that identity or to one exact module namespace entity. Because Nocter forbids shadowing, insertion checks every enclosing lexical binding, parameter, authored module name, prelude fallback, and built-in type name before accepting a new visible name.</p><p>Closure capture lookup is a distinct operation over enclosing callable bindings. The capture list selects exact outer identities first; the closure body resolves the capture spelling to a new environment projection identity. Free-name scanning and implicit capture are prohibited.</p><h2 id="checked-body-shape">Checked Body Shape</h2><p>Each body owns dense arenas for scopes, local/capture identities, typed nodes, places, and control-flow edges. A typed node stores its <code>TypeId</code> and one closed operation variant. Examples are direct call, abstract requirement call, selected coercion, outcome injection, field place, index place, move, borrow, branch, loop, propagation, cleanup, and terminal operation. Compiler-generated operations use the same variants and differ only in source role.</p><p>Reachability is an explicit control-flow fact, not an absent node. Unreachable source is still name-resolved and type-checked, but flow-dependent initialization, move, loan, and provenance state does not invent an incoming executable edge. Scope exit records generated drops in reverse declaration order and conditional drops for maybe-initialized storage.</p><h2 id="construction-order">Construction Order</h2><ol><li>1. Validate and index every <code>BodyId</code> projection against the supplied immutable syntax snapshots.</li><li>Validate program-wide conformance and normalized type-position rules needed by all bodies.</li><li>Check bodies in canonical <code>BodyId</code> order while assigning only body-local dense identities.</li><li>Infer and validate body-owned callable provenance and opaque witnesses.</li><li>Freeze all body arenas, consume temporary scope/origin tables, and validate every cross-ID edge.</li><li>Return <code>CheckedProgram</code> plus the extended source projection.</li></ol><p>An error before step 5 destroys the builder. A later stage therefore cannot observe a body where name resolution succeeded but ownership or provenance checking did not.</p><h2 id="phase-3-increments">Phase 3 Increments</h2><ol><li>1. Retain canonical module/prelude namespaces in <code>DeclarationProgram</code> and move block-import
+   ownership out of declaration imports.</li><li>Add the checked-program model, source-projection extension, body-source catalog, and exhaustive
+   internal boundary validation.</li><li>Implement lexical declaration/capture identity and value-name resolution.</li><li>Implement normalized conformance and data-position type validity.</li><li>Implement typed expressions, expected-type inference, calls, members, operators, coercions,
+   construction, literals, outcomes, and closures.</li><li>Implement control flow, reachability, initialization, ownership, loans, provenance, regions,
+   destruction, and complete checked-program validation.</li></ol><p>An increment is complete only when its superseded temporary authority is consumed, its public failures retain exact source subjects, and input-order permutation tests pass.</p>
             </div>
         </main>
     </div>
@@ -197,6 +158,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

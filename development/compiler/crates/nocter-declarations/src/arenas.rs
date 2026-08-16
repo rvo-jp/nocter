@@ -345,7 +345,7 @@ mod tests {
     use super::{DeclarationArenaBuilder, DefinitionError};
     use crate::{
         CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
-        CallableProvenanceContract, DeclarationProgramBuilder, ModulePath,
+        CallableProvenanceContract, DeclarationProgramBuilder, ModuleNamespace, ModulePath,
     };
 
     #[test]
@@ -355,6 +355,9 @@ mod tests {
         let mut program = DeclarationProgramBuilder::new(symbols);
         let package = program.add_package(app_name).unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
+        program
+            .define_module_namespace(module, ModuleNamespace::default())
+            .unwrap();
         let site = program
             .add_declaration_site(module, crate::Visibility::Private)
             .unwrap();

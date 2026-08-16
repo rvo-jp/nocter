@@ -9,6 +9,7 @@ mod arenas;
 mod callable;
 mod declaration;
 mod import;
+mod namespace;
 mod path;
 mod program;
 mod requirement;
@@ -32,7 +33,8 @@ pub use declaration::{
     NominalTypeDeclaration, OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration,
     VariantDeclaration,
 };
-pub use import::{ExportedEntity, ImportDeclaration, ImportScope, ImportTarget, ImportedName};
+pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
+pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{
     DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module, Package,

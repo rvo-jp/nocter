@@ -24,6 +24,7 @@ mod tests;
 pub enum DeclarationDomain {
     Package,
     Module,
+    Namespace,
     PackageTarget,
     Import,
     DeclarationSite,
@@ -119,6 +120,7 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValida
     requirements::validate(program)?;
     validate_bodies(program)?;
     validate_opaque_types(program)?;
+    graph::validate_namespaces(program)?;
     graph::validate_imports(program)?;
     graph::validate_package_targets(program)?;
     rules::validate(program)?;
