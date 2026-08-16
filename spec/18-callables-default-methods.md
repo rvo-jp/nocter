@@ -81,6 +81,11 @@ unambiguous. An annotation may state a parameter or result type when inference n
 
 The body is an ordinary block. Its tail expression is the result. `return` exits the closure body.
 
+When a closure is passed to a generic callable, contextual checking may infer unknown callable
+parameters from the closure result and propagate that substitution to the outer call. The call
+still follows the uniform rule that callable type arguments are never written explicitly. See
+[Callable Type-Argument Inference](08-generics-interfaces-embedding-methods.md#callable-type-argument-inference).
+
 ## Explicit Captures
 
 Captures appear before a semicolon in the parameter list:

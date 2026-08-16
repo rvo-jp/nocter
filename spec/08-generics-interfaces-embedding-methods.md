@@ -139,6 +139,36 @@ no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime 
 interface objects, interface inheritance, higher-kinded types, generic associated types, or general
 const generics.
 
+### Callable Type-Argument Inference
+
+A function, method, construction function, interface member, or closure-call contract may declare
+its own generic parameters. Call sites never write those callable type arguments explicitly. The
+compiler requires one unique substitution inferred bidirectionally from:
+
+- the method receiver, when present
+- ordinary call arguments and parameter types
+- contextual closure parameter and result checking
+- the expected type of the complete call result
+- type equalities and structural callable contracts that propagate types already learned from those
+  sources
+
+Nominal capability, copy, operator, coercion, and expansion requirements validate a candidate
+substitution; they do not choose an otherwise unknown type. Declaration order, visible
+conformances, overload ranking, return provenance, and callable body contents do not supply guesses.
+If any callable parameter remains unknown or multiple substitutions remain viable, the call is an
+error and the caller must provide an expected type at the surrounding expression boundary.
+
+```nct
+func decode<T>(bytes: &[u8]): T!
+
+let config: Config = decode(bytes)?
+let unknown = decode(bytes)? // error: T cannot be inferred
+```
+
+Forms such as `decode<Config>(bytes)` and `iterator.map<U>(transform)` are not call syntax. Nocter
+has no partial type arguments, `_` type-argument placeholders, named type arguments, or default
+generic arguments for callables.
+
 ## Instances
 
 An `instance` declaration is the type-owned surface for receiver methods, borrow coercions, and the

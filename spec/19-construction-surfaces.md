@@ -97,8 +97,10 @@ Rules:
 - If a parameter remains unknown or multiple substitutions remain viable, construction is an error.
 - Nocter does not define default generic arguments.
 
-These rules concern the generic parameters of the constructed owner. Explicit type arguments for a
-callable's own generic parameter list are a separate part of call syntax.
+These rules concern the generic parameters of the constructed owner. In
+`Vec<i32>.from_iter(source)`, `i32` specializes the `Vec` owner. Any generic parameters declared by
+`from_iter` itself are inferred and cannot be written at the call site, as specified by
+[Callable Type-Argument Inference](08-generics-interfaces-embedding-methods.md#callable-type-argument-inference).
 
 ## Default Construction Entry
 

@@ -52,6 +52,8 @@ Rules:
 - Argument expressions are matched to parameters by position.
 - Argument count must match parameter count exactly.
 - Each argument must type-check against the corresponding parameter type under the normal contextual typing, ownership, move, copy, and borrow rules.
+- A callable's own generic type arguments are always inferred from its receiver, arguments,
+  contextual closures, and expected result type. They are not written at the call site.
 - Function call arguments are evaluated left to right in the order written.
 - Method receiver expressions are evaluated before method arguments.
 - Method arguments are then evaluated left to right in the order written.
