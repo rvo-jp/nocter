@@ -110,7 +110,7 @@ For example, every use of `source` below selects the same `&Box<i32> as &i32` en
 
 ```nct
 struct Box<T> {
-    pub value: T,
+    pub value: T
 }
 
 instance Box<T> {
@@ -120,7 +120,7 @@ instance Box<T> {
 }
 
 struct Holder {
-    value: &i32,
+    value: &i32
 }
 
 func accept(value: &i32): void {

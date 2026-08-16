@@ -368,13 +368,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/custom-format/</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/examples/equality/</loc>
-    <lastmod>2026-08-11</lastmod>
+    <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -404,19 +404,19 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/indexing/</loc>
-    <lastmod>2026-08-11</lastmod>
+    <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/examples/mutable-iteration/</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/examples/ordering/</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

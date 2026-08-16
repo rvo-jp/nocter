@@ -184,7 +184,7 @@
 <span class="token-keyword">let</span> owned <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"Nocter"</span>
 <span class="token-keyword">let</span> size <span class="token-operator">=</span> <span class="token-function">measure</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>owned<span class="token-operator">)</span>
 </code></pre><p><code>measure(owned)</code> is invalid because <code>owned</code> is an owned <code>String</code>, not a borrowed <code>String</code>.</p><p>The compiler considers one user-defined coercion only after ordinary exact compatibility fails and only when both of these facts are known:</p><ul><li>the expression already has a borrowed nominal source type</li><li>the surrounding boundary requires a concrete borrowed target type</li></ul><p>The compiler supplies expected types through the common <a href="../02-values-types/index.html#contextual-expected-types">Contextual Expected Types</a> boundaries. Grouping and control-flow branches preserve that expectation. Optional and fallible injection recursively projects it onto the success or present payload before ordinary compatibility and coercion are tested. Each resulting leaf owns at most one selected conversion.</p><p>For example, every use of <code>source</code> below selects the same <code>&amp;Box&lt;i32&gt; as &amp;i32</code> entry independently:</p><pre><code class="language-nct"><span class="token-keyword">struct</span> <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span>
+    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">T</span>
 <span class="token-operator">}</span>
 
 instance <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -194,7 +194,7 @@ instance <span class="token-type">Box</span><span class="token-operator">&lt;</s
 <span class="token-operator">}</span>
 
 <span class="token-keyword">struct</span> <span class="token-type">Holder</span> <span class="token-operator">{</span>
-    value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span><span class="token-operator">,</span>
+    value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">accept</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>

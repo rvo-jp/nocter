@@ -3,8 +3,8 @@ use std/fmt.Format
 use std/io.print
 
 struct Point {
-    x: i32,
-    y: i32,
+    x: i32
+    y: i32
 }
 
 conform Format for Point {

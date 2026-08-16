@@ -3,7 +3,7 @@ use std/io.print
 use std/vec.Vec
 
 struct Counter {
-    value: i32,
+    value: i32
 }
 
 func main(): i32! {

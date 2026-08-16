@@ -136,6 +136,9 @@ Rules:
 - A multi-line comma-delimited list puts one item per line and retains a trailing comma.
 - The same canonical trailing-comma rule applies to arguments, parameters, generic parameters and
   arguments, literals, import selections, directive data, enum payloads, and closure segments.
+- Struct declaration fields and enum declaration variants are newline-separated declarations, not
+  comma-delimited list items, and never end in commas. Named-field construction initializers remain
+  comma-delimited list items.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
 - A generic parameter list contains names only: `<T, U>`.
 - Complete explicit generic owner arguments are attached to the owner name, as in

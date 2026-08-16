@@ -1,5 +1,5 @@
 struct Buffer {
-    values: [i32; 3],
+    values: [i32; 3]
 }
 
 instance Buffer {
