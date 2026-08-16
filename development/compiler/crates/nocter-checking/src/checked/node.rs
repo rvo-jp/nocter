@@ -403,6 +403,8 @@ pub enum CheckedControl {
         operation: PrimitiveBinary,
     },
     Discard(BodyNodeId),
+    /// Retains a checked source subtree that has no incoming executable edge.
+    Unreachable(BodyNodeId),
     Return(Option<BodyNodeId>),
     Break(LoopId),
     Continue(LoopId),

@@ -21,7 +21,10 @@ use crate::copyability::{Copyability, CopyabilityTable};
 use crate::field_selection::{FieldSelectionError, field_selection_base, select_field};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::preparation::PreparedCheckingParts;
-use crate::syntax::{direct_child, direct_identifier, direct_nodes, identifier_tokens, token_text};
+use crate::syntax::{
+    direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
+    is_transparent_expression, single_descendant, token_text,
+};
 use crate::{
     BodySource, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, ConstantValue,
     DropTable, ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, NameTarget,
@@ -40,6 +43,18 @@ struct NamedPlace {
     path: MovePath,
     access: PlaceAccess,
     partial_parents: Box<[NominalTypeId]>,
+}
+
+struct CheckedExecutable {
+    node: BodyNodeId,
+    result: bool,
+    reaches_next: bool,
+}
+
+#[derive(Clone, Copy)]
+enum BlockExpectation {
+    Callable,
+    Value(Option<TypeId>),
 }
 
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
@@ -131,6 +146,7 @@ struct BodyChecker<'input, 'syntax> {
     consumed_uses: HashSet<SyntaxOrigin>,
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
     ownership: OwnershipState,
+    flow_reachable: bool,
     result_type: TypeId,
     projections: Vec<NodeProjection>,
 }
@@ -189,13 +205,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             consumed_uses: HashSet::new(),
             local_declarations,
             ownership,
+            flow_reachable: true,
             result_type,
             projections: Vec::new(),
         })
     }
 
     fn check(mut self) -> Result<CheckedBodyOutput, BodyCheckError> {
-        let root = self.check_block(self.source.block())?;
+        let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
         if self.consumed_uses.len() != self.names.uses().len() {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
         }
@@ -205,68 +222,45 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         })
     }
 
-    fn check_block(&mut self, block: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+    fn check_block(
+        &mut self,
+        block: NodeId,
+        expectation: BlockExpectation,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let mut statements = Vec::new();
         let mut result = None;
         let mut reachable = true;
         if let Some(sequence) = direct_child(self.tree(), block, NodeKind::ExecutableSequence) {
             for executable in direct_nodes(self.tree(), sequence) {
                 if !reachable {
-                    return Err(self.rule(BodyRule::UnreachableCode, executable)?.into());
+                    statements.push(self.check_unreachable_executable(executable)?);
+                    continue;
                 }
-                match self.kind(executable)? {
-                    NodeKind::BodyResult => {
-                        let expression = self.required_child(executable, NodeKind::Expression)?;
-                        let node = self.check_expression(expression, Some(self.result_type))?;
-                        reachable = self.builder.node_type(node)
-                            != Some(self.types.builtin(BuiltinType::Never));
-                        result = Some(node);
-                    }
-                    NodeKind::ExpressionStatement => {
-                        let expression = self.required_child(executable, NodeKind::Expression)?;
-                        let value = self.check_expression(expression, None)?;
-                        let ty = self.node_type(value)?;
-                        if !matches!(
-                            self.types.get(ty),
-                            Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
-                        ) {
-                            return Err(self
-                                .rule(BodyRule::InvalidStatementValue, executable)?
-                                .into());
-                        }
-                        let discard = self.add_node(
-                            executable,
-                            ty,
-                            CheckedOperation::Control(CheckedControl::Discard(value)),
-                        )?;
-                        reachable = ty != self.types.builtin(BuiltinType::Never);
-                        statements.push(discard);
-                    }
-                    NodeKind::BindingStatement => {
-                        statements.push(self.check_binding(executable)?);
-                    }
-                    NodeKind::ReturnStatement => {
-                        statements.push(self.check_return(executable)?);
-                        reachable = false;
-                    }
-                    kind => {
-                        return Err(
-                            BodyCheckInternalError::UnsupportedSyntax(executable, kind).into()
-                        );
-                    }
+                let expected_result = match expectation {
+                    BlockExpectation::Callable => Some(self.result_type),
+                    BlockExpectation::Value(expected) => expected,
+                };
+                let checked = self.check_executable(executable, expected_result)?;
+                reachable = checked.reaches_next;
+                if checked.result {
+                    result = Some(checked.node);
+                } else {
+                    statements.push(checked.node);
                 }
             }
         }
 
-        if result.is_some() && !reachable {
-            return Err(BodyCheckInternalError::InvalidSyntax(block).into());
-        }
         let ty = if let Some(result) = result {
             self.node_type(result)?
         } else if !reachable {
             self.types.builtin(BuiltinType::Never)
         } else {
-            self.complete_fallthrough(block, &mut result)?
+            match expectation {
+                BlockExpectation::Callable => self.complete_fallthrough(block, &mut result)?,
+                BlockExpectation::Value(expected) => {
+                    self.complete_value_fallthrough(block, expected, &mut result)?
+                }
+            }
         };
         self.add_node(
             block,
@@ -275,6 +269,90 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 statements: statements.into_boxed_slice(),
                 result,
             }),
+        )
+    }
+
+    fn complete_value_fallthrough(
+        &mut self,
+        block: NodeId,
+        expected: Option<TypeId>,
+        result: &mut Option<BodyNodeId>,
+    ) -> Result<TypeId, BodyCheckError> {
+        let void = self.types.builtin(BuiltinType::Void);
+        let Some(expected) = expected else {
+            return Ok(void);
+        };
+        let completion = self.add_node(block, void, CheckedOperation::Complete)?;
+        let value = self.apply_expected(block, completion, expected)?;
+        *result = Some(value);
+        self.node_type(value).map_err(Into::into)
+    }
+
+    fn check_executable(
+        &mut self,
+        executable: NodeId,
+        expected_result: Option<TypeId>,
+    ) -> Result<CheckedExecutable, BodyCheckError> {
+        let never = self.types.builtin(BuiltinType::Never);
+        match self.kind(executable)? {
+            NodeKind::BodyResult => {
+                let expression = self.required_child(executable, NodeKind::Expression)?;
+                let node = self.check_expression(expression, expected_result)?;
+                Ok(CheckedExecutable {
+                    node,
+                    result: true,
+                    reaches_next: self.node_type(node)? != never,
+                })
+            }
+            NodeKind::ExpressionStatement => {
+                let expression = self.required_child(executable, NodeKind::Expression)?;
+                let value = self.check_expression(expression, None)?;
+                let ty = self.node_type(value)?;
+                if !matches!(
+                    self.types.get(ty),
+                    Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
+                ) {
+                    return Err(self
+                        .rule(BodyRule::InvalidStatementValue, executable)?
+                        .into());
+                }
+                Ok(CheckedExecutable {
+                    node: self.add_node(
+                        executable,
+                        ty,
+                        CheckedOperation::Control(CheckedControl::Discard(value)),
+                    )?,
+                    result: false,
+                    reaches_next: ty != never,
+                })
+            }
+            NodeKind::BindingStatement => Ok(CheckedExecutable {
+                node: self.check_binding(executable)?,
+                result: false,
+                reaches_next: true,
+            }),
+            NodeKind::ReturnStatement => Ok(CheckedExecutable {
+                node: self.check_return(executable)?,
+                result: false,
+                reaches_next: false,
+            }),
+            kind => Err(BodyCheckInternalError::UnsupportedSyntax(executable, kind).into()),
+        }
+    }
+
+    fn check_unreachable_executable(
+        &mut self,
+        executable: NodeId,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let previous = self.flow_reachable;
+        self.flow_reachable = false;
+        let checked = self.check_executable(executable, None);
+        self.flow_reachable = previous;
+        let checked = checked?;
+        self.add_node(
+            executable,
+            self.types.builtin(BuiltinType::Never),
+            CheckedOperation::Control(CheckedControl::Unreachable(checked.node)),
         )
     }
 
@@ -327,9 +405,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .copied()
             .ok_or(BodyCheckInternalError::MissingLocalDeclaration(target))?;
         self.builder.define_local(local, ty)?;
-        self.ownership
-            .declare_initialized(MovePath::root(PlaceRoot::Local(local)))
-            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        if self.flow_reachable {
+            self.ownership
+                .declare_initialized(MovePath::root(PlaceRoot::Local(local)))
+                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        }
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
@@ -378,6 +458,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
             let value = match kind {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
+                NodeKind::IfExpression => return self.check_if(current, expected),
                 NodeKind::ReferenceExpression => self.check_reference(current)?,
                 NodeKind::MoveExpression => self.check_move(current)?,
                 NodeKind::UnaryExpression => self.check_unary(current)?,
@@ -387,6 +468,92 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.apply_expected(current, value, expected)
             });
         }
+    }
+
+    fn check_if(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let condition = self.required_child(node, NodeKind::IfCondition)?;
+        if direct_child(self.tree(), condition, NodeKind::EnumPattern).is_some() {
+            return Err(BodyCheckInternalError::UnsupportedSyntax(
+                condition,
+                NodeKind::EnumPattern,
+            )
+            .into());
+        }
+        let condition_expression = self.required_child(condition, NodeKind::Expression)?;
+        let condition = self.check_expression(
+            condition_expression,
+            Some(self.types.builtin(BuiltinType::Bool)),
+        )?;
+        let then_syntax = self.required_child(node, NodeKind::Block)?;
+        let else_syntax = direct_child(self.tree(), node, NodeKind::ElseClause);
+        let entry = self.ownership.clone();
+
+        self.ownership = entry.clone();
+        let then_expectation = if else_syntax.is_some() {
+            BlockExpectation::Value(expected)
+        } else {
+            BlockExpectation::Value(Some(self.types.builtin(BuiltinType::Void)))
+        };
+        let then_branch = self.check_block(then_syntax, then_expectation)?;
+        let then_type = self.node_type(then_branch)?;
+        let then_state = self.ownership.clone();
+
+        self.ownership = entry.clone();
+        let (else_branch, else_type, else_state) = if let Some(else_clause) = else_syntax {
+            let inferred = expected
+                .or((then_type != self.types.builtin(BuiltinType::Never)).then_some(then_type));
+            let branch =
+                if let Some(block) = direct_child(self.tree(), else_clause, NodeKind::Block) {
+                    self.check_block(block, BlockExpectation::Value(inferred))?
+                } else if let Some(if_expression) =
+                    direct_child(self.tree(), else_clause, NodeKind::IfExpression)
+                {
+                    self.check_if(if_expression, inferred)?
+                } else {
+                    return Err(BodyCheckInternalError::InvalidSyntax(else_clause).into());
+                };
+            (
+                Some(branch),
+                Some(self.node_type(branch)?),
+                self.ownership.clone(),
+            )
+        } else {
+            (None, None, entry.clone())
+        };
+
+        let never = self.types.builtin(BuiltinType::Never);
+        let mut incoming = Vec::new();
+        if then_type != never {
+            incoming.push(then_state);
+        }
+        if else_type != Some(never) {
+            incoming.push(else_state);
+        }
+        self.ownership = entry
+            .join_reachable(&incoming)
+            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+
+        let ty = match else_type {
+            None => self.types.builtin(BuiltinType::Void),
+            Some(else_type) if then_type == never => else_type,
+            Some(_) => then_type,
+        };
+        let checked = self.add_node(
+            node,
+            ty,
+            CheckedOperation::Control(CheckedControl::If {
+                condition,
+                then_branch,
+                else_branch,
+            }),
+        )?;
+        expected.map_or(Ok(checked), |expected| {
+            self.apply_expected(node, checked, expected)
+        })
     }
 
     fn check_scalar(
@@ -493,9 +660,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 return Err(self.partial_move_drop(node, drop)?);
             }
         }
-        self.ownership
-            .move_out(&place.path)
-            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        if self.flow_reachable {
+            self.ownership
+                .move_out(&place.path)
+                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        }
         self.add_node(node, place.ty, CheckedOperation::Move(place.id))
     }
 
@@ -624,6 +793,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn require_initialized(&self, node: NodeId, path: &MovePath) -> Result<(), BodyCheckError> {
+        if !self.flow_reachable {
+            return Ok(());
+        }
         match self.ownership.require_initialized(path) {
             Ok(()) => Ok(()),
             Err(OwnershipStateError::NotInitialized { .. }) => {
@@ -813,162 +985,5 @@ fn body_result_type(
         BodyOwner::Test(_) => types
             .intern(TypeKind::Fallible(types.builtin(BuiltinType::Void)))
             .map_err(|_| BodyCheckInternalError::UnknownType(types.builtin(BuiltinType::Void))),
-    }
-}
-
-fn is_transparent_expression(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::Expression
-            | NodeKind::LogicalOrExpression
-            | NodeKind::LogicalAndExpression
-            | NodeKind::EqualityExpression
-            | NodeKind::OrderingExpression
-            | NodeKind::ShiftExpression
-            | NodeKind::AdditiveExpression
-            | NodeKind::MultiplicativeExpression
-            | NodeKind::ConversionExpression
-            | NodeKind::GroupedExpression
-    )
-}
-
-fn direct_token(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) => Some(*token),
-            SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
-        })
-}
-
-fn single_descendant(
-    tree: &nocter_syntax::SyntaxTree,
-    root: NodeId,
-    expected: NodeKind,
-) -> Option<NodeId> {
-    let mut current = root;
-    loop {
-        let children = direct_nodes(tree, current);
-        if children.len() != 1 {
-            return None;
-        }
-        current = children[0];
-        if tree.node(current)?.kind() == expected {
-            return Some(current);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use nocter_declaration_lowering::lower_compile_unit_declarations;
-    use nocter_model::{BuiltinType, TypeKind};
-    use nocter_source_index::{SemanticEntity, SourceRole};
-
-    use super::check_prepared_program;
-    use crate::test_support::Fixture;
-    use crate::{CheckedOperation, CheckedOutcome, OutcomeLayer, prepare_program_checking};
-
-    #[test]
-    fn scalar_local_and_body_result_construct_one_closed_checked_body() {
-        let fixture = Fixture::new("func answer(): i32 {\n    let value = 42\n    value\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let output = check_prepared_program(&input, prepared).unwrap();
-        let (_, body) = output.program().bodies().iter().next().unwrap();
-
-        assert_eq!(body.locals().len(), 1);
-        assert_eq!(
-            body.locals().iter().next().unwrap().1.ty(),
-            output.program().types().builtin(BuiltinType::I32)
-        );
-        assert!(body.places().iter().next().unwrap().1.is_move_source());
-        assert!(matches!(
-            body.nodes().get(body.root()).unwrap().operation(),
-            CheckedOperation::Control(_)
-        ));
-        let root_bindings = output.source_index().bindings_for(SemanticEntity::BodyNode(
-            output.program().bodies().iter().next().unwrap().0,
-            body.root(),
-        ));
-        assert!(!root_bindings.is_empty());
-        assert!(
-            root_bindings
-                .iter()
-                .all(|binding| binding.role() == SourceRole::Reference)
-        );
-    }
-
-    #[test]
-    fn body_result_materializes_recursive_outcome_injection() {
-        let fixture = Fixture::new("func answer(): i32?! {\n    42\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let output = check_prepared_program(&input, prepared).unwrap();
-        let (_, body) = output.program().bodies().iter().next().unwrap();
-        let injections = body
-            .nodes()
-            .iter()
-            .filter_map(|(_, node)| match node.operation() {
-                CheckedOperation::Outcome(CheckedOutcome::Inject { layer, .. }) => Some(*layer),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            injections,
-            vec![OutcomeLayer::Optional, OutcomeLayer::Fallible]
-        );
-        assert!(matches!(
-            output
-                .program()
-                .types()
-                .get(body.nodes().get(body.root()).unwrap().ty()),
-            Some(TypeKind::Fallible(_))
-        ));
-    }
-
-    #[test]
-    fn optional_absence_needs_no_synthetic_payload() {
-        let fixture = Fixture::new("func answer(): i32? {\n    none\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let output = check_prepared_program(&input, prepared).unwrap();
-        let (_, body) = output.program().bodies().iter().next().unwrap();
-
-        assert!(body.nodes().iter().any(|(_, node)| matches!(
-            node.operation(),
-            CheckedOperation::Outcome(CheckedOutcome::Absent)
-        )));
-    }
-
-    #[test]
-    fn reachable_nonvoid_fallthrough_has_one_body_rule() {
-        let fixture = Fixture::new("func missing(): i32 {}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let error = check_prepared_program(&input, prepared).unwrap_err();
-
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0373");
-    }
-
-    #[test]
-    fn nonfinal_value_expression_is_not_implicitly_discarded() {
-        let fixture = Fixture::new("func invalid(): void {\n    42\n    return\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
-        let error = check_prepared_program(&input, prepared).unwrap_err();
-
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0372");
     }
 }

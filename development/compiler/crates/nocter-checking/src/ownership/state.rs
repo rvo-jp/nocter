@@ -127,12 +127,10 @@ impl OwnershipState {
         Err(OwnershipStateError::UnknownPath(path.clone()))
     }
 
-    #[allow(dead_code, reason = "control-flow checking is the next consumer")]
-    pub(crate) fn join_branches(
-        &self,
-        left: &Self,
-        right: &Self,
-    ) -> Result<Self, OwnershipStateError> {
+    pub(crate) fn join_reachable(&self, incoming: &[Self]) -> Result<Self, OwnershipStateError> {
+        if incoming.is_empty() {
+            return Ok(self.clone());
+        }
         let roots = self
             .paths
             .keys()
@@ -141,24 +139,25 @@ impl OwnershipState {
         let paths = self
             .paths
             .keys()
-            .chain(
-                left.paths
-                    .keys()
-                    .filter(|path| roots.contains(&path.root_identity())),
-            )
-            .chain(
-                right
+            .chain(incoming.iter().flat_map(|state| {
+                state
                     .paths
                     .keys()
-                    .filter(|path| roots.contains(&path.root_identity())),
-            )
+                    .filter(|path| roots.contains(&path.root_identity()))
+            }))
             .cloned()
             .collect::<BTreeSet<_>>();
         let mut joined = BTreeMap::new();
         for path in paths {
-            let left = left.state_at(&path)?;
-            let right = right.state_at(&path)?;
-            joined.insert(path.clone(), left.join(right));
+            let mut states = incoming.iter();
+            let mut state = states
+                .next()
+                .expect("nonempty incoming state was checked")
+                .state_at(&path)?;
+            for incoming in states {
+                state = state.join(incoming.state_at(&path)?);
+            }
+            joined.insert(path, state);
         }
         Ok(Self { paths: joined })
     }
@@ -211,7 +210,9 @@ mod tests {
         initialized.declare_initialized(path.clone()).unwrap();
         let mut moved = initialized.clone();
         moved.move_out(&path).unwrap();
-        let joined = initialized.join_branches(&initialized, &moved).unwrap();
+        let joined = initialized
+            .join_reachable(&[initialized.clone(), moved])
+            .unwrap();
 
         assert_eq!(
             joined.require_initialized(&path),
@@ -232,7 +233,22 @@ mod tests {
         entry.declare_initialized(outer).unwrap();
         let mut left = entry.clone();
         left.declare_initialized(branch).unwrap();
-        let joined = entry.join_branches(&left, &entry).unwrap();
+        let joined = entry.join_reachable(&[left, entry.clone()]).unwrap();
+
+        assert_eq!(joined, entry);
+    }
+
+    #[test]
+    fn one_reachable_exit_still_filters_branch_local_paths() {
+        let mut locals = ArenaBuilder::<LocalBindingId, _>::new();
+        let outer = MovePath::root(PlaceRoot::Local(locals.insert(())));
+        let branch = MovePath::root(PlaceRoot::Local(locals.insert(())));
+        let _ = locals.finish();
+        let mut entry = OwnershipState::default();
+        entry.declare_initialized(outer).unwrap();
+        let mut exit = entry.clone();
+        exit.declare_initialized(branch).unwrap();
+        let joined = entry.join_reachable(&[exit]).unwrap();
 
         assert_eq!(joined, entry);
     }
@@ -269,7 +285,7 @@ mod tests {
         entry.declare_initialized(root).unwrap();
         let mut moved = entry.clone();
         moved.move_out(&field).unwrap();
-        let joined = entry.join_branches(&moved, &entry).unwrap();
+        let joined = entry.join_reachable(&[moved, entry.clone()]).unwrap();
 
         assert_eq!(
             joined.require_initialized(&field),

@@ -7,7 +7,6 @@ pub enum BodyRule {
     ImplicitMove,
     InvalidStatementValue,
     MissingBodyResult,
-    UnreachableCode,
     IntegerOutOfRange,
     MoveCopyValue,
     InvalidMoveSource,
@@ -23,7 +22,6 @@ impl BodyRule {
         Self::ImplicitMove,
         Self::InvalidStatementValue,
         Self::MissingBodyResult,
-        Self::UnreachableCode,
         Self::IntegerOutOfRange,
         Self::MoveCopyValue,
         Self::InvalidMoveSource,
@@ -40,7 +38,6 @@ impl BodyRule {
             Self::ImplicitMove => "E0371",
             Self::InvalidStatementValue => "E0372",
             Self::MissingBodyResult => "E0373",
-            Self::UnreachableCode => "E0374",
             Self::IntegerOutOfRange => "E0375",
             Self::MoveCopyValue => "E0376",
             Self::InvalidMoveSource => "E0377",
@@ -76,10 +73,6 @@ impl BodyRule {
             Self::MissingBodyResult => (
                 "callable can complete without producing its declared result",
                 "add a body result or return on every reachable path",
-            ),
-            Self::UnreachableCode => (
-                "statement is unreachable",
-                "remove it or move it before the terminating expression",
             ),
             Self::IntegerOutOfRange => (
                 "integer literal is outside the expected integer type's range",

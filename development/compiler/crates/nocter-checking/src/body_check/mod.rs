@@ -5,7 +5,13 @@ mod error;
 mod literal;
 
 #[cfg(test)]
+mod construction_tests;
+#[cfg(test)]
+mod control_tests;
+#[cfg(test)]
 mod copy_tests;
+#[cfg(test)]
+mod flow_tests;
 #[cfg(test)]
 mod move_tests;
 #[cfg(test)]

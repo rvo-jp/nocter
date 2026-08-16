@@ -45,6 +45,49 @@ pub(crate) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
         .collect()
 }
 
+pub(crate) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
+    tree.children(node)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Token(token) => Some(*token),
+            SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
+        })
+}
+
+pub(crate) fn single_descendant(
+    tree: &SyntaxTree,
+    root: NodeId,
+    expected: NodeKind,
+) -> Option<NodeId> {
+    let mut current = root;
+    loop {
+        let children = direct_nodes(tree, current);
+        if children.len() != 1 {
+            return None;
+        }
+        current = children[0];
+        if tree.node(current)?.kind() == expected {
+            return Some(current);
+        }
+    }
+}
+
+pub(crate) fn is_transparent_expression(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::Expression
+            | NodeKind::LogicalOrExpression
+            | NodeKind::LogicalAndExpression
+            | NodeKind::EqualityExpression
+            | NodeKind::OrderingExpression
+            | NodeKind::ShiftExpression
+            | NodeKind::AdditiveExpression
+            | NodeKind::MultiplicativeExpression
+            | NodeKind::ConversionExpression
+            | NodeKind::GroupedExpression
+    )
+}
+
 pub(crate) fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()

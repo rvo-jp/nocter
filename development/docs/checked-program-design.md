@@ -178,10 +178,11 @@ classifies absence, failure, and divergence explicitly, and returns presence/suc
 inner-to-outer construction order. Binding initializers, arguments, fields, fallbacks, returns, and
 body results must consume this plan rather than encode their own optional or fallible cases.
 
-The first production checked-body slice now consumes `PreparedChecking` through
+The production checked-body slice consumes `PreparedChecking` through
 `check_prepared_program`. It builds blocks, scalar constants, inferred local bindings, copyable
-parameter/local places, readonly borrows, explicit discards, returns, and body results. Bare
-completion uses an explicit `Complete` checked operation only when an enclosing fallible success
+parameter/local places, readonly borrows, explicit discards, returns, body results, and ordinary
+`if`/`else if` control. Bare completion uses an explicit `Complete` checked operation only when an
+enclosing fallible success
 must be represented; it is never exposed as a source value. Outcome plans become concrete
 `CheckedOutcome` nodes from the payload outward. Each constructed node extends `SourceIndex`
 directly with `SemanticEntity::BodyNode`; no expression-to-type side map survives construction.
@@ -221,6 +222,16 @@ checked program. A field move examines its enclosing nominal families from neare
 the first family with a type-owned drop body projects `E0381` and the exact drop declaration as a
 related source. Cleanup planning can therefore assume a user drop body always receives a complete
 `Self`. Conditional control-flow consumers and generated cleanup remain subsequent increments.
+
+Ordinary conditional checking snapshots ownership after the condition, checks each branch from
+that exact entry, and feeds only normally completing exits to `OwnershipState::join_reachable`.
+The join projects every exit back to entry roots, so a branch-local never escapes even when it is
+the only reachable exit. Branches that return or otherwise produce `never` do not create a
+continuation. An explicit checked `Unreachable` control operation retains source after a terminal
+for diagnostics and editor features while preventing that subtree from contributing
+initialization transitions or executable buildability. Type, visibility, requirement, and
+structural place checks still run in that subtree. Loop fixed points, pattern conditionals,
+`match`, and generated cleanup remain subsequent increments.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

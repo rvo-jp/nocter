@@ -2,17 +2,16 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by connecting the existing ownership-state lattice to checked control
-flow and cleanup planning.
+Continue v0.14.0 Phase 3 by extending the checked conditional ownership flow into loop fixed
+points, loop exits, and cleanup planning.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Apply the existing branch join to checked conditionals and loops. The entry state must exclude
-   branch-local paths while joining every visible outer path to initialized, uninitialized, or
-   maybe initialized.
+1. Apply the reachable-exit join to checked loops. Zero-iteration exits, `break`, `continue`, and
+   body backedges must feed one conservative fixed point without leaking loop-local paths.
 2. Materialize scope-exit cleanup from the same initialization state. Complete and remaining
    fields must be dropped in normative order without creating a second liveness analysis.
 
@@ -63,8 +62,16 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, calls, operators, aggregates, branches, loops, closures,
-literals, and interpolation remain incomplete.
+branch-local paths. Annotation binding, calls, operators, aggregates, pattern conditionals,
+`match`, loops, closures, literals, and interpolation remain incomplete.
+
+Ordinary `if` and `else if` now build exact checked control nodes, enforce condition and branch
+types, and join only reachable branch exits. A terminal branch cannot contaminate a later
+continuation; one-sided and field-sensitive moves produce maybe-initialized state through the same
+entry-relative join. Unreachable source after a terminal remains in checked HIR under an explicit
+`Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally checked,
+but it creates no flow-dependent initialization continuation, matching the specification rather
+than emitting the removed `E0374` error. Pattern conditionals, `match`, and loops remain incomplete.
 
 ## Guardrails
 

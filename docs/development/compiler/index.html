@@ -280,7 +280,7 @@
   <code>CheckedProgram</code>. It also retains normalized family conditions and rejects an unconditionally
   move-only <code>copy struct</code> field as <code>E0366</code> during preparation. Generic-dependent conditions remain
   valid specialization facts. Callable signatures never stand in for closure-environment
-  ownership. <code>check_prepared_program</code> is now the production consuming boundary for the first
+  ownership. <code>check_prepared_program</code> is now the production consuming boundary for the current
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
   recursive-outcome, copy, and named-field move nodes. Semantic move paths track initialized
   parameter/local state independently of syntax, inherit field state from the nearest ancestor,
@@ -291,7 +291,12 @@
   <code>E0381</code> and the exact drop declaration instead of rediscovering cleanup by method or name lookup.
   The checker also rejects copy-value moves, borrow-binding moves, later uninitialized uses,
   value-producing expression statements, and reachable non-value fallthrough, and projects every
-  <code>BodyNodeId</code> back to its exact syntax origin.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  <code>BodyNodeId</code> back to its exact syntax origin.
+  Ordinary <code>if</code>/<code>else if</code> checking snapshots state after the condition and joins only normally
+  completing branch exits. Terminal branches are excluded, branch locals are projected out at the
+  entry boundary, and field state uses the same join. Source after a terminal is retained beneath
+  an explicit checked <code>Unreachable</code> operation: semantic checks still run, but flow-dependent
+  ownership state and later buildability receive no invented continuation.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>
