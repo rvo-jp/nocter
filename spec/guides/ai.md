@@ -50,6 +50,8 @@ Rules for generated code:
   bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
+- Move only from owned bindings, owned parameters, owned closure captures, or their named struct
+  fields. `&+` permits mutation but never permits moving ownership out of the borrowed value.
 - Define type cleanup with one top-level `drop Type(&+self) { ... }` declaration. Never place it in
   `instance`, and never define it for a `copy struct` or payloadless enum.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

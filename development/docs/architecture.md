@@ -71,6 +71,10 @@ The checked place model rejects a field move when any proper-prefix aggregate wo
 while owning a drop body. Cleanup plans may therefore invoke a type-owned body only with complete
 `Self`, then traverse remaining structural children. They never carry a partial-self drop ABI or a
 runtime flag that conditionally suppresses user cleanup.
+Every checked move place also records its owned root and projections. A borrow projection can
+produce a writable place but never an owned move place. Returns, arguments, assignments, captures,
+patterns, iteration, and spread consume this same classification rather than maintaining
+context-specific move-source rules.
 The type store derives optional and fallible copyability structurally from their success or present
 payload and the built-in copyable `error` type. The result is attached to the complete semantic
 type before body checking. Flow analysis never reclassifies an outcome from its active tag, and

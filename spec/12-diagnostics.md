@@ -291,6 +291,8 @@ Required diagnostic families:
 - Borrow exclusivity violation.
 - Readwrite borrow from a non-writable place.
 - Move while borrowed.
+- Move from storage reached through a readonly or readwrite borrow, including a borrowed closure
+  capture. The diagnostic must distinguish missing ownership from missing write permission.
 - Assignment or reinitialization while borrowed.
 - Compound assignment with a non-numeric target, a mismatched right-hand side, or a target that is
   not a writable place. Diagnostics must describe the compound operation directly rather than show

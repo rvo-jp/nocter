@@ -596,6 +596,10 @@ Rules:
 - `move place` is an expression.
 - The operand of `move` must be a local binding, parameter binding, or a named struct field rooted
   in one of those bindings.
+- The root must own the selected storage: an owned local, owned parameter, or owned closure capture.
+  A readonly or readwrite borrow binding, borrowed closure capture, or field path that crosses a
+  borrow cannot be a move root. Readwrite permission permits mutation, not extraction of the
+  caller's ownership.
 - The operand binding may be immutable or mutable.
 - The selected place must have a move-only type.
 - Using `move` on a copy type is a compile error.
@@ -694,14 +698,17 @@ let socket = move session.socket // error: Session owns a drop declaration
 
 ## Return Values
 
-Returning an existing move-only binding requires explicit `move`.
+Returning an existing move-only place requires explicit `move`.
 
 Rules:
 
 - `return value` may return a copy value by copying it.
-- `return value` is invalid when `value` is an existing move-only binding.
-- `return move value` returns an existing move-only binding by moving it. `value` must be a binding name.
-- After `return move value`, that binding is no longer valid on any remaining reachable path.
+- `return place` is invalid when `place` is an existing move-only binding or named field.
+- `return move place` returns an existing move-only binding or eligible named struct field by
+  moving the common `MovePlace` defined above.
+- `return move place` transfers the selected place before return cleanup. A whole binding becomes
+  uninitialized; a named field leaves its eligible parent partial, and return cleanup drops only
+  the remaining initialized fields.
 - A newly constructed owned value may be returned with `return expr` without `move`.
 - Newly constructed owned values include struct literals, enum variant constructors, array literals, and function or method call results.
 - `return` evaluates the returned expression first.
