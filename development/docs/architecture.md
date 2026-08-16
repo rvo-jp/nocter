@@ -76,6 +76,10 @@ payload and the built-in copyable `error` type. The result is attached to the co
 type before body checking. Flow analysis never reclassifies an outcome from its active tag, and
 MIR consumes the same type fact instead of deciding whether a particular tagged value may be
 copied.
+Generic `copy struct` validation builds one normalized conjunction of field-copy requirements.
+Concrete substitution evaluates that expression once in the type store. An unconditional
+move-only field rejects the declaration, while a generic-dependent atom remains a specialization
+condition; body checking and MIR do not traverse fields again to rediscover copyability.
 Checked closure construction records one environment field for each resolved capture and derives
 copyability with the same structural operation used by aggregates. Invocation capability is a
 separate callable fact and cannot overwrite the environment's ownership class. Later

@@ -65,6 +65,9 @@ Rules for generated code:
 - Closure copyability follows stored captures: no captures and readonly captures are copyable;
   readwrite captures and move-only owned captures make the closure move-only. Callable capability
   controls invocation only and does not decide copyability.
+- `copy struct` enables field-derived copyability. A generic specialization is copyable only when
+  all substituted fields are copyable; do not put an unconditionally move-only field in a
+  `copy struct` declaration.
 - Do not concatenate expression suffixes as `??`, `!!`, `?!`, or `!?`. Use an intermediate binding
   or parentheses such as `(move result?)?` for a second outcome layer. Type syntax `T?!` remains
   valid and has a different grammar.

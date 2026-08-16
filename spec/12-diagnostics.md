@@ -329,6 +329,9 @@ Required diagnostic families:
   target directive, generic prefix, `where` clause, result annotation, or a non-`&+self` receiver.
 - A drop declaration on a `copy struct` family or payloadless enum. The diagnostic must identify
   copyability as the conflict and must not suggest that the declaration makes the type move-only.
+- A `copy struct` field whose type is unconditionally move-only for every legal generic
+  substitution. The diagnostic identifies the field and its structural copyability blocker; a
+  generic-dependent copy condition is not itself an error.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.

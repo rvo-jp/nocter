@@ -434,20 +434,27 @@ copy struct Point {
 Rules:
 
 - Types are move-only by default.
-- `copy struct` types are implicitly copyable.
-- Every field of a `copy struct` must be copyable.
-- A generic `copy struct` is copyable per concrete instantiation. After
-  substituting type arguments into the fields, every concrete field type must
-  be copyable. For example, `copy struct Box<T> { value: T }` is copyable as
-  `Box<i32>` but move-only as `Box<String>`, while a field such as `&T` remains
-  copyable for any `T`.
+- `copy struct` opts a nominal family into structural copyability. An ordinary `struct` remains
+  move-only even when all its fields happen to be copyable.
+- A non-generic `copy struct` is copyable only when every field is copyable; a declaration with an
+  unconditionally move-only field is invalid.
+- A generic `copy struct` derives one copy condition from its fields. A field whose copyability
+  depends on a generic parameter contributes that dependency. A field that remains move-only for
+  every substitution makes the declaration invalid rather than defining a misleading never-copy
+  `copy struct` family.
+- After concrete substitution, a valid generic `copy struct` specialization is copyable exactly
+  when every substituted field type is copyable. For example, `copy struct Box<T> { value: T }` is
+  copyable as `Box<i32>` but move-only as `Box<String>`, while a field such as `&T` remains copyable
+  for every `T`.
 - No copyable type can own or acquire a drop declaration. This includes primitive numeric types,
   `bool`, raw pointers, the built-in `error` type, payloadless enums, copyable fixed arrays,
   copyable `copy struct` specializations, copyable borrows, and aliases to any of these types.
 - Because one drop declaration covers a complete nominal type family, every `copy struct` family is
   ineligible even when a particular specialization is move-only. A drop declaration never changes
   a type from copyable to move-only.
-- A `copy struct` must not own resources that require destruction.
+- A copyable `copy struct` specialization cannot own a field that requires destruction. A
+  conditional specialization such as `Box<String>` is move-only and runs ordinary structural field
+  cleanup; the `copy struct` family itself still cannot declare a type-owned drop body.
 - Primitive numeric types, `bool`, and raw pointers are copyable.
 - The built-in `error` type is copyable.
 - Payloadless enum values are copyable.
@@ -487,6 +494,26 @@ let p2 = p1 // OK: Point is copy
 let text1 = String.new()
 let text2 = text1      // error: String is not copy
 let text3 = move text1 // OK
+```
+
+Generic-dependent copyability is valid:
+
+```nct
+copy struct Box<T> {
+    value: T
+}
+
+let number_box: Box<i32> = Box { value: 1 }       // copyable
+let text_box: Box<String> = Box { value: text }   // move-only
+```
+
+A field that is unconditionally move-only makes the declaration invalid:
+
+```nct
+copy struct Invalid<T> {
+    text: String // error: move-only for every T
+    marker: &T
+}
 ```
 
 Copyable outcomes copy like other copy types:
