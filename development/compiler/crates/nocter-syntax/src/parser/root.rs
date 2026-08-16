@@ -1,0 +1,263 @@
+use super::{Parser, declaration};
+use crate::{ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation, TokenKind};
+
+pub(super) fn package_file(parser: &mut Parser<'_>) {
+    let root = parser.start();
+    parser.eat_newlines();
+    while !parser.at(TokenKind::Eof) {
+        if parser.at_punctuation(Punctuation::Hash) {
+            package_directive(parser);
+        } else {
+            parser.error_token(ExpectedSyntax::PackageDirectiveName);
+        }
+        parser.require_line_end();
+    }
+    parser.bump();
+    parser.complete(root, NodeKind::PackageFile);
+}
+
+pub(super) fn module_source(parser: &mut Parser<'_>) {
+    let root = parser.start();
+    parser.eat_newlines();
+
+    while at_use_start(parser) {
+        use_declaration(parser);
+        parser.require_line_end();
+    }
+
+    while !parser.at(TokenKind::Eof) {
+        if at_use_start(parser) {
+            parser.diagnostic(ParseDiagnosticKind::LateUseDeclaration);
+            use_declaration(parser);
+        } else {
+            declaration::item(parser);
+        }
+        parser.require_line_end();
+    }
+
+    parser.bump();
+    parser.complete(root, NodeKind::ModuleSource);
+}
+
+fn package_directive(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+
+    if is_package_directive_name(parser) {
+        parser.bump();
+    } else {
+        parser.error_token(ExpectedSyntax::PackageDirectiveName);
+    }
+    parser.expect_punctuation(Punctuation::Colon);
+    directive_value(parser);
+    parser.complete(marker, NodeKind::PackageDirective);
+}
+
+fn is_package_directive_name(parser: &Parser<'_>) -> bool {
+    matches!(
+        parser.current_text(),
+        "name" | "version" | "dependencies" | "lock" | "executable"
+    ) && parser.at(TokenKind::Identifier)
+        || parser.at_keyword(Keyword::Test)
+}
+
+fn directive_value(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    match parser.current_kind() {
+        TokenKind::StringStart(_) => string_literal(parser),
+        TokenKind::IntegerLiteral => parser.bump(),
+        TokenKind::Punctuation(Punctuation::LeftBrace) => directive_record(parser),
+        _ => parser.error_token(ExpectedSyntax::DirectiveValue),
+    }
+    parser.complete(marker, NodeKind::DirectiveValue);
+}
+
+pub(super) fn string_literal(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    let TokenKind::StringStart(delimiter) = parser.current_kind() else {
+        parser.missing(ExpectedSyntax::StringLiteral);
+        parser.complete(marker, NodeKind::StringLiteral);
+        return;
+    };
+    parser.bump();
+    parser.eat(TokenKind::StringText);
+    if parser.at(TokenKind::InterpolationStart) {
+        while !parser.at(TokenKind::StringEnd(delimiter)) && !parser.at(TokenKind::Eof) {
+            parser.error_token(ExpectedSyntax::StringLiteral);
+        }
+    }
+    parser.expect(TokenKind::StringEnd(delimiter));
+    parser.complete(marker, NodeKind::StringLiteral);
+}
+
+fn directive_record(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        recover_balanced_record(parser);
+        parser.complete(marker, NodeKind::DirectiveRecord);
+        return;
+    }
+
+    parser.comma_list(
+        Punctuation::RightBrace,
+        true,
+        ExpectedSyntax::Name,
+        directive_field,
+    );
+    parser.expect_punctuation(Punctuation::RightBrace);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::DirectiveRecord);
+}
+
+fn directive_field(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Colon);
+    directive_value(parser);
+    parser.complete(marker, NodeKind::DirectiveField);
+}
+
+fn recover_balanced_record(parser: &mut Parser<'_>) {
+    let mut depth = 1_u32;
+    while depth > 0 && !parser.at(TokenKind::Eof) {
+        if parser.at_punctuation(Punctuation::LeftBrace) {
+            depth += 1;
+        } else if parser.at_punctuation(Punctuation::RightBrace) {
+            depth -= 1;
+        }
+        parser.bump();
+    }
+}
+
+fn at_use_start(parser: &Parser<'_>) -> bool {
+    let mut cursor = parser.cursor;
+    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Pub) {
+        cursor += 1;
+        if parser.tokens[cursor].kind() == TokenKind::Punctuation(Punctuation::LeftParen) {
+            cursor += 1;
+            while !matches!(
+                parser.tokens[cursor].kind(),
+                TokenKind::Punctuation(Punctuation::RightParen)
+                    | TokenKind::Eof
+                    | TokenKind::Newline
+            ) {
+                cursor += 1;
+            }
+            if parser.tokens[cursor].kind() == TokenKind::Punctuation(Punctuation::RightParen) {
+                cursor += 1;
+            }
+        }
+    }
+    parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Use)
+}
+
+fn use_declaration(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if parser.at_keyword(Keyword::Pub) {
+        visibility(parser);
+    }
+    parser.expect_keyword(Keyword::Use);
+    use_tree(parser);
+    parser.complete(marker, NodeKind::UseDeclaration);
+}
+
+pub(super) fn visibility(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    if parser.eat_punctuation(Punctuation::LeftParen) {
+        if parser.eat_punctuation(Punctuation::Slash) {
+            // Package visibility.
+        } else if parser.eat_punctuation(Punctuation::Dot) {
+            if parser.eat_punctuation(Punctuation::Slash) {
+                // Child-module visibility.
+            } else {
+                parser.expect_punctuation(Punctuation::Dot);
+                parser.expect_punctuation(Punctuation::Slash);
+                while parser.at_punctuation(Punctuation::Dot) {
+                    parser.bump();
+                    parser.expect_punctuation(Punctuation::Dot);
+                    parser.expect_punctuation(Punctuation::Slash);
+                }
+            }
+        } else {
+            parser.missing(ExpectedSyntax::Punctuation(Punctuation::Slash));
+        }
+        parser.expect_punctuation(Punctuation::RightParen);
+    }
+    parser.complete(marker, NodeKind::Visibility);
+}
+
+fn use_tree(parser: &mut Parser<'_>) {
+    let path = parser.start();
+    module_path(parser);
+    parser.complete(path, NodeKind::ModulePath);
+
+    if parser.eat_punctuation(Punctuation::Dot) {
+        let selection = parser.start();
+        if parser.eat_punctuation(Punctuation::LeftBrace) {
+            parser.comma_list(
+                Punctuation::RightBrace,
+                false,
+                ExpectedSyntax::Name,
+                selected_name,
+            );
+            parser.expect_punctuation(Punctuation::RightBrace);
+        } else {
+            selected_name(parser);
+        }
+        parser.complete(selection, NodeKind::ImportSelection);
+    }
+}
+
+fn selected_name(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.expect_name();
+    if parser.eat_keyword(Keyword::As) {
+        parser.expect_name();
+    }
+    parser.complete(marker, NodeKind::SelectedName);
+}
+
+fn module_path(parser: &mut Parser<'_>) {
+    if parser.eat_punctuation(Punctuation::Slash) {
+        // Package-absolute prefix.
+    } else if parser.eat_punctuation(Punctuation::Dot) {
+        if parser.eat_punctuation(Punctuation::Slash) {
+            // Current-module relative prefix.
+        } else {
+            parser.expect_punctuation(Punctuation::Dot);
+            parser.expect_punctuation(Punctuation::Slash);
+            while parser.at_punctuation(Punctuation::Dot) {
+                parser.bump();
+                parser.expect_punctuation(Punctuation::Dot);
+                parser.expect_punctuation(Punctuation::Slash);
+            }
+        }
+    }
+
+    if !expect_module_segment(parser) {
+        return;
+    }
+    while parser.eat_punctuation(Punctuation::Slash) {
+        expect_module_segment(parser);
+    }
+}
+
+fn expect_module_segment(parser: &mut Parser<'_>) -> bool {
+    if parser.at(TokenKind::Identifier) && is_module_segment(parser.current_text()) {
+        parser.bump();
+        true
+    } else {
+        parser.error_token(ExpectedSyntax::ModuleSegment);
+        false
+    }
+}
+
+fn is_module_segment(text: &str) -> bool {
+    text != "_"
+        && text.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}

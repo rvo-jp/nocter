@@ -141,9 +141,10 @@ ImportSelection = Name ("as" Name)?
 
 SelectedName = Name ("as" Name)?
 
-ModulePath = PackageModulePath | RelativeModulePath
+ModulePath = PackageModulePath | PackageAbsoluteModulePath | RelativeModulePath
 
 PackageModulePath  = ModuleSegment ("/" ModuleSegment)*
+PackageAbsoluteModulePath = "/" ModuleSegment ("/" ModuleSegment)*
 RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
 ```
 

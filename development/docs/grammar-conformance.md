@@ -25,7 +25,7 @@ error recovery cannot silently change its shape.
 | G001 | `PackageFile`, `PackageDirective`, directive records and fields | `#name: "p"` | `#name: true` | duplicate `#name` directives |
 | G002 | `ModuleSource`, use/item sequencing | `use ./helper` before `func run(): void {}` | a `use` after the function | a public item in an implementation source |
 | G003 | visibility scopes | `pub(../../) func run(): void {}` | `pub(parser) func run(): void {}` | visibility wider than the declaration can expose |
-| G004 | module paths, selections, aliases, and re-exports | `use ./parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
+| G004 | module paths, selections, aliases, and re-exports | `use /parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
 | G005 | target attachment and targetable items | `#target: "arm64-darwin"` followed by a function | `#target: "arm64-darwin"` before `test smoke {}` | an unsupported target name |
 | G006 | functions, primitives, aliases, parameters, callable tails, provenance | `func choose<T>(left: &T, right: &T): &T from left | right` | a function without `: Result` | an ineligible bodyless private function |
 | G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) none }` with newline-separated variants | comma-separated struct fields | an empty enum body |

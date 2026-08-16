@@ -2,19 +2,20 @@
 
 ## Current Task
 
-Begin v0.14.0 Phase 1 from the closed public grammar. The previous compiler is preserved by commit
-`f6c08da3` and removed from the active working tree. No previous source, test, binary behavior, or
-implementation document may be used as an implementation input.
+Continue v0.14.0 Phase 1 from the closed public grammar and the new source/syntax foundation. The
+previous compiler is preserved by commit `f6c08da3` and removed from the active working tree. No
+previous source, test, binary behavior, or implementation document may be used as an implementation
+input.
 
 ## Immediate Work
 
-1. Define the immutable syntax-tree representation and parser event boundary without semantic
-   identities or source-text backtracking.
-2. Implement package/module source roots, directive data, imports, visibility, item dispatch, and
-   declaration headers in grammar dependency order.
+1. Complete nominal declarations and member containers in G007-G012, reusing the existing
+   declaration/type/requirement parser rather than introducing parallel member parsers.
+2. Complete the type and requirement boundaries in G013-G018, including accepted, rejected, and
+   semantic-boundary coverage not already exercised by callable declarations.
 3. Expand G001 onward from the
    [grammar conformance plan](docs/grammar-conformance.md) into accepted and rejected parser
-   fixtures; keep semantic-boundary cases parseable.
+   fixtures and stable tree-shape snapshots; keep semantic-boundary cases parseable.
 4. Add expression and block parsing only after the declaration/type productions they consume are
    structurally stable. Do not introduce declaration or checked semantic crates during Phase 1.
 

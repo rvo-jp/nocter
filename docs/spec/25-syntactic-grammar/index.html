@@ -215,9 +215,10 @@ ImportSelection = Name ("as" Name)?
 
 SelectedName = Name ("as" Name)?
 
-ModulePath = PackageModulePath | RelativeModulePath
+ModulePath = PackageModulePath | PackageAbsoluteModulePath | RelativeModulePath
 
 PackageModulePath  = ModuleSegment ("/" ModuleSegment)*
+PackageAbsoluteModulePath = "/" ModuleSegment ("/" ModuleSegment)*
 RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
 </code></pre><p><code>ModuleSegment</code> is the snake-case module segment defined by the lexical grammar. Resolution decides whether a private bare relative path is a same-module source import or whether a path is a directory-module import. The parser does not choose between those meanings.</p><p>A block-scope import uses the private <code>BlockUseDeclaration</code> form. Its enclosing block owns the newline separator. Visibility is recognized only on a top-level use declaration; the module rules further reject visibility on a same-module source import and reject namespace alias re-exports.</p><h2 id="items">Items</h2><pre><code class="language-text">Item = TargetDirective? TargetableItem
      | ConstructDeclaration

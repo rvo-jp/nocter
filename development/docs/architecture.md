@@ -41,6 +41,19 @@ and string ends are ordinary lexical tokens in that same stream. `SyntaxProgram`
 facts once; it never re-reads source bytes to distinguish indexing from typed literals or rescans
 string contents to discover interpolation.
 
+`SyntaxProgram` stores nodes and child elements in flat immutable arenas addressed by tree-local
+`NodeId` values. Deep valid prefix syntax therefore has no recursive ownership chain to overflow
+the process stack during traversal or destruction. A parser event stream builds the arenas once;
+missing syntax and subdivided token views are ordinary child elements. Every syntax token retains
+its lexical-token identity, and the syntax pieces for one subdivided token must exactly partition
+that token's normalized range.
+
+Bounded syntactic ambiguity is parsed transactionally. A successful branch keeps the events it
+already produced; a failed branch restores its cursor, token subdivision, nesting, events, and
+ordinary diagnostics. The parser never performs a successful lookahead and then parses the same
+branch again. Safety-limit diagnostics survive rollback. This rule keeps nested type-argument
+recognition linear while leaving an unmatched `<` available to the enclosing expression grammar.
+
 Continuation-newline classification depends only on token kinds and delimiter depth. At the active
 header delimiter depth, the parser's control-header mode reserves the first `{` for the control
 body. A struct literal, closure, recovery clause, or nested control expression at that level must
