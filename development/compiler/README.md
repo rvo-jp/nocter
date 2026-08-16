@@ -187,11 +187,14 @@ be introduced to make an unresolved syntax choice.
   canonical type identity, and closes over the final extended type store before becoming part of
   `CheckedProgram`. It also retains normalized family conditions and rejects an unconditionally
   move-only `copy struct` field as `E0366` during preparation. Generic-dependent conditions remain
-  valid specialization facts. Callable signatures never stand in for closure-environment ownership.
-  `check_prepared_program` is now the production consuming boundary for the first
+  valid specialization facts. Callable signatures never stand in for closure-environment
+  ownership. `check_prepared_program` is now the production consuming boundary for the first
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  and recursive-outcome nodes, rejects value-producing expression statements and reachable
-  non-value fallthrough, and projects every `BodyNodeId` back to its exact syntax origin.
+  recursive-outcome, copy, and whole-binding move nodes. Semantic move paths track initialized
+  parameter/local state independently of syntax and join only paths visible at a control-flow
+  entry. The checker rejects copy-value moves, borrow-binding moves, later uninitialized uses,
+  value-producing expression statements, and reachable non-value fallthrough, and projects every
+  `BodyNodeId` back to its exact syntax origin.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

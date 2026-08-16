@@ -9,6 +9,9 @@ pub enum BodyRule {
     MissingBodyResult,
     UnreachableCode,
     IntegerOutOfRange,
+    MoveCopyValue,
+    InvalidMoveSource,
+    UninitializedPlace,
 }
 
 impl BodyRule {
@@ -19,6 +22,9 @@ impl BodyRule {
         Self::MissingBodyResult,
         Self::UnreachableCode,
         Self::IntegerOutOfRange,
+        Self::MoveCopyValue,
+        Self::InvalidMoveSource,
+        Self::UninitializedPlace,
     ];
 
     #[must_use]
@@ -30,6 +36,9 @@ impl BodyRule {
             Self::MissingBodyResult => "E0373",
             Self::UnreachableCode => "E0374",
             Self::IntegerOutOfRange => "E0375",
+            Self::MoveCopyValue => "E0376",
+            Self::InvalidMoveSource => "E0377",
+            Self::UninitializedPlace => "E0378",
         }
     }
 
@@ -58,6 +67,18 @@ impl BodyRule {
             Self::IntegerOutOfRange => (
                 "integer literal is outside the expected integer type's range",
                 "use a value representable by the destination integer type",
+            ),
+            Self::MoveCopyValue => (
+                "copyable value cannot be moved explicitly",
+                "use the place directly; copying leaves the source initialized",
+            ),
+            Self::InvalidMoveSource => (
+                "this place does not own storage that can be moved",
+                "move an owned local, parameter, capture, or named struct field",
+            ),
+            Self::UninitializedPlace => (
+                "place may be uninitialized at this use",
+                "initialize it on every reachable path before using it",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, [], Some(help))

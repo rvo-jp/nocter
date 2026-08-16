@@ -12,6 +12,7 @@ mod copyability;
 mod expected;
 mod inference;
 mod names;
+mod ownership;
 mod preparation;
 mod syntax;
 mod type_relations;

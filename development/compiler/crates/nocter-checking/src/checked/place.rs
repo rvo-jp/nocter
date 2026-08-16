@@ -4,7 +4,7 @@ use nocter_model::{
 
 use super::StaticDispatch;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PlaceRoot {
     Parameter(ParameterId),
     Local(LocalBindingId),

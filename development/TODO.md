@@ -10,11 +10,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Add explicit move and initialization-state transitions before named fields, calls, and
-   primitive operators. Use the same place and copyability authorities for assignment, arguments,
-   returns, captures, iteration, and spread.
-2. Extend the linear state transfer to branch joins before adding conditionals and loops. A
-   transfer and join must use semantic place identity rather than syntax-node or name keys.
+1. Extend whole-binding ownership state to statically named fields, including partial
+   initialization and the prohibition on partial moves through a type-owned drop declaration.
+2. Apply the existing branch join to checked conditionals and loops. The entry state must exclude
+   branch-local paths while joining every visible outer path to initialized, uninitialized, or
+   maybe initialized.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -55,8 +55,11 @@ facts by canonical `TypeId`, closes over the final type store, and remains owned
 `CheckedProgram`. Ordinary structs, unconstrained generics, readwrite borrows, and callable
 contracts are never guessed copyable. Copy-struct families retain `Always`, generic `Requires`, or
 `Impossible` conditions; an unconditionally move-only field now projects `E0366` at its declaration
-instead of creating a never-copy family. Ownership state, annotation binding, calls, operators,
-aggregates, branches, loops, closures, literals, and interpolation remain incomplete.
+instead of creating a never-copy family. Whole-binding state now tracks parameter and local move
+paths, emits exact `Move` nodes, rejects moves of copy values and borrow bindings, and reports
+later uses through `E0376`-`E0378`. The same state has an entry-relative branch join that cannot
+leak branch-local paths. Named fields, annotation binding, calls, operators, aggregates, branches,
+loops, closures, literals, and interpolation remain incomplete.
 
 ## Guardrails
 

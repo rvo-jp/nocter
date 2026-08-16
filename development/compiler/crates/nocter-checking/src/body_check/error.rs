@@ -73,6 +73,7 @@ pub enum BodyCheckInternalError {
     MissingSource(SemanticEntity),
     UnconsumedNameUses(BodyId),
     NonCanonicalBody(BodyId),
+    OwnershipState,
 }
 
 impl fmt::Display for BodyCheckInternalError {

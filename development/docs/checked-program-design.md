@@ -198,6 +198,16 @@ for every `copy struct` family. Preparation rejects an impossible field as sourc
 the exact field declaration. A generic-dependent family remains valid and evaluates its condition
 again only after canonical argument substitution creates a distinct type identity.
 
+Whole-binding ownership transfer uses a separate semantic `MovePath` domain keyed by
+`PlaceRoot`, never by a source name or place occurrence. Callable and drop parameters enter their
+body initialized; a local enters only after its initializer succeeds. Copy and borrow reads require
+an initialized path, while `move` requires a move-only owned value and changes the path to
+uninitialized before later reachable expressions are checked. Source rules `E0376`-`E0378`
+distinguish moving a copy value, moving a borrow binding, and reading an uninitialized path. The
+state lattice already defines an entry-relative branch join: only paths visible at branch entry
+survive, and differing incoming states become maybe initialized. Named-field paths and actual
+control-flow consumers remain subsequent increments.
+
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and
 source projection only after every body succeeds. Unsupported valid syntax remains an internal
