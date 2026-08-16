@@ -278,6 +278,8 @@ Required diagnostic families:
   or import defines it.
 - Name collision in imports or declarations.
 - Attribute syntax or reserved `@` used in source.
+- An enum declaration with no variants. The diagnostic must point to the empty enum body and state
+  that every enum requires at least one variant.
 - A `pub(...)` scope containing a name, dependency alias, arbitrary path, or too many `../`
   components.
 - A module importing a declaration outside its ancestor or package visibility boundary.

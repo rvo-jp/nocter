@@ -182,7 +182,7 @@ pointer, borrow    align 8
   order.</li><li>Fixed arrays of copy element types are copyable. Fixed arrays of move-only
   element types are move-only.</li></ul><h3 id="enum-layout">Enum Layout</h3><p>Payloadless enum values are represented as a single tag byte.</p><pre><code class="language-text">payloadless enum = u8 tag
 </code></pre><p>Payload-carrying enum values use the same tag byte followed by a payload union.</p><pre><code class="language-text">enum = tag + payload union
-</code></pre><p>Rules:</p><ul><li>All enum values use a <code>u8</code> tag and may have at most 256 variants.</li><li>Variant tag values are assigned by declaration order starting at <code>0</code>.</li><li>For a payload-carrying enum, the tag is stored at byte offset <code>0</code>.</li><li>The payload union starts at the next offset after the tag that satisfies the
+</code></pre><p>Rules:</p><ul><li>Every enum declares between 1 and 256 variants, inclusive, and all enum values use a <code>u8</code> tag.</li><li>Variant tag values are assigned by declaration order starting at <code>0</code>.</li><li>For a payload-carrying enum, the tag is stored at byte offset <code>0</code>.</li><li>The payload union starts at the next offset after the tag that satisfies the
   maximum payload alignment of all variants.</li><li>The enum alignment is the maximum of <code>1</code> and the maximum payload alignment.</li><li>The enum size is the payload-union end offset rounded up to the enum
   alignment.</li><li>A payloadless variant has no live payload.</li><li>A variant with one payload field uses that field's layout as its payload
   layout.</li><li>A variant with multiple payload fields uses an anonymous struct payload with

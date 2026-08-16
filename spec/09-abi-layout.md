@@ -190,7 +190,7 @@ enum = tag + payload union
 
 Rules:
 
-- All enum values use a `u8` tag and may have at most 256 variants.
+- Every enum declares between 1 and 256 variants, inclusive, and all enum values use a `u8` tag.
 - Variant tag values are assigned by declaration order starting at `0`.
 - For a payload-carrying enum, the tag is stored at byte offset `0`.
 - The payload union starts at the next offset after the tag that satisfies the

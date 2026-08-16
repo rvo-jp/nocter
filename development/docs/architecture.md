@@ -49,6 +49,9 @@ Type well-formedness is validated on interned semantic types after alias expansi
 generic substitution. Invalid constructed types, including an optional layer whose eventual
 payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,
 monomorphized keys, MIR, or ABI layout.
+Declaration validation rejects zero-variant enums before semantic type interning creates usable
+enum identities. Later exhaustiveness and layout stages may therefore assume every enum has at
+least one valid tag.
 
 ## Checked Program
 

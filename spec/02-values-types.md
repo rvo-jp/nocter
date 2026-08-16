@@ -827,6 +827,8 @@ enum AppError {
 
 Rules:
 
+- An enum must declare at least one variant. A zero-variant enum is invalid and does not define a
+  nominal uninhabited value type.
 - Enum variant names use snake_case.
 - Variants may carry zero or more payload values.
 - Variant payload declarations and constructor arguments are comma-delimited and may use one
