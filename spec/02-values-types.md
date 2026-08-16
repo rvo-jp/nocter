@@ -563,6 +563,15 @@ Integer literal rules:
   representation. On the current target, `usize` is `u64`-width and `isize` is `i64`-width.
 - Integer literals start as untyped integer literals.
 - If an integer literal has an expected integer type, it takes that type when the value fits.
+- When unary `-` applies directly to an integer literal, with any number of grouping parentheses
+  between them, range checking uses the combined negative mathematical value. For an expected
+  signed N-bit type, the positive magnitude may therefore be at most `2^(N - 1)`, allowing the
+  exact minimum value. An expected unsigned type is invalid because unary `-` requires a signed
+  operand.
+- Without an expected type, a unary-negative integer literal is checked as `i32`, including the
+  `-2^31` minimum case. A larger magnitude does not cause inference of a wider type.
+- The signed-minimum case becomes one checked integer constant. It does not first construct an
+  out-of-range positive value and does not execute a runtime negation overflow.
 - If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
@@ -576,6 +585,8 @@ let b: u64 = 10   // u64
 let c: u8 = 300   // error: literal out of range
 let d = 0xFF_FF   // i32
 let e: u8 = 0b1010
+let minimum: i8 = -128
+let too_small: i8 = -129 // error
 
 let x: i32 = 10
 let y: u64 = x    // error: no implicit integer conversion

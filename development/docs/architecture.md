@@ -133,6 +133,9 @@ a transport projection of an existing layout and cannot mutate or replace the st
 The target description supplies endianness and integer width, while signed semantic types require
 two's-complement interpretation. Machine lowering cannot select an alternative signed
 representation or defer that choice to individual primitives.
+Syntax retains unary negation and integer literal nodes separately. Contextual checking may
+normalize that exact grouped shape into one signed integer constant, with a source origin covering
+both syntax nodes. MIR never receives an out-of-range positive constant for the signed-minimum case.
 Checked integer shift nodes distinguish left, unsigned-right, and signed-right operations and
 retain the validated source width. Machine lowering emits an explicit count-range trap before a
 target shift and cannot inherit the target instruction's count masking behavior.

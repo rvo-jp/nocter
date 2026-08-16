@@ -204,6 +204,8 @@ Rules:
 - `if` and `match` expressions use the same formatting as their statement forms.
 - A result-only body may be formatted as `{ expr }` when it is short.
 - Unary operators are attached to their operand.
+- Redundant grouping between unary `-` and an integer literal is removed, so `-(128)` formats as
+  `-128`. This does not create a negative-literal token.
 - Prefix borrowing binds before `as`; write `&value as &View` without redundant parentheses, and
   write `&(value as WiderInteger)` when borrowing the converted result.
 - Function calls have no space between callee and `(`.

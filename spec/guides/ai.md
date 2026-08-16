@@ -72,6 +72,8 @@ Rules for generated code:
   failure `error` do not infer an unknown payload type.
 - Signed integers use fixed-width two's-complement ranges. Do not assume wrapping arithmetic;
   ordinary overflow remains an always-on trap.
+- Signed minimum literals are written normally, such as `let minimum: i8 = -128`. The checker
+  validates unary `-` and its grouped integer literal as one mathematical value for range checking.
 - Shifts are fixed-width bit operations. Left shift discards outgoing high bits, unsigned right
   shift zero-fills, and signed right shift sign-fills. Negative or out-of-width counts trap.
 - Signed division truncates toward zero, and signed remainder is zero or has the dividend's sign.

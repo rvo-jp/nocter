@@ -267,6 +267,8 @@ Required diagnostic families:
 - Unterminated block comment, string literal, or byte literal.
 - Invalid escape sequence in a string literal or byte literal.
 - Invalid integer literal syntax or digit separator placement.
+- A unary-negative integer literal outside the expected signed range. The primary span covers the
+  unary `-` and grouped literal together, and the diagnostic reports the signed target range.
 - Unsupported float literal.
 - Plain single-quoted character literal.
 - Semicolon used as a statement terminator.

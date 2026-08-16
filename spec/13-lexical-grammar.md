@@ -407,7 +407,9 @@ Rules:
 - `_` must not appear immediately after `0x` or `0b`.
 - Adjacent `_` separators are invalid.
 - Integer literals have no type suffix.
-- Negative numbers are parsed as unary `-` applied to an integer literal, not as a negative literal token.
+- Negative numbers are parsed as unary `-` applied to an integer literal, not as a negative literal
+  token. The type checker recognizes a directly grouped literal operand when validating the signed
+  minimum value; the lexer does not fuse those tokens.
 - Float literals are not supported. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
 
 The type rules for integer literals are specified in [Values and Types](02-values-types.md#integer-literals).
