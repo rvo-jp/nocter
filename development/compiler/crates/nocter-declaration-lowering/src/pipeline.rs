@@ -1,15 +1,15 @@
 use std::fmt;
 
 use crate::{
-    CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericDiagnostic,
-    GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
-    LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic, PreludeError, PreparedTypeBindings,
-    PreparedTypes, ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError,
-    TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
-    TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
-    bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
-    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
-    prepare_generic_binders,
+    CallableContractDiagnostic, CallableContractError, CompileUnitInput, DeclarationDiagnostic,
+    DefinitionDiagnostic, GenericDiagnostic, GenericError, HeaderDefinitionError, HeaderError,
+    ImportDiagnostic, ImportError, LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic,
+    PreludeError, PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic,
+    SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError,
+    TypeNormalizationDiagnostic, TypeNormalizationError, analyze_callable_contracts,
+    apply_standard_prelude, bind_header_type_syntax, collect_declaration_surface,
+    define_declaration_headers, normalize_header_types, prepare_authored_imports,
+    prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -31,7 +31,9 @@ pub enum DeclarationLoweringError {
     InternalTypeBinding(TypeBindingError),
     TypeNormalization(TypeNormalizationDiagnostic),
     InternalTypeNormalization(TypeNormalizationError),
-    Definition(HeaderDefinitionError),
+    Definition(DefinitionDiagnostic),
+    Declaration(DeclarationDiagnostic),
+    InternalDefinition(HeaderDefinitionError),
 }
 
 impl DeclarationLoweringError {
@@ -50,7 +52,8 @@ impl DeclarationLoweringError {
             Self::Import(diagnostic) => Some(diagnostic.source()),
             Self::TypeBinding(diagnostic) => Some(diagnostic.source()),
             Self::TypeNormalization(diagnostic) => Some(diagnostic.source()),
-            Self::Definition(error) => error.source_diagnostic(),
+            Self::Definition(diagnostic) => Some(diagnostic.source()),
+            Self::Declaration(diagnostic) => Some(diagnostic.source()),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
@@ -59,7 +62,8 @@ impl DeclarationLoweringError {
             | Self::InternalImport(_)
             | Self::Prelude(_)
             | Self::InternalTypeBinding(_)
-            | Self::InternalTypeNormalization(_) => None,
+            | Self::InternalTypeNormalization(_)
+            | Self::InternalDefinition(_) => None,
         }
     }
 }
@@ -85,6 +89,8 @@ impl fmt::Display for DeclarationLoweringError {
             Self::TypeNormalization(error) => error.fmt(formatter),
             Self::InternalTypeNormalization(error) => error.fmt(formatter),
             Self::Definition(error) => error.fmt(formatter),
+            Self::Declaration(error) => error.fmt(formatter),
+            Self::InternalDefinition(error) => error.fmt(formatter),
         }
     }
 }
@@ -202,7 +208,28 @@ pub fn lower_compile_unit_declarations(
         Err(internal) => return Err(DeclarationLoweringError::InternalTypeBinding(internal)),
     };
     let normalized = normalize_types(bound, input)?;
-    define_declaration_headers(normalized).map_err(DeclarationLoweringError::Definition)
+    define_headers(normalized, input)
+}
+
+fn define_headers<'syntax>(
+    normalized: PreparedTypes<'syntax>,
+    input: &CompileUnitInput<'syntax>,
+) -> Result<LoweredDeclarations, DeclarationLoweringError> {
+    match define_declaration_headers(normalized) {
+        Ok(lowered) => Ok(lowered),
+        Err(HeaderDefinitionError::Rule(violation)) => {
+            match DefinitionDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Definition(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalDefinition(
+                    HeaderDefinitionError::Rule(internal),
+                )),
+            }
+        }
+        Err(HeaderDefinitionError::Declaration(diagnostic)) => {
+            Err(DeclarationLoweringError::Declaration(diagnostic))
+        }
+        Err(internal) => Err(DeclarationLoweringError::InternalDefinition(internal)),
+    }
 }
 
 fn normalize_types<'syntax>(
@@ -232,10 +259,10 @@ mod tests {
 
     use crate::test_support::{module_use, source_use};
     use crate::{
-        CallableContractRule, CompileUnitInput, DeclarationLoweringError, GenericRule, ImportRule,
-        ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule,
-        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, TopologyRule,
-        TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
+        CallableContractRule, CompileUnitInput, DeclarationLoweringError, DefinitionRule,
+        GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+        NamespaceRule, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+        TopologyRule, TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
     };
 
     #[test]
@@ -1148,6 +1175,103 @@ mod tests {
             u32::try_from(text.find("Missing").unwrap()).unwrap()
         );
         assert!(diagnostic.source().notes().is_empty());
+    }
+
+    #[test]
+    fn production_pipeline_projects_declaration_definition_rules() {
+        let cases = [
+            (
+                "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
+                DefinitionRule::DuplicateConstructionDefault,
+                "default func second",
+                Some("default func first"),
+            ),
+            (
+                "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
+                DefinitionRule::UnknownResultProvenanceOrigin,
+                "missing",
+                None,
+            ),
+            (
+                "func choose<T>(left: &T, right: &T): &T from left | left { return }\n",
+                DefinitionRule::DuplicateResultProvenanceOrigin,
+                "left {",
+                Some("left |"),
+            ),
+            (
+                "interface Choose {\n    pub method &self.choose(other: &Self): &Self\n}\n",
+                DefinitionRule::AmbiguousBodylessResultProvenance,
+                "&Self\n",
+                None,
+            ),
+            (
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Missing = i32\n}\n",
+                DefinitionRule::UnknownAssociatedTypeBinding,
+                "Missing",
+                None,
+            ),
+            (
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Item = i32\n    type Item = i64\n}\n",
+                DefinitionRule::DuplicateAssociatedTypeBinding,
+                "Item = i64",
+                Some("Item = i32"),
+            ),
+        ];
+
+        for (text, expected_rule, primary_text, related_text) in cases {
+            let mut sources = SourceMap::new();
+            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_id = add_source(&mut sources, "/app/index.nct", text);
+            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let standard_manifest =
+                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let prelude_identity =
+                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+            let input = input_with_standard_prelude(
+                &sources,
+                &app_manifest,
+                &app,
+                &standard_manifest,
+                &standard,
+                &prelude,
+            );
+
+            let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+            assert_eq!(
+                error.source_diagnostic().map(crate::SourceDiagnostic::code),
+                Some(expected_rule.code())
+            );
+            let DeclarationLoweringError::Definition(diagnostic) = error else {
+                panic!("authored definition failure did not cross the production boundary")
+            };
+            assert_eq!(diagnostic.rule(), expected_rule);
+            assert_eq!(diagnostic.source().primary().source(), app_id);
+            assert_eq!(
+                diagnostic.source().primary().span().range().start().get(),
+                u32::try_from(text.rfind(primary_text).unwrap()).unwrap()
+            );
+            match related_text {
+                Some(related_text) => {
+                    assert_eq!(diagnostic.source().notes().len(), 1);
+                    assert_eq!(
+                        diagnostic.source().notes()[0]
+                            .origin()
+                            .span()
+                            .range()
+                            .start()
+                            .get(),
+                        u32::try_from(text.find(related_text).unwrap()).unwrap()
+                    );
+                }
+                None => assert!(diagnostic.source().notes().is_empty()),
+            }
+        }
     }
 
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {

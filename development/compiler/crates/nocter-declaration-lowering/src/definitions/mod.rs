@@ -6,21 +6,24 @@ use nocter_source::SourceId;
 use nocter_source_index::DuplicateSourceBinding;
 use nocter_syntax::NodeId;
 
-use crate::{LoweredDeclarations, PreparedTypes, SourceDiagnostic, SurfaceDeclarationId};
+use crate::{LoweredDeclarations, PreparedTypes, SurfaceDeclarationId};
 
 mod allocation;
 mod declarations;
 mod diagnostic;
 mod projection;
 mod syntax;
+mod violation;
 
 #[cfg(test)]
 mod tests;
 
 pub use diagnostic::DeclarationDiagnostic;
+pub use violation::{DefinitionRule, DefinitionViolation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeaderDefinitionError {
+    Rule(DefinitionViolation),
     MissingSource(SurfaceDeclarationId),
     MissingName(SurfaceDeclarationId),
     MissingSite(SurfaceDeclarationId),
@@ -30,11 +33,7 @@ pub enum HeaderDefinitionError {
     InvalidSurface(SurfaceDeclarationId),
     InvalidTypePattern(SurfaceDeclarationId),
     InvalidTargetGate(SurfaceDeclarationId),
-    DuplicateDefault(SurfaceDeclarationId),
     InvalidProvenance(SurfaceDeclarationId),
-    AmbiguousProvenance(SurfaceDeclarationId),
-    UnknownAssociatedType(SurfaceDeclarationId),
-    DuplicateAssociatedType(SurfaceDeclarationId),
     InconsistentType(TypeId),
     InconsistentSource(SourceId),
     MissingDiagnosticSubject(nocter_model::DeclarationSiteId),
@@ -44,39 +43,15 @@ pub enum HeaderDefinitionError {
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
 
-impl HeaderDefinitionError {
-    /// Returns the public source diagnostic when this is an authored language-rule failure.
-    #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        match self {
-            Self::Declaration(diagnostic) => Some(diagnostic.source()),
-            Self::MissingSource(_)
-            | Self::MissingName(_)
-            | Self::MissingSite(_)
-            | Self::MissingType(_)
-            | Self::MissingCallableResult(_)
-            | Self::InvalidOwner(_)
-            | Self::InvalidSurface(_)
-            | Self::InvalidTypePattern(_)
-            | Self::InvalidTargetGate(_)
-            | Self::DuplicateDefault(_)
-            | Self::InvalidProvenance(_)
-            | Self::AmbiguousProvenance(_)
-            | Self::UnknownAssociatedType(_)
-            | Self::DuplicateAssociatedType(_)
-            | Self::InconsistentType(_)
-            | Self::InconsistentSource(_)
-            | Self::MissingDiagnosticSubject(_)
-            | Self::Definition(_)
-            | Self::Program(_)
-            | Self::DuplicateSourceBinding(_) => None,
-        }
-    }
-}
-
 impl fmt::Display for HeaderDefinitionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::MissingSource(declaration) => {
                 write!(formatter, "declaration {declaration:?} has no source")
             }
@@ -119,25 +94,9 @@ impl fmt::Display for HeaderDefinitionError {
                     "declaration {declaration:?} has an invalid target gate"
                 )
             }
-            Self::DuplicateDefault(declaration) => write!(
-                formatter,
-                "construction {declaration:?} has more than one default member"
-            ),
             Self::InvalidProvenance(declaration) => write!(
                 formatter,
                 "callable {declaration:?} has an invalid result provenance contract"
-            ),
-            Self::AmbiguousProvenance(declaration) => write!(
-                formatter,
-                "bodyless callable {declaration:?} requires explicit result provenance"
-            ),
-            Self::UnknownAssociatedType(declaration) => write!(
-                formatter,
-                "conformance {declaration:?} binds an unknown associated type"
-            ),
-            Self::DuplicateAssociatedType(declaration) => write!(
-                formatter,
-                "conformance {declaration:?} repeats an associated type binding"
             ),
             Self::InconsistentType(ty) => write!(formatter, "type {ty:?} is inconsistent"),
             Self::InconsistentSource(source) => {
@@ -174,6 +133,12 @@ impl From<DefinitionError> for HeaderDefinitionError {
 impl From<DuplicateSourceBinding> for HeaderDefinitionError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<DefinitionViolation> for HeaderDefinitionError {
+    fn from(violation: DefinitionViolation) -> Self {
+        Self::Rule(violation)
     }
 }
 

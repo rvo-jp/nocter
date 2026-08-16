@@ -7,6 +7,7 @@ rewrite. Public language and standard-library behavior belongs exclusively in
 ## Active Documents
 
 - [Compiler Rewrite Architecture](architecture.md)
+- [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
 - [Grammar Closure Audit](grammar-audit.md)
 - [Grammar Conformance Plan](grammar-conformance.md)
 - [Maintenance](maintenance.md)
@@ -24,6 +25,7 @@ not be consulted to determine new compiler structure or unspecified language beh
 |---|---|
 | Public language and standard-library behavior | `spec/` |
 | New compiler dependency and authority boundaries | `architecture.md` |
+| Declaration-lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |
 | Rewrite scope and completion gates | `../milestones/v0.14.0.md` |

@@ -49,11 +49,12 @@ drop Box<T>(&+self) { return }
 test headers { return }
 "#;
 use crate::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    apply_standard_prelude, bind_header_type_syntax, collect_declaration_surface,
-    define_declaration_headers, normalize_header_types, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
+    CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    UseResolutionInput, apply_standard_prelude, bind_header_type_syntax,
+    collect_declaration_surface, define_declaration_headers, normalize_header_types,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -327,8 +328,74 @@ fn rejects_ambiguous_bodyless_result_provenance() {
     );
     assert!(matches!(
         error,
-        super::HeaderDefinitionError::AmbiguousProvenance(_)
+        super::HeaderDefinitionError::Rule(violation)
+            if violation.rule() == DefinitionRule::AmbiguousBodylessResultProvenance
     ));
+}
+
+#[test]
+fn definition_rules_retain_exact_authored_subjects() {
+    let cases = [
+        (
+            "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
+            DefinitionRule::DuplicateConstructionDefault,
+            "default func second",
+            Some("default func first"),
+        ),
+        (
+            "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
+            DefinitionRule::UnknownResultProvenanceOrigin,
+            "missing",
+            None,
+        ),
+        (
+            "func choose<T>(left: &T, right: &T): &T from left | left { return }\n",
+            DefinitionRule::DuplicateResultProvenanceOrigin,
+            "left {",
+            Some("left |"),
+        ),
+        (
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Missing = i32\n}\n",
+            DefinitionRule::UnknownAssociatedTypeBinding,
+            "Missing",
+            None,
+        ),
+        (
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Item = i32\n    type Item = i64\n}\n",
+            DefinitionRule::DuplicateAssociatedTypeBinding,
+            "Item = i64",
+            Some("Item = i32"),
+        ),
+    ];
+
+    for (text, rule, primary_text, related_text) in cases {
+        let super::HeaderDefinitionError::Rule(violation) = definition_error(text) else {
+            panic!("authored definition failure did not retain its rule")
+        };
+        assert_eq!(violation.rule(), rule);
+        let nocter_source_index::SyntaxOrigin::Token(primary) = violation.primary() else {
+            panic!("token-backed definition rule selected a node")
+        };
+        let primary_start = primary.range().start().get();
+        assert_eq!(
+            primary_start,
+            u32::try_from(text.rfind(primary_text).unwrap()).unwrap()
+        );
+        match (violation.related(), related_text) {
+            (Some(origin), Some(related_text)) => {
+                let nocter_source_index::SyntaxOrigin::Token(related) = origin else {
+                    panic!("duplicate definition rule selected a related node")
+                };
+                let related_start = related.range().start().get();
+                assert_eq!(
+                    related_start,
+                    u32::try_from(text.find(related_text).unwrap()).unwrap()
+                );
+            }
+            (None, None) => {}
+            _ => panic!("definition rule retained the wrong related subject"),
+        }
+    }
 }
 
 #[test]

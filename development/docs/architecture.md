@@ -247,6 +247,14 @@ implementation projections remain distinct in `SourceIndex`. Authored result-pro
 are stored as declarations, while elided body-owned provenance remains explicitly inferred rather
 than being guessed from a header.
 
+Rule selection at this final syntax-consuming boundary retains exact subjects for declaration
+facts that do not exist in canonical type identity: construction `default` markers, declaration
+provenance origins, the result type of an ambiguous bodyless callable, and conformance associated-
+type binding names. These rules project as `E0314`-`E0319`. Duplicate rules store both authored
+tokens when the second occurrence is observed. `HeaderDefinitionError` separately carries
+malformed normalized state and program-builder failures; the production facade cannot expose those
+failures through the source-diagnostic variant.
+
 Compilation setup resolves the selected standard package and each compiler-owned built-in surface
 to exact package and module IDs. The immutable declaration program stores those authorities.
 Freeze-time attachment validation compares IDs, never a package display name or textual `std`
@@ -265,7 +273,9 @@ All source-backed declaration-lowering diagnostics share one envelope containing
 primary source origin, zero or more related source notes, and optional correction guidance. The
 envelope does not select a rule. Contract joining projects its exact syntax subjects into the
 envelope before reservation; module-surface validation does the same only for authored root-versus-
-implementation rules. Freeze-time validation projects semantic declaration-site subjects through
+implementation rules. An unmatched private construction, literal, or coercion entry has its own
+`E0254` rule rather than being rendered as a mismatch against a contract that does not exist.
+Freeze-time validation projects semantic declaration-site subjects through
 the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
 that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler
 state stay outside this envelope and have no public language code.

@@ -141,6 +141,24 @@ The binding-to-normalization boundary retains these syntax subjects in a tempora
 does not place source coordinates in canonical type identity, and normalization diagnostics do not
 recover subjects by scanning source or rendering semantic names.
 
+Source-backed declaration-definition diagnostics:
+
+- `E0314`: a construction surface marks more than one member as `default`. The later `default`
+  token is primary and the first is related.
+- `E0315`: a callable declaration result-provenance clause names neither its receiver nor one of
+  its parameters, and does not name `static`.
+- `E0316`: a callable declaration result-provenance clause repeats an origin. The later origin is
+  primary and the first is related.
+- `E0317`: a bodyless callable has a storage-bearing result and multiple eligible input origins,
+  so result provenance cannot be inferred uniquely. The authored result type is primary.
+- `E0318`: a conformance binding names no associated type declared by its selected interface.
+- `E0319`: a conformance repeats an associated-type binding. The later binding name is primary and
+  the first is related.
+
+These rules are selected while normalized header information is converted into declaration
+definitions. Their exact syntax subjects are retained in the failure value; the production
+diagnostic adapter does not reconstruct them from a rendered declaration.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.
@@ -148,6 +166,8 @@ Source-backed callable contract diagnostics:
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
+- `E0254`: a private construction, literal, or coercion implementation entry has no matching public
+  contract in `index.nct`.
 
 Source-backed declaration-header diagnostics:
 

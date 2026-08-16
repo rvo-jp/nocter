@@ -6,6 +6,7 @@
 
 mod contract;
 mod contract_diagnostic;
+mod definition_diagnostic;
 mod definitions;
 mod diagnostic;
 mod generic_diagnostic;
@@ -34,7 +35,11 @@ mod test_support;
 
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
 pub use contract_diagnostic::{CallableContractDiagnostic, CallableContractRule};
-pub use definitions::{DeclarationDiagnostic, HeaderDefinitionError, define_declaration_headers};
+pub use definition_diagnostic::DefinitionDiagnostic;
+pub use definitions::{
+    DeclarationDiagnostic, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
+    define_declaration_headers,
+};
 pub use diagnostic::{DiagnosticNote, SourceDiagnostic};
 pub use generic_diagnostic::GenericDiagnostic;
 pub use generics::{

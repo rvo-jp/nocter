@@ -15,9 +15,18 @@ pub enum CallableContractRule {
     MismatchedBody,
     DuplicateBody,
     InvalidBodyOmission,
+    UnmatchedImplementationEntry,
 }
 
 impl CallableContractRule {
+    pub const ALL: [Self; 5] = [
+        Self::MissingBody,
+        Self::MismatchedBody,
+        Self::DuplicateBody,
+        Self::InvalidBodyOmission,
+        Self::UnmatchedImplementationEntry,
+    ];
+
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
@@ -25,6 +34,7 @@ impl CallableContractRule {
             Self::MismatchedBody => "E0251",
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
+            Self::UnmatchedImplementationEntry => "E0254",
         }
     }
 
@@ -38,6 +48,9 @@ impl CallableContractRule {
             Self::DuplicateBody => "public callable contract has more than one implementation body",
             Self::InvalidBodyOmission => {
                 "callable omits its body outside an eligible public contract"
+            }
+            Self::UnmatchedImplementationEntry => {
+                "private implementation entry has no matching public contract"
             }
         }
     }
@@ -53,6 +66,9 @@ impl CallableContractRule {
             Self::InvalidBodyOmission => {
                 "write the body inline or declare an eligible public root contract"
             }
+            Self::UnmatchedImplementationEntry => {
+                "declare the matching construction or coercion contract in index.nct"
+            }
         }
     }
 
@@ -60,7 +76,9 @@ impl CallableContractRule {
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
             Self::MismatchedBody | Self::DuplicateBody => Some("public contract is declared here"),
-            Self::MissingBody | Self::InvalidBodyOmission => None,
+            Self::MissingBody | Self::InvalidBodyOmission | Self::UnmatchedImplementationEntry => {
+                None
+            }
         }
     }
 }
@@ -129,13 +147,13 @@ impl std::error::Error for CallableContractDiagnostic {}
 const fn rule(error: CallableContractError) -> Option<CallableContractRule> {
     match error {
         CallableContractError::MissingBody(_) => Some(CallableContractRule::MissingBody),
-        CallableContractError::MismatchedBody { .. }
-        | CallableContractError::UnmatchedImplementationEntry(_) => {
-            Some(CallableContractRule::MismatchedBody)
-        }
+        CallableContractError::MismatchedBody { .. } => Some(CallableContractRule::MismatchedBody),
         CallableContractError::DuplicateBody { .. } => Some(CallableContractRule::DuplicateBody),
         CallableContractError::InvalidBodyOmission(_) => {
             Some(CallableContractRule::InvalidBodyOmission)
+        }
+        CallableContractError::UnmatchedImplementationEntry(_) => {
+            Some(CallableContractRule::UnmatchedImplementationEntry)
         }
         CallableContractError::InconsistentSurface(_) => None,
     }
@@ -172,6 +190,8 @@ fn origin(surface: &DeclarationSurface<'_>, node: NodeId) -> Option<SourceOrigin
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
@@ -182,6 +202,15 @@ mod tests {
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
         analyze_callable_contracts, collect_declaration_surface,
     };
+
+    #[test]
+    fn callable_contract_rule_codes_are_closed_and_unique() {
+        let codes: BTreeSet<_> = CallableContractRule::ALL
+            .into_iter()
+            .map(CallableContractRule::code)
+            .collect();
+        assert_eq!(codes.len(), CallableContractRule::ALL.len());
+    }
 
     #[test]
     fn mismatch_projects_body_as_primary_and_contract_as_related() {
@@ -237,6 +266,57 @@ mod tests {
             diagnostic.source().notes()[0].message(),
             "public contract is declared here"
         );
+    }
+
+    #[test]
+    fn unmatched_implementation_entry_has_its_own_rule() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "use ./build\n\nstruct Value {}\n",
+        );
+        let implementation_id = add_source(
+            &mut sources,
+            "/app/build.nct",
+            "construct Value {\n    func new(): Self {}\n}\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![PackageInput::new(
+                PackageIdentity::new("workspace:app"),
+                "app",
+                PackageMode::Declared,
+                Some(PackageDeclarationInput::new("/app/nocter.nct", &manifest)),
+            )],
+            vec![ModuleInput::new(
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                    ModuleSourceInput::new(
+                        "/app/build.nct",
+                        ModuleSourceKind::Implementation,
+                        &implementation,
+                    ),
+                ],
+            )],
+            vec![source_use(&root, 0, "/app/build.nct")],
+        );
+        let surface = collect_declaration_surface(&input).unwrap();
+        let error = analyze_callable_contracts(&surface).unwrap_err();
+        let diagnostic = CallableContractDiagnostic::project(error, &surface).unwrap();
+
+        assert_eq!(
+            diagnostic.rule(),
+            CallableContractRule::UnmatchedImplementationEntry
+        );
+        assert_eq!(diagnostic.source().code(), "E0254");
+        assert_eq!(diagnostic.source().primary().source(), implementation_id);
+        assert!(diagnostic.source().notes().is_empty());
     }
 
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {

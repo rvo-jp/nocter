@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use nocter_declarations::{
     AssociatedTypeBinding, AssociatedTypeDeclaration, ConformanceDeclaration,
@@ -7,6 +7,7 @@ use nocter_declarations::{
     TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
+use nocter_source_index::SyntaxOrigin;
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, TokenKind};
 
@@ -19,7 +20,7 @@ use super::allocation::{
     AllocatedHeaders, entity, name, pattern_type, representative, site, surface_count,
     surface_kind, surface_node, surface_owner,
 };
-use super::{HeaderDefinitionError, projection, syntax};
+use super::{DefinitionRule, DefinitionViolation, HeaderDefinitionError, projection, syntax};
 
 mod callable;
 mod provenance;
@@ -352,20 +353,29 @@ fn define_construction(
 ) -> Result<(), HeaderDefinitionError> {
     let members = child_callables(types, declaration);
     let mut default = None;
+    let mut default_origin = None;
     for child in child_surfaces(types, declaration) {
         if !matches!(
             surface_kind(types, child)?,
             SurfaceDeclarationKind::ConstructionFunction | SurfaceDeclarationKind::Literal
-        ) || !target::has_contextual_word(types, child, "default")?
-        {
+        ) {
             continue;
         }
+        let Some(default_token) = target::contextual_word(types, child, "default")? else {
+            continue;
+        };
         let Some(ReservedEntity::Callable(member)) = entity(types, child) else {
             return Err(HeaderDefinitionError::InvalidSurface(child));
         };
-        if default.replace(member).is_some() {
-            return Err(HeaderDefinitionError::DuplicateDefault(declaration));
+        if let Some(first) = default_origin.replace(default_token) {
+            return Err(DefinitionViolation::duplicate(
+                DefinitionRule::DuplicateConstructionDefault,
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(default_token),
+            )
+            .into());
         }
+        default = Some(member);
     }
     let definition = ConstructionDeclaration::new(
         site(types, declaration)?,
@@ -427,7 +437,7 @@ fn conformance_bindings(
     declaration: SurfaceDeclarationId,
     interface: &InterfaceApplication,
 ) -> Result<Box<[AssociatedTypeBinding]>, HeaderDefinitionError> {
-    let mut seen = HashSet::new();
+    let mut seen = HashMap::new();
     let mut result = Vec::new();
     for child in syntax::direct_nodes(
         projection::tree(types, declaration)?,
@@ -438,10 +448,20 @@ fn conformance_bindings(
         let token = syntax::direct_identifier(tree, child)
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
         let name = projection::symbol(types, declaration, token)?;
-        let associated = associated_by_name(types, interface.interface(), name)
-            .ok_or(HeaderDefinitionError::UnknownAssociatedType(declaration))?;
-        if !seen.insert(associated) {
-            return Err(HeaderDefinitionError::DuplicateAssociatedType(declaration));
+        let associated =
+            associated_by_name(types, interface.interface(), name).ok_or_else(|| {
+                HeaderDefinitionError::from(DefinitionViolation::new(
+                    DefinitionRule::UnknownAssociatedTypeBinding,
+                    SyntaxOrigin::Token(token),
+                ))
+            })?;
+        if let Some(first) = seen.insert(associated, token) {
+            return Err(DefinitionViolation::duplicate(
+                DefinitionRule::DuplicateAssociatedTypeBinding,
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(token),
+            )
+            .into());
         }
         projection::token(
             types,

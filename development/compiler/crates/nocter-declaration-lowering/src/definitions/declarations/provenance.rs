@@ -1,16 +1,18 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use nocter_declarations::{
     CallableKind, CallableProvenance, CallableProvenanceContract, ProvenanceOrigin,
 };
 use nocter_model::{BodyId, ParameterId, TypeId};
-use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, SyntaxElement, SyntaxToken, TokenKind};
 
 use crate::{PreparedTypes, SurfaceDeclarationId};
 
 use super::super::allocation::surface_node;
-use super::super::{HeaderDefinitionError, projection, syntax};
+use super::super::{
+    DefinitionRule, DefinitionViolation, HeaderDefinitionError, projection, syntax,
+};
 
 pub(super) fn contract(
     types: &mut PreparedTypes<'_>,
@@ -81,7 +83,11 @@ pub(super) fn contract(
     }
     match candidates.as_slice() {
         [] | [_] => declared(candidates, declaration),
-        [_, _, ..] => Err(HeaderDefinitionError::AmbiguousProvenance(declaration)),
+        [_, _, ..] => Err(DefinitionViolation::new(
+            DefinitionRule::AmbiguousBodylessResultProvenance,
+            result_origin(types, declaration)?,
+        )
+        .into()),
     }
 }
 
@@ -107,19 +113,29 @@ fn explicit(
         })
         .skip(1)
         .collect();
-    let mut seen = HashSet::new();
+    let mut seen = HashMap::new();
     let mut origins = Vec::new();
     for token in tokens {
         let symbol = projection::symbol(types, declaration, token)?;
-        if !seen.insert(symbol) {
-            return Err(HeaderDefinitionError::InvalidProvenance(declaration));
+        if let Some(first) = seen.insert(symbol, token) {
+            return Err(DefinitionViolation::duplicate(
+                DefinitionRule::DuplicateResultProvenanceOrigin,
+                SyntaxOrigin::Token(first),
+                SyntaxOrigin::Token(token),
+            )
+            .into());
         }
         let spelling = token_spelling(types, token)?;
         if spelling == "static" {
             continue;
         }
         if spelling == "self" {
-            let receiver = receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+            let receiver = receiver.ok_or_else(|| {
+                HeaderDefinitionError::from(DefinitionViolation::new(
+                    DefinitionRule::UnknownResultProvenanceOrigin,
+                    SyntaxOrigin::Token(token),
+                ))
+            })?;
             let _ = receiver;
             origins.push(ProvenanceOrigin::Receiver);
             project(
@@ -146,7 +162,12 @@ fn explicit(
                     .parameter(*parameter)
                     .is_some_and(|item| item.name() == symbol)
             })
-            .ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+            .ok_or_else(|| {
+                HeaderDefinitionError::from(DefinitionViolation::new(
+                    DefinitionRule::UnknownResultProvenanceOrigin,
+                    SyntaxOrigin::Token(token),
+                ))
+            })?;
         origins.push(ProvenanceOrigin::Parameter(parameter));
         project(
             types,
@@ -158,6 +179,21 @@ fn explicit(
     CallableProvenance::from_origins(origins)
         .map(Some)
         .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
+}
+
+fn result_origin(
+    types: &PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+) -> Result<SyntaxOrigin, HeaderDefinitionError> {
+    let tree = projection::tree(types, declaration)?;
+    let root = surface_node(types, declaration)?;
+    let tail = syntax::descendant(tree, root, NodeKind::CallableTail);
+    let result = tail
+        .and_then(|tail| syntax::direct_node(tree, tail, NodeKind::Type))
+        .or_else(|| syntax::direct_node(tree, root, NodeKind::BorrowType))
+        .or_else(|| syntax::direct_node(tree, root, NodeKind::Type))
+        .ok_or(HeaderDefinitionError::MissingCallableResult(declaration))?;
+    Ok(SyntaxOrigin::Node(result))
 }
 
 fn declared(
