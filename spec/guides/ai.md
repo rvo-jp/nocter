@@ -36,6 +36,9 @@ Rules for generated code:
   `void?!`, or `(void!)?`; model an observable absence/completion distinction with an enum.
 - Use `never` only for terminating control flow. Do not wrap it in `?` or `!`; use `void!` for an
   operation that can recoverably fail without returning success data.
+- Write `never` only as a complete callable result type. Do not use it in parameters, aggregates,
+  pointers, borrows, generic arguments, associated types, arrays, or other data positions. A
+  terminating `never` expression does not infer a generic type argument.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

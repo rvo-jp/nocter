@@ -260,7 +260,11 @@ ByteSpan { source, start, end }
   <code>void?</code>, <code>void?!</code>, or <code>(void!)?</code>. The diagnostic should recommend <code>void!</code> when only recoverable
   failure is needed, or an enum when absence and completion must remain distinct.</li><li>An optional or fallible type whose eventual payload is <code>never</code>, including after alias expansion
   or generic substitution. The diagnostic should recommend <code>void!</code> for a recoverable operation
-  without success data, or an enum for a value-level state.</li><li>Reachable <code>catch</code> fallback with no result for a non-<code>void</code> success type, or with a result not
+  without success data, or an enum for a value-level state.</li><li><code>never</code>, including an alias to it, used anywhere except a complete callable result type. The
+  diagnostic must identify the invalid data-bearing position and must not suggest wrapping or
+  storing <code>never</code>.</li><li>A generic parameter left unknown when a <code>never</code> expression is its only apparent argument or
+  result constraint. The diagnostic must request another inference source rather than substitute
+  <code>never</code> as a data type.</li><li>Reachable <code>catch</code> fallback with no result for a non-<code>void</code> success type, or with a result not
   assignable to that success type.</li><li>An expression at a contextual expected-type boundary that recursive outcome injection cannot
   make assignable to the complete expected type. The diagnostic must identify the first expected
   payload layer that rejected the expression and must not describe the mismatch as an implicit

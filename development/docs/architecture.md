@@ -49,6 +49,9 @@ Type well-formedness is validated on interned semantic types after alias expansi
 generic substitution. Invalid constructed types, including an optional layer whose eventual
 payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,
 monomorphized keys, MIR, or ABI layout.
+The `never` semantic type is admitted only in callable result slots and as the type of terminating
+checked nodes. It cannot appear in a data layout or concrete substitution. Constraint collection
+treats a `never` expression as non-producing and never binds a generic parameter to `never`.
 Declaration validation rejects zero-variant enums before semantic type interning creates usable
 enum identities. Later exhaustiveness and layout stages may therefore assume every enum has at
 least one valid tag.

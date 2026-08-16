@@ -321,6 +321,12 @@ Required diagnostic families:
 - An optional or fallible type whose eventual payload is `never`, including after alias expansion
   or generic substitution. The diagnostic should recommend `void!` for a recoverable operation
   without success data, or an enum for a value-level state.
+- `never`, including an alias to it, used anywhere except a complete callable result type. The
+  diagnostic must identify the invalid data-bearing position and must not suggest wrapping or
+  storing `never`.
+- A generic parameter left unknown when a `never` expression is its only apparent argument or
+  result constraint. The diagnostic must request another inference source rather than substitute
+  `never` as a data type.
 - Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
   assignable to that success type.
 - An expression at a contextual expected-type boundary that recursive outcome injection cannot

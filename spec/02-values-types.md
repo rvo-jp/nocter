@@ -339,6 +339,13 @@ completion are observably different states.
 `never?!`, and `(never!)?` are invalid after alias expansion and generic substitution. Use `void!`
 for a recoverable operation that has no success value, and use an enum for a value-level state.
 
+After alias expansion, `never` may appear as the complete result of a function, method, closure,
+or structural callable type. A type alias may name `never`, but using that alias remains subject to
+the same position rule. `never` is invalid as a binding or parameter type, borrow or pointer
+pointee, aggregate field or enum payload, array element, outcome payload, generic argument,
+associated-type binding, or any other data-bearing type position. Use `*void` for an opaque raw
+pointer.
+
 Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
 type syntax group a type without creating a new type.
@@ -380,7 +387,9 @@ let missing = none // error: no expected optional type
 For a generic expected type with statically known outcome structure, inference may project through
 those outcome layers and collect constraints for the payload. Injection occurs only after the
 substitution is unique. `none` and a failure `error` select tags but contribute no payload-type
-constraint, so they cannot determine an otherwise unknown generic parameter.
+constraint, so they cannot determine an otherwise unknown generic parameter. A `never` expression
+terminates before producing an argument or result and likewise contributes no type constraint; it
+is checked only after another source determines the expected type.
 
 ```nct
 func inspect<T>(value: T?): void {

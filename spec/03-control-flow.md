@@ -525,7 +525,12 @@ Rules:
   not covered by this relaxed flow rule. That arm is fully checked under the enum fallback rules
   because a future dependency variant may select it.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
-- `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type.
+- A `never` expression does not infer an unknown generic parameter. Another argument, receiver, or
+  enclosing expected type must determine the required data type before the terminating expression
+  is accepted there.
+- `never` cannot be constructed or used in a data-bearing type position. It is valid only as a
+  callable result type and as the inferred type of terminating control flow; the complete position
+  rules are specified in [Values and Types](02-values-types.md#values-and-types).
 - `never` cannot be the eventual payload of an optional or fallible type. Outcome constructors
   represent values and do not turn terminating control flow into a value-level state.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.

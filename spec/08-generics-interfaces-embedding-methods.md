@@ -163,6 +163,9 @@ that structure before contextual outcome injection. A plain payload argument can
 the projected parameter and is wrapped only after inference succeeds. `none` and an `error` used
 as failure select an outcome tag but add no constraint for the projected payload type. Another
 argument, the receiver, a contextual closure, or the expected call result must determine it.
+A `never` argument expression also contributes no substitution constraint because it produces no
+argument value. Once other sources determine the parameter, the `never` expression is compatible
+with that expected type and terminates before the call.
 
 ```nct
 func decode<T>(bytes: &[u8]): T!
