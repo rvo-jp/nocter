@@ -583,6 +583,12 @@ Rules:
   arithmetic shift and fills high bits with the original sign bit.
 - A zero shift count leaves the value unchanged. A negative count or a count greater than or equal
   to the left operand's bit width traps before any machine shift is executed.
+- Signed division truncates the mathematical quotient toward zero. Signed remainder satisfies
+  `a = (a / b) * b + (a % b)`, has absolute value less than the absolute value of `b`, and is zero
+  or has the same sign as dividend `a`. Unsigned division and remainder use the ordinary
+  non-negative quotient and remainder.
+- For a signed type, both `minimum / -1` and `minimum % -1` trap as division-family overflow even
+  though the mathematical remainder would be zero.
 - Integer literals may take an expected integer type when the value fits.
 - Non-literal integer values are not implicitly converted.
 - `bool` does not implicitly convert to or from integer types.
@@ -635,7 +641,8 @@ Arithmetic trap rules:
 - Wrapping arithmetic must use an explicit wrapping API.
 - Division by zero traps.
 - Remainder by zero traps.
-- Signed division overflow, such as minimum signed value divided by `-1`, traps.
+- Signed division-family overflow traps for both `/` and `%` when the operands are the minimum
+  signed value and `-1`.
 - Shift counts greater than or equal to the bit width of the shifted value trap.
 - Shift counts must be non-negative.
 - Left-shift bit loss is not integer overflow. It follows the fixed-width bit-shift rule and does

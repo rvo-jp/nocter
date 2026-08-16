@@ -591,7 +591,7 @@ Always-on checks:
 - Bounds checks for indexing.
 - Integer overflow checks for normal arithmetic.
 - Division and remainder by zero checks.
-- Signed division overflow checks.
+- Signed division and remainder overflow checks for minimum signed value with divisor `-1`.
 - Shift count range checks.
 - Forced unwrap of a fallible failure or optional absence through postfix `!`.
 - Invalid live `bool` bit-pattern checks where a value can enter from a primitive or ABI boundary.

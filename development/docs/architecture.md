@@ -136,6 +136,9 @@ representation or defer that choice to individual primitives.
 Checked integer shift nodes distinguish left, unsigned-right, and signed-right operations and
 retain the validated source width. Machine lowering emits an explicit count-range trap before a
 target shift and cannot inherit the target instruction's count masking behavior.
+Checked division and remainder nodes retain signedness and width. Machine lowering emits zero and
+signed-minimum/`-1` guards before either operation and cannot inherit a target's overflow result or
+remainder convention.
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in
 MIR. Machine lowering erases only their storage and transport; it cannot erase evaluation or
 destruction merely because a layout has size zero.
