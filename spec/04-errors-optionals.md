@@ -374,14 +374,15 @@ construction of optional and fallible layers; return checking is one use of the 
 
 Given an expression and an expected result type:
 
-1. If the expression already has exactly the expected type, return that value unchanged. Do not
-   add another outcome layer.
+1. If the expression already has exactly the expected type, accept it unchanged. Do not add
+   another outcome layer. Exact `void` means normal completion rather than a transported value.
 2. If the expected type is `U?`, `none` constructs absence. Every other expression is recursively
    injected into `U`, then wrapped as presence.
 3. If the expected type is `U!`, an expression of type `error` constructs failure. Every other
    expression is recursively injected into `U`, then wrapped as success.
-4. At a non-outcome expected type, the expression must be assignable to that type under the
-   ordinary contextual typing rules.
+4. At expected `void`, an expression of type `void` is evaluated as normal completion. At another
+   non-outcome expected type, the expression must be assignable to that type under the ordinary
+   contextual typing rules.
 
 The exact-type check occurs before opening an outcome layer. Returning an existing complete
 outcome therefore preserves its tags rather than nesting or reinterpreting it. One optional layer
@@ -398,6 +399,7 @@ The order of the expected type determines the meaning of contextual `none` and `
 | `(T!)?` | `value: T` | presence containing success `T` |
 | `(T!)?` | `failure: error` | presence containing inner failure |
 | `(T!)?` | `none` | outer absence |
+| `void!` | `operation(): void` | payloadless success after completion |
 
 For example:
 
@@ -425,6 +427,9 @@ binding still requires explicit `move`, whether it supplies the complete expecte
 payload that the injection wraps. A newly produced temporary is transferred into the constructed
 outcome normally. Injection is not a coercion, does not unwrap a source outcome, and does not
 participate in selecting an expected type.
+
+For `void!`, no success payload is moved or copied. If the source `void` expression terminates with
+`never`, no success tag is constructed and control does not reach the destination.
 
 Example:
 

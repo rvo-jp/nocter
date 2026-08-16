@@ -166,6 +166,9 @@ argument, the receiver, a contextual closure, or the expected call result must d
 A `never` argument expression also contributes no substitution constraint because it produces no
 argument value. Once other sources determine the parameter, the `never` expression is compatible
 with that expected type and terminates before the call.
+A `void` completion expression likewise cannot infer a generic payload as `void`; `void` is not a
+valid concrete generic substitution. Only an already concrete expected `void` or `void!` boundary
+may consume that completion.
 
 ```nct
 func decode<T>(bytes: &[u8]): T!

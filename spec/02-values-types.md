@@ -378,6 +378,12 @@ expectation independently to every value-producing branch. The expected payload 
 and `otherwise` comes from the operated-on outcome; it does not need a further enclosing
 destination.
 
+An expected `void` result is a completion consumer rather than a value destination. An expression
+of type `void` may be evaluated there and then complete normally, as in `return log_message()`.
+When the expected type is `void!`, recursive outcome injection evaluates a `void` expression and
+constructs payloadless success only after that expression completes. This does not make `void` a
+storable value or a valid generic substitution.
+
 Optional and fallible values use
 [Recursive Outcome Injection](04-errors-optionals.md#recursive-outcome-injection) at these
 boundaries. Outcome injection is directional: it consumes an expected type already supplied by
@@ -397,7 +403,8 @@ those outcome layers and collect constraints for the payload. Injection occurs o
 substitution is unique. `none` and a failure `error` select tags but contribute no payload-type
 constraint, so they cannot determine an otherwise unknown generic parameter. A `never` expression
 terminates before producing an argument or result and likewise contributes no type constraint; it
-is checked only after another source determines the expected type.
+is checked only after another source determines the expected type. A `void` completion expression
+also contributes no generic payload constraint.
 
 ```nct
 func inspect<T>(value: T?): void {

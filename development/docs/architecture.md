@@ -55,6 +55,9 @@ treats a `never` expression as non-producing and never binds a generic parameter
 The `void` semantic type is admitted only for normal-completion nodes, callable result slots, the
 payloadless success branch of `void!`, and opaque `*void`. It never receives a zero-sized value
 layout or enters a concrete data substitution.
+Checked contextual injection represents `void` consumption as a sequencing edge, not a value
+operand. Construction of `void!` writes its success tag after that edge; a terminal edge cannot
+produce or initialize the outcome.
 Declaration validation rejects zero-variant enums before semantic type interning creates usable
 enum identities. Later exhaustiveness and layout stages may therefore assume every enum has at
 least one valid tag.

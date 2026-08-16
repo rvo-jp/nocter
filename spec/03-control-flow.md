@@ -20,6 +20,8 @@ Parameters are written as `name: Type`. Mutable parameter bindings are not suppo
 Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
+- A `void` function may use `return expression` when `expression` has type `void`. The expression
+  is evaluated before the function completes and does not become a return value.
 - A non-fallible, non-optional function returning a non-`void` type must produce a value through the function body result or explicit `return` on every reachable normal path, unless the path terminates with `never`.
 - A value-producing function body result or explicit `return expression` is checked against the
   complete declared result type by
@@ -29,6 +31,8 @@ Return checking:
 - A fallible function `T!` must produce a success value through the function body result or explicit `return`, return an `error` failure value, or terminate with `never` on every reachable path.
 - A fallible `void!` function may use bare `return` or reach the end of the
   function body for success; `return error_value` returns failure.
+- A fallible `void!` function may return a `void` expression as payloadless success. Success is
+  constructed only after the expression completes normally.
 - An optional function `T?` must produce a present value through the function body result or explicit `return`, `return none`, or terminate with `never` on every reachable path.
 - A fallible optional function `T?!` must produce a present success value through the function body result or explicit `return`, `return none` as success absence, return an `error` failure value, or terminate with `never` on every reachable path.
 - Optional result types with `void` as their eventual payload are invalid. Bare `return` and

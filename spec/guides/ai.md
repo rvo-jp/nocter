@@ -42,6 +42,8 @@ Rules for generated code:
 - Treat `void` as completion without a value. Use it as a callable result, as `void!`, or as the
   opaque pointer spelling `*void`; do not use it for bindings, parameters, borrows, aggregates,
   arrays, generic arguments, or associated types. Use an empty struct for a storable unit value.
+- A `void` expression may feed an expected `void` completion such as `return log()`, or construct
+  payloadless success at a concrete expected `void!` boundary. It does not infer a generic type.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Use postfix `expr?` to propagate fallible failure or optional absence.

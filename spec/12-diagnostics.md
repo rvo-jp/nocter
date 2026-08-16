@@ -327,6 +327,8 @@ Required diagnostic families:
 - `void`, including an alias to it, used in a data-bearing position other than the direct success
   completion of `void!` or the opaque raw-pointer spelling `*void`. The diagnostic should recommend
   an empty struct when a storable zero-sized unit or marker is required.
+- A `void` completion expression used where the expected type is neither `void` nor the concrete
+  `void!` outcome. The diagnostic must not infer an unknown generic payload as `void`.
 - A generic parameter left unknown when a `never` expression is its only apparent argument or
   result constraint. The diagnostic must request another inference source rather than substitute
   `never` as a data type.

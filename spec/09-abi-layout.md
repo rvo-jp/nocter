@@ -226,6 +226,8 @@ passing. Optional and fallible layers share one binary tagged-union layout:
 
 For `void!`, tag `0` has no payload and denotes successful completion. Tag `1` carries `error`.
 The union alignment and size therefore come only from the failure payload.
+When a `void` expression contextually constructs `void!`, tag `0` becomes live only after the
+expression completes normally. A terminating expression produces no outcome value.
 
 The tag is stored at byte offset `0`. Let the layer alignment be the maximum of `1` and the
 alignment of every payload-carrying branch. The payload union begins at the first offset after the
