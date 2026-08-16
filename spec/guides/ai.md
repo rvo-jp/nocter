@@ -170,6 +170,8 @@ Rules:
   it never stands for a complete multi-field payload.
 - Write each explicit variant at most once in a `match`. Payload names and `_` do not distinguish
   repeated variant arms.
+- A final `_` arm may intentionally remain after all current variants are listed. It is still type
+  checked and is useful as a fallback for variants introduced by a future dependency version.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
 

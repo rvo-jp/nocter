@@ -307,6 +307,8 @@ Required diagnostic families:
 - Unsupported nested, literal, binding-modifier, field-name, or rest pattern syntax.
 - Duplicate explicit variant arms in one `match`, regardless of payload binding names or `_`
   positions.
+- Errors inside a currently unreachable exhaustive `_` arm are reported normally. Merely having
+  that fallback arm is not a diagnostic.
 - Owned move-only enum payload binding from an existing enum place without an explicit `move`
   pattern target, or a `move` pattern target whose operand is not an eligible move place.
 - Readwrite-borrowed enum pattern target created from a non-writable place or while a conflicting

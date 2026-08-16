@@ -186,6 +186,8 @@ Rules:
 - `match` arm body result types must be compatible when the `match` value is used.
 - A `match` `_` fallback arm matches every remaining variant and must be the
   last arm.
+- `_` remains valid after all current variants were explicitly covered. Its body is checked and
+  contributes to result-type compatibility even though no current tag selects it.
 - A `match` cannot repeat an explicit enum variant arm. Since payload slots only bind or ignore
   fields, changing their names or `_` positions does not make a repeated variant reachable.
 - A `never` branch is compatible with the other branch result type.

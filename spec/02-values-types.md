@@ -874,6 +874,14 @@ Rules:
   control projection only; they cannot make two arms for the same variant disjoint.
 - A `match` may have at most one `_` fallback arm.
 - The `_` fallback arm must be the last arm.
+- A `_` fallback arm remains valid when the preceding explicit arms already cover every current
+  variant. This permits an intentional fallback for variants added by a future dependency version.
+- Such a currently unreachable fallback is still resolved and checked as an ordinary arm. Its body
+  must satisfy syntax, name, type, ownership, provenance, and selected-target rules, and its body
+  result participates in `match` result-type compatibility.
+- A currently exhaustive fallback has no runtime execution path for the current enum definition.
+  The compiler may omit its machine code after checking, but it must not use that fact to accept an
+  otherwise invalid body or a different result type.
 - When `match` is used as an expression, each selected arm body result is the expression value.
 - A `match` expression without `_` must cover all variants to avoid a `void` missing-branch type.
 - Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
