@@ -179,10 +179,10 @@ inner-to-outer construction order. Binding initializers, arguments, fields, fall
 body results must consume this plan rather than encode their own optional or fallible cases.
 
 The production checked-body slice consumes `PreparedChecking` through
-`check_prepared_program`. It builds blocks, scalar constants, inferred local bindings, copyable
-parameter/local places, readonly borrows, explicit discards, returns, body results, and ordinary
-`if`/`else if` control. Bare completion uses an explicit `Complete` checked operation only when an
-enclosing fallible success
+`check_prepared_program`. It builds blocks, scalar constants, inferred local bindings,
+parameter/local/named-field places, readonly borrows, explicit discards, returns, body results,
+ordinary `if`/`else if` control, and while/infinite/integer-range loops. Bare completion uses an
+explicit `Complete` checked operation only when an enclosing fallible success
 must be represented; it is never exposed as a source value. Outcome plans become concrete
 `CheckedOutcome` nodes from the payload outward. Each constructed node extends `SourceIndex`
 directly with `SemanticEntity::BodyNode`; no expression-to-type side map survives construction.
@@ -204,7 +204,10 @@ Ownership transfer uses a separate semantic `MovePath` domain keyed by
 `PlaceRoot`, never by a source name or place occurrence. Callable and drop parameters enter their
 body initialized; a local enters only after its initializer succeeds. Copy and borrow reads require
 an initialized path, while `move` requires a move-only owned value and changes the path to
-uninitialized before later reachable expressions are checked. Source rules `E0376`-`E0378`
+uninitialized before later reachable expressions are checked. Typed-HIR construction performs the
+structural move checks and freezes stable node/place/loop identities once. A separate ownership
+walker then interprets that immutable HIR, so a fixed-point iteration never rebuilds nodes or
+changes semantic identity. Source rules `E0376`-`E0378`
 distinguish moving a copy value, moving a borrow binding, and reading an uninitialized path. The
 same path domain extends roots with exact `FieldId` projections. Field state is inherited lazily
 from the nearest recorded ancestor, so moving one field preserves disjoint siblings but makes the
@@ -223,15 +226,25 @@ the first family with a type-owned drop body projects `E0381` and the exact drop
 related source. Cleanup planning can therefore assume a user drop body always receives a complete
 `Self`. Conditional control-flow consumers and generated cleanup remain subsequent increments.
 
-Ordinary conditional checking snapshots ownership after the condition, checks each branch from
-that exact entry, and feeds only normally completing exits to `OwnershipState::join_reachable`.
+Ordinary conditional ownership analysis snapshots state after the condition, checks each branch
+from that exact entry, and feeds only normally completing exits to
+`OwnershipState::join_reachable`.
 The join projects every exit back to entry roots, so a branch-local never escapes even when it is
 the only reachable exit. Branches that return or otherwise produce `never` do not create a
 continuation. An explicit checked `Unreachable` control operation retains source after a terminal
 for diagnostics and editor features while preventing that subtree from contributing
 initialization transitions or executable buildability. Type, visibility, requirement, and
-structural place checks still run in that subtree. Loop fixed points, pattern conditionals,
-`match`, and generated cleanup remain subsequent increments.
+structural place checks still run in that subtree.
+
+Each loop owns one reserved `LoopId` before its body is constructed; body construction must define
+every reservation before the checked body can freeze. `break` and `continue` carry that exact
+identity. Ownership analysis joins the preheader with all normal and `continue` backedges until the
+header state stabilizes. It then joins only reachable `break` exits plus the false-condition exit
+for `while` and integer ranges. Entry-relative joining filters the per-iteration binding. Range
+endpoints execute once, left-to-right, before the preheader; their typed immutable binding becomes
+initialized only on the body edge. A nonbreaking infinite loop has no continuation, while an
+unreachable `break` does not change its `never` result. Collection iteration, pattern
+conditionals, `match`, and generated cleanup remain subsequent increments.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, checked-body arena, and

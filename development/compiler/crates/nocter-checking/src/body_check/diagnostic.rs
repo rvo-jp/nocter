@@ -14,6 +14,7 @@ pub enum BodyRule {
     UnknownField,
     InaccessibleField,
     PartialMoveThroughDrop,
+    InvalidLoopControl,
 }
 
 impl BodyRule {
@@ -29,6 +30,7 @@ impl BodyRule {
         Self::UnknownField,
         Self::InaccessibleField,
         Self::PartialMoveThroughDrop,
+        Self::InvalidLoopControl,
     ];
 
     #[must_use]
@@ -45,6 +47,7 @@ impl BodyRule {
             Self::UnknownField => "E0379",
             Self::InaccessibleField => "E0380",
             Self::PartialMoveThroughDrop => "E0381",
+            Self::InvalidLoopControl => "E0382",
         }
     }
 
@@ -101,6 +104,10 @@ impl BodyRule {
             Self::PartialMoveThroughDrop => (
                 "field move would partially initialize a struct with a drop declaration",
                 "move the complete struct or keep every field initialized",
+            ),
+            Self::InvalidLoopControl => (
+                "loop control has no enclosing loop in this callable body",
+                "place `break` or `continue` inside the loop it should target",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

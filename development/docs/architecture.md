@@ -390,6 +390,11 @@ same node model and carry explicit body ownership. Comparison, indexing, convers
 interpolation, construction, calls, ownership transitions, and failure handling are not retained as
 unrelated side maps selected by source containment.
 
+Typed-HIR construction freezes a body exactly once before flow-dependent ownership analysis. The
+ownership walker may revisit immutable control nodes to compute loop fixed points, but it cannot
+allocate a node, place, local, or loop identity. This separation prevents analysis order and the
+number of fixed-point iterations from changing semantic identity or source projection.
+
 A checked body records reachability on its control-flow nodes. Source after a proven terminal node
 still receives declaration and type identities, but no synthetic initialization, move, loan, or
 provenance state is created for the impossible continuation. Such nodes remain available to

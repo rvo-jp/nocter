@@ -372,6 +372,10 @@ pub struct CheckedLoop {
 }
 
 impl CheckedLoop {
+    pub(crate) const fn new(kind: LoopKind, body: BodyNodeId) -> Self {
+        Self { kind, body }
+    }
+
     #[must_use]
     pub const fn kind(&self) -> &LoopKind {
         &self.kind

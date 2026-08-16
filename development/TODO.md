@@ -2,18 +2,17 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by extending the checked conditional ownership flow into loop fixed
-points, loop exits, and cleanup planning.
+Continue v0.14.0 Phase 3 by materializing scope-exit cleanup from the checked ownership flow.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Apply the reachable-exit join to checked loops. Zero-iteration exits, `break`, `continue`, and
-   body backedges must feed one conservative fixed point without leaking loop-local paths.
-2. Materialize scope-exit cleanup from the same initialization state. Complete and remaining
+1. Materialize scope-exit cleanup from the same initialization state. Complete and remaining
    fields must be dropped in normative order without creating a second liveness analysis.
+2. Extend the closed checked-operation traversal as new calls, aggregates, outcomes, and pattern
+   control enter body construction. No new construct may carry a private ownership side channel.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -45,10 +44,11 @@ rules before specialization enters checked bodies or later representations.
 while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
 static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
 `check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
-for the first vertical body slice: scalar literals, inferred locals, copyable parameter/local
-places, readonly borrows, binding/discard, return/body-result checking, and recursive outcome
-injection. Every typed node receives an exact `BodyNodeId` source projection, and no partial program
-escapes an unsupported construct or failed rule. `CopyabilityTable` collects normalized `copy`
+for the current vertical body slice: scalar literals, inferred locals, parameter/local/named-field
+places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
+injection, ordinary conditionals, and while/infinite/integer-range loops. Every typed node receives
+an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
+failed rule. `CopyabilityTable` collects normalized `copy`
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
 facts by canonical `TypeId`, closes over the final type store, and remains owned by
 `CheckedProgram`. Ordinary structs, unconstrained generics, readwrite borrows, and callable
@@ -65,13 +65,17 @@ project `E0381` with the owning drop declaration. The entry-relative branch join
 branch-local paths. Annotation binding, calls, operators, aggregates, pattern conditionals,
 `match`, loops, closures, literals, and interpolation remain incomplete.
 
-Ordinary `if` and `else if` now build exact checked control nodes, enforce condition and branch
-types, and join only reachable branch exits. A terminal branch cannot contaminate a later
-continuation; one-sided and field-sensitive moves produce maybe-initialized state through the same
-entry-relative join. Unreachable source after a terminal remains in checked HIR under an explicit
-`Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally checked,
-but it creates no flow-dependent initialization continuation, matching the specification rather
-than emitting the removed `E0374` error. Pattern conditionals, `match`, and loops remain incomplete.
+Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
+its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
+that immutable graph. Ordinary `if` and `else if` join only reachable branch exits. While,
+infinite, and integer-range loops use exact `LoopId` targets and a conservative header fixed point;
+zero-iteration exits, `break`, `continue`, and body backedges cannot leak loop-local paths. Range
+endpoints are evaluated once before iteration and the typed loop binding is initialized per
+iteration. A repeated move is therefore rejected without rebuilding HIR or allocating different
+semantic identities on an analysis pass. Unreachable source after a terminal remains under an
+explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
+checked but creates no flow-dependent initialization continuation. Collection iteration, pattern
+conditionals, `match`, and generated cleanup remain incomplete.
 
 ## Guardrails
 

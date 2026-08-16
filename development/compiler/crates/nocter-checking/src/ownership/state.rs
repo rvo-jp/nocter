@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::FieldId;
 
-use crate::PlaceRoot;
+use crate::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 
 /// Canonical storage path used by ownership transfer and dataflow.
 ///
@@ -28,6 +28,20 @@ impl MovePath {
             root: self.root,
             fields: fields.into_boxed_slice(),
         }
+    }
+
+    pub(crate) fn from_place(place: &CheckedPlace) -> Option<Self> {
+        let mut path = Self::root(place.root());
+        if place.access() != PlaceAccess::Owned {
+            return Some(path);
+        }
+        for projection in place.projections() {
+            let PlaceProjection::Field(field) = projection else {
+                return None;
+            };
+            path = path.field(*field);
+        }
+        Some(path)
     }
 
     fn root_identity(&self) -> PlaceRoot {

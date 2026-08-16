@@ -20,7 +20,7 @@ pub(crate) struct CheckedBodyBuilder {
     locals: ArenaBuilder<LocalBindingId, CheckedLocal>,
     captures: ArenaBuilder<CaptureId, CheckedCapture>,
     places: ArenaBuilder<PlaceId, CheckedPlace>,
-    loops: ArenaBuilder<LoopId, CheckedLoop>,
+    loops: ArenaBuilder<LoopId, LoopSlot>,
     nodes: ArenaBuilder<BodyNodeId, CheckedNode>,
 }
 
@@ -79,6 +79,26 @@ impl CheckedBodyBuilder {
         self.nodes.get(node).map(CheckedNode::ty)
     }
 
+    pub(crate) fn reserve_loop(&mut self) -> LoopId {
+        self.loops.insert(LoopSlot::Reserved)
+    }
+
+    pub(crate) fn define_loop(
+        &mut self,
+        loop_: LoopId,
+        definition: CheckedLoop,
+    ) -> Result<(), BuildCheckedBodyError> {
+        let slot = self
+            .loops
+            .get_mut(loop_)
+            .ok_or(BuildCheckedBodyError::UnknownLoop(loop_))?;
+        if matches!(slot, LoopSlot::Defined(_)) {
+            return Err(BuildCheckedBodyError::DuplicateLoop(loop_));
+        }
+        *slot = LoopSlot::Defined(definition);
+        Ok(())
+    }
+
     pub(crate) fn finish(self, root: BodyNodeId) -> Result<CheckedBody, BuildCheckedBodyError> {
         if self.locals.len() != self.local_declarations.len() {
             return Err(BuildCheckedBodyError::IncompleteLocals {
@@ -92,16 +112,26 @@ impl CheckedBodyBuilder {
                 actual: self.captures.len(),
             });
         }
+        let loops = self.loops.try_finish_with(|loop_, slot| match slot {
+            LoopSlot::Reserved => Err(BuildCheckedBodyError::IncompleteLoop(loop_)),
+            LoopSlot::Defined(definition) => Ok(definition),
+        })?;
         Ok(CheckedBody::new(
             self.scopes,
             self.locals.finish(),
             self.captures.finish(),
             self.places.finish(),
-            self.loops.finish(),
+            loops,
             self.nodes.finish(),
             root,
         ))
     }
+}
+
+#[derive(Debug)]
+enum LoopSlot {
+    Reserved,
+    Defined(CheckedLoop),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -119,6 +149,9 @@ pub enum BuildCheckedBodyError {
         expected: usize,
         actual: usize,
     },
+    UnknownLoop(LoopId),
+    DuplicateLoop(LoopId),
+    IncompleteLoop(LoopId),
 }
 
 impl fmt::Display for BuildCheckedBodyError {

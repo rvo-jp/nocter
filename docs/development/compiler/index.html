@@ -282,7 +282,8 @@
   valid specialization facts. Callable signatures never stand in for closure-environment
   ownership. <code>check_prepared_program</code> is now the production consuming boundary for the current
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  recursive-outcome, copy, and named-field move nodes. Semantic move paths track initialized
+  recursive-outcome, copy, named-field move, conditional, and while/infinite/integer-range loop
+  nodes. Semantic move paths track initialized
   parameter/local state independently of syntax, inherit field state from the nearest ancestor,
   preserve disjoint siblings, invalidate partially moved parents, and join only paths visible at a
   control-flow entry. Named-field selection is one visibility-aware authority that substitutes
@@ -292,11 +293,17 @@
   The checker also rejects copy-value moves, borrow-binding moves, later uninitialized uses,
   value-producing expression statements, and reachable non-value fallthrough, and projects every
   <code>BodyNodeId</code> back to its exact syntax origin.
+  Typed HIR freezes stable node/place/loop identities exactly once. A separate repeatable ownership
+  walker interprets that immutable body; fixed-point analysis never reconstructs semantic nodes.
   Ordinary <code>if</code>/<code>else if</code> checking snapshots state after the condition and joins only normally
   completing branch exits. Terminal branches are excluded, branch locals are projected out at the
   entry boundary, and field state uses the same join. Source after a terminal is retained beneath
   an explicit checked <code>Unreachable</code> operation: semantic checks still run, but flow-dependent
-  ownership state and later buildability receive no invented continuation.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  ownership state and later buildability receive no invented continuation. Exact loop identities
+  connect nested <code>break</code>/<code>continue</code> operations to their owners. Loop headers conservatively join
+  their preheader with normal and <code>continue</code> backedges until stable, then expose only reachable
+  breaks and possible false-condition exits. Integer ranges evaluate both endpoints once and
+  initialize a typed loop binding on each body edge; loop-local paths cannot escape the join.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>

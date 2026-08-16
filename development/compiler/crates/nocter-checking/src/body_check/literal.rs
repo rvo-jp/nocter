@@ -3,24 +3,26 @@ use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
 pub(super) fn integer_type(types: &TypeStore, expected: Option<TypeId>) -> TypeId {
     expected
         .and_then(|expected| outcome_leaf(types, expected))
-        .filter(|expected| {
-            matches!(
-                types.get(*expected),
-                Some(TypeKind::Builtin(
-                    BuiltinType::I8
-                        | BuiltinType::I16
-                        | BuiltinType::I32
-                        | BuiltinType::I64
-                        | BuiltinType::U8
-                        | BuiltinType::U16
-                        | BuiltinType::U32
-                        | BuiltinType::U64
-                        | BuiltinType::Usize
-                        | BuiltinType::Isize
-                ))
-            )
-        })
+        .filter(|expected| is_integer_type(types, *expected))
         .unwrap_or_else(|| types.builtin(BuiltinType::I32))
+}
+
+pub(super) fn is_integer_type(types: &TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(
+            BuiltinType::I8
+                | BuiltinType::I16
+                | BuiltinType::I32
+                | BuiltinType::I64
+                | BuiltinType::U8
+                | BuiltinType::U16
+                | BuiltinType::U32
+                | BuiltinType::U64
+                | BuiltinType::Usize
+                | BuiltinType::Isize
+        ))
+    )
 }
 
 pub(super) fn parse_integer(text: &str) -> Option<u64> {

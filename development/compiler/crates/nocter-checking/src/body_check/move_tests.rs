@@ -128,7 +128,7 @@ fn named_field_move_invalidates_that_field_and_its_parent() {
         let fixture = Fixture::new(&format!(
             "struct Owned {{\n    value: i32\n}}\n\
              struct Pair {{\n    first: Owned\n    second: Owned\n}}\n\
-             func invalid(pair: Pair): Owned {{\n    let _ = move pair.first\n    {result}\n}}\n"
+             func invalid(pair: Pair): void {{\n    let _ = move pair.first\n    let _ = {result}\n    return\n}}\n"
         ));
         let (input, prelude) = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();

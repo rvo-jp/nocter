@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nocter_declaration_lowering::CompileUnitInput;
-use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
     ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, LocalBindingId, NominalTypeId,
@@ -12,14 +12,14 @@ use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
 
-use super::context::BodyProgramFacts;
+use super::context::{BodyProgramFacts, body_result_type};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
+use super::ownership::analyze_body_ownership;
 use crate::checked::{CheckedBodyBuilder, CheckedProgram, CheckedProgramOutput};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::field_selection::{FieldSelectionError, field_selection_base, select_field};
-use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::preparation::PreparedCheckingParts;
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
@@ -32,6 +32,9 @@ use crate::{
     plan_expected_type,
 };
 
+mod loops;
+use loops::LoopConstruction;
+
 struct NodeProjection {
     entity: SemanticEntity,
     origin: SourceOrigin,
@@ -40,7 +43,6 @@ struct NodeProjection {
 struct NamedPlace {
     id: PlaceId,
     ty: TypeId,
-    path: MovePath,
     access: PlaceAccess,
     partial_parents: Box<[NominalTypeId]>,
 }
@@ -59,10 +61,10 @@ enum BlockExpectation {
 
 /// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
 ///
-/// The current construction slice accepts blocks, scalar literals, copyable parameter/local uses,
-/// readonly borrows, bindings, expression statements, body results, and returns. Other valid
-/// syntax is reported as an internal incomplete-implementation boundary; no partial checked
-/// program escapes.
+/// The current construction slice accepts blocks, scalar literals, named places and field moves,
+/// readonly borrows, bindings, conditionals, while/infinite/integer-range loops, loop control,
+/// expression statements, body results, and returns. Other valid syntax is reported as an internal
+/// incomplete-implementation boundary; no partial checked program escapes.
 ///
 /// # Errors
 ///
@@ -145,10 +147,11 @@ struct BodyChecker<'input, 'syntax> {
     uses: HashMap<SyntaxOrigin, NameTarget>,
     consumed_uses: HashSet<SyntaxOrigin>,
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
-    ownership: OwnershipState,
-    flow_reachable: bool,
     result_type: TypeId,
     projections: Vec<NodeProjection>,
+    node_origins: HashMap<BodyNodeId, SourceOrigin>,
+    loops: Vec<LoopConstruction>,
+    flow_reachable: bool,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -183,14 +186,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         let result_type = body_result_type(graph, types, source)?;
-        let mut ownership = OwnershipState::default();
-        for root in initialized_body_roots(graph, source)
-            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?
-        {
-            ownership
-                .declare_initialized(MovePath::root(root))
-                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-        }
         Ok(Self {
             input,
             graph,
@@ -204,10 +199,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             uses,
             consumed_uses: HashSet::new(),
             local_declarations,
-            ownership,
-            flow_reachable: true,
             result_type,
             projections: Vec::new(),
+            node_origins: HashMap::new(),
+            loops: Vec::new(),
+            flow_reachable: true,
         })
     }
 
@@ -216,8 +212,17 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if self.consumed_uses.len() != self.names.uses().len() {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
         }
+        let body = self.builder.finish(root)?;
+        analyze_body_ownership(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.source,
+            &body,
+            &self.node_origins,
+        )?;
         Ok(CheckedBodyOutput {
-            body: self.builder.finish(root)?,
+            body,
             projections: self.projections,
         })
     }
@@ -336,6 +341,24 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 result: false,
                 reaches_next: false,
             }),
+            NodeKind::WhileStatement | NodeKind::LoopStatement | NodeKind::ForStatement => {
+                let node = self.check_loop(executable)?;
+                Ok(CheckedExecutable {
+                    node,
+                    result: false,
+                    reaches_next: self.node_type(node)? != never,
+                })
+            }
+            NodeKind::BreakStatement => Ok(CheckedExecutable {
+                node: self.check_loop_control(executable, true)?,
+                result: false,
+                reaches_next: false,
+            }),
+            NodeKind::ContinueStatement => Ok(CheckedExecutable {
+                node: self.check_loop_control(executable, false)?,
+                result: false,
+                reaches_next: false,
+            }),
             kind => Err(BodyCheckInternalError::UnsupportedSyntax(executable, kind).into()),
         }
     }
@@ -405,11 +428,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .copied()
             .ok_or(BodyCheckInternalError::MissingLocalDeclaration(target))?;
         self.builder.define_local(local, ty)?;
-        if self.flow_reachable {
-            self.ownership
-                .declare_initialized(MovePath::root(PlaceRoot::Local(local)))
-                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-        }
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
@@ -490,9 +508,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         )?;
         let then_syntax = self.required_child(node, NodeKind::Block)?;
         let else_syntax = direct_child(self.tree(), node, NodeKind::ElseClause);
-        let entry = self.ownership.clone();
-
-        self.ownership = entry.clone();
         let then_expectation = if else_syntax.is_some() {
             BlockExpectation::Value(expected)
         } else {
@@ -500,10 +515,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         };
         let then_branch = self.check_block(then_syntax, then_expectation)?;
         let then_type = self.node_type(then_branch)?;
-        let then_state = self.ownership.clone();
-
-        self.ownership = entry.clone();
-        let (else_branch, else_type, else_state) = if let Some(else_clause) = else_syntax {
+        let (else_branch, else_type) = if let Some(else_clause) = else_syntax {
             let inferred = expected
                 .or((then_type != self.types.builtin(BuiltinType::Never)).then_some(then_type));
             let branch =
@@ -516,27 +528,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 } else {
                     return Err(BodyCheckInternalError::InvalidSyntax(else_clause).into());
                 };
-            (
-                Some(branch),
-                Some(self.node_type(branch)?),
-                self.ownership.clone(),
-            )
+            (Some(branch), Some(self.node_type(branch)?))
         } else {
-            (None, None, entry.clone())
+            (None, None)
         };
 
         let never = self.types.builtin(BuiltinType::Never);
-        let mut incoming = Vec::new();
-        if then_type != never {
-            incoming.push(then_state);
-        }
-        if else_type != Some(never) {
-            incoming.push(else_state);
-        }
-        self.ownership = entry
-            .join_reachable(&incoming)
-            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-
         let ty = match else_type {
             None => self.types.builtin(BuiltinType::Void),
             Some(else_type) if then_type == never => else_type,
@@ -610,15 +607,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     fn check_reference(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let place = self.named_place(node)?;
-        self.require_initialized(node, &place.path)?;
-        match self
-            .copyabilities
-            .classify(self.graph, self.types, place.ty)
-            .map_err(BodyCheckInternalError::Copyability)?
-        {
-            Copyability::Copy => {}
-            Copyability::MoveOnly => return Err(self.rule(BodyRule::ImplicitMove, node)?.into()),
-        }
         self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
     }
 
@@ -639,7 +627,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
         let operand = self.required_child(node, NodeKind::NamedPlace)?;
         let place = self.named_place(operand)?;
-        self.require_initialized(node, &place.path)?;
         match self
             .copyabilities
             .classify(self.graph, self.types, place.ty)
@@ -660,11 +647,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 return Err(self.partial_move_drop(node, drop)?);
             }
         }
-        if self.flow_reachable {
-            self.ownership
-                .move_out(&place.path)
-                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-        }
         self.add_node(node, place.ty, CheckedOperation::Move(place.id))
     }
 
@@ -679,7 +661,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let operand = single_descendant(self.tree(), node, NodeKind::ReferenceExpression)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let place = self.named_place(operand)?;
-        self.require_initialized(node, &place.path)?;
         let ty = self
             .types
             .intern(TypeKind::Borrow {
@@ -729,7 +710,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             ),
             _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
         };
-        let mut path = MovePath::root(root);
         let mut access = PlaceAccess::Owned;
         let mut projections = Vec::new();
         let mut partial_parents = Vec::new();
@@ -771,7 +751,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 ) => return Err(BodyCheckInternalError::FieldSelection.into()),
             };
             if access == PlaceAccess::Owned {
-                path = path.field(selected.field());
                 partial_parents.push(selected.owner());
             }
             let origin = SourceOrigin::from_token(self.tree(), field_token)
@@ -786,25 +765,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         Ok(NamedPlace {
             id: self.builder.add_place(root, projections, ty, access),
             ty,
-            path,
             access,
             partial_parents: partial_parents.into_boxed_slice(),
         })
-    }
-
-    fn require_initialized(&self, node: NodeId, path: &MovePath) -> Result<(), BodyCheckError> {
-        if !self.flow_reachable {
-            return Ok(());
-        }
-        match self.ownership.require_initialized(path) {
-            Ok(()) => Ok(()),
-            Err(OwnershipStateError::NotInitialized { .. }) => {
-                Err(self.rule(BodyRule::UninitializedPlace, node)?.into())
-            }
-            Err(OwnershipStateError::DuplicatePath(_) | OwnershipStateError::UnknownPath(_)) => {
-                Err(BodyCheckInternalError::OwnershipState.into())
-            }
-        }
     }
 
     fn apply_expected(
@@ -884,6 +847,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             entity: SemanticEntity::BodyNode(self.source.body(), node),
             origin,
         });
+        if self.node_origins.insert(node, origin).is_some() {
+            return Err(BodyCheckInternalError::DuplicateNodeOrigin(node).into());
+        }
         Ok(node)
     }
 
@@ -966,24 +932,5 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     const fn tree(&self) -> &'syntax nocter_syntax::SyntaxTree {
         self.source.syntax()
-    }
-}
-
-fn body_result_type(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    source: BodySource<'_>,
-) -> Result<TypeId, BodyCheckInternalError> {
-    match source.owner() {
-        BodyOwner::Callable(callable) => graph
-            .declarations()
-            .callables()
-            .get(callable)
-            .map(nocter_declarations::CallableDeclaration::result)
-            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
-        BodyOwner::Drop(_) => Ok(types.builtin(BuiltinType::Void)),
-        BodyOwner::Test(_) => types
-            .intern(TypeKind::Fallible(types.builtin(BuiltinType::Void)))
-            .map_err(|_| BodyCheckInternalError::UnknownType(types.builtin(BuiltinType::Void))),
     }
 }

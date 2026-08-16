@@ -3,6 +3,7 @@ mod context;
 mod diagnostic;
 mod error;
 mod literal;
+mod ownership;
 
 #[cfg(test)]
 mod construction_tests;
@@ -12,6 +13,8 @@ mod control_tests;
 mod copy_tests;
 #[cfg(test)]
 mod flow_tests;
+#[cfg(test)]
+mod loop_tests;
 #[cfg(test)]
 mod move_tests;
 #[cfg(test)]

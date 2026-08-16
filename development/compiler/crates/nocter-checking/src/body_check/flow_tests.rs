@@ -52,6 +52,17 @@ fn unreachable_source_still_enforces_structural_move_and_value_rules() {
     let error = check_prepared_program(&input, prepared).unwrap_err();
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0377");
 
+    let implicit_move = Fixture::new(
+        "struct Owned {\n    value: i32\n}\n\
+         func invalid(value: Owned): void {\n    return\n    let _ = value\n}\n",
+    );
+    let (input, prelude) = implicit_move.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
+
     let invalid_value = Fixture::new("func invalid(): void {\n    return\n    42\n    return\n}\n");
     let (input, prelude) = invalid_value.input(false);
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();

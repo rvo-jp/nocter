@@ -190,7 +190,8 @@ be introduced to make an unresolved syntax choice.
   valid specialization facts. Callable signatures never stand in for closure-environment
   ownership. `check_prepared_program` is now the production consuming boundary for the current
   checked-body slice. It constructs scalar, local, readonly-borrow, binding, return, body-result,
-  recursive-outcome, copy, and named-field move nodes. Semantic move paths track initialized
+  recursive-outcome, copy, named-field move, conditional, and while/infinite/integer-range loop
+  nodes. Semantic move paths track initialized
   parameter/local state independently of syntax, inherit field state from the nearest ancestor,
   preserve disjoint siblings, invalidate partially moved parents, and join only paths visible at a
   control-flow entry. Named-field selection is one visibility-aware authority that substitutes
@@ -200,11 +201,17 @@ be introduced to make an unresolved syntax choice.
   The checker also rejects copy-value moves, borrow-binding moves, later uninitialized uses,
   value-producing expression statements, and reachable non-value fallthrough, and projects every
   `BodyNodeId` back to its exact syntax origin.
+  Typed HIR freezes stable node/place/loop identities exactly once. A separate repeatable ownership
+  walker interprets that immutable body; fixed-point analysis never reconstructs semantic nodes.
   Ordinary `if`/`else if` checking snapshots state after the condition and joins only normally
   completing branch exits. Terminal branches are excluded, branch locals are projected out at the
   entry boundary, and field state uses the same join. Source after a terminal is retained beneath
   an explicit checked `Unreachable` operation: semantic checks still run, but flow-dependent
-  ownership state and later buildability receive no invented continuation.
+  ownership state and later buildability receive no invented continuation. Exact loop identities
+  connect nested `break`/`continue` operations to their owners. Loop headers conservatively join
+  their preheader with normal and `continue` backedges until stable, then expose only reachable
+  breaks and possible false-condition exits. Integer ranges evaluate both endpoints once and
+  initialize a typed loop binding on each body edge; loop-local paths cannot escape the join.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

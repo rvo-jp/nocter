@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{BodyId, BodyNodeId, LocalBindingId, TypeId};
+use nocter_model::{BodyId, BodyNodeId, LocalBindingId, LoopId, PlaceId, TypeId};
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
@@ -66,6 +66,13 @@ pub enum BodyCheckInternalError {
     InvalidLiteral(NodeId),
     UnknownType(TypeId),
     MissingNode(BodyNodeId),
+    MissingNodeOrigin(BodyNodeId),
+    DuplicateNodeOrigin(BodyNodeId),
+    InvalidMovePlace(PlaceId),
+    UnsupportedOwnershipOperation(BodyNodeId),
+    LoopStack,
+    UnknownLoop(LoopId),
+    UnsupportedLoop(LoopId),
     Copyability(CopyabilityError),
     ExpectedType(ExpectedTypeError),
     Construction(BuildCheckedBodyError),
