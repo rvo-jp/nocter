@@ -275,8 +275,8 @@ InterfaceMethod = "pub" MethodSignature CallableBody
 </code></pre><p>An interface member always writes bare <code>pub</code>; it cannot narrow its visibility independently from the interface. A bodyless method is a requirement. A method with a block is a default method. Fields, operators, coercions, construction entries, drop declarations, and tests have no interface member production.</p><h2 id="construction-declarations">Construction Declarations</h2><pre><code class="language-text">ConstructDeclaration = "construct" DeclarationTypePattern
                        "{" LineSequence(ConstructMember) "}"
 
-ConstructMember = Visibility "default"? ConstructionFunction
-                | Visibility "default"? LiteralDeclaration
+ConstructMember = Visibility? "default"? ConstructionFunction
+                | Visibility? "default"? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
                        CallableTail CallableBody
@@ -287,7 +287,7 @@ LiteralShape = "[" "]" | EmptyStringLiteral
 
 LiteralParameters = "(" "..." Name ":" Type ")"
                   | "(" Parameter ")"
-</code></pre><p><code>EmptyStringLiteral</code> is the joint single-line <code>string_start string_end</code> sequence whose source and decoded contents are both empty (<code>""</code>). In this position it denotes a literal shape, not a decoded runtime string value. Semantic validation pairs the sequence shape with its one element pack and the string shape with its one ordinary parameter. Every construction member requires an explicit <code>Visibility</code>; <code>default</code> is contextual only between that visibility and <code>func</code> or <code>literal</code>.</p><p>An empty construction body is syntactically valid and explicitly declares no direct construction entry.</p><h2 id="instances">Instances</h2><pre><code class="language-text">InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
+</code></pre><p><code>EmptyStringLiteral</code> is the joint single-line <code>string_start string_end</code> sequence whose source and decoded contents are both empty (<code>""</code>). In this position it denotes a literal shape, not a decoded runtime string value. Semantic validation pairs the sequence shape with its one element pack and the string shape with its one ordinary parameter. The parser retains optional <code>Visibility</code>; module-source semantics require it on a root-source construction contract and require its omission on a private implementation body. <code>default</code> is contextual only between that optional visibility and <code>func</code> or <code>literal</code>.</p><p>An empty construction body is syntactically valid and explicitly declares no direct construction entry.</p><h2 id="instances">Instances</h2><pre><code class="language-text">InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
                       "{" LineSequence(InstanceMember) "}"
 
 InstanceMember = InherentMethod

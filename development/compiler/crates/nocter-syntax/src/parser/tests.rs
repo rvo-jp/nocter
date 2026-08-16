@@ -394,13 +394,10 @@ fn parses_construction_functions_and_both_literal_shapes() {
 }
 
 #[test]
-fn construction_members_require_visibility_but_defaults_remain_semantic() {
-    assert!(
-        parse_text(
-            "construct Value { func new(): Self {} }\n",
-            ParseGoal::ModuleSource
-        )
-        .has_errors()
+fn construction_visibility_and_defaults_remain_semantic() {
+    assert_syntax_ok(
+        "construct Value { func new(): Self {} }\n",
+        ParseGoal::ModuleSource,
     );
     assert_syntax_ok(
         "construct Value { pub default func first(): Self {}\npub default func second(): Self {} }\nconstruct External {}\n",

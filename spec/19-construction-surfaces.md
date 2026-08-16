@@ -45,8 +45,10 @@ Rules:
   identity, not path spelling or visibility.
 - The target arguments must bind every generic parameter in declaration order.
 - A nominal type may have at most one `construct` declaration.
-- Every construction member must carry an explicit non-private visibility: `pub(./)`, an ancestor
-  scope, `pub(/)`, or bare `pub`. Private construction members are invalid.
+- Every construction contract member in a module root source must carry an explicit non-private
+  visibility: `pub(./)`, an ancestor scope, `pub(/)`, or bare `pub`. A private implementation body
+  in another source omits visibility and joins that contract under the module body-matching rule;
+  it does not define another construction entry.
 - A construction function must produce `Self` as its direct result or as the success/present payload
   of a supported outcome type.
 - A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules

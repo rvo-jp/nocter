@@ -66,7 +66,9 @@ be introduced to make an unresolved syntax choice.
   module order, constructs the compile-unit symbol table, inventories every declaration and member
   with its exact syntax owner, allocates stable topology identities, and records their source
   projections. The temporary surface inventory also enforces the root-source-only API boundary
-  before semantic reservation.
+  before semantic reservation. A canonical-header pass joins eligible public bodyless contracts
+  to exactly one private implementation body without resolving names or types; both source forms
+  therefore enter reservation through one representative identity.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -4,10 +4,12 @@
 //! lowering boundary canonicalizes an explicit compile unit, creates semantic identities, and
 //! projects them back to source without exposing syntax to later semantic stages.
 
+mod contract;
 mod input;
 mod surface;
 mod topology;
 
+pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,

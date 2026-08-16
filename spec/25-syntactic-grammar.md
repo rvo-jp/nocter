@@ -270,8 +270,8 @@ member production.
 ConstructDeclaration = "construct" DeclarationTypePattern
                        "{" LineSequence(ConstructMember) "}"
 
-ConstructMember = Visibility "default"? ConstructionFunction
-                | Visibility "default"? LiteralDeclaration
+ConstructMember = Visibility? "default"? ConstructionFunction
+                | Visibility? "default"? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
                        CallableTail CallableBody
@@ -287,9 +287,10 @@ LiteralParameters = "(" "..." Name ":" Type ")"
 `EmptyStringLiteral` is the joint single-line `string_start string_end` sequence whose source and
 decoded contents are both empty (`""`). In this position it denotes a literal shape, not a
 decoded runtime string value. Semantic validation pairs the sequence shape with its one element
-pack and the string shape with its one ordinary parameter. Every construction member requires an
-explicit `Visibility`; `default` is contextual only between that visibility and `func` or
-`literal`.
+pack and the string shape with its one ordinary parameter. The parser retains optional
+`Visibility`; module-source semantics require it on a root-source construction contract and
+require its omission on a private implementation body. `default` is contextual only between that
+optional visibility and `func` or `literal`.
 
 An empty construction body is syntactically valid and explicitly declares no direct construction
 entry.

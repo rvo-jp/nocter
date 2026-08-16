@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_model::SymbolTable;
-use nocter_source::SourceId;
+use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::topology::prepare_compile_unit;
@@ -15,6 +15,10 @@ use crate::{
 pub struct SurfaceDeclarationId(usize);
 
 impl SurfaceDeclarationId {
+    pub(crate) const fn from_index(index: usize) -> Self {
+        Self(index)
+    }
+
     #[must_use]
     pub const fn index(self) -> usize {
         self.0
@@ -33,7 +37,7 @@ impl SurfaceSourceId {
 }
 
 /// The semantic declaration domain selected solely from closed syntax shape.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SurfaceDeclarationKind {
     Function,
     Primitive,
@@ -159,6 +163,7 @@ impl SurfaceDeclaration {
 /// pass, but it cannot enter the syntax-independent declaration program.
 #[derive(Debug)]
 pub struct DeclarationSurface<'syntax> {
+    source_map: &'syntax SourceMap,
     symbols: SymbolTable,
     packages: Box<[PackageInput<'syntax>]>,
     modules: Box<[ModuleIdentity]>,
@@ -168,6 +173,11 @@ pub struct DeclarationSurface<'syntax> {
 }
 
 impl<'syntax> DeclarationSurface<'syntax> {
+    #[must_use]
+    pub const fn source_map(&self) -> &'syntax SourceMap {
+        self.source_map
+    }
+
     #[must_use]
     pub const fn symbols(&self) -> &SymbolTable {
         &self.symbols
@@ -207,6 +217,7 @@ pub enum SurfaceError {
     InvalidItemShape(NodeId),
     ImplementationVisibility(NodeId),
     ImplementationMember(NodeId),
+    MissingConstructionVisibility(NodeId),
 }
 
 impl fmt::Display for SurfaceError {
@@ -232,6 +243,10 @@ impl fmt::Display for SurfaceError {
             Self::ImplementationMember(node) => write!(
                 formatter,
                 "declaration member {node:?} may be authored only in a module root source"
+            ),
+            Self::MissingConstructionVisibility(node) => write!(
+                formatter,
+                "module-root construction member {node:?} requires explicit visibility"
             ),
         }
     }
@@ -279,6 +294,7 @@ pub fn collect_declaration_surface<'syntax>(
     }
 
     Ok(DeclarationSurface {
+        source_map: input.sources(),
         symbols: prepared.symbols,
         packages: prepared
             .packages
@@ -367,6 +383,8 @@ fn collect_item(
     let declaration = declaration.ok_or(SurfaceError::InvalidItemShape(item))?;
     if source_kind == ModuleSourceKind::Implementation {
         validate_implementation_item(tree, declaration)?;
+    } else {
+        validate_root_item(tree, declaration)?;
     }
     append_declaration(source, tree, declaration, None, target_gate, declarations)
 }
@@ -450,16 +468,30 @@ fn validate_implementation_item(
         }
         if matches!(
             kind,
-            NodeKind::StructField
-                | NodeKind::AssociatedTypeDeclaration
-                | NodeKind::InterfaceMethod
-                | NodeKind::ConstructDeclaration
-                | NodeKind::CoercionDeclaration
+            NodeKind::StructField | NodeKind::AssociatedTypeDeclaration | NodeKind::InterfaceMethod
         ) {
             return Err(SurfaceError::ImplementationMember(node));
         }
         if kind != NodeKind::Block {
             pending.extend(child_nodes(tree, node));
+        }
+    }
+    Ok(())
+}
+
+fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), SurfaceError> {
+    if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind)
+        != Some(NodeKind::ConstructDeclaration)
+    {
+        return Ok(());
+    }
+    for member in child_nodes(tree, declaration) {
+        if matches!(
+            tree.node(member).map(nocter_syntax::SyntaxNode::kind),
+            Some(NodeKind::ConstructionFunction | NodeKind::LiteralDeclaration)
+        ) && direct_child(tree, member, NodeKind::Visibility).is_none()
+        {
+            return Err(SurfaceError::MissingConstructionVisibility(member));
         }
     }
     Ok(())

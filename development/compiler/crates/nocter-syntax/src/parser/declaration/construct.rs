@@ -13,8 +13,6 @@ fn member(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if parser.at_keyword(Keyword::Pub) {
         root::visibility(parser);
-    } else {
-        parser.missing(ExpectedSyntax::Visibility);
     }
     if parser.at_identifier_text("default") {
         parser.bump();

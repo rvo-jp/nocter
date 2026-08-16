@@ -136,8 +136,18 @@ inventory. It visits module roots before implementation sources, sorts implement
 canonical physical identity, and records each declaration or member with its exact syntactic
 owner. Blocks are opaque to this pass; body syntax cannot create or alter a declaration header.
 The pass also enforces the module rule that implementation sources cannot add visibility,
-re-exports, fields, interface members, construction entries, or coercion entries. This inventory
-is consumed by declaration reservation and never becomes a second long-lived program model.
+re-exports, fields, or interface members. A following contract pass rejects construction and
+coercion entries that do not supply a declared root contract. This inventory is consumed by
+declaration reservation and never becomes a second long-lived program model.
+
+Before allocating callable IDs, a contract-joining pass compares canonical header token sequences.
+It excludes visibility, bodies, newlines, and the `default` marker that construction
+implementations do not repeat, while retaining names, owner patterns, generic requirements,
+parameter names and types, results, and authored provenance. One eligible public bodyless root
+contract must match exactly one private implementation body. The implementation and any container
+used only to carry matched bodies map to the contract representative; missing, mismatched, and
+duplicate bodies fail before reservation. This prevents a later name resolver from trying to
+merge already-distinct semantic IDs.
 
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
