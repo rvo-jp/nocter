@@ -553,6 +553,7 @@ Rules:
 - Bare `pub type` makes the alias importable and re-exportable across packages.
 - Generic type aliases are allowed.
 - A type alias has no separate identity from its target type.
+- A direct or indirect alias-expansion cycle is invalid because it has no finite exact target type.
 - A type alias does not change ownership, copyability, drop behavior, layout, or ABI.
 - Implementations cannot target a type alias.
 - A type alias cannot be used to create a type-safe wrapper around an existing type.

@@ -16,6 +16,7 @@ pub(super) fn bind(
     capability: NodeId,
     kinds: &mut Vec<BoundTypeKind>,
     roots: &mut HashMap<NodeId, BoundTypeId>,
+    root_declarations: &mut HashMap<NodeId, SurfaceDeclarationId>,
 ) -> Result<BoundCapability, TypeBindingError> {
     let child = tree
         .children(capability)
@@ -27,7 +28,15 @@ pub(super) fn bind(
         .ok_or(TypeBindingError::InvalidSyntax(capability))?;
     match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
         Some(NodeKind::CallableType) => {
-            let id = syntax::bind(namespaces, declaration, tree, child, kinds, roots)?;
+            let id = syntax::bind(
+                namespaces,
+                declaration,
+                tree,
+                child,
+                kinds,
+                roots,
+                root_declarations,
+            )?;
             if matches!(kinds.get(id.index()), Some(BoundTypeKind::Callable(_))) {
                 Ok(BoundCapability::Callable(id))
             } else {

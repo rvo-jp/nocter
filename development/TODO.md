@@ -8,16 +8,12 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Normalize the completed bound header-type arena into the structural type store. Resolve alias
-   applications and associated selections together with their requirement environment; do not add
-   either as a temporary canonical `TypeKind`. The canonical interface-owned `Self` placeholder is
-   complete. Package/module/source topology, surface inventory,
-   cross-file callable joining, recursive identity reservation, names, visibility, generic binders,
-   authored imports/re-exports, prelude fallback, lexical type-name binding, and declaration target
-   pattern, capability, and requirement-shape binding are complete.
-2. Define declaration headers, associated declarations, callable provenance, and generic
-   requirements, then freeze the declaration program and separate `SourceIndex`.
-3. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
+1. Define declaration headers, associated declarations, callable provenance, and generic
+   requirements from the completed canonical type graph, then freeze the declaration program and
+   separate `SourceIndex`. Generic alias substitution, recursive-alias rejection, canonical
+   `Self`, exact associated identities, normalized declaration patterns/capabilities/requirements,
+   callable-type origin elision, and non-recursive 5,000-layer type lowering are complete.
+2. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
    permutation tests for the complete lowering result.
 
 ## Guardrails

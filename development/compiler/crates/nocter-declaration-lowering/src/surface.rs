@@ -476,61 +476,48 @@ fn append_declaration(
     target_gate: Option<NodeId>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
-    let syntax_kind = tree
-        .node(node)
-        .ok_or(SurfaceError::InvalidItemShape(node))?
-        .kind();
-    let kind = declaration_kind(syntax_kind).ok_or(SurfaceError::InvalidItemShape(node))?;
-    let id = SurfaceDeclarationId(declarations.len());
-    declarations.push(SurfaceDeclaration {
-        source,
-        node,
-        kind,
-        owner,
-        name: declaration_name(tree, node, kind),
-        visibility: direct_child(tree, node, NodeKind::Visibility),
-        target_gate,
-    });
-
-    for child in child_nodes(tree, node) {
-        let child_kind = tree
-            .node(child)
+    let mut pending = vec![(node, owner, target_gate)];
+    while let Some((node, owner, target_gate)) = pending.pop() {
+        let syntax_kind = tree
+            .node(node)
             .ok_or(SurfaceError::InvalidItemShape(node))?
             .kind();
-        if child_kind == NodeKind::Block {
-            continue;
-        }
-        if declaration_kind(child_kind).is_some() {
-            append_declaration(source, tree, child, Some(id), None, declarations)?;
-        } else {
-            append_nested_declarations(source, tree, child, id, declarations)?;
+        let kind = declaration_kind(syntax_kind).ok_or(SurfaceError::InvalidItemShape(node))?;
+        let id = SurfaceDeclarationId(declarations.len());
+        declarations.push(SurfaceDeclaration {
+            source,
+            node,
+            kind,
+            owner,
+            name: declaration_name(tree, node, kind),
+            visibility: direct_child(tree, node, NodeKind::Visibility),
+            target_gate,
+        });
+        for nested in nested_declarations(tree, node)?.into_iter().rev() {
+            pending.push((nested, Some(id), None));
         }
     }
     Ok(())
 }
 
-fn append_nested_declarations(
-    source: SurfaceSourceId,
-    tree: &SyntaxTree,
-    node: NodeId,
-    owner: SurfaceDeclarationId,
-    declarations: &mut Vec<SurfaceDeclaration>,
-) -> Result<(), SurfaceError> {
-    for child in child_nodes(tree, node) {
+fn nested_declarations(tree: &SyntaxTree, root: NodeId) -> Result<Vec<NodeId>, SurfaceError> {
+    let mut result = Vec::new();
+    let mut pending: Vec<_> = child_nodes(tree, root).rev().collect();
+    while let Some(node) = pending.pop() {
         let kind = tree
-            .node(child)
-            .ok_or(SurfaceError::InvalidItemShape(node))?
+            .node(node)
+            .ok_or(SurfaceError::InvalidItemShape(root))?
             .kind();
         if kind == NodeKind::Block {
             continue;
         }
         if declaration_kind(kind).is_some() {
-            append_declaration(source, tree, child, Some(owner), None, declarations)?;
+            result.push(node);
         } else {
-            append_nested_declarations(source, tree, child, owner, declarations)?;
+            pending.extend(child_nodes(tree, node).rev());
         }
     }
-    Ok(())
+    Ok(result)
 }
 
 fn validate_implementation_item(
@@ -577,7 +564,7 @@ fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), Surf
     Ok(())
 }
 
-fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl DoubleEndedIterator<Item = NodeId> + '_ {
     tree.children(node).iter().filter_map(|child| match child {
         SyntaxElement::Node(node) => Some(*node),
         SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,

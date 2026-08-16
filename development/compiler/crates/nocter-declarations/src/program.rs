@@ -219,6 +219,11 @@ impl DeclarationProgramBuilder {
     }
 
     #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        &self.types
+    }
+
+    #[must_use]
     pub const fn types_mut(&mut self) -> &mut TypeStore {
         &mut self.types
     }

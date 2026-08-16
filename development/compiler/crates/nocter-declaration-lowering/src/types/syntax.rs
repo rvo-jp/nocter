@@ -19,6 +19,7 @@ pub(super) fn bind(
     root: NodeId,
     kinds: &mut Vec<BoundTypeKind>,
     roots: &mut HashMap<NodeId, BoundTypeId>,
+    root_declarations: &mut HashMap<NodeId, SurfaceDeclarationId>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     let mut values = HashMap::new();
     let mut pending = vec![(root, false)];
@@ -42,6 +43,7 @@ pub(super) fn bind(
             values.insert(node, id);
             if kind == NodeKind::Type {
                 roots.insert(node, id);
+                root_declarations.insert(node, declaration);
             }
         }
     }
@@ -253,13 +255,16 @@ fn bind_callable(
     let parameters_node = direct_node(tree, node, NodeKind::CallableParameters)
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let mut parameters = Vec::new();
+    let mut named_parameters = Vec::new();
     let mut names = BTreeMap::new();
     for parameter in direct_nodes(tree, parameters_node, NodeKind::CallableParameter) {
         let ty = descendant_value(tree, parameter, values)
             .ok_or(TypeBindingError::InvalidSyntax(parameter))?;
         let position = parameters.len();
         parameters.push(ty);
-        if let Some(name) = callable_parameter_name(namespaces, tree, parameter)?
+        let name = callable_parameter_name(namespaces, tree, parameter)?;
+        named_parameters.push(name.is_some());
+        if let Some(name) = name
             && names.insert(name, position).is_some()
         {
             return Err(TypeBindingError::DuplicateCallableParameter(node));
@@ -278,6 +283,7 @@ fn bind_callable(
             capability,
             parameters: parameters.into_boxed_slice(),
             result,
+            named_parameters: named_parameters.into_boxed_slice(),
             explicit_origins,
         }),
     ))

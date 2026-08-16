@@ -95,25 +95,31 @@ be introduced to make an unresolved syntax choice.
   It resolves module selections, authored and prelude names, generic identities and arity, `Self`
   ownership, fixed-array lengths, and structural-callable origin names exactly once. Alias
   applications and associated selections remain explicit bound nodes until the normalization pass
-  has the requirements needed to resolve them. Declaration target patterns use the same module,
+  has the requirements needed to resolve them. That pass expands generic aliases through an
+  explicit evaluation stack, rejects expansion cycles, substitutes canonical binder identities,
+  resolves `Self` and associated names, and interns structural results without introducing alias
+  or name-based selection kinds. Declaration target patterns use the same module,
   symbol, arity, and source-projection context and bind their bare argument names directly to the
   generic identities already allocated for that declaration. Nominal interface and structural
   callable capabilities also reuse this path resolver and flat type arena; capability syntax
   cannot establish an alternate lookup or callable-provenance path. Generic predicates and
   associated-type bounds are then bound into one closed requirement representation. Directed
   pattern refinements, general equalities, capabilities, copy, operators, borrow coercions, and
-  expansion retain semantic IDs and bound types only. The parser now represents mandatory
+  expansion retain semantic IDs and bound types only. Their normalized forms use the same type
+  evaluator, so capability and predicate types cannot diverge from declaration types. Structural
+  callable parameter spellings disappear after named origin candidates become canonical parameter
+  positions. The parser now represents mandatory
   interface-member `pub` with the same `Visibility` node used by every other declaration, so this
-  boundary requires no interface-specific visibility recovery.
+  boundary requires no interface-specific visibility recovery. Declaration-surface traversal is
+  non-recursive, keeping the complete boundary safe for the parser's 5,000-layer type contract.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will normalize aliases and associated selections into the structural
-type store while resolving requirements. It will then define every declaration arena slot and
-discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns checked
-body semantics.
+The next Phase 2 increment will define every declaration arena slot from the canonical type graph,
+then discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns
+checked body semantics.
 
 ## Verification
 

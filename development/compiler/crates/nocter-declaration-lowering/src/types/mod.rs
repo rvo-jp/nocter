@@ -1,6 +1,7 @@
 mod capability;
 mod context;
 mod names;
+mod normalization;
 mod pattern;
 mod projection;
 mod requirements;
@@ -36,6 +37,7 @@ pub struct BoundCallableType {
     capability: CallableCapability,
     parameters: Box<[BoundTypeId]>,
     result: BoundTypeId,
+    named_parameters: Box<[bool]>,
     explicit_origins: Option<Box<[ParameterOrigin]>>,
 }
 
@@ -56,10 +58,19 @@ impl BoundCallableType {
     }
 
     #[must_use]
+    pub const fn named_parameters(&self) -> &[bool] {
+        &self.named_parameters
+    }
+
+    #[must_use]
     pub fn explicit_origins(&self) -> Option<&[ParameterOrigin]> {
         self.explicit_origins.as_deref()
     }
 }
+
+pub use normalization::{
+    NormalizedDeclarationPattern, PreparedTypes, TypeNormalizationError, normalize_header_types,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BoundCapability {
@@ -241,8 +252,11 @@ pub struct PreparedTypeBindings<'syntax> {
     namespaces: PreparedNamespaces<'syntax>,
     kinds: Box<[BoundTypeKind]>,
     roots: HashMap<NodeId, BoundTypeId>,
+    root_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    alias_targets: HashMap<TypeAliasId, BoundTypeId>,
     patterns: Box<[Box<[BoundDeclarationPattern]>]>,
     capabilities: HashMap<NodeId, BoundCapability>,
+    capability_declarations: HashMap<NodeId, SurfaceDeclarationId>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
 }
 
@@ -310,18 +324,13 @@ impl PreparedTypeBindings<'_> {
 pub fn bind_header_type_syntax(
     mut namespaces: PreparedNamespaces<'_>,
 ) -> Result<PreparedTypeBindings<'_>, TypeBindingError> {
-    let declaration_nodes: HashSet<_> = namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .declarations
-        .iter()
-        .map(|declaration| declaration.node())
-        .collect();
+    let declaration_nodes = declaration_node_set(&namespaces);
     let mut kinds = Vec::new();
     let mut roots = HashMap::new();
+    let mut root_declarations = HashMap::new();
+    let mut alias_targets = HashMap::new();
     let mut capabilities = HashMap::new();
+    let mut capability_declarations = HashMap::new();
     let declaration_count = namespaces
         .imports
         .generics
@@ -356,8 +365,17 @@ pub fn bind_header_type_syntax(
                 root,
                 &mut kinds,
                 &mut roots,
+                &mut root_declarations,
             )?;
         }
+        record_alias_target(
+            &namespaces,
+            declaration,
+            tree,
+            surface.node(),
+            &roots,
+            &mut alias_targets,
+        )?;
         for capability in header_nodes(
             tree,
             surface.node(),
@@ -371,8 +389,10 @@ pub fn bind_header_type_syntax(
                 capability,
                 &mut kinds,
                 &mut roots,
+                &mut root_declarations,
             )?;
             capabilities.insert(capability, bound);
+            capability_declarations.insert(capability, declaration);
         }
         patterns.push(
             pattern::bind_all(&mut namespaces, declaration, tree, surface.node())?
@@ -396,10 +416,52 @@ pub fn bind_header_type_syntax(
         namespaces,
         kinds: kinds.into_boxed_slice(),
         roots,
+        root_declarations,
+        alias_targets,
         patterns: patterns.into_boxed_slice(),
         capabilities,
+        capability_declarations,
         requirements: requirements.into_boxed_slice(),
     })
+}
+
+fn declaration_node_set(namespaces: &PreparedNamespaces<'_>) -> HashSet<NodeId> {
+    namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .declarations
+        .iter()
+        .map(|declaration| declaration.node())
+        .collect()
+}
+
+fn record_alias_target(
+    namespaces: &PreparedNamespaces<'_>,
+    declaration: SurfaceDeclarationId,
+    tree: &nocter_syntax::SyntaxTree,
+    declaration_node: NodeId,
+    roots: &HashMap<NodeId, BoundTypeId>,
+    alias_targets: &mut HashMap<TypeAliasId, BoundTypeId>,
+) -> Result<(), TypeBindingError> {
+    let Some(ReservedEntity::TypeAlias(alias)) = namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .entity(declaration)
+    else {
+        return Ok(());
+    };
+    let target_node = direct_node(tree, declaration_node, NodeKind::Type)
+        .ok_or(TypeBindingError::InvalidSyntax(declaration_node))?;
+    let target = roots
+        .get(&target_node)
+        .copied()
+        .ok_or(TypeBindingError::InvalidSyntax(target_node))?;
+    alias_targets.insert(alias, target);
+    Ok(())
 }
 
 fn header_type_roots(
@@ -437,12 +499,33 @@ fn header_nodes(
     roots
 }
 
+fn direct_node(
+    tree: &nocter_syntax::SyntaxTree,
+    node: NodeId,
+    expected: NodeKind,
+) -> Option<NodeId> {
+    tree.children(node)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Node(child)
+                if tree
+                    .node(*child)
+                    .is_some_and(|syntax| syntax.kind() == expected) =>
+            {
+                Some(*child)
+            }
+            _ => None,
+        })
+}
+
 pub(super) fn push(kinds: &mut Vec<BoundTypeKind>, kind: BoundTypeKind) -> BoundTypeId {
     let id = BoundTypeId(kinds.len());
     kinds.push(kind);
     id
 }
 
+#[cfg(test)]
+mod normalization_tests;
 #[cfg(test)]
 mod requirement_tests;
 #[cfg(test)]
