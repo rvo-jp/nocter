@@ -302,6 +302,12 @@ instance and member requirements, applies visibility, and emits one `StaticSelec
 contains both the direct or structural dispatch identity and every declaration-generic argument,
 so instantiation and MIR cannot repeat matching.
 
+The selector owns one recursive requirement-proof context. `copy`, interface, callable, index, and
+coercion predicates therefore share the same lexical assumptions and concrete dispatch tables.
+Proving a concrete index or coercion requirement re-enters the ordinary selector, including direct
+priority, visibility, one-step coercion, and ambiguity; it does not use a reduced capability test.
+An active-predicate set makes recursive requirement cycles fail closed.
+
 Declaration lookup is restricted to fully concrete receiver types. A receiver that still contains
 a lexical generic, interface `Self`, or associated projection can select only an exact lexical
 requirement. Concrete instance dispatch is deferred until executable specialization; generic body

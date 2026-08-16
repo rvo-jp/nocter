@@ -354,6 +354,50 @@ fn instance_requirements_control_concrete_index_applicability() {
 }
 
 #[test]
+fn concrete_index_requirement_reuses_the_operation_selector() {
+    let available = check(
+        "struct Inner { values: [i32; 1] }\ninstance Inner {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n}\nstruct Wrapper<T> { inner: T }\ninstance Wrapper<T> where (&T[usize]): &i32 {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.inner[index]\n    }\n}\nfunc read(wrapper: &Wrapper<Inner>): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap();
+    assert!(available.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::SelectedIndex { .. })
+            )
+        })
+    }));
+
+    let unavailable = check(
+        "struct Missing {}\nstruct Wrapper<T> { value: i32 }\ninstance Wrapper<T> where (&T[usize]): &i32 {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.value\n    }\n}\nfunc invalid(wrapper: &Wrapper<Missing>): void {\n    let _ = &wrapper[0]\n    return\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(unavailable.source_diagnostic().unwrap().code(), "E0388");
+}
+
+#[test]
+fn concrete_coercion_requirement_reuses_the_operation_selector() {
+    let available = check(
+        "struct Source { text: &str }\ninstance Source {\n    pub coerce &self as &str {\n        return self.text\n    }\n}\nstruct Wrapper<T> { value: i32 }\ninstance Wrapper<T> where &T as &str {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.value\n    }\n}\nfunc read(wrapper: &Wrapper<Source>): i32 {\n    wrapper[0]\n}\n",
+    )
+    .unwrap();
+    assert!(available.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::SelectedIndex { .. })
+            )
+        })
+    }));
+
+    let unavailable = check(
+        "struct Missing {}\nstruct Wrapper<T> { value: i32 }\ninstance Wrapper<T> where &T as &str {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.value\n    }\n}\nfunc invalid(wrapper: &Wrapper<Missing>): void {\n    let _ = &wrapper[0]\n    return\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(unavailable.source_diagnostic().unwrap().code(), "E0388");
+}
+
+#[test]
 fn direct_index_operation_has_priority_over_receiver_coercion() {
     let output = check(
         "struct Wrapper { values: [i32; 1] }\ninstance Wrapper {\n    pub operator (&self[index: usize]): &i32 {\n        return &self.values[index]\n    }\n    pub coerce &self as &[i32; 1] {\n        return &self.values\n    }\n}\nfunc read(wrapper: &Wrapper): i32 {\n    wrapper[0]\n}\n",

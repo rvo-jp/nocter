@@ -439,7 +439,9 @@ retained requirements, member identities, and overlap rejection. Body checking q
 source-defined indexing and the permitted one-step receiver coercion. A unique direct operation
 outranks coercion-derived candidates; peers are ambiguous. The resulting checked place freezes the
 selected dispatch and canonical declaration-generic arguments together, so instantiation and MIR
-cannot rescan instance declarations or derive priority from source order.
+cannot rescan instance declarations or derive priority from source order. Conditional index and
+coercion requirements recursively call that same selector under an active-predicate guard; there
+is no weaker requirement-only operation registry.
 
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, instantiation resolves that requirement once

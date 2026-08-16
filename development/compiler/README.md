@@ -235,7 +235,8 @@ be introduced to make an unresolved syntax choice.
   structural requirements select an exact dispatch plus canonical generic arguments; one-step
   receiver coercion is explicit in the place projection, direct operations take priority, and
   ambiguity never depends on declaration order. Readwrite selection preserves both operation
-  capability and the original receiver's writability.
+  capability and the original receiver's writability. Conditional index and coercion predicates
+  recursively use the same selector and fail closed on proof cycles.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.

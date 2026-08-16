@@ -1,16 +1,17 @@
+use std::collections::HashSet;
 use std::fmt;
 
 use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
 use nocter_model::{BorrowCapability, CallableCapability, ModuleId, TypeId, TypeKind, TypeStore};
 
 use super::InstanceOperationTable;
-use crate::conformance::{normalize_requirements, proves_predicate, substitute_predicate};
+use crate::conformance::normalize_requirements;
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, is_concrete_type, match_type_pattern,
 };
 use crate::{
-    CheckedPredicate, CheckedRequirement, ConformanceTable, Copyability, CopyabilityError,
-    CopyabilityTable, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+    CheckedPredicate, CheckedRequirement, ConformanceTable, CopyabilityError, CopyabilityTable,
+    GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,8 +50,8 @@ struct ApplicableInstance {
     generic_arguments: GenericArguments,
 }
 
-struct CoercionCandidate {
-    target: TypeId,
+pub(super) struct CoercionCandidate {
+    pub(super) target: TypeId,
     selection: StaticSelection,
 }
 
@@ -110,208 +111,29 @@ impl From<SubstitutionError> for InstanceSelectionError {
     }
 }
 
-/// Selects every visible, requirement-satisfied direct index operation on one receiver type.
-///
-/// Candidate order has no semantic meaning. The caller checks the index expression once and must
-/// reject a retained set other than exactly one.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn select_index_operations(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    table: &InstanceOperationTable,
-    assumptions: &[CheckedRequirement],
+/// Stateful authority for one body's instance-operation selection and recursive requirement proof.
+pub(crate) struct InstanceOperationSelector<'program> {
+    pub(super) graph: &'program DeclarationGraph,
+    pub(super) types: &'program mut TypeStore,
+    pub(super) conformances: &'program ConformanceTable,
+    pub(super) copyabilities: &'program mut CopyabilityTable,
+    table: &'program InstanceOperationTable,
+    pub(super) assumptions: &'program [CheckedRequirement],
     from: ModuleId,
-    target: TypeId,
-    capability: BorrowCapability,
-) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
-    let mut selected = structural_index_operations(types, assumptions, target, capability)?;
-    selected.extend(select_instance_index_operations(
-        graph,
-        types,
-        conformances,
-        copyabilities,
-        table,
-        assumptions,
-        from,
-        target,
-        capability,
-    )?);
-    Ok(selected)
+    pub(super) active: HashSet<CheckedPredicate>,
 }
 
-fn structural_index_operations(
-    types: &TypeStore,
-    assumptions: &[CheckedRequirement],
-    target: TypeId,
-    capability: BorrowCapability,
-) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
-    let mut selected = Vec::new();
-    for assumption in assumptions {
-        let CheckedPredicate::Index {
-            capability: required_capability,
-            container,
-            index,
-            result,
-        } = assumption.predicate()
-        else {
-            continue;
-        };
-        if *required_capability != capability || *container != target {
-            continue;
-        }
-        let (result_capability, referent) = borrow_result(types, *result).ok_or(
-            InstanceSelectionError::InvalidStructuralIndex(assumption.declaration()),
-        )?;
-        if result_capability != capability {
-            return Err(InstanceSelectionError::InvalidStructuralIndex(
-                assumption.declaration(),
-            ));
-        }
-        selected.push(IndexOperationCandidate {
-            index: *index,
-            result: referent,
-            operation: Some(StaticSelection::new(
-                StaticDispatch::StructuralRequirement(assumption.declaration()),
-                GenericArguments::default(),
-            )),
-            receiver_coercion: None,
-        });
-    }
-    Ok(selected)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn select_instance_index_operations(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    table: &InstanceOperationTable,
-    assumptions: &[CheckedRequirement],
-    from: ModuleId,
-    target: TypeId,
-    capability: BorrowCapability,
-) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
-    let mut selected = Vec::new();
-    for applicable in applicable_instances(
-        graph,
-        types,
-        conformances,
-        copyabilities,
-        table,
-        assumptions,
-        target,
-    )? {
-        let entry = table
-            .entries()
-            .get(applicable.instance)
-            .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?;
-        for member in entry.members() {
-            let callable = graph
-                .declarations()
-                .callables()
-                .get(*member)
-                .ok_or(InstanceSelectionError::MissingCallable(*member))?;
-            if callable.kind() != CallableKind::Index
-                || !visible_callable(graph, from, callable.site())?
-            {
-                continue;
-            }
-            let receiver = callable
-                .receiver()
-                .and_then(|receiver| graph.declarations().parameters().get(receiver))
-                .ok_or(InstanceSelectionError::InvalidIndexSignature(*member))?;
-            if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
-                || callable.parameters().len() != 1
-                || !callable.generic_parameters().is_empty()
-            {
-                continue;
-            }
-            let parameter = graph
-                .declarations()
-                .parameters()
-                .get(callable.parameters()[0])
-                .ok_or(InstanceSelectionError::MissingParameter(
-                    callable.parameters()[0],
-                ))?;
-            let index = applicable.substitution.apply_type(types, parameter.ty())?;
-            let result = applicable
-                .substitution
-                .apply_type(types, callable.result())?;
-            let (result_capability, referent) = borrow_result(types, result)
-                .ok_or(InstanceSelectionError::InvalidIndexSignature(*member))?;
-            if result_capability != capability {
-                return Err(InstanceSelectionError::InvalidIndexSignature(*member));
-            }
-            let callable_requirements = normalize_requirements(
-                graph,
-                types,
-                &applicable.substitution,
-                callable.requirements(),
-            )?;
-            if !requirements_hold(
-                graph,
-                types,
-                conformances,
-                copyabilities,
-                assumptions,
-                &callable_requirements,
-                &TypeSubstitution::default(),
-            )? {
-                continue;
-            }
-            selected.push(IndexOperationCandidate {
-                index,
-                result: referent,
-                operation: Some(StaticSelection::new(
-                    StaticDispatch::Direct(*member),
-                    applicable.generic_arguments.clone(),
-                )),
-                receiver_coercion: None,
-            });
-        }
-    }
-    Ok(selected)
-}
-
-/// Selects one receiver coercion followed by one built-in or source-defined index operation.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn select_coerced_index_operations(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    table: &InstanceOperationTable,
-    assumptions: &[CheckedRequirement],
-    from: ModuleId,
-    source: TypeId,
-    capability: BorrowCapability,
-) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
-    let coercions = select_coercions(
-        graph,
-        types,
-        conformances,
-        copyabilities,
-        table,
-        assumptions,
-        from,
-        source,
-        capability,
-    )?;
-    let mut selected = Vec::new();
-    for coercion in coercions {
-        if let Some(result) = builtin_index_result(types, coercion.target, capability) {
-            selected.push(IndexOperationCandidate {
-                index: types.builtin(nocter_model::BuiltinType::Usize),
-                result,
-                operation: None,
-                receiver_coercion: Some(coercion.selection),
-            });
-            continue;
-        }
-        let direct = select_index_operations(
+impl<'program> InstanceOperationSelector<'program> {
+    pub(crate) fn new(
+        graph: &'program DeclarationGraph,
+        types: &'program mut TypeStore,
+        conformances: &'program ConformanceTable,
+        copyabilities: &'program mut CopyabilityTable,
+        table: &'program InstanceOperationTable,
+        assumptions: &'program [CheckedRequirement],
+        from: ModuleId,
+    ) -> Self {
+        Self {
             graph,
             types,
             conformances,
@@ -319,157 +141,286 @@ pub(crate) fn select_coerced_index_operations(
             table,
             assumptions,
             from,
-            coercion.target,
-            capability,
-        )?;
-        for mut candidate in direct {
-            candidate.receiver_coercion = Some(coercion.selection.clone());
-            selected.push(candidate);
+            active: HashSet::new(),
         }
     }
-    Ok(selected)
-}
 
-#[allow(clippy::too_many_arguments)]
-fn select_coercions(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    table: &InstanceOperationTable,
-    assumptions: &[CheckedRequirement],
-    from: ModuleId,
-    source: TypeId,
-    capability: BorrowCapability,
-) -> Result<Vec<CoercionCandidate>, InstanceSelectionError> {
-    let mut selected = Vec::new();
-    for applicable in applicable_instances(
-        graph,
-        types,
-        conformances,
-        copyabilities,
-        table,
-        assumptions,
-        source,
-    )? {
-        let entry = table
-            .entries()
-            .get(applicable.instance)
-            .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?;
-        for member in entry.members() {
-            let callable = graph
-                .declarations()
-                .callables()
-                .get(*member)
-                .ok_or(InstanceSelectionError::MissingCallable(*member))?;
-            if callable.kind() != CallableKind::Coercion
-                || !visible_callable(graph, from, callable.site())?
-            {
+    /// Selects every visible, requirement-satisfied direct index operation on one receiver type.
+    ///
+    /// Candidate order has no semantic meaning. The caller checks the index expression once and
+    /// rejects a retained set other than exactly one.
+    pub(crate) fn select_index_operations(
+        &mut self,
+        target: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
+        let mut selected = self.structural_index_operations(target, capability)?;
+        selected.extend(self.select_instance_index_operations(target, capability)?);
+        Ok(selected)
+    }
+
+    fn structural_index_operations(
+        &self,
+        target: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
+        let mut selected = Vec::new();
+        for assumption in self.assumptions {
+            let CheckedPredicate::Index {
+                capability: required_capability,
+                container,
+                index,
+                result,
+            } = assumption.predicate()
+            else {
+                continue;
+            };
+            if *required_capability != capability || *container != target {
                 continue;
             }
-            let receiver = callable
-                .receiver()
-                .and_then(|receiver| graph.declarations().parameters().get(receiver))
-                .ok_or(InstanceSelectionError::InvalidCoercionSignature(*member))?;
-            if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
-                || !callable.parameters().is_empty()
-                || !callable.generic_parameters().is_empty()
-            {
-                continue;
-            }
-            let result = applicable
-                .substitution
-                .apply_type(types, callable.result())?;
-            let (result_capability, target) = borrow_result(types, result)
-                .ok_or(InstanceSelectionError::InvalidCoercionSignature(*member))?;
-            if result_capability != capability {
-                return Err(InstanceSelectionError::InvalidCoercionSignature(*member));
-            }
-            let callable_requirements = normalize_requirements(
-                graph,
-                types,
-                &applicable.substitution,
-                callable.requirements(),
+            let (result_capability, referent) = borrow_result(self.types, *result).ok_or(
+                InstanceSelectionError::InvalidStructuralIndex(assumption.declaration()),
             )?;
-            if !requirements_hold(
-                graph,
-                types,
-                conformances,
-                copyabilities,
-                assumptions,
-                &callable_requirements,
-                &TypeSubstitution::default(),
-            )? {
+            if result_capability != capability {
+                return Err(InstanceSelectionError::InvalidStructuralIndex(
+                    assumption.declaration(),
+                ));
+            }
+            selected.push(IndexOperationCandidate {
+                index: *index,
+                result: referent,
+                operation: Some(StaticSelection::new(
+                    StaticDispatch::StructuralRequirement(assumption.declaration()),
+                    GenericArguments::default(),
+                )),
+                receiver_coercion: None,
+            });
+        }
+        Ok(selected)
+    }
+
+    fn select_instance_index_operations(
+        &mut self,
+        target: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
+        let mut selected = Vec::new();
+        for applicable in self.applicable_instances(target)? {
+            let members = self
+                .table
+                .entries()
+                .get(applicable.instance)
+                .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
+                .members()
+                .to_vec();
+            for member in members {
+                let callable = self
+                    .graph
+                    .declarations()
+                    .callables()
+                    .get(member)
+                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
+                if callable.kind() != CallableKind::Index
+                    || !visible_callable(self.graph, self.from, callable.site())?
+                {
+                    continue;
+                }
+                let receiver = callable
+                    .receiver()
+                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
+                    .ok_or(InstanceSelectionError::InvalidIndexSignature(member))?;
+                if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
+                    || callable.parameters().len() != 1
+                    || !callable.generic_parameters().is_empty()
+                {
+                    continue;
+                }
+                let parameter_id = callable.parameters()[0];
+                let result_id = callable.result();
+                let requirements = callable.requirements().to_vec();
+                let parameter = self
+                    .graph
+                    .declarations()
+                    .parameters()
+                    .get(parameter_id)
+                    .ok_or(InstanceSelectionError::MissingParameter(parameter_id))?;
+                let index = applicable
+                    .substitution
+                    .apply_type(self.types, parameter.ty())?;
+                let result = applicable.substitution.apply_type(self.types, result_id)?;
+                let (result_capability, referent) = borrow_result(self.types, result)
+                    .ok_or(InstanceSelectionError::InvalidIndexSignature(member))?;
+                if result_capability != capability {
+                    return Err(InstanceSelectionError::InvalidIndexSignature(member));
+                }
+                let callable_requirements = normalize_requirements(
+                    self.graph,
+                    self.types,
+                    &applicable.substitution,
+                    &requirements,
+                )?;
+                if !self.requirements_hold(&callable_requirements, &TypeSubstitution::default())? {
+                    continue;
+                }
+                selected.push(IndexOperationCandidate {
+                    index,
+                    result: referent,
+                    operation: Some(StaticSelection::new(
+                        StaticDispatch::Direct(member),
+                        applicable.generic_arguments.clone(),
+                    )),
+                    receiver_coercion: None,
+                });
+            }
+        }
+        Ok(selected)
+    }
+
+    /// Selects one receiver coercion followed by one built-in or source-defined index operation.
+    pub(crate) fn select_coerced_index_operations(
+        &mut self,
+        source: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
+        let coercions = self.select_coercions(source, capability)?;
+        let mut selected = Vec::new();
+        for coercion in coercions {
+            if let Some(result) = builtin_index_result(self.types, coercion.target, capability) {
+                selected.push(IndexOperationCandidate {
+                    index: self.types.builtin(nocter_model::BuiltinType::Usize),
+                    result,
+                    operation: None,
+                    receiver_coercion: Some(coercion.selection),
+                });
                 continue;
             }
-            selected.push(CoercionCandidate {
-                target,
-                selection: StaticSelection::new(
-                    StaticDispatch::Direct(*member),
-                    applicable.generic_arguments.clone(),
-                ),
-            });
+            for mut candidate in self.select_index_operations(coercion.target, capability)? {
+                candidate.receiver_coercion = Some(coercion.selection.clone());
+                selected.push(candidate);
+            }
         }
+        Ok(selected)
     }
-    Ok(selected)
-}
 
-#[allow(clippy::too_many_arguments)]
-fn applicable_instances(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    table: &InstanceOperationTable,
-    assumptions: &[CheckedRequirement],
-    target: TypeId,
-) -> Result<Vec<ApplicableInstance>, InstanceSelectionError> {
-    if !is_concrete_type(types, target)? {
-        return Ok(Vec::new());
+    pub(super) fn select_coercions(
+        &mut self,
+        source: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<Vec<CoercionCandidate>, InstanceSelectionError> {
+        let mut selected = Vec::new();
+        for applicable in self.applicable_instances(source)? {
+            let members = self
+                .table
+                .entries()
+                .get(applicable.instance)
+                .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
+                .members()
+                .to_vec();
+            for member in members {
+                let callable = self
+                    .graph
+                    .declarations()
+                    .callables()
+                    .get(member)
+                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
+                if callable.kind() != CallableKind::Coercion
+                    || !visible_callable(self.graph, self.from, callable.site())?
+                {
+                    continue;
+                }
+                let receiver = callable
+                    .receiver()
+                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
+                    .ok_or(InstanceSelectionError::InvalidCoercionSignature(member))?;
+                if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
+                    || !callable.parameters().is_empty()
+                    || !callable.generic_parameters().is_empty()
+                {
+                    continue;
+                }
+                let result_id = callable.result();
+                let requirements = callable.requirements().to_vec();
+                let result = applicable.substitution.apply_type(self.types, result_id)?;
+                let (result_capability, target) = borrow_result(self.types, result)
+                    .ok_or(InstanceSelectionError::InvalidCoercionSignature(member))?;
+                if result_capability != capability {
+                    return Err(InstanceSelectionError::InvalidCoercionSignature(member));
+                }
+                let callable_requirements = normalize_requirements(
+                    self.graph,
+                    self.types,
+                    &applicable.substitution,
+                    &requirements,
+                )?;
+                if !self.requirements_hold(&callable_requirements, &TypeSubstitution::default())? {
+                    continue;
+                }
+                selected.push(CoercionCandidate {
+                    target,
+                    selection: StaticSelection::new(
+                        StaticDispatch::Direct(member),
+                        applicable.generic_arguments.clone(),
+                    ),
+                });
+            }
+        }
+        Ok(selected)
     }
-    let mut applicable = Vec::new();
-    for instance in table.candidates(types, target).unwrap_or_default() {
-        let entry = table
-            .entries()
-            .get(*instance)
-            .ok_or(InstanceSelectionError::MissingInstance(*instance))?;
-        let Some(bindings) = match_type_pattern(types, entry.target(), target)? else {
-            continue;
-        };
-        let mut substitution = TypeSubstitution::default();
-        for refinement in entry.refinements() {
-            substitution.bind_generic(refinement.parameter(), refinement.ty());
+
+    fn applicable_instances(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<ApplicableInstance>, InstanceSelectionError> {
+        if !is_concrete_type(self.types, target)? {
+            return Ok(Vec::new());
         }
-        for (parameter, ty) in bindings.iter() {
-            substitution.bind_generic(parameter, ty);
+        let instances = self
+            .table
+            .candidates(self.types, target)
+            .unwrap_or_default()
+            .to_vec();
+        let mut applicable = Vec::new();
+        for instance in instances {
+            let entry = self
+                .table
+                .entries()
+                .get(instance)
+                .ok_or(InstanceSelectionError::MissingInstance(instance))?;
+            let pattern = entry.target();
+            let refinements = entry.refinements().to_vec();
+            let generic_parameters = entry.generic_parameters().to_vec();
+            let requirements = entry.requirements().to_vec();
+            let Some(bindings) = match_type_pattern(self.types, pattern, target)? else {
+                continue;
+            };
+            let mut substitution = TypeSubstitution::default();
+            for refinement in refinements {
+                substitution.bind_generic(refinement.parameter(), refinement.ty());
+            }
+            for (parameter, ty) in bindings.iter() {
+                substitution.bind_generic(parameter, ty);
+            }
+            let generic_arguments =
+                selected_generic_arguments(self.types, &generic_parameters, &substitution)?;
+            if self.requirements_hold(&requirements, &substitution)? {
+                applicable.push(ApplicableInstance {
+                    instance,
+                    substitution,
+                    generic_arguments,
+                });
+            }
         }
-        let generic_arguments = selected_generic_arguments(types, entry, &substitution)?;
-        if requirements_hold(
-            graph,
-            types,
-            conformances,
-            copyabilities,
-            assumptions,
-            entry.requirements(),
-            &substitution,
-        )? {
-            applicable.push(ApplicableInstance {
-                instance: *instance,
-                substitution,
-                generic_arguments,
-            });
-        }
+        Ok(applicable)
     }
-    Ok(applicable)
 }
 
 fn selected_generic_arguments(
     types: &mut TypeStore,
-    entry: &super::CheckedInstanceOperations,
+    generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,
 ) -> Result<GenericArguments, InstanceSelectionError> {
-    let mut arguments = Vec::with_capacity(entry.generic_parameters().len());
-    for parameter in entry.generic_parameters() {
+    let mut arguments = Vec::with_capacity(generic_parameters.len());
+    for parameter in generic_parameters {
         let generic = types
             .intern(TypeKind::GenericParameter(*parameter))
             .map_err(|_| InstanceSelectionError::IncompleteGeneric(*parameter))?;
@@ -484,35 +435,16 @@ fn selected_generic_arguments(
         .map_err(|duplicate| InstanceSelectionError::DuplicateGeneric(duplicate.parameter()))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn requirements_hold(
-    graph: &DeclarationGraph,
-    types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    copyabilities: &mut CopyabilityTable,
-    assumptions: &[CheckedRequirement],
-    requirements: &[CheckedRequirement],
-    substitution: &TypeSubstitution,
-) -> Result<bool, InstanceSelectionError> {
-    for requirement in requirements {
-        let predicate = substitute_predicate(types, substitution, requirement.predicate())?;
-        let proven = match &predicate {
-            CheckedPredicate::Copy(ty) => {
-                copyabilities
-                    .classify(graph, types, *ty)
-                    .map_err(InstanceSelectionError::Copyability)?
-                    == Copyability::Copy
-            }
-            _ => proves_predicate(types, conformances, assumptions, &predicate)?,
-        };
-        if !proven {
-            return Ok(false);
-        }
+pub(crate) fn retain_direct_candidates(candidates: &mut Vec<IndexOperationCandidate>) {
+    if candidates.iter().any(IndexOperationCandidate::is_direct) {
+        candidates.retain(IndexOperationCandidate::is_direct);
     }
-    Ok(true)
 }
 
-fn borrow_result(types: &TypeStore, result: TypeId) -> Option<(BorrowCapability, TypeId)> {
+pub(super) fn borrow_result(
+    types: &TypeStore,
+    result: TypeId,
+) -> Option<(BorrowCapability, TypeId)> {
     match types.get(result)? {
         TypeKind::Borrow {
             capability,
@@ -522,7 +454,7 @@ fn borrow_result(types: &TypeStore, result: TypeId) -> Option<(BorrowCapability,
     }
 }
 
-fn builtin_index_result(
+pub(super) fn builtin_index_result(
     types: &TypeStore,
     target: TypeId,
     capability: BorrowCapability,

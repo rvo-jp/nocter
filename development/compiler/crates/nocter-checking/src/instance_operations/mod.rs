@@ -1,6 +1,7 @@
 mod build;
 mod diagnostic;
 mod model;
+mod requirements;
 mod selection;
 
 #[cfg(test)]
@@ -13,5 +14,5 @@ pub use diagnostic::InstanceOperationRule;
 pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;
 pub(crate) use selection::{
-    IndexOperationCandidate, select_coerced_index_operations, select_index_operations,
+    IndexOperationCandidate, InstanceOperationSelector, retain_direct_candidates,
 };

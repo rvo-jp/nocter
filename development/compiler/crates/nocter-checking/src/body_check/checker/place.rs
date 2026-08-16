@@ -7,7 +7,7 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{
-    IndexOperationCandidate, select_coerced_index_operations, select_index_operations,
+    IndexOperationCandidate, InstanceOperationSelector, retain_direct_candidates,
 };
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, identifier_tokens, is_transparent_expression,
@@ -212,20 +212,8 @@ impl BodyChecker<'_, '_> {
             return Ok(());
         }
         let receiver_writable = draft.writable;
-        let mut candidates = select_index_operations(
-            self.graph,
-            self.types,
-            self.conformances,
-            self.copyabilities,
-            self.instance_operations,
-            &self.assumptions,
-            self.source.module(),
-            base,
-            capability,
-        )
-        .map_err(BodyCheckInternalError::from)?;
-        candidates.extend(
-            select_coerced_index_operations(
+        let mut candidates = {
+            let mut selector = InstanceOperationSelector::new(
                 self.graph,
                 self.types,
                 self.conformances,
@@ -233,14 +221,18 @@ impl BodyChecker<'_, '_> {
                 self.instance_operations,
                 &self.assumptions,
                 self.source.module(),
-                base,
-                capability,
-            )
-            .map_err(BodyCheckInternalError::from)?,
-        );
-        if candidates.iter().any(IndexOperationCandidate::is_direct) {
-            candidates.retain(IndexOperationCandidate::is_direct);
-        }
+            );
+            let mut candidates = selector
+                .select_index_operations(base, capability)
+                .map_err(BodyCheckInternalError::from)?;
+            candidates.extend(
+                selector
+                    .select_coerced_index_operations(base, capability)
+                    .map_err(BodyCheckInternalError::from)?,
+            );
+            candidates
+        };
+        retain_direct_candidates(&mut candidates);
         let expected = candidates
             .first()
             .map(IndexOperationCandidate::index)
