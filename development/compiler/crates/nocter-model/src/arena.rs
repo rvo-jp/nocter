@@ -85,6 +85,11 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
     }
 
     #[must_use]
+    pub fn get_mut(&mut self, id: I) -> Option<&mut T> {
+        self.values.get_mut(id.index())
+    }
+
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.values.len()
     }
@@ -100,6 +105,27 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
             values: self.values.into_boxed_slice(),
             identity: PhantomData,
         }
+    }
+
+    /// Transforms every slot while preserving its typed identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first transformation error without producing a partial immutable arena.
+    pub fn try_finish_with<U, E>(
+        self,
+        mut transform: impl FnMut(I, T) -> Result<U, E>,
+    ) -> Result<Arena<I, U>, E> {
+        let values = self
+            .values
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| transform(I::new(index), value))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Arena {
+            values: values.into_boxed_slice(),
+            identity: PhantomData,
+        })
     }
 }
 

@@ -8,13 +8,14 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Extend the immutable `DeclarationProgram` spine with complete declaration, member, generic,
-   callable, requirement, and body arenas derived from the specification.
-2. Add a syntax-to-declaration lowering crate that canonicalizes package/module/declaration input,
-   then freezes one declaration program and its separate `SourceIndex` without checking bodies.
-3. Resolve declaration headers, aliases, associated declarations, and generic requirements into
-   the existing structural type store. Record semantic-boundary diagnostics independently from
-   syntax recovery.
+1. Add a syntax-to-declaration lowering crate that accepts an explicit resolved compile-unit input,
+   canonicalizes package/module/declaration discovery, and reserves semantic identities without
+   checking bodies.
+2. Resolve declaration headers, aliases, associated declarations, callable provenance, and generic
+   requirements into the structural type store, then freeze the declaration program and separate
+   `SourceIndex`.
+3. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
+   permutation tests for the complete lowering result.
 
 ## Guardrails
 

@@ -11,4 +11,4 @@ pub use entity::SemanticEntity;
 pub use index::{
     DuplicateSourceBinding, SourceBinding, SourceIndex, SourceIndexBuilder, SourceRole,
 };
-pub use origin::{SourceOrigin, UnknownNodeId};
+pub use origin::{SourceOrigin, SyntaxOrigin, UnknownNodeId, UnknownTokenId};

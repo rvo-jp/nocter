@@ -98,9 +98,24 @@ an ancestor-module descendant boundary, the declaring package, or all packages. 
 reinterprets `pub(../)` from a physical source path. The crate depends only on `nocter-model`, so a
 semantic consumer cannot acquire source or syntax access through the declaration graph.
 
+Mutually referential headers use one closed two-pass construction protocol. The builder reserves
+each identity in canonical order, resolves generic parameters, member identities, requirements,
+and structural types against those reservations, then defines each slot exactly once. Freezing
+fails if any reservation remains incomplete or if a reference, reciprocal owner edge, member
+position, callable shape, receiver capability, provenance origin, import target, or visibility
+boundary is inconsistent. The immutable program therefore never carries a partially patched
+declaration graph.
+
+Declaration result provenance names either the exact receiver or exact `ParameterId`. Structural
+callable-type provenance remains a separate normalized set of ordinary parameter positions. This
+prevents `from self` from being encoded as a forged explicit-parameter position while keeping
+parameter spellings out of both identities.
+
 `nocter-source-index` is a sibling projection, not a field that defines declaration identity. It
 stores semantic-to-source bindings twice in immutable deterministic orders: once for lookup by
-semantic entity and once for lookup by source coordinate. Contract declarations, separate
+semantic entity and once for lookup by source coordinate. Each origin can select either a complete
+syntax node or an exact syntax-token view, so a declaration name never needs the keyword,
+visibility, whitespace, or body as its editor range. Contract declarations, separate
 implementations, and references remain explicit roles. Structural `TypeId` values are not source
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.

@@ -2,10 +2,14 @@ use std::collections::HashMap;
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, DeclarationSiteId, ModuleId, PackageId, Symbol, SymbolTable, TypeStore,
+    Arena, ArenaBuilder, DeclarationSiteId, ImportId, ModuleId, PackageId, PackageTargetId, Symbol,
+    SymbolTable, TypeStore,
 };
 
-use crate::{ModulePath, Visibility};
+use crate::{
+    DeclarationArenaBuilder, DeclarationArenas, ImportDeclaration, IncompleteDefinition,
+    ModulePath, PackageTarget, ProgramIntegrityError, Visibility,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Package {
@@ -61,6 +65,9 @@ pub struct DeclarationProgram {
     packages: Arena<PackageId, Package>,
     modules: Arena<ModuleId, Module>,
     declaration_sites: Arena<DeclarationSiteId, DeclarationSite>,
+    imports: Arena<ImportId, ImportDeclaration>,
+    package_targets: Arena<PackageTargetId, PackageTarget>,
+    declarations: DeclarationArenas,
     types: TypeStore,
 }
 
@@ -86,6 +93,21 @@ impl DeclarationProgram {
     }
 
     #[must_use]
+    pub const fn imports(&self) -> &Arena<ImportId, ImportDeclaration> {
+        &self.imports
+    }
+
+    #[must_use]
+    pub const fn package_targets(&self) -> &Arena<PackageTargetId, PackageTarget> {
+        &self.package_targets
+    }
+
+    #[must_use]
+    pub const fn declarations(&self) -> &DeclarationArenas {
+        &self.declarations
+    }
+
+    #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
     }
@@ -98,6 +120,9 @@ pub struct DeclarationProgramBuilder {
     modules: ArenaBuilder<ModuleId, Module>,
     module_ids: HashMap<(PackageId, ModulePath), ModuleId>,
     declaration_sites: ArenaBuilder<DeclarationSiteId, DeclarationSite>,
+    imports: ArenaBuilder<ImportId, ImportDeclaration>,
+    package_targets: ArenaBuilder<PackageTargetId, PackageTarget>,
+    declarations: DeclarationArenaBuilder,
     types: TypeStore,
 }
 
@@ -110,6 +135,9 @@ impl DeclarationProgramBuilder {
             modules: ArenaBuilder::new(),
             module_ids: HashMap::new(),
             declaration_sites: ArenaBuilder::new(),
+            imports: ArenaBuilder::new(),
+            package_targets: ArenaBuilder::new(),
+            declarations: DeclarationArenaBuilder::new(),
             types: TypeStore::new(),
         }
     }
@@ -191,14 +219,50 @@ impl DeclarationProgramBuilder {
     }
 
     #[must_use]
-    pub fn finish(self) -> DeclarationProgram {
-        DeclarationProgram {
+    pub const fn declarations_mut(&mut self) -> &mut DeclarationArenaBuilder {
+        &mut self.declarations
+    }
+
+    pub fn add_import(&mut self, import: ImportDeclaration) -> ImportId {
+        self.imports.insert(import)
+    }
+
+    /// Adds a package target after checking that its selected module belongs to that package.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unknown identity, unknown name, or cross-package target module.
+    pub fn add_package_target(
+        &mut self,
+        target: PackageTarget,
+    ) -> Result<PackageTargetId, ProgramBuildError> {
+        self.require_package(target.package())?;
+        self.require_symbol(target.name())?;
+        let module = self.require_module(target.module())?;
+        if module.package != target.package() {
+            return Err(ProgramBuildError::TargetOutsidePackage);
+        }
+        Ok(self.package_targets.insert(target))
+    }
+
+    /// Freezes the complete declaration program.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an identity reservation was not completed.
+    pub fn finish(self) -> Result<DeclarationProgram, ProgramBuildError> {
+        let program = DeclarationProgram {
             symbols: self.symbols,
             packages: self.packages.finish(),
             modules: self.modules.finish(),
             declaration_sites: self.declaration_sites.finish(),
+            imports: self.imports.finish(),
+            package_targets: self.package_targets.finish(),
+            declarations: self.declarations.finish()?,
             types: self.types,
-        }
+        };
+        crate::validate::validate(&program)?;
+        Ok(program)
     }
 
     fn require_symbol(&self, symbol: Symbol) -> Result<(), ProgramBuildError> {
@@ -229,6 +293,9 @@ pub enum ProgramBuildError {
     DuplicateModule(ModuleId),
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
+    TargetOutsidePackage,
+    IncompleteDefinition(IncompleteDefinition),
+    InvalidProgram(ProgramIntegrityError),
 }
 
 impl fmt::Display for ProgramBuildError {
@@ -246,11 +313,28 @@ impl fmt::Display for ProgramBuildError {
             Self::InvalidVisibilityAncestor => {
                 formatter.write_str("descendant visibility boundary is not a module ancestor")
             }
+            Self::TargetOutsidePackage => {
+                formatter.write_str("package target module belongs to another package")
+            }
+            Self::IncompleteDefinition(error) => error.fmt(formatter),
+            Self::InvalidProgram(error) => error.fmt(formatter),
         }
     }
 }
 
 impl std::error::Error for ProgramBuildError {}
+
+impl From<IncompleteDefinition> for ProgramBuildError {
+    fn from(error: IncompleteDefinition) -> Self {
+        Self::IncompleteDefinition(error)
+    }
+}
+
+impl From<ProgramIntegrityError> for ProgramBuildError {
+    fn from(error: ProgramIntegrityError) -> Self {
+        Self::InvalidProgram(error)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -335,7 +419,7 @@ mod tests {
         let site = builder
             .add_declaration_site(root, Visibility::Private)
             .unwrap();
-        let program = builder.finish();
+        let program = builder.finish().unwrap();
 
         assert_eq!(program.packages().len(), 1);
         assert_eq!(program.modules().len(), 1);

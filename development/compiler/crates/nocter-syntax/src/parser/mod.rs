@@ -35,7 +35,7 @@ pub fn parse(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
         ParseGoal::ModuleSource => root::module_source(&mut parser),
     }
     let (events, diagnostics) = parser.finish();
-    let built = build_tree(&events);
+    let built = build_tree(source.id(), &events);
     SyntaxTree::new(lexed, built, diagnostics)
 }
 
@@ -174,6 +174,7 @@ impl<'source> Parser<'source> {
         let lexical = TokenId::new(self.cursor);
         let token = self.tokens[self.cursor];
         self.events.push(Event::Token(SyntaxToken::new(
+            self.source.id(),
             lexical,
             token.kind(),
             token.span().range(),
@@ -198,11 +199,13 @@ impl<'source> Parser<'source> {
         let middle = nocter_source::ByteOffset::new(range.start().get() + 1);
         let lexical = TokenId::new(self.cursor);
         self.events.push(Event::Token(SyntaxToken::new(
+            self.source.id(),
             lexical,
             first,
             TextRange::new(range.start(), middle),
         )));
         self.split = Some(SyntaxToken::new(
+            self.source.id(),
             lexical,
             second,
             TextRange::new(middle, range.end()),

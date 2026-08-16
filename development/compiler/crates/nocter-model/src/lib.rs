@@ -14,7 +14,8 @@ pub use arena::{Arena, ArenaBuilder};
 pub use id::{
     AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstructionId, DeclarationSiteId, DropId,
     FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, ModuleId, NominalTypeId,
-    OpaqueTypeId, PackageId, PackageTargetId, ParameterId, TestId, TypeAliasId, TypeId, VariantId,
+    OpaqueTypeId, PackageId, PackageTargetId, ParameterId, RequirementId, TestId, TypeAliasId,
+    TypeId, VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use symbol::{Symbol, SymbolTable};

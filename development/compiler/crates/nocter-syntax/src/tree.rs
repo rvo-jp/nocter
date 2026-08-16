@@ -159,12 +159,24 @@ pub enum NodeKind {
 /// Nodes and child elements live in flat arenas. This keeps ownership non-recursive even when a
 /// valid source contains a very deep chain of prefix types or expressions.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct NodeId(usize);
+pub struct NodeId {
+    source: SourceId,
+    index: usize,
+}
 
 impl NodeId {
+    const fn new(source: SourceId, index: usize) -> Self {
+        Self { source, index }
+    }
+
+    #[must_use]
+    pub const fn source(self) -> SourceId {
+        self.source
+    }
+
     #[must_use]
     pub const fn index(self) -> usize {
-        self.0
+        self.index
     }
 }
 
@@ -188,18 +200,30 @@ impl TokenId {
 /// generic `>>` closer produce two non-overlapping syntax tokens with the same lexical identity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SyntaxToken {
+    source: SourceId,
     lexical: TokenId,
     kind: TokenKind,
     range: TextRange,
 }
 
 impl SyntaxToken {
-    pub(crate) const fn new(lexical: TokenId, kind: TokenKind, range: TextRange) -> Self {
+    pub(crate) const fn new(
+        source: SourceId,
+        lexical: TokenId,
+        kind: TokenKind,
+        range: TextRange,
+    ) -> Self {
         Self {
+            source,
             lexical,
             kind,
             range,
         }
+    }
+
+    #[must_use]
+    pub const fn source(self) -> SourceId {
+        self.source
     }
 
     #[must_use]
@@ -304,11 +328,20 @@ impl SyntaxTree {
 
     #[must_use]
     pub fn node(&self, id: NodeId) -> Option<&SyntaxNode> {
+        if id.source() != self.source() {
+            return None;
+        }
         self.nodes.get(id.index())
     }
 
     #[must_use]
+    /// Returns the child slice for a node in this tree.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `id` belongs to another syntax tree or is not present in this tree.
     pub fn children(&self, id: NodeId) -> &[SyntaxElement] {
+        assert_eq!(id.source(), self.source(), "node belongs to another tree");
         let node = &self.nodes[id.index()];
         &self.elements[node.first_child..node.first_child + node.child_count]
     }
@@ -356,7 +389,7 @@ pub(crate) struct BuiltTree {
     root: NodeId,
 }
 
-pub(crate) fn build_tree(events: &[Event]) -> BuiltTree {
+pub(crate) fn build_tree(source: SourceId, events: &[Event]) -> BuiltTree {
     struct Frame {
         kind: NodeKind,
         offset: ByteOffset,
@@ -428,7 +461,7 @@ pub(crate) fn build_tree(events: &[Event]) -> BuiltTree {
                 let first_child = elements.len();
                 let child_count = frame.children.len();
                 elements.extend(frame.children);
-                let id = NodeId(nodes.len());
+                let id = NodeId::new(source, nodes.len());
                 let node = SyntaxNode {
                     kind: frame.kind,
                     range,

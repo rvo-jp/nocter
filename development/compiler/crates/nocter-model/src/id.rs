@@ -50,6 +50,7 @@ semantic_ids! {
     VariantId,
     GenericParameterId,
     ParameterId,
+    RequirementId,
     BodyId,
     OpaqueTypeId,
     TypeId,

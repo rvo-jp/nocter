@@ -145,6 +145,7 @@ fn entity_sort_key(
     SourceId,
     ByteOffset,
     ByteOffset,
+    u8,
     usize,
 ) {
     (
@@ -153,7 +154,8 @@ fn entity_sort_key(
         binding.origin.source(),
         binding.origin.span().range().start(),
         binding.origin.span().range().end(),
-        binding.origin.node().index(),
+        binding.origin.syntax().sort_key().0,
+        binding.origin.syntax().sort_key().1,
     )
 }
 
@@ -165,6 +167,7 @@ fn source_sort_key(
     ByteOffset,
     SourceRole,
     SemanticEntity,
+    u8,
     usize,
 ) {
     (
@@ -173,7 +176,8 @@ fn source_sort_key(
         binding.origin.span().range().end(),
         binding.role,
         binding.entity,
-        binding.origin.node().index(),
+        binding.origin.syntax().sort_key().0,
+        binding.origin.syntax().sort_key().1,
     )
 }
 
@@ -208,8 +212,8 @@ impl std::error::Error for DuplicateSourceBinding {}
 mod tests {
     use nocter_declarations::{DeclarationProgramBuilder, ModulePath, Visibility};
     use nocter_model::{DeclarationSiteId, ModuleId, Symbol, SymbolTable};
-    use nocter_source::{ByteOffset, SourceMap, SourceName};
-    use nocter_syntax::{ParseGoal, parse};
+    use nocter_source::{ByteOffset, SourceFile, SourceMap, SourceName};
+    use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxToken, SyntaxTree, parse};
 
     use super::{SourceIndexBuilder, SourceRole};
     use crate::{SemanticEntity, SourceOrigin};
@@ -227,20 +231,22 @@ mod tests {
         assert!(!tree.has_errors());
 
         let (module, site) = declaration_ids();
-        let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
+        let name = find_token(&tree, sources.get(source).unwrap(), "main");
+        let declaration_origin = SourceOrigin::from_token(&tree, name).unwrap();
+        let module_origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut builder = SourceIndexBuilder::new();
         builder
             .insert(
                 SemanticEntity::DeclarationSite(site),
                 SourceRole::Declaration,
-                origin,
+                declaration_origin,
             )
             .unwrap();
         builder
             .insert(
                 SemanticEntity::Module(module),
                 SourceRole::Implementation,
-                origin,
+                module_origin,
             )
             .unwrap();
         let index = builder.finish();
@@ -251,7 +257,8 @@ mod tests {
                 .len(),
             1
         );
-        assert_eq!(index.bindings_at(source, ByteOffset::new(1)).count(), 2);
+        assert_eq!(index.bindings_at(source, ByteOffset::new(1)).count(), 1);
+        assert_eq!(index.bindings_at(source, ByteOffset::new(6)).count(), 2);
         assert_eq!(index.bindings_at(source, ByteOffset::new(31)).count(), 0);
     }
 
@@ -283,6 +290,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn syntax_origins_cannot_cross_source_trees() {
+        let mut sources = SourceMap::new();
+        let first = sources
+            .add_bytes(
+                SourceName::new("first.nct"),
+                b"func main(): void { return }\n",
+            )
+            .unwrap();
+        let second = sources
+            .add_bytes(
+                SourceName::new("second.nct"),
+                b"func main(): void { return }\n",
+            )
+            .unwrap();
+        let first_tree = parse(sources.get(first).unwrap(), ParseGoal::ModuleSource);
+        let second_tree = parse(sources.get(second).unwrap(), ParseGoal::ModuleSource);
+        let first_name = find_token(&first_tree, sources.get(first).unwrap(), "main");
+
+        assert!(SourceOrigin::from_node(&second_tree, first_tree.root_id()).is_err());
+        assert!(SourceOrigin::from_token(&second_tree, first_name).is_err());
+    }
+
     fn declaration_ids() -> (ModuleId, DeclarationSiteId) {
         let symbols = SymbolTable::from_spellings(["app"]);
         let app_name = symbols.get("app").unwrap();
@@ -299,7 +329,25 @@ mod tests {
         let site = builder
             .add_declaration_site(module, Visibility::Private)
             .unwrap();
-        let _program = builder.finish();
+        let _program = builder.finish().unwrap();
         (module, site)
+    }
+
+    fn find_token(tree: &SyntaxTree, source: &SourceFile, spelling: &str) -> SyntaxToken {
+        let mut pending = vec![tree.root_id()];
+        while let Some(node) = pending.pop() {
+            for child in tree.children(node) {
+                match child {
+                    SyntaxElement::Node(child) => pending.push(*child),
+                    SyntaxElement::Token(token)
+                        if source.text_at(token.range()) == Some(spelling) =>
+                    {
+                        return *token;
+                    }
+                    SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
+                }
+            }
+        }
+        panic!("expected token {spelling}");
     }
 }

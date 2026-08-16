@@ -53,19 +53,21 @@ be introduced to make an unresolved syntax choice.
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
   keys.
 - `nocter-declarations` owns the immutable declaration-program spine: exact package-and-module
-  identities, normalized visibility boundaries, authored declaration sites, and the compile-unit
-  type store. It depends only on `nocter-model`.
+  identities, normalized visibility boundaries, package targets, imports, every declaration and
+  member domain, generic requirements, bodies, opaque results, and the compile-unit type store. A
+  two-pass reservation builder supports recursive headers, then validates every reference and
+  owner edge before freezing. It depends only on `nocter-model`.
 - `nocter-source-index` owns the separate immutable projection between semantic entities and exact
-  syntax origins. It indexes the same bindings independently by semantic identity and by source
-  coordinate; semantic stages do not depend on it.
+  syntax-node or syntax-token origins. It indexes the same bindings independently by semantic
+  identity and by source coordinate; semantic stages do not depend on it.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 lowering boundary will populate the declaration arenas and source index together,
-then discard its mutable builders. No crate yet owns declaration header resolution or checked body
-semantics.
+The next Phase 2 lowering boundary will reserve identities in canonical order, resolve headers,
+populate the declaration arenas and source index together, and discard all mutable builders. No
+crate yet owns syntax-to-declaration lowering or checked body semantics.
 
 ## Verification
 
