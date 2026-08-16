@@ -297,6 +297,11 @@ impl DeclarationArenaBuilder {
         self.parameters.insert(value)
     }
 
+    #[must_use]
+    pub fn parameter(&self, id: ParameterId) -> Option<Parameter> {
+        self.parameters.get(id).copied()
+    }
+
     pub fn add_requirement(&mut self, value: Requirement) -> RequirementId {
         self.requirements.insert(value)
     }

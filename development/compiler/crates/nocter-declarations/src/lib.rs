@@ -12,6 +12,7 @@ mod import;
 mod path;
 mod program;
 mod requirement;
+mod standard;
 mod target;
 mod validate;
 mod visibility;
@@ -41,6 +42,7 @@ pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,
     StructuralCapability,
 };
+pub use standard::{BuiltinAttachment, StandardLibrary};
 pub use target::{PackageTarget, PackageTargetKind};
 pub use validate::{DeclarationDomain, ProgramIntegrityError};
 pub use visibility::Visibility;

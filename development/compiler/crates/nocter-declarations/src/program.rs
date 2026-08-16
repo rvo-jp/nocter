@@ -7,8 +7,9 @@ use nocter_model::{
 };
 
 use crate::{
-    DeclarationArenaBuilder, DeclarationArenas, ImportDeclaration, IncompleteDefinition,
-    ModulePath, PackageTarget, ProgramIntegrityError, Visibility,
+    BuiltinAttachment, DeclarationArenaBuilder, DeclarationArenas, ImportDeclaration,
+    IncompleteDefinition, ModulePath, PackageTarget, ProgramIntegrityError, StandardLibrary,
+    Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,6 +64,7 @@ impl DeclarationSite {
 pub struct DeclarationProgram {
     symbols: SymbolTable,
     packages: Arena<PackageId, Package>,
+    standard_library: Option<StandardLibrary>,
     modules: Arena<ModuleId, Module>,
     declaration_sites: Arena<DeclarationSiteId, DeclarationSite>,
     imports: Arena<ImportId, ImportDeclaration>,
@@ -80,6 +82,23 @@ impl DeclarationProgram {
     #[must_use]
     pub const fn packages(&self) -> &Arena<PackageId, Package> {
         &self.packages
+    }
+
+    /// Returns the exact package selected to provide compiler-owned standard declarations.
+    ///
+    /// Standalone declaration graphs may omit a standard package. Built-in attachments and
+    /// primitive declarations are invalid unless this identity is present.
+    #[must_use]
+    pub const fn standard_package(&self) -> Option<PackageId> {
+        match &self.standard_library {
+            Some(standard) => Some(standard.package()),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn standard_library(&self) -> Option<&StandardLibrary> {
+        self.standard_library.as_ref()
     }
 
     #[must_use]
@@ -117,6 +136,7 @@ impl DeclarationProgram {
 pub struct DeclarationProgramBuilder {
     symbols: SymbolTable,
     packages: ArenaBuilder<PackageId, Package>,
+    standard_library: Option<StandardLibrary>,
     modules: ArenaBuilder<ModuleId, Module>,
     module_ids: HashMap<(PackageId, ModulePath), ModuleId>,
     declaration_sites: ArenaBuilder<DeclarationSiteId, DeclarationSite>,
@@ -132,6 +152,7 @@ impl DeclarationProgramBuilder {
         Self {
             symbols,
             packages: ArenaBuilder::new(),
+            standard_library: None,
             modules: ArenaBuilder::new(),
             module_ids: HashMap::new(),
             declaration_sites: ArenaBuilder::new(),
@@ -159,6 +180,51 @@ impl DeclarationProgramBuilder {
     pub fn add_package(&mut self, display_name: Symbol) -> Result<PackageId, ProgramBuildError> {
         self.require_symbol(display_name)?;
         Ok(self.packages.insert(Package { display_name }))
+    }
+
+    /// Records the exact package selected by compilation setup as the standard library.
+    ///
+    /// This semantic identity is stored in the immutable program so later validation never has to
+    /// infer compiler authority from a package display name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unknown package or an attempt to select a different standard
+    /// package after one has already been recorded.
+    pub fn set_standard_package(&mut self, package: PackageId) -> Result<(), ProgramBuildError> {
+        self.require_package(package)?;
+        match &self.standard_library {
+            None => {
+                self.standard_library = Some(StandardLibrary::new(package));
+                Ok(())
+            }
+            Some(existing) if existing.package() == package => Ok(()),
+            Some(_) => Err(ProgramBuildError::ConflictingStandardPackage),
+        }
+    }
+
+    /// Grants one built-in surface to an exact module selected by compilation setup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no standard package is selected, the module is unknown or outside the
+    /// selected package, or a different module already owns this surface.
+    pub fn set_builtin_attachment_module(
+        &mut self,
+        attachment: BuiltinAttachment,
+        module: ModuleId,
+    ) -> Result<(), ProgramBuildError> {
+        let module_package = self.require_module(module)?.package();
+        let standard = self
+            .standard_library
+            .as_mut()
+            .ok_or(ProgramBuildError::StandardPackageNotSelected)?;
+        if module_package != standard.package() {
+            return Err(ProgramBuildError::StandardModuleOutsidePackage);
+        }
+        standard
+            .set_attachment_module(attachment, module)
+            .map_err(|_| ProgramBuildError::ConflictingStandardModule(attachment))
     }
 
     /// Adds one normalized module identity.
@@ -233,6 +299,16 @@ impl DeclarationProgramBuilder {
         &mut self.declarations
     }
 
+    #[must_use]
+    pub const fn declarations(&self) -> &DeclarationArenaBuilder {
+        &self.declarations
+    }
+
+    #[must_use]
+    pub fn module_package(&self, module: ModuleId) -> Option<PackageId> {
+        self.modules.get(module).map(Module::package)
+    }
+
     pub fn add_import(&mut self, import: ImportDeclaration) -> ImportId {
         self.imports.insert(import)
     }
@@ -264,6 +340,7 @@ impl DeclarationProgramBuilder {
         let program = DeclarationProgram {
             symbols: self.symbols,
             packages: self.packages.finish(),
+            standard_library: self.standard_library,
             modules: self.modules.finish(),
             declaration_sites: self.declaration_sites.finish(),
             imports: self.imports.finish(),
@@ -301,6 +378,10 @@ pub enum ProgramBuildError {
     UnknownPackage,
     UnknownModule,
     DuplicateModule(ModuleId),
+    ConflictingStandardPackage,
+    StandardPackageNotSelected,
+    StandardModuleOutsidePackage,
+    ConflictingStandardModule(BuiltinAttachment),
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
@@ -316,6 +397,21 @@ impl fmt::Display for ProgramBuildError {
             Self::UnknownModule => formatter.write_str("module is not part of the program"),
             Self::DuplicateModule(existing) => {
                 write!(formatter, "module identity duplicates {existing:?}")
+            }
+            Self::ConflictingStandardPackage => {
+                formatter.write_str("a different standard package is already selected")
+            }
+            Self::StandardPackageNotSelected => {
+                formatter.write_str("the standard package has not been selected")
+            }
+            Self::StandardModuleOutsidePackage => {
+                formatter.write_str("standard built-in module belongs to another package")
+            }
+            Self::ConflictingStandardModule(attachment) => {
+                write!(
+                    formatter,
+                    "a different module already owns the {attachment:?} built-in surface"
+                )
             }
             Self::VisibilityOutsidePackage => {
                 formatter.write_str("package visibility names another package")

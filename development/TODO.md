@@ -2,20 +2,23 @@
 
 ## Current Task
 
-Begin v0.14.0 Phase 2 from the completed source/syntax boundary. The previous compiler is preserved
-by commit `f6c08da3` and removed from the active working tree. No previous source, test, binary
-behavior, or implementation document may be used as an implementation input.
+Complete the source-backed semantic diagnostic boundary for v0.14.0 Phase 2. The previous compiler
+is preserved by commit `f6c08da3` and removed from the active working tree. No previous source,
+test, binary behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Define declaration headers, associated declarations, callable provenance, and generic
-   requirements from the completed canonical type graph, then freeze the declaration program and
-   separate `SourceIndex`. Generic alias substitution, recursive-alias rejection, canonical
-   `Self`, exact associated identities, normalized declaration patterns/capabilities/requirements,
-   callable-type origin elision, opaque result identities/interfaces/associated bindings, every
-   specialized callable result shape, and non-recursive 5,000-layer type lowering are complete.
-2. Record semantic-boundary diagnostics independently from syntax recovery and add ordering-
-   permutation tests for the complete lowering result.
+1. Give every declaration-boundary failure one stable semantic diagnostic subject and exact source
+   projection. Graph integrity validation must remain the single rule authority; lowering must not
+   recreate attachment, conformance, construction, or declaration-shape rules to recover a span.
+2. Derive declaration diagnostic cases from G001-G018 semantic-boundary fixtures and verify that
+   input ordering cannot change the selected error, semantic subject, or source range.
+
+Complete foundations: the lowering boundary now defines every reserved declaration, member,
+parameter, requirement, body, and opaque-result identity from the normalized type graph; separates
+authored and inferred callable provenance; projects contract and implementation sources onto shared
+semantic identities; records exact standard-package and built-in attachment authority; validates
+the frozen graph; and returns only an immutable `DeclarationProgram` plus `SourceIndex`.
 
 ## Guardrails
 

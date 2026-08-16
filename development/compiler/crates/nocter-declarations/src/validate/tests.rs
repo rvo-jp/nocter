@@ -1,11 +1,12 @@
 use nocter_model::{BuiltinType, CallableCapability, SymbolTable, TypeKind};
 
 use crate::{
-    Body, BodyOwner, CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
-    CallableProvenanceContract, DeclarationDomain, DeclarationProgramBuilder, FieldDeclaration,
-    GenericOwner, GenericParameter, InstanceDeclaration, ModulePath, NominalShape,
-    NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole, ProgramBuildError,
-    ProgramIntegrityError, ProvenanceOrigin, Visibility,
+    Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
+    CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
+    DeclarationProgramBuilder, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
+    InstanceDeclaration, ModulePath, NominalShape, NominalTypeDeclaration, Parameter,
+    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError, ProvenanceOrigin,
+    VariantDeclaration, Visibility,
 };
 
 #[test]
@@ -111,6 +112,43 @@ fn orphaned_members_cannot_enter_the_immutable_program() {
 }
 
 #[test]
+fn empty_enums_cannot_enter_the_immutable_program() {
+    let symbols = SymbolTable::from_spellings(["app", "Empty"]);
+    let app_name = symbols.get("app").unwrap();
+    let empty_name = symbols.get("Empty").unwrap();
+    let mut program = DeclarationProgramBuilder::new(symbols);
+    let package = program.add_package(app_name).unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    let site = program
+        .add_declaration_site(module, Visibility::Private)
+        .unwrap();
+    let nominal = program.declarations_mut().reserve_nominal_type();
+    program
+        .declarations_mut()
+        .define_nominal_type(
+            nominal,
+            NominalTypeDeclaration::new(
+                site,
+                empty_name,
+                [],
+                [],
+                NominalShape::Enum {
+                    variants: Box::new([]),
+                },
+                None,
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
+            DeclarationDomain::NominalType,
+        ))
+    );
+}
+
+#[test]
 fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position() {
     let symbols = SymbolTable::from_spellings(["app", "Buffer", "self", "view"]);
     let app_name = symbols.get("app").unwrap();
@@ -191,4 +229,198 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
         .unwrap();
 
     assert!(program.finish().is_ok());
+}
+
+#[test]
+fn builtin_attachment_authority_uses_exact_selected_module_identity() {
+    let build = |attach_from_standard_module: bool| {
+        let symbols = SymbolTable::from_spellings(["app", "std", "str"]);
+        let app_name = symbols.get("app").unwrap();
+        let standard_name = symbols.get("std").unwrap();
+        let str_name = symbols.get("str").unwrap();
+        let mut program = DeclarationProgramBuilder::new(symbols);
+        let app = program.add_package(app_name).unwrap();
+        let standard = program.add_package(standard_name).unwrap();
+        let app_str = program
+            .add_module(app, ModulePath::from_segments([str_name]))
+            .unwrap();
+        let standard_str = program
+            .add_module(standard, ModulePath::from_segments([str_name]))
+            .unwrap();
+        program.set_standard_package(standard).unwrap();
+        program
+            .set_builtin_attachment_module(BuiltinAttachment::Str, standard_str)
+            .unwrap();
+        let owner = if attach_from_standard_module {
+            standard_str
+        } else {
+            app_str
+        };
+        let site = program
+            .add_declaration_site(owner, Visibility::Private)
+            .unwrap();
+        let target = program.types().builtin(BuiltinType::Str);
+        let instance = program.declarations_mut().reserve_instance();
+        program
+            .declarations_mut()
+            .define_instance(instance, InstanceDeclaration::new(site, target, [], [], []))
+            .unwrap();
+        program.finish()
+    };
+
+    assert!(build(true).is_ok());
+    assert_eq!(
+        build(false).unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
+            DeclarationDomain::Instance,
+        ))
+    );
+}
+
+#[test]
+fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
+    let symbols = SymbolTable::from_spellings(["app", "Box", "T", "U"]);
+    let app_name = symbols.get("app").unwrap();
+    let box_name = symbols.get("Box").unwrap();
+    let t_name = symbols.get("T").unwrap();
+    let u_name = symbols.get("U").unwrap();
+    let mut program = DeclarationProgramBuilder::new(symbols);
+    let package = program.add_package(app_name).unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    let site = program
+        .add_declaration_site(module, Visibility::Private)
+        .unwrap();
+    let nominal = program.declarations_mut().reserve_nominal_type();
+    let nominal_parameter =
+        program
+            .declarations_mut()
+            .add_generic_parameter(GenericParameter::new(
+                GenericOwner::NominalType(nominal),
+                t_name,
+                0,
+            ));
+    program
+        .declarations_mut()
+        .define_nominal_type(
+            nominal,
+            NominalTypeDeclaration::new(
+                site,
+                box_name,
+                [nominal_parameter],
+                [],
+                NominalShape::Struct {
+                    copy_declared: false,
+                    fields: Box::new([]),
+                },
+                None,
+            ),
+        )
+        .unwrap();
+
+    for name in [t_name, u_name] {
+        let construction = program.declarations_mut().reserve_construction();
+        let parameter = program
+            .declarations_mut()
+            .add_generic_parameter(GenericParameter::new(
+                GenericOwner::Construction(construction),
+                name,
+                0,
+            ));
+        let argument = program
+            .types_mut()
+            .intern(TypeKind::GenericParameter(parameter))
+            .unwrap();
+        let target = program
+            .types_mut()
+            .intern(TypeKind::Nominal {
+                definition: nominal,
+                arguments: Box::new([argument]),
+            })
+            .unwrap();
+        program
+            .declarations_mut()
+            .define_construction(
+                construction,
+                ConstructionDeclaration::new(site, target, [parameter], [], None),
+            )
+            .unwrap();
+    }
+
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramIntegrityError::DuplicateReference(
+            DeclarationDomain::Construction,
+        ))
+    );
+}
+
+#[test]
+fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
+    for nominal_shape in [0_u8, 1_u8] {
+        let symbols = SymbolTable::from_spellings(["app", "Value", "empty", "self"]);
+        let app_name = symbols.get("app").unwrap();
+        let value_name = symbols.get("Value").unwrap();
+        let empty_name = symbols.get("empty").unwrap();
+        let self_name = symbols.get("self").unwrap();
+        let mut program = DeclarationProgramBuilder::new(symbols);
+        let package = program.add_package(app_name).unwrap();
+        let module = program.add_module(package, ModulePath::root()).unwrap();
+        let site = program
+            .add_declaration_site(module, Visibility::Private)
+            .unwrap();
+        let nominal = program.declarations_mut().reserve_nominal_type();
+        let target = program
+            .types_mut()
+            .intern(TypeKind::Nominal {
+                definition: nominal,
+                arguments: Box::new([]),
+            })
+            .unwrap();
+        let shape = if nominal_shape == 0 {
+            NominalShape::Struct {
+                copy_declared: true,
+                fields: Box::new([]),
+            }
+        } else {
+            let variant = program.declarations_mut().reserve_variant();
+            program
+                .declarations_mut()
+                .define_variant(
+                    variant,
+                    VariantDeclaration::new(site, nominal, empty_name, []),
+                )
+                .unwrap();
+            NominalShape::Enum {
+                variants: Box::new([variant]),
+            }
+        };
+        program
+            .declarations_mut()
+            .define_nominal_type(
+                nominal,
+                NominalTypeDeclaration::new(site, value_name, [], [], shape, None),
+            )
+            .unwrap();
+        let drop = program.declarations_mut().reserve_drop();
+        let receiver = program.declarations_mut().add_parameter(Parameter::new(
+            ParameterOwner::Drop(drop),
+            self_name,
+            target,
+            ParameterRole::Receiver(CallableCapability::ReadWrite),
+        ));
+        let body = program
+            .declarations_mut()
+            .add_body(Body::new(BodyOwner::Drop(drop)));
+        program
+            .declarations_mut()
+            .define_drop(drop, DropDeclaration::new(site, target, [], receiver, body))
+            .unwrap();
+
+        assert_eq!(
+            program.finish().unwrap_err(),
+            ProgramBuildError::InvalidProgram(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::Drop,
+            ))
+        );
+    }
 }

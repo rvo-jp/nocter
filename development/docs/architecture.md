@@ -199,6 +199,22 @@ The compile-unit type store interns structural types. Its keys contain typed sem
 normalized constants, never rendered names, source text, or byte positions. `TypeExpr` belongs to
 syntax lowering and presentation; it does not cross into checked semantics.
 
+Header definition consumes the normalized roots and the temporary surface inventory exactly once.
+It allocates fields, parameters, receivers, requirements, and bodies in canonical order, then
+defines every reserved nominal, alias, interface, associated type, callable, construction,
+instance, conformance, drop, test, variant, and opaque-result slot. A joined public contract and
+private implementation share callable and parameter identities; their declaration and
+implementation projections remain distinct in `SourceIndex`. Authored result-provenance clauses
+are stored as declarations, while elided body-owned provenance remains explicitly inferred rather
+than being guessed from a header.
+
+Compilation setup resolves the selected standard package and each compiler-owned built-in surface
+to exact package and module IDs. The immutable declaration program stores those authorities.
+Freeze-time attachment validation compares IDs, never a package display name or textual `std`
+path. The same validator owns empty-enum, construction-result, unique construction-family, drop,
+opaque-result, associated-binding, and owner-site invariants; lowering does not maintain a second
+semantic prevalidation table.
+
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual
 payload is `void` or any outcome whose eventual payload is `never`, cannot enter checked bodies,

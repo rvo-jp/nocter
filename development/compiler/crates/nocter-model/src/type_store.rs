@@ -213,6 +213,41 @@ impl TypeStore {
         self.builtins[builtin.index()]
     }
 
+    /// Reports whether a value of this type can retain a storage origin.
+    ///
+    /// This conservative structural property does not inspect declaration bodies or allocation.
+    #[must_use]
+    pub fn may_carry_storage(&self, root: TypeId) -> bool {
+        let mut pending = vec![root];
+        let mut visited = std::collections::HashSet::new();
+        while let Some(ty) = pending.pop() {
+            if !visited.insert(ty) {
+                continue;
+            }
+            match self.get(ty) {
+                Some(
+                    TypeKind::Builtin(BuiltinType::Str | BuiltinType::Error)
+                    | TypeKind::GenericParameter(_)
+                    | TypeKind::InterfaceSelf(_)
+                    | TypeKind::Nominal { .. }
+                    | TypeKind::AssociatedProjection { .. }
+                    | TypeKind::Opaque { .. }
+                    | TypeKind::Pointer(_)
+                    | TypeKind::Borrow { .. }
+                    | TypeKind::Slice(_)
+                    | TypeKind::Callable(_),
+                ) => return true,
+                Some(
+                    TypeKind::FixedArray { element, .. }
+                    | TypeKind::Optional(element)
+                    | TypeKind::Fallible(element),
+                ) => pending.push(*element),
+                Some(TypeKind::Builtin(_)) | None => {}
+            }
+        }
+        false
+    }
+
     /// Interns one structural type after checking its referenced type IDs.
     ///
     /// # Errors

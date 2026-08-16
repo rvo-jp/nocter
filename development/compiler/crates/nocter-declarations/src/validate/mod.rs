@@ -1,17 +1,16 @@
-use std::fmt;
-use std::{collections::HashSet, hash::Hash};
+use std::{collections::HashSet, fmt, hash::Hash};
 
-use nocter_model::{
-    CallableCapability, CallableId, GenericParameterId, ModuleId, RequirementId, Symbol, TypeId,
-};
+use nocter_model::{CallableCapability, GenericParameterId, ModuleId, Symbol, TypeId};
 
 use crate::{
-    AssociatedTypeBinding, BodyOwner, CallableKind, CallableOwner, DeclarationProgram,
-    GenericOwner, ParameterOwner, ParameterRole, ProvenanceOrigin, RequirementKind,
-    RequirementOwner, RequirementSubject, StructuralCapability, Visibility,
+    BodyOwner, CallableKind, CallableOwner, DeclarationProgram, GenericOwner, ParameterOwner,
+    ParameterRole, Visibility,
 };
 
+mod attachments;
+mod callables;
 mod graph;
+mod requirements;
 mod types;
 
 #[cfg(test)]
@@ -55,6 +54,7 @@ pub enum ProgramIntegrityError {
     OwnerMismatch(DeclarationDomain),
     DuplicateReference(DeclarationDomain),
     InvalidPosition(DeclarationDomain),
+    InvalidDeclarationShape(DeclarationDomain),
     InvalidCallableShape,
     InvalidVisibility(DeclarationDomain),
     EmptyImportSelection,
@@ -80,6 +80,9 @@ impl fmt::Display for ProgramIntegrityError {
             Self::InvalidPosition(domain) => {
                 write!(formatter, "{domain:?} has a non-canonical position")
             }
+            Self::InvalidDeclarationShape(domain) => {
+                write!(formatter, "{domain:?} has an invalid declaration shape")
+            }
             Self::InvalidCallableShape => {
                 formatter.write_str("callable kind, owner, name, receiver, or body is inconsistent")
             }
@@ -103,195 +106,17 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
     graph::validate_packages_modules_sites(program)?;
     types::validate_nominal_types(program)?;
     types::validate_aliases_interfaces(program)?;
-    validate_callables(program)?;
+    callables::validate(program)?;
     validate_constructions_instances_conformances(program)?;
     validate_drops_tests(program)?;
+    attachments::validate(program)?;
     validate_generic_parameters(program)?;
     validate_parameters(program)?;
-    validate_requirements(program)?;
+    requirements::validate(program)?;
     validate_bodies(program)?;
     validate_opaque_types(program)?;
     graph::validate_imports(program)?;
     graph::validate_package_targets(program)
-}
-
-fn validate_callables(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    let declarations = program.declarations();
-    for (id, callable) in declarations.callables().iter() {
-        require_site(program, callable.site(), DeclarationDomain::Callable)?;
-        require_optional_symbol(program, callable.name(), DeclarationDomain::Callable)?;
-        require_optional_symbol(program, callable.target_gate(), DeclarationDomain::Callable)?;
-        require_type(program, callable.result(), DeclarationDomain::Callable)?;
-        unique(callable.generic_parameters(), DeclarationDomain::Callable)?;
-        unique(callable.parameters(), DeclarationDomain::Callable)?;
-        unique(callable.requirements(), DeclarationDomain::Callable)?;
-        validate_callable_shape(callable)?;
-        validate_callable_owner(program, id, callable.owner())?;
-        if let Some(receiver) = callable.receiver() {
-            let parameter = require(
-                declarations.parameters().get(receiver),
-                DeclarationDomain::Callable,
-                DeclarationDomain::Parameter,
-            )?;
-            if parameter.owner() != ParameterOwner::Callable(id)
-                || !matches!(parameter.role(), ParameterRole::Receiver(_))
-            {
-                return Err(ProgramIntegrityError::OwnerMismatch(
-                    DeclarationDomain::Parameter,
-                ));
-            }
-        }
-        for origin in callable
-            .provenance()
-            .declared_origins()
-            .into_iter()
-            .flatten()
-        {
-            match origin {
-                ProvenanceOrigin::Receiver if callable.receiver().is_none() => {
-                    return Err(ProgramIntegrityError::InvalidCallableShape);
-                }
-                ProvenanceOrigin::Parameter(parameter)
-                    if !callable.parameters().contains(parameter) =>
-                {
-                    return Err(ProgramIntegrityError::OwnerMismatch(
-                        DeclarationDomain::Parameter,
-                    ));
-                }
-                ProvenanceOrigin::Receiver | ProvenanceOrigin::Parameter(_) => {}
-            }
-        }
-        let variadic_count = callable
-            .parameters()
-            .iter()
-            .filter(|parameter| {
-                matches!(
-                    declarations
-                        .parameters()
-                        .get(**parameter)
-                        .copied()
-                        .map(crate::Parameter::role),
-                    Some(ParameterRole::Ordinary { variadic: true, .. })
-                )
-            })
-            .count();
-        let valid_variadic = match callable.kind() {
-            CallableKind::Literal(crate::LiteralShape::Sequence) => {
-                callable.parameters().len() == 1 && variadic_count == 1
-            }
-            _ => variadic_count == 0,
-        };
-        if !valid_variadic {
-            return Err(ProgramIntegrityError::InvalidCallableShape);
-        }
-        if let Some(body) = callable.body() {
-            let body = require(
-                declarations.bodies().get(body),
-                DeclarationDomain::Callable,
-                DeclarationDomain::Body,
-            )?;
-            if body.owner() != BodyOwner::Callable(id) {
-                return Err(ProgramIntegrityError::OwnerMismatch(
-                    DeclarationDomain::Body,
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_callable_shape(
-    callable: &crate::CallableDeclaration,
-) -> Result<(), ProgramIntegrityError> {
-    let named = matches!(
-        callable.kind(),
-        CallableKind::Function
-            | CallableKind::Primitive
-            | CallableKind::Method
-            | CallableKind::ConstructionFunction
-    );
-    let receiver = matches!(
-        callable.kind(),
-        CallableKind::Method
-            | CallableKind::Coercion
-            | CallableKind::Equality
-            | CallableKind::Ordering
-            | CallableKind::Index
-            | CallableKind::Expansion
-    );
-    let kind_matches_owner = match callable.owner() {
-        CallableOwner::Module(_) => {
-            matches!(
-                callable.kind(),
-                CallableKind::Function | CallableKind::Primitive
-            )
-        }
-        CallableOwner::Construction(_) => matches!(
-            callable.kind(),
-            CallableKind::ConstructionFunction | CallableKind::Literal(_)
-        ),
-        CallableOwner::Instance(_) => matches!(
-            callable.kind(),
-            CallableKind::Method
-                | CallableKind::Coercion
-                | CallableKind::Equality
-                | CallableKind::Ordering
-                | CallableKind::Index
-                | CallableKind::Expansion
-        ),
-        CallableOwner::Interface(_) | CallableOwner::Conformance(_) => {
-            callable.kind() == CallableKind::Method
-        }
-    };
-    let target_gate_allowed = callable.target_gate().is_none()
-        || matches!(callable.owner(), CallableOwner::Module(_))
-            && matches!(
-                callable.kind(),
-                CallableKind::Function | CallableKind::Primitive
-            );
-    let primitive_body = callable.kind() != CallableKind::Primitive || callable.body().is_none();
-    if named != callable.name().is_some()
-        || receiver != callable.receiver().is_some()
-        || !kind_matches_owner
-        || !target_gate_allowed
-        || !primitive_body
-    {
-        return Err(ProgramIntegrityError::InvalidCallableShape);
-    }
-    Ok(())
-}
-
-fn validate_callable_owner(
-    program: &DeclarationProgram,
-    callable: CallableId,
-    owner: CallableOwner,
-) -> Result<(), ProgramIntegrityError> {
-    let declarations = program.declarations();
-    let contains = match owner {
-        CallableOwner::Module(module) => program.modules().get(module).is_some(),
-        CallableOwner::Construction(owner) => declarations
-            .constructions()
-            .get(owner)
-            .is_some_and(|owner| owner.members().contains(&callable)),
-        CallableOwner::Instance(owner) => declarations
-            .instances()
-            .get(owner)
-            .is_some_and(|owner| owner.members().contains(&callable)),
-        CallableOwner::Interface(owner) => declarations
-            .interfaces()
-            .get(owner)
-            .is_some_and(|owner| owner.methods().contains(&callable)),
-        CallableOwner::Conformance(owner) => declarations
-            .conformances()
-            .get(owner)
-            .is_some_and(|owner| owner.methods().contains(&callable)),
-    };
-    if !contains {
-        return Err(ProgramIntegrityError::OwnerMismatch(
-            DeclarationDomain::Callable,
-        ));
-    }
-    Ok(())
 }
 
 fn validate_constructions_instances_conformances(
@@ -356,7 +181,7 @@ fn validate_constructions_instances_conformances(
     }
     for (id, conformance) in declarations.conformances().iter() {
         require_site(program, conformance.site(), DeclarationDomain::Conformance)?;
-        validate_interface_application(
+        requirements::validate_interface_application(
             program,
             conformance.interface(),
             DeclarationDomain::Conformance,
@@ -372,12 +197,7 @@ fn validate_constructions_instances_conformances(
         )?;
         unique(conformance.requirements(), DeclarationDomain::Conformance)?;
         unique(conformance.methods(), DeclarationDomain::Conformance)?;
-        validate_associated_bindings(
-            program,
-            conformance.associated_types(),
-            conformance.interface().interface(),
-            DeclarationDomain::Conformance,
-        )?;
+        validate_complete_conformance(program, conformance)?;
         for method in conformance.methods() {
             let method = require(
                 declarations.callables().get(*method),
@@ -392,6 +212,34 @@ fn validate_constructions_instances_conformances(
         }
     }
     Ok(())
+}
+
+fn validate_complete_conformance(
+    program: &DeclarationProgram,
+    conformance: &crate::ConformanceDeclaration,
+) -> Result<(), ProgramIntegrityError> {
+    let interface_id = conformance.interface().interface();
+    requirements::validate_associated_bindings(
+        program,
+        conformance.associated_types(),
+        interface_id,
+        DeclarationDomain::Conformance,
+    )?;
+    let interface = program
+        .declarations()
+        .interfaces()
+        .get(interface_id)
+        .ok_or(ProgramIntegrityError::UnknownReference {
+            owner: DeclarationDomain::Conformance,
+            target: DeclarationDomain::Interface,
+        })?;
+    if conformance.associated_types().len() == interface.associated_types().len() {
+        Ok(())
+    } else {
+        Err(ProgramIntegrityError::InvalidDeclarationShape(
+            DeclarationDomain::Conformance,
+        ))
+    }
 }
 
 fn validate_drops_tests(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
@@ -581,149 +429,6 @@ fn valid_receiver_capability(kind: CallableKind, capability: CallableCapability)
     }
 }
 
-fn validate_requirements(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    for (id, requirement) in program.declarations().requirements().iter() {
-        if !requirement_owner_contains(program, requirement.owner(), id) {
-            return Err(ProgramIntegrityError::OwnerMismatch(
-                DeclarationDomain::Requirement,
-            ));
-        }
-        match requirement.kind() {
-            RequirementKind::Capability {
-                subject,
-                capability,
-            } => {
-                validate_requirement_subject(program, *subject)?;
-                match capability {
-                    StructuralCapability::Interface(interface) => validate_interface_application(
-                        program,
-                        interface,
-                        DeclarationDomain::Requirement,
-                    )?,
-                    StructuralCapability::Callable(contract) => {
-                        for parameter in contract.parameters() {
-                            require_type(program, *parameter, DeclarationDomain::Requirement)?;
-                        }
-                        require_type(program, contract.result(), DeclarationDomain::Requirement)?;
-                    }
-                }
-            }
-            RequirementKind::Copy(parameter)
-            | RequirementKind::Equality { operand: parameter }
-            | RequirementKind::Ordering { operand: parameter } => {
-                require(
-                    program.declarations().generic_parameters().get(*parameter),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
-            }
-            RequirementKind::TypeEquality { left, right } => {
-                require_type(program, *left, DeclarationDomain::Requirement)?;
-                require_type(program, *right, DeclarationDomain::Requirement)?;
-            }
-            RequirementKind::Index {
-                container,
-                index,
-                result,
-                ..
-            } => {
-                require(
-                    program.declarations().generic_parameters().get(*container),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
-                require_type(program, *index, DeclarationDomain::Requirement)?;
-                require_type(program, *result, DeclarationDomain::Requirement)?;
-            }
-            RequirementKind::Coercion { source, target } => {
-                require_type(program, *source, DeclarationDomain::Requirement)?;
-                require_type(program, *target, DeclarationDomain::Requirement)?;
-            }
-            RequirementKind::Expansion { source, result, .. } => {
-                require(
-                    program.declarations().generic_parameters().get(*source),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
-                require_type(program, *result, DeclarationDomain::Requirement)?;
-            }
-            RequirementKind::BinderRefinement {
-                parameter,
-                replacement,
-            } => {
-                require(
-                    program.declarations().generic_parameters().get(*parameter),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
-                require_type(program, *replacement, DeclarationDomain::Requirement)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_requirement_subject(
-    program: &DeclarationProgram,
-    subject: RequirementSubject,
-) -> Result<(), ProgramIntegrityError> {
-    match subject {
-        RequirementSubject::GenericParameter(parameter) => require(
-            program.declarations().generic_parameters().get(parameter),
-            DeclarationDomain::Requirement,
-            DeclarationDomain::GenericParameter,
-        )
-        .map(|_| ()),
-        RequirementSubject::AssociatedType(associated) => require(
-            program.declarations().associated_types().get(associated),
-            DeclarationDomain::Requirement,
-            DeclarationDomain::AssociatedType,
-        )
-        .map(|_| ()),
-    }
-}
-
-fn requirement_owner_contains(
-    program: &DeclarationProgram,
-    owner: RequirementOwner,
-    requirement: RequirementId,
-) -> bool {
-    let declarations = program.declarations();
-    match owner {
-        RequirementOwner::NominalType(owner) => declarations
-            .nominal_types()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-        RequirementOwner::TypeAlias(owner) => declarations
-            .type_aliases()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-        RequirementOwner::Interface(owner) => {
-            declarations.interfaces().get(owner).is_some_and(|owner| {
-                owner.requirements().contains(&requirement)
-                    || owner.associated_types().iter().any(|associated| {
-                        declarations
-                            .associated_types()
-                            .get(*associated)
-                            .is_some_and(|associated| associated.bounds().contains(&requirement))
-                    })
-            })
-        }
-        RequirementOwner::Callable(owner) => declarations
-            .callables()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-        RequirementOwner::Instance(owner) => declarations
-            .instances()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-        RequirementOwner::Conformance(owner) => declarations
-            .conformances()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-    }
-}
-
 fn validate_bodies(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
     let declarations = program.declarations();
     for (id, body) in declarations.bodies().iter() {
@@ -751,12 +456,30 @@ fn validate_bodies(program: &DeclarationProgram) -> Result<(), ProgramIntegrityE
 }
 
 fn validate_opaque_types(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    for (_, opaque) in program.declarations().opaque_types().iter() {
-        require(
+    for (id, opaque) in program.declarations().opaque_types().iter() {
+        let callable = require(
             program.declarations().callables().get(opaque.owner()),
             DeclarationDomain::OpaqueType,
             DeclarationDomain::Callable,
         )?;
+        let valid_owner = callable.body().is_some()
+            && matches!(
+                (callable.kind(), callable.owner()),
+                (CallableKind::Function, CallableOwner::Module(_))
+                    | (
+                        CallableKind::ConstructionFunction,
+                        CallableOwner::Construction(_)
+                    )
+                    | (
+                        CallableKind::Method,
+                        CallableOwner::Instance(_) | CallableOwner::Interface(_)
+                    )
+            );
+        if !valid_owner || opaque_result(program, callable.result()) != Some(id) {
+            return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::OpaqueType,
+            ));
+        }
         unique(opaque.generic_parameters(), DeclarationDomain::OpaqueType)?;
         for parameter in opaque.generic_parameters() {
             require(
@@ -765,8 +488,12 @@ fn validate_opaque_types(program: &DeclarationProgram) -> Result<(), ProgramInte
                 DeclarationDomain::GenericParameter,
             )?;
         }
-        validate_interface_application(program, opaque.interface(), DeclarationDomain::OpaqueType)?;
-        validate_associated_bindings(
+        requirements::validate_interface_application(
+            program,
+            opaque.interface(),
+            DeclarationDomain::OpaqueType,
+        )?;
+        requirements::validate_associated_bindings(
             program,
             opaque.associated_types(),
             opaque.interface().interface(),
@@ -776,53 +503,18 @@ fn validate_opaque_types(program: &DeclarationProgram) -> Result<(), ProgramInte
     Ok(())
 }
 
-fn validate_associated_bindings(
+fn opaque_result(
     program: &DeclarationProgram,
-    bindings: &[AssociatedTypeBinding],
-    interface: nocter_model::InterfaceId,
-    owner: DeclarationDomain,
-) -> Result<(), ProgramIntegrityError> {
-    let mut seen = HashSet::new();
-    for binding in bindings {
-        if !seen.insert(binding.declaration()) {
-            return Err(ProgramIntegrityError::DuplicateReference(owner));
+    mut ty: TypeId,
+) -> Option<nocter_model::OpaqueTypeId> {
+    loop {
+        match program.types().get(ty)? {
+            nocter_model::TypeKind::Optional(payload)
+            | nocter_model::TypeKind::Fallible(payload) => ty = *payload,
+            nocter_model::TypeKind::Opaque { definition, .. } => return Some(*definition),
+            _ => return None,
         }
-        let declaration = require(
-            program
-                .declarations()
-                .associated_types()
-                .get(binding.declaration()),
-            owner,
-            DeclarationDomain::AssociatedType,
-        )?;
-        if declaration.interface() != interface {
-            return Err(ProgramIntegrityError::OwnerMismatch(owner));
-        }
-        require_type(program, binding.ty(), owner)?;
     }
-    Ok(())
-}
-
-fn validate_interface_application(
-    program: &DeclarationProgram,
-    application: &crate::InterfaceApplication,
-    owner: DeclarationDomain,
-) -> Result<(), ProgramIntegrityError> {
-    let declaration = require(
-        program
-            .declarations()
-            .interfaces()
-            .get(application.interface()),
-        owner,
-        DeclarationDomain::Interface,
-    )?;
-    if application.arguments().len() != declaration.generic_parameters().len() {
-        return Err(ProgramIntegrityError::InvalidPosition(owner));
-    }
-    for argument in application.arguments() {
-        require_type(program, *argument, owner)?;
-    }
-    Ok(())
 }
 
 fn validate_visibility(

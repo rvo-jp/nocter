@@ -26,6 +26,13 @@ pub struct LoweredDeclarations {
 }
 
 impl LoweredDeclarations {
+    pub(crate) const fn new(program: DeclarationProgram, source_index: SourceIndex) -> Self {
+        Self {
+            program,
+            source_index,
+        }
+    }
+
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
         &self.program
@@ -235,10 +242,10 @@ pub fn lower_compile_unit_topology(
         project_module_sources(&mut source_index, id, module)?;
     }
 
-    Ok(LoweredDeclarations {
-        program: program.finish()?,
-        source_index: source_index.finish(),
-    })
+    Ok(LoweredDeclarations::new(
+        program.finish()?,
+        source_index.finish(),
+    ))
 }
 
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
@@ -669,6 +676,23 @@ fn collect_tree_symbols(
                 .text_at(token.span().range())
                 .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
             spellings.push(spelling.into());
+        }
+    }
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree
+            .node(node)
+            .is_some_and(|syntax| syntax.kind() == NodeKind::StringLiteral)
+        {
+            let decoded = crate::text::decode_string_literal(source, tree, node)
+                .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
+            spellings.push(decoded);
+            continue;
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
         }
     }
     Ok(())

@@ -6,7 +6,7 @@ use nocter_declarations::{
     StructuralCapability,
 };
 use nocter_model::{
-    AssociatedTypeId, BuiltinType, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
+    AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
     ParameterOrigin, ResultProvenance, Symbol, TypeAliasId, TypeId, TypeKind, TypeStore,
 };
 use nocter_syntax::NodeId;
@@ -113,14 +113,14 @@ impl std::error::Error for TypeNormalizationError {}
 /// Header types after aliases, `Self`, associated names, and requirement types are canonicalized.
 #[derive(Debug)]
 pub struct PreparedTypes<'syntax> {
-    namespaces: PreparedNamespaces<'syntax>,
-    roots: HashMap<NodeId, TypeId>,
-    alias_targets: HashMap<TypeAliasId, TypeId>,
-    patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
-    capabilities: HashMap<NodeId, StructuralCapability>,
-    opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
-    callable_results: Box<[Option<TypeId>]>,
-    requirements: Box<[Box<[RequirementKind]>]>,
+    pub(crate) namespaces: PreparedNamespaces<'syntax>,
+    pub(crate) roots: HashMap<NodeId, TypeId>,
+    pub(crate) alias_targets: HashMap<TypeAliasId, TypeId>,
+    pub(crate) patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
+    pub(crate) capabilities: HashMap<NodeId, StructuralCapability>,
+    pub(crate) opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
+    pub(crate) callable_results: Box<[Option<TypeId>]>,
+    pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
 }
 
 impl PreparedTypes<'_> {
@@ -514,20 +514,19 @@ impl Evaluator<'_> {
         named: &[bool],
         result: TypeId,
     ) -> Result<ResultProvenance, TypeNormalizationError> {
-        if !may_carry_storage(self.store, result) {
+        if !self.store.may_carry_storage(result) {
             return Ok(ResultProvenance::empty());
         }
         let eligible: Vec<_> = parameters
             .iter()
             .enumerate()
             .filter(|(position, ty)| {
-                named.get(*position).copied().unwrap_or(false)
-                    && may_carry_storage(self.store, **ty)
+                named.get(*position).copied().unwrap_or(false) && self.store.may_carry_storage(**ty)
             })
             .map(|(position, _)| ParameterOrigin::new(position))
             .collect();
         let unnamed_eligible = parameters.iter().enumerate().any(|(position, ty)| {
-            !named.get(position).copied().unwrap_or(false) && may_carry_storage(self.store, *ty)
+            !named.get(position).copied().unwrap_or(false) && self.store.may_carry_storage(*ty)
         });
         match eligible.as_slice() {
             [] if !unnamed_eligible => Ok(ResultProvenance::empty()),
@@ -696,39 +695,6 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
         | BoundTypeKind::Alias { .. } => Vec::new(),
     };
     children.into_iter().map(|child| key.child(child)).collect()
-}
-
-fn may_carry_storage(store: &TypeStore, root: TypeId) -> bool {
-    let mut pending = vec![root];
-    let mut visited = HashSet::new();
-    while let Some(ty) = pending.pop() {
-        if !visited.insert(ty) {
-            continue;
-        }
-        match store.get(ty) {
-            Some(
-                TypeKind::Builtin(BuiltinType::Str | BuiltinType::Error)
-                | TypeKind::GenericParameter(_)
-                | TypeKind::InterfaceSelf(_)
-                | TypeKind::Nominal { .. }
-                | TypeKind::AssociatedProjection { .. }
-                | TypeKind::Opaque { .. }
-                | TypeKind::Pointer(_)
-                | TypeKind::Borrow { .. }
-                | TypeKind::Slice(_)
-                | TypeKind::Callable(_),
-            ) => return true,
-            Some(
-                TypeKind::FixedArray { element, .. }
-                | TypeKind::Optional(element)
-                | TypeKind::Fallible(element),
-            ) => {
-                pending.push(*element);
-            }
-            Some(TypeKind::Builtin(_)) | None => {}
-        }
-    }
-    false
 }
 
 fn pattern_matches(

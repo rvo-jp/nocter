@@ -1,0 +1,195 @@
+use std::collections::HashSet;
+
+use nocter_declarations::{
+    CallableKind, CallableProvenance, CallableProvenanceContract, ProvenanceOrigin,
+};
+use nocter_model::{BodyId, ParameterId, TypeId};
+use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_syntax::{NodeKind, SyntaxElement, SyntaxToken, TokenKind};
+
+use crate::{PreparedTypes, SurfaceDeclarationId};
+
+use super::super::allocation::surface_node;
+use super::super::{HeaderDefinitionError, projection, syntax};
+
+pub(super) fn contract(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    kind: CallableKind,
+    receiver: Option<ParameterId>,
+    parameters: &[ParameterId],
+    result: TypeId,
+    body: Option<BodyId>,
+) -> Result<CallableProvenanceContract, HeaderDefinitionError> {
+    if let Some(origins) = explicit(types, declaration, receiver, parameters)? {
+        return Ok(CallableProvenanceContract::declared(origins));
+    }
+    if !types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types()
+        .may_carry_storage(result)
+    {
+        return Ok(CallableProvenanceContract::declared(
+            CallableProvenance::empty(),
+        ));
+    }
+    if kind == CallableKind::Coercion {
+        let receiver = receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+        let _ = receiver;
+        return declared([ProvenanceOrigin::Receiver], declaration);
+    }
+    if body.is_some() || kind == CallableKind::Primitive {
+        return Ok(CallableProvenanceContract::inferred());
+    }
+    let store = types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+    let declarations = types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .declarations();
+    let mut candidates = Vec::new();
+    if let Some(receiver) = receiver {
+        let parameter = declarations
+            .parameter(receiver)
+            .ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+        if store.may_carry_storage(parameter.ty()) {
+            candidates.push(ProvenanceOrigin::Receiver);
+        }
+    }
+    for parameter in parameters {
+        let definition = declarations
+            .parameter(*parameter)
+            .ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+        if store.may_carry_storage(definition.ty()) {
+            candidates.push(ProvenanceOrigin::Parameter(*parameter));
+        }
+    }
+    match candidates.as_slice() {
+        [] | [_] => declared(candidates, declaration),
+        [_, _, ..] => Err(HeaderDefinitionError::AmbiguousProvenance(declaration)),
+    }
+}
+
+fn explicit(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    receiver: Option<ParameterId>,
+    parameters: &[ParameterId],
+) -> Result<Option<CallableProvenance>, HeaderDefinitionError> {
+    let tree = projection::tree(types, declaration)?;
+    let root = surface_node(types, declaration)?;
+    let clause = syntax::descendant(tree, root, NodeKind::ProvenanceClause)
+        .or_else(|| syntax::descendant(tree, root, NodeKind::CoercionProvenance));
+    let Some(clause) = clause else {
+        return Ok(None);
+    };
+    let tokens: Vec<_> = tree
+        .children(clause)
+        .iter()
+        .filter_map(|element| match element {
+            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
+            _ => None,
+        })
+        .skip(1)
+        .collect();
+    let mut seen = HashSet::new();
+    let mut origins = Vec::new();
+    for token in tokens {
+        let symbol = projection::symbol(types, declaration, token)?;
+        if !seen.insert(symbol) {
+            return Err(HeaderDefinitionError::InvalidProvenance(declaration));
+        }
+        let spelling = token_spelling(types, token)?;
+        if spelling == "static" {
+            continue;
+        }
+        if spelling == "self" {
+            let receiver = receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+            let _ = receiver;
+            origins.push(ProvenanceOrigin::Receiver);
+            project(
+                types,
+                declaration,
+                SemanticEntity::Parameter(receiver),
+                token,
+            )?;
+            continue;
+        }
+        let declarations = types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .declarations();
+        let parameter = parameters
+            .iter()
+            .copied()
+            .find(|parameter| {
+                declarations
+                    .parameter(*parameter)
+                    .is_some_and(|item| item.name() == symbol)
+            })
+            .ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+        origins.push(ProvenanceOrigin::Parameter(parameter));
+        project(
+            types,
+            declaration,
+            SemanticEntity::Parameter(parameter),
+            token,
+        )?;
+    }
+    CallableProvenance::from_origins(origins)
+        .map(Some)
+        .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
+}
+
+fn declared(
+    origins: impl IntoIterator<Item = ProvenanceOrigin>,
+    declaration: SurfaceDeclarationId,
+) -> Result<CallableProvenanceContract, HeaderDefinitionError> {
+    CallableProvenance::from_origins(origins)
+        .map(CallableProvenanceContract::declared)
+        .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
+}
+
+fn token_spelling<'a>(
+    types: &'a PreparedTypes<'_>,
+    token: SyntaxToken,
+) -> Result<&'a str, HeaderDefinitionError> {
+    types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_map
+        .get(token.source())
+        .and_then(|source| source.text_at(token.range()))
+        .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))
+}
+
+fn project(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    entity: SemanticEntity,
+    token: SyntaxToken,
+) -> Result<(), HeaderDefinitionError> {
+    projection::token(types, declaration, entity, SourceRole::Reference, token)
+}

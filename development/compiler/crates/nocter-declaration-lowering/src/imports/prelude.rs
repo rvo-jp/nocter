@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_declarations::ExportedEntity;
+use nocter_declarations::{BuiltinAttachment, ExportedEntity, ProgramBuildError};
 use nocter_model::{ModuleId, Symbol};
 use nocter_syntax::NodeId;
 
@@ -12,6 +12,7 @@ use crate::{ModuleIdentity, SurfaceImportTarget};
 pub enum PreludeError {
     UnknownModule(ModuleIdentity),
     AuthoredPreludeImport(NodeId),
+    Program(ProgramBuildError),
 }
 
 impl fmt::Display for PreludeError {
@@ -24,6 +25,7 @@ impl fmt::Display for PreludeError {
                 formatter,
                 "source-level import {declaration:?} targets the compiler-managed prelude"
             ),
+            Self::Program(error) => error.fmt(formatter),
         }
     }
 }
@@ -71,22 +73,65 @@ impl PreparedNamespaces<'_> {
 ///
 /// Returns [`PreludeError`] when the selected module is absent or source explicitly imports it.
 pub fn apply_standard_prelude<'syntax>(
-    imports: PreparedImports<'syntax>,
+    mut imports: PreparedImports<'syntax>,
     prelude_module: &ModuleIdentity,
 ) -> Result<PreparedNamespaces<'syntax>, PreludeError> {
-    let reserved = &imports.generics.headers.reserved;
-    let prelude_index = module_index_by_identity(reserved, prelude_module)
-        .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
-    for import in &reserved.imports {
-        if matches!(
-            import.target(),
-            SurfaceImportTarget::Module(target) if target == prelude_module
-        ) {
-            return Err(PreludeError::AuthoredPreludeImport(import.node()));
+    let (prelude_index, prelude_id, standard_package, attachment_modules) = {
+        let reserved = &imports.generics.headers.reserved;
+        let prelude_index = module_index_by_identity(reserved, prelude_module)
+            .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
+        for import in &reserved.imports {
+            if matches!(
+                import.target(),
+                SurfaceImportTarget::Module(target) if target == prelude_module
+            ) {
+                return Err(PreludeError::AuthoredPreludeImport(import.node()));
+            }
         }
+
+        let prelude_id = reserved.module_ids[prelude_index];
+        let standard_package = reserved
+            .program
+            .module_package(prelude_id)
+            .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
+        let attachment_modules = [
+            (BuiltinAttachment::Scalar, "num"),
+            (BuiltinAttachment::Str, "str"),
+            (BuiltinAttachment::Error, "error"),
+            (BuiltinAttachment::Slice, "slice"),
+        ]
+        .into_iter()
+        .filter_map(|(attachment, path)| {
+            let identity = ModuleIdentity::new(prelude_module.package().clone(), [path]);
+            module_index_by_identity(reserved, &identity)
+                .map(|index| (attachment, reserved.module_ids[index]))
+        })
+        .collect::<Vec<_>>();
+        (
+            prelude_index,
+            prelude_id,
+            standard_package,
+            attachment_modules,
+        )
+    };
+    imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .set_standard_package(standard_package)
+        .map_err(PreludeError::Program)?;
+    for (attachment, module) in attachment_modules {
+        imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .set_builtin_attachment_module(attachment, module)
+            .map_err(PreludeError::Program)?;
     }
 
-    let prelude_id = reserved.module_ids[prelude_index];
+    let reserved = &imports.generics.headers.reserved;
     let prelude_namespace = &imports.namespaces[prelude_index];
     let mut fallback: Vec<ModuleNamespace> = Vec::with_capacity(reserved.modules.len());
     for (index, module) in reserved.modules.iter().enumerate() {

@@ -5,12 +5,14 @@
 //! projects them back to source without exposing syntax to later semantic stages.
 
 mod contract;
+mod definitions;
 mod generics;
 mod headers;
 mod imports;
 mod input;
 mod reservation;
 mod surface;
+mod text;
 mod topology;
 mod types;
 mod visibility;
@@ -19,6 +21,7 @@ mod visibility;
 mod test_support;
 
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
+pub use definitions::{HeaderDefinitionError, define_declaration_headers};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use imports::{

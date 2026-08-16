@@ -114,14 +114,23 @@ be introduced to make an unresolved syntax choice.
   interface-member `pub` with the same `Visibility` node used by every other declaration, so this
   boundary requires no interface-specific visibility recovery. Declaration-surface traversal is
   non-recursive, keeping the complete boundary safe for the parser's 5,000-layer type contract.
+  Header definition then allocates fields, parameters, receivers, requirements, and bodies in
+  canonical order and completes every reserved declaration arena slot. Public contracts and
+  private implementations retain one callable identity but receive distinct source roles.
+  Authored result provenance is stored separately from the inference state that checked body
+  analysis will produce. The compiler-selected standard package and its scalar, string, error, and
+  slice attachment modules are recorded as exact semantic IDs; freeze-time validation never grants
+  built-in authority from a path spelling. The completed builder validates all owner edges and
+  declaration shapes before returning an immutable `DeclarationProgram` and independent
+  `SourceIndex`; the syntax-owned surface inventory cannot cross that boundary.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
 silently discard a token.
 
-The next Phase 2 increment will define every declaration arena slot from the canonical type graph,
-then discard the temporary syntax-owned inventory and all mutable builders. No crate yet owns
-checked body semantics.
+The remaining Phase 2 increment is a source-backed semantic diagnostic boundary. Declaration
+validation must identify the exact semantic subject so diagnostics can project it through
+`SourceIndex` without duplicating validation in lowering. No crate yet owns checked body semantics.
 
 ## Verification
 
