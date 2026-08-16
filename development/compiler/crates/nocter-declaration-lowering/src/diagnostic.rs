@@ -1,5 +1,7 @@
-use nocter_source_index::SourceOrigin;
+use nocter_source_index::{SourceOrigin, SyntaxOrigin};
 use nocter_syntax::{NodeId, SyntaxTree};
+
+use crate::CompileUnitInput;
 
 /// One source-backed note related to a primary diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,10 +88,41 @@ pub(crate) fn origin_from_trees<'syntax>(
     trees: impl IntoIterator<Item = &'syntax SyntaxTree>,
     node: NodeId,
 ) -> Option<SourceOrigin> {
-    let tree = trees
-        .into_iter()
-        .find(|tree| tree.source() == node.source())?;
-    SourceOrigin::from_node(tree, node).ok()
+    origin_from_syntax(trees, SyntaxOrigin::Node(node))
+}
+
+pub(crate) fn origin_from_syntax<'syntax>(
+    trees: impl IntoIterator<Item = &'syntax SyntaxTree>,
+    syntax: SyntaxOrigin,
+) -> Option<SourceOrigin> {
+    let source = match syntax {
+        SyntaxOrigin::Node(node) => node.source(),
+        SyntaxOrigin::Token(token) => token.source(),
+    };
+    let tree = trees.into_iter().find(|tree| tree.source() == source)?;
+    match syntax {
+        SyntaxOrigin::Node(node) => SourceOrigin::from_node(tree, node).ok(),
+        SyntaxOrigin::Token(token) => SourceOrigin::from_token(tree, token).ok(),
+    }
+}
+
+pub(crate) fn input_trees<'input, 'syntax: 'input>(
+    input: &'input CompileUnitInput<'syntax>,
+) -> impl Iterator<Item = &'syntax SyntaxTree> + 'input {
+    input
+        .packages()
+        .iter()
+        .filter_map(|package| {
+            package
+                .declaration()
+                .map(crate::PackageDeclarationInput::syntax)
+        })
+        .chain(input.modules().iter().flat_map(|module| {
+            module
+                .sources()
+                .iter()
+                .map(crate::ModuleSourceInput::syntax)
+        }))
 }
 
 #[cfg(test)]

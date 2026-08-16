@@ -3,11 +3,11 @@ use std::fmt;
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, GenericError,
     HeaderDefinitionError, HeaderError, ImportError, LoweredDeclarations, ModuleIdentity,
-    PreludeError, ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError,
-    TypeBindingError, TypeNormalizationError, analyze_callable_contracts, apply_standard_prelude,
-    bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
-    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
-    prepare_generic_binders,
+    NamespaceDiagnostic, PreludeError, ReservationError, SourceDiagnostic, SurfaceDiagnostic,
+    SurfaceError, TypeBindingError, TypeNormalizationError, analyze_callable_contracts,
+    apply_standard_prelude, bind_header_type_syntax, collect_declaration_surface,
+    define_declaration_headers, normalize_header_types, prepare_authored_imports,
+    prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -17,7 +17,8 @@ pub enum DeclarationLoweringError {
     CallableContract(CallableContractDiagnostic),
     InternalContract(CallableContractError),
     Reservation(ReservationError),
-    Header(HeaderError),
+    Namespace(NamespaceDiagnostic),
+    InternalHeader(HeaderError),
     Generic(GenericError),
     Import(ImportError),
     Prelude(PreludeError),
@@ -36,11 +37,12 @@ impl DeclarationLoweringError {
         match self {
             Self::Surface(diagnostic) => Some(diagnostic.source()),
             Self::CallableContract(diagnostic) => Some(diagnostic.source()),
+            Self::Namespace(diagnostic) => Some(diagnostic.source()),
             Self::Definition(error) => error.source_diagnostic(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
-            | Self::Header(_)
+            | Self::InternalHeader(_)
             | Self::Generic(_)
             | Self::Import(_)
             | Self::Prelude(_)
@@ -58,7 +60,8 @@ impl fmt::Display for DeclarationLoweringError {
             Self::CallableContract(error) => error.fmt(formatter),
             Self::InternalContract(error) => error.fmt(formatter),
             Self::Reservation(error) => error.fmt(formatter),
-            Self::Header(error) => error.fmt(formatter),
+            Self::Namespace(error) => error.fmt(formatter),
+            Self::InternalHeader(error) => error.fmt(formatter),
             Self::Generic(error) => error.fmt(formatter),
             Self::Import(error) => error.fmt(formatter),
             Self::Prelude(error) => error.fmt(formatter),
@@ -78,9 +81,9 @@ impl std::error::Error for DeclarationLoweringError {}
 ///
 /// # Errors
 ///
-/// Returns the exact failing stage. Source-backed callable-contract and freeze-time declaration
-/// rules are already projected to common diagnostics; remaining stage errors stay typed until
-/// their diagnostic mappings are completed.
+/// Returns the exact failing stage. Source-backed module-surface, callable-contract, namespace,
+/// and freeze-time declaration rules are already projected to common diagnostics;
+/// remaining stage errors stay typed until their diagnostic mappings are completed.
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
     prelude: &ModuleIdentity,
@@ -105,8 +108,18 @@ pub fn lower_compile_unit_declarations(
     };
     let reserved = crate::reservation::reserve_with_contracts(surface, contracts)
         .map_err(DeclarationLoweringError::Reservation)?;
-    let headers =
-        prepare_declaration_headers(reserved).map_err(DeclarationLoweringError::Header)?;
+    let headers = match prepare_declaration_headers(reserved) {
+        Ok(headers) => headers,
+        Err(HeaderError::Namespace(violation)) => {
+            return match NamespaceDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Namespace(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalHeader(
+                    HeaderError::Namespace(internal),
+                )),
+            };
+        }
+        Err(internal) => return Err(DeclarationLoweringError::InternalHeader(internal)),
+    };
     let generics = prepare_generic_binders(headers).map_err(DeclarationLoweringError::Generic)?;
     let imports = prepare_authored_imports(generics).map_err(DeclarationLoweringError::Import)?;
     let namespaces =
@@ -126,8 +139,8 @@ mod tests {
     use crate::test_support::source_use;
     use crate::{
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, ModuleIdentity,
-        ModuleInput, ModuleSourceInput, ModuleSourceKind, PackageDeclarationInput, PackageIdentity,
-        PackageInput, PackageMode, lower_compile_unit_declarations,
+        ModuleInput, ModuleSourceInput, ModuleSourceKind, NamespaceRule, PackageDeclarationInput,
+        PackageIdentity, PackageInput, PackageMode, lower_compile_unit_declarations,
     };
 
     #[test]
@@ -176,6 +189,137 @@ mod tests {
             Some("E0230")
         );
         assert!(matches!(error, DeclarationLoweringError::Surface(_)));
+    }
+
+    #[test]
+    fn production_pipeline_projects_duplicate_name_tokens_in_canonical_order() {
+        let text = "func duplicate(): void {}\nfunc duplicate(value: usize): void {}\n";
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", text);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![module("workspace:app", &[], "/app/index.nct", &root)],
+            Vec::new(),
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Namespace(diagnostic) = error else {
+            panic!("duplicate name did not produce a namespace diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), NamespaceRule::NameCollision);
+        assert_eq!(diagnostic.source().code(), "E0241");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert!(diagnostic.source().primary().token().is_some());
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            u32::try_from(text.rfind("duplicate").unwrap()).unwrap()
+        );
+        assert_eq!(diagnostic.source().notes().len(), 1);
+        assert_eq!(
+            diagnostic.source().notes()[0]
+                .origin()
+                .span()
+                .range()
+                .start()
+                .get(),
+            u32::try_from(text.find("duplicate").unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn production_pipeline_projects_reserved_declaration_names() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "struct usize {}\n");
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![module("workspace:app", &[], "/app/index.nct", &root)],
+            Vec::new(),
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Namespace(diagnostic) = error else {
+            panic!("reserved name did not produce a namespace diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), NamespaceRule::ReservedDeclarationName);
+        assert_eq!(diagnostic.source().code(), "E0240");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert!(diagnostic.source().primary().token().is_some());
+    }
+
+    #[test]
+    fn production_pipeline_projects_visibility_above_the_package_root() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "");
+        let child_id = add_source(
+            &mut sources,
+            "/app/parser/index.nct",
+            "pub(../../) func exposed(): void {}\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let child = parse_source(&sources, child_id, ParseGoal::ModuleSource);
+        let input = CompileUnitInput::new(
+            &sources,
+            vec![package(
+                "workspace:app",
+                "app",
+                "/app/nocter.nct",
+                &manifest,
+            )],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &root),
+                module(
+                    "workspace:app",
+                    &["parser"],
+                    "/app/parser/index.nct",
+                    &child,
+                ),
+            ],
+            Vec::new(),
+        );
+
+        let error = lower_compile_unit_declarations(
+            &input,
+            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
+        )
+        .unwrap_err();
+        let DeclarationLoweringError::Namespace(diagnostic) = error else {
+            panic!("invalid visibility did not produce a namespace diagnostic");
+        };
+
+        assert_eq!(diagnostic.rule(), NamespaceRule::VisibilityAbovePackageRoot);
+        assert_eq!(diagnostic.source().code(), "E0242");
+        assert_eq!(diagnostic.source().primary().source(), child_id);
+        assert!(diagnostic.source().primary().node().is_some());
     }
 
     #[test]

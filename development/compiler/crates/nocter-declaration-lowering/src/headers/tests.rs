@@ -119,7 +119,8 @@ fn duplicate_module_names_are_order_independent() {
 
     assert!(matches!(
         prepare_declaration_headers(reserved),
-        Err(HeaderError::DuplicateModuleName { .. })
+        Err(HeaderError::Namespace(violation))
+            if violation.rule() == crate::NamespaceRule::NameCollision
     ));
 }
 

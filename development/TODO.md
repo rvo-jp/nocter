@@ -9,8 +9,10 @@ test, binary behavior, or implementation document may be used as an implementati
 ## Immediate Work
 
 1. Extend the common source-backed diagnostic envelope from the completed module-surface, callable-
-   contract, and freeze-time declaration rules to header, generic, import, and type-binding passes. Internal
-   consistency faults remain distinct and must not receive user-facing error codes.
+   contract, namespace-header, and freeze-time declaration rules to generic, import, and type-
+   binding passes. Internal consistency faults remain distinct and must not receive user-facing
+   error codes. Import name collisions and visibility boundaries must reuse the existing namespace
+   rules rather than define import-stage equivalents.
 2. Derive diagnostic cases from G001-G018 semantic-boundary fixtures and verify that input ordering
    cannot change the selected code, semantic subject, primary range, or related range.
 
@@ -26,7 +28,9 @@ errors remain a separate internal integrity category. Callable contract failures
 `lower_compile_unit_declarations` facade owns the only complete pass ordering and returns typed
 stage failures rather than allowing callers to assemble partial pipelines. Authored module-surface
 violations project `E0230`-`E0232` directly from their exact syntax subjects; invalid syntax trees
-and inconsistent discovery inputs remain internal pipeline failures.
+and inconsistent discovery inputs remain internal pipeline failures. Header preparation records
+exact name tokens and visibility nodes in shared namespace violations before consuming temporary
+surface identities, then projects `E0240`-`E0242` without reverse lookup.
 
 ## Guardrails
 

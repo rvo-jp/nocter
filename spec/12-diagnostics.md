@@ -69,6 +69,13 @@ Source-backed module-surface diagnostics:
 - `E0232`: a construction contract member in a module root source omits its required explicit
   non-private visibility.
 
+Source-backed namespace diagnostics:
+
+- `E0240`: a declaration uses a name reserved for a built-in type.
+- `E0241`: declarations or imports introduce the same name more than once in one namespace.
+- `E0242`: an authored visibility boundary uses more `../` components than its declaring module
+  has ancestors.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

@@ -12,6 +12,8 @@ mod generics;
 mod headers;
 mod imports;
 mod input;
+mod namespace;
+mod namespace_diagnostic;
 mod pipeline;
 mod reservation;
 mod surface;
@@ -39,6 +41,8 @@ pub use input::{
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
     UseTargetInput,
 };
+pub use namespace::{NamespaceRule, NamespaceViolation};
+pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,

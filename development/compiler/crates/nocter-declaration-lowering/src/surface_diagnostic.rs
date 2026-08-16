@@ -1,8 +1,11 @@
 use std::fmt;
 
-use nocter_syntax::{NodeId, SyntaxTree};
+use nocter_syntax::NodeId;
 
-use crate::{CompileUnitInput, SourceDiagnostic, SurfaceError, diagnostic::origin_from_trees};
+use crate::{
+    CompileUnitInput, SourceDiagnostic, SurfaceError,
+    diagnostic::{input_trees, origin_from_trees},
+};
 
 /// Stable source-level rule for a directory module's authored declaration surface.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -119,25 +122,6 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         | SurfaceError::InvalidItemShape(_)
         | SurfaceError::InconsistentUseResolution(_) => None,
     }
-}
-
-fn input_trees<'input, 'syntax: 'input>(
-    input: &'input CompileUnitInput<'syntax>,
-) -> impl Iterator<Item = &'syntax SyntaxTree> + 'input {
-    input
-        .packages()
-        .iter()
-        .filter_map(|package| {
-            package
-                .declaration()
-                .map(crate::PackageDeclarationInput::syntax)
-        })
-        .chain(input.modules().iter().flat_map(|module| {
-            module
-                .sources()
-                .iter()
-                .map(crate::ModuleSourceInput::syntax)
-        }))
 }
 
 #[cfg(test)]

@@ -8,36 +8,32 @@ use nocter_source::SourceId;
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
-use crate::{ReservedDeclarations, SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceSourceId};
+use crate::{
+    NamespaceViolation, ReservedDeclarations, SurfaceDeclarationId, SurfaceDeclarationKind,
+    SurfaceSourceId,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeaderError {
+    Namespace(NamespaceViolation),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
     MissingSource(SurfaceSourceId),
     MissingName(SurfaceDeclarationId),
-    InvalidName(SurfaceDeclarationId),
     InconsistentName(SurfaceDeclarationId),
-    DuplicateModuleName {
-        first: SurfaceDeclarationId,
-        second: SurfaceDeclarationId,
-    },
-    DuplicateMemberName {
-        first: SurfaceDeclarationId,
-        second: SurfaceDeclarationId,
-    },
-    DuplicateTestName {
-        first: SurfaceDeclarationId,
-        second: SurfaceDeclarationId,
-    },
     InvalidVisibility(SurfaceDeclarationId),
-    VisibilityAbovePackageRoot(SurfaceDeclarationId),
     InconsistentSource(SourceId),
 }
 
 impl fmt::Display for HeaderError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Namespace(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::MissingSource(source) => {
@@ -46,27 +42,9 @@ impl fmt::Display for HeaderError {
             Self::MissingName(declaration) => {
                 write!(formatter, "declaration {declaration:?} requires a name")
             }
-            Self::InvalidName(declaration) => {
-                write!(
-                    formatter,
-                    "declaration {declaration:?} uses a reserved name"
-                )
-            }
             Self::InconsistentName(declaration) => write!(
                 formatter,
                 "implementation declaration {declaration:?} changed its contract name"
-            ),
-            Self::DuplicateModuleName { first, second } => write!(
-                formatter,
-                "module declarations {first:?} and {second:?} introduce the same name"
-            ),
-            Self::DuplicateMemberName { first, second } => write!(
-                formatter,
-                "member declarations {first:?} and {second:?} introduce the same name"
-            ),
-            Self::DuplicateTestName { first, second } => write!(
-                formatter,
-                "tests {first:?} and {second:?} introduce the same module-local test name"
             ),
             Self::InvalidVisibility(declaration) => {
                 write!(
@@ -74,10 +52,6 @@ impl fmt::Display for HeaderError {
                     "declaration {declaration:?} has invalid visibility"
                 )
             }
-            Self::VisibilityAbovePackageRoot(declaration) => write!(
-                formatter,
-                "declaration {declaration:?} moves visibility above its package root"
-            ),
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent declaration origin")
             }
@@ -96,6 +70,12 @@ impl From<ProgramBuildError> for HeaderError {
 impl From<DuplicateSourceBinding> for HeaderError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<NamespaceViolation> for HeaderError {
+    fn from(violation: NamespaceViolation) -> Self {
+        Self::Namespace(violation)
     }
 }
 
@@ -226,8 +206,11 @@ fn authored_visibility(
         match error {
             VisibilityResolutionError::MissingSource(source) => HeaderError::MissingSource(source),
             VisibilityResolutionError::Invalid(_) => HeaderError::InvalidVisibility(id),
-            VisibilityResolutionError::AbovePackageRoot(_) => {
-                HeaderError::VisibilityAbovePackageRoot(id)
+            VisibilityResolutionError::AbovePackageRoot(node) => {
+                NamespaceViolation::visibility_above_package_root(
+                    nocter_source_index::SyntaxOrigin::Node(node),
+                )
+                .into()
             }
         }
     })

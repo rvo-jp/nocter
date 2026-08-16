@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{ModuleId, Symbol};
+use nocter_source_index::SyntaxOrigin;
 
 use super::HeaderError;
 use crate::{
-    ReservedDeclarations, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId,
-    SurfaceDeclarationKind,
+    NamespaceViolation, ReservedDeclarations, ReservedEntity, SurfaceDeclaration,
+    SurfaceDeclarationId, SurfaceDeclarationKind,
 };
 
 pub(super) fn resolve(
@@ -42,7 +43,9 @@ fn resolve_name(
         .text_at(token.range())
         .ok_or(HeaderError::InconsistentSource(token.source()))?;
     if spelling == "Self" {
-        return Err(HeaderError::InvalidName(id));
+        return Err(
+            NamespaceViolation::reserved_declaration_name(SyntaxOrigin::Token(token)).into(),
+        );
     }
     reserved
         .program
@@ -83,19 +86,22 @@ fn validate_unique_names(
         };
         if declaration.kind() == SurfaceDeclarationKind::Test {
             let module = module(reserved, declaration)?;
-            insert_unique(&mut test_names, (module, name), id)
-                .map_err(|first| HeaderError::DuplicateTestName { first, second: id })?;
+            if let Err(first) = insert_unique(&mut test_names, (module, name), id) {
+                return Err(duplicate_name(reserved, first, id)?.into());
+            }
         } else if let Some(owner) = declaration.owner() {
             let owner = reserved
                 .entity(reserved.contracts.representative(owner))
                 .ok_or(HeaderError::MissingName(id))?;
-            insert_unique(&mut member_names, (owner, name), id)
-                .map_err(|first| HeaderError::DuplicateMemberName { first, second: id })?;
+            if let Err(first) = insert_unique(&mut member_names, (owner, name), id) {
+                return Err(duplicate_name(reserved, first, id)?.into());
+            }
         } else if occupies_module_namespace(declaration.kind()) {
             reject_builtin_name(reserved, id, name)?;
             let module = module(reserved, declaration)?;
-            insert_unique(&mut module_names, (module, name), id)
-                .map_err(|first| HeaderError::DuplicateModuleName { first, second: id })?;
+            if let Err(first) = insert_unique(&mut module_names, (module, name), id) {
+                return Err(duplicate_name(reserved, first, id)?.into());
+            }
         }
     }
     Ok(())
@@ -112,10 +118,34 @@ fn reject_builtin_name(
         .spelling(name)
         .ok_or(HeaderError::MissingName(declaration))?;
     if nocter_syntax::BuiltinType::from_spelling(spelling).is_some() {
-        Err(HeaderError::InvalidName(declaration))
+        Err(
+            NamespaceViolation::reserved_declaration_name(name_origin(reserved, declaration)?)
+                .into(),
+        )
     } else {
         Ok(())
     }
+}
+
+fn duplicate_name(
+    reserved: &ReservedDeclarations<'_>,
+    first: SurfaceDeclarationId,
+    second: SurfaceDeclarationId,
+) -> Result<NamespaceViolation, HeaderError> {
+    Ok(NamespaceViolation::name_collision(
+        name_origin(reserved, first)?,
+        name_origin(reserved, second)?,
+    ))
+}
+
+fn name_origin(
+    reserved: &ReservedDeclarations<'_>,
+    declaration: SurfaceDeclarationId,
+) -> Result<SyntaxOrigin, HeaderError> {
+    reserved.declarations[declaration.index()]
+        .name()
+        .map(SyntaxOrigin::Token)
+        .ok_or(HeaderError::MissingName(declaration))
 }
 
 fn module(

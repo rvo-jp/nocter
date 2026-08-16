@@ -131,7 +131,10 @@ be introduced to make an unresolved syntax choice.
   identity separately from that presentation envelope. Compiler-state inconsistencies remain typed
   internal errors and are never assigned a language diagnostic code merely because they crossed the
   production facade. Module-surface diagnostics select only authored root-versus-implementation
-  violations; malformed syntax snapshots and incomplete discovery edges stay internal.
+  violations; malformed syntax snapshots and incomplete discovery edges stay internal. Name and
+  visibility rules retain exact syntax subjects when selected, before temporary surface identities
+  are consumed. The shared namespace rule domain prevents declaration and import collisions from
+  acquiring stage-specific codes or messages.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
