@@ -294,13 +294,21 @@ drop <span class="token-function">make_value</span><span class="token-operator">
 <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> text<span class="token-operator">)</span>
 <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> pair<span class="token-operator">.</span>second<span class="token-operator">)</span>
 <span class="token-keyword">return</span> <span class="token-keyword">move</span> value
-</code></pre><p>Rules:</p><ul><li><code>move</code> is a reserved keyword, not an ordinary function.</li><li><code>move place</code> is an expression.</li><li>The operand of <code>move</code> must be a local binding, parameter binding, or a named struct field rooted
-  in one of those bindings.</li><li>The operand binding may be immutable or mutable.</li><li>The selected place must have a move-only type.</li><li>Using <code>move</code> on a copy type is a compile error.</li><li><code>move place</code> has the same type as the selected place.</li><li>Evaluating <code>move place</code> transfers ownership out of that place.</li><li>After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
+<span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe<span class="token-operator">?</span>
+</code></pre><p>Move syntax has a place-specific grammar:</p><pre><code class="language-text">MovePlace = binding ("." field_name)*
+MoveExpression = "move" MovePlace
+MoveOutcomeExpression = MoveExpression ("?" | "!")*
+</code></pre><p>An outcome suffix is applied to the completed move expression. Therefore <code>move maybe?</code> is equivalent to <code>(move maybe)?</code>, not <code>move (maybe?)</code>.</p><p>Rules:</p><ul><li><code>move</code> is a reserved keyword, not an ordinary function.</li><li><code>move place</code> is an expression.</li><li>The operand of <code>move</code> must be a local binding, parameter binding, or a named struct field rooted
+  in one of those bindings.</li><li>The operand binding may be immutable or mutable.</li><li>The selected place must have a move-only type.</li><li>Using <code>move</code> on a copy type is a compile error.</li><li><code>move place</code> has the same type as the selected place.</li><li>Evaluating <code>move place</code> transfers ownership out of that place.</li><li><code>move place?</code> and <code>move place!</code> first transfer the complete optional or fallible value and then
+  apply each outcome suffix from left to right. <code>move place catch ...</code> and
+  <code>move place otherwise ...</code> likewise move the place before the lower-precedence eliminator.</li><li>After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
   named-field move, that field is uninitialized and the parent is partially initialized; disjoint
   initialized fields remain usable and retain their own cleanup obligations.</li><li>A moved <code>var</code> binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in <a href="../02-values-types/index.html#reinitialization-after-move-or-drop">Values and Types</a>.</li><li>A moved <code>let</code> binding cannot be reinitialized.</li><li>Moved storage is not dropped through its original place.</li><li>A place cannot be moved while it conflicts with an active borrow.</li><li><code>move</code> describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.</li><li>Moving a newly constructed value is unnecessary and invalid.</li><li>This restriction also applies under collection iteration and sequence spread. <code>move</code> in
   <code>for item in move source</code> and <code>...move source</code> is the ordinary place-only move expression, not a
   contextual ownership selector for a newly produced value.</li><li>Moving from an index, dereference, call result, postfix <code>?</code> expression, conditional expression,
-  or parenthesized complex expression is invalid.</li><li>Partial moves are field-sensitive only for statically named struct fields. Index moves from
+  or parenthesized complex expression is invalid.</li><li>The valid <code>move place?</code> spelling does not contradict that restriction: the move operand is the
+  place, while <code>?</code> applies afterward. <code>move (place?)</code> still attempts to move a computed result and
+  is invalid.</li><li>Partial moves are field-sensitive only for statically named struct fields. Index moves from
   arrays or collections, enum-payload moves, and computed projections are not supported.</li><li><code>match move place</code> and <code>if move place is Pattern</code> move the complete enum place before selecting a
   branch. This is not a partial enum-payload move; branch payload bindings receive ownership from
   the already consumed enum according to the enum pattern rules.</li></ul><p>Valid:</p><pre><code class="language-nct"><span class="token-keyword">let</span> b <span class="token-operator">=</span> <span class="token-keyword">move</span> a
@@ -308,8 +316,10 @@ drop <span class="token-function">make_value</span><span class="token-operator">
 <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> pair<span class="token-operator">.</span>second<span class="token-operator">)</span>
 <span class="token-keyword">return</span> <span class="token-keyword">move</span> value
 user<span class="token-operator">.</span>name <span class="token-operator">=</span> <span class="token-keyword">move</span> name
+<span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe<span class="token-operator">?</span>
 </code></pre><p>Invalid:</p><pre><code class="language-nct"><span class="token-keyword">move</span> <span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-keyword">move</span> <span class="token-operator">(</span><span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span><span class="token-operator">)</span>
+<span class="token-keyword">move</span> <span class="token-operator">(</span>maybe<span class="token-operator">?</span><span class="token-operator">)</span>
 <span class="token-keyword">move</span> <span class="token-operator">(</span>condition <span class="token-operator">?</span> a <span class="token-operator">:</span> b<span class="token-operator">)</span>
 <span class="token-keyword">move</span> array<span class="token-operator">[</span>index<span class="token-operator">]</span>
 <span class="token-keyword">move</span> copy_value

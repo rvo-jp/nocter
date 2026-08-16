@@ -38,6 +38,9 @@ Rules for generated code:
 - Use postfix `expr!` only for unrecoverable assumptions, tests, and prototypes.
 - Use `expr catch error { ... }` for local handling of `T!` failure.
 - Use `expr otherwise { ... }` for optional fallback values and optional-side early exits.
+- Existing move-only outcome places require `move` before elimination: `move value?`,
+  `move value!`, `move value catch error { ... }`, or `move value otherwise { ... }`. New
+  temporaries and copyable outcomes omit `move`.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 

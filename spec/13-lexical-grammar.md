@@ -186,6 +186,9 @@ Rules:
 - `!`, `&`, `&+`, and `move` are not continuation leaders because they can begin expressions.
   Postfix `?` and postfix `!` remain attached to the expression they modify and cannot begin a
   continuation line.
+- `move` consumes a syntactic move place before immediately following outcome suffixes are attached.
+  Consequently `move value?` tokenizes and parses as `(move value)?`; whitespace does not turn it
+  into `move (value?)`.
 - `(` and `[` are not continuation leaders. A call or index opener must remain on the same line as
   its callee or indexed expression.
 - Two or more consecutive newline tokens at statement-capable nesting depth are never collapsed

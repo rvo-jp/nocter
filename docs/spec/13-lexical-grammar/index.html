@@ -235,7 +235,9 @@ std/process
   also continuation leaders in <code>if</code> pattern conditions and range <code>for</code> headers respectively.</li><li><code>-</code> is not a continuation leader because it can begin a unary expression. Put binary <code>-</code> at the
   end of the previous line when its right operand continues on the next line.</li><li><code>!</code>, <code>&amp;</code>, <code>&amp;+</code>, and <code>move</code> are not continuation leaders because they can begin expressions.
   Postfix <code>?</code> and postfix <code>!</code> remain attached to the expression they modify and cannot begin a
-  continuation line.</li><li><code>(</code> and <code>[</code> are not continuation leaders. A call or index opener must remain on the same line as
+  continuation line.</li><li><code>move</code> consumes a syntactic move place before immediately following outcome suffixes are attached.
+  Consequently <code>move value?</code> tokenizes and parses as <code>(move value)?</code>; whitespace does not turn it
+  into <code>move (value?)</code>.</li><li><code>(</code> and <code>[</code> are not continuation leaders. A call or index opener must remain on the same line as
   its callee or indexed expression.</li><li>Two or more consecutive newline tokens at statement-capable nesting depth are never collapsed
   into a continuation newline. A blank or comment-only intervening line therefore ends any
   possible leading-token continuation.</li><li>A closing brace <code>}</code> ends the current block or arm.</li><li>A semicolon does not terminate a statement. Outside <code>[T; N]</code> or a closure capture separator, it

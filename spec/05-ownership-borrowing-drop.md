@@ -420,7 +420,19 @@ let b = move a
 consume(move text)
 consume(move pair.second)
 return move value
+let item = move maybe?
 ```
+
+Move syntax has a place-specific grammar:
+
+```text
+MovePlace = binding ("." field_name)*
+MoveExpression = "move" MovePlace
+MoveOutcomeExpression = MoveExpression ("?" | "!")*
+```
+
+An outcome suffix is applied to the completed move expression. Therefore `move maybe?` is
+equivalent to `(move maybe)?`, not `move (maybe?)`.
 
 Rules:
 
@@ -433,6 +445,9 @@ Rules:
 - Using `move` on a copy type is a compile error.
 - `move place` has the same type as the selected place.
 - Evaluating `move place` transfers ownership out of that place.
+- `move place?` and `move place!` first transfer the complete optional or fallible value and then
+  apply each outcome suffix from left to right. `move place catch ...` and
+  `move place otherwise ...` likewise move the place before the lower-precedence eliminator.
 - After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
   named-field move, that field is uninitialized and the parent is partially initialized; disjoint
   initialized fields remain usable and retain their own cleanup obligations.
@@ -447,6 +462,9 @@ Rules:
   contextual ownership selector for a newly produced value.
 - Moving from an index, dereference, call result, postfix `?` expression, conditional expression,
   or parenthesized complex expression is invalid.
+- The valid `move place?` spelling does not contradict that restriction: the move operand is the
+  place, while `?` applies afterward. `move (place?)` still attempts to move a computed result and
+  is invalid.
 - Partial moves are field-sensitive only for statically named struct fields. Index moves from
   arrays or collections, enum-payload moves, and computed projections are not supported.
 - `match move place` and `if move place is Pattern` move the complete enum place before selecting a
@@ -461,6 +479,7 @@ consume(move text)
 consume(move pair.second)
 return move value
 user.name = move name
+let item = move maybe?
 ```
 
 Invalid:
@@ -468,6 +487,7 @@ Invalid:
 ```nct
 move make_value()
 move (make_value()?)
+move (maybe?)
 move (condition ? a : b)
 move array[index]
 move copy_value

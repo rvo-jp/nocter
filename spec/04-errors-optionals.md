@@ -101,6 +101,11 @@ This binds `file` to the successful `File` value. If `File.open(path)` fails, th
 Rules:
 
 - Postfix `?` is not an exception mechanism.
+- Applying `?` to an existing move-only outcome place requires `move place?`. This canonical form
+  moves the complete outcome first and then unwraps it. The source place is uninitialized on every
+  continuation, including success, propagated failure, and propagated absence paths.
+- A newly produced outcome temporary needs no `move`. A copyable outcome place may be used without
+  `move`; it is copied and the original remains initialized.
 - Postfix `?` does not perform stack unwinding.
 - Postfix `?` on `T!` can be used only inside a fallible function.
 - Postfix `?` on `T?` can be used only when the current callable body's result layer can carry
@@ -111,17 +116,32 @@ Rules:
 - Error conversion is not needed for propagation because every fallible value fails with `error`.
 - `throw` is not part of the language.
 
+An existing move-only outcome is invalidated before its tag is selected:
+
+```nct
+func require_name(): String? {
+    let maybe: String? = find_name()
+    let text = move maybe?
+
+    use(maybe) // error: use after move
+    return move text
+}
+```
+
 Postfix `!` forcefully unwraps fallible and optional values.
 
 ```nct
 let file = File.open(path)!
-let user = maybe_user!
+let user = move maybe_user!
 ```
 
 Rules:
 
 - For `T!`, `expr!` evaluates to the success value when `expr` succeeds.
 - For `T?`, `expr!` evaluates to the present value when `expr` is present.
+- Applying `!` to an existing move-only outcome place requires `move place!`. The complete source
+  outcome is moved before its tag is checked. A newly produced temporary or copyable outcome does
+  not require `move`.
 - If `expr!` sees failure or `none`, execution terminates immediately through a trap-like non-recoverable path.
 - `expr!` does not return `error` or `none` to the caller.
 - `expr!` has result type `T`.
@@ -197,6 +217,9 @@ Rules:
   provenance origin.
 - Bare `catch { ... }` is invalid; discarding the failure must be explicit.
 - The catch block is evaluated only on failure.
+- Applying `catch` to an existing move-only fallible place requires
+  `move place catch name { ... }`. The complete fallible value is moved before selecting success
+  or failure. A new temporary or copyable fallible value does not require `move`.
 - A reachable catch block end must produce a value assignable to the fallible success type `T`.
 - A catch block may instead leave the current control path with `return`, `break`, `continue`, a
   call returning `never`, or another terminating construct.
@@ -328,7 +351,7 @@ Using a fallible optional:
 
 ```nct
 let maybe_config = load_config()?
-let config = maybe_config?
+let config = move maybe_config?
 
 use(config)
 ```
@@ -387,6 +410,9 @@ load(config)
 Rules:
 
 - `expr otherwise { body }` applies only when `expr` has type `T?`.
+- Applying `otherwise` to an existing move-only optional place requires
+  `move place otherwise { body }`. The complete optional value is moved before selecting presence
+  or absence. A new temporary or copyable optional value does not require `move`.
 - If `expr` is present, the result is the contained `T`.
 - If `expr` is `none`, the fallback body is evaluated.
 - The fallback body must produce `T`, or it may terminate the current control path with `return`, loop-local `break` / `continue`, or `never`.

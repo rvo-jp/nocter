@@ -659,6 +659,12 @@ Precedence, from highest to lowest:
 Rules:
 
 - Assignment is a statement, not an expression, and is not part of the precedence table.
+- `move` has a place-only operand grammar rather than the unrestricted operand grammar of `!`,
+  `-`, `&`, and `&+`. An immediately following outcome suffix applies after that place is moved:
+  `move value?` means `(move value)?`, and `move value!` means `(move value)!`.
+- The move place may include eligible named struct fields, so `move holder.result?` first moves
+  `holder.result` and then propagates its outcome. Calls, indexes, dereferences, and parenthesized
+  complex expressions do not become move places through this rule.
 - The half-open range token `..<` is part of range `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
 - `catch` binds to the immediately preceding expression after higher-precedence
   operators have been parsed.

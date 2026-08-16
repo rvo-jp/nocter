@@ -107,6 +107,9 @@ Rules:
 - Unsized array data type syntax is formatted as `[T]`; array slices are formatted as `&[T]` and `&+[T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
 - Parentheses used for type grouping do not add internal padding: `(T)!`.
+- Outcome elimination of an existing move-only place is formatted without redundant grouping:
+  `move value?`, `move value!`, `move value catch error { ... }`, and
+  `move value otherwise { ... }`. The formatter rewrites `(move value)?` to `move value?`.
 
 Examples:
 
@@ -171,6 +174,7 @@ Examples:
 ```nct
 let count: u64 = 0
 
+let maybe_home: &str? = lookup("HOME")
 let home = maybe_home?
 
 func read_all(

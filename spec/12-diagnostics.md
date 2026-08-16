@@ -294,6 +294,11 @@ Required diagnostic families:
 - Existing move-only iterator place used as a bare collection-loop source without `move`.
 - Newly produced value, call result, or other non-place expression used as the operand of `move` in
   a collection-loop source or sequence spread.
+- Existing move-only optional or fallible place eliminated by `?`, `!`, `catch`, or `otherwise`
+  without `move`. The diagnostic should suggest `move place?`, `move place!`,
+  `move place catch ...`, or `move place otherwise ...` as appropriate.
+- Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
+  `move place?`.
 - Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
 - Use of a maybe initialized binding.
 - Invalid reinitialization target after `move` or `drop`.
