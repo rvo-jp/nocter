@@ -576,6 +576,13 @@ Rules:
 - Integer binary arithmetic uses operands of the same integer type.
 - Shift operators use operands of the same integer type. Integer literals on the right side may be contextually typed by the left operand type when the value fits.
 - Shift expressions return the left operand type.
+- Left shift moves the fixed-width bit pattern toward the most-significant end, discards bits that
+  leave the width, and fills low bits with zero. Discarded bits do not cause an arithmetic overflow
+  trap.
+- Unsigned right shift fills high bits with zero. Signed right shift uses two's-complement
+  arithmetic shift and fills high bits with the original sign bit.
+- A zero shift count leaves the value unchanged. A negative count or a count greater than or equal
+  to the left operand's bit width traps before any machine shift is executed.
 - Integer literals may take an expected integer type when the value fits.
 - Non-literal integer values are not implicitly converted.
 - `bool` does not implicitly convert to or from integer types.
@@ -631,6 +638,8 @@ Arithmetic trap rules:
 - Signed division overflow, such as minimum signed value divided by `-1`, traps.
 - Shift counts greater than or equal to the bit width of the shifted value trap.
 - Shift counts must be non-negative.
+- Left-shift bit loss is not integer overflow. It follows the fixed-width bit-shift rule and does
+  not trap.
 
 Trap semantics are specified in [Control Flow](03-control-flow.md#never-and-reachability). These arithmetic safety checks are always-on for every build mode; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 

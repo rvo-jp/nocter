@@ -72,6 +72,8 @@ Rules for generated code:
   failure `error` do not infer an unknown payload type.
 - Signed integers use fixed-width two's-complement ranges. Do not assume wrapping arithmetic;
   ordinary overflow remains an always-on trap.
+- Shifts are fixed-width bit operations. Left shift discards outgoing high bits, unsigned right
+  shift zero-fills, and signed right shift sign-fills. Negative or out-of-width counts trap.
 - Use `match` for enum pattern handling.
 - Declare at least one variant in every enum; zero-variant enums are invalid.
 - Do not use `match` to unwrap `T!` or `T?`.
