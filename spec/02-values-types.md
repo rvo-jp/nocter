@@ -54,7 +54,7 @@ Rules:
 - The discarded value is consumed and any owned content is dropped at the end of the discard
   statement. A borrow-like value requires no drop and its borrow ends according to normal
   statement-end liveness.
-- Discarding `T?`, `T!`, `T?!`, or `T!?` does not unwrap, recover, or propagate it. The complete
+- Discarding `T?`, `T!`, `T?!`, or `(T!)?` does not unwrap, recover, or propagate it. The complete
   outcome value, including any active success, absence, or failure payload, is intentionally
   discarded and its owned content is dropped.
 - Discarding an existing move-only binding still requires `move`, as in `let _ = move value`.
