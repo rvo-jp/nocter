@@ -122,7 +122,15 @@ be introduced to make an unresolved syntax choice.
   slice attachment modules are recorded as exact semantic IDs; freeze-time validation never grants
   built-in authority from a path spelling. The completed builder validates all owner edges and
   declaration shapes before returning an immutable `DeclarationProgram` and independent
-  `SourceIndex`; the syntax-owned surface inventory cannot cross that boundary.
+  `SourceIndex`; the syntax-owned surface inventory cannot cross that boundary. Production callers
+  enter through `lower_compile_unit_declarations`, which owns the complete pass order from surface
+  collection through graph freezing. Individual passes remain public only as independently
+  testable compiler boundaries and cannot be reordered by a production caller.
+  Source-backed failures use one `SourceDiagnostic` envelope for a stable code, primary origin,
+  related notes, and correction guidance. A stage-specific diagnostic retains the semantic rule
+  identity separately from that presentation envelope. Compiler-state inconsistencies remain typed
+  internal errors and are never assigned a language diagnostic code merely because they crossed the
+  production facade.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -226,6 +226,13 @@ pub fn reserve_declaration_identities(
     surface: DeclarationSurface<'_>,
 ) -> Result<ReservedDeclarations<'_>, ReservationError> {
     let contracts = analyze_callable_contracts(&surface)?;
+    reserve_with_contracts(surface, contracts)
+}
+
+pub(crate) fn reserve_with_contracts(
+    surface: DeclarationSurface<'_>,
+    contracts: CallableContracts,
+) -> Result<ReservedDeclarations<'_>, ReservationError> {
     let SurfaceParts {
         source_map,
         symbols,

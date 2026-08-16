@@ -157,6 +157,13 @@ used only to carry matched bodies map to the contract representative; missing, m
 duplicate bodies fail before reservation. This prevents a later name resolver from trying to
 merge already-distinct semantic IDs.
 
+One production declaration-lowering facade owns the pass sequence: surface collection, callable-
+contract joining, identity reservation, header preparation, generic preparation, authored imports,
+compiler-selected prelude composition, type binding, type normalization, and header definition.
+The facade performs no semantic work of its own. It prevents tools and later compiler stages from
+assembling a partial or differently ordered declaration graph while keeping each pass independently
+testable.
+
 Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
 associated types, callables, construction surfaces, instances, conformances, variants, drops,
 tests, and opaque result types receive their final typed IDs before any header type is resolved.
@@ -221,6 +228,14 @@ direction, primary declaration-site ID, and optional related declaration-site ID
 selection does declaration lowering project those IDs through the completed `SourceIndex` to exact
 syntax origins. Changing a diagnostic span therefore cannot change rule selection, and adding a
 diagnostic cannot create a second attachment or declaration-shape evaluator.
+
+All source-backed declaration-lowering diagnostics share one envelope containing a stable code,
+primary source origin, zero or more related source notes, and optional correction guidance. The
+envelope does not select a rule. Contract joining projects its exact syntax subjects into the
+envelope before reservation; freeze-time validation projects semantic declaration-site subjects
+through the completed source index. Stage-specific wrappers preserve the selected rule identity.
+Errors that indicate inconsistent compiler state stay outside this envelope and have no public
+language code.
 
 Type well-formedness is validated on interned semantic types after alias expansion and concrete
 generic substitution. Invalid constructed types, including an optional layer whose eventual

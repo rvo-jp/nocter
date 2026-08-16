@@ -5,11 +5,14 @@
 //! projects them back to source without exposing syntax to later semantic stages.
 
 mod contract;
+mod contract_diagnostic;
 mod definitions;
+mod diagnostic;
 mod generics;
 mod headers;
 mod imports;
 mod input;
+mod pipeline;
 mod reservation;
 mod surface;
 mod text;
@@ -21,7 +24,9 @@ mod visibility;
 mod test_support;
 
 pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
+pub use contract_diagnostic::{CallableContractDiagnostic, CallableContractRule};
 pub use definitions::{DeclarationDiagnostic, HeaderDefinitionError, define_declaration_headers};
+pub use diagnostic::{DiagnosticNote, SourceDiagnostic};
 pub use generics::{GenericError, PreparedGenerics, prepare_generic_binders};
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use imports::{
@@ -33,6 +38,7 @@ pub use input::{
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
     UseTargetInput,
 };
+pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };

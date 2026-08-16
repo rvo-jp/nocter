@@ -6,7 +6,7 @@ use nocter_source::SourceId;
 use nocter_source_index::DuplicateSourceBinding;
 use nocter_syntax::NodeId;
 
-use crate::{LoweredDeclarations, PreparedTypes, SurfaceDeclarationId};
+use crate::{LoweredDeclarations, PreparedTypes, SourceDiagnostic, SurfaceDeclarationId};
 
 mod allocation;
 mod declarations;
@@ -42,6 +42,36 @@ pub enum HeaderDefinitionError {
     Definition(DefinitionError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
+}
+
+impl HeaderDefinitionError {
+    /// Returns the public source diagnostic when this is an authored language-rule failure.
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Declaration(diagnostic) => Some(diagnostic.source()),
+            Self::MissingSource(_)
+            | Self::MissingName(_)
+            | Self::MissingSite(_)
+            | Self::MissingType(_)
+            | Self::MissingCallableResult(_)
+            | Self::InvalidOwner(_)
+            | Self::InvalidSurface(_)
+            | Self::InvalidTypePattern(_)
+            | Self::InvalidTargetGate(_)
+            | Self::DuplicateDefault(_)
+            | Self::InvalidProvenance(_)
+            | Self::AmbiguousProvenance(_)
+            | Self::UnknownAssociatedType(_)
+            | Self::DuplicateAssociatedType(_)
+            | Self::InconsistentType(_)
+            | Self::InconsistentSource(_)
+            | Self::MissingDiagnosticSubject(_)
+            | Self::Definition(_)
+            | Self::Program(_)
+            | Self::DuplicateSourceBinding(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for HeaderDefinitionError {
