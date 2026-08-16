@@ -120,6 +120,17 @@ implementations, and references remain explicit roles. Structural `TypeId` value
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.
 
+`nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
+package has an opaque resolved identity distinct from its display name. A module has that package
+identity plus normalized directory segments. Physical package declarations, module roots,
+implementation files, and single-file inputs carry canonical path keys, but those keys are used
+only to reject duplicate ownership and to produce deterministic source projections. Lowering does
+not probe directories or reinterpret paths. It sorts packages, modules, and sources by their exact
+input identities before allocating semantic IDs, so discovery order cannot change the declaration
+program. Declared packages require one package declaration and one root module; single-file mode
+requires exactly one root module source and no package declaration. The two layouts cannot be
+silently substituted for each other.
+
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
 contract without making a rendered name part of type equality. Static and fresh storage retain no

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/nocter-declarations",
+    "crates/nocter-declaration-lowering",
     "crates/nocter-model",
     "crates/nocter-source",
     "crates/nocter-source-index",

@@ -1,0 +1,235 @@
+use nocter_source::SourceMap;
+use nocter_syntax::SyntaxTree;
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct PackageIdentity(Box<str>);
+
+impl PackageIdentity {
+    #[must_use]
+    pub fn new(identity: impl Into<Box<str>>) -> Self {
+        Self(identity.into())
+    }
+
+    #[must_use]
+    pub const fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PackageMode {
+    Declared,
+    SingleFile,
+}
+
+/// The authored package declaration and its canonical physical identity.
+///
+/// The path is supplied by package discovery. Lowering treats it as an opaque, already
+/// canonicalized key and never probes the filesystem.
+#[derive(Clone, Debug)]
+pub struct PackageDeclarationInput<'syntax> {
+    canonical_path: Box<str>,
+    syntax: &'syntax SyntaxTree,
+}
+
+impl<'syntax> PackageDeclarationInput<'syntax> {
+    #[must_use]
+    pub fn new(canonical_path: impl Into<Box<str>>, syntax: &'syntax SyntaxTree) -> Self {
+        Self {
+            canonical_path: canonical_path.into(),
+            syntax,
+        }
+    }
+
+    #[must_use]
+    pub const fn canonical_path(&self) -> &str {
+        &self.canonical_path
+    }
+
+    #[must_use]
+    pub const fn syntax(&self) -> &'syntax SyntaxTree {
+        self.syntax
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PackageInput<'syntax> {
+    identity: PackageIdentity,
+    display_name: Box<str>,
+    mode: PackageMode,
+    declaration: Option<PackageDeclarationInput<'syntax>>,
+}
+
+impl<'syntax> PackageInput<'syntax> {
+    #[must_use]
+    pub fn new(
+        identity: PackageIdentity,
+        display_name: impl Into<Box<str>>,
+        mode: PackageMode,
+        declaration: Option<PackageDeclarationInput<'syntax>>,
+    ) -> Self {
+        Self {
+            identity,
+            display_name: display_name.into(),
+            mode,
+            declaration,
+        }
+    }
+
+    #[must_use]
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+
+    #[must_use]
+    pub const fn display_name(&self) -> &str {
+        &self.display_name
+    }
+
+    #[must_use]
+    pub const fn mode(&self) -> PackageMode {
+        self.mode
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> Option<&PackageDeclarationInput<'syntax>> {
+        self.declaration.as_ref()
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ModuleIdentity {
+    package: PackageIdentity,
+    path: Box<[Box<str>]>,
+}
+
+impl ModuleIdentity {
+    #[must_use]
+    pub fn new<S>(package: PackageIdentity, path: impl IntoIterator<Item = S>) -> Self
+    where
+        S: Into<Box<str>>,
+    {
+        Self {
+            package,
+            path: path
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        }
+    }
+
+    #[must_use]
+    pub const fn package(&self) -> &PackageIdentity {
+        &self.package
+    }
+
+    #[must_use]
+    pub const fn path(&self) -> &[Box<str>] {
+        &self.path
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ModuleSourceKind {
+    Root,
+    Implementation,
+    SingleFile,
+}
+
+#[derive(Clone, Debug)]
+pub struct ModuleSourceInput<'syntax> {
+    canonical_path: Box<str>,
+    kind: ModuleSourceKind,
+    syntax: &'syntax SyntaxTree,
+}
+
+impl<'syntax> ModuleSourceInput<'syntax> {
+    #[must_use]
+    pub fn new(
+        canonical_path: impl Into<Box<str>>,
+        kind: ModuleSourceKind,
+        syntax: &'syntax SyntaxTree,
+    ) -> Self {
+        Self {
+            canonical_path: canonical_path.into(),
+            kind,
+            syntax,
+        }
+    }
+
+    #[must_use]
+    pub const fn canonical_path(&self) -> &str {
+        &self.canonical_path
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> ModuleSourceKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn syntax(&self) -> &'syntax SyntaxTree {
+        self.syntax
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ModuleInput<'syntax> {
+    identity: ModuleIdentity,
+    sources: Vec<ModuleSourceInput<'syntax>>,
+}
+
+impl<'syntax> ModuleInput<'syntax> {
+    #[must_use]
+    pub fn new(identity: ModuleIdentity, sources: Vec<ModuleSourceInput<'syntax>>) -> Self {
+        Self { identity, sources }
+    }
+
+    #[must_use]
+    pub const fn identity(&self) -> &ModuleIdentity {
+        &self.identity
+    }
+
+    #[must_use]
+    pub fn sources(&self) -> &[ModuleSourceInput<'syntax>] {
+        &self.sources
+    }
+}
+
+#[derive(Debug)]
+pub struct CompileUnitInput<'syntax> {
+    sources: &'syntax SourceMap,
+    packages: Vec<PackageInput<'syntax>>,
+    modules: Vec<ModuleInput<'syntax>>,
+}
+
+impl<'syntax> CompileUnitInput<'syntax> {
+    #[must_use]
+    pub fn new(
+        sources: &'syntax SourceMap,
+        packages: Vec<PackageInput<'syntax>>,
+        modules: Vec<ModuleInput<'syntax>>,
+    ) -> Self {
+        Self {
+            sources,
+            packages,
+            modules,
+        }
+    }
+
+    #[must_use]
+    pub const fn sources(&self) -> &'syntax SourceMap {
+        self.sources
+    }
+
+    #[must_use]
+    pub fn packages(&self) -> &[PackageInput<'syntax>] {
+        &self.packages
+    }
+
+    #[must_use]
+    pub fn modules(&self) -> &[ModuleInput<'syntax>] {
+        &self.modules
+    }
+}

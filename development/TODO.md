@@ -8,9 +8,9 @@ behavior, or implementation document may be used as an implementation input.
 
 ## Immediate Work
 
-1. Add a syntax-to-declaration lowering crate that accepts an explicit resolved compile-unit input,
-   canonicalizes package/module/declaration discovery, and reserves semantic identities without
-   checking bodies.
+1. Traverse every module source into a declaration-surface inventory, reject duplicate or illegal
+   cross-file surface ownership, and reserve all declaration/member identities in canonical order
+   without checking bodies. Package/module/source topology canonicalization is complete.
 2. Resolve declaration headers, aliases, associated declarations, callable provenance, and generic
    requirements into the structural type store, then freeze the declaration program and separate
    `SourceIndex`.

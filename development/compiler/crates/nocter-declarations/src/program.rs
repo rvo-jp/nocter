@@ -142,6 +142,11 @@ impl DeclarationProgramBuilder {
         }
     }
 
+    #[must_use]
+    pub const fn symbols(&self) -> &SymbolTable {
+        &self.symbols
+    }
+
     /// Adds a package after its exact package-graph identity has been selected by the caller.
     ///
     /// Package insertion order is required to be the caller's canonical package-graph order.
