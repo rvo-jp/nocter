@@ -5,9 +5,15 @@
 //! checked semantic identities. Target validation and later lowering cannot depend on this crate.
 
 mod body_sources;
+mod conformance;
 mod names;
 
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
+pub use conformance::{
+    CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
+    ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
+    MethodSelection, SubstitutionError, build_conformance_table,
+};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,

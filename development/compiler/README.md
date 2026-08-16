@@ -163,11 +163,14 @@ be introduced to make an unresolved syntax choice.
   witness is complete and canonically rotated by declaration identity. General equalities are
   validated after alias expansion. No source coordinate enters a `BoundTypeKind`, canonical
   `TypeKind`, or semantic ID.
-- `nocter-checking` owns the Phase 3 syntax boundary. Its first completed boundary catalogs every
-  declaration `BodyId` from its exact source projection, validates the projected module against
-  the semantic body owner, and remains invariant under package/module input order. It does not
-  discover bodies by source containment or filesystem paths. Typed checked-HIR construction will
-  consume this catalog.
+- `nocter-checking` owns the Phase 3 syntax boundary. It catalogs every declaration `BodyId` from
+  its exact source projection and resolves body scopes, locals, block imports, and explicit closure
+  captures without creating a second module namespace. Its program-wide conformance table applies
+  binder refinements before storing target/interface patterns, substitutes `Self`, generic, and
+  associated identities into method contracts, rejects unifiable patterns, selects required or
+  default methods, and proves associated interface/callable bounds through the same table. It does
+  not discover bodies by source containment or filesystem paths. Data-position validation and
+  typed checked-HIR construction consume these frozen boundaries next.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

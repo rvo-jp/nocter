@@ -180,6 +180,22 @@ These diagnostics are selected by the body-owned lexical resolver. The resolver 
 declaration or reference token that selected the rule and never scans rendered source text to
 recover a binding after lookup.
 
+Source-backed conformance diagnostics:
+
+- `E0350`: a conformance omits an interface method that has no default body.
+- `E0351`: a conformance declares a method that is absent from its interface, or repeats one
+  implementation name.
+- `E0352`: a conformance method disagrees with the normalized interface method contract.
+- `E0353`: two conformance target/interface patterns can denote the same application after binder
+  refinement. No more-specific declaration wins.
+- `E0354`: a selected associated type does not satisfy an interface or callable capability declared
+  by its associated-type declaration.
+
+These rules consume one program-wide normalized conformance table. Signature checking substitutes
+interface arguments, `Self`, associated bindings, method generics, and binder refinements before
+comparison. Bound proof and later dispatch query that same table rather than repeating pattern
+selection.
+
 Source-backed callable contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.

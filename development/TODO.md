@@ -10,11 +10,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Define one normalized conformance table keyed by semantic interface application and target type;
-   validate associated bindings, method signatures, completeness, and overlap once.
-2. Validate every normalized data-position type, including `void`, `never`, unsized, optional, and
+1. Validate every normalized data-position type, including `void`, `never`, unsized, optional, and
    fallible placement, before body expected-type checking can consume it.
-3. Define the immutable checked-program and typed-body node contracts from those closed decisions.
+2. Define the immutable checked-program and typed-body node contracts from those closed decisions.
    Do not create expression side maps or a second declaration/name authority.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -35,6 +33,10 @@ identity; rejects implicit captures; selects block imports through exact discove
 projection; extends `SourceIndex`; and compares complete diagnostics under reversed input order.
 The synthetic prelude is consistently a shadowable fallback rather than an authored collision
 layer.
+The program-wide `ConformanceTable` now owns refinement normalization, overlap unification, exact
+required/default method selection, signature substitution, conditional requirements, associated
+bindings, and associated interface/callable bound proof. Generic matching and bound proof query
+that table; they do not reconstruct declaration patterns or rank a more-specific conformance.
 
 ## Guardrails
 
