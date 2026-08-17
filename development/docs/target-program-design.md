@@ -242,8 +242,13 @@ Outcome injection and tags lower to typed aggregates. Propagation, force, and re
 their operand exactly once, switch on storage, and move a typed payload projection only on the
 selected branch. Propagation reconstructs its failure with retained inner-to-outer result layers;
 recovery initializes an authored catch binding before lowering its fallback. Unsupported checked
-operations and every non-empty cleanup schedule fail explicitly until their dedicated lowering
-paths are implemented; the current slice cannot silently omit accepted semantics.
+operations fail explicitly until their dedicated lowering paths are implemented. Unconditional
+cleanup schedules lower at their checked event timing and consume only executable destruction
+plans. They cover owned paths and staged values, assignment replacement, propagation failure,
+user drop calls, reverse struct/array payloads, active enum/outcome payload switches, opaque
+witnesses, and region release. Borrowed receiver roots remain initialized inputs but never become
+callee-owned cleanup. Conditional schedules still fail until their drop-flag transitions are
+lowered; the current slice cannot silently omit accepted semantics.
 
 ## Prohibited Designs
 

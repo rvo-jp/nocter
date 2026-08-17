@@ -48,6 +48,7 @@ impl FunctionLowerer<'_> {
             CheckedControl::Assign { target, value } => {
                 let value = self.require_value(*value)?;
                 let destination = self.lower_place(*target)?;
+                self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeStore)?;
                 self.append_effect(MirOperationKind::Store { destination, value })?;
                 Ok(None)
             }
@@ -58,6 +59,7 @@ impl FunctionLowerer<'_> {
             CheckedControl::Unreachable(_) => Ok(None),
             CheckedControl::Return(value) => {
                 let value = value.map(|value| self.require_value(value)).transpose()?;
+                self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
                 if let Some(block) = self.current.take() {
                     self.builder
                         .terminate(block, MirTerminator::Return(value))?;

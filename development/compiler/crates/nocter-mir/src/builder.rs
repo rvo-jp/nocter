@@ -101,6 +101,11 @@ impl MirFunctionBuilder {
         self.places.insert(MirPlace::new(root, projections, ty))
     }
 
+    #[must_use]
+    pub fn place(&self, place: MirPlaceId) -> Option<&MirPlace> {
+        self.places.get(place)
+    }
+
     pub fn add_drop_flag(
         &mut self,
         place: MirPlaceId,

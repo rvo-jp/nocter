@@ -17,6 +17,22 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
 }
 
 #[test]
+fn borrowed_drop_receiver_is_initialized_but_not_owned_by_the_body() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n",
+    )
+    .unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+
+    assert!(
+        body.nodes()
+            .iter()
+            .all(|(node, _)| body.cleanups().schedules(node).unwrap().is_empty())
+    );
+}
+
+#[test]
 fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
     let output = check(
         "struct Owned {\n    value: i32\n}\n\

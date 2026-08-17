@@ -20,6 +20,9 @@ impl LoweredPlacePath {
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_place(&mut self, place: PlaceId) -> Result<MirPlaceId, MirLoweringError> {
+        if let Some(lowered) = self.places.get(&place).copied() {
+            return Ok(lowered);
+        }
         let checked = self
             .body
             .places()
@@ -97,6 +100,10 @@ impl FunctionLowerer<'_> {
         if path.ty != ty {
             return Err(MirLoweringError::InvalidProjectionTypes(place));
         }
-        Ok(self.builder.add_place(path.root, path.projections, ty))
+        let lowered = self.builder.add_place(path.root, path.projections, ty);
+        if self.places.insert(place, lowered).is_some() {
+            return Err(MirLoweringError::InvalidProjectionTypes(place));
+        }
+        Ok(lowered)
     }
 }

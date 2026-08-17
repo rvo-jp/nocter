@@ -307,8 +307,12 @@ be introduced to make an unresolved syntax choice.
   selected/coerced index places. Call-backed indexing continues from the returned borrow as a
   normal place root, including nested fields and readwrite storage. Outcome lowering uses one typed
   temporary plus explicit storage switches and payload projections for propagation, force, and
-  recovery; nested failure results preserve their authored outer layers. Remaining checked
-  operations fail explicitly instead of being omitted.
+  recovery; nested failure results preserve their authored outer layers. Unconditional cleanup
+  consumes the checked timing table and frozen destruction plans for owned paths and values,
+  assignment replacement, propagation edges, user drop calls, reverse structural payloads, opaque
+  witnesses, and region release. Borrowed receivers remain initialized flow inputs without
+  acquiring callee destruction responsibility. Conditional cleanup and remaining checked
+  operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

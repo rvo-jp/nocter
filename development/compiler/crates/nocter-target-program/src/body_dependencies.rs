@@ -624,7 +624,11 @@ impl<'program> DependencyCollector<'program> {
             self.record_destruction(destruction)?;
         }
         match target {
-            CleanupTarget::Path(_) => {}
+            CleanupTarget::Path(path) => {
+                for ty in path.projection_types() {
+                    self.record_type(*ty)?;
+                }
+            }
             CleanupTarget::Place { place, ty } => {
                 self.visit_place(*place)?;
                 self.record_type(*ty)?;

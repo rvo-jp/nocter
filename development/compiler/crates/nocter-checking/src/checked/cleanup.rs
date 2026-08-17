@@ -15,14 +15,21 @@ pub enum CleanupCondition {
 pub struct CleanupPath {
     root: PlaceRoot,
     fields: Box<[FieldId]>,
+    projection_types: Box<[TypeId]>,
     ty: TypeId,
 }
 
 impl CleanupPath {
-    pub(crate) fn new(root: PlaceRoot, fields: impl Into<Box<[FieldId]>>, ty: TypeId) -> Self {
+    pub(crate) fn new(
+        root: PlaceRoot,
+        fields: impl Into<Box<[FieldId]>>,
+        projection_types: impl Into<Box<[TypeId]>>,
+        ty: TypeId,
+    ) -> Self {
         Self {
             root,
             fields: fields.into(),
+            projection_types: projection_types.into(),
             ty,
         }
     }
@@ -35,6 +42,12 @@ impl CleanupPath {
     #[must_use]
     pub const fn fields(&self) -> &[FieldId] {
         &self.fields
+    }
+
+    /// Type after every named-field projection, in the same order as [`Self::fields`].
+    #[must_use]
+    pub const fn projection_types(&self) -> &[TypeId] {
+        &self.projection_types
     }
 
     #[must_use]

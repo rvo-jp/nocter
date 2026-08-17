@@ -5,8 +5,8 @@ use nocter_checking::{
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
 use nocter_model::{
-    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, MirBlockId, MirLocalId, MirValueId,
-    ParameterId, TypeId, TypeKind,
+    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, MirBlockId, MirLocalId, MirPlaceId,
+    MirValueId, ParameterId, TypeId, TypeKind,
 };
 use nocter_target_program::{ExecutableInputSource, ExecutableItem, ExecutableProgram};
 
@@ -67,6 +67,9 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) current: Option<MirBlockId>,
     pub(super) parameters: BTreeMap<ParameterId, MirLocalId>,
     pub(super) locals: BTreeMap<LocalBindingId, MirLocalId>,
+    pub(super) values: BTreeMap<BodyNodeId, MirValueId>,
+    pub(super) places: BTreeMap<nocter_model::PlaceId, MirPlaceId>,
+    pub(super) cleanup_values: BTreeMap<BodyNodeId, MirPlaceId>,
 }
 
 impl<'a> FunctionLowerer<'a> {
@@ -101,6 +104,9 @@ impl<'a> FunctionLowerer<'a> {
             current: Some(entry),
             parameters,
             locals,
+            values: BTreeMap::new(),
+            places: BTreeMap::new(),
+            cleanup_values: BTreeMap::new(),
         }
     }
 
@@ -111,13 +117,8 @@ impl<'a> FunctionLowerer<'a> {
         if self.current.is_none() {
             return Ok(None);
         }
-        if self
-            .body
-            .cleanups()
-            .schedules(node)
-            .is_some_and(|schedules| !schedules.is_empty())
-        {
-            return Err(MirLoweringError::UnsupportedCleanup(node));
+        if let Some(value) = self.values.get(&node).copied() {
+            return Ok(Some(value));
         }
         let checked = self
             .body
@@ -126,7 +127,7 @@ impl<'a> FunctionLowerer<'a> {
             .cloned()
             .ok_or(MirLoweringError::UnknownNode(node))?;
         let ty = self.concrete_type(checked.ty())?;
-        match checked.operation() {
+        let lowered = match checked.operation() {
             CheckedOperation::Complete => Ok(None),
             CheckedOperation::Constant(constant) => {
                 let constant = match constant {
@@ -188,7 +189,17 @@ impl<'a> FunctionLowerer<'a> {
             | CheckedOperation::Interpolation(_) => {
                 Err(MirLoweringError::UnsupportedOperation(node))
             }
+        }?;
+        if let Some(value) = lowered
+            && self.values.insert(node, value).is_some()
+        {
+            return Err(MirLoweringError::InvalidDispatch(node));
         }
+        if self.current.is_some() {
+            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtControlHeaderEnd)?;
+            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtStatementEnd)?;
+        }
+        Ok(lowered)
     }
 
     fn lower_primitive(

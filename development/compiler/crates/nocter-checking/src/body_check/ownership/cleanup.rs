@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, BodyScopeId, ParameterId, PlaceId, TypeId, TypeKi
 
 use super::super::error::BodyCheckInternalError;
 use crate::copyability::{Copyability, CopyabilityTable};
-use crate::ownership::{InitializationState, MovePath, OwnershipState, initialized_body_roots};
+use crate::ownership::{InitializationState, MovePath, OwnershipState, owned_body_roots};
 use crate::type_relations::TypeSubstitution;
 use crate::{
     BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition, CleanupPath,
@@ -69,7 +69,7 @@ impl<'program> CleanupPlanner<'program> {
         &mut self,
         state: &mut OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
-        let mut roots = initialized_body_roots(self.graph, self.source).ok_or(
+        let mut roots = owned_body_roots(self.graph, self.source).ok_or(
             BodyCheckInternalError::BodyIdentityMismatch(self.source.body()),
         )?;
         let mut actions = Vec::new();
@@ -208,7 +208,7 @@ impl<'program> CleanupPlanner<'program> {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
         Ok(CleanupAction::new(
-            CleanupTarget::Path(CleanupPath::new(path.root_identity(), path.fields(), ty)),
+            CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
             CleanupCondition::Always,
         ))
     }
@@ -260,10 +260,37 @@ impl<'program> CleanupPlanner<'program> {
             InitializationState::Uninitialized => return Ok(()),
         };
         actions.push(CleanupAction::new(
-            CleanupTarget::Path(CleanupPath::new(path.root_identity(), path.fields(), ty)),
+            CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
             condition,
         ));
         Ok(())
+    }
+
+    fn checked_cleanup_path(
+        &mut self,
+        path: &MovePath,
+        expected: TypeId,
+    ) -> Result<CleanupPath, BodyCheckInternalError> {
+        let mut current = self.root_type(path.root_identity())?;
+        let mut projection_types = Vec::with_capacity(path.fields().len());
+        for field in path.fields() {
+            let next = self
+                .struct_fields(current)?
+                .into_iter()
+                .find_map(|(candidate, ty)| (candidate == *field).then_some(ty))
+                .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+            projection_types.push(next);
+            current = next;
+        }
+        if current != expected {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        Ok(CleanupPath::new(
+            path.root_identity(),
+            path.fields(),
+            projection_types,
+            expected,
+        ))
     }
 
     fn needs_cleanup(&mut self, ty: TypeId) -> Result<bool, BodyCheckInternalError> {

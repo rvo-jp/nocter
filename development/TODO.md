@@ -12,9 +12,9 @@ implementation input.
 
 1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
-   conversions, comparisons, selected/coerced index places, and outcome CFG to loops, patterns,
-   closures, regions, and cleanup-specific destruction plans. Never repeat requirement,
-   conformance, or drop-pattern selection.
+   conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
+   cleanup destruction to conditional cleanup flags, loops, patterns, closures, and regions.
+   Never repeat requirement, conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -108,9 +108,13 @@ Selected and coerced index projections now lower by borrowing the current place 
 their frozen receiver lane, and continuing from the returned borrow as a new MIR place root.
 Outcome injection, absence, failure, propagation, force, and recovery share one typed temporary,
 discriminant-switch, and payload-projection path. Propagation preserves every outer outcome layer,
-and catch bindings receive their failure payload before the fallback block. Failure-edge cleanup
-still belongs to the pending cleanup lowering. Loop, pattern, closure, region, and cleanup lowering
-remains the current task.
+catch bindings receive their failure payload before the fallback block, and the propagation edge
+runs its exact checked cleanup schedule. Unconditional cleanup now lowers owned paths and values,
+assignment replacement, user drop calls, reverse structural destruction, active outcome/enum
+payload switches, opaque witnesses, and lexical region release from frozen executable plans.
+Borrowed receiver roots remain initialized for flow checking but are excluded from callee-owned
+destruction. Conditional drop flags plus loop, pattern, closure, and region construction remain the
+current task.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

@@ -9,6 +9,7 @@ use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramB
 
 mod borrow_conversion;
 mod call;
+mod cleanup;
 mod comparison;
 mod control;
 mod function;
@@ -61,6 +62,7 @@ pub enum MirLoweringError {
     ExpectedPlace(BodyNodeId),
     InvalidDispatch(BodyNodeId),
     InvalidPlaceDispatch(PlaceId),
+    InvalidCleanup(BodyNodeId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
     Program(MirProgramBuildError),

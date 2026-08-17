@@ -476,8 +476,8 @@ fn preserves_outer_outcome_layers_on_propagation_failure_edges() {
 }
 
 #[test]
-fn refuses_to_silently_drop_checked_cleanup() {
-    let error = lower_fixture(
+fn lowers_checked_user_destruction_once_without_recursing_on_its_receiver() {
+    let program = lower_fixture(
         "struct Owned { value: i32 }\n\
          drop Owned(&+self) { return }\n\
          func main(): void {\n\
@@ -485,9 +485,16 @@ fn refuses_to_silently_drop_checked_cleanup() {
              return\n\
          }\n",
     )
-    .unwrap_err();
+    .unwrap();
 
-    assert!(matches!(error, MirLoweringError::UnsupportedCleanup(_)));
+    let invocations = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.operations().iter())
+        .filter(|(_, operation)| matches!(operation.kind(), MirOperationKind::InvokeDrop { .. }))
+        .count();
+
+    assert_eq!(invocations, 1);
 }
 
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {

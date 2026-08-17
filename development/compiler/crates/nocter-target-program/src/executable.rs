@@ -216,6 +216,17 @@ impl ExecutableBody {
     }
 
     #[must_use]
+    pub fn drop_item(
+        &self,
+        selection: &nocter_checking::DropSelection,
+    ) -> Option<ExecutableItemId> {
+        self.drops
+            .iter()
+            .find(|edge| edge.selection == *selection)
+            .map(|edge| edge.item)
+    }
+
+    #[must_use]
     pub const fn types(&self) -> &[ExecutableTypeEdge] {
         &self.types
     }
