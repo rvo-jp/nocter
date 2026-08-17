@@ -20,6 +20,7 @@ pub enum DeclarationRule {
     InvalidConformanceTarget,
     IncompleteAssociatedTypes,
     InvalidOpaqueResult,
+    InvalidLiteralSignature,
 }
 
 impl DeclarationRule {
@@ -39,6 +40,7 @@ impl DeclarationRule {
             Self::InvalidConformanceTarget => "E0210",
             Self::IncompleteAssociatedTypes => "E0211",
             Self::InvalidOpaqueResult => "E0212",
+            Self::InvalidLiteralSignature => "E0213",
         }
     }
 
@@ -70,6 +72,9 @@ impl DeclarationRule {
             Self::InvalidOpaqueResult => {
                 "opaque result requires a supported callable with a source body"
             }
+            Self::InvalidLiteralSignature => {
+                "literal member does not match its language-defined shape"
+            }
         }
     }
 
@@ -79,7 +84,9 @@ impl DeclarationRule {
             Self::DuplicateConstruction | Self::DuplicateDrop => {
                 Some("previous declaration is here")
             }
-            Self::InvalidConstructionResult => Some("owning construction is declared here"),
+            Self::InvalidConstructionResult | Self::InvalidLiteralSignature => {
+                Some("owning construction is declared here")
+            }
             Self::InvalidInherentAttachment | Self::InvalidDropTarget => {
                 Some("target type is declared here")
             }
@@ -124,6 +131,9 @@ impl DeclarationRule {
             }
             Self::InvalidOpaqueResult => {
                 "use the opaque result on a supported callable with a source body"
+            }
+            Self::InvalidLiteralSignature => {
+                "declare a public sequence element pack or one public readonly str parameter"
             }
         }
     }

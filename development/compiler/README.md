@@ -248,6 +248,11 @@ be introduced to make an unresolved syntax choice.
   arguments and one source-ordered argument list. Argument and ranked result-context inference run
   before normalized requirements use the shared recursive proof authority. Ownership visits call
   inputs in language order and therefore uses the ordinary explicit-move state transitions.
+  Construction surfaces index named functions and literal shapes once. Fixed and empty typed
+  sequences infer construction binders from their elements or result context, and typed strings
+  share the syntax crate's decoded-text authority with package data. Every checked literal keeps
+  the exact constructor dispatch and complete generic substitution; source projection covers only
+  the selected delimiter. Bare non-interpolated strings are static readonly `&str` constants.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
@@ -266,9 +271,9 @@ Phase 2 is complete. Declaration validation identifies exact semantic subjects, 
 project them through `SourceIndex` without duplicating validation in lowering. Every production
 failure is classified as an authored rule or an internal compiler/discovery integrity error.
 Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
-and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its
-first production slice; unsupported valid constructs fail internally without returning a partial
-checked program.
+and module input order. Phase 3 checked-body construction remains incomplete for collection
+iteration, regions, typed sequence spread, allocation overrides, and interpolation; unsupported
+valid constructs fail internally without returning a partial checked program.
 
 ## Verification
 

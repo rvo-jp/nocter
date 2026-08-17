@@ -176,7 +176,8 @@ impl OwnershipAnalyzer<'_> {
         match checked.operation() {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
+            | CheckedOperation::Outcome(CheckedOutcome::Absent)
+            | CheckedOperation::StringLiteral { .. } => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {
                 self.visit_place_use(node, *place, state)
             }
@@ -249,9 +250,17 @@ impl OwnershipAnalyzer<'_> {
                     .map(|capture| capture.initializer()),
                 state,
             ),
-            CheckedOperation::Sequence(_)
-            | CheckedOperation::StringLiteral { .. }
-            | CheckedOperation::Interpolation(_) => {
+            CheckedOperation::Sequence(sequence) => self.visit_value_sequence(
+                sequence
+                    .elements()
+                    .iter()
+                    .filter_map(|element| match element {
+                        crate::SequenceElement::Value(value) => Some(*value),
+                        crate::SequenceElement::Spread { .. } => None,
+                    }),
+                state,
+            ),
+            CheckedOperation::Interpolation(_) => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }

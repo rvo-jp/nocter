@@ -54,6 +54,7 @@ mod outcomes;
 mod patterns;
 mod place;
 mod type_uses;
+mod typed_literals;
 mod value_planning;
 use loops::LoopConstruction;
 
@@ -778,6 +779,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
                 NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
                 NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
+                NodeKind::TypedSequenceLiteral => {
+                    return self.check_typed_sequence_literal(current, expected);
+                }
+                NodeKind::TypedStringLiteral => {
+                    return self.check_typed_string_literal(current, expected);
+                }
+                NodeKind::StringExpression => {
+                    return self.check_string_expression(current, expected);
+                }
                 NodeKind::ClosureExpression => return self.check_closure(current, expected),
                 NodeKind::IfExpression => return self.check_if(current, expected),
                 NodeKind::MatchExpression => return self.check_match(current, expected),

@@ -479,6 +479,17 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
         super::HeaderDefinitionError::Declaration(diagnostic)
             if diagnostic.rule() == DeclarationRule::IncompleteAssociatedTypes
     ));
+    for source in [
+        "struct Text {}\nconstruct Text {\n    pub literal \"\"(text: i32): Self { return Self {} }\n}\n",
+        "struct Text {}\nconstruct Text {\n    pub literal \"\"(text: &str): Self? { return none }\n}\n",
+    ] {
+        assert!(matches!(
+            definition_error(source),
+            super::HeaderDefinitionError::Declaration(diagnostic)
+                if diagnostic.rule() == DeclarationRule::InvalidLiteralSignature
+                    && diagnostic.code() == "E0213"
+        ));
+    }
 }
 
 #[test]

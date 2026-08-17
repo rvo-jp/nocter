@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use nocter_declarations::{CallableKind, CallableOwner, DeclarationGraph, NominalShape};
+use nocter_declarations::{
+    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape,
+};
 use nocter_model::{
     CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId, Symbol, TypeId, TypeStore,
     VariantId,
@@ -14,6 +16,8 @@ struct ConstructionSurface {
     declaration: Option<ConstructionId>,
     structural: Option<StructuralSurface>,
     variants: BTreeMap<Symbol, VariantId>,
+    functions: BTreeMap<Symbol, CallableId>,
+    literals: BTreeMap<LiteralShape, CallableId>,
 }
 
 #[derive(Debug)]
@@ -28,6 +32,8 @@ impl ConstructionSurface {
             declaration: Some(declaration),
             structural: None,
             variants: BTreeMap::new(),
+            functions: BTreeMap::new(),
+            literals: BTreeMap::new(),
         }
     }
 }
@@ -40,6 +46,7 @@ impl ConstructionSurface {
 #[derive(Debug)]
 pub struct ConstructionSurfaceTable {
     by_family: BTreeMap<InherentTypeFamily, ConstructionSurface>,
+    by_construction: BTreeMap<ConstructionId, InherentTypeFamily>,
 }
 
 impl ConstructionSurfaceTable {
@@ -48,6 +55,7 @@ impl ConstructionSurfaceTable {
         types: &TypeStore,
     ) -> Result<Self, ConstructionSurfaceBuildError> {
         let mut by_family = BTreeMap::new();
+        let mut by_construction = BTreeMap::new();
         for (nominal, declaration) in graph.declarations().nominal_types().iter() {
             let (structural, variants) = match declaration.shape() {
                 NominalShape::Struct { fields, .. } => {
@@ -105,6 +113,8 @@ impl ConstructionSurfaceTable {
                     declaration: None,
                     structural,
                     variants,
+                    functions: BTreeMap::new(),
+                    literals: BTreeMap::new(),
                 },
             );
         }
@@ -113,6 +123,7 @@ impl ConstructionSurfaceTable {
             let family = InherentTypeFamily::of(types, declaration.target()).ok_or(
                 ConstructionSurfaceBuildError::InvalidTarget(declaration.target()),
             )?;
+            by_construction.insert(construction, family);
             match by_family.get_mut(&family) {
                 Some(surface) => {
                     if surface.declaration.replace(construction).is_some() {
@@ -125,8 +136,18 @@ impl ConstructionSurfaceTable {
                     by_family.insert(family, ConstructionSurface::builtin(construction));
                 }
             }
+            let surface =
+                by_family
+                    .get_mut(&family)
+                    .ok_or(ConstructionSurfaceBuildError::InvalidTarget(
+                        declaration.target(),
+                    ))?;
+            index_construction_members(graph, construction, declaration.members(), surface)?;
         }
-        Ok(Self { by_family })
+        Ok(Self {
+            by_family,
+            by_construction,
+        })
     }
 
     #[must_use]
@@ -243,46 +264,83 @@ impl ConstructionSurfaceTable {
         name: Symbol,
         from: ModuleId,
     ) -> Result<Option<CallableId>, ConstructionSurfaceSelectionError> {
-        let declaration = graph
+        let surface = self.surface_for_construction(graph, construction)?;
+        let Some(member) = surface.functions.get(&name).copied() else {
+            return Ok(None);
+        };
+        Self::visible_member(graph, construction, member, from)
+            .map(|visible| visible.then_some(member))
+    }
+
+    /// Selects the one accessible literal constructor for an exact language literal shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the immutable construction graph and its prepared
+    /// surface disagree.
+    pub fn literal(
+        &self,
+        graph: &DeclarationGraph,
+        construction: ConstructionId,
+        shape: LiteralShape,
+        from: ModuleId,
+    ) -> Result<Option<CallableId>, ConstructionSurfaceSelectionError> {
+        let surface = self.surface_for_construction(graph, construction)?;
+        let Some(member) = surface.literals.get(&shape).copied() else {
+            return Ok(None);
+        };
+        Self::visible_member(graph, construction, member, from)
+            .map(|visible| visible.then_some(member))
+    }
+
+    fn surface_for_construction(
+        &self,
+        graph: &DeclarationGraph,
+        construction: ConstructionId,
+    ) -> Result<&ConstructionSurface, ConstructionSurfaceSelectionError> {
+        graph
             .declarations()
             .constructions()
             .get(construction)
             .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(
                 construction,
             ))?;
-        let mut selected = None;
-        for member in declaration.members().iter().copied() {
-            let callable = graph
-                .declarations()
-                .callables()
-                .get(member)
-                .ok_or(ConstructionSurfaceSelectionError::MissingCallable(member))?;
-            if callable.owner() != CallableOwner::Construction(construction) {
-                return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
-            }
-            if callable.kind() != CallableKind::ConstructionFunction
-                || callable.name() != Some(name)
-            {
-                continue;
-            }
-            let site = graph
-                .declaration_sites()
-                .get(callable.site())
-                .copied()
-                .ok_or(ConstructionSurfaceSelectionError::MissingCallableSite(
-                    member,
-                ))?;
-            if !graph.is_visible_from(site.visibility(), from, site.module()) {
-                continue;
-            }
-            if selected.replace(member).is_some() {
-                return Err(ConstructionSurfaceSelectionError::AmbiguousMember(
-                    construction,
-                    name,
-                ));
-            }
+        let family = self.by_construction.get(&construction).ok_or(
+            ConstructionSurfaceSelectionError::MissingConstruction(construction),
+        )?;
+        let surface = self.by_family.get(family).ok_or(
+            ConstructionSurfaceSelectionError::MissingConstruction(construction),
+        )?;
+        if surface.declaration != Some(construction) {
+            return Err(ConstructionSurfaceSelectionError::MissingConstruction(
+                construction,
+            ));
         }
-        Ok(selected)
+        Ok(surface)
+    }
+
+    fn visible_member(
+        graph: &DeclarationGraph,
+        construction: ConstructionId,
+        member: CallableId,
+        from: ModuleId,
+    ) -> Result<bool, ConstructionSurfaceSelectionError> {
+        let callable = graph
+            .declarations()
+            .callables()
+            .get(member)
+            .ok_or(ConstructionSurfaceSelectionError::MissingCallable(member))?;
+        if callable.owner() != CallableOwner::Construction(construction) {
+            return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
+        }
+        let site = graph
+            .declaration_sites()
+            .get(callable.site())
+            .copied()
+            .ok_or(ConstructionSurfaceSelectionError::MissingCallableSite(
+                member,
+            ))?;
+        Ok(graph.is_visible_from(site.visibility(), from, site.module()))
     }
 
     #[must_use]
@@ -296,6 +354,47 @@ impl ConstructionSurfaceTable {
     }
 }
 
+fn index_construction_members(
+    graph: &DeclarationGraph,
+    construction: ConstructionId,
+    members: &[CallableId],
+    surface: &mut ConstructionSurface,
+) -> Result<(), ConstructionSurfaceBuildError> {
+    for member in members.iter().copied() {
+        let callable = graph
+            .declarations()
+            .callables()
+            .get(member)
+            .ok_or(ConstructionSurfaceBuildError::MissingCallable(member))?;
+        if callable.owner() != CallableOwner::Construction(construction) {
+            return Err(ConstructionSurfaceBuildError::InvalidMember(member));
+        }
+        match callable.kind() {
+            CallableKind::ConstructionFunction => {
+                let name = callable
+                    .name()
+                    .ok_or(ConstructionSurfaceBuildError::InvalidMember(member))?;
+                if surface.functions.insert(name, member).is_some() {
+                    return Err(ConstructionSurfaceBuildError::DuplicateFunction(
+                        construction,
+                        name,
+                    ));
+                }
+            }
+            CallableKind::Literal(shape) => {
+                if surface.literals.insert(shape, member).is_some() {
+                    return Err(ConstructionSurfaceBuildError::DuplicateLiteral(
+                        construction,
+                        shape,
+                    ));
+                }
+            }
+            _ => return Err(ConstructionSurfaceBuildError::InvalidMember(member)),
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstructionSurfaceBuildError {
     InvalidTarget(TypeId),
@@ -306,6 +405,10 @@ pub enum ConstructionSurfaceBuildError {
     MissingVariant(VariantId),
     InvalidVariantOwner(VariantId),
     DuplicateVariantName(NominalTypeId, Symbol),
+    MissingCallable(CallableId),
+    InvalidMember(CallableId),
+    DuplicateFunction(ConstructionId, Symbol),
+    DuplicateLiteral(ConstructionId, LiteralShape),
 }
 
 impl std::fmt::Display for ConstructionSurfaceBuildError {
@@ -330,6 +433,17 @@ impl std::fmt::Display for ConstructionSurfaceBuildError {
             }
             Self::DuplicateVariantName(nominal, name) => {
                 write!(formatter, "duplicate variant name {name:?} in {nominal:?}")
+            }
+            Self::MissingCallable(callable) => write!(formatter, "missing callable {callable:?}"),
+            Self::InvalidMember(callable) => {
+                write!(formatter, "invalid construction member {callable:?}")
+            }
+            Self::DuplicateFunction(construction, name) => write!(
+                formatter,
+                "duplicate construction function {name:?} in {construction:?}"
+            ),
+            Self::DuplicateLiteral(construction, shape) => {
+                write!(formatter, "duplicate {shape:?} literal in {construction:?}")
             }
         }
     }

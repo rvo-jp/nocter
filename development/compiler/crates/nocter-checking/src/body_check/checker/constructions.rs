@@ -433,7 +433,7 @@ impl BodyChecker<'_, '_> {
         Ok(())
     }
 
-    fn construction_target_requirements_hold(
+    pub(super) fn construction_target_requirements_hold(
         &mut self,
         target: TypeId,
         arguments: &crate::GenericArguments,

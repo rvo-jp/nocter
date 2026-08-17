@@ -50,6 +50,8 @@ mod pattern_tests;
 mod place_tests;
 #[cfg(test)]
 mod provenance_tests;
+#[cfg(test)]
+mod typed_literal_tests;
 
 pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckInternalError};

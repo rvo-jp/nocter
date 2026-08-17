@@ -32,7 +32,7 @@ pub(super) fn gate(
         .source_map
         .get(tree.source())
         .ok_or(HeaderDefinitionError::MissingSource(declaration))?;
-    let decoded = crate::text::decode_string_literal(source, tree, literal)
+    let decoded = nocter_syntax::decode_string_literal(source, tree, literal)
         .ok_or(HeaderDefinitionError::InvalidTargetGate(declaration))?;
     types
         .namespaces

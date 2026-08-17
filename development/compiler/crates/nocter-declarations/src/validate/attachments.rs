@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use nocter_model::{BuiltinType, ModuleId, NominalTypeId, TypeId, TypeKind};
+use nocter_model::{BorrowCapability, BuiltinType, ModuleId, NominalTypeId, TypeId, TypeKind};
 
-use crate::{BuiltinAttachment, CallableKind, CallableOwner, DeclarationProgram, NominalShape};
+use crate::{
+    BuiltinAttachment, CallableKind, CallableOwner, DeclarationProgram, LiteralShape, NominalShape,
+    ParameterRole, Visibility,
+};
 
 use super::{
     DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,
@@ -152,9 +155,65 @@ fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramVal
                     construction.site(),
                 );
             }
+            if let CallableKind::Literal(shape) = member.kind()
+                && !valid_literal_signature(program, member, construction.target(), shape)?
+            {
+                return related_violation(
+                    DeclarationRule::InvalidLiteralSignature,
+                    member.site(),
+                    construction.site(),
+                );
+            }
         }
     }
     Ok(())
+}
+
+fn valid_literal_signature(
+    program: &DeclarationProgram,
+    callable: &crate::CallableDeclaration,
+    target: TypeId,
+    shape: LiteralShape,
+) -> Result<bool, ProgramIntegrityError> {
+    let site = require(
+        program.declaration_sites().get(callable.site()),
+        DeclarationDomain::Callable,
+        DeclarationDomain::DeclarationSite,
+    )?;
+    let [parameter] = callable.parameters() else {
+        return Ok(false);
+    };
+    let parameter = require(
+        program.declarations().parameters().get(*parameter),
+        DeclarationDomain::Callable,
+        DeclarationDomain::Parameter,
+    )?;
+    if site.visibility() != Visibility::Public || callable.result() != target {
+        return Ok(false);
+    }
+    Ok(match shape {
+        LiteralShape::Sequence => {
+            parameter.role()
+                == (ParameterRole::Ordinary {
+                    position: 0,
+                    variadic: true,
+                })
+        }
+        LiteralShape::String => {
+            parameter.role()
+                == (ParameterRole::Ordinary {
+                    position: 0,
+                    variadic: false,
+                })
+                && matches!(
+                    program.types().get(parameter.ty()),
+                    Some(TypeKind::Borrow {
+                        capability: BorrowCapability::Readonly,
+                        referent,
+                    }) if *referent == program.types().builtin(BuiltinType::Str)
+                )
+        }
+    })
 }
 
 fn validate_instances(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {

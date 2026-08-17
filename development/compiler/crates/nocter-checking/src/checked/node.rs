@@ -1,7 +1,6 @@
 use nocter_model::{
-    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId,
-    ClosureId, DropId, FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId,
-    TypeId, VariantId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, DropId,
+    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
 };
 
 use crate::expected::OutcomeLayer;
@@ -54,7 +53,7 @@ pub enum CheckedOperation {
     Closure(CheckedClosure),
     Sequence(CheckedSequence),
     StringLiteral {
-        constructor: CallableId,
+        constructor: StaticSelection,
         text: Box<str>,
         allocation: AllocationSelection,
     },
@@ -578,15 +577,27 @@ pub enum SequenceElement {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedSequence {
-    constructor: CallableId,
+    constructor: StaticSelection,
     elements: Box<[SequenceElement]>,
     allocation: AllocationSelection,
 }
 
 impl CheckedSequence {
+    pub(crate) fn new(
+        constructor: StaticSelection,
+        elements: impl Into<Box<[SequenceElement]>>,
+        allocation: AllocationSelection,
+    ) -> Self {
+        Self {
+            constructor,
+            elements: elements.into(),
+            allocation,
+        }
+    }
+
     #[must_use]
-    pub const fn constructor(&self) -> CallableId {
-        self.constructor
+    pub const fn constructor(&self) -> &StaticSelection {
+        &self.constructor
     }
 
     #[must_use]

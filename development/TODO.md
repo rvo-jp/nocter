@@ -10,8 +10,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete typed literals through the existing expected-type, construction-surface, allocation,
-   temporary-flow, and cleanup authorities.
+1. Extend the checked typed-literal path from fixed sequence elements and decoded string
+   construction to exact-size spread and explicit allocation-context selection.
 2. Complete interpolation through the same evaluation-order, formatting-dispatch, allocation,
    provenance, loan, and cleanup authorities used by ordinary calls and aggregate values.
 
@@ -84,7 +84,7 @@ their parent, and join inherited field state without enumerating a struct eagerl
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
 branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
-typed literals, and interpolation remain incomplete.
+typed sequence spread, explicit literal allocation overrides, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -98,8 +98,17 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, typed literals, and interpolation remain
-incomplete.
+edge. Collection iteration, executable regions, typed sequence spread, explicit literal
+allocation overrides, and interpolation remain incomplete.
+
+The construction surface now indexes named functions and both literal shapes once. Literal
+selection uses exact construction and callable identities, and a checked literal retains one
+`StaticSelection` with every construction-binder argument rather than losing generic
+specialization behind a bare callable ID. Fixed sequence elements, empty contextual sequences,
+decoded typed strings, and ordinary static `&str` expressions pass expected-type inference,
+ownership, provenance, and loan analysis. The sequence delimiter or string opener is the exact
+callable source projection. Declaration validation rejects a string literal parameter other than
+readonly `&str` and rejects outcome-wrapped literal results before body checking.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership

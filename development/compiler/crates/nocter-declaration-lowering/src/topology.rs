@@ -726,7 +726,7 @@ fn collect_tree_symbols(
             .node(node)
             .is_some_and(|syntax| syntax.kind() == NodeKind::StringLiteral)
         {
-            let decoded = crate::text::decode_string_literal(source, tree, node)
+            let decoded = nocter_syntax::decode_string_literal(source, tree, node)
                 .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
             spellings.push(decoded);
             continue;
