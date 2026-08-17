@@ -371,6 +371,8 @@ impl Analyzer<'_> {
                 if result_live {
                     body_live.insert(LiveSlot::Node(*body));
                 }
+                // The parent allocator/context remains borrowed until the child region ends.
+                body_live.insert(LiveSlot::Node(*allocator));
                 body_live = self.transfer(*body, body_live)?;
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
                 self.operand(*allocator, body_live)
@@ -538,6 +540,8 @@ impl Analyzer<'_> {
                     | CleanupTarget::EnumResidual {
                         subject: node, ty, ..
                     } => (*ty, LiveSlot::Node(*node)),
+                    // Region release is compiler-defined and has no user-authored observing drop.
+                    CleanupTarget::Region { .. } => continue,
                 };
                 if self.has_observing_drop(ty) {
                     live.insert(slot);

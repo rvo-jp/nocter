@@ -1,6 +1,5 @@
 use nocter_declarations::{
     CallableKind, CallableOwner, LiteralShape, ParameterOwner, ParameterRole,
-    StandardDeclarationRole,
 };
 use nocter_model::{BorrowCapability, BuiltinType, CallableId, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
@@ -398,40 +397,9 @@ impl BodyChecker<'_, '_> {
         };
         let allocator = direct_child(self.tree(), allocation, NodeKind::AllocatorPlace)
             .ok_or(BodyCheckInternalError::InvalidSyntax(allocation))?;
-        let named = direct_child(self.tree(), allocator, NodeKind::NamedPlace)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(allocator))?;
-        let place = self.named_place(named)?;
-        let candidate = match self.types.get(place.ty) {
-            Some(TypeKind::Borrow { referent, .. }) => *referent,
-            Some(_) => place.ty,
-            None => return Err(BodyCheckInternalError::UnknownType(place.ty).into()),
-        };
-        let Some(TypeKind::Nominal {
-            definition,
-            arguments,
-        }) = self.types.get(candidate)
-        else {
-            return Err(self.rule(BodyRule::InvalidAllocationContext, named)?);
-        };
-        let allocation_roles = [
-            self.standard_semantics
-                .nominal(StandardDeclarationRole::AbortingAllocator),
-            self.standard_semantics
-                .nominal(StandardDeclarationRole::AllocationContext),
-        ];
-        if allocation_roles.iter().all(Option::is_none) {
-            return Err(BodyCheckInternalError::MissingAllocationSemanticRoles.into());
-        }
-        let allowed = arguments.is_empty()
-            && allocation_roles
-                .into_iter()
-                .flatten()
-                .any(|allowed| allowed == *definition);
-        if !allowed {
-            return Err(self.rule(BodyRule::InvalidAllocationContext, named)?);
-        }
-        let checked = self.add_node(named, place.ty, CheckedOperation::Place(place.id))?;
-        Ok(AllocationSelection::Explicit(checked))
+        Ok(AllocationSelection::Explicit(
+            self.check_allocation_place(allocator)?,
+        ))
     }
 
     fn is_readonly_str(&self, ty: TypeId) -> bool {

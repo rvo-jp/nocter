@@ -107,10 +107,19 @@ declaration order and conditional drops for maybe-initialized storage.
 `CleanupTable` is a dense checked-node-indexed event annotation. One node may own independent
 `AtStatementEnd`, `AtControlHeaderEnd`, `BeforeStore`, `OnOutcomePropagation`, and
 `BeforeTransfer` schedules, each with an ordered action list. A target is an owned root plus exact
-`FieldId` path, an already evaluated writable `PlaceId`, or an evaluated temporary value node. Its
-condition is `Always` or `IfInitialized`; it never embeds a source name, syntax range, or
+`FieldId` path, an already evaluated writable `PlaceId`, an evaluated temporary value node, an enum
+residual, or a compiler-managed region release. Its condition is `Always` or `IfInitialized`; it
+never embeds a source name, syntax range, or
 independently inferred liveness bit. Later MIR expands the target type through the program's
 `DropTable` and structural drop glue without recovering timing from the node kind.
+
+A lexical region is a checked control node containing its exact context `LocalBindingId`, retained
+parent operand, and body node. The context local is never ordinary movable or destructible storage.
+Its body scope owns a distinct region-release cleanup target that follows all ordinary body-value
+actions. The same target terminates the retained parent loan. Consequently fallthrough, return,
+loop transfer, and propagation use one cleanup planner, nested regions release inside-out, and a
+diverging edge adds no cleanup. Provenance enters the same region identity as the current allocation
+context and validates that no region-derived component crosses the body boundary.
 
 ## Construction Order
 

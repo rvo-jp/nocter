@@ -2,20 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by completing executable region construction and ownership over the
-already modeled provenance and loan boundaries.
+Begin v0.14.0 Phase 4 by defining the target-program success boundary shared by `check`, `build`,
+and `run`, then derive entry-driven executable-program construction from it.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Construct one checked `Region` from its exact allocator place, lexical region binding, and body
-   scope without interpreting the region name as ordinary storage.
-2. Add region lifetime and destruction to ownership cleanup, including body completion, return,
-   propagation, and nested-region order.
-3. Verify allocation selection, provenance escape, source loans, and early transfers against the
-   same checked region identity.
+1. Audit the target, package, entry, buildability, and CLI specifications for every observable
+   choice required by one immutable `TargetProgram` boundary.
+2. Define the Phase 4 ownership map and syntax-independent target/executable schemas before adding
+   lowering code.
+3. Implement target validation as the sole shared acceptance boundary; executable reachability and
+   monomorphization must consume it rather than repeat package or body checks.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -85,7 +85,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Executable regions remain incomplete.
+branch-local paths.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -112,7 +112,7 @@ type-use authority, validate normalized data or callable-result position, and pa
 type into the ordinary expected-type conversion boundary. The checked local therefore retains the
 declared destination type rather than an initializer-side approximation. Invalid body type uses
 and invalid discard forms project `E0406`-`E0407`; normalized shape violations continue to use
-`E0360`-`E0365`. Executable regions remain incomplete.
+`E0360`-`E0365`.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one
@@ -145,6 +145,16 @@ accepts only a place of an established aborting allocator or allocation-context 
 place as an explicit HIR operand, and projects `E0399` for an authored wrong type. Ownership,
 provenance, loan, and closure-capability consumers all evaluate that operand before literal
 elements; current-region literals retain the existing implicit selection.
+
+Executable `region` statements now consume that same allocator-place authority and construct one
+typed `AllocationContext` binding plus an explicit checked parent operand and body edge. Region
+handles cannot enter ordinary copy, move, owned-receiver, moved-capture, or explicit-drop paths.
+Ownership treats a region as a lexical resource rather than ordinary storage: every reachable
+fallthrough, `return`, `break`, `continue`, and postfix-propagation edge cleans body-owned values
+before one explicit region-release action. Nested cleanup follows scope order, while a `never`
+edge schedules no release. The parent allocator/context remains loan-live through the child body
+and its loan ends at the release action, before any enclosing parent cleanup. Provenance uses the
+same region binding and current-allocation identity to reject direct and indirect storage escape.
 
 Ordinary interpolation now decodes text and expression parts once in source order, normalizes
 multiline indentation across interpolation boundaries, and constructs the exact role-selected

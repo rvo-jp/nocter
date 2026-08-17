@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
-    ArenaBuilder, BodyNodeId, BodyScopeId, BuiltinType, CallableCapability, LoopId, TypeStore,
+    ArenaBuilder, BodyNodeId, BodyScopeId, BuiltinType, CallableCapability, LocalBindingId, LoopId,
+    TypeStore,
 };
 use nocter_source_index::SourceOrigin;
 
@@ -21,8 +22,9 @@ use crate::ownership::{
 };
 use crate::{
     AggregateConstruction, BodySource, CheckedBody, CheckedControl, CheckedOperation,
-    CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming, ClosureDefinition,
-    ClosureTable, DropTable, LoopKind, PlaceAccess, PrimitiveOperation, ReadonlyOperandPreparation,
+    CheckedOutcome, CleanupAction, CleanupCondition, CleanupSchedule, CleanupTable, CleanupTarget,
+    CleanupTiming, ClosureDefinition, ClosureTable, DropTable, LoopKind, PlaceAccess,
+    PrimitiveOperation, ReadonlyOperandPreparation,
 };
 use cleanup::CleanupPlanner;
 use temporaries::TemporaryPlanner;
@@ -59,6 +61,7 @@ pub(super) fn analyze_body_ownership(
         origins,
         loops: Vec::new(),
         scopes: Vec::new(),
+        regions: Vec::new(),
         temporaries: TemporaryPlanner::default(),
         cleanup_schedules: HashMap::new(),
         closure: None,
@@ -69,7 +72,8 @@ pub(super) fn analyze_body_ownership(
         .iter()
         .filter(|(_, definition)| definition.owner() == source.body())
     {
-        if !analyzer.scopes.is_empty() || !analyzer.loops.is_empty() {
+        if !analyzer.scopes.is_empty() || !analyzer.loops.is_empty() || !analyzer.regions.is_empty()
+        {
             return Err(BodyCheckInternalError::CleanupPlanning.into());
         }
         let mut state = OwnershipState::default();
@@ -122,6 +126,7 @@ struct OwnershipAnalyzer<'program> {
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopFlow>,
     scopes: Vec<BodyScopeId>,
+    regions: Vec<RegionFlow>,
     temporaries: TemporaryPlanner,
     cleanup_schedules: HashMap<BodyNodeId, Vec<CleanupSchedule>>,
     closure: Option<&'program ClosureDefinition>,
@@ -136,9 +141,16 @@ struct LoopFlow {
     continues: Vec<OwnershipState>,
 }
 
+#[derive(Clone, Copy)]
+struct RegionFlow {
+    binding: LocalBindingId,
+    body_scope: BodyScopeId,
+    parent: BodyNodeId,
+}
+
 impl OwnershipAnalyzer<'_> {
     fn finish_cleanups(mut self) -> Result<CleanupTable, BodyCheckInternalError> {
-        if !self.scopes.is_empty() || !self.loops.is_empty() {
+        if !self.scopes.is_empty() || !self.loops.is_empty() || !self.regions.is_empty() {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
         let mut schedules = ArenaBuilder::new();
@@ -351,9 +363,11 @@ impl OwnershipAnalyzer<'_> {
                 fallback,
                 unmatched,
             } => self.visit_pattern(node, *subject, arms, *fallback, *unmatched, state),
-            CheckedControl::Region { .. } => {
-                Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
-            }
+            CheckedControl::Region {
+                binding,
+                allocator,
+                body,
+            } => self.visit_region(*binding, *allocator, *body, state),
         }
     }
 
@@ -381,7 +395,7 @@ impl OwnershipAnalyzer<'_> {
             reaches = self.visit(result, state)?;
         }
         if reaches {
-            let mut actions = self.scope_cleanup(scope, state)?;
+            let mut actions = self.scope_lifetime_cleanup(scope, state)?;
             if self.scopes.len() == 1 {
                 let mut temporary_actions = self.temporary_cleanup_actions(state, &[])?;
                 temporary_actions.append(&mut actions);
@@ -405,6 +419,34 @@ impl OwnershipAnalyzer<'_> {
         }
         self.activate_owned_temporary(value, state)?;
         Ok(true)
+    }
+
+    fn visit_region(
+        &mut self,
+        binding: LocalBindingId,
+        allocator: BodyNodeId,
+        body: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(allocator, state)? {
+            return Ok(false);
+        }
+        state
+            .declare_initialized(MovePath::root(crate::PlaceRoot::Local(binding)))
+            .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        let body_scope = self.block_scope(body)?;
+        self.regions.push(RegionFlow {
+            binding,
+            body_scope,
+            parent: allocator,
+        });
+        let reaches = self.visit(body, state)?;
+        if self.regions.pop().is_none_or(|frame| {
+            frame.binding != binding || frame.body_scope != body_scope || frame.parent != allocator
+        }) {
+            return Err(BodyCheckInternalError::CleanupPlanning.into());
+        }
+        Ok(reaches)
     }
 
     fn visit_if(
@@ -784,6 +826,38 @@ impl OwnershipAnalyzer<'_> {
         .scope_actions(scope, state)
     }
 
+    /// Cleans ordinary owned values in a lexical scope, then releases the child allocation
+    /// context whose lifetime is defined by that scope, if any.
+    fn scope_lifetime_cleanup(
+        &mut self,
+        scope: BodyScopeId,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let mut actions = self.scope_cleanup(scope, state)?;
+        let Some(region) = self
+            .regions
+            .iter()
+            .rev()
+            .find(|region| region.body_scope == scope)
+            .copied()
+        else {
+            return Ok(actions);
+        };
+        let root = crate::PlaceRoot::Local(region.binding);
+        if !state.contains_root(root) {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        state.forget_root(root);
+        actions.push(CleanupAction::new(
+            CleanupTarget::Region {
+                binding: region.binding,
+                parent: region.parent,
+            },
+            CleanupCondition::Always,
+        ));
+        Ok(actions)
+    }
+
     fn execution_storage_cleanup(
         &mut self,
         state: &mut OwnershipState,
@@ -884,7 +958,7 @@ impl OwnershipAnalyzer<'_> {
             .collect::<Vec<_>>();
         let scopes = self.scopes.clone();
         for scope in scopes.into_iter().rev() {
-            actions.extend(self.scope_cleanup(scope, state)?);
+            actions.extend(self.scope_lifetime_cleanup(scope, state)?);
             if let Some((_, iterator)) = loop_lifetimes
                 .iter()
                 .rev()
@@ -933,7 +1007,7 @@ impl OwnershipAnalyzer<'_> {
         let scopes = self.scopes[target..].to_vec();
         let mut actions = Vec::new();
         for scope in scopes.into_iter().rev() {
-            actions.extend(self.scope_cleanup(scope, state)?);
+            actions.extend(self.scope_lifetime_cleanup(scope, state)?);
         }
         Ok(actions)
     }

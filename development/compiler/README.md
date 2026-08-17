@@ -283,9 +283,11 @@ Phase 2 is complete. Declaration validation identifies exact semantic subjects, 
 project them through `SourceIndex` without duplicating validation in lowering. Every production
 failure is classified as an authored rule or an internal compiler/discovery integrity error.
 Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
-and module input order. Phase 3 checked-body construction now includes collection iteration and
-authored binding annotations. Executable regions remain incomplete; unsupported valid constructs
-fail internally without returning a partial checked program.
+and module input order. Phase 3 is complete. Checked-body construction covers the closed body
+grammar, including collection iteration, authored binding annotations, and executable lexical
+regions. Region handles are typed compiler-managed resources; one cleanup authority orders body
+destruction before region release on every reachable exit, retains the parent allocator loan for
+the complete child lifetime, and emits no fictional unwinding for `never` termination.
 
 ## Verification
 

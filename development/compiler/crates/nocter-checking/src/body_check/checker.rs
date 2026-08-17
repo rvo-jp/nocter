@@ -37,6 +37,7 @@ use crate::{
 };
 
 mod aggregates;
+mod allocation;
 mod arithmetic;
 mod assignment;
 mod call_planning;
@@ -56,6 +57,7 @@ mod outcomes;
 mod patterns;
 mod place;
 mod readonly_operands;
+mod regions;
 mod type_uses;
 mod typed_literals;
 mod value_planning;
@@ -592,6 +594,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     reaches_next: self.node_type(node)? != never,
                 })
             }
+            NodeKind::RegionStatement => {
+                let node = self.check_region(executable)?;
+                Ok(CheckedExecutable {
+                    node,
+                    result: false,
+                    reaches_next: self.node_type(node)? != never,
+                })
+            }
             NodeKind::BreakStatement => Ok(CheckedExecutable {
                 node: self.check_loop_control(executable, true)?,
                 result: false,
@@ -757,7 +767,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .copied()
             .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
         let (root, ty) = self.place_root(statement, token)?;
-        if matches!(self.types.get(ty), Some(TypeKind::Borrow { .. }))
+        if self.is_region_root(root)
+            || matches!(self.types.get(ty), Some(TypeKind::Borrow { .. }))
             || self
                 .copyabilities
                 .classify(self.graph, self.types, ty)
@@ -1027,6 +1038,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn check_move_place(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let operand = self.required_child(node, NodeKind::NamedPlace)?;
         let place = self.named_place(operand)?;
+        if self.is_region_place(place.id)? {
+            return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
+        }
         match self
             .copyabilities
             .classify(self.graph, self.types, place.ty)
@@ -1056,6 +1070,11 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         ty: TypeId,
         operation: CheckedOperation,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let CheckedOperation::Copy(place) | CheckedOperation::Move(place) = &operation
+            && self.is_region_place(*place)?
+        {
+            return Err(self.rule(BodyRule::InvalidMoveSource, syntax)?);
+        }
         let node = self.builder.add_node(ty, operation);
         let origin = SourceOrigin::from_node(self.tree(), syntax)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;

@@ -54,6 +54,11 @@ impl Analyzer<'_, '_> {
                         }
                     }
                 }
+                if let CleanupTarget::Region { parent, .. } = action.target() {
+                    for ended in state.value(&LiveSlot::Node(*parent)).all_loans() {
+                        ordinary.remove(&ended);
+                    }
+                }
             }
         }
         Ok(())
@@ -141,7 +146,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<BTreeSet<LoanId>, BodyCheckInternalError> {
         let mut loans = BTreeSet::new();
         for action in actions {
-            if self.has_observing_drop(cleanup_type(action.target())) {
+            if cleanup_type(action.target()).is_some_and(|ty| self.has_observing_drop(ty)) {
                 loans.extend(
                     self.cleanup_target_value(action.target(), state)?
                         .all_loans(),
@@ -174,6 +179,9 @@ impl Analyzer<'_, '_> {
             | CleanupTarget::EnumResidual { subject: node, .. } => {
                 state.value(&LiveSlot::Node(*node))
             }
+            CleanupTarget::Region { binding, .. } => state.value(&LiveSlot::Place(
+                LivePlace::from_parts(crate::PlaceRoot::Local(*binding), Box::new([])),
+            )),
         })
     }
 
@@ -200,6 +208,10 @@ impl Analyzer<'_, '_> {
                     .ok_or(BodyCheckInternalError::InvalidMovePlace(*place))?;
                 self.access_targets(place, state)?.0
             }
+            CleanupTarget::Region { binding, .. } => vec![LoanPlace::new(
+                LoanRoot::Place(crate::PlaceRoot::Local(*binding)),
+                [],
+            )],
             CleanupTarget::Value { .. } | CleanupTarget::EnumResidual { .. } => Vec::new(),
         })
     }
@@ -212,11 +224,12 @@ impl Analyzer<'_, '_> {
     }
 }
 
-fn cleanup_type(target: &CleanupTarget) -> TypeId {
+fn cleanup_type(target: &CleanupTarget) -> Option<TypeId> {
     match target {
-        CleanupTarget::Path(path) => path.ty(),
+        CleanupTarget::Path(path) => Some(path.ty()),
         CleanupTarget::Place { ty, .. }
         | CleanupTarget::Value { ty, .. }
-        | CleanupTarget::EnumResidual { ty, .. } => *ty,
+        | CleanupTarget::EnumResidual { ty, .. } => Some(*ty),
+        CleanupTarget::Region { .. } => None,
     }
 }

@@ -109,6 +109,30 @@ impl BodyChecker<'_, '_> {
         Ok(place.is_writable())
     }
 
+    pub(super) fn is_region_place(
+        &self,
+        place: nocter_model::PlaceId,
+    ) -> Result<bool, BodyCheckInternalError> {
+        let root = self
+            .builder
+            .place(place)
+            .map(crate::CheckedPlace::root)
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
+        Ok(self.is_region_root(root))
+    }
+
+    pub(super) fn is_region_root(&self, root: PlaceRoot) -> bool {
+        matches!(
+            root,
+            PlaceRoot::Local(local)
+                if self
+                    .names
+                    .locals()
+                    .get(local)
+                    .is_some_and(|local| local.kind() == LocalBindingKind::Region)
+        )
+    }
+
     fn start_place(
         &mut self,
         node: NodeId,

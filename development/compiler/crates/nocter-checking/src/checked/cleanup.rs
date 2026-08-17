@@ -1,4 +1,6 @@
-use nocter_model::{Arena, BodyNodeId, FieldId, ParameterId, PlaceId, TypeId, VariantId};
+use nocter_model::{
+    Arena, BodyNodeId, FieldId, LocalBindingId, ParameterId, PlaceId, TypeId, VariantId,
+};
 
 use super::PlaceRoot;
 
@@ -58,6 +60,12 @@ pub enum CleanupTarget {
         variant: VariantId,
         payload: Box<[ParameterId]>,
         ty: TypeId,
+    },
+    /// Releases one compiler-created lexical child allocation context after its body values.
+    /// `parent` identifies the retained allocator/context loan that ends at this action.
+    Region {
+        binding: LocalBindingId,
+        parent: BodyNodeId,
     },
 }
 

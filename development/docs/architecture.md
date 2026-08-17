@@ -432,6 +432,15 @@ node. An enum-pattern residual action identifies the evaluated subject, selected
 specialized enum type, and exact still-initialized payload parameters. MIR expands those semantic
 targets into control-flow cleanup blocks and structural drop glue
 without inferring execution order from a control-operation variant.
+
+Region construction reuses the exact standard-semantic allocator/context roles used by literal
+allocation overrides. Its checked node owns one lexical context binding, parent operand, and body.
+Ownership excludes that context from ordinary local destruction and emits a dedicated release
+action after body-owned values on every reachable scope exit. The action also ends the parent
+allocator loan, allowing enclosing cleanup only after the child has released. Provenance and loan
+analysis consume those identities directly; neither infers a region from source spelling or block
+containment.
+
 Explicit source `drop` is a checked control operation over the same owned root path. It attaches an
 unconditional action to that statement's outgoing edge and consumes the path state; it does not
 call a method, allocate hidden storage, or maintain a second explicit-destruction liveness table.

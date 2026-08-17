@@ -7,7 +7,7 @@ use crate::ownership::{InitializationState, MovePath, OwnershipState, initialize
 use crate::type_relations::TypeSubstitution;
 use crate::{
     BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition, CleanupPath,
-    CleanupTarget, DropTable, PlaceRoot,
+    CleanupTarget, DropTable, LocalBindingKind, PlaceRoot,
 };
 
 pub(super) struct CleanupPlanner<'program> {
@@ -47,7 +47,10 @@ impl<'program> CleanupPlanner<'program> {
             .body
             .locals()
             .iter()
-            .filter(|(_, local)| local.declaration().scope() == scope)
+            .filter(|(_, local)| {
+                local.declaration().scope() == scope
+                    && local.declaration().kind() != LocalBindingKind::Region
+            })
             .map(|(local, checked)| (local, checked.ty()))
             .collect::<Vec<_>>();
         let mut actions = Vec::new();
