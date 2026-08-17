@@ -2,7 +2,8 @@
 //!
 //! This crate is the only Phase 3 boundary allowed to inspect body syntax. It consumes the
 //! declaration-lowering result and extends the separate source projection while constructing
-//! checked semantic identities. Target validation and later lowering cannot depend on this crate.
+//! checked semantic identities. Later stages may consume its immutable semantic values, but they
+//! cannot construct them, inspect body syntax, or reopen a checked selection.
 
 mod body_check;
 mod body_sources;

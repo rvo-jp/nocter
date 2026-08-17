@@ -1,0 +1,136 @@
+use nocter_checking::{check_prepared_program, prepare_program_checking};
+use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_declarations::{CallableKind, CallableOwner};
+use nocter_model::CompilationTarget;
+use nocter_target_program::{
+    ExecutableProgram, PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, TargetProgram,
+    ToolchainSnapshot,
+};
+use nocter_test_support::CompilerFixture;
+
+use super::{MirLoweringError, lower_executable};
+use crate::{MirOperationKind, MirTerminator};
+
+#[test]
+fn lowers_scalar_control_flow_through_the_complete_frontend() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             let value = 1\n\
+             if true { value + 2 } else { 3 }\n\
+         }\n",
+    )
+    .unwrap();
+    let function = program.functions().iter().next().unwrap().1;
+
+    assert_eq!(function.blocks().len(), 4);
+    assert!(
+        function
+            .operations()
+            .iter()
+            .any(|(_, operation)| matches!(operation.kind(), MirOperationKind::Initialize { .. }))
+    );
+    assert!(
+        function
+            .operations()
+            .iter()
+            .any(|(_, operation)| matches!(operation.kind(), MirOperationKind::Binary { .. }))
+    );
+    assert!(
+        function
+            .blocks()
+            .iter()
+            .any(|(_, block)| matches!(block.terminator(), MirTerminator::Branch { .. }))
+    );
+}
+
+#[test]
+fn lowers_generic_direct_calls_to_dense_executable_items() {
+    let program = lower_fixture(
+        "func identity<T>(value: T): T { move value }\n\
+         func main(): i32 { identity(7) }\n",
+    )
+    .unwrap();
+
+    assert_eq!(program.functions().len(), 2);
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(operation.kind(), MirOperationKind::Call(call) if matches!(call.target(), crate::MirCallTarget::Direct(_)))
+        })
+    }));
+}
+
+#[test]
+fn refuses_to_silently_drop_checked_cleanup() {
+    let error = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func main(): void {\n\
+             let value = Owned { value: 1 }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, MirLoweringError::UnsupportedCleanup(_)));
+}
+
+fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
+    let fixture = CompilerFixture::with_app(source);
+    let (input, prelude) = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (declarations, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, declarations, source_index).unwrap();
+    let checked = check_prepared_program(&input, prepared)
+        .unwrap()
+        .into_parts()
+        .0;
+    let standard_package = checked.graph().standard_package().unwrap();
+    let registry = primitive_registry(&checked);
+    let snapshot =
+        ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
+            .unwrap();
+    let target = TargetProgram::build(checked, snapshot).unwrap();
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    lower_executable(executable)
+}
+
+fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {
+    let graph = checked.graph();
+    PrimitiveRegistry::new(PrimitiveRole::ALL.iter().copied().map(|role| {
+        let callable = graph
+            .declarations()
+            .callables()
+            .iter()
+            .find_map(|(callable, declaration)| {
+                let CallableOwner::Module(module) = declaration.owner() else {
+                    return None;
+                };
+                let actual_path = graph
+                    .modules()
+                    .get(module)?
+                    .path()
+                    .segments()
+                    .iter()
+                    .map(|segment| graph.symbols().spelling(*segment))
+                    .collect::<Option<Vec<_>>>()?;
+                (declaration.kind() == CallableKind::Primitive
+                    && actual_path == role.module_path()
+                    && declaration
+                        .name()
+                        .and_then(|name| graph.symbols().spelling(name))
+                        == Some(role.declaration_name()))
+                .then_some(callable)
+            })
+            .unwrap_or_else(|| panic!("missing fixture primitive {role:?}"));
+        PrimitiveBinding::new(role, callable)
+    }))
+    .unwrap()
+}

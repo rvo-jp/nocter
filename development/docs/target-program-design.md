@@ -222,6 +222,14 @@ integrity checks over an accepted program, not a second source diagnostic system
 8. Lower concrete checked bodies and cleanup schedules into MIR, then materialize compiler-owned
    process and test roots.
 
+The first end-to-end lowering slice now covers concrete signatures, constants, primitive integer
+operations, aggregate construction, ordinary copy/move/borrow places, initialization and
+assignment, value-producing branches, short-circuit logic, returns, and direct static calls. It
+runs through the complete source-to-executable fixture rather than a second hand-built input
+model. Unsupported checked operations and every non-empty cleanup schedule fail explicitly until
+their dedicated lowering paths are implemented; the current slice cannot silently omit accepted
+semantics.
+
 ## Prohibited Designs
 
 - filtering target-gated declarations after namespace or body checking

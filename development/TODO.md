@@ -10,9 +10,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Lower each dense executable item without source lookup. Consume its frozen direct item IDs,
-   typed primitive steps, concrete type edges, closure edges, and cleanup-specific destruction
-   plans; never repeat requirement, conformance, or drop-pattern selection.
+1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
+   value-producing branches, and direct static calls to frozen receiver/primitive dispatch,
+   outcomes, loops, patterns, closures, regions, and cleanup-specific destruction plans. Never
+   repeat requirement, conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -294,7 +295,8 @@ ranked paths as `E0388`, and carries one complete `StaticSelection` containing d
 and generic arguments. Lexical structural index requirements dispatch through their exact
 `RequirementId`; concrete instance candidates must satisfy normalized declaration and callable
 requirements, while unresolved generic receivers require lexical evidence. Executable MIR
-lowering remains incomplete.
+lowering now has an end-to-end scalar/control/direct-call slice. Non-empty cleanup schedules and
+the remaining checked operation families fail explicitly rather than being omitted.
 
 Closed prefix, shift, logical, and comparison selection is complete. A directly negated
 integer literal becomes one signed `i128`-domain constant, including each exact signed minimum;

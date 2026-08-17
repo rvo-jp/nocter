@@ -135,6 +135,10 @@ pub enum MirOperationKind {
         destination: MirPlaceId,
         value: MirValueId,
     },
+    Initialize {
+        destination: MirPlaceId,
+        value: MirValueId,
+    },
     SetDropFlag {
         flag: MirDropFlagId,
         initialized: bool,

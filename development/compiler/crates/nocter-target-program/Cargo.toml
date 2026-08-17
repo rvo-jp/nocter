@@ -13,8 +13,7 @@ nocter-model = { path = "../nocter-model" }
 
 [dev-dependencies]
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
-nocter-source = { path = "../nocter-source" }
-nocter-syntax = { path = "../nocter-syntax" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

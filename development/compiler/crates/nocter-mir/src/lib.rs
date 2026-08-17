@@ -5,6 +5,7 @@
 //! or rendered type names.
 
 mod builder;
+mod lower;
 mod operation;
 mod place;
 mod program;
@@ -18,6 +19,7 @@ mod validation_switch;
 mod validation_types;
 
 pub use builder::{MirBlockBuilder, MirFunctionBuildError, MirFunctionBuilder};
+pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{
     MirAggregate, MirBinaryOperation, MirCall, MirCallTarget, MirConstant, MirOperation,
     MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,

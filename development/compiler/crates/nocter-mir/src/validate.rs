@@ -218,6 +218,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 match self.types.get(source) {
                     Some(TypeKind::FixedArray { element, .. } | TypeKind::Slice(element))
                         if *element == result => {}
+                    Some(TypeKind::Builtin(BuiltinType::Str))
+                        if result == self.types.builtin(BuiltinType::U8) => {}
                     _ => return Err(MirValidationError::InvalidProjection { place }),
                 }
             }
@@ -472,6 +474,12 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     || !place_facts(self.function, destination)?.writable
                     || destination.ty() != self.value_type(*value)?
                 {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::Initialize { destination, value } => {
+                let destination = self.require_place(*destination)?;
+                if result.is_some() || destination.ty() != self.value_type(*value)? {
                     return Err(mismatch());
                 }
             }
@@ -887,7 +895,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::InvokeDrop { place, .. } => {
                 values.extend(place_values(self.require_place(*place)?));
             }
-            MirOperationKind::Store { destination, value } => {
+            MirOperationKind::Store { destination, value }
+            | MirOperationKind::Initialize { destination, value } => {
                 values.extend(place_values(self.require_place(*destination)?));
                 values.push(*value);
             }

@@ -7,9 +7,14 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-checking = { path = "../nocter-checking" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
 nocter-target-program = { path = "../nocter-target-program" }
+
+[dev-dependencies]
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

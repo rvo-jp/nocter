@@ -10,6 +10,7 @@ members = [
     "crates/nocter-source-index",
     "crates/nocter-syntax",
     "crates/nocter-target-program",
+    "crates/nocter-test-support",
 ]
 resolver = "3"
 
