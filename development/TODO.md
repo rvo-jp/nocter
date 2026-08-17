@@ -44,8 +44,9 @@ primitives retain closed roles and use the ordinary ABI planner through one comm
 domain. Literal packs now consume exact value/address identities, and their residual destruction
 uses only machine-function targets plus layout-owned tags, strides, and byte offsets. Structural
 comparison, checked index, and borrow weakening now consume exact scalar, tag, bound, stride, and
-view-layout facts without retaining semantic dispatch operands. ARM64 selection is the next closed
-boundary.
+view-layout facts without retaining semantic dispatch operands. The independent `nocter-arm64`
+crate now types physical register-31 roles and rejects truncating instruction encodings. ARM64
+selection, virtual-register allocation, frames, and fixups are the next closed boundaries.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

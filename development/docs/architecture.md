@@ -15,7 +15,8 @@ SourceProgram
   -> ExecutableProgram
   -> MirProgram
   -> MachineProgram
-  -> executable image
+  -> Arm64Program
+  -> MachOImage
 ```
 
 Each arrow is a one-way lowering boundary. A later program cannot recover a decision by revisiting

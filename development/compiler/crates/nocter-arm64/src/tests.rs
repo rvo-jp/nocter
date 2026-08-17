@@ -1,0 +1,252 @@
+use crate::{
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
+    Arm64DataRegister, Arm64DataSize, Arm64EncodingError, Arm64Instruction, Arm64LoadStoreSize,
+    Arm64MoveWide, Arm64Register, Arm64Shift,
+};
+
+fn x(number: u8) -> Arm64Register {
+    Arm64Register::new(number).unwrap()
+}
+
+fn data(number: u8) -> Arm64DataRegister {
+    Arm64DataRegister::General(x(number))
+}
+
+fn base(number: u8) -> Arm64BaseRegister {
+    Arm64BaseRegister::General(x(number))
+}
+
+fn destination(number: u8) -> Arm64AddSubtractDestination {
+    Arm64AddSubtractDestination::General(x(number))
+}
+
+fn word(instruction: Arm64Instruction) -> u32 {
+    u32::from_le_bytes(instruction.encode().unwrap())
+}
+
+#[test]
+fn encodes_integer_arithmetic_without_untyped_register_31() {
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: destination(0),
+            source: base(1),
+            immediate: 42,
+            shift_12: false,
+        }),
+        0x9100_a820
+    );
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::StackPointer,
+            source: Arm64BaseRegister::StackPointer,
+            immediate: 32,
+            shift_12: false,
+        }),
+        0xd100_83ff
+    );
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: true,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: base(2),
+            immediate: 7,
+            shift_12: false,
+        }),
+        0xf100_1c5f
+    );
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractRegister {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: data(0),
+            left: data(1),
+            right: data(2),
+        }),
+        0x8b02_0020
+    );
+}
+
+#[test]
+fn encodes_multiply_divide_shift_and_wide_immediates() {
+    assert_eq!(
+        word(Arm64Instruction::MoveWide {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64MoveWide::Zero,
+            destination: x(0),
+            immediate: 0x1234,
+            shift: 16,
+        }),
+        0xd2a2_4680
+    );
+    assert_eq!(
+        word(Arm64Instruction::MultiplyAdd {
+            size: Arm64DataSize::Bits64,
+            destination: x(0),
+            left: x(1),
+            right: x(2),
+            addend: Arm64DataRegister::Zero,
+            subtract_product: false,
+        }),
+        0x9b02_7c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::MultiplyAdd {
+            size: Arm64DataSize::Bits64,
+            destination: x(3),
+            left: x(4),
+            right: x(5),
+            addend: data(6),
+            subtract_product: true,
+        }),
+        0x9b05_9883
+    );
+    assert_eq!(
+        word(Arm64Instruction::Divide {
+            size: Arm64DataSize::Bits64,
+            destination: x(0),
+            left: x(1),
+            right: x(2),
+            signed: true,
+        }),
+        0x9ac2_0c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::VariableShift {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64Shift::Left,
+            destination: x(0),
+            value: x(1),
+            amount: x(2),
+        }),
+        0x9ac2_2020
+    );
+}
+
+#[test]
+fn encodes_scaled_memory_and_control_instructions() {
+    assert_eq!(
+        word(Arm64Instruction::LoadUnsigned {
+            size: Arm64LoadStoreSize::Double,
+            destination: data(0),
+            base: Arm64BaseRegister::StackPointer,
+            offset: 24,
+        }),
+        0xf940_0fe0
+    );
+    assert_eq!(
+        word(Arm64Instruction::StoreUnsigned {
+            size: Arm64LoadStoreSize::Word,
+            source: data(3),
+            base: base(4),
+            offset: 12,
+        }),
+        0xb900_0c83
+    );
+    assert_eq!(
+        word(Arm64Instruction::ConditionalSet {
+            size: Arm64DataSize::Bits32,
+            destination: x(0),
+            condition: Arm64BranchCondition::Equal,
+        }),
+        0x1a9f_17e0
+    );
+    assert_eq!(
+        word(Arm64Instruction::Branch {
+            displacement: 8,
+            link: false,
+        }),
+        0x1400_0002
+    );
+    assert_eq!(
+        word(Arm64Instruction::Branch {
+            displacement: -4,
+            link: true,
+        }),
+        0x97ff_ffff
+    );
+    assert_eq!(
+        word(Arm64Instruction::BranchConditional {
+            displacement: 12,
+            condition: Arm64BranchCondition::Equal,
+        }),
+        0x5400_0060
+    );
+    assert_eq!(
+        word(Arm64Instruction::BranchRegister {
+            target: x(16),
+            link: false,
+        }),
+        0xd61f_0200
+    );
+    assert_eq!(
+        word(Arm64Instruction::BranchRegister {
+            target: x(16),
+            link: true,
+        }),
+        0xd63f_0200
+    );
+    assert_eq!(
+        word(Arm64Instruction::Return { target: x(30) }),
+        0xd65f_03c0
+    );
+    assert_eq!(word(Arm64Instruction::Break { immediate: 1 }), 0xd420_0020);
+    assert_eq!(
+        word(Arm64Instruction::SupervisorCall { immediate: 0 }),
+        0xd400_0001
+    );
+}
+
+#[test]
+fn rejects_values_that_would_be_truncated_or_change_register_meaning() {
+    assert_eq!(
+        Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: base(0),
+            immediate: 0,
+            shift_12: false,
+        }
+        .encode(),
+        Err(Arm64EncodingError::InvalidRegisterRole)
+    );
+    assert_eq!(
+        Arm64Instruction::MoveWide {
+            size: Arm64DataSize::Bits32,
+            operation: Arm64MoveWide::Keep,
+            destination: x(0),
+            immediate: 0,
+            shift: 32,
+        }
+        .encode(),
+        Err(Arm64EncodingError::InvalidShift)
+    );
+    assert_eq!(
+        Arm64Instruction::LoadUnsigned {
+            size: Arm64LoadStoreSize::Double,
+            destination: data(0),
+            base: base(1),
+            offset: 3,
+        }
+        .encode(),
+        Err(Arm64EncodingError::OffsetOutOfRange)
+    );
+    assert_eq!(
+        Arm64Instruction::Branch {
+            displacement: 2,
+            link: false,
+        }
+        .encode(),
+        Err(Arm64EncodingError::MisalignedBranch)
+    );
+}

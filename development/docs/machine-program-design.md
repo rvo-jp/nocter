@@ -165,6 +165,14 @@ register allocation, spills, callee-saved preservation, frame offsets, instructi
 literal pools, and branch relaxation. Those decisions cannot change Nocter type layout or ABI
 classification.
 
+`nocter-arm64` is a separate crate whose dependency edge points only to `nocter-machine`. Its first
+closed layer represents physical general registers separately from the instruction-specific `sp`
+and zero-register roles. Instruction encoding accepts typed arithmetic, multiplication, division,
+variable shifts, scaled loads/stores, conditions, branches, returns, traps, and supervisor calls.
+It rejects out-of-range immediates, invalid wide-move shifts, misaligned branches, and offsets that
+would otherwise be silently truncated. Encoding tests are cross-checked against the platform ARM64
+assembler rather than treating hand-written hexadecimal values as their own authority.
+
 The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
 linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
 byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
@@ -204,5 +212,6 @@ process error reporting. Standard primitive calls also carry ordinary ABI plans 
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and layout-owned residual destruction recipes.
 
-ARM64 instruction lowering and Mach-O serialization are the remaining Phase 5 implementation
-areas.
+The typed ARM64 register and instruction-encoding foundation is implemented. Machine instruction
+selection, virtual-register allocation, frame construction, label/fixup resolution, and Mach-O
+serialization are the remaining Phase 5 implementation areas.

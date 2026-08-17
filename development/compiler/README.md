@@ -393,6 +393,11 @@ be introduced to make an unresolved syntax choice.
   index, and borrow-weakening dispatch is lowered into representation-exact machine operations;
   no structural call target survives. ARM64 selection and Mach-O serialization remain the next
   Phase 5 boundaries.
+- `nocter-arm64` owns physical ARM64 register roles and instruction encoding without depending on
+  MIR or any semantic crate. Register 31 is typed as `sp` or the zero register per instruction
+  form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
+  before little-endian encoding. Machine instruction selection, virtual-register allocation,
+  frames, and fixups remain separate later responsibilities in this crate.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

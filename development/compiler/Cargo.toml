@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/nocter-arm64",
     "crates/nocter-checking",
     "crates/nocter-declarations",
     "crates/nocter-declaration-lowering",
