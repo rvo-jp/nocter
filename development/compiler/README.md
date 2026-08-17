@@ -391,8 +391,8 @@ be introduced to make an unresolved syntax choice.
   spread segments through a dedicated body-local identity, while residual cleanup is frozen into
   machine-function targets, tags, strides, and byte offsets. Compiler-provided comparison, checked
   index, and borrow-weakening dispatch is lowered into representation-exact machine operations;
-  no structural call target survives. ARM64 selection and Mach-O serialization remain the next
-  Phase 5 boundaries.
+  no structural call target survives. ARM64 instruction selection remains the next Phase 5
+  boundary.
 - `nocter-arm64` owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as `sp` or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
@@ -403,11 +403,16 @@ be introduced to make an unresolved syntax choice.
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. Machine instruction selection, virtual-register allocation,
-  and Mach-O serialization remain separate later responsibilities in this crate. Dense function
+  accidental immediate-width limit. Machine instruction selection and virtual-register allocation
+  remain separate later responsibilities in this crate. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses.
+- `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
+  `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
+  native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
+  SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
+  macOS without invoking an assembler, linker, or signing tool.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

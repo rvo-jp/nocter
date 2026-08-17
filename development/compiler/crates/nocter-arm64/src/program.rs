@@ -78,6 +78,7 @@ pub struct Arm64Program {
     read_only_data: Box<[u8]>,
     functions: Box<[Arm64FunctionRange]>,
     data: Box<[Arm64DataRange]>,
+    data_alignment: u64,
     data_fixups: Box<[Arm64DataAddressFixup]>,
     entry: Arm64FunctionId,
 }
@@ -106,6 +107,11 @@ impl Arm64Program {
     #[must_use]
     pub const fn data_fixups(&self) -> &[Arm64DataAddressFixup] {
         &self.data_fixups
+    }
+
+    #[must_use]
+    pub const fn read_only_data_alignment(&self) -> u64 {
+        self.data_alignment
     }
 
     #[must_use]
@@ -288,6 +294,7 @@ impl Arm64ProgramBuilder {
         let laid_out_data = layout_data(self.data)?;
         let read_only_data = laid_out_data.bytes;
         let data = laid_out_data.ranges;
+        let data_alignment = laid_out_data.alignment;
         let mut data_fixups = Vec::new();
         for fixup in code_fixups {
             match fixup {
@@ -323,6 +330,7 @@ impl Arm64ProgramBuilder {
             read_only_data,
             functions: functions.into_boxed_slice(),
             data,
+            data_alignment,
             data_fixups: data_fixups.into_boxed_slice(),
             entry,
         })
@@ -398,12 +406,15 @@ fn patch_word(
 struct LaidOutData {
     bytes: Box<[u8]>,
     ranges: Box<[Arm64DataRange]>,
+    alignment: u64,
 }
 
 fn layout_data(definitions: Vec<DataDefinition>) -> Result<LaidOutData, Arm64ProgramError> {
     let mut bytes = Vec::new();
     let mut ranges = Vec::with_capacity(definitions.len());
+    let mut section_alignment = 1;
     for definition in definitions {
+        section_alignment = section_alignment.max(definition.alignment);
         let current = u64::try_from(bytes.len()).map_err(|_| Arm64ProgramError::OffsetOverflow)?;
         let offset = align_up(current, definition.alignment)?;
         let offset_usize =
@@ -421,6 +432,7 @@ fn layout_data(definitions: Vec<DataDefinition>) -> Result<LaidOutData, Arm64Pro
     Ok(LaidOutData {
         bytes: bytes.into_boxed_slice(),
         ranges: ranges.into_boxed_slice(),
+        alignment: section_alignment,
     })
 }
 

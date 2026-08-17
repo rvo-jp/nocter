@@ -64,6 +64,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-macho"
+version = "0.0.0"
+dependencies = [
+ "nocter-arm64",
+]
+
+[[package]]
 name = "nocter-mir"
 version = "0.0.0"
 dependencies = [

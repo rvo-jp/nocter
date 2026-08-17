@@ -1,0 +1,13 @@
+[package]
+name = "nocter-macho"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-arm64 = { path = "../nocter-arm64" }
+
+[lints]
+workspace = true

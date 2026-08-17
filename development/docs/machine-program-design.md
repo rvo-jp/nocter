@@ -204,11 +204,14 @@ distant slots materialize their full 64-bit offset in the ABI-reserved `x16` scr
 use the ARM64 extended-register stack-pointer form. Frame size therefore has no accidental
 12-bit-immediate ceiling, and the general allocator never competes for the scratch register.
 
-The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
-linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
-byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
-system interfaces are explicit machine-program imports or target-owned primitive expansions rather
-than undeclared backend name conventions.
+The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
+text, read-only-data, and link-edit layout; ARM64 section relocation; native entry metadata;
+dyld/libSystem load commands; deterministic content-derived UUID; and complete byte serialization.
+It emits the SHA-256 ad-hoc code directory and page hashes itself, so building an executable never
+invokes an assembler, linker, or signing tool. A target test writes the generated image and proves
+that macOS executes it with the requested status. The writer does not understand MIR, types,
+declarations, primitives, or source linkage names. Runtime and system interfaces remain explicit
+target-owned primitive expansions rather than backend spelling conventions.
 
 ## Validation and Determinism
 
@@ -246,5 +249,7 @@ operations, and layout-owned residual destruction recipes.
 The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
 register-role, fixed-frame placement, whole-program text/data ownership, and typed fixup foundations
 are implemented. Fixed-frame prologue and epilogue materialization is also complete for both direct
-and distant offsets. Machine instruction selection, virtual-register allocation, Mach-O section
-placement, and serialization are the remaining Phase 5 implementation areas.
+and distant offsets. Deterministic Mach-O section placement, load commands, relocation, UUID,
+ad-hoc signing, and executable serialization are implemented and pass a native execution test.
+Machine instruction selection and virtual-register allocation are the remaining Phase 5
+implementation areas.
