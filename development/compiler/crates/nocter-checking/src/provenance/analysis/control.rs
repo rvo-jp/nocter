@@ -20,13 +20,13 @@ impl Analyzer<'_, '_> {
                 scope,
                 statements,
                 result,
-            } => self.evaluate_block(*scope, statements, *result, state),
+            } => self.evaluate_block(node, *scope, statements, *result, state),
             CheckedControl::Bind {
                 binding,
                 initializer,
-            } => self.evaluate_binding(*binding, *initializer, state),
+            } => self.evaluate_binding(node, *binding, *initializer, state),
             CheckedControl::Assign { target, value } => {
-                self.evaluate_assignment(*target, *value, state)
+                self.evaluate_assignment(node, *target, *value, state)
             }
             CheckedControl::CompoundAssign { target, value, .. } => {
                 let (_, reaches) = self.evaluate(*value, state)?;
@@ -67,12 +67,13 @@ impl Analyzer<'_, '_> {
                 binding,
                 allocator,
                 body,
-            } => self.evaluate_region(*binding, *allocator, *body, state),
+            } => self.evaluate_region(node, *binding, *allocator, *body, state),
         }
     }
 
     fn evaluate_block(
         &mut self,
+        node: BodyNodeId,
         scope: nocter_model::BodyScopeId,
         statements: &[BodyNodeId],
         result: Option<BodyNodeId>,
@@ -83,6 +84,7 @@ impl Analyzer<'_, '_> {
                 self.remove_scope_locals(scope, state);
                 return Ok((ValueProvenance::independent(), false));
             }
+            self.validate_statement_storage(*statement, state)?;
         }
         let value = if let Some(result) = result {
             let (value, reaches) = self.evaluate(result, state)?;
@@ -94,18 +96,21 @@ impl Analyzer<'_, '_> {
         } else {
             ValueProvenance::independent()
         };
+        self.validate_scope_result(node, scope, &value)?;
         self.remove_scope_locals(scope, state);
         Ok((value, true))
     }
 
     fn evaluate_binding(
         &mut self,
+        node: BodyNodeId,
         binding: nocter_model::LocalBindingId,
         initializer: BodyNodeId,
         state: &mut ProvenanceState,
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
         let (value, reaches) = self.evaluate(initializer, state)?;
         if reaches {
+            self.validate_binding_storage(node, binding, &value)?;
             state.set_value(PlaceRoot::Local(binding), value);
         }
         Ok((ValueProvenance::independent(), reaches))
@@ -113,6 +118,7 @@ impl Analyzer<'_, '_> {
 
     fn evaluate_assignment(
         &mut self,
+        node: BodyNodeId,
         target: nocter_model::PlaceId,
         value: BodyNodeId,
         state: &mut ProvenanceState,
@@ -122,6 +128,7 @@ impl Analyzer<'_, '_> {
             return Ok((ValueProvenance::independent(), false));
         }
         self.evaluate_place_indices(target, state)?;
+        self.validate_assignment_storage(node, target, &value)?;
         self.write_place(target, value, state)?;
         Ok((ValueProvenance::independent(), true))
     }
@@ -186,6 +193,7 @@ impl Analyzer<'_, '_> {
 
     fn evaluate_region(
         &mut self,
+        node: BodyNodeId,
         binding: nocter_model::LocalBindingId,
         allocator: BodyNodeId,
         body: BodyNodeId,
@@ -203,6 +211,7 @@ impl Analyzer<'_, '_> {
         let result = self.evaluate(body, state)?;
         state.leave_region(previous);
         state.remove(PlaceRoot::Local(binding));
+        self.validate_region_exit(node, binding, &result.0, state)?;
         Ok(result)
     }
 

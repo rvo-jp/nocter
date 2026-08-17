@@ -4,7 +4,7 @@ use nocter_source_index::SourceIndex;
 
 use crate::{
     ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable,
-    InstanceOperationTable, ProvenanceTable,
+    InstanceOperationTable, LoanTable, ProvenanceTable,
 };
 
 use super::CheckedBody;
@@ -20,6 +20,7 @@ pub struct CheckedProgram {
     copyabilities: CopyabilityTable,
     drops: DropTable,
     provenance: ProvenanceTable,
+    loans: LoanTable,
     bodies: Arena<BodyId, CheckedBody>,
 }
 
@@ -30,6 +31,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) provenance: ProvenanceTable,
+    pub(crate) loans: LoanTable,
 }
 
 impl CheckedProgram {
@@ -48,6 +50,7 @@ impl CheckedProgram {
             copyabilities: authorities.copyabilities,
             drops: authorities.drops,
             provenance: authorities.provenance,
+            loans: authorities.loans,
             bodies,
         }
     }
@@ -90,6 +93,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn provenance(&self) -> &ProvenanceTable {
         &self.provenance
+    }
+
+    #[must_use]
+    pub const fn loans(&self) -> &LoanTable {
+        &self.loans
     }
 
     #[must_use]

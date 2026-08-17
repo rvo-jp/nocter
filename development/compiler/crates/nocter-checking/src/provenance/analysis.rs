@@ -1,4 +1,5 @@
 mod control;
+mod escape;
 mod places;
 mod values;
 
@@ -289,6 +290,7 @@ struct Analyzer<'program, 'syntax> {
     summaries: &'program BTreeMap<CallableId, CallableSummary>,
     source: crate::BodySource<'syntax>,
     body: &'program CheckedBody,
+    origins: &'program HashMap<BodyNodeId, nocter_source_index::SourceOrigin>,
     node_values: HashMap<BodyNodeId, ValueProvenance>,
     returned: ValueProvenance,
     return_events: Vec<ReturnEvent>,
@@ -308,6 +310,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             summaries,
             source: input.source(),
             body: input.body(),
+            origins: input.origins(),
             node_values: HashMap::new(),
             returned: ValueProvenance::independent(),
             return_events: Vec::new(),

@@ -250,6 +250,11 @@ Source-backed checked-body diagnostics:
   result-provenance contract. Local, owned-parameter, temporary, expired-region, and unknown
   storage cannot escape; a conformance implementation also cannot exceed its interface method's
   external-origin bound.
+- `E0396`: a new readonly or readwrite borrow overlaps an incompatible source-level live loan.
+- `E0397`: moving, dropping, assigning, or mutating a place conflicts with a source-level live
+  loan, including a loan observed by a pending type-owned drop body.
+- `E0398`: a storage-bearing value crosses a lexical scope, region, temporary-statement, or
+  destination boundary that outlives its storage source.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

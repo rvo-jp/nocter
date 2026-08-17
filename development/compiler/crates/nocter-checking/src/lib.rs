@@ -14,6 +14,7 @@ mod expected;
 mod field_selection;
 mod inference;
 mod instance_operations;
+mod loans;
 mod names;
 mod ownership;
 mod pattern_requirements;
@@ -31,17 +32,18 @@ pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_b
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence,
     BorrowConversionImplementation, BorrowConversionPreparation, BuildCheckedBodyError, CallTarget,
-    CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedBorrowConversion,
-    CheckedCall, CheckedCallReceiver, CheckedCallableProvenance, CheckedCapture, CheckedClosure,
-    CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedInterpolation,
-    CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
-    CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot, CheckedPatternSubject,
-    CheckedPlace, CheckedProgram, CheckedProgramOutput, CheckedReceiverCoercion, CheckedSequence,
-    CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
-    CleanupTiming, CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation,
-    ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
-    IterationAcquisition, LogicalOperation, LoopKind, PatternSubjectPreparation, PlaceAccess,
-    PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    CallableProvenanceTable, CheckedBody, CheckedBodyLoans, CheckedBodyProvenance,
+    CheckedBorrowConversion, CheckedCall, CheckedCallReceiver, CheckedCallableProvenance,
+    CheckedCapture, CheckedClosure, CheckedComparison, CheckedComparisonOperand, CheckedControl,
+    CheckedInterpolation, CheckedLoan, CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation,
+    CheckedOutcome, CheckedPattern, CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot,
+    CheckedPatternSubject, CheckedPlace, CheckedProgram, CheckedProgramOutput,
+    CheckedReceiverCoercion, CheckedSequence, CleanupAction, CleanupCondition, CleanupPath,
+    CleanupSchedule, CleanupTable, CleanupTarget, CleanupTiming, CoercedReceiverPreparation,
+    ComparisonImplementation, ComparisonOperation, ConstantValue, DuplicateGenericArgument,
+    GenericArgument, GenericArguments, InterpolationPart, IterationAcquisition, LoanId, LoanPlace,
+    LoanProjection, LoanRoot, LoanTable, LogicalOperation, LoopKind, PatternSubjectPreparation,
+    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
     ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
     ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch, StaticSelection,
     TypedIteration, ValueProvenance,

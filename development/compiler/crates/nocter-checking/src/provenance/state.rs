@@ -35,6 +35,10 @@ impl ProvenanceState {
         self.values.remove(&root);
     }
 
+    pub(super) fn values(&self) -> impl Iterator<Item = (PlaceRoot, &ValueProvenance)> {
+        self.values.iter().map(|(root, value)| (*root, value))
+    }
+
     pub(super) const fn current_allocation(&self) -> &ValueProvenance {
         &self.current_allocation
     }

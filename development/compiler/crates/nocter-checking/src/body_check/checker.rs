@@ -22,6 +22,7 @@ use crate::checked::{
     CheckedBodyBuilder, CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput,
 };
 use crate::copyability::{Copyability, CopyabilityTable};
+use crate::loans::{LoanBodyInput, analyze_program_loans};
 use crate::preparation::PreparedCheckingParts;
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
 use crate::syntax::{
@@ -155,21 +156,14 @@ pub fn check_prepared_program<'syntax>(
         checked.body.attach_cleanups(cleanups)?;
     }
 
-    let provenance_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(ProvenanceBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let provenance = analyze_program_provenance(&graph, &types, &conformances, &provenance_inputs)?;
-    drop(provenance_inputs);
+    let (provenance, loans) = analyze_checked_body_relations(
+        &graph,
+        &types,
+        &drops,
+        &conformances,
+        &body_sources,
+        &checked_bodies,
+    )?;
 
     let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
     for (body, checked) in checked_bodies {
@@ -199,11 +193,51 @@ pub fn check_prepared_program<'syntax>(
                 copyabilities,
                 drops,
                 provenance,
+                loans,
             },
             bodies.finish(),
         ),
         source_index.finish(),
     ))
+}
+
+fn analyze_checked_body_relations(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    drops: &DropTable,
+    conformances: &crate::ConformanceTable,
+    body_sources: &crate::BodySourceCatalog<'_>,
+    checked_bodies: &[(BodyId, CheckedBodyOutput)],
+) -> Result<(crate::ProvenanceTable, crate::LoanTable), BodyCheckError> {
+    let provenance_inputs = checked_bodies
+        .iter()
+        .map(|(body, checked)| {
+            let source = body_sources
+                .get(*body)
+                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+            Ok(ProvenanceBodyInput::new(
+                source,
+                &checked.body,
+                &checked.node_origins,
+            ))
+        })
+        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let provenance = analyze_program_provenance(graph, types, conformances, &provenance_inputs)?;
+    let loan_inputs = checked_bodies
+        .iter()
+        .map(|(body, checked)| {
+            let source = body_sources
+                .get(*body)
+                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+            Ok(LoanBodyInput::new(
+                source,
+                &checked.body,
+                &checked.node_origins,
+            ))
+        })
+        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let loans = analyze_program_loans(graph, types, drops, &provenance, &loan_inputs)?;
+    Ok((provenance, loans))
 }
 
 struct CheckedBodyOutput {

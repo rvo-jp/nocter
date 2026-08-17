@@ -30,6 +30,8 @@ mod drop_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]
+mod loan_tests;
+#[cfg(test)]
 mod loop_tests;
 #[cfg(test)]
 mod method_tests;

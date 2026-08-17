@@ -28,6 +28,9 @@ pub enum BodyRule {
     InvalidPatternOperation,
     InvalidMatchCoverage,
     InvalidResultProvenance,
+    ConflictingLoan,
+    BorrowedPlaceMutation,
+    InvalidStorageEscape,
 }
 
 impl BodyRule {
@@ -57,6 +60,9 @@ impl BodyRule {
         Self::InvalidPatternOperation,
         Self::InvalidMatchCoverage,
         Self::InvalidResultProvenance,
+        Self::ConflictingLoan,
+        Self::BorrowedPlaceMutation,
+        Self::InvalidStorageEscape,
     ];
 
     #[must_use]
@@ -87,6 +93,9 @@ impl BodyRule {
             Self::InvalidPatternOperation => "E0393",
             Self::InvalidMatchCoverage => "E0394",
             Self::InvalidResultProvenance => "E0395",
+            Self::ConflictingLoan => "E0396",
+            Self::BorrowedPlaceMutation => "E0397",
+            Self::InvalidStorageEscape => "E0398",
         }
     }
 
@@ -227,6 +236,18 @@ impl BodyRule {
             Self::InvalidResultProvenance => (
                 "returned value carries storage outside the callable's result-provenance contract",
                 "return static, current-allocation, or declared input-derived storage and do not let local, temporary, region, or unknown storage escape",
+            ),
+            Self::ConflictingLoan => (
+                "borrow overlaps an incompatible live loan",
+                "end the earlier loan's last use before creating this borrow",
+            ),
+            Self::BorrowedPlaceMutation => (
+                "operation conflicts with a live loan of this place",
+                "end the loan's last use before moving, dropping, assigning, or mutating this place",
+            ),
+            Self::InvalidStorageEscape => (
+                "value carries storage that does not outlive its destination",
+                "keep the value within its source scope, region, or temporary-owning statement",
             ),
             _ => unreachable!("value body rule"),
         }

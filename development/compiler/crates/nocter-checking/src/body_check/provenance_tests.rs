@@ -105,6 +105,68 @@ fn a_receiver_derived_result_cannot_escape_a_temporary_receiver() {
 }
 
 #[test]
+fn temporary_receiver_storage_cannot_enter_a_named_binding() {
+    let error = check(
+        "struct Box { value: i32 }\n\
+         instance Box {\n\
+             pub method &self.view(): &i32 { &self.value }\n\
+         }\n\
+         func bad(): void {\n\
+             let view = Box { value: 1 }.view()\n\
+             let _ = view\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0398");
+}
+
+#[test]
+fn local_storage_cannot_leave_a_nested_block() {
+    for source in [
+        "func bad(seed: i32): void {\n\
+             var view = &seed\n\
+             if true {\n\
+                 let local = 1\n\
+                 view = &local\n\
+             }\n\
+             let _ = view\n\
+             return\n\
+         }\n",
+        "func bad(): void {\n\
+             let view = if true {\n\
+                 let local = 1\n\
+                 &local\n\
+             } else {\n\
+                 let other = 2\n\
+                 &other\n\
+             }\n\
+             let _ = view\n\
+             return\n\
+         }\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0398");
+    }
+}
+
+#[test]
+fn outer_storage_can_be_borrowed_by_an_inner_binding() {
+    check(
+        "func valid(): void {\n\
+             let outer = 1\n\
+             if true {\n\
+                 let view = &outer\n\
+                 let _ = view\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn borrowed_pattern_payload_preserves_the_subject_origin() {
     let output = check(
         "enum Choice {\n    one(item: i32)\n}\n\

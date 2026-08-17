@@ -1,6 +1,7 @@
 mod body;
 mod builder;
 mod cleanup;
+mod loan;
 mod node;
 mod place;
 mod program;
@@ -13,6 +14,9 @@ pub(crate) use builder::CheckedBodyBuilder;
 pub use cleanup::{
     CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
     CleanupTiming,
+};
+pub use loan::{
+    CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,

@@ -474,17 +474,22 @@ interface, and structural calls while retaining current-allocation dependence as
 compiler-owned dimension. Values retain field, variant-payload, outcome, and element projections,
 so selecting one component does not acquire sibling origins. The same return validator enforces
 authored contracts, inferred contracts, temporary-receiver escape, and conformance method bounds.
-Closure-expression checking and general loan conflicts remain subsequent increments over these
-frozen identities.
+Closure-expression checking remains a subsequent increment over these frozen identities. General
+loan analysis is now a separate post-provenance authority: reverse structured liveness identifies
+the source-level last use of every checked place and node temporary, while forward value flow maps
+loans through fields, outcomes, calls, branches, and loops. `LoanRoot::External` distinguishes
+input-referenced storage from the place carrying that borrow. Scheduled type-owned drop bodies are
+semantic observers, so destruction order participates in the same conflict relation.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
 ownership analysis requires the exact path to be initialized, attaches one unconditional path
 action to the checked drop node, and transitions that path to uninitialized. Scope exit therefore
 cannot schedule a second action. Unreachable valid drop source remains typed HIR but receives no
-executable cleanup schedule. Loan conflicts remain subsequent work in the general loan analysis;
-result escape no longer waits for that pass because the provenance authority already rejects
-local, parameter-owned, region, temporary, and unknown origins at return edges.
+executable cleanup schedule. The loan authority consumes executable cleanup schedules and lexical
+storage-end order rather than reconstructing destruction from syntax. Result contracts remain
+owned by provenance; lexical, region, temporary-statement, and destination escape use the same
+provenance value tree before the program is frozen.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, instance-operation

@@ -2,19 +2,17 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 with the general loan authority, then use the completed ownership,
-provenance, and loan boundaries to close closure expressions.
+Continue v0.14.0 Phase 3 by using the completed ownership, provenance, and loan boundaries to
+close closure expressions.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Implement source-level non-lexical loan conflicts and destination-lifetime escape checks over
-   checked places and control flow.
-2. Complete closures through the ownership, provenance, and loan authorities, including explicit
+1. Complete closures through the ownership, provenance, and loan authorities, including explicit
    captures and callable capability.
-3. Complete typed literals and interpolation only through the same expected-type,
+2. Complete typed literals and interpolation only through the same expected-type,
    temporary-flow, and cleanup authorities already used by ordinary values.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -100,8 +98,8 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, closures, typed literals, interpolation, and
-general loan conflicts remain incomplete.
+edge. Collection iteration, executable regions, closures, typed literals, and interpolation
+remain incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
@@ -194,7 +192,12 @@ field, enum-payload, outcome, and element projections independently, maps result
 and structural calls, and records a dense node/body/callable authority in `CheckedProgram`.
 Return validation rejects local, owned-parameter, temporary, region, unknown, and undeclared input
 origins as `E0395`; conformance implementations are additionally bounded by the corresponding
-interface method contract. General loan conflicts and closure expressions remain incomplete.
+interface method contract. A separate dense `LoanTable` derives source-level non-lexical
+liveness over checked places and node temporaries. It retains explicit and implicit loan identity,
+capability, canonical field-sensitive places, reborrow ancestry, and per-node live sets. Readonly
+and exclusive conflicts, move/drop/assignment conflicts, dynamic-index conservatism, branch and
+loop joins, receiver-derived results, lexical storage escape, temporary receiver escape, and
+type-owned drop observation order project `E0396`-`E0398`. Closure expressions remain incomplete.
 
 `ConstructionSurfaceTable` now indexes the complete construction surface of every nominal family:
 structural field identity and declaration order, enum variants by semantic name, and any authored
@@ -214,7 +217,9 @@ checking rejects copy and borrow bindings as `E0383` even in unreachable source.
 requires an exactly initialized path, emits one unconditional path cleanup on the drop node, and
 then marks the binding uninitialized; later use and a second drop therefore use the ordinary
 `E0378` state rule. Automatic scope cleanup sees the updated state and cannot destroy the binding
-again. Loan-conflict checking remains incomplete with the general loan analysis.
+again. Explicit destruction and scheduled type-owned destruction enter the same loan analysis;
+redundant initialized child move paths are normalized instead of turning whole values with a drop
+body into fictional partial states.
 
 ## Guardrails
 

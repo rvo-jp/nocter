@@ -570,6 +570,16 @@ temporary receiver results, and intersects implementation origins with the selec
 method contract. This post-body authority does not change call selection identity or evaluation
 order.
 
+A following program-wide loan analysis consumes that provenance authority and the immutable
+cleanup schedules. Reverse structured liveness computes source-level last uses for checked places
+and node temporaries; forward flow assigns stable loan identities, maps them through aggregate and
+call results, and retains reborrow ancestry. Canonical loan roots distinguish owned places from
+external storage reached through input borrow carriers. Named fields alone prove disjointness;
+indexes and other computed projections remain conservatively overlapping. Type-owned drop bodies
+keep the loans stored in their value live until their scheduled destruction action, while plain
+non-owning fields do not invent a destructor use. The resulting `LoanTable` is dense by body and
+node, and MIR consumes it without deriving borrow ranges from machine addresses or source syntax.
+
 Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
 use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation
 cannot install a special failure rule for bare calls or forced unwrap.

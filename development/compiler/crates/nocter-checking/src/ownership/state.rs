@@ -175,10 +175,21 @@ impl OwnershipState {
             }
             prefix = prefix.field(*field);
         }
+        let explicit = self.paths.contains_key(path);
+        let has_descendant = self
+            .paths
+            .keys()
+            .any(|candidate| candidate != path && path.is_prefix_of(candidate));
         self.paths
             .retain(|candidate, _| candidate == path || !path.is_prefix_of(candidate));
-        self.paths
-            .insert(path.clone(), InitializationState::Initialized);
+        if explicit {
+            self.paths
+                .insert(path.clone(), InitializationState::Initialized);
+        } else if has_descendant {
+            // Removing the more-specific facts restores the initialized state inherited from the
+            // nearest ancestor; retaining an explicit initialized child would be redundant.
+            debug_assert_eq!(self.state_at(path)?, InitializationState::Initialized);
+        }
         Ok(())
     }
 
@@ -361,6 +372,25 @@ mod tests {
                 path,
                 state: InitializationState::Uninitialized,
             })
+        );
+    }
+
+    #[test]
+    fn replacing_an_inherited_initialized_field_does_not_create_partial_state() {
+        let root = local_path();
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = fields.insert(());
+        let _ = fields.finish();
+        let child = root.field(field);
+        let mut state = OwnershipState::default();
+        state.declare_initialized(root.clone()).unwrap();
+
+        state.assign(&child).unwrap();
+
+        assert!(!state.has_descendant(&root));
+        assert_eq!(
+            state.initialization(&child).unwrap(),
+            InitializationState::Initialized
         );
     }
 
