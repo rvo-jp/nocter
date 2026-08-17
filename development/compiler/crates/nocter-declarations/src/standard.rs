@@ -10,6 +10,8 @@ pub enum StandardDeclarationRole {
     AbortingAllocator,
     AllocationContext,
     OwnedString,
+    InterpolationConstructor,
+    InterpolationTextAppender,
     FormatInterface,
     FormatMethod,
     IteratorInterface,

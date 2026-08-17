@@ -11,6 +11,8 @@ use nocter_test_support::CompilerFixture;
 use super::{MirLoweringError, lower_executable};
 use crate::{MirAggregate, MirOperationKind, MirProjectionKind, MirTerminator};
 
+mod interpolation;
+
 #[test]
 fn lowers_scalar_control_flow_through_the_complete_frontend() {
     let program = lower_fixture(

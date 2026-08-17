@@ -18,6 +18,14 @@ fn check(standard: &str) -> Result<crate::CheckedProgramOutput, BodyCheckError> 
             fixture.standard_declaration_token(NodeKind::StructDeclaration, "String"),
         ),
         StandardRoleInput::new(
+            StandardDeclarationRole::InterpolationConstructor,
+            fixture.standard_declaration_token(NodeKind::ConstructionFunction, "empty"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::InterpolationTextAppender,
+            fixture.standard_declaration_token(NodeKind::InherentMethod, "push_str"),
+        ),
+        StandardRoleInput::new(
             StandardDeclarationRole::FormatInterface,
             fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "Format"),
         ),
@@ -38,6 +46,12 @@ fn standard_prelude(extra: &str) -> String {
     format!(
         r"
 pub struct String {{}}
+construct String {{
+    pub func empty(): Self {{ return Self {{}} }}
+}}
+instance String {{
+    pub method &+self.push_str(text: &str): void {{ return }}
+}}
 pub interface Format {{
     pub method &self.format_into(output: &+String): void
 }}
@@ -78,6 +92,14 @@ func render(value: i32): String {
         .expect("checked interpolation");
 
     assert_eq!(interpolation.0, interpolation.1.output());
+    assert!(matches!(
+        interpolation.1.constructor().dispatch(),
+        StaticDispatch::Direct(_)
+    ));
+    assert!(matches!(
+        interpolation.1.text_appender().dispatch(),
+        StaticDispatch::Direct(_)
+    ));
     assert_eq!(
         nominal_definition(program.types(), interpolation.1.output()),
         program

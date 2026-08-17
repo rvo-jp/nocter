@@ -208,11 +208,12 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::IteratorAcquisition(acquisition) => self
                 .lower_iterator_acquisition(node, ty, acquisition)
                 .map(Some),
+            CheckedOperation::Interpolation(interpolation) => {
+                self.lower_interpolation(node, ty, interpolation)
+            }
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Sequence(_) => self.lower_sequence(node, ty).map(Some),
-            CheckedOperation::Place(_) | CheckedOperation::Interpolation(_) => {
-                Err(MirLoweringError::UnsupportedOperation(node))
-            }
+            CheckedOperation::Place(_) => Err(MirLoweringError::UnsupportedOperation(node)),
         }?;
         if let Some(value) = lowered
             && self.values.insert(node, value).is_some()

@@ -107,6 +107,59 @@ pub interface Format {
 }
 
 #[test]
+fn exact_standard_interpolation_contract_is_accepted() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+pub struct String {}
+construct String {
+    pub func empty(): Self { return Self {} }
+}
+instance String {
+    pub method &+self.push_str(text: &str): void { return }
+}
+",
+    );
+
+    with_prepared_roles(&fixture, interpolation_roles(&fixture), |prepared| {
+        let semantics = prepared.standard_semantics();
+        assert!(
+            semantics
+                .callable(StandardDeclarationRole::InterpolationConstructor)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .callable(StandardDeclarationRole::InterpolationTextAppender)
+                .is_some()
+        );
+    })
+    .unwrap();
+}
+
+#[test]
+fn interpolation_contract_rejects_a_readonly_output_receiver() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+pub struct String {}
+construct String {
+    pub func empty(): Self { return Self {} }
+}
+instance String {
+    pub method &self.push_str(text: &str): void { return }
+}
+",
+    );
+
+    let error = with_prepared_roles(&fixture, interpolation_roles(&fixture), |_| ()).unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidInterpolationContract)
+    ));
+}
+
+#[test]
 fn standard_nominal_roles_require_a_public_surface() {
     let fixture = Fixture::with_standard(
         "",
@@ -297,6 +350,23 @@ fn iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
         StandardRoleInput::new(
             StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "remaining_len"),
+        ),
+    ]
+}
+
+fn interpolation_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
+    vec![
+        StandardRoleInput::new(
+            StandardDeclarationRole::OwnedString,
+            fixture.standard_declaration_token(NodeKind::StructDeclaration, "String"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::InterpolationConstructor,
+            fixture.standard_declaration_token(NodeKind::ConstructionFunction, "empty"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::InterpolationTextAppender,
+            fixture.standard_declaration_token(NodeKind::InherentMethod, "push_str"),
         ),
     ]
 }

@@ -20,6 +20,19 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 ";
+const INTERPOLATION_SOURCE: &str = "\
+pub struct String {}
+construct String {
+    pub func empty(): Self { return Self {} }
+}
+instance String {
+    pub method &+self.push_str(text: &str): void { return }
+}
+drop String(&+self) { return }
+pub interface Format {
+    pub method &self.format_into(output: &+String): void
+}
+";
 const ALLOCATION_SOURCE: &str = "\
 pub struct Allocator {}
 pub struct AllocationContext {}
@@ -157,6 +170,34 @@ const ITERATION_ROLES: &[StandardRoleSpec] = &[
     },
 ];
 
+const INTERPOLATION_ROLES: &[StandardRoleSpec] = &[
+    StandardRoleSpec {
+        role: StandardDeclarationRole::OwnedString,
+        kind: NodeKind::StructDeclaration,
+        name: "String",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::InterpolationConstructor,
+        kind: NodeKind::ConstructionFunction,
+        name: "empty",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::InterpolationTextAppender,
+        kind: NodeKind::InherentMethod,
+        name: "push_str",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::FormatInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "Format",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::FormatMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "format_into",
+    },
+];
+
 const ALLOCATION_ROLES: &[StandardRoleSpec] = &[
     StandardRoleSpec {
         role: StandardDeclarationRole::AbortingAllocator,
@@ -199,6 +240,19 @@ impl CompilerFixture {
     #[must_use]
     pub fn with_app_iteration(app_source: &str) -> Self {
         Self::build(app_source, None, ITERATION_SOURCE, ITERATION_ROLES)
+    }
+
+    /// Builds the complete target fixture with compiler-selected interpolation semantics.
+    #[must_use]
+    pub fn with_app_interpolation(app_source: &str) -> Self {
+        Self::build(app_source, None, INTERPOLATION_SOURCE, INTERPOLATION_ROLES)
+    }
+
+    /// Builds the interpolation fixture and resolves application `use` declarations in source
+    /// order.
+    #[must_use]
+    pub fn with_app_interpolation_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
+        Self::with_standard_uses(Self::with_app_interpolation(app_source), modules)
     }
 
     /// Builds the iterator fixture and resolves application `use` declarations to standard

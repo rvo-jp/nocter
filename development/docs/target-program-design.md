@@ -267,6 +267,17 @@ calls and requires the caller's pack element/next pair to equal the callee's `Mi
 missing pack, ordinary call masquerading as a literal call, or unresolved cleanup recipe cannot
 cross the MIR boundary.
 
+Interpolation does not introduce a MIR string-builder operation or expose the standard `String`
+layout. Checking freezes the compiler-selected owned-String constructor, text-appending method,
+and one formatter selection per expression. Executable dependency closure resolves and retains all
+of those ordinary callable edges. MIR invokes the constructor under the checked allocation
+selection, initializes the interpolation node's canonical value-storage slot, and then invokes
+text appenders and formatters in source order. Formatter operands use the common readonly operand
+and opaque-receiver preparation lanes. Normal completion moves the finished value out of its sole
+slot. Postfix propagation and explicit return destroy that same partially initialized slot through
+the checked cleanup schedule; a forced-outcome trap has no invented cleanup edge. Neither MIR nor
+the backend recognizes `String`, `empty`, `push_str`, or `format_into` by spelling.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact
@@ -317,7 +328,7 @@ diagnostic system.
    deterministic reachable item graph. **Complete.**
 7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
 8. Lower concrete checked bodies and cleanup schedules into MIR. Sequence pack construction,
-   transfer, body consumption, and residual destruction are complete. Interpolation remains; then
+   transfer, body consumption, residual destruction, and interpolation are complete. Next
    materialize compiler-owned process and test roots.
 
 The current end-to-end lowering slice covers concrete signatures, constants, primitive integer

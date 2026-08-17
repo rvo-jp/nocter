@@ -274,8 +274,9 @@ be introduced to make an unresolved syntax choice.
   elements constrain one construction inference session in source order. The checked spread keeps
   its selected `next`, associated item type, exact remaining-length operation, and copy/borrow/move
   contribution mode; cleanup, provenance, and loans consume those facts without reopening lookup.
-  Interpolation likewise selects the exact standard Format identity for every source-order operand
-  and retains one owned partial String for cleanup across propagation.
+  Interpolation likewise freezes the exact standard owned-String constructor and text appender,
+  selects the exact standard Format identity for every source-order operand, and retains one owned
+  partial String for cleanup across propagation and explicit transfer.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
@@ -354,6 +355,11 @@ be introduced to make an unresolved syntax choice.
   `MirDestructionPlan` recipes carry dense user drop items for unconsumed fixed values and iterator
   suffixes. Per-function and cross-function validation close the pack operands, nested calls,
   cleanup shapes, drop signatures, and hidden caller/callee schema.
+  Interpolation uses no string-specific MIR operation. It invokes the frozen standard constructor,
+  text appender, and formatter callables in source order, retaining the partial output in the
+  interpolation node's canonical temporary. Normal completion moves it once; postfix propagation
+  and explicit return destroy the same slot; a forced-outcome trap has no fictional cleanup. MIR
+  and later stages do not know the `String` layout or recover any operation from a spelling.
   Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and

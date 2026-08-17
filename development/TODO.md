@@ -10,33 +10,7 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
-   value-producing branches, concrete closures, direct/primitive calls, receiver and operand
-   coercions, borrow conversions, comparisons, selected/coerced index places, outcome CFG,
-   cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, all loop forms, enum patterns, lexical regions, callable-bound closure values, and
-   static/typed strings and typed sequences to interpolation. Opaque result construction and
-   capability-preserving witness access now lower through an explicit target-owned representation
-   lane and exact MIR aggregates and projections. Checked HIR now
-   models the sequence literal body's non-escaping element pack through dedicated length and
-   consuming-loop operations and rejects ordinary pack value use with `E0409`; executable and MIR
-   construction preserve that boundary with a dedicated `ExecutablePackInput` outside the
-   ordinary signature input list. MIR literal bodies receive the corresponding `MirPackInput` and
-   lower length and consuming iteration to `PackLength` and `PackNext`; every returning path ends
-   with a validator-required `DestroyPack`, so early exit destroys an unconsumed suffix without
-   pretending that the pack is an ordinary ABI value. Executable bodies now freeze each call site's constructor item,
-   specialized pack/result types, fixed and spread producer order, spread iteration contracts, and
-   allocation selection in one `ExecutableSequencePlan`. Each fixed value and spread iterator also
-   retains its concrete residual destruction plan and makes every required drop body reachable.
-   Caller lowering now evaluates allocation context and every segment in specified source order,
-   obtains each exact spread length after acquisition, computes one checked total, and transfers a
-   typed `MirPackArgument` to the specialized literal call. Fixed values and spread iterators carry
-   executable-item-resolved deferred destruction recipes; spread `next` calls and copy/direct
-   contribution modes remain explicit. MIR validation closes pack operands, call targets,
-   destruction shapes, and caller/callee hidden schemas. No ordinary variadic ABI or source
-   selection reaches this lane. Next lower interpolation without duplicating the sequence pack or
-   typed-string allocation machinery.
-2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
+1. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
 The Phase 4 responsibility map is recorded in
@@ -336,6 +310,13 @@ possibly diverging result type. Ownership activates the partial `String` before 
 formatted temporaries alive through their call, and places partial-output destruction on a later
 postfix-propagation edge. Provenance and loans consume the same source order without reconstructing
 format lookup. Missing or ambiguous formatting evidence projects `E0400`.
+The standard semantic table now separately validates and freezes the owned-String constructor and
+readwrite text appender. Executable dependency closure resolves those callables together with each
+formatter. MIR invokes all three as ordinary selected calls, retains the partial output in the
+interpolation node's canonical value-storage slot, moves it once on success, and lets propagation
+or explicit return destroy that same slot through the checked cleanup schedule. A forced-outcome
+trap retains the specified no-cleanup behavior. No MIR operation or backend rule knows the
+`String` layout or recovers an operation from a name.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership

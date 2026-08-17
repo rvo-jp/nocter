@@ -8,7 +8,7 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::instance_operations::InstanceOperationSelector;
 use crate::{
     AllocationSelection, CheckedInterpolation, CheckedOperation, CheckedReadonlyOperand,
-    ConstantValue, InterpolationPart, StaticSelection,
+    ConstantValue, GenericArguments, InterpolationPart, StaticDispatch, StaticSelection,
 };
 
 impl BodyChecker<'_, '_> {
@@ -70,14 +70,25 @@ impl BodyChecker<'_, '_> {
         parts: Box<[DecodedStringPart]>,
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
-        let (Some(string), Some(format), Some(format_method)) = (
+        let (
+            Some(string),
+            Some(constructor),
+            Some(text_appender),
+            Some(format),
+            Some(format_method),
+        ) = (
             self.standard_semantics
                 .nominal(StandardDeclarationRole::OwnedString),
+            self.standard_semantics
+                .callable(StandardDeclarationRole::InterpolationConstructor),
+            self.standard_semantics
+                .callable(StandardDeclarationRole::InterpolationTextAppender),
             self.standard_semantics
                 .interface(StandardDeclarationRole::FormatInterface),
             self.standard_semantics
                 .callable(StandardDeclarationRole::FormatMethod),
-        ) else {
+        )
+        else {
             return Err(BodyCheckInternalError::MissingInterpolationSemanticRoles.into());
         };
         let string_type = self
@@ -143,6 +154,14 @@ impl BodyChecker<'_, '_> {
             node,
             result,
             CheckedOperation::Interpolation(CheckedInterpolation::new(
+                StaticSelection::new(
+                    StaticDispatch::Direct(constructor),
+                    GenericArguments::default(),
+                ),
+                StaticSelection::new(
+                    StaticDispatch::Direct(text_appender),
+                    GenericArguments::default(),
+                ),
                 checked_parts,
                 string_type,
                 AllocationSelection::CurrentRegion,

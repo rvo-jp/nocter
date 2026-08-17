@@ -12,6 +12,10 @@ use nocter_model::{
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin};
 
+mod interpolation;
+
+use interpolation::validate_interpolation_roles;
+
 /// Exact standard declarations selected by toolchain discovery and validated once for Phase 3.
 ///
 /// Consumers query semantic roles, never source spellings. A table may omit roles that the active
@@ -101,6 +105,13 @@ impl StandardSemanticTable {
             )?;
             validate_format_method(graph, types, interface, string, method)?;
         }
+        validate_interpolation_roles(
+            graph,
+            types,
+            self.nominal(StandardDeclarationRole::OwnedString),
+            self.callable(StandardDeclarationRole::InterpolationConstructor),
+            self.callable(StandardDeclarationRole::InterpolationTextAppender),
+        )?;
         self.validate_iteration_relationships(graph, types)?;
         self.validate_exact_size_relationships(graph, types)
     }
@@ -217,6 +228,8 @@ fn validate_role_domain(
             matches!(entity, SemanticEntity::AssociatedType(_))
         }
         StandardDeclarationRole::FormatMethod
+        | StandardDeclarationRole::InterpolationConstructor
+        | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod => {
             matches!(entity, SemanticEntity::Callable(_))
@@ -491,6 +504,7 @@ pub enum StandardSemanticError {
         dependency: StandardDeclarationRole,
     },
     InvalidFormatContract,
+    InvalidInterpolationContract,
     InvalidIteratorContract,
     InvalidExactSizeIteratorContract,
     InvalidNominalContract(StandardDeclarationRole),

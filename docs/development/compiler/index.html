@@ -366,8 +366,9 @@
   elements constrain one construction inference session in source order. The checked spread keeps
   its selected <code>next</code>, associated item type, exact remaining-length operation, and copy/borrow/move
   contribution mode; cleanup, provenance, and loans consume those facts without reopening lookup.
-  Interpolation likewise selects the exact standard Format identity for every source-order operand
-  and retains one owned partial String for cleanup across propagation.
+  Interpolation likewise freezes the exact standard owned-String constructor and text appender,
+  selects the exact standard Format identity for every source-order operand, and retains one owned
+  partial String for cleanup across propagation and explicit transfer.
   Explicit <code>drop name</code> uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
@@ -444,6 +445,11 @@
   <code>MirDestructionPlan</code> recipes carry dense user drop items for unconsumed fixed values and iterator
   suffixes. Per-function and cross-function validation close the pack operands, nested calls,
   cleanup shapes, drop signatures, and hidden caller/callee schema.
+  Interpolation uses no string-specific MIR operation. It invokes the frozen standard constructor,
+  text appender, and formatter callables in source order, retaining the partial output in the
+  interpolation node's canonical temporary. Normal completion moves it once; postfix propagation
+  and explicit return destroy the same slot; a forced-outcome trap has no fictional cleanup. MIR
+  and later stages do not know the <code>String</code> layout or recover any operation from a spelling.
   Remaining checked operations still fail explicitly instead of being omitted.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 is complete. Checked-body construction covers the closed body grammar, including collection iteration, authored binding annotations, and executable lexical regions. Region handles are typed compiler-managed resources; one cleanup authority orders body destruction before region release on every reachable exit, retains the parent allocator loan for the complete child lifetime, and emits no fictional unwinding for <code>never</code> termination.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>

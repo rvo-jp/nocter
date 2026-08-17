@@ -376,6 +376,8 @@ impl<'program> DependencyCollector<'program> {
             }
             CheckedOperation::Interpolation(interpolation) => {
                 self.record_type(interpolation.output())?;
+                self.record_selection(interpolation.constructor());
+                self.record_selection(interpolation.text_appender());
                 for part in interpolation.parts() {
                     match part {
                         InterpolationPart::Text(_) => {}

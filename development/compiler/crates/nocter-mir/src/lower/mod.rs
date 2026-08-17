@@ -22,6 +22,7 @@ mod control;
 mod destruction_plan;
 mod function;
 mod index_place;
+mod interpolation;
 mod iteration;
 mod literal_pack;
 mod loop_control;
@@ -85,6 +86,7 @@ pub enum MirLoweringError {
     InvalidRegion(BodyNodeId),
     InvalidClosure(BodyNodeId),
     InvalidCallable(BodyNodeId),
+    InvalidInterpolation(BodyNodeId),
     InvalidStringLiteral(BodyNodeId),
     InvalidOpaqueWitness(BodyNodeId),
     InvalidCapture(nocter_model::CaptureId),

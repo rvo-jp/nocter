@@ -686,6 +686,8 @@ pub enum InterpolationPart {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedInterpolation {
+    constructor: StaticSelection,
+    text_appender: StaticSelection,
     parts: Box<[InterpolationPart]>,
     output: TypeId,
     allocation: AllocationSelection,
@@ -693,15 +695,29 @@ pub struct CheckedInterpolation {
 
 impl CheckedInterpolation {
     pub(crate) fn new(
+        constructor: StaticSelection,
+        text_appender: StaticSelection,
         parts: impl Into<Box<[InterpolationPart]>>,
         output: TypeId,
         allocation: AllocationSelection,
     ) -> Self {
         Self {
+            constructor,
+            text_appender,
             parts: parts.into(),
             output,
             allocation,
         }
+    }
+
+    #[must_use]
+    pub const fn constructor(&self) -> &StaticSelection {
+        &self.constructor
+    }
+
+    #[must_use]
+    pub const fn text_appender(&self) -> &StaticSelection {
+        &self.text_appender
     }
 
     #[must_use]
