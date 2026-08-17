@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{ExpansionCapability, StructuralCapability};
@@ -78,9 +79,10 @@ impl ResolvedDispatchPlan {
 /// intern types that do not exist in generic HIR. The fork preserves every checked [`TypeId`] and
 /// becomes the sole type authority for all plans produced by this resolver.
 pub struct ConcreteDispatchResolver<'program> {
-    program: &'program CheckedProgram,
-    types: TypeStore,
-    copyabilities: crate::CopyabilityTable,
+    pub(crate) program: &'program CheckedProgram,
+    pub(crate) types: TypeStore,
+    pub(crate) copyabilities: crate::CopyabilityTable,
+    pub(crate) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
 }
 
 struct SpecializedOpaqueWitness {
@@ -96,12 +98,18 @@ impl<'program> ConcreteDispatchResolver<'program> {
             program,
             types: program.types().clone(),
             copyabilities: program.copyabilities().clone(),
+            destructions: BTreeMap::new(),
         }
     }
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    #[must_use]
+    pub fn into_types(self) -> TypeStore {
+        self.types
     }
 
     /// Resolves one checked dispatch edge under its enclosing callable specialization.

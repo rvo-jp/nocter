@@ -19,7 +19,7 @@ pub use cleanup::{
 };
 pub use closure::ClosureTableBuildError;
 pub(crate) use closure::ClosureTableBuilder;
-pub use closure::{ClosureDefinition, ClosureSignature, ClosureTable};
+pub use closure::{ClosureDefinition, ClosureEnvironmentField, ClosureSignature, ClosureTable};
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
 };

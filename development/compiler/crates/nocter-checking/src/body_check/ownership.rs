@@ -82,9 +82,9 @@ pub(super) fn analyze_body_ownership(
                 .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*parameter)))
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         }
-        for capture in definition.captures() {
+        for capture in definition.environment().iter().copied() {
             state
-                .declare_initialized(MovePath::root(crate::PlaceRoot::Capture(*capture)))
+                .declare_initialized(MovePath::root(crate::PlaceRoot::Capture(capture.binding())))
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         }
         analyzer.closure = Some(definition);

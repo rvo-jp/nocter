@@ -189,6 +189,19 @@ impl DeclarationArenas {
         complete.dedup();
         Some(complete.into_boxed_slice())
     }
+
+    /// Returns the complete generic domain visible to one declared body.
+    #[must_use]
+    pub fn body_generic_domain(&self, body: BodyId) -> Option<Box<[GenericParameterId]>> {
+        match self.bodies.get(body)?.owner() {
+            crate::BodyOwner::Callable(callable) => self.callable_generic_domain(callable),
+            crate::BodyOwner::Drop(drop) => self
+                .drops
+                .get(drop)
+                .map(|declaration| Box::from(declaration.generic_parameters())),
+            crate::BodyOwner::Test(_) => Some(Box::new([])),
+        }
+    }
 }
 
 /// Two-pass builder for mutually referential declaration headers.

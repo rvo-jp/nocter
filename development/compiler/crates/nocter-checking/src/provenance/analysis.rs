@@ -620,21 +620,22 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 };
                 state.set_value(PlaceRoot::Local(binding), value);
             }
-            for capture in definition.captures() {
+            for capture in definition.environment().iter().copied() {
+                let binding = capture.binding();
                 let checked = self
                     .body
                     .captures()
-                    .get(*capture)
+                    .get(binding)
                     .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
                 let value = if self.types.may_carry_storage(checked.ty()) {
                     ValueProvenance::from_source(ProvenanceSource::ClosureCaptureValue {
                         closure,
-                        capture: *capture,
+                        capture: binding,
                     })
                 } else {
                     ValueProvenance::independent()
                 };
-                state.set_value(PlaceRoot::Capture(*capture), value);
+                state.set_value(PlaceRoot::Capture(binding), value);
             }
             return Ok(state);
         }

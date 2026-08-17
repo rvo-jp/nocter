@@ -7,6 +7,7 @@
 mod body_check;
 mod body_sources;
 mod checked;
+mod concrete_destruction;
 mod concrete_dispatch;
 mod conformance;
 mod construction_surfaces;
@@ -47,15 +48,21 @@ pub use checked::{
     CheckedPatternSubject, CheckedPlace, CheckedProgram, CheckedProgramOutput,
     CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion, CheckedSequence,
     CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
-    CleanupTiming, ClosureDefinition, ClosureProvenanceTable, ClosureSignature, ClosureTable,
-    ClosureTableBuildError, CoercedReceiverPreparation, ComparisonImplementation,
-    ComparisonOperation, ConstantValue, DropSelection, DuplicateGenericArgument, GenericArgument,
-    GenericArguments, InterpolationPart, IterationAcquisition, LoanId, LoanPlace, LoanProjection,
-    LoanRoot, LoanTable, LogicalOperation, LoopKind, OpaqueWitnessTable,
-    OpaqueWitnessTableBuildError, PatternSubjectPreparation, PlaceAccess, PlaceProjection,
-    PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ProvenanceProjection,
-    ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation, ReceiverPreparation,
-    SequenceElement, SpreadMode, StaticDispatch, StaticSelection, TypedIteration, ValueProvenance,
+    CleanupTiming, ClosureDefinition, ClosureEnvironmentField, ClosureProvenanceTable,
+    ClosureSignature, ClosureTable, ClosureTableBuildError, CoercedReceiverPreparation,
+    ComparisonImplementation, ComparisonOperation, ConstantValue, DropSelection,
+    DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
+    IterationAcquisition, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable, LogicalOperation,
+    LoopKind, OpaqueWitnessTable, OpaqueWitnessTableBuildError, PatternSubjectPreparation,
+    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
+    ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch, StaticSelection,
+    TypedIteration, ValueProvenance,
+};
+pub use concrete_destruction::{
+    ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,
+    ConcreteDestructionPlan, ConcreteFieldDestruction, ConcretePayloadDestruction,
+    ConcreteVariantDestruction,
 };
 pub use concrete_dispatch::{
     ConcreteDispatchError, ConcreteDispatchResolver, ResolvedCallableDispatch,

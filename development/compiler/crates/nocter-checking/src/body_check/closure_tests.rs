@@ -159,7 +159,15 @@ fn closure_result_provenance_maps_capture_and_parameter_origins() {
         .get(closure)
         .unwrap();
     assert_eq!(provenance.parameters().origins().len(), 1);
-    assert_eq!(provenance.captures(), definition.captures());
+    assert_eq!(
+        provenance.captures(),
+        definition
+            .environment()
+            .iter()
+            .copied()
+            .map(crate::ClosureEnvironmentField::binding)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]

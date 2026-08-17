@@ -133,6 +133,16 @@ incorrectly collapsed to one callable. Interface requirements resolve through th
 conformance authority, including required/default method selection. MIR never receives an
 unresolved `RequirementId`.
 
+The same resolver owns concrete destruction planning and its specialized type-store fork. A plan
+records a nominal type's exact drop-body substitution before its reverse-order field or active
+variant payload work, and recursively covers arrays, outcomes, closure environments, and opaque
+witness representations. Copy types and move-only representations with no owned destruction work
+produce no plan. Closure definitions retain each environment binding together with the type
+actually stored in that field; a readwrite capture is therefore move-only without being mistaken
+for ownership of its referent. Opaque destruction opens only the checked witness table after the
+opaque generic domain is concrete. The executable closure can enumerate every required drop body
+without rematching types or reconstructing storage layout.
+
 One executable dependency traversal covers calls, receiver and operand coercions, comparisons,
 index projections, iteration, typed literals, interpolation, closures, explicit pattern drops,
 and every scheduled cleanup type. It excludes source retained under `Unreachable` and unreachable
@@ -165,9 +175,9 @@ integrity checks over an accepted program, not a second source diagnostic system
 4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
    buildability into `TargetProgram`. **Complete.**
-6. Select an executable/test entry (**complete**), define canonical concrete callable keys,
-   enumerate checked-body dependencies, and resolve concrete dispatch plans (**complete**), then
-   close one deterministic reachable item graph (**pending**).
+6. Select an executable/test entry, define canonical concrete callable keys, enumerate checked-body
+   dependencies, and resolve concrete dispatch and destruction plans (**complete**), then close one
+   deterministic reachable item graph (**pending**).
 7. Lower concrete checked bodies and cleanup schedules into MIR.
 8. Validate MIR without source or syntax access.
 

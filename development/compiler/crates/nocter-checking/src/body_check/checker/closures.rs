@@ -1,8 +1,8 @@
 use std::mem;
 
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CallableCapability, CallableContract, CaptureId, LocalBindingId,
-    TypeId, TypeKind,
+    BodyNodeId, BorrowCapability, CallableCapability, CallableContract, LocalBindingId, TypeId,
+    TypeKind,
 };
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
@@ -16,15 +16,14 @@ use crate::syntax::{direct_child, direct_children, direct_identifier};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
     CallableInference, CaptureMode, CheckedClosure, CheckedClosureCapture, CheckedOperation,
-    ClosureDefinition, ClosureSignature, InferenceFailure, PlaceAccess,
+    ClosureDefinition, ClosureEnvironmentField, ClosureSignature, InferenceFailure, PlaceAccess,
 };
 
 struct CheckedClosureHead {
     parameters: Vec<LocalBindingId>,
     parameter_types: Vec<TypeId>,
-    captures: Vec<CaptureId>,
+    environment: Vec<ClosureEnvironmentField>,
     capture_initializers: Vec<CheckedClosureCapture>,
-    stored_capture_types: Vec<TypeId>,
 }
 
 struct ClosureExpectation {
@@ -246,7 +245,11 @@ impl BodyChecker<'_, '_> {
                 self.graph,
                 self.types,
                 closure_type,
-                checked_head.stored_capture_types.iter().copied(),
+                checked_head
+                    .environment
+                    .iter()
+                    .copied()
+                    .map(ClosureEnvironmentField::ty),
             )
             .map_err(BodyCheckInternalError::Copyability)?;
         self.closures.define(
@@ -256,7 +259,7 @@ impl BodyChecker<'_, '_> {
                 closure_type,
                 ClosureSignature::new(capability, checked_head.parameter_types, result),
                 checked_head.parameters,
-                checked_head.captures,
+                checked_head.environment,
                 body,
             ),
         )?;
@@ -290,9 +293,8 @@ impl BodyChecker<'_, '_> {
         let capture_nodes = direct_child(self.tree(), head, NodeKind::ClosureCaptures)
             .map(|captures| direct_children(self.tree(), captures, NodeKind::ClosureCapture))
             .unwrap_or_default();
-        let mut captures = Vec::with_capacity(capture_nodes.len());
+        let mut environment = Vec::with_capacity(capture_nodes.len());
         let mut capture_initializers = Vec::with_capacity(capture_nodes.len());
-        let mut stored_capture_types = Vec::with_capacity(capture_nodes.len());
         for capture_node in capture_nodes {
             let token = direct_identifier(self.tree(), capture_node)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(capture_node))?;
@@ -310,9 +312,8 @@ impl BodyChecker<'_, '_> {
             let (initializer, stored_type) =
                 self.check_capture_initializer(capture_node, declaration.mode(), &place)?;
             self.builder.define_capture(capture, place.ty)?;
-            captures.push(capture);
+            environment.push(ClosureEnvironmentField::new(capture, stored_type));
             capture_initializers.push(CheckedClosureCapture::new(capture, initializer));
-            stored_capture_types.push(stored_type);
         }
 
         let parameter_nodes = direct_child(self.tree(), head, NodeKind::ClosureParameters)
@@ -355,9 +356,8 @@ impl BodyChecker<'_, '_> {
         Ok(CheckedClosureHead {
             parameters,
             parameter_types,
-            captures,
+            environment,
             capture_initializers,
-            stored_capture_types,
         })
     }
 

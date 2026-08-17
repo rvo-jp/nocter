@@ -228,12 +228,13 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             );
             state.set_root(PlaceRoot::Local(binding), LoanValue::from_loan(loan));
         }
-        for capture in definition.captures() {
+        for capture in definition.environment().iter().copied() {
+            let binding = capture.binding();
             let declaration = self
                 .input
                 .body
                 .captures()
-                .get(*capture)
+                .get(binding)
                 .ok_or(BodyCheckInternalError::LoanAnalysis)?
                 .declaration();
             let capability = match declaration.mode() {
@@ -244,14 +245,14 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             let value = if let Some(capability) = capability {
                 let loan = LoanId::ClosureCapture {
                     closure,
-                    capture: *capture,
+                    capture: binding,
                 };
                 self.loans.insert(
                     loan,
                     CheckedLoan::new(
                         capability,
                         [LoanPlace::new(
-                            LoanRoot::External(PlaceRoot::Capture(*capture)),
+                            LoanRoot::External(PlaceRoot::Capture(binding)),
                             [],
                         )],
                         [],
@@ -261,7 +262,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             } else {
                 LoanValue::independent()
             };
-            state.set_root(PlaceRoot::Capture(*capture), value);
+            state.set_root(PlaceRoot::Capture(binding), value);
         }
         Ok(state)
     }

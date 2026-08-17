@@ -277,8 +277,12 @@
   proves its advertised interface and associated bindings, and preserves outcome injection through
   an explicit HIR conversion. Calls expose only advertised interface methods; <code>OpaqueMethod</code>
   dispatch opens the witness table only after executable specialization supplies concrete generic
-  arguments. The structural unifier treats only an explicitly supplied set of generic identities
-  as variables;
+  arguments. One concrete destruction authority shares that specialization type store. It records
+  exact generic drop-body arguments and recursive reverse-order struct, enum-payload, array,
+  outcome, closure-environment, and opaque-witness work. Closure definitions pair every captured
+  binding with its stored environment type, so non-owning readwrite captures remain move-only
+  without acquiring referent destruction. The structural unifier treats only an explicitly
+  supplied set of generic identities as variables;
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
   known outcome layers, ranks exact result identity before recursive outcome injection, and rejects

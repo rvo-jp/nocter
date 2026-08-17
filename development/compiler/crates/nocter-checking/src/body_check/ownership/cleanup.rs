@@ -87,17 +87,18 @@ impl<'program> CleanupPlanner<'program> {
         state: &mut OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
         let mut actions = Vec::new();
-        for capture in closure.captures().iter().rev() {
+        for capture in closure.environment().iter().rev().copied() {
+            let binding = capture.binding();
             let checked = self
                 .body
                 .captures()
-                .get(*capture)
+                .get(binding)
                 .ok_or(BodyCheckInternalError::CleanupPlanning)?;
             if checked.declaration().mode() != crate::CaptureMode::Move {
                 continue;
             }
-            let root = PlaceRoot::Capture(*capture);
-            self.plan_path(&MovePath::root(root), checked.ty(), state, &mut actions)?;
+            let root = PlaceRoot::Capture(binding);
+            self.plan_path(&MovePath::root(root), capture.ty(), state, &mut actions)?;
             state.forget_root(root);
         }
         Ok(actions)

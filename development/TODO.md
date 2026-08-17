@@ -12,8 +12,8 @@ implementation input.
 
 1. Close deterministic entry-driven monomorphization from the frozen executable/test roots. The
    canonical callable key, executable checked-body edge inventory, and checking-owned concrete
-   dispatch-plan resolver are complete; the remaining closure must enqueue closure bodies, drop
-   bodies, construction members, and opaque witnesses into one item table.
+   dispatch and recursive destruction-plan resolvers are complete; the remaining closure must
+   enqueue callable, closure, and drop bodies plus compiler-owned operations into one item table.
 2. Define compiler-generated process and test runner roots without creating source declarations or
    backend-name lookups; preserve process-result and test failure behavior explicitly.
 3. Lower the resulting `ExecutableProgram` into MIR; MIR must
@@ -69,6 +69,13 @@ table proves the advertised interface and associated bindings, and checked conve
 hidden representation through outcome injection. Callers see only advertised methods through an
 `OpaqueMethod` edge; concrete dispatch opens the witness after specializing the opaque type's own
 generic argument vector.
+Concrete destruction now uses that same specialization authority. Exact generic drop selections
+precede recursive reverse-order struct fields and active enum payloads; arrays, outcomes, closure
+environments, and opaque witnesses retain explicit representation plans. Closure environment
+metadata stores the captured binding and stored type as one field, preventing a non-owning
+readwrite capture from being treated as ownership of its referent. The deterministic executable
+closure can therefore enqueue every reachable user drop body without re-running source type
+matching.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

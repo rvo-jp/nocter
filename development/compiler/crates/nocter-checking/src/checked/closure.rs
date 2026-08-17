@@ -45,6 +45,32 @@ impl ClosureSignature {
     }
 }
 
+/// One field stored in a checked closure environment.
+///
+/// `ty` describes the representation held by the closure value. For a borrow capture this is a
+/// borrow type, not the type of the source place that the nested body reads through `binding`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ClosureEnvironmentField {
+    binding: CaptureId,
+    ty: TypeId,
+}
+
+impl ClosureEnvironmentField {
+    pub(crate) const fn new(binding: CaptureId, ty: TypeId) -> Self {
+        Self { binding, ty }
+    }
+
+    #[must_use]
+    pub const fn binding(self) -> CaptureId {
+        self.binding
+    }
+
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
+
 /// One generated closure body and the exact environment bindings it operates on.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClosureDefinition {
@@ -52,7 +78,7 @@ pub struct ClosureDefinition {
     ty: TypeId,
     signature: ClosureSignature,
     parameters: Box<[LocalBindingId]>,
-    captures: Box<[CaptureId]>,
+    environment: Box<[ClosureEnvironmentField]>,
     callable_requirements: Vec<CallableContract>,
     body: BodyNodeId,
 }
@@ -63,7 +89,7 @@ impl ClosureDefinition {
         ty: TypeId,
         signature: ClosureSignature,
         parameters: impl Into<Box<[LocalBindingId]>>,
-        captures: impl Into<Box<[CaptureId]>>,
+        environment: impl Into<Box<[ClosureEnvironmentField]>>,
         body: BodyNodeId,
     ) -> Self {
         Self {
@@ -71,7 +97,7 @@ impl ClosureDefinition {
             ty,
             signature,
             parameters: parameters.into(),
-            captures: captures.into(),
+            environment: environment.into(),
             callable_requirements: Vec::new(),
             body,
         }
@@ -98,8 +124,8 @@ impl ClosureDefinition {
     }
 
     #[must_use]
-    pub const fn captures(&self) -> &[CaptureId] {
-        &self.captures
+    pub const fn environment(&self) -> &[ClosureEnvironmentField] {
+        &self.environment
     }
 
     /// Concrete structural callable contracts this closure must satisfy at its use sites.

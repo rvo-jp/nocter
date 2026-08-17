@@ -43,19 +43,10 @@ pub(super) fn body_generic_domain(
     graph: &DeclarationGraph,
     source: BodySource<'_>,
 ) -> Result<Box<[GenericParameterId]>, BodyCheckInternalError> {
-    match source.owner() {
-        BodyOwner::Callable(callable) => graph
-            .declarations()
-            .callable_generic_domain(callable)
-            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
-        BodyOwner::Drop(drop) => graph
-            .declarations()
-            .drops()
-            .get(drop)
-            .map(|declaration| Box::from(declaration.generic_parameters()))
-            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
-        BodyOwner::Test(_) => Ok(Box::new([])),
-    }
+    graph
+        .declarations()
+        .body_generic_domain(source.body())
+        .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))
 }
 
 impl<'program> BodyProgramFacts<'program> {
