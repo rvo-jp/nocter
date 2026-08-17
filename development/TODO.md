@@ -10,12 +10,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Define the MIR program, function, block, operation, place, and terminator identity domains plus
-   their immutable builders and validators.
-2. Lower each dense executable item without source lookup. Consume its frozen direct item IDs,
+1. Lower each dense executable item without source lookup. Consume its frozen direct item IDs,
    typed primitive steps, concrete type edges, closure edges, and cleanup-specific destruction
    plans; never repeat requirement, conformance, or drop-pattern selection.
-3. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
+2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
 The Phase 4 responsibility map is recorded in
@@ -83,6 +81,20 @@ and representation-specific cleanup glue. Bodyless callables are accepted only t
 toolchain primitive registry. Process and test roots remain compiler metadata, while test cases
 retain declaration order. Enum residual cleanup is not collapsed to its nominal type: it excludes
 the already-run owner drop and every transferred payload.
+
+`nocter-mir` now owns the canonical backend-independent representation. Function-local locals,
+drop flags, places, SSA values, operations, and blocks use separate dense identity domains and can
+be created only through a consuming builder. Block parameters carry typed merge values; exact
+terminators own every successor and edge argument. Storage switches inspect enum, optional, and
+fallible places without moving them, while conditional cleanup uses explicit drop-flag branches.
+The validator checks concrete type references, specialized nominal member projections, aggregate
+layouts, operation typing, block closure and reachability, edge arity and types, SSA dominance,
+switch subject shape, direct semantic item references, and terminal result behavior. A narrow
+`MirValidationEnvironment` supplies only immutable type, declaration, and executable-item
+authority, leaving package and source setup outside MIR. `MirProgramBuilder` requires exactly one
+function for every executable item and validates direct-call and drop-body signatures across the
+closed function arena. Checked-body and cleanup lowering into this schema remains the current
+task.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

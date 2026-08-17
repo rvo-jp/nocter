@@ -79,6 +79,15 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
         id
     }
 
+    /// Returns the identity assigned by the next insertion without reserving a slot.
+    ///
+    /// This is useful when two immutable arena values refer to each other. The caller must consume
+    /// the identity before performing another insertion into this builder.
+    #[must_use]
+    pub fn next_id(&self) -> I {
+        I::new(self.values.len())
+    }
+
     #[must_use]
     pub fn get(&self, id: I) -> Option<&T> {
         self.values.get(id.index())

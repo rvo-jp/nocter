@@ -5,6 +5,7 @@ members = [
     "crates/nocter-declaration-lowering",
     "crates/nocter-diagnostics",
     "crates/nocter-model",
+    "crates/nocter-mir",
     "crates/nocter-source",
     "crates/nocter-source-index",
     "crates/nocter-syntax",

@@ -44,6 +44,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-mir"
+version = "0.0.0"
+dependencies = [
+ "nocter-declarations",
+ "nocter-model",
+ "nocter-target-program",
+]
+
+[[package]]
 name = "nocter-model"
 version = "0.0.0"
 

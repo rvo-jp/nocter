@@ -1,0 +1,276 @@
+use nocter_declarations::{
+    FieldDeclaration, NominalTypeDeclaration, Parameter, VariantDeclaration,
+};
+use nocter_model::{
+    Arena, ArenaBuilder, BuiltinType, ExecutableItemId, FieldId, NominalTypeId, ParameterId,
+    TypeStore, VariantId,
+};
+
+use crate::{
+    MirBinaryOperation, MirBranchTarget, MirConstant, MirFunctionBuildError, MirFunctionBuilder,
+    MirLocalKind, MirOperationKind, MirPlaceRoot, MirTerminator, MirValidationEnvironment,
+    MirValidationError,
+};
+
+struct TestEnvironment {
+    types: TypeStore,
+    items: Arena<ExecutableItemId, ()>,
+}
+
+impl TestEnvironment {
+    fn new() -> (Self, ExecutableItemId) {
+        let mut items = ArenaBuilder::new();
+        let item = items.insert(());
+        (
+            Self {
+                types: TypeStore::new(),
+                items: items.finish(),
+            },
+            item,
+        )
+    }
+}
+
+impl MirValidationEnvironment for TestEnvironment {
+    fn types(&self) -> &TypeStore {
+        &self.types
+    }
+
+    fn contains_item(&self, item: ExecutableItemId) -> bool {
+        self.items.get(item).is_some()
+    }
+
+    fn nominal_type(&self, _id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
+        None
+    }
+
+    fn field(&self, _id: FieldId) -> Option<&FieldDeclaration> {
+        None
+    }
+
+    fn variant(&self, _id: VariantId) -> Option<&VariantDeclaration> {
+        None
+    }
+
+    fn parameter(&self, _id: ParameterId) -> Option<&Parameter> {
+        None
+    }
+}
+
+#[test]
+fn typed_block_parameters_close_a_diamond_cfg() {
+    let (environment, item) = TestEnvironment::new();
+    let bool_ = environment.types.builtin(BuiltinType::Bool);
+    let i32_ = environment.types.builtin(BuiltinType::I32);
+    let mut builder = MirFunctionBuilder::new(item, i32_);
+    let (entry, _) = builder.create_block([]);
+    let (left, _) = builder.create_block([]);
+    let (right, _) = builder.create_block([]);
+    let (join, join_parameters) = builder.create_block([i32_]);
+    let condition = builder
+        .append_value(
+            entry,
+            bool_,
+            MirOperationKind::Constant(MirConstant::Bool(true)),
+        )
+        .unwrap();
+    builder
+        .terminate(
+            entry,
+            MirTerminator::Branch {
+                condition,
+                then_target: MirBranchTarget::new(left, []),
+                else_target: MirBranchTarget::new(right, []),
+            },
+        )
+        .unwrap();
+    for (block, number) in [(left, 1), (right, 2)] {
+        let value = builder
+            .append_value(
+                block,
+                i32_,
+                MirOperationKind::Constant(MirConstant::Integer(number)),
+            )
+            .unwrap();
+        builder
+            .terminate(
+                block,
+                MirTerminator::Goto(MirBranchTarget::new(join, [value])),
+            )
+            .unwrap();
+    }
+    builder
+        .terminate(join, MirTerminator::Return(Some(join_parameters[0])))
+        .unwrap();
+
+    let function = builder.finish(entry, &environment).unwrap();
+
+    assert_eq!(function.blocks().len(), 4);
+    assert_eq!(function.values().len(), 4);
+}
+
+#[test]
+fn edge_arguments_must_match_block_parameter_types() {
+    let (environment, item) = TestEnvironment::new();
+    let bool_ = environment.types.builtin(BuiltinType::Bool);
+    let i32_ = environment.types.builtin(BuiltinType::I32);
+    let mut builder = MirFunctionBuilder::new(item, i32_);
+    let (entry, _) = builder.create_block([]);
+    let (join, parameters) = builder.create_block([i32_]);
+    let wrong = builder
+        .append_value(
+            entry,
+            bool_,
+            MirOperationKind::Constant(MirConstant::Bool(false)),
+        )
+        .unwrap();
+    builder
+        .terminate(
+            entry,
+            MirTerminator::Goto(MirBranchTarget::new(join, [wrong])),
+        )
+        .unwrap();
+    builder
+        .terminate(join, MirTerminator::Return(Some(parameters[0])))
+        .unwrap();
+
+    assert!(matches!(
+        builder.finish(entry, &environment),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::EdgeType { block, position: 0 }
+        )) if block == join
+    ));
+}
+
+#[test]
+fn a_value_from_one_branch_does_not_dominate_its_sibling() {
+    let (environment, item) = TestEnvironment::new();
+    let bool_ = environment.types.builtin(BuiltinType::Bool);
+    let i32_ = environment.types.builtin(BuiltinType::I32);
+    let mut builder = MirFunctionBuilder::new(item, i32_);
+    let (entry, _) = builder.create_block([]);
+    let (left, _) = builder.create_block([]);
+    let (right, _) = builder.create_block([]);
+    let condition = builder
+        .append_value(
+            entry,
+            bool_,
+            MirOperationKind::Constant(MirConstant::Bool(true)),
+        )
+        .unwrap();
+    builder
+        .terminate(
+            entry,
+            MirTerminator::Branch {
+                condition,
+                then_target: MirBranchTarget::new(left, []),
+                else_target: MirBranchTarget::new(right, []),
+            },
+        )
+        .unwrap();
+    let left_value = builder
+        .append_value(
+            left,
+            i32_,
+            MirOperationKind::Constant(MirConstant::Integer(1)),
+        )
+        .unwrap();
+    builder
+        .terminate(left, MirTerminator::Return(Some(left_value)))
+        .unwrap();
+    let one = builder
+        .append_value(
+            right,
+            i32_,
+            MirOperationKind::Constant(MirConstant::Integer(1)),
+        )
+        .unwrap();
+    let invalid = builder
+        .append_value(
+            right,
+            i32_,
+            MirOperationKind::Binary {
+                operation: MirBinaryOperation::Add,
+                left: left_value,
+                right: one,
+            },
+        )
+        .unwrap();
+    builder
+        .terminate(right, MirTerminator::Return(Some(invalid)))
+        .unwrap();
+
+    assert!(matches!(
+        builder.finish(entry, &environment),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::ValueDoesNotDominate { value, block }
+        )) if value == left_value && block == right
+    ));
+}
+
+#[test]
+fn builder_rejects_unterminated_blocks_before_validation() {
+    let (environment, item) = TestEnvironment::new();
+    let void = environment.types.builtin(BuiltinType::Void);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let (entry, _) = builder.create_block([]);
+
+    assert!(matches!(
+        builder.finish(entry, &environment),
+        Err(MirFunctionBuildError::UnterminatedBlock(block)) if block == entry
+    ));
+}
+
+#[test]
+fn drop_flags_are_explicit_cfg_conditions() {
+    let (environment, item) = TestEnvironment::new();
+    let void = environment.types.builtin(BuiltinType::Void);
+    let i32_ = environment.types.builtin(BuiltinType::I32);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let local = builder.add_local(i32_, MirLocalKind::User, true);
+    let place = builder.add_place(MirPlaceRoot::Local(local), [], i32_);
+    let flag = builder.add_drop_flag(place, false);
+    let (entry, _) = builder.create_block([]);
+    let (initialized, _) = builder.create_block([]);
+    let (uninitialized, _) = builder.create_block([]);
+    builder
+        .terminate(
+            entry,
+            MirTerminator::BranchDropFlag {
+                flag,
+                initialized: MirBranchTarget::new(initialized, []),
+                uninitialized: MirBranchTarget::new(uninitialized, []),
+            },
+        )
+        .unwrap();
+    for block in [initialized, uninitialized] {
+        builder
+            .terminate(block, MirTerminator::Return(None))
+            .unwrap();
+    }
+
+    let function = builder.finish(entry, &environment).unwrap();
+
+    assert_eq!(function.drop_flags().len(), 1);
+}
+
+#[test]
+fn rejecting_a_second_terminator_preserves_the_first() {
+    let (environment, item) = TestEnvironment::new();
+    let void = environment.types.builtin(BuiltinType::Void);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let (entry, _) = builder.create_block([]);
+    builder
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+
+    assert!(matches!(
+        builder.terminate(entry, MirTerminator::Trap),
+        Err(MirFunctionBuildError::AlreadyTerminated)
+    ));
+    let function = builder.finish(entry, &environment).unwrap();
+    assert!(matches!(
+        function.blocks().get(entry).unwrap().terminator(),
+        MirTerminator::Return(None)
+    ));
+}

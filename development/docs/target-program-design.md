@@ -182,6 +182,21 @@ successors. Calls name monomorphized item IDs. Places retain concrete projection
 identity. Cleanup schedules already frozen in checked HIR become explicit MIR edges in their
 recorded order; MIR does not infer cleanup timing from syntax or operation kind.
 
+The canonical schema gives locals, drop flags, places, SSA values, operations, and blocks distinct
+dense identity domains. Typed block parameters are the only merge-value mechanism. A block owns
+one ordered operation list and exactly one terminator; conditional cleanup branches on an explicit
+drop flag. Enum, optional, and fallible switches inspect a typed place directly, so cleanup and
+pattern lowering never move an aggregate merely to recover its active representation.
+
+Construction is mutable only through `MirFunctionBuilder` and `MirProgramBuilder`; finishing
+consumes both builders. Function validation receives a narrow immutable environment containing
+only the concrete type store, declaration members needed for projection validation, and the closed
+executable-item domain. It validates specialized nominal projections and aggregate layout, local
+and place capability, operation typing, edge arguments, reachability, SSA dominance, switch shape,
+and return behavior. Program validation then checks direct calls and drop invocations against the
+complete function arena. This split permits future per-item incremental validation without giving
+MIR access to source or package setup state.
+
 MIR validation requires closed successors, valid place projections, initialized-use discipline,
 resolved call targets, balanced region release, and complete terminal behavior. These are compiler
 integrity checks over an accepted program, not a second source diagnostic system.
@@ -197,8 +212,9 @@ integrity checks over an accepted program, not a second source diagnostic system
 6. Select an executable/test entry, define canonical concrete callable/closure/drop keys, enumerate
    checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
    deterministic reachable item graph. **Complete.**
-7. Lower concrete checked bodies and cleanup schedules into MIR.
-8. Validate MIR without source or syntax access.
+7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
+8. Lower concrete checked bodies and cleanup schedules into MIR, then materialize compiler-owned
+   process and test roots.
 
 ## Prohibited Designs
 

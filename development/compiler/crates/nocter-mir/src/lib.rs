@@ -1,0 +1,36 @@
+//! Validated, backend-independent control-flow representation.
+//!
+//! MIR owns concrete places, values, operations, blocks, and terminal control flow. It consumes
+//! executable semantic identities and never retains syntax, source ranges, unresolved dispatch,
+//! or rendered type names.
+
+mod builder;
+mod operation;
+mod place;
+mod program;
+mod schema;
+mod validate;
+mod validation_environment;
+mod validation_error;
+mod validation_graph;
+mod validation_place;
+mod validation_switch;
+mod validation_types;
+
+pub use builder::{MirBlockBuilder, MirFunctionBuildError, MirFunctionBuilder};
+pub use operation::{
+    MirAggregate, MirBinaryOperation, MirCall, MirCallTarget, MirConstant, MirOperation,
+    MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,
+};
+pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
+pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder};
+pub use schema::{
+    MirBlock, MirBranchTarget, MirDropFlag, MirFunction, MirSwitchCase, MirSwitchSubject,
+    MirSwitchValue, MirTerminator, MirValue, MirValueDefinition,
+};
+pub use validate::validate_function;
+pub use validation_environment::MirValidationEnvironment;
+pub use validation_error::MirValidationError;
+
+#[cfg(test)]
+mod tests;

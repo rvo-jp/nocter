@@ -564,6 +564,14 @@ MIR represents control flow, places, initialization, moves, loans, regions, clea
 outcomes for concrete executable items. Calls target monomorphized item IDs. MIR construction does
 not receive AST, a resolver, rendered types, or runtime names.
 
+Function-local locals, drop flags, places, SSA values, operations, and blocks occupy distinct dense
+identity domains. Typed block parameters carry merge values, and every block has one exact
+terminator. Conditional destruction branches on a drop flag; representation switches inspect
+enum, optional, or fallible storage without moving it. A consuming builder is the only mutation
+path. Validation checks concrete projections and aggregates, operation types, complete reachable
+control flow, typed edge arguments, SSA dominance, switch subjects, semantic call targets, and
+terminal results before a `MirFunction` or `MirProgram` can escape.
+
 Machine lowering projects validated MIR into ABI storage and target-independent operations.
 Target code generation consumes only the machine program, target description, and one-way linkage
 table. Optimizations may replace ordinary operations with constants but cannot define source

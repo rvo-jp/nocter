@@ -62,4 +62,10 @@ semantic_ids! {
     OpaqueTypeId,
     TypeId,
     ExecutableItemId,
+    MirLocalId,
+    MirDropFlagId,
+    MirPlaceId,
+    MirValueId,
+    MirOperationId,
+    MirBlockId,
 }

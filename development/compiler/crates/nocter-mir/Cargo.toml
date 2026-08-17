@@ -1,0 +1,15 @@
+[package]
+name = "nocter-mir"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-declarations = { path = "../nocter-declarations" }
+nocter-model = { path = "../nocter-model" }
+nocter-target-program = { path = "../nocter-target-program" }
+
+[lints]
+workspace = true
