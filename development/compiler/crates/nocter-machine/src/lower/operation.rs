@@ -6,28 +6,35 @@ use nocter_mir::{
 };
 use nocter_model::{ExecutableItemId, MirOperationId};
 
+use super::aggregate::lower_aggregate;
 use super::body::BodyIdentities;
 use super::{MachineProgramError, MachineUnsupportedOperation, unsupported};
 use crate::{
-    MachineBinaryOperation, MachineConstant, MachineDataTable, MachineDirectCall,
-    MachineFunctionId, MachineOperation, MachineOperationKind, MachineUnaryOperation,
+    MachineBinaryOperation, MachineCallAllocation, MachineConstant, MachineDataTable,
+    MachineDirectCall, MachineFunctionId, MachineLayoutStore, MachineOperation,
+    MachineOperationKind, MachineUnaryOperation,
 };
 
 pub(super) fn lower_operations(
     body: &nocter_mir::MirBody,
+    layouts: &MachineLayoutStore,
     data: &MachineDataTable,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineOperation>, MachineProgramError> {
     body.operations()
         .iter()
-        .map(|(operation, value)| lower_operation(operation, value, data, functions, ids))
+        .map(|(operation, value)| {
+            lower_operation(operation, value, body, layouts, data, functions, ids)
+        })
         .collect()
 }
 
 fn lower_operation(
     operation: MirOperationId,
     value: &nocter_mir::MirOperation,
+    body: &nocter_mir::MirBody,
+    layouts: &MachineLayoutStore,
     data: &MachineDataTable,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
     ids: &BodyIdentities,
@@ -37,6 +44,17 @@ fn lower_operation(
         MirOperationKind::Constant(constant) => {
             MachineOperationKind::Constant(lower_constant(data, constant)?)
         }
+        MirOperationKind::Read { place, .. } => MachineOperationKind::Load {
+            source: ids.address(*place)?,
+        },
+        MirOperationKind::Borrow { place, .. } => MachineOperationKind::AddressOf {
+            source: ids.address(*place)?,
+        },
+        MirOperationKind::Store { destination, value }
+        | MirOperationKind::Initialize { destination, value } => MachineOperationKind::Store {
+            destination: ids.address(*destination)?,
+            value: ids.value(*value)?,
+        },
         MirOperationKind::SetDropFlag { flag, initialized } => MachineOperationKind::SetDropFlag {
             flag: ids.drop_flag(*flag)?,
             initialized: *initialized,
@@ -58,6 +76,26 @@ fn lower_operation(
             MachineOperationKind::IntegerConversion {
                 operand: ids.value(*operand)?,
             }
+        }
+        MirOperationKind::Aggregate(aggregate) => {
+            let result = value
+                .result()
+                .ok_or(MachineProgramError::MissingOperationResult {
+                    owner: ids.owner(),
+                    operation,
+                })?;
+            let ty = body
+                .values()
+                .get(result)
+                .copied()
+                .ok_or(MachineProgramError::MissingOperationResult {
+                    owner: ids.owner(),
+                    operation,
+                })?
+                .ty();
+            MachineOperationKind::Aggregate(lower_aggregate(
+                operation, aggregate, ty, layouts, ids,
+            )?)
         }
         MirOperationKind::Call(call) => lower_direct_call(operation, call, functions, ids)?,
         kind => {
@@ -84,13 +122,6 @@ fn lower_direct_call(
             MachineUnsupportedOperation::PackedCall,
         ));
     }
-    if call.allocation() != MirCallAllocation::Inherit {
-        return Err(unsupported(
-            ids.owner(),
-            operation,
-            MachineUnsupportedOperation::ExplicitCallAllocation,
-        ));
-    }
     let MirCallTarget::Direct(target) = call.target() else {
         let kind = match call.target() {
             MirCallTarget::StandardPrimitive { .. } => {
@@ -110,8 +141,12 @@ fn lower_direct_call(
         .iter()
         .map(|argument| ids.value(*argument))
         .collect::<Result<Vec<_>, _>>()?;
+    let allocation = match call.allocation() {
+        MirCallAllocation::Inherit => MachineCallAllocation::Inherit,
+        MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
+    };
     Ok(MachineOperationKind::DirectCall(MachineDirectCall::new(
-        function, arguments,
+        function, arguments, allocation,
     )))
 }
 

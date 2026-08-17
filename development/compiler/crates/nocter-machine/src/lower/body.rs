@@ -3,22 +3,25 @@ use std::fmt;
 
 use nocter_mir::{MirBody, MirLocalKind, MirValueDefinition};
 use nocter_model::{
-    ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirValueId,
+    ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
+    MirValueId, TypeStore,
 };
 
 use super::MachineProgramError;
+use super::address::lower_addresses;
 use super::control::lower_blocks;
 use super::operation::lower_operations;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineBlockId, MachineDataTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId,
-    MachineLayoutStore, MachineLinkageId, MachineOperationId, MachineStackId, MachineStackObject,
-    MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
+    MachineAddressId, MachineBlockId, MachineDataTable, MachineDropFlag, MachineDropFlagId,
+    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineOperationId, MachineStackId,
+    MachineStackObject, MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
 };
 
 pub(super) fn lower_body(
     owner: MachineLinkageId,
     body: &MirBody,
+    types: &TypeStore,
     layouts: &MachineLayoutStore,
     data: &MachineDataTable,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
@@ -35,17 +38,21 @@ pub(super) fn lower_body(
         .iter()
         .map(|(_, flag)| MachineDropFlag::new(flag.initially_initialized()))
         .collect::<Vec<_>>();
+    let addresses = lower_addresses(body, types, layouts, &ids)?;
     let values = lower_values(body, layouts, &ids)?;
-    let operations = lower_operations(body, data, functions, &ids)?;
-    let blocks = lower_blocks(body, &ids)?;
+    let operations = lower_operations(body, layouts, data, functions, &ids)?;
+    let blocks = lower_blocks(body, layouts, &ids)?;
 
     Ok(crate::MachineBody::new(
         parameters,
-        MachineTable::from_values(stack),
-        MachineTable::from_values(drop_flags),
-        MachineTable::from_values(values),
-        MachineTable::from_values(operations),
-        MachineTable::from_values(blocks),
+        crate::program::MachineBodyDomains {
+            stack: MachineTable::from_values(stack),
+            drop_flags: MachineTable::from_values(drop_flags),
+            addresses: MachineTable::from_values(addresses),
+            values: MachineTable::from_values(values),
+            operations: MachineTable::from_values(operations),
+            blocks: MachineTable::from_values(blocks),
+        },
         ids.block(body.entry())?,
     ))
 }
@@ -107,6 +114,7 @@ pub(super) struct BodyIdentities {
     owner: MachineLinkageId,
     stack: BTreeMap<MirLocalId, MachineStackId>,
     drop_flags: BTreeMap<MirDropFlagId, MachineDropFlagId>,
+    addresses: BTreeMap<MirPlaceId, MachineAddressId>,
     values: BTreeMap<MirValueId, MachineValueId>,
     operations: BTreeMap<MirOperationId, MachineOperationId>,
     blocks: BTreeMap<MirBlockId, MachineBlockId>,
@@ -118,6 +126,7 @@ impl BodyIdentities {
             owner,
             stack: assign_ids::<MirLocalId, MachineStackId, _>(body.locals().iter()),
             drop_flags: assign_ids::<MirDropFlagId, MachineDropFlagId, _>(body.drop_flags().iter()),
+            addresses: assign_ids::<MirPlaceId, MachineAddressId, _>(body.places().iter()),
             values: assign_ids::<MirValueId, MachineValueId, _>(body.values().iter()),
             operations: assign_ids::<MirOperationId, MachineOperationId, _>(
                 body.operations().iter(),
@@ -130,7 +139,7 @@ impl BodyIdentities {
         self.owner
     }
 
-    fn stack(&self, source: MirLocalId) -> Result<MachineStackId, MachineProgramError> {
+    pub(super) fn stack(&self, source: MirLocalId) -> Result<MachineStackId, MachineProgramError> {
         self.require(&self.stack, source)
     }
 
@@ -143,6 +152,13 @@ impl BodyIdentities {
 
     pub(super) fn value(&self, source: MirValueId) -> Result<MachineValueId, MachineProgramError> {
         self.require(&self.values, source)
+    }
+
+    pub(super) fn address(
+        &self,
+        source: MirPlaceId,
+    ) -> Result<MachineAddressId, MachineProgramError> {
+        self.require(&self.addresses, source)
     }
 
     pub(super) fn operation(

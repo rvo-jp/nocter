@@ -18,8 +18,8 @@ pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
 pub use identity::{
-    MachineBlockId, MachineDataId, MachineDropFlagId, MachineFunctionId, MachineLinkageId,
-    MachineOperationId, MachineStackId, MachineValueId,
+    MachineAddressId, MachineBlockId, MachineDataId, MachineDropFlagId, MachineFunctionId,
+    MachineLinkageId, MachineOperationId, MachineStackId, MachineValueId,
 };
 
 pub use layout::{
@@ -31,16 +31,22 @@ pub use linkage::{
     MachineData, MachineDataTable, MachineLinkageEntry, MachineLinkageError, MachineLinkageKey,
     MachineLinkageTable, MachineRootLinkage, MachineTestLinkage,
 };
-pub use lower::{MachineProgramError, MachineUnsupportedOperation};
+pub use lower::{
+    MachineAddressError, MachineAggregateError, MachineProgramError, MachineUnsupportedOperation,
+};
 pub use operation::{
-    MachineBinaryOperation, MachineConstant, MachineDirectCall, MachineOperation,
-    MachineOperationKind, MachineUnaryOperation, MachineValue, MachineValueDefinition,
+    MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineCallAllocation,
+    MachineConstant, MachineDirectCall, MachineOperation, MachineOperationKind,
+    MachineUnaryOperation, MachineValue, MachineValueDefinition,
 };
 pub use program::{
     MachineBody, MachineFunction, MachineFunctionKind, MachineProgram, MachineProgramRoot,
     MachineTestProgram,
 };
-pub use storage::{MachineDropFlag, MachineStackObject, MachineStackPurpose};
+pub use storage::{
+    MachineAddress, MachineAddressRoot, MachineAddressStep, MachineDropFlag, MachineIndex,
+    MachineIndexBound, MachineStackObject, MachineStackPurpose,
+};
 pub use target::{MachineEndianness, MachineTarget};
 pub use transport::{
     MachineAbiError, MachineAbiPlan, MachineArgumentAbi, MachineArgumentLocation,

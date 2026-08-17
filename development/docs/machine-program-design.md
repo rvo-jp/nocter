@@ -110,13 +110,21 @@ in byte order, so function traversal and first-use order cannot alter data ident
 layout.
 
 `MachineProgram` now owns a separate dense function domain and body-local stack-object, drop-flag,
-SSA-value, operation, and basic-block domains. MIR identities are translated once while the program
-is built and are absent from the immutable result. Function entries carry the single callable ABI
-object owned by `MachineAbiPlan`; direct-call operations name the target machine function and
-therefore cannot invent a second call contract. Constants, scalar operations, integer conversion,
-drop-flag control, block arguments, scalar switches, returns, process exits, and direct calls have
-closed machine forms. Unsupported MIR operations fail construction explicitly instead of surviving
-inside a generic passthrough operation.
+address, SSA-value, operation, and basic-block domains. MIR identities are translated once while the
+program is built and are absent from the immutable result. Every address starts from an abstract
+stack object, pointer value, or two-word view and then uses only byte offsets, dereferences, and
+checked index steps. Fixed arrays retain their declared bound and layout-owned stride. Slice and
+string indexes retain the length from the current view. Field, capture, variant-payload, outcome,
+and opaque-witness identities are consumed while those steps are constructed.
+
+Function entries carry the single callable ABI object owned by `MachineAbiPlan`; direct-call
+operations name the target machine function and therefore cannot invent a second call contract.
+Constants, loads, address formation, stores, aggregate writes, scalar operations, integer
+conversion, drop-flag control, block arguments, scalar and stored-tag switches, returns, process
+exits, and direct calls have closed machine forms. Aggregate writes and tag switches use the same
+stored-layout offsets and tag values as address projection. An explicit call allocation context is
+an address identity rather than a retained MIR place. Unsupported MIR operations fail construction
+explicitly instead of surviving inside a generic passthrough operation.
 
 ## ARM64 and Mach-O Boundaries
 
@@ -157,8 +165,9 @@ MachineProgram ownership spine are implemented. Conformance tests cover speciali
 and enum members, scalar and pointer sizes, view and built-in error offsets, enum and recursive
 outcome layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque
 witness representation, register-window closure, aligned stack placement, direct and indirect
-results, the compiler-owned literal-pack lane, ordered test roots, static-text deduplication, and
-dense scalar/control/direct-call lowering.
+results, the compiler-owned literal-pack lane, ordered test roots, static-text deduplication, dense
+scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access, and
+outcome tag control.
 
-Address and stored-value operations, aggregates, primitive calls, literal-pack descriptors, ARM64
-instruction lowering, and Mach-O serialization are the remaining Phase 5 implementation areas.
+Destruction, regions, primitive calls, literal-pack descriptors, ARM64 instruction lowering, and
+Mach-O serialization are the remaining Phase 5 implementation areas.

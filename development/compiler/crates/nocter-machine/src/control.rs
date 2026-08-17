@@ -74,6 +74,12 @@ pub enum MachineTerminator {
         cases: Box<[MachineSwitchCase]>,
         fallback: MachineBranchTarget,
     },
+    SwitchTag {
+        subject: crate::MachineAddressId,
+        tag_offset: u64,
+        cases: Box<[MachineSwitchCase]>,
+        fallback: MachineBranchTarget,
+    },
     Return(Option<MachineValueId>),
     Exit(Option<MachineValueId>),
     Trap,

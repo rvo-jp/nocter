@@ -380,10 +380,12 @@ be introduced to make an unresolved syntax choice.
   linkage is separately keyed by exact executable item, process target, or test declaration; no
   display name participates. Test roots retain declaration order outside that key table. Static
   text receives content-sorted, deduplicated `MachineDataId` values rather than first-use IDs.
-  `MachineProgram` now owns distinct dense function, stack-object, drop-flag, SSA-value, operation,
-  block, linkage, and data identities. Constants, scalar control flow, and direct calls lower
-  without retaining MIR fallback nodes. Addressed storage, aggregates, primitives, ARM64 selection,
-  and Mach-O serialization remain the next Phase 5 boundaries.
+  `MachineProgram` now owns distinct dense function, stack-object, drop-flag, address, SSA-value,
+  operation, block, linkage, and data identities. Layout-owned byte offsets, checked fixed/view
+  indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
+  explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
+  Destruction, regions, primitives, packs, ARM64 selection, and Mach-O serialization remain the
+  next Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

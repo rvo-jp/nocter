@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_mir::{MirBody, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{ExecutableItemId, MirOperationId, TestId, TypeId};
+use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId};
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -12,6 +12,8 @@ use crate::{
     MachineTestProgram,
 };
 
+mod address;
+mod aggregate;
 mod body;
 mod control;
 mod operation;
@@ -51,7 +53,14 @@ impl MachineProgram {
             .into_iter()
             .map(|(linkage_id, entry)| {
                 let (kind, body) = function_source(program, &abi, entry.key())?;
-                let body = lower_body(linkage_id, body, &layouts, &data, &functions_by_item)?;
+                let body = lower_body(
+                    linkage_id,
+                    body,
+                    program.executable().types(),
+                    &layouts,
+                    &data,
+                    &functions_by_item,
+                )?;
                 Ok(MachineFunction::new(linkage_id, kind, body))
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
@@ -164,15 +173,9 @@ pub(super) const fn unsupported(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineUnsupportedOperation {
-    Read,
-    Borrow,
-    Store,
-    Initialize,
-    Aggregate,
     StandardPrimitiveCall,
     StructuralCall,
     PackedCall,
-    ExplicitCallAllocation,
     PackLength,
     PackNext,
     DestroyPack,
@@ -182,14 +185,23 @@ pub enum MachineUnsupportedOperation {
     ReleaseRegion,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineAddressError {
+    InvalidRoot,
+    InvalidProjection,
+    OffsetOverflow,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineAggregateError {
+    InvalidLayout,
+    MemberMismatch,
+    OffsetOverflow,
+}
+
 impl From<&MirOperationKind> for MachineUnsupportedOperation {
     fn from(kind: &MirOperationKind) -> Self {
         match kind {
-            MirOperationKind::Read { .. } => Self::Read,
-            MirOperationKind::Borrow { .. } => Self::Borrow,
-            MirOperationKind::Store { .. } => Self::Store,
-            MirOperationKind::Initialize { .. } => Self::Initialize,
-            MirOperationKind::Aggregate(_) => Self::Aggregate,
             MirOperationKind::PackLength => Self::PackLength,
             MirOperationKind::PackNext => Self::PackNext,
             MirOperationKind::DestroyPack => Self::DestroyPack,
@@ -198,6 +210,11 @@ impl From<&MirOperationKind> for MachineUnsupportedOperation {
             MirOperationKind::CreateRegion { .. } => Self::CreateRegion,
             MirOperationKind::ReleaseRegion { .. } => Self::ReleaseRegion,
             MirOperationKind::Constant(_)
+            | MirOperationKind::Read { .. }
+            | MirOperationKind::Borrow { .. }
+            | MirOperationKind::Store { .. }
+            | MirOperationKind::Initialize { .. }
+            | MirOperationKind::Aggregate(_)
             | MirOperationKind::SetDropFlag { .. }
             | MirOperationKind::Unary { .. }
             | MirOperationKind::Binary { .. }
@@ -228,6 +245,20 @@ pub enum MachineProgramError {
         owner: MachineLinkageId,
         source: Box<str>,
     },
+    Address {
+        owner: MachineLinkageId,
+        place: MirPlaceId,
+        error: MachineAddressError,
+    },
+    Aggregate {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+        error: MachineAggregateError,
+    },
+    MissingOperationResult {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+    },
     UnsupportedOperation {
         owner: MachineLinkageId,
         operation: MirOperationId,
@@ -235,6 +266,7 @@ pub enum MachineProgramError {
     },
     UnsupportedPlaceSwitch(MachineLinkageId),
     InvalidValueSwitch(MachineLinkageId),
+    InvalidTagSwitch(MachineLinkageId),
 }
 
 impl fmt::Display for MachineProgramError {
@@ -260,9 +292,13 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingStoredLayout(_)
             | Self::MissingStaticText(_)
             | Self::MissingBodyIdentity { .. }
+            | Self::Address { .. }
+            | Self::Aggregate { .. }
+            | Self::MissingOperationResult { .. }
             | Self::UnsupportedOperation { .. }
             | Self::UnsupportedPlaceSwitch(_)
-            | Self::InvalidValueSwitch(_) => None,
+            | Self::InvalidValueSwitch(_)
+            | Self::InvalidTagSwitch(_) => None,
         }
     }
 }

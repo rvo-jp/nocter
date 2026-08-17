@@ -36,6 +36,7 @@ machine_ids! {
     MachineBlockId,
     MachineValueId,
     MachineStackId,
+    MachineAddressId,
     MachineOperationId,
     MachineDropFlagId,
     MachineLinkageId,

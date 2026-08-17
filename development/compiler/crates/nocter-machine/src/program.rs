@@ -4,10 +4,10 @@ use nocter_model::{Symbol, TestId};
 
 use crate::identity::MachineTable;
 use crate::{
-    MachineAbiPlan, MachineBlock, MachineBlockId, MachineDataTable, MachineDropFlag,
-    MachineDropFlagId, MachineFunctionId, MachineLayoutStore, MachineLinkageId,
-    MachineLinkageTable, MachineOperation, MachineOperationId, MachineStackId, MachineStackObject,
-    MachineValue, MachineValueId,
+    MachineAbiPlan, MachineAddress, MachineAddressId, MachineBlock, MachineBlockId,
+    MachineDataTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore,
+    MachineLinkageId, MachineLinkageTable, MachineOperation, MachineOperationId, MachineStackId,
+    MachineStackObject, MachineValue, MachineValueId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,29 +23,36 @@ pub struct MachineBody {
     parameters: Box<[MachineStackId]>,
     stack: MachineTable<MachineStackId, MachineStackObject>,
     drop_flags: MachineTable<MachineDropFlagId, MachineDropFlag>,
+    addresses: MachineTable<MachineAddressId, MachineAddress>,
     values: MachineTable<MachineValueId, MachineValue>,
     operations: MachineTable<MachineOperationId, MachineOperation>,
     blocks: MachineTable<MachineBlockId, MachineBlock>,
     entry: MachineBlockId,
 }
 
+pub(crate) struct MachineBodyDomains {
+    pub(crate) stack: MachineTable<MachineStackId, MachineStackObject>,
+    pub(crate) drop_flags: MachineTable<MachineDropFlagId, MachineDropFlag>,
+    pub(crate) addresses: MachineTable<MachineAddressId, MachineAddress>,
+    pub(crate) values: MachineTable<MachineValueId, MachineValue>,
+    pub(crate) operations: MachineTable<MachineOperationId, MachineOperation>,
+    pub(crate) blocks: MachineTable<MachineBlockId, MachineBlock>,
+}
+
 impl MachineBody {
     pub(crate) fn new(
         parameters: impl Into<Box<[MachineStackId]>>,
-        stack: MachineTable<MachineStackId, MachineStackObject>,
-        drop_flags: MachineTable<MachineDropFlagId, MachineDropFlag>,
-        values: MachineTable<MachineValueId, MachineValue>,
-        operations: MachineTable<MachineOperationId, MachineOperation>,
-        blocks: MachineTable<MachineBlockId, MachineBlock>,
+        domains: MachineBodyDomains,
         entry: MachineBlockId,
     ) -> Self {
         Self {
             parameters: parameters.into(),
-            stack,
-            drop_flags,
-            values,
-            operations,
-            blocks,
+            stack: domains.stack,
+            drop_flags: domains.drop_flags,
+            addresses: domains.addresses,
+            values: domains.values,
+            operations: domains.operations,
+            blocks: domains.blocks,
             entry,
         }
     }
@@ -77,6 +84,16 @@ impl MachineBody {
         &self,
     ) -> impl ExactSizeIterator<Item = (MachineDropFlagId, MachineDropFlag)> + '_ {
         self.drop_flags.iter().map(|(id, flag)| (id, *flag))
+    }
+
+    #[must_use]
+    pub fn address(&self, id: MachineAddressId) -> Option<&MachineAddress> {
+        self.addresses.get(id)
+    }
+
+    #[must_use]
+    pub fn addresses(&self) -> impl ExactSizeIterator<Item = (MachineAddressId, &MachineAddress)> {
+        self.addresses.iter()
     }
 
     #[must_use]

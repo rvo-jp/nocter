@@ -1,6 +1,8 @@
 use nocter_model::TypeId;
 
-use crate::{MachineDataId, MachineDropFlagId, MachineFunctionId, MachineValueId};
+use crate::{
+    MachineAddressId, MachineDataId, MachineDropFlagId, MachineFunctionId, MachineValueId,
+};
 
 /// A fully materialized constant. Text refers to the program's canonical static-data table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,16 +37,69 @@ pub enum MachineBinaryOperation {
 pub struct MachineDirectCall {
     target: MachineFunctionId,
     arguments: Box<[MachineValueId]>,
+    allocation: MachineCallAllocation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineCallAllocation {
+    Inherit,
+    Explicit(MachineAddressId),
+}
+
+/// One initialized byte-range contribution to an aggregate value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineAggregateWrite {
+    Tag { offset: u64, value: u8 },
+    Value { offset: u64, value: MachineValueId },
+}
+
+/// One aggregate assembled from exact layout-owned offsets.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MachineAggregate {
+    size: u64,
+    alignment: u64,
+    writes: Box<[MachineAggregateWrite]>,
+}
+
+impl MachineAggregate {
+    pub(crate) fn new(
+        size: u64,
+        alignment: u64,
+        writes: impl Into<Box<[MachineAggregateWrite]>>,
+    ) -> Self {
+        Self {
+            size,
+            alignment,
+            writes: writes.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn size(&self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(&self) -> u64 {
+        self.alignment
+    }
+
+    #[must_use]
+    pub const fn writes(&self) -> &[MachineAggregateWrite] {
+        &self.writes
+    }
 }
 
 impl MachineDirectCall {
     pub(crate) fn new(
         target: MachineFunctionId,
         arguments: impl Into<Box<[MachineValueId]>>,
+        allocation: MachineCallAllocation,
     ) -> Self {
         Self {
             target,
             arguments: arguments.into(),
+            allocation,
         }
     }
 
@@ -57,6 +112,11 @@ impl MachineDirectCall {
     pub const fn arguments(&self) -> &[MachineValueId] {
         &self.arguments
     }
+
+    #[must_use]
+    pub const fn allocation(&self) -> MachineCallAllocation {
+        self.allocation
+    }
 }
 
 /// One target-independent machine operation.
@@ -66,6 +126,16 @@ impl MachineDirectCall {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachineOperationKind {
     Constant(MachineConstant),
+    Load {
+        source: MachineAddressId,
+    },
+    AddressOf {
+        source: MachineAddressId,
+    },
+    Store {
+        destination: MachineAddressId,
+        value: MachineValueId,
+    },
     Unary {
         operation: MachineUnaryOperation,
         operand: MachineValueId,
@@ -78,6 +148,7 @@ pub enum MachineOperationKind {
     IntegerConversion {
         operand: MachineValueId,
     },
+    Aggregate(MachineAggregate),
     SetDropFlag {
         flag: MachineDropFlagId,
         initialized: bool,

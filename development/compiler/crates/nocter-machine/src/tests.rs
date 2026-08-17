@@ -683,6 +683,123 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
     }
 }
 
+#[test]
+fn machine_program_erases_local_places_into_stack_addresses_and_memory_operations() {
+    let mir = lower_fixture(
+        "func main(): i32 {\n\
+             let answer: i32 = 42\n\
+             return answer\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let body = program.function(entry).unwrap().body();
+    assert_eq!(body.stack_objects().len(), 1);
+    let (address_id, address) = body.addresses().next().unwrap();
+    assert!(matches!(
+        address.root(),
+        crate::MachineAddressRoot::Stack(_)
+    ));
+    assert!(address.steps().is_empty());
+    assert!(body.operations().any(|(_, operation)| {
+        matches!(
+            operation.kind(),
+            MachineOperationKind::Store { destination, .. } if *destination == address_id
+        )
+    }));
+    assert!(body.operations().any(|(_, operation)| {
+        matches!(
+            operation.kind(),
+            MachineOperationKind::Load { source } if *source == address_id
+        )
+    }));
+}
+
+#[test]
+fn aggregate_and_field_projection_share_layout_owned_offsets() {
+    let mir = lower_fixture(
+        "copy struct Pair { first: u8\n    answer: i32 }\n\
+         func main(): i32 {\n\
+             let pair = Pair { first: 1, answer: 42 }\n\
+             return pair.answer\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let body = program.function(entry).unwrap().body();
+    assert!(
+        body.addresses()
+            .any(|(_, address)| { address.steps() == [crate::MachineAddressStep::Offset(4)] })
+    );
+    assert!(body.operations().any(|(_, operation)| {
+        let MachineOperationKind::Aggregate(aggregate) = operation.kind() else {
+            return false;
+        };
+        aggregate
+            .writes()
+            .iter()
+            .any(|write| matches!(write, crate::MachineAggregateWrite::Value { offset: 4, .. }))
+    }));
+}
+
+#[test]
+fn fixed_array_index_retains_stride_and_runtime_bound() {
+    let mir = lower_fixture(
+        "func main(): i32 {\n\
+             let values: [i32; 2] = [7, 9]\n\
+             return values[1]\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let body = program.function(entry).unwrap().body();
+    assert!(body.addresses().any(|(_, address)| {
+        address.steps().iter().any(|step| {
+            matches!(
+                step,
+                crate::MachineAddressStep::Index {
+                    index: crate::MachineIndex::Value(_),
+                    stride: 4,
+                    bound: crate::MachineIndexBound::Fixed(2),
+                }
+            )
+        })
+    }));
+}
+
+#[test]
+fn outcome_switch_uses_layout_tag_offsets_and_frozen_tag_values() {
+    let mir = lower_fixture(
+        "func force(input: i32?): i32 { input! }\n\
+         func main(): i32 { force(1) }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let switch = program.functions().find_map(|(_, function)| {
+        function
+            .body()
+            .blocks()
+            .find_map(|(_, block)| match block.terminator() {
+                MachineTerminator::SwitchTag {
+                    tag_offset, cases, ..
+                } => Some((*tag_offset, cases)),
+                _ => None,
+            })
+    });
+    let (tag_offset, cases) = switch.expect("optional force must inspect one stored tag");
+    assert_eq!(tag_offset, 0);
+    assert!(
+        cases
+            .iter()
+            .any(|case| case.value() == crate::MachineSwitchValue::Tag(0))
+    );
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();

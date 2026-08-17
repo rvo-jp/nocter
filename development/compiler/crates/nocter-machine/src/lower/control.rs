@@ -3,11 +3,13 @@ use nocter_mir::{MirBranchTarget, MirSwitchSubject, MirSwitchValue, MirTerminato
 use super::MachineProgramError;
 use super::body::BodyIdentities;
 use crate::{
-    MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
+    MachineBlock, MachineBranchTarget, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
+    MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
 
 pub(super) fn lower_blocks(
     body: &nocter_mir::MirBody,
+    layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineBlock>, MachineProgramError> {
     body.blocks()
@@ -23,14 +25,16 @@ pub(super) fn lower_blocks(
                 .iter()
                 .map(|operation| ids.operation(*operation))
                 .collect::<Result<Vec<_>, _>>()?;
-            let terminator = lower_terminator(block.terminator(), ids)?;
+            let terminator = lower_terminator(body, block.terminator(), layouts, ids)?;
             Ok(MachineBlock::new(parameters, operations, terminator))
         })
         .collect()
 }
 
 fn lower_terminator(
+    body: &nocter_mir::MirBody,
     terminator: &MirTerminator,
+    layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<MachineTerminator, MachineProgramError> {
     match terminator {
@@ -61,9 +65,10 @@ fn lower_terminator(
             fallback,
         } => lower_value_switch(*subject, cases, fallback, ids),
         MirTerminator::Switch {
-            subject: MirSwitchSubject::Place(_),
-            ..
-        } => Err(MachineProgramError::UnsupportedPlaceSwitch(ids.owner())),
+            subject: MirSwitchSubject::Place(subject),
+            cases,
+            fallback,
+        } => lower_tag_switch(body, *subject, cases, fallback, layouts, ids),
         MirTerminator::Return(value) => Ok(MachineTerminator::Return(
             value.map(|value| ids.value(value)).transpose()?,
         )),
@@ -72,6 +77,88 @@ fn lower_terminator(
         )),
         MirTerminator::Trap => Ok(MachineTerminator::Trap),
         MirTerminator::Unreachable => Ok(MachineTerminator::Unreachable),
+    }
+}
+
+fn lower_tag_switch(
+    body: &nocter_mir::MirBody,
+    subject: nocter_model::MirPlaceId,
+    cases: &[nocter_mir::MirSwitchCase],
+    fallback: &MirBranchTarget,
+    layouts: &MachineLayoutStore,
+    ids: &BodyIdentities,
+) -> Result<MachineTerminator, MachineProgramError> {
+    let ty = body
+        .places()
+        .get(subject)
+        .ok_or(MachineProgramError::UnsupportedPlaceSwitch(ids.owner()))?
+        .ty();
+    let layout = layouts
+        .get(ty)
+        .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
+    let (tag_offset, cases) = match layout.kind() {
+        MachineLayoutKind::Enum {
+            tag_offset,
+            variants,
+            ..
+        } => (
+            *tag_offset,
+            cases
+                .iter()
+                .map(|case| {
+                    let MirSwitchValue::Variant(variant) = case.value() else {
+                        return Err(MachineProgramError::InvalidTagSwitch(ids.owner()));
+                    };
+                    let tag = variants
+                        .iter()
+                        .find(|candidate| candidate.variant() == variant)
+                        .map(crate::MachineEnumVariantLayout::tag)
+                        .ok_or(MachineProgramError::InvalidTagSwitch(ids.owner()))?;
+                    lower_tag_case(tag, case.target(), ids)
+                })
+                .collect::<Result<Vec<_>, MachineProgramError>>()?,
+        ),
+        MachineLayoutKind::Outcome {
+            kind, tag_offset, ..
+        } => (
+            *tag_offset,
+            cases
+                .iter()
+                .map(|case| {
+                    let tag = outcome_tag(*kind, case.value())
+                        .ok_or(MachineProgramError::InvalidTagSwitch(ids.owner()))?;
+                    lower_tag_case(tag, case.target(), ids)
+                })
+                .collect::<Result<Vec<_>, MachineProgramError>>()?,
+        ),
+        _ => return Err(MachineProgramError::InvalidTagSwitch(ids.owner())),
+    };
+    Ok(MachineTerminator::SwitchTag {
+        subject: ids.address(subject)?,
+        tag_offset,
+        cases: cases.into_boxed_slice(),
+        fallback: lower_branch_target(fallback, ids)?,
+    })
+}
+
+fn lower_tag_case(
+    tag: u8,
+    target: &MirBranchTarget,
+    ids: &BodyIdentities,
+) -> Result<MachineSwitchCase, MachineProgramError> {
+    Ok(MachineSwitchCase::new(
+        MachineSwitchValue::Tag(tag),
+        lower_branch_target(target, ids)?,
+    ))
+}
+
+const fn outcome_tag(kind: MachineOutcomeKind, value: MirSwitchValue) -> Option<u8> {
+    match (kind, value) {
+        (MachineOutcomeKind::Optional, MirSwitchValue::OptionalPresent)
+        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleSuccess) => Some(0),
+        (MachineOutcomeKind::Optional, MirSwitchValue::OptionalAbsent)
+        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleFailure) => Some(1),
+        _ => None,
     }
 }
 
