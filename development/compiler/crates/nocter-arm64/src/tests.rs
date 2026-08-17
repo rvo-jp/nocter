@@ -103,6 +103,44 @@ fn encodes_page_relative_addresses_without_truncation() {
 }
 
 #[test]
+fn encodes_stack_pointer_extended_arithmetic() {
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractExtendedRegister {
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: destination(16),
+            left: Arm64BaseRegister::StackPointer,
+            right: x(16),
+            shift: 0,
+        }),
+        0x8b30_63f0
+    );
+    assert_eq!(
+        word(Arm64Instruction::AddSubtractExtendedRegister {
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::StackPointer,
+            left: Arm64BaseRegister::StackPointer,
+            right: x(16),
+            shift: 0,
+        }),
+        0xcb30_63ff
+    );
+    assert_eq!(
+        Arm64Instruction::AddSubtractExtendedRegister {
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: destination(0),
+            left: base(1),
+            right: x(2),
+            shift: 5,
+        }
+        .encode(),
+        Err(Arm64EncodingError::InvalidShift)
+    );
+}
+
+#[test]
 fn encodes_multiply_divide_shift_and_wide_immediates() {
     assert_eq!(
         word(Arm64Instruction::MoveWide {
@@ -406,6 +444,68 @@ fn frame_layout_rejects_invalid_requests_and_overflow() {
         overflow.finish(),
         Err(crate::Arm64FrameLayoutError::FrameOverflow)
     );
+}
+
+#[test]
+fn frame_code_materializes_a_complete_small_prologue_and_epilogue() {
+    let mut frame = crate::Arm64FrameLayoutBuilder::new();
+    frame.require_outgoing_argument_size(16).unwrap();
+    frame.add_object(3, 1).unwrap();
+    frame.add_object(16, 16).unwrap();
+    frame.add_object(0, 8).unwrap();
+    frame.preserve(x(21)).unwrap();
+    frame.preserve(x(19)).unwrap();
+    let frame = frame.finish().unwrap();
+    let mut code = crate::Arm64CodeBuilder::new();
+    crate::Arm64FrameCode::emit_prologue(&frame, &mut code);
+    crate::Arm64FrameCode::emit_epilogue(&frame, &mut code);
+    let code = code.finish().unwrap();
+    let words = code
+        .bytes()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        words,
+        [
+            0xd101_43ff,
+            0xf900_23fd,
+            0xf900_27fe,
+            0xf900_1bf3,
+            0xf900_1ff5,
+            0x9101_03fd,
+            0xf940_1bf3,
+            0xf940_1ff5,
+            0xf940_27fe,
+            0xf940_23fd,
+            0x9101_43ff,
+            0xd65f_03c0,
+        ]
+    );
+}
+
+#[test]
+fn frame_code_materializes_large_sizes_and_distant_slots_through_scratch() {
+    let mut frame = crate::Arm64FrameLayoutBuilder::new();
+    frame.add_object(32_768, 16).unwrap();
+    let frame = frame.finish().unwrap();
+    assert_eq!(frame.frame_record_offset(), 32_768);
+    assert_eq!(frame.size(), 32_784);
+    let mut code = crate::Arm64CodeBuilder::new();
+    crate::Arm64FrameCode::emit_prologue(&frame, &mut code);
+    crate::Arm64FrameCode::emit_epilogue(&frame, &mut code);
+    let code = code.finish().unwrap();
+    let words = code
+        .bytes()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(words[0], 0xd290_0210);
+    assert_eq!(words[1], 0xcb30_63ff);
+    assert!(words.contains(&0x8b30_63f0));
+    assert_eq!(words.last(), Some(&0xd65f_03c0));
 }
 
 #[test]

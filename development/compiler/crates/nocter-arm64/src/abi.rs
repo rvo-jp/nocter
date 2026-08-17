@@ -39,6 +39,31 @@ impl Arm64NocterAbi {
     }
 
     #[must_use]
+    pub const fn compiler_scratch_register(index: u8) -> Option<Arm64Register> {
+        if index < 2 {
+            Arm64Register::new(16 + index)
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn frame_pointer_register() -> Arm64Register {
+        match Arm64Register::new(29) {
+            Some(register) => register,
+            None => unreachable!(),
+        }
+    }
+
+    #[must_use]
+    pub const fn link_register() -> Arm64Register {
+        match Arm64Register::new(30) {
+            Some(register) => register,
+            None => unreachable!(),
+        }
+    }
+
+    #[must_use]
     pub const fn role(register: Arm64Register) -> Arm64AbiRegisterRole {
         match register.number() {
             0..=7 => Arm64AbiRegisterRole::ArgumentAndResult,

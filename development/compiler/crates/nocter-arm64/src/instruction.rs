@@ -129,6 +129,16 @@ pub enum Arm64Instruction {
         left: Arm64DataRegister,
         right: Arm64DataRegister,
     },
+    /// 64-bit add/subtract with an unsigned-extended 64-bit right operand. This is the form that
+    /// permits `sp` as the source or destination during large frame adjustments.
+    AddSubtractExtendedRegister {
+        operation: Arm64AddSubtract,
+        set_flags: bool,
+        destination: Arm64AddSubtractDestination,
+        left: Arm64BaseRegister,
+        right: Arm64Register,
+        shift: u8,
+    },
     LogicalRegister {
         size: Arm64DataSize,
         operation: Arm64Logical,

@@ -7,6 +7,7 @@ mod abi;
 mod code;
 mod encode;
 mod frame;
+mod frame_code;
 mod identity;
 mod instruction;
 mod program;
@@ -19,6 +20,7 @@ pub use frame::{
     Arm64FrameLayout, Arm64FrameLayoutBuilder, Arm64FrameLayoutError, Arm64FrameObject,
     Arm64FrameObjectId, Arm64SavedRegister,
 };
+pub use frame_code::Arm64FrameCode;
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,

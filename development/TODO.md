@@ -48,8 +48,9 @@ view-layout facts without retaining semantic dispatch operands. The independent 
 crate now types physical register-31 roles and rejects truncating instruction encodings. ARM64
 local labels bind exactly once and resolve after monotonic conditional-branch relaxation. ARM64
 ABI register roles and deterministic fixed-frame placement are also closed. ARM64 selection,
-virtual-register allocation, prologue/epilogue materialization, and Mach-O output are the next
-closed boundaries. Dense ARM64 function/data domains already validate every typed fixup, resolve
+virtual-register allocation, and Mach-O output are the next closed boundaries. Frame prologue and
+epilogue materialization handles both immediate and full-width scratch-register offsets. Dense
+ARM64 function/data domains already validate every typed fixup, resolve
 function branches after text layout, and defer only section-address-dependent data pairs to one
 checked relocation method.
 

@@ -7,6 +7,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
     match instruction {
         instruction @ (Arm64Instruction::AddSubtractImmediate { .. }
         | Arm64Instruction::AddSubtractRegister { .. }
+        | Arm64Instruction::AddSubtractExtendedRegister { .. }
         | Arm64Instruction::LogicalRegister { .. }
         | Arm64Instruction::MoveWide { .. }
         | Arm64Instruction::MultiplyAdd { .. }
@@ -28,38 +29,9 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
 
 fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
     match instruction {
-        Arm64Instruction::AddSubtractImmediate {
-            size,
-            operation,
-            set_flags,
-            destination,
-            source,
-            immediate,
-            shift_12,
-        } => encode_add_subtract_immediate(
-            size,
-            operation,
-            set_flags,
-            destination,
-            source.encoding(),
-            immediate,
-            shift_12,
-        ),
-        Arm64Instruction::AddSubtractRegister {
-            size,
-            operation,
-            set_flags,
-            destination,
-            left,
-            right,
-        } => Ok(encode_add_subtract_register(
-            size,
-            operation,
-            set_flags,
-            destination.encoding(),
-            left.encoding(),
-            right.encoding(),
-        )),
+        instruction @ (Arm64Instruction::AddSubtractImmediate { .. }
+        | Arm64Instruction::AddSubtractRegister { .. }
+        | Arm64Instruction::AddSubtractExtendedRegister { .. }) => encode_add_subtract(instruction),
         Arm64Instruction::LogicalRegister {
             size,
             operation,
@@ -121,6 +93,54 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             value.number(),
             amount.number(),
         )),
+        _ => {
+            unreachable!("instruction category is closed by encode")
+        }
+    }
+}
+
+fn encode_add_subtract(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
+    match instruction {
+        Arm64Instruction::AddSubtractImmediate {
+            size,
+            operation,
+            set_flags,
+            destination,
+            source,
+            immediate,
+            shift_12,
+        } => encode_add_subtract_immediate(
+            size,
+            operation,
+            set_flags,
+            destination,
+            source.encoding(),
+            immediate,
+            shift_12,
+        ),
+        Arm64Instruction::AddSubtractRegister {
+            size,
+            operation,
+            set_flags,
+            destination,
+            left,
+            right,
+        } => Ok(encode_add_subtract_register(
+            size,
+            operation,
+            set_flags,
+            destination.encoding(),
+            left.encoding(),
+            right.encoding(),
+        )),
+        Arm64Instruction::AddSubtractExtendedRegister {
+            operation,
+            set_flags,
+            destination,
+            left,
+            right,
+            shift,
+        } => encode_add_subtract_extended(operation, set_flags, destination, left, right, shift),
         _ => {
             unreachable!("instruction category is closed by encode")
         }
@@ -235,6 +255,28 @@ const fn encode_add_subtract_register(
         | right << 16
         | left << 5
         | destination
+}
+
+fn encode_add_subtract_extended(
+    operation: Arm64AddSubtract,
+    set_flags: bool,
+    destination: Arm64AddSubtractDestination,
+    left: crate::Arm64BaseRegister,
+    right: crate::Arm64Register,
+    shift: u8,
+) -> Result<u32, Arm64EncodingError> {
+    validate_add_subtract_destination(destination, set_flags)?;
+    if shift > 4 {
+        return Err(Arm64EncodingError::InvalidShift);
+    }
+    Ok(0x8000_0000
+        | add_subtract_bits(operation, set_flags)
+        | 0x0b20_0000
+        | u32::from(right.number()) << 16
+        | 0b011 << 13
+        | u32::from(shift) << 10
+        | left.encoding() << 5
+        | destination.encoding())
 }
 
 const fn encode_logical_register(

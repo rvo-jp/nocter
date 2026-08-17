@@ -197,6 +197,13 @@ supplies final section virtual addresses; the shared relocation method validates
 the signed 21-bit page displacement, the 12-bit page offset, and both instruction locations before
 returning relocated text.
 
+Frame instruction materialization consumes only `Arm64FrameLayout`. It emits the stack adjustment,
+saved `x29`/`x30` record, sorted callee saves, frame-pointer establishment, exact reverse restore,
+and return. Small offsets use checked immediate or scaled load/store forms. Larger frame sizes and
+distant slots materialize their full 64-bit offset in the ABI-reserved `x16` scratch register and
+use the ARM64 extended-register stack-pointer form. Frame size therefore has no accidental
+12-bit-immediate ceiling, and the general allocator never competes for the scratch register.
+
 The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
 linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
 byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
@@ -238,6 +245,6 @@ operations, and layout-owned residual destruction recipes.
 
 The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
 register-role, fixed-frame placement, whole-program text/data ownership, and typed fixup foundations
-are implemented. Machine instruction selection, virtual-register allocation, frame instruction
-materialization, Mach-O section placement, and serialization are the remaining Phase 5
-implementation areas.
+are implemented. Fixed-frame prologue and epilogue materialization is also complete for both direct
+and distant offsets. Machine instruction selection, virtual-register allocation, Mach-O section
+placement, and serialization are the remaining Phase 5 implementation areas.
