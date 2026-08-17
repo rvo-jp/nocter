@@ -255,6 +255,8 @@ Source-backed checked-body diagnostics:
   loan, including a loan observed by a pending type-owned drop body.
 - `E0398`: a storage-bearing value crosses a lexical scope, region, temporary-statement, or
   destination boundary that outlives its storage source.
+- `E0399`: a `using` allocation-context place is not an established aborting allocator or
+  allocation context.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

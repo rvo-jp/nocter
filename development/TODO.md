@@ -10,8 +10,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the checked typed-literal path from fixed sequence elements and decoded string
-   construction to exact-size spread and explicit allocation-context selection.
+1. Extend the checked typed-literal path from fixed sequence elements, decoded string construction,
+   and explicit allocation-context selection to exact-size spread.
 2. Complete interpolation through the same evaluation-order, formatting-dispatch, allocation,
    provenance, loan, and cleanup authorities used by ordinary calls and aggregate values.
 
@@ -84,7 +84,7 @@ their parent, and join inherited field state without enumerating a struct eagerl
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
 branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
-typed sequence spread, explicit literal allocation overrides, and interpolation remain incomplete.
+typed sequence spread, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -98,8 +98,8 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, typed sequence spread, explicit literal
-allocation overrides, and interpolation remain incomplete.
+edge. Collection iteration, executable regions, typed sequence spread, and interpolation remain
+incomplete.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one
@@ -109,6 +109,16 @@ decoded typed strings, and ordinary static `&str` expressions pass expected-type
 ownership, provenance, and loan analysis. The sequence delimiter or string opener is the exact
 callable source projection. Declaration validation rejects a string literal parameter other than
 readonly `&str` and rejects outcome-wrapped literal results before body checking.
+
+Compilation input can now attach compiler-owned standard semantic roles to exact declaration-name
+tokens. One program-wide `StandardSemanticTable` resolves those tokens through `SourceIndex`,
+rejects project-owned declarations and duplicate roles independently of input order, and validates
+the non-generic allocator/context/String families plus the exact `Format.format_into` semantic
+shape. Body checking never searches for a standard spelling or path. Typed literal `using` now
+accepts only a place of an established aborting allocator or allocation-context family, records the
+place as an explicit HIR operand, and projects `E0399` for an authored wrong type. Ownership,
+provenance, loan, and closure-capability consumers all evaluate that operand before literal
+elements; current-region literals retain the existing implicit selection.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership

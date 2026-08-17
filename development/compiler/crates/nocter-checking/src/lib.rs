@@ -20,6 +20,9 @@ mod ownership;
 mod pattern_requirements;
 mod preparation;
 mod provenance;
+mod standard_semantics;
+#[cfg(test)]
+mod standard_semantics_tests;
 mod syntax;
 mod type_relations;
 mod type_validity;
@@ -79,6 +82,7 @@ pub use names::{
 };
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{PreparationError, PreparedChecking, prepare_program_checking};
+pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use type_validity::{
     DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,
     TypeValidityRule, TypeValidityViolation, validate_declaration_types, validate_type,

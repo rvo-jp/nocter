@@ -411,6 +411,7 @@ impl Analyzer<'_, '_> {
         sequence: &CheckedSequence,
         state: &mut ProvenanceState,
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+        let mut result = self.allocation_provenance(sequence.allocation(), state)?;
         let mut elements = ValueProvenance::independent();
         for element in sequence.elements() {
             match element {
@@ -430,7 +431,6 @@ impl Analyzer<'_, '_> {
                 }
             }
         }
-        let mut result = self.allocation_provenance(sequence.allocation(), state)?;
         result.insert_projection(ProvenanceProjection::Element, elements);
         Ok((result, true))
     }

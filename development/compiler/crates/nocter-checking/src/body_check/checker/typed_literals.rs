@@ -1,5 +1,6 @@
 use nocter_declarations::{
     CallableKind, CallableOwner, LiteralShape, ParameterOwner, ParameterRole,
+    StandardDeclarationRole,
 };
 use nocter_model::{BorrowCapability, BuiltinType, CallableId, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
@@ -64,7 +65,7 @@ impl BodyChecker<'_, '_> {
                     .ok_or(BodyCheckInternalError::InvalidSyntax(element))?,
             );
         }
-        self.require_current_literal_allocation(node)?;
+        let allocation = self.literal_allocation(node)?;
 
         let element_pattern = plan
             .substitution
@@ -112,7 +113,7 @@ impl BodyChecker<'_, '_> {
                     .into_iter()
                     .map(SequenceElement::Value)
                     .collect::<Vec<_>>(),
-                AllocationSelection::CurrentRegion,
+                allocation,
             )),
         )?;
         expected.map_or(Ok(checked), |expected| {
@@ -136,7 +137,7 @@ impl BodyChecker<'_, '_> {
         {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
-        self.require_current_literal_allocation(node)?;
+        let allocation = self.literal_allocation(node)?;
         let literal = direct_child(self.tree(), node, NodeKind::StringLiteral)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let text = nocter_syntax::decode_string_literal(
@@ -176,7 +177,7 @@ impl BodyChecker<'_, '_> {
             CheckedOperation::StringLiteral {
                 constructor: selection,
                 text,
-                allocation: AllocationSelection::CurrentRegion,
+                allocation,
             },
         )?;
         expected.map_or(Ok(checked), |expected| {
@@ -408,15 +409,46 @@ impl BodyChecker<'_, '_> {
         Ok(())
     }
 
-    fn require_current_literal_allocation(&self, node: NodeId) -> Result<(), BodyCheckError> {
-        if let Some(allocation) = direct_child(self.tree(), node, NodeKind::AllocationOverride) {
-            return Err(BodyCheckInternalError::UnsupportedSyntax(
-                allocation,
-                NodeKind::AllocationOverride,
-            )
-            .into());
+    fn literal_allocation(&mut self, node: NodeId) -> Result<AllocationSelection, BodyCheckError> {
+        let Some(allocation) = direct_child(self.tree(), node, NodeKind::AllocationOverride) else {
+            return Ok(AllocationSelection::CurrentRegion);
+        };
+        let allocator = direct_child(self.tree(), allocation, NodeKind::AllocatorPlace)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(allocation))?;
+        let named = direct_child(self.tree(), allocator, NodeKind::NamedPlace)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(allocator))?;
+        let place = self.named_place(named)?;
+        let candidate = match self.types.get(place.ty) {
+            Some(TypeKind::Borrow { referent, .. }) => *referent,
+            Some(_) => place.ty,
+            None => return Err(BodyCheckInternalError::UnknownType(place.ty).into()),
+        };
+        let Some(TypeKind::Nominal {
+            definition,
+            arguments,
+        }) = self.types.get(candidate)
+        else {
+            return Err(self.rule(BodyRule::InvalidAllocationContext, named)?);
+        };
+        let allocation_roles = [
+            self.standard_semantics
+                .nominal(StandardDeclarationRole::AbortingAllocator),
+            self.standard_semantics
+                .nominal(StandardDeclarationRole::AllocationContext),
+        ];
+        if allocation_roles.iter().all(Option::is_none) {
+            return Err(BodyCheckInternalError::MissingAllocationSemanticRoles.into());
         }
-        Ok(())
+        let allowed = arguments.is_empty()
+            && allocation_roles
+                .into_iter()
+                .flatten()
+                .any(|allowed| allowed == *definition);
+        if !allowed {
+            return Err(self.rule(BodyRule::InvalidAllocationContext, named)?);
+        }
+        let checked = self.add_node(named, place.ty, CheckedOperation::Place(place.id))?;
+        Ok(AllocationSelection::Explicit(checked))
     }
 
     fn is_readonly_str(&self, ty: TypeId) -> bool {

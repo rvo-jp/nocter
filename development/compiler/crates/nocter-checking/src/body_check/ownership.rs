@@ -176,8 +176,7 @@ impl OwnershipAnalyzer<'_> {
         match checked.operation() {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::Outcome(CheckedOutcome::Absent)
-            | CheckedOperation::StringLiteral { .. } => Ok(true),
+            | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {
                 self.visit_place_use(node, *place, state)
             }
@@ -250,19 +249,35 @@ impl OwnershipAnalyzer<'_> {
                     .map(|capture| capture.initializer()),
                 state,
             ),
-            CheckedOperation::Sequence(sequence) => self.visit_value_sequence(
-                sequence
-                    .elements()
-                    .iter()
-                    .filter_map(|element| match element {
-                        crate::SequenceElement::Value(value) => Some(*value),
-                        crate::SequenceElement::Spread { .. } => None,
+            CheckedOperation::Sequence(sequence) => {
+                if !self.visit_allocation(sequence.allocation(), state)? {
+                    return Ok(false);
+                }
+                self.visit_value_sequence(
+                    sequence.elements().iter().map(|element| match element {
+                        crate::SequenceElement::Value(value) => *value,
+                        crate::SequenceElement::Spread { iteration, .. } => iteration.source(),
                     }),
-                state,
-            ),
+                    state,
+                )
+            }
+            CheckedOperation::StringLiteral { allocation, .. } => {
+                self.visit_allocation(*allocation, state)
+            }
             CheckedOperation::Interpolation(_) => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
+        }
+    }
+
+    fn visit_allocation(
+        &mut self,
+        allocation: crate::AllocationSelection,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        match allocation {
+            crate::AllocationSelection::CurrentRegion => Ok(true),
+            crate::AllocationSelection::Explicit(value) => self.visit(value, state),
         }
     }
 

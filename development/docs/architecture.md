@@ -281,6 +281,15 @@ path. The same validator owns empty-enum, construction-result, unique constructi
 opaque-result, associated-binding, and owner-site invariants; lowering does not maintain a second
 semantic prevalidation table.
 
+Standard-library semantics that cannot be expressed by an ordinary source declaration use a
+second closed identity boundary at checked-program preparation. Discovery supplies the exact
+declaration-name token for each compiler-owned role. Preparation resolves that token through the
+shared `SourceIndex`, requires the declaration to belong to the selected standard package,
+validates its complete semantic shape, and freezes one role-to-ID table. Consumers cannot search
+for `Allocator`, `String`, `Format`, `format_into`, or a textual module path. A missing or malformed
+role is a toolchain integrity failure; an authored `using` place whose resolved type is not one of
+the validated allocator/context families is a source rule.
+
 Program validation separates authored declaration-rule violations from malformed compiler graph
 integrity. A declaration rule owns its stable error code, source-level message, correction
 direction, primary declaration-site ID, and optional related declaration-site ID. Only after rule

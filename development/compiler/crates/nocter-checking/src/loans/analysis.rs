@@ -391,6 +391,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         state: &mut LoanState,
         extra_active: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {
+        self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
         for part in interpolation.parts() {
             if let crate::InterpolationPart::Formatted { value, .. } = part
                 && !self.evaluate(*value, state, extra_active)?.1
@@ -398,7 +399,6 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 return Ok((LoanValue::independent(), false));
             }
         }
-        self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
         Ok((LoanValue::independent(), true))
     }
 

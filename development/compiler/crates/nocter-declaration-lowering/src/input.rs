@@ -1,5 +1,6 @@
+use nocter_declarations::StandardDeclarationRole;
 use nocter_source::SourceMap;
-use nocter_syntax::{NodeId, SyntaxTree};
+use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PackageIdentity(Box<str>);
@@ -175,6 +176,34 @@ impl UseResolutionInput {
     }
 }
 
+/// One exact source declaration selected for a compiler-owned standard semantic role.
+///
+/// Package discovery supplies the declaration-name token. Checking validates its semantic shape
+/// and standard-package ownership. Neither layer searches for
+/// a matching spelling, so a project declaration with the same name cannot acquire authority.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StandardRoleInput {
+    role: StandardDeclarationRole,
+    declaration: SyntaxToken,
+}
+
+impl StandardRoleInput {
+    #[must_use]
+    pub const fn new(role: StandardDeclarationRole, declaration: SyntaxToken) -> Self {
+        Self { role, declaration }
+    }
+
+    #[must_use]
+    pub const fn role(self) -> StandardDeclarationRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn declaration(self) -> SyntaxToken {
+        self.declaration
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ModuleSourceInput<'syntax> {
     canonical_path: Box<str>,
@@ -241,6 +270,7 @@ pub struct CompileUnitInput<'syntax> {
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
     use_resolutions: Vec<UseResolutionInput>,
+    standard_roles: Vec<StandardRoleInput>,
 }
 
 impl<'syntax> CompileUnitInput<'syntax> {
@@ -256,7 +286,16 @@ impl<'syntax> CompileUnitInput<'syntax> {
             packages,
             modules,
             use_resolutions,
+            standard_roles: Vec::new(),
         }
+    }
+
+    /// Attaches discovery-selected standard declarations without changing the common constructor
+    /// used by source-only and focused compiler tests.
+    #[must_use]
+    pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
+        self.standard_roles = roles;
+        self
     }
 
     #[must_use]
@@ -277,5 +316,10 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn use_resolutions(&self) -> &[UseResolutionInput] {
         &self.use_resolutions
+    }
+
+    #[must_use]
+    pub fn standard_roles(&self) -> &[StandardRoleInput] {
+        &self.standard_roles
     }
 }

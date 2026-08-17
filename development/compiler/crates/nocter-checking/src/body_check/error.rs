@@ -109,6 +109,7 @@ pub enum BodyCheckInternalError {
     CallGenericArguments(crate::DuplicateGenericArgument),
     CallContractSelection,
     ConstructionSurfaceSelection(crate::ConstructionSurfaceSelectionError),
+    MissingAllocationSemanticRoles,
     ExpectedConversion,
     CleanupPlanning,
     ProvenanceAnalysis,

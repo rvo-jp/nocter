@@ -253,6 +253,11 @@ be introduced to make an unresolved syntax choice.
   share the syntax crate's decoded-text authority with package data. Every checked literal keeps
   the exact constructor dispatch and complete generic substitution; source projection covers only
   the selected delimiter. Bare non-interpolated strings are static readonly `&str` constants.
+  Compiler-owned standard semantic roles are supplied as exact declaration-name tokens and
+  resolved through `SourceIndex` into one validated program-wide table. Project declarations and
+  path/name lookalikes cannot acquire allocator, allocation-context, owned-String, or formatting
+  authority. Typed literal `using` accepts only the exact allocator/context families from this
+  table and retains its place as an explicit allocation operand evaluated before every element.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
@@ -272,7 +277,7 @@ project them through `SourceIndex` without duplicating validation in lowering. E
 failure is classified as an authored rule or an internal compiler/discovery integrity error.
 Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
 and module input order. Phase 3 checked-body construction remains incomplete for collection
-iteration, regions, typed sequence spread, allocation overrides, and interpolation; unsupported
+iteration, regions, typed sequence spread, and interpolation; unsupported
 valid constructs fail internally without returning a partial checked program.
 
 ## Verification

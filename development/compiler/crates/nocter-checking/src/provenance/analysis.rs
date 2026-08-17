@@ -746,6 +746,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             }
             CheckedOperation::Sequence(sequence) => self.evaluate_sequence(&sequence, state)?,
             CheckedOperation::Interpolation(interpolation) => {
+                let allocation = self.allocation_provenance(interpolation.allocation(), state)?;
                 for part in interpolation.parts() {
                     if let crate::InterpolationPart::Formatted { value, .. } = part {
                         let (_, reaches) = self.evaluate(*value, state)?;
@@ -758,10 +759,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                         }
                     }
                 }
-                (
-                    self.allocation_provenance(interpolation.allocation(), state)?,
-                    true,
-                )
+                (allocation, true)
             }
             CheckedOperation::Closure(closure) => {
                 let mut value = ValueProvenance::independent();

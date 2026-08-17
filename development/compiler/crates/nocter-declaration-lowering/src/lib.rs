@@ -51,8 +51,8 @@ pub use imports::{
 };
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    UseTargetInput,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, StandardRoleInput,
+    UseResolutionInput, UseTargetInput,
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;

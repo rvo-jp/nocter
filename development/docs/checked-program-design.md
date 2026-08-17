@@ -158,6 +158,13 @@ projection. It cannot be mistaken for a checked program. `CheckedProgram` has no
 and owns the graph, type store, conformance table, copyability table, type-owned drop table, and one
 `CheckedBody` per `BodyId`.
 
+Compiler setup also supplies exact declaration-name tokens for standard semantic roles. Preparation
+resolves them through the shared source index, validates standard-package ownership and complete
+role-specific declaration shapes, and freezes one `StandardSemanticTable` into the checked
+program. Allocation and formatting consumers query semantic IDs from that table; they never search
+module paths or declaration spellings. Typed literal allocation overrides retain one checked place
+operand, and every forward analysis visits it before the literal elements.
+
 Each checked body has dense scope, typed local, typed capture, place, loop, and node domains. The
 closed node operation distinguishes constants, places, copy/move/borrow, static or callable-value
 calls, selected coercions, primitive operations, aggregates, outcomes, closures, typed literals,

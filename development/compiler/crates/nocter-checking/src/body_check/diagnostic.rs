@@ -31,6 +31,7 @@ pub enum BodyRule {
     ConflictingLoan,
     BorrowedPlaceMutation,
     InvalidStorageEscape,
+    InvalidAllocationContext,
 }
 
 impl BodyRule {
@@ -63,6 +64,7 @@ impl BodyRule {
         Self::ConflictingLoan,
         Self::BorrowedPlaceMutation,
         Self::InvalidStorageEscape,
+        Self::InvalidAllocationContext,
     ];
 
     #[must_use]
@@ -96,6 +98,7 @@ impl BodyRule {
             Self::ConflictingLoan => "E0396",
             Self::BorrowedPlaceMutation => "E0397",
             Self::InvalidStorageEscape => "E0398",
+            Self::InvalidAllocationContext => "E0399",
         }
     }
 
@@ -248,6 +251,10 @@ impl BodyRule {
             Self::InvalidStorageEscape => (
                 "value carries storage that does not outlive its destination",
                 "keep the value within its source scope, region, or temporary-owning statement",
+            ),
+            Self::InvalidAllocationContext => (
+                "allocation override is not an established aborting allocator or context",
+                "use a place whose exact standard semantic role permits aborting allocation",
             ),
             _ => unreachable!("value body rule"),
         }

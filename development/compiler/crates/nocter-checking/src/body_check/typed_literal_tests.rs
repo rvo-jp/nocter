@@ -1,10 +1,14 @@
-use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_declarations::{CallableKind, LiteralShape};
+use nocter_declaration_lowering::{StandardRoleInput, lower_compile_unit_declarations};
+use nocter_declarations::{CallableKind, LiteralShape, StandardDeclarationRole};
 use nocter_model::{BuiltinType, TypeKind};
+use nocter_syntax::NodeKind;
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
-use crate::{CheckedOperation, SequenceElement, StaticDispatch, prepare_program_checking};
+use crate::{
+    AllocationSelection, BodyRule, CheckedOperation, SequenceElement, StaticDispatch,
+    prepare_program_checking,
+};
 
 fn checked(source: &str) -> crate::CheckedProgramOutput {
     let fixture = Fixture::new(source);
@@ -124,4 +128,86 @@ fn bare_string_expression_is_a_static_readonly_str() {
         Some(TypeKind::Borrow { referent, .. })
             if *referent == program.types().builtin(BuiltinType::Str)
     ));
+}
+
+#[test]
+fn explicit_literal_allocation_uses_a_validated_standard_role_place() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+struct Allocator {}
+struct Vec<T> {}
+construct Vec<T> {
+    pub literal [](...items: T): Self { return Self {} }
+}
+func values(allocator: &+Allocator): Vec<i32> {
+    Vec [1, 2] using allocator
+}
+",
+    );
+    let role = StandardRoleInput::new(
+        StandardDeclarationRole::AbortingAllocator,
+        fixture.standard_declaration_token(NodeKind::StructDeclaration, "Allocator"),
+    );
+    let (input, prelude) = fixture.input(false);
+    let input = input.with_standard_roles(vec![role]);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+    let program = output.program();
+    let (body, allocation) = program
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes().iter().find_map(|(_, node)| {
+                let CheckedOperation::Sequence(sequence) = node.operation() else {
+                    return None;
+                };
+                matches!(sequence.allocation(), AllocationSelection::Explicit(_))
+                    .then_some((body, sequence.allocation()))
+            })
+        })
+        .unwrap();
+    let AllocationSelection::Explicit(allocator) = allocation else {
+        panic!("using must retain an explicit allocation operand")
+    };
+    assert!(matches!(
+        body.nodes()
+            .iter()
+            .find(|(node, _)| *node == allocator)
+            .map(|(_, node)| node.operation()),
+        Some(CheckedOperation::Place(_))
+    ));
+}
+
+#[test]
+fn explicit_literal_allocation_rejects_an_untrusted_nominal() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+struct Allocator {}
+struct Untrusted {}
+struct Vec<T> {}
+construct Vec<T> {
+    pub literal [](...items: T): Self { return Self {} }
+}
+func values(allocator: &+Untrusted): Vec<i32> {
+    Vec [1] using allocator
+}
+",
+    );
+    let role = StandardRoleInput::new(
+        StandardDeclarationRole::AbortingAllocator,
+        fixture.standard_declaration_token(NodeKind::StructDeclaration, "Allocator"),
+    );
+    let (input, prelude) = fixture.input(false);
+    let input = input.with_standard_roles(vec![role]);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidAllocationContext));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0399");
 }

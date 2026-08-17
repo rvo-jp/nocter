@@ -112,6 +112,7 @@ pub fn check_prepared_program<'syntax>(
         instance_operations,
         mut copyabilities,
         drops,
+        standard_semantics,
         body_sources,
         body_names,
         source_index,
@@ -123,6 +124,7 @@ pub fn check_prepared_program<'syntax>(
         &conformances,
         &construction_surfaces,
         &instance_operations,
+        &standard_semantics,
         &source_index,
     );
 
@@ -192,6 +194,7 @@ pub fn check_prepared_program<'syntax>(
                 instance_operations,
                 copyabilities,
                 drops,
+                standard_semantics,
                 provenance,
                 loans,
                 closures,
@@ -336,6 +339,7 @@ struct BodyChecker<'input, 'syntax> {
     conformances: &'input crate::ConformanceTable,
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
     instance_operations: &'input crate::InstanceOperationTable,
+    standard_semantics: &'input crate::StandardSemanticTable,
     source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
@@ -373,6 +377,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let conformances = facts.conformances();
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
+        let standard_semantics = facts.standard_semantics();
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
@@ -419,6 +424,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             conformances,
             construction_surfaces,
             instance_operations,
+            standard_semantics,
             source_index,
             source,
             names,

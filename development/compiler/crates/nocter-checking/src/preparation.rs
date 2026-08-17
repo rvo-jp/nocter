@@ -11,8 +11,9 @@ use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
     ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
     DeclarationTypeValidityError, DropTable, DropTableError, InstanceOperationBuildError,
-    InstanceOperationTable, NameResolutionError, ResolvedBodyNames, build_conformance_table,
-    build_instance_operation_table, catalog_body_sources, validate_declaration_types,
+    InstanceOperationTable, NameResolutionError, ResolvedBodyNames, StandardSemanticError,
+    StandardSemanticTable, build_conformance_table, build_instance_operation_table,
+    catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -29,6 +30,7 @@ pub struct PreparedChecking<'syntax> {
     instance_operations: InstanceOperationTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
+    standard_semantics: StandardSemanticTable,
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_index: SourceIndex,
@@ -71,6 +73,11 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
+    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+        &self.standard_semantics
+    }
+
+    #[must_use]
     pub const fn body_sources(&self) -> &BodySourceCatalog<'syntax> {
         &self.body_sources
     }
@@ -94,6 +101,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             instance_operations: self.instance_operations,
             copyabilities: self.copyabilities,
             drops: self.drops,
+            standard_semantics: self.standard_semantics,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_index: self.source_index,
@@ -109,6 +117,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
+    pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_index: SourceIndex,
@@ -122,6 +131,7 @@ pub enum PreparationError {
     Conformance(ConformanceBuildError),
     ConstructionSurfaces(ConstructionSurfaceBuildError),
     InstanceOperations(InstanceOperationBuildError),
+    StandardSemantics(StandardSemanticError),
     NameResolution(NameResolutionError),
 }
 
@@ -131,7 +141,7 @@ impl PreparationError {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
-            Self::DropTable(_) | Self::ConstructionSurfaces(_) => None,
+            Self::DropTable(_) | Self::ConstructionSurfaces(_) | Self::StandardSemantics(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
@@ -148,6 +158,7 @@ impl fmt::Display for PreparationError {
             Self::Conformance(error) => error.fmt(formatter),
             Self::ConstructionSurfaces(error) => error.fmt(formatter),
             Self::InstanceOperations(error) => error.fmt(formatter),
+            Self::StandardSemantics(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
     }
@@ -191,6 +202,12 @@ impl From<DropTableError> for PreparationError {
     }
 }
 
+impl From<StandardSemanticError> for PreparationError {
+    fn from(error: StandardSemanticError) -> Self {
+        Self::StandardSemantics(error)
+    }
+}
+
 impl From<NameResolutionError> for PreparationError {
     fn from(error: NameResolutionError) -> Self {
         Self::NameResolution(error)
@@ -223,6 +240,8 @@ pub fn prepare_program_checking<'syntax>(
     let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
     let construction_surfaces = ConstructionSurfaceTable::build(&graph, &types)?;
     let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)?;
+    let standard_semantics =
+        StandardSemanticTable::build(input.standard_roles(), &graph, &types, &source_index)?;
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
@@ -233,6 +252,7 @@ pub fn prepare_program_checking<'syntax>(
         instance_operations,
         copyabilities,
         drops,
+        standard_semantics,
         body_sources,
         body_names,
         source_index,

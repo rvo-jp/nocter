@@ -44,7 +44,7 @@ pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,
     StructuralCapability,
 };
-pub use standard::{BuiltinAttachment, StandardLibrary};
+pub use standard::{BuiltinAttachment, StandardDeclarationRole, StandardLibrary};
 pub use target::{PackageTarget, PackageTargetKind};
 pub use validate::{
     DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,

@@ -222,9 +222,6 @@ fn append_operands(
                 .map(|capture| capture.initializer()),
         ),
         CheckedOperation::Sequence(sequence) => {
-            if let AllocationSelection::Explicit(allocator) = sequence.allocation() {
-                pending.push(allocator);
-            }
             for element in sequence.elements().iter().rev() {
                 match element {
                     SequenceElement::Value(value) => pending.push(*value),
@@ -233,6 +230,9 @@ fn append_operands(
                     }
                 }
             }
+            if let AllocationSelection::Explicit(allocator) = sequence.allocation() {
+                pending.push(allocator);
+            }
         }
         CheckedOperation::StringLiteral { allocation, .. } => {
             if let AllocationSelection::Explicit(allocator) = allocation {
@@ -240,9 +240,6 @@ fn append_operands(
             }
         }
         CheckedOperation::Interpolation(interpolation) => {
-            if let AllocationSelection::Explicit(allocator) = interpolation.allocation() {
-                pending.push(allocator);
-            }
             pending.extend(
                 interpolation
                     .parts()
@@ -253,6 +250,9 @@ fn append_operands(
                         crate::InterpolationPart::Formatted { value, .. } => Some(*value),
                     }),
             );
+            if let AllocationSelection::Explicit(allocator) = interpolation.allocation() {
+                pending.push(allocator);
+            }
         }
         CheckedOperation::Control(_) => unreachable!("control operations return above"),
     }

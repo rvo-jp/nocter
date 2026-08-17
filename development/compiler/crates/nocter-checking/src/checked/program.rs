@@ -4,7 +4,7 @@ use nocter_source_index::SourceIndex;
 
 use crate::{
     ClosureTable, ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable,
-    InstanceOperationTable, LoanTable, ProvenanceTable,
+    InstanceOperationTable, LoanTable, ProvenanceTable, StandardSemanticTable,
 };
 
 use super::CheckedBody;
@@ -19,6 +19,7 @@ pub struct CheckedProgram {
     instance_operations: InstanceOperationTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
+    standard_semantics: StandardSemanticTable,
     provenance: ProvenanceTable,
     loans: LoanTable,
     closures: ClosureTable,
@@ -31,6 +32,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
+    pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) provenance: ProvenanceTable,
     pub(crate) loans: LoanTable,
     pub(crate) closures: ClosureTable,
@@ -51,6 +53,7 @@ impl CheckedProgram {
             instance_operations: authorities.instance_operations,
             copyabilities: authorities.copyabilities,
             drops: authorities.drops,
+            standard_semantics: authorities.standard_semantics,
             provenance: authorities.provenance,
             loans: authorities.loans,
             closures: authorities.closures,
@@ -91,6 +94,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn drops(&self) -> &DropTable {
         &self.drops
+    }
+
+    #[must_use]
+    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+        &self.standard_semantics
     }
 
     #[must_use]

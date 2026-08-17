@@ -1,5 +1,19 @@
 use nocter_model::{ModuleId, PackageId};
 
+/// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
+///
+/// Roles are never inferred from source names or module paths. The declaration remains ordinary
+/// Nocter source; this identity only authorizes semantics that cannot be expressed by the language
+/// itself, such as interpolation construction and ambient allocation propagation.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum StandardDeclarationRole {
+    AbortingAllocator,
+    AllocationContext,
+    OwnedString,
+    FormatInterface,
+    FormatMethod,
+}
+
 /// One compiler-owned built-in surface that source declarations may extend.
 ///
 /// These semantic roles are distinct from module path spellings. Compilation setup resolves each

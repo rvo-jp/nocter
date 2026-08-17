@@ -18,11 +18,15 @@ pub(crate) struct Fixture {
 
 impl Fixture {
     pub(crate) fn new(app: &str) -> Self {
+        Self::with_standard(app, "")
+    }
+
+    pub(crate) fn with_standard(app: &str, standard: &str) -> Self {
         let mut sources = SourceMap::new();
         let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", app);
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(&mut sources, "/std/index.nct", standard);
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         Self {
             app_manifest: parsed(&sources, app_manifest_id, ParseGoal::PackageFile),
@@ -40,6 +44,22 @@ impl Fixture {
         let child_id = add_source(&mut fixture.sources, "/app/child/index.nct", child);
         fixture.child = Some(parsed(&fixture.sources, child_id, ParseGoal::ModuleSource));
         fixture
+    }
+
+    pub(crate) fn standard_declaration_token(
+        &self,
+        kind: NodeKind,
+        name: &str,
+    ) -> nocter_syntax::SyntaxToken {
+        declaration_token(&self.sources, &self.standard, kind, name)
+    }
+
+    pub(crate) fn app_declaration_token(
+        &self,
+        kind: NodeKind,
+        name: &str,
+    ) -> nocter_syntax::SyntaxToken {
+        declaration_token(&self.sources, &self.app, kind, name)
     }
 
     pub(crate) fn input(&self, reverse: bool) -> (CompileUnitInput<'_>, ModuleIdentity) {
@@ -94,6 +114,42 @@ impl Fixture {
             prelude,
         )
     }
+}
+
+fn declaration_token(
+    sources: &SourceMap,
+    tree: &SyntaxTree,
+    kind: NodeKind,
+    name: &str,
+) -> nocter_syntax::SyntaxToken {
+    let source = sources.get(tree.source()).unwrap();
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree.node(node).is_some_and(|node| node.kind() == kind) {
+            let mut descendants = vec![node];
+            while let Some(descendant) = descendants.pop() {
+                for child in tree.children(descendant).iter().rev() {
+                    match child {
+                        SyntaxElement::Token(token)
+                            if source
+                                .text_at(token.range())
+                                .is_some_and(|text| text == name) =>
+                        {
+                            return *token;
+                        }
+                        SyntaxElement::Node(child) => descendants.push(*child),
+                        SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
+                    }
+                }
+            }
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    panic!("fixture declaration {kind:?} named {name:?} does not exist");
 }
 
 fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {

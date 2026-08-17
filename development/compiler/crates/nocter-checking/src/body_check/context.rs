@@ -5,6 +5,7 @@ use nocter_source_index::SourceIndex;
 use super::error::BodyCheckInternalError;
 use crate::{
     BodySource, ConformanceTable, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
+    StandardSemanticTable,
 };
 
 /// Immutable program-wide authorities shared by every body checker.
@@ -15,6 +16,7 @@ pub(super) struct BodyProgramFacts<'program> {
     conformances: &'program ConformanceTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
+    standard_semantics: &'program StandardSemanticTable,
     source_index: &'program SourceIndex,
 }
 
@@ -44,6 +46,7 @@ impl<'program> BodyProgramFacts<'program> {
         conformances: &'program ConformanceTable,
         construction_surfaces: &'program ConstructionSurfaceTable,
         instance_operations: &'program InstanceOperationTable,
+        standard_semantics: &'program StandardSemanticTable,
         source_index: &'program SourceIndex,
     ) -> Self {
         Self {
@@ -52,6 +55,7 @@ impl<'program> BodyProgramFacts<'program> {
             conformances,
             construction_surfaces,
             instance_operations,
+            standard_semantics,
             source_index,
         }
     }
@@ -74,6 +78,10 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn instance_operations(self) -> &'program InstanceOperationTable {
         self.instance_operations
+    }
+
+    pub(super) const fn standard_semantics(self) -> &'program StandardSemanticTable {
+        self.standard_semantics
     }
 
     pub(super) const fn source_index(self) -> &'program SourceIndex {

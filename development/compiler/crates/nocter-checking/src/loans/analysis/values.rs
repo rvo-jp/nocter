@@ -164,6 +164,7 @@ impl Analyzer<'_, '_> {
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {
+        self.evaluate_allocation(sequence.allocation(), state, extra)?;
         let mut elements = LoanValue::independent();
         for element in sequence.elements() {
             let node = match element {
@@ -176,7 +177,6 @@ impl Analyzer<'_, '_> {
             }
             elements.union_with(&value);
         }
-        self.evaluate_allocation(sequence.allocation(), state, extra)?;
         Ok((
             LoanValue::from_projection(ProvenanceProjection::Element, elements),
             true,
