@@ -14,7 +14,7 @@ implementation input.
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
    conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, all loop forms, and enum patterns to closures and regions. Never repeat requirement,
+   assignment, all loop forms, enum patterns, and lexical regions to closures. Never repeat requirement,
    conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
@@ -118,8 +118,8 @@ destruction. One canonical value-storage authority now prevents borrow preparati
 inspection, and cleanup from duplicating ownership. Conditional path and value cleanup reserves
 entry-visible drop flags, updates them on initialization, move, replacement, and destruction, and
 branches without reconstructing source control history. MIR places are interned by exact typed
-shape, so flags and ordinary operations share storage identity. Closure and region construction
-remain the current task. Block fallthrough now consumes the same checked
+shape, so flags and ordinary operations share storage identity. Closure construction remains the
+current checked-body task. Block fallthrough now consumes the same checked
 `BeforeTransfer` event as explicit return and loop transfer. Explicit `drop`, compound integer
 assignment, `break`, `continue`, while loops, breakable/nonbreaking infinite loops, and integer
 ranges lower to closed CFG directly. A checked `never` loop has no invented exit block, and range
@@ -134,6 +134,11 @@ specialized payload places, invokes a frozen type-owned drop before the first mo
 number of value-producing arms through typed block parameters. Complete and variant-residual
 cleanup obligations have distinct flags even when they share one subject slot, so explicit arms,
 fallbacks, and implicit `if is` nonmatches cannot destroy one another's storage.
+Lexical regions now lower through paired `CreateRegion` and `ReleaseRegion` operations. Creation
+consumes the already checked parent borrow and initializes the compiler-owned context local;
+release remains an ordinary ordered cleanup event, so nested fallthrough and early transfer drop
+body-owned values before releasing each child from inner to outer. MIR validation checks the exact
+compiler-selected allocator/context nominal identities instead of trusting a generic region local.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

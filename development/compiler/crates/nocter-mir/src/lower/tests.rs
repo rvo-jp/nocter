@@ -889,6 +889,60 @@ fn pattern_match_and_unmatched_cleanup_use_distinct_flags_on_shared_storage() {
     }));
 }
 
+#[test]
+fn lowers_nested_regions_with_ordered_early_exit_cleanup() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func normal(allocator: &Allocator): void {\n\
+             region temp using allocator {\n\
+                 let value = Owned { value: 0 }\n\
+             }\n\
+             return\n\
+         }\n\
+         func main(): void {\n\
+             let allocator = Allocator {}\n\
+             normal(&allocator)\n\
+             region outer using allocator {\n\
+                 let first = Owned { value: 1 }\n\
+                 region inner using outer {\n\
+                     let second = Owned { value: 2 }\n\
+                     return\n\
+                 }\n\
+             }\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        let lifetime_operations = function
+            .operations()
+            .iter()
+            .filter_map(|(_, operation)| match operation.kind() {
+                MirOperationKind::CreateRegion { .. } => Some("create"),
+                MirOperationKind::InvokeDrop { .. } => Some("drop"),
+                MirOperationKind::ReleaseRegion { .. } => Some("release"),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        lifetime_operations == ["create", "create", "drop", "release", "drop", "release"]
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .operations()
+            .iter()
+            .filter_map(|(_, operation)| match operation.kind() {
+                MirOperationKind::CreateRegion { .. } => Some("create"),
+                MirOperationKind::InvokeDrop { .. } => Some("drop"),
+                MirOperationKind::ReleaseRegion { .. } => Some("release"),
+                _ => None,
+            })
+            .eq(["create", "drop", "release"])
+    }));
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }

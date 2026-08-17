@@ -17,6 +17,10 @@ pub interface Iterator {
     pub method &+self.next(): Self.Item?
 }
 ";
+const ALLOCATION_SOURCE: &str = "\
+pub struct Allocator {}
+pub struct AllocationContext {}
+";
 const MEM_SOURCE: &str = "\
 pub(/) primitive current_allocator_state(): usize
 pub(/) primitive current_allocator_kind(): usize
@@ -115,6 +119,44 @@ struct FixtureModule {
     syntax: SyntaxTree,
 }
 
+#[derive(Clone, Copy)]
+struct StandardRoleSpec {
+    role: StandardDeclarationRole,
+    kind: NodeKind,
+    name: &'static str,
+}
+
+const ITERATION_ROLES: &[StandardRoleSpec] = &[
+    StandardRoleSpec {
+        role: StandardDeclarationRole::IteratorInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "Iterator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::IteratorItem,
+        kind: NodeKind::AssociatedTypeDeclaration,
+        name: "Item",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::IteratorNextMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "next",
+    },
+];
+
+const ALLOCATION_ROLES: &[StandardRoleSpec] = &[
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AbortingAllocator,
+        kind: NodeKind::StructDeclaration,
+        name: "Allocator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AllocationContext,
+        kind: NodeKind::StructDeclaration,
+        name: "AllocationContext",
+    },
+];
+
 /// Complete source input containing an application and the minimum compiler-selected standard
 /// surface required to construct an `arm64-darwin` target program.
 pub struct CompilerFixture {
@@ -126,7 +168,7 @@ pub struct CompilerFixture {
     prelude: SyntaxTree,
     modules: Vec<FixtureModule>,
     app_standard_uses: Vec<Box<[Box<str>]>>,
-    iteration_roles: bool,
+    standard_roles: Box<[StandardRoleSpec]>,
 }
 
 impl CompilerFixture {
@@ -137,13 +179,13 @@ impl CompilerFixture {
 
     #[must_use]
     pub fn with_app(app_source: &str) -> Self {
-        Self::build(app_source, None, "", false)
+        Self::build(app_source, None, "", [])
     }
 
     /// Builds the complete target fixture with the compiler-selected iterator semantic surface.
     #[must_use]
     pub fn with_app_iteration(app_source: &str) -> Self {
-        Self::build(app_source, None, ITERATION_SOURCE, true)
+        Self::build(app_source, None, ITERATION_SOURCE, ITERATION_ROLES)
     }
 
     /// Builds the iterator fixture and resolves application `use` declarations to standard
@@ -153,13 +195,25 @@ impl CompilerFixture {
         Self::with_standard_uses(Self::with_app_iteration(app_source), modules)
     }
 
+    /// Builds the complete target fixture with compiler-selected lexical-region semantics.
+    #[must_use]
+    pub fn with_app_allocation(app_source: &str) -> Self {
+        Self::build(app_source, None, ALLOCATION_SOURCE, ALLOCATION_ROLES)
+    }
+
+    /// Builds the allocation fixture and resolves application `use` declarations in source order.
+    #[must_use]
+    pub fn with_app_allocation_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
+        Self::with_standard_uses(Self::with_app_allocation(app_source), modules)
+    }
+
     #[must_use]
     pub fn with_tests(app_source: &str) -> Self {
         Self::build(
             app_source,
             Some("#test: { name: \"unit\", module: \".\", }\n"),
             "",
-            false,
+            [],
         )
     }
 
@@ -186,7 +240,7 @@ impl CompilerFixture {
         app_source: &str,
         app_manifest_source: Option<&str>,
         standard_source: &str,
-        iteration_roles: bool,
+        standard_roles: impl Into<Box<[StandardRoleSpec]>>,
     ) -> Self {
         let mut sources = SourceMap::new();
         let std_manifest = add_parsed(&mut sources, "/std/nocter.nct", "", ParseGoal::PackageFile);
@@ -251,7 +305,7 @@ impl CompilerFixture {
             prelude,
             modules,
             app_standard_uses: Vec::new(),
-            iteration_roles,
+            standard_roles: standard_roles.into(),
         }
     }
 
@@ -356,38 +410,23 @@ impl CompilerFixture {
                 ModuleIdentity::new(app_package, Vec::<&str>::new()),
             )]);
         }
-        if self.iteration_roles {
-            input = input.with_standard_roles(self.iteration_role_inputs());
+        if !self.standard_roles.is_empty() {
+            input = input.with_standard_roles(self.standard_role_inputs());
         }
         (input, prelude)
     }
 
-    fn iteration_role_inputs(&self) -> Vec<StandardRoleInput> {
-        [
-            (
-                StandardDeclarationRole::IteratorInterface,
-                NodeKind::InterfaceDeclaration,
-                "Iterator",
-            ),
-            (
-                StandardDeclarationRole::IteratorItem,
-                NodeKind::AssociatedTypeDeclaration,
-                "Item",
-            ),
-            (
-                StandardDeclarationRole::IteratorNextMethod,
-                NodeKind::InterfaceMethod,
-                "next",
-            ),
-        ]
-        .into_iter()
-        .map(|(role, kind, name)| {
-            StandardRoleInput::new(
-                role,
-                declaration_token(&self.sources, &self.standard, kind, name),
-            )
-        })
-        .collect()
+    fn standard_role_inputs(&self) -> Vec<StandardRoleInput> {
+        self.standard_roles
+            .iter()
+            .copied()
+            .map(|spec| {
+                StandardRoleInput::new(
+                    spec.role,
+                    declaration_token(&self.sources, &self.standard, spec.kind, spec.name),
+                )
+            })
+            .collect()
     }
 
     fn app_use_resolutions(&self, standard: &PackageIdentity) -> Vec<UseResolutionInput> {

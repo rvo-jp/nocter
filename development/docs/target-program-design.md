@@ -210,9 +210,9 @@ MIR access to source or package setup state.
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
 and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive
 initialized-use and balanced region-release validation remain coupled to pending region
-construction and whole-function storage validation; documentation must not claim those gates
-before they exist. These are compiler integrity checks over an accepted program, not a second
-source diagnostic system.
+flow analysis and whole-function storage validation; documentation must not claim those gates
+before they exist. These are compiler integrity checks over an accepted program, not a second source
+diagnostic system.
 
 ## Construction Order
 
@@ -262,8 +262,12 @@ consumed, temporary, or borrow-dereferenced subject storage. Checked binding mod
 copy, move, or borrow without repeating copyability proof, while one checked remainder plan
 selects complete or variant-residual destruction. Mutually exclusive remainders use independent
 drop flags on the shared subject slot, and value-producing arms join through typed block
-parameters. Other unsupported checked operations still fail; the current slice cannot silently
-omit accepted semantics.
+parameters. Lexical region entry creates and initializes one compiler-owned allocation-context
+local from its checked parent borrow. Region exit remains part of the ordinary cleanup schedule,
+which orders inner values before child release on fallthrough and every explicit transfer.
+Validation requires the compiler-selected allocator and allocation-context nominal identities for
+both operations. Other unsupported checked operations still fail; the current slice cannot
+silently omit accepted semantics.
 
 ## Prohibited Designs
 

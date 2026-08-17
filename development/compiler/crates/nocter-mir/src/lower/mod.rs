@@ -23,6 +23,7 @@ mod operand;
 mod outcome;
 mod pattern;
 mod place;
+mod region;
 mod value_storage;
 
 #[cfg(test)]
@@ -72,6 +73,7 @@ pub enum MirLoweringError {
     InvalidPlaceDispatch(PlaceId),
     InvalidCleanup(BodyNodeId),
     InvalidPattern(BodyNodeId),
+    InvalidRegion(BodyNodeId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
     Program(MirProgramBuildError),

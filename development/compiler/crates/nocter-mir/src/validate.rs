@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::validation_call::validate_call;
 use crate::validation_graph::{place_values, successors};
 use crate::validation_place::place_facts;
+use crate::validation_region::{validate_region_creation, validate_region_release};
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{is_integer, matches_nominal_member, nominal_application};
 use crate::{
@@ -525,11 +526,15 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
+            MirOperationKind::CreateRegion { parent } => validate_region_creation(
+                self.environment,
+                self.function,
+                id,
+                *parent,
+                result.ok_or_else(mismatch)?,
+            )?,
             MirOperationKind::ReleaseRegion { region } => {
-                let local = self.require_local(*region)?;
-                if local.kind() != MirLocalKind::Region || result.is_some() {
-                    return Err(mismatch());
-                }
+                validate_region_release(self.environment, self.function, id, *region, result)?;
             }
         }
         Ok(())
@@ -783,6 +788,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             MirOperationKind::Constant(_)
             | MirOperationKind::SetDropFlag { .. }
             | MirOperationKind::ReleaseRegion { .. } => {}
+            MirOperationKind::CreateRegion { parent } => values.push(*parent),
             MirOperationKind::Read { place, .. }
             | MirOperationKind::Borrow { place, .. }
             | MirOperationKind::InvokeDrop { place, .. } => {

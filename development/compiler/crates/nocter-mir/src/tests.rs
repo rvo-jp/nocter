@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
+
 use nocter_declarations::{
-    FieldDeclaration, NominalTypeDeclaration, Parameter, VariantDeclaration,
+    FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
+    VariantDeclaration,
 };
 use nocter_model::{
     Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, FieldId, NominalTypeId,
@@ -8,13 +11,14 @@ use nocter_model::{
 
 use crate::{
     MirBinaryOperation, MirBranchTarget, MirConstant, MirFunctionBuildError, MirFunctionBuilder,
-    MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind, MirTerminator,
-    MirValidationEnvironment, MirValidationError,
+    MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind, MirReadMode,
+    MirTerminator, MirValidationEnvironment, MirValidationError,
 };
 
 struct TestEnvironment {
     types: TypeStore,
     items: Arena<ExecutableItemId, ()>,
+    standard_nominals: BTreeMap<StandardDeclarationRole, NominalTypeId>,
 }
 
 impl TestEnvironment {
@@ -29,6 +33,7 @@ impl TestEnvironment {
             Self {
                 types,
                 items: items.finish(),
+                standard_nominals: BTreeMap::new(),
             },
             item,
         )
@@ -168,6 +173,101 @@ impl MirValidationEnvironment for TestEnvironment {
     fn parameter(&self, _id: ParameterId) -> Option<&Parameter> {
         None
     }
+
+    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
+        self.standard_nominals.get(&role).copied()
+    }
+}
+
+#[test]
+fn region_operations_require_the_selected_standard_contract() {
+    let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
+    let allocator = nominal_ids.insert(());
+    let context = nominal_ids.insert(());
+    let mut types = TypeStore::new();
+    let void = types.builtin(BuiltinType::Void);
+    let i32_ = types.builtin(BuiltinType::I32);
+    let allocator_ty = types
+        .intern(TypeKind::Nominal {
+            definition: allocator,
+            arguments: Box::new([]),
+        })
+        .unwrap();
+    let context_ty = types
+        .intern(TypeKind::Nominal {
+            definition: context,
+            arguments: Box::new([]),
+        })
+        .unwrap();
+    let parent_ty = types
+        .intern(TypeKind::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent: allocator_ty,
+        })
+        .unwrap();
+    let (mut environment, item) = TestEnvironment::with_types(types);
+    environment.standard_nominals.extend([
+        (StandardDeclarationRole::AbortingAllocator, allocator),
+        (StandardDeclarationRole::AllocationContext, context),
+    ]);
+
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let parent = builder.add_parameter(parent_ty, false);
+    let parent_place = builder.add_place(MirPlaceRoot::Local(parent), [], parent_ty);
+    let region = builder.add_local(context_ty, MirLocalKind::Region, false);
+    let region_place = builder.add_place(MirPlaceRoot::Local(region), [], context_ty);
+    let (entry, _) = builder.create_block([]);
+    let parent = builder
+        .append_value(
+            entry,
+            parent_ty,
+            MirOperationKind::Read {
+                place: parent_place,
+                mode: MirReadMode::Copy,
+            },
+        )
+        .unwrap();
+    let child = builder
+        .append_value(entry, context_ty, MirOperationKind::CreateRegion { parent })
+        .unwrap();
+    builder
+        .append_effect(
+            entry,
+            MirOperationKind::Initialize {
+                destination: region_place,
+                value: child,
+            },
+        )
+        .unwrap();
+    builder
+        .append_effect(entry, MirOperationKind::ReleaseRegion { region })
+        .unwrap();
+    builder
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+    builder.finish(entry, &environment).unwrap();
+
+    let mut invalid = MirFunctionBuilder::new(item, void);
+    let (entry, _) = invalid.create_block([]);
+    let parent = invalid
+        .append_value(
+            entry,
+            i32_,
+            MirOperationKind::Constant(MirConstant::Integer(0)),
+        )
+        .unwrap();
+    invalid
+        .append_value(entry, context_ty, MirOperationKind::CreateRegion { parent })
+        .unwrap();
+    invalid
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+    assert!(matches!(
+        invalid.finish(entry, &environment),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::OperationType(_)
+        ))
+    ));
 }
 
 #[test]

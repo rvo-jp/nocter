@@ -196,6 +196,9 @@ pub enum MirOperationKind {
         body: ExecutableItemId,
         place: MirPlaceId,
     },
+    CreateRegion {
+        parent: MirValueId,
+    },
     ReleaseRegion {
         region: MirLocalId,
     },
@@ -214,6 +217,7 @@ impl MirOperationKind {
                 | Self::IntegerConversion { .. }
                 | Self::Aggregate(_)
                 | Self::Call(_)
+                | Self::CreateRegion { .. }
         )
     }
 }

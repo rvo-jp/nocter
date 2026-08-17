@@ -548,8 +548,17 @@ impl<'program> DependencyCollector<'program> {
             }
             CheckedControl::Loop(loop_id) => self.visit_loop(*loop_id)?,
             CheckedControl::Region {
-                allocator, body, ..
+                binding,
+                allocator,
+                body,
             } => {
+                let local = self.body.locals().get(*binding).copied().ok_or(
+                    BodyDependencyError::UnknownLocal {
+                        body: self.body_id,
+                        local: *binding,
+                    },
+                )?;
+                self.record_type(local.ty())?;
                 self.visit_node(*allocator)?;
                 self.visit_node(*body)?;
             }

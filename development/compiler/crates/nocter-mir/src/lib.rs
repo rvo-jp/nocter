@@ -16,6 +16,7 @@ mod validation_environment;
 mod validation_error;
 mod validation_graph;
 mod validation_place;
+mod validation_region;
 mod validation_switch;
 mod validation_types;
 

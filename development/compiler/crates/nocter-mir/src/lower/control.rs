@@ -14,19 +14,7 @@ impl FunctionLowerer<'_> {
         match control {
             CheckedControl::Block {
                 statements, result, ..
-            } => {
-                for statement in statements {
-                    self.lower_node(*statement)?;
-                    if self.current.is_none() {
-                        return Ok(None);
-                    }
-                }
-                let value = result.map_or(Ok(None), |result| self.lower_node(result))?;
-                if self.current.is_some() {
-                    self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
-                }
-                Ok(value)
-            }
+            } => self.lower_block_control(node, statements, *result),
             CheckedControl::Bind {
                 binding,
                 initializer,
@@ -108,8 +96,31 @@ impl FunctionLowerer<'_> {
                 fallback,
                 unmatched,
             } => self.lower_pattern(node, *subject, arms, *fallback, *unmatched),
-            CheckedControl::Region { .. } => Err(MirLoweringError::UnsupportedOperation(node)),
+            CheckedControl::Region {
+                binding,
+                allocator,
+                body,
+            } => self.lower_region(node, *binding, *allocator, *body),
         }
+    }
+
+    fn lower_block_control(
+        &mut self,
+        node: BodyNodeId,
+        statements: &[BodyNodeId],
+        result: Option<BodyNodeId>,
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
+        for statement in statements {
+            self.lower_node(*statement)?;
+            if self.current.is_none() {
+                return Ok(None);
+            }
+        }
+        let value = result.map_or(Ok(None), |result| self.lower_node(result))?;
+        if self.current.is_some() {
+            self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
+        }
+        Ok(value)
     }
 
     fn lower_if(

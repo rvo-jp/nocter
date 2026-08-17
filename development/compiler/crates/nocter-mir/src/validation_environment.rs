@@ -1,5 +1,6 @@
 use nocter_declarations::{
-    FieldDeclaration, NominalTypeDeclaration, Parameter, VariantDeclaration,
+    FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
+    VariantDeclaration,
 };
 use nocter_model::{ExecutableItemId, FieldId, NominalTypeId, ParameterId, TypeStore, VariantId};
 use nocter_target_program::ExecutableProgram;
@@ -15,6 +16,7 @@ pub trait MirValidationEnvironment {
     fn field(&self, id: FieldId) -> Option<&FieldDeclaration>;
     fn variant(&self, id: VariantId) -> Option<&VariantDeclaration>;
     fn parameter(&self, id: ParameterId) -> Option<&Parameter>;
+    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId>;
 }
 
 impl MirValidationEnvironment for ExecutableProgram {
@@ -60,5 +62,9 @@ impl MirValidationEnvironment for ExecutableProgram {
             .declarations()
             .parameters()
             .get(id)
+    }
+
+    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
+        self.target().checked().standard_semantics().nominal(role)
     }
 }

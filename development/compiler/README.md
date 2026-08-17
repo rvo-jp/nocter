@@ -323,7 +323,9 @@ be introduced to make an unresolved syntax choice.
   Exhaustion and early transfer share the iterator's drop flag. Pattern lowering consumes checked
   copy/move/borrow modes and complete-or-residual cleanup plans, projects specialized payload
   places, and keeps mutually exclusive cleanup flags separate on one canonical subject slot.
-  Remaining checked operations still fail explicitly instead of being omitted.
+  Lexical regions use paired typed creation and release operations; the existing cleanup schedule
+  orders body destruction before release on fallthrough and early transfer. Remaining checked
+  operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
