@@ -1,0 +1,20 @@
+[package]
+name = "nocter-target-program"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-checking = { path = "../nocter-checking" }
+nocter-declarations = { path = "../nocter-declarations" }
+nocter-model = { path = "../nocter-model" }
+
+[dev-dependencies]
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-source = { path = "../nocter-source" }
+nocter-syntax = { path = "../nocter-syntax" }
+
+[lints]
+workspace = true

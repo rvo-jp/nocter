@@ -67,3 +67,15 @@ version = "0.0.0"
 dependencies = [
  "nocter-source",
 ]
+
+[[package]]
+name = "nocter-target-program"
+version = "0.0.0"
+dependencies = [
+ "nocter-checking",
+ "nocter-declaration-lowering",
+ "nocter-declarations",
+ "nocter-model",
+ "nocter-source",
+ "nocter-syntax",
+]

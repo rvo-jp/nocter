@@ -53,7 +53,7 @@ valid source and becomes an availability error only when that target is selected
 
 ## Toolchain Snapshot
 
-The target-program crate will receive one immutable toolchain snapshot selected before validation.
+The target-program crate receives one immutable toolchain snapshot selected before validation.
 It contains typed target identity, ABI identity, executable-writer identity, and the exact standard
 primitive registry. Paths, environment variables, package display names, and runtime symbol
 spellings are discovery metadata and cannot grant capability.
@@ -63,6 +63,21 @@ validation resolves each required primitive role to its already checked semantic
 stores the resulting identity table in `TargetProgram`. Missing, duplicate, wrong-signature, or
 wrong-authority primitives are target-program failures. MIR and code generation consume the table;
 they never search declarations by spelling.
+
+The implemented registry contains 49 closed roles matching the selected standard-library source
+boundary. Discovery attaches each role to one `CallableId`; `PrimitiveRegistry` rejects missing,
+duplicate, or aliased attachments before a snapshot exists. `TargetProgram` then validates the
+attached declaration's canonical standard module, name, visibility, generic shape, parameters,
+result, provenance, target gate, and absence of a source body. It also rejects every primitive
+declaration not attached to a role. The `arm64-darwin` syscall result is part of that contract: its
+nominal authority, gate, copy declaration, field order, field names, field types, and field
+visibility are checked rather than inferred by the backend.
+
+Target recognition alone grants no backend capability. `CompilationTarget` remains the closed
+frontend identity, while `ToolchainSnapshot::select` is the sole implementation-availability
+authority. Only `arm64-darwin` currently selects the indivisible Arm64 backend, Nocter
+Arm64-Darwin ABI, and Arm64 Mach-O writer. Reserved targets fail before a `TargetProgram` can be
+constructed.
 
 ## Package Targets and Entries
 
@@ -115,9 +130,9 @@ integrity checks over an accepted program, not a second source diagnostic system
 1. Select and validate target gates before import and symbol processing.
 2. Freeze the selected target into `DeclarationGraph` and preserve it through checking.
 3. Lower discovery-owned package targets into typed semantic identities. **Complete.**
-4. Introduce the target-program crate and immutable toolchain capability snapshot.
+4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
-   buildability into `TargetProgram`.
+   buildability into `TargetProgram`. **Complete.**
 6. Select an executable/test entry and instantiate one deterministic reachable graph.
 7. Lower concrete checked bodies and cleanup schedules into MIR.
 8. Validate MIR without source or syntax access.

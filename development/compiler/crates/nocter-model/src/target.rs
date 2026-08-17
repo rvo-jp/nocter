@@ -45,12 +45,6 @@ impl CompilationTarget {
             Self::Arm64Windows => "arm64-windows",
         }
     }
-
-    /// Reports backend completeness, not whether the target name is valid source syntax.
-    #[must_use]
-    pub const fn is_implemented(self) -> bool {
-        matches!(self, Self::Arm64Darwin)
-    }
 }
 
 impl fmt::Display for CompilationTarget {
@@ -68,8 +62,6 @@ mod tests {
         for target in CompilationTarget::ALL {
             assert_eq!(CompilationTarget::from_name(target.name()), Some(target));
         }
-        assert!(CompilationTarget::Arm64Darwin.is_implemented());
-        assert!(!CompilationTarget::X64Linux.is_implemented());
         assert_eq!(CompilationTarget::from_name("mips-templeos"), None);
     }
 }

@@ -2,19 +2,19 @@
 
 ## Current Task
 
-Begin v0.14.0 Phase 4 by defining the target-program success boundary shared by `check`, `build`,
-and `run`, then derive entry-driven executable-program construction from it.
+Continue v0.14.0 Phase 4 from the completed target-program success boundary shared by `check`,
+`build`, and `run`, then derive entry-driven executable-program construction from it.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Introduce the target-program crate and immutable toolchain snapshot, then make it the sole
-   selected-target buildability boundary for `check`, `build`, and `run`.
-2. Validate selected target availability and exact compiler-owned primitive roles before any
-   executable selection or monomorphization can begin.
-3. Derive exact entry selection and deterministic monomorphization from `TargetProgram`; MIR must
+1. Derive exact executable and test entry selection from `TargetProgram`, preserving the selected
+   `PackageTargetId` and exact entry identity without another module or spelling lookup.
+2. Build deterministic entry-driven monomorphization, including concrete generic arguments,
+   closure bodies, drop bodies, construction members, and frozen conformance dispatch.
+3. Lower the resulting `ExecutableProgram` into MIR; MIR must
    consume resolved concrete dispatch rather than repeat requirement or conformance selection.
 
 The Phase 4 responsibility map is recorded in
@@ -27,6 +27,18 @@ Discovery-selected package target directives now pair their exact syntax node wi
 module identity. Declaration lowering derives target kind, name, and order from that directive,
 allocates canonical `PackageTargetId` values, and projects each identity to its exact name literal;
 it never parses an authored module path.
+`nocter-target-program` now owns implementation availability. Recognition-only
+`CompilationTarget` can no longer grant backend capability. An immutable `ToolchainSnapshot`
+selects one inseparable backend, ABI, executable-writer, standard-package, and complete primitive
+registry; currently only `arm64-darwin` can produce one. The registry has 49 closed semantic roles,
+requires a unique callable for every role, and validates exact standard-package authority, module,
+name, visibility, generic and parameter shape, result, provenance contract, target gate, and
+bodylessness. The target-specific `SyscallResult` representation is validated down to copy shape,
+field order, field types, and visibility. Extra primitives are rejected. `TargetProgram::build`
+consumes `CheckedProgram`, proves target and standard-package identity plus package-target
+integrity, and is the first public selected-target success boundary. An integration fixture crosses
+the complete parser-to-target-program pipeline and proves that even same-shaped primitive roles
+cannot be swapped.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
