@@ -394,7 +394,8 @@ mod tests {
         symbols: SymbolTable,
         app_name: Symbol,
     ) -> (ModuleId, DeclarationSiteId) {
-        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let package = builder.add_package(app_name).unwrap();
         let module = builder.add_module(package, ModulePath::root()).unwrap();
         builder

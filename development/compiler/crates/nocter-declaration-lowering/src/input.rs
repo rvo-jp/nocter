@@ -1,4 +1,5 @@
 use nocter_declarations::StandardDeclarationRole;
+use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
@@ -266,6 +267,7 @@ impl<'syntax> ModuleInput<'syntax> {
 
 #[derive(Debug)]
 pub struct CompileUnitInput<'syntax> {
+    target: CompilationTarget,
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
@@ -276,18 +278,32 @@ pub struct CompileUnitInput<'syntax> {
 impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn new(
+        target: CompilationTarget,
         sources: &'syntax SourceMap,
         packages: Vec<PackageInput<'syntax>>,
         modules: Vec<ModuleInput<'syntax>>,
         use_resolutions: Vec<UseResolutionInput>,
     ) -> Self {
         Self {
+            target,
             sources,
             packages,
             modules,
             use_resolutions,
             standard_roles: Vec::new(),
         }
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
+    /// Reuses one immutable discovery snapshot for another explicitly selected target.
+    #[must_use]
+    pub fn with_target(mut self, target: CompilationTarget) -> Self {
+        self.target = target;
+        self
     }
 
     /// Attaches discovery-selected standard declarations without changing the common constructor

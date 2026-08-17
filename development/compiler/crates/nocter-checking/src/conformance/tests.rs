@@ -218,7 +218,13 @@ impl Fixture {
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         (
-            CompileUnitInput::new(&self.sources, packages, modules, Vec::new()),
+            CompileUnitInput::new(
+                nocter_model::CompilationTarget::Arm64Darwin,
+                &self.sources,
+                packages,
+                modules,
+                Vec::new(),
+            ),
             prelude,
         )
     }

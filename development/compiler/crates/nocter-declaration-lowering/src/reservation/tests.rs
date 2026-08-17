@@ -40,6 +40,7 @@ fn reserve<'syntax>(
         module_sources,
     );
     let surface = collect_declaration_surface(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         sources,
         vec![package],
         vec![module],

@@ -40,6 +40,7 @@ fn surface<'syntax>(
         module_sources,
     );
     collect_declaration_surface(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         sources,
         vec![package],
         vec![module],

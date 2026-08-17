@@ -53,6 +53,7 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![root_module(vec![ModuleSourceInput::new(
@@ -114,6 +115,7 @@ fn retains_resolved_import_edges_and_unresolved_item_target_syntax() {
     let parser = parse_source(&sources, parser_id, ParseGoal::ModuleSource);
     let parser_identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["parser"]);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![
@@ -170,12 +172,14 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         source_use(&root, 1, "/app/z.nct"),
     ];
     let forward = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.clone())],
         resolutions.clone(),
     );
     let reverse = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.into_iter().rev().collect())],
@@ -222,6 +226,7 @@ fn implementation_sources_cannot_expand_the_module_surface() {
 
     for implementation in [&public, &field] {
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(&manifest)],
             vec![root_module(vec![
@@ -241,4 +246,81 @@ fn implementation_sources_cannot_expand_the_module_surface() {
             SurfaceError::ImplementationVisibility(_) | SurfaceError::ImplementationMember(_)
         ));
     }
+}
+
+#[test]
+fn target_selection_excludes_the_complete_inactive_item_from_frontend_inputs() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "#target: \"arm64-darwin\"\n\
+         func platform(): void {}\n\
+         #target: \"x64-linux\"\n\
+         func platform(): void {\n\
+             use ghost.missing\n\n\
+             dormant_symbol()\n\
+         }\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    assert!(!root.has_errors(), "{:#?}", root.diagnostics());
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        &sources,
+        vec![package(&manifest)],
+        vec![root_module(vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )])],
+        vec![module_use(
+            &root,
+            0,
+            ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["ghost"]),
+        )],
+    );
+
+    let surface = collect_declaration_surface(&input).unwrap();
+
+    assert_eq!(
+        surface.target(),
+        nocter_model::CompilationTarget::Arm64Darwin
+    );
+    assert_eq!(surface.declarations().len(), 1);
+    assert!(surface.declarations()[0].target_gate().is_some());
+    assert!(surface.symbols().get("platform").is_some());
+    assert!(surface.symbols().get("dormant_symbol").is_none());
+    assert!(surface.symbols().get("x64-linux").is_none());
+}
+
+#[test]
+fn unknown_target_gate_is_an_authored_surface_error() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "#target: \"mips-templeos\"\nfunc platform(): void {}\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    assert!(!root.has_errors(), "{:#?}", root.diagnostics());
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        &sources,
+        vec![package(&manifest)],
+        vec![root_module(vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )])],
+        Vec::new(),
+    );
+
+    assert!(matches!(
+        collect_declaration_surface(&input),
+        Err(SurfaceError::UnknownTargetGate(_))
+    ));
 }

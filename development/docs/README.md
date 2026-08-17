@@ -8,6 +8,7 @@ rewrite. Public language and standard-library behavior belongs exclusively in
 
 - [Compiler Rewrite Architecture](architecture.md)
 - [Checked Program Design](checked-program-design.md)
+- [Target and Executable Program Design](target-program-design.md)
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
 - [Grammar Closure Audit](grammar-audit.md)
 - [Grammar Conformance Plan](grammar-conformance.md)
@@ -27,6 +28,7 @@ not be consulted to determine new compiler structure or unspecified language beh
 | Public language and standard-library behavior | `spec/` |
 | New compiler dependency and authority boundaries | `architecture.md` |
 | Phase 3 checked-program responsibilities and construction order | `checked-program-design.md` |
+| Phase 4 target validation, instantiation, and MIR ownership | `target-program-design.md` |
 | Declaration-lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |

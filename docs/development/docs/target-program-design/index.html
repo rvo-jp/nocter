@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/iter/mutable.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/iter/mutable.nct.">
+    <title>Target, Executable, and MIR Program Design - Nocter</title>
+    <meta name="description" content="This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define language behavior. Target names and gates, package targets, ent">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/iter/mutable/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/target-program-design/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/iter/mutable.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/iter/mutable.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/iter/mutable/">
+    <meta property="og:title" content="Target, Executable, and MIR Program Design - Nocter">
+    <meta property="og:description" content="This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define language behavior. Target names and gates, package targets, ent">
+    <meta property="og:url" content="https://nocter.dev/development/docs/target-program-design/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-12">
+    <meta property="article:modified_time" content="2026-08-17">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/iter/mutable.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/iter/mutable.nct.">
+    <meta name="twitter:title" content="Target, Executable, and MIR Program Design - Nocter">
+    <meta name="twitter:description" content="This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define language behavior. Target names and gates, package targets, ent">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/iter/mutable.nct - Nocter","description":"Nocter source code for development/std/iter/mutable.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/iter/mutable/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Iter","item":"https://nocter.dev/development/std/iter/"},{"@type":"ListItem","position":5,"name":"Mutable","item":"https://nocter.dev/development/std/iter/mutable/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Target, Executable, and MIR Program Design - Nocter","description":"This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define language behavior. Target names and gates, package targets, ent","url":"https://nocter.dev/development/docs/target-program-design/","mainEntityOfPage":"https://nocter.dev/development/docs/target-program-design/","dateModified":"2026-08-17","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Target Program Design","item":"https://nocter.dev/development/docs/target-program-design/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,53 +120,31 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">v0.14.0 rewrite milestone</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">New compiler architecture</a></li>
-                <li><a href="../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../../../docs/target-program-design/index.html#content">Target and executable program design</a></li>
-                <li><a href="../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
-                <li><a href="../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
-                <li><a href="../../../docs/maintenance/index.html#content">Rewrite maintenance policy</a></li>
-                <li><a href="../../../compiler/index.html#content">New compiler boundary</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../architecture/index.html#content">Compiler Rewrite Architecture</a></li>
+                <li><a href="../checked-program-design/index.html#content">Checked Program Design</a></li>
+                <li><a href="./index.html#content" aria-current="page">Target and Executable Program Design</a></li>
+                <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
+                <li><a href="../grammar-audit/index.html#content">Grammar Closure Audit</a></li>
+                <li><a href="../grammar-conformance/index.html#content">Grammar Conformance Plan</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../../milestones/v0.14.0/index.html#content">v0.14.0 Rewrite Milestone</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/iter/mutable.nct</span>
+                <span class="markdown-path-text">/development/docs/target-program-design.md</span>
             </div>
             <div class="markdown-body">
-                <h1>mutable.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Allocation-free mutable iteration over contiguous views.</span>
-
-<span class="token-keyword">func</span> mutable_from_view<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>view<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        view<span class="token-operator">:</span> view<span class="token-operator">,</span>
-        next_index<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">conform</span> <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> self<span class="token-operator">.</span>view<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - self<span class="token-operator">.</span>next_index
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span>
-
-    <span class="token-comment">/// Advances and returns an exclusive element borrow, or `none` at exhaustion.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> self<span class="token-operator">.</span>next_index <span class="token-operator">&gt;</span><span class="token-operator">=</span> self<span class="token-operator">.</span>view<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">let</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>next_index
-        self<span class="token-operator">.</span>next_index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>view<span class="token-operator">[</span>index<span class="token-operator">]</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="target-executable-and-mir-program-design">Target, Executable, and MIR Program Design</h1><p>This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define language behavior. Target names and gates, package targets, entry contracts, CLI acceptance, generic requirements, ABI rules, and primitive contracts remain owned by the public specification.</p><h2 id="boundaries">Boundaries</h2><p>Phase 4 has three consuming program boundaries:</p><pre><code class="language-text">CheckedProgram + ToolchainSnapshot
+  -&gt; TargetProgram
+  -&gt; ExecutableProgram
+  -&gt; MirProgram
+</code></pre><p><code>TargetProgram</code> is the sole public success boundary shared by <code>check</code>, <code>build</code>, and <code>run</code>. It owns the complete <code>CheckedProgram</code>; a target identity cannot be paired with a graph checked for another target. It validates target availability, compiler-selected primitive completeness, package target identity, and every selected-target buildability condition. A library-only package may stop at this boundary. It does not receive a synthetic entry.</p><p><code>ExecutableProgram</code> consumes one <code>TargetProgram</code> and one exact executable or test selection. It validates the selected module's entry contract, then instantiates the entry-driven reachable graph. It owns the only monomorphized item table and freezes every concrete conformance dispatch. It cannot retain a callable requirement that MIR would have to resolve again.</p><p><code>MirProgram</code> consumes one <code>ExecutableProgram</code>. It owns concrete control-flow graphs, places, operations, calls, and cleanup edges. MIR validation checks representation integrity only; it does not reject a source-language capability accepted by <code>TargetProgram</code>.</p><h2 id="selected-target-authority">Selected Target Authority</h2><p><code>CompilationTarget</code> is a closed syntax-independent identity in <code>nocter-model</code>. Recognition is separate from implementation availability: all names listed by the specification can select frontend declarations, while target-program validation currently accepts only <code>arm64-darwin</code>. The compile-unit input requires an explicit target, and <code>DeclarationGraph</code> retains it through <code>CheckedProgram</code>.</p><p>Target-gate selection occurs once before semantic identities are allocated. One temporary selection inventory is shared by:</p><ul><li>discovery-edge validation, which ignores block imports contained in inactive items</li><li>symbol collection, which omits every token and decoded string owned by an inactive item</li><li>declaration-surface collection, which omits the declaration and its complete body</li></ul><p>This order permits disjoint target declarations to reuse a name and prevents inactive source from changing active symbol IDs or producing name, type, body, ownership, or import diagnostics. Later stages receive only the selected declaration graph; they do not inspect <code>#target</code> syntax or filter semantic arenas. An unknown gate name is an authored <code>E0233</code> failure. A recognized reserved name is valid source and becomes an availability error only when that target is selected.</p><h2 id="toolchain-snapshot">Toolchain Snapshot</h2><p>The target-program crate will receive one immutable toolchain snapshot selected before validation. It contains typed target identity, ABI identity, executable-writer identity, and the exact standard primitive registry. Paths, environment variables, package display names, and runtime symbol spellings are discovery metadata and cannot grant capability.</p><p>The snapshot and checked graph must name the same target and exact standard package. Target validation resolves each required primitive role to its already checked semantic declaration and stores the resulting identity table in <code>TargetProgram</code>. Missing, duplicate, wrong-signature, or wrong-authority primitives are target-program failures. MIR and code generation consume the table; they never search declarations by spelling.</p><h2 id="package-targets-and-entries">Package Targets and Entries</h2><p>Package discovery lowers each <code>#executable</code> and <code>#test</code> record to an exact package, module, target name, kind, and declaration order. Directive path interpretation ends at discovery. The existing typed <code>PackageTargetId</code> arena is populated during declaration lowering and becomes the only target selection index.</p><p>Target validation checks that every supplied target belongs to its package and selected module. Executable construction selects one <code>PackageTargetId</code>; no filename convention or imported <code>main</code> fallback exists. Entry lookup uses the selected module's authored namespace and requires its exact top-level <code>main</code> callable to satisfy the specified non-generic, parameter-free process-result contract. Test targets instead select direct <code>test</code> declarations in source order.</p><p>Single-file mode creates one explicit executable selection owned by discovery. It does not mutate the source into a package manifest and does not introduce a parallel entry algorithm.</p><h2 id="instantiation-authority">Instantiation Authority</h2><p>A monomorphized item key contains callable identity, optional concrete receiver type, and generic arguments keyed by <code>GenericParameterId</code>. The work queue is deterministic by that complete key. Insertion of the same key with different substitutions is an internal integrity failure.</p><p>Instantiation substitutes the checked signature and body, proves retained requirements through the checked program's conformance authority, resolves abstract dispatch once, and enqueues exact callees, drop bodies, construction members, closures, and compiler-generated semantic operations. Opaque witnesses become concrete at this boundary. Unreachable generic declarations are not instantiated and cannot create target code.</p><h2 id="mir-authority">MIR Authority</h2><p>Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact successors. Calls name monomorphized item IDs. Places retain concrete projection and storage identity. Cleanup schedules already frozen in checked HIR become explicit MIR edges in their recorded order; MIR does not infer cleanup timing from syntax or operation kind.</p><p>MIR validation requires closed successors, valid place projections, initialized-use discipline, resolved call targets, balanced region release, and complete terminal behavior. These are compiler integrity checks over an accepted program, not a second source diagnostic system.</p><h2 id="construction-order">Construction Order</h2><ol><li>1. Select and validate target gates before import and symbol processing.</li><li>Freeze the selected target into <code>DeclarationGraph</code> and preserve it through checking.</li><li>Lower discovery-owned package targets into typed semantic identities.</li><li>Introduce the target-program crate and immutable toolchain capability snapshot.</li><li>Validate selected-target availability, standard primitive roles, package targets, and complete
+   buildability into <code>TargetProgram</code>.</li><li>Select an executable/test entry and instantiate one deterministic reachable graph.</li><li>Lower concrete checked bodies and cleanup schedules into MIR.</li><li>Validate MIR without source or syntax access.</li></ol><h2 id="prohibited-designs">Prohibited Designs</h2><ul><li>filtering target-gated declarations after namespace or body checking</li><li>storing a target as an unchecked string after compilation setup</li><li>matching a toolchain, standard package, primitive, entry, or runtime item by display spelling</li><li>allowing checking input and declaration/checked graphs to carry different targets</li><li>reparsing package target paths after discovery</li><li>creating separate generic-instance or conformance indexes for MIR and code generation</li><li>returning public <code>check</code> success before selected-target buildability is complete</li></ul>
             </div>
         </main>
     </div>
@@ -182,6 +160,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

@@ -112,6 +112,7 @@ fn input_order_does_not_change_semantic_topology() {
     let resolutions = vec![source_use(&app_root, 0, "/app/support.nct")];
 
     let forward = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.clone(),
         modules.clone(),
@@ -119,6 +120,7 @@ fn input_order_does_not_change_semantic_topology() {
     ))
     .unwrap();
     let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.into_iter().rev().collect(),
         modules
@@ -135,6 +137,10 @@ fn input_order_does_not_change_semantic_topology() {
     .unwrap();
 
     assert_eq!(forward.program().symbols(), reverse.program().symbols());
+    assert_eq!(
+        forward.program().target(),
+        nocter_model::CompilationTarget::Arm64Darwin
+    );
     assert_eq!(forward.program().packages(), reverse.program().packages());
     assert_eq!(forward.program().modules(), reverse.program().modules());
     assert_eq!(forward.source_index(), reverse.source_index());
@@ -158,6 +164,7 @@ fn rejects_a_physical_source_claimed_by_manifest_and_module() {
     );
 
     let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
@@ -196,6 +203,7 @@ fn single_file_package_has_one_root_module_without_a_manifest() {
     );
 
     let lowered = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
@@ -226,6 +234,7 @@ fn package_mode_cannot_be_smuggled_through_another_source_layout() {
     );
 
     let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
@@ -267,6 +276,7 @@ fn every_authored_use_requires_one_discovery_owned_resolution() {
     ];
 
     let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         modules,
@@ -296,6 +306,7 @@ fn source_imports_must_be_private_bare_edges_within_one_module() {
     );
 
     let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
@@ -340,6 +351,7 @@ fn source_cycles_are_valid_but_every_implementation_must_be_root_reachable() {
     ];
 
     let error = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
@@ -408,6 +420,7 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     ];
 
     let forward = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.clone(),
         modules.clone(),
@@ -415,6 +428,7 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     ))
     .unwrap_err();
     let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.into_iter().rev().collect(),
         modules.into_iter().rev().collect(),

@@ -12,6 +12,7 @@ use nocter_source_index::{
 };
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
+use crate::target_selection::TargetSelection;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceKind, PackageIdentity, PackageInput,
     PackageMode, TopologyViolation, UseResolutionInput, UseTargetInput,
@@ -67,6 +68,7 @@ pub enum LoweringError {
     InvalidPackageModuleSet(PackageIdentity),
     InvalidSingleFilePackage(PackageIdentity),
     MissingUseResolution(NodeId),
+    UnknownTargetGate(NodeId),
     DuplicateUseResolution(NodeId),
     InvalidUseResolution(NodeId),
     UnknownUseTarget(NodeId),
@@ -148,6 +150,9 @@ impl fmt::Display for LoweringError {
                     "use declaration {declaration:?} has no resolved target"
                 )
             }
+            Self::UnknownTargetGate(literal) => {
+                write!(formatter, "unknown compilation target in {literal:?}")
+            }
             Self::DuplicateUseResolution(declaration) => write!(
                 formatter,
                 "use declaration {declaration:?} has more than one resolved target"
@@ -202,7 +207,7 @@ pub fn lower_compile_unit_topology(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, LoweringError> {
     let prepared = prepare_compile_unit(input)?;
-    let mut program = DeclarationProgramBuilder::new(prepared.symbols);
+    let mut program = DeclarationProgramBuilder::new(input.target(), prepared.symbols);
     let mut source_index = SourceIndexBuilder::new();
     let mut package_ids = BTreeMap::new();
 
@@ -255,6 +260,7 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) packages: Vec<&'input PackageInput<'syntax>>,
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
     pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
+    pub(crate) target_selection: TargetSelection,
 }
 
 pub(crate) fn prepare_compile_unit<'input, 'syntax>(
@@ -263,13 +269,15 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let packages = canonical_packages(input)?;
     let modules = canonical_modules(input, &packages)?;
     validate_sources(input, &packages, &modules)?;
-    let use_resolutions = validate_use_resolutions(input, &modules)?;
-    let symbols = collect_symbols(input, &packages, &modules)?;
+    let target_selection = TargetSelection::prepare(input, &modules)?;
+    let use_resolutions = validate_use_resolutions(input, &modules, &target_selection)?;
+    let symbols = collect_symbols(input, &packages, &modules, &target_selection)?;
     Ok(PreparedCompileUnit {
         symbols,
         packages,
         modules,
         use_resolutions,
+        target_selection,
     })
 }
 
@@ -421,6 +429,7 @@ fn validate_sources(
 fn validate_use_resolutions<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
     modules: &[&'input ModuleInput<'syntax>],
+    target_selection: &TargetSelection,
 ) -> Result<BTreeMap<UseResolutionKey, &'input UseResolutionInput>, LoweringError> {
     let mut authored = BTreeMap::new();
     let mut source_owners = BTreeMap::new();
@@ -435,7 +444,7 @@ fn validate_use_resolutions<'input, 'syntax>(
         for source in module.sources() {
             source_owners.insert(source.syntax().source(), (module.identity(), source));
             path_owners.insert(source.canonical_path(), (module.identity(), source));
-            collect_use_nodes(source.syntax(), &mut authored)?;
+            collect_use_nodes(source.syntax(), target_selection, &mut authored)?;
         }
     }
 
@@ -450,6 +459,9 @@ fn validate_use_resolutions<'input, 'syntax>(
     });
     for resolution in input_resolutions {
         let declaration = resolution.declaration();
+        if target_selection.use_is_inactive(declaration) {
+            continue;
+        }
         let key = use_key(declaration);
         if resolved.insert(key, resolution).is_some() {
             return Err(LoweringError::DuplicateUseResolution(declaration));
@@ -502,6 +514,7 @@ fn validate_use_resolutions<'input, 'syntax>(
 
 fn collect_use_nodes(
     tree: &nocter_syntax::SyntaxTree,
+    target_selection: &TargetSelection,
     declarations: &mut BTreeMap<UseResolutionKey, NodeId>,
 ) -> Result<(), LoweringError> {
     let mut pending = vec![tree.root_id()];
@@ -510,6 +523,9 @@ fn collect_use_nodes(
             .node(node)
             .ok_or(LoweringError::InconsistentSyntax(tree.source()))?
             .kind();
+        if kind == NodeKind::Item && !target_selection.item_is_active(node) {
+            continue;
+        }
         if matches!(
             kind,
             NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
@@ -689,18 +705,24 @@ fn collect_symbols(
     input: &CompileUnitInput<'_>,
     packages: &[&PackageInput<'_>],
     modules: &[&ModuleInput<'_>],
+    target_selection: &TargetSelection,
 ) -> Result<SymbolTable, LoweringError> {
     let mut spellings: Vec<Box<str>> = Vec::new();
     for package in packages {
         spellings.push(package.display_name().into());
         if let Some(declaration) = package.declaration() {
-            collect_tree_symbols(input, declaration.syntax(), &mut spellings)?;
+            collect_tree_symbols(input, declaration.syntax(), None, &mut spellings)?;
         }
     }
     for module in modules {
         spellings.extend(module.identity().path().iter().cloned());
         for source in module.sources() {
-            collect_tree_symbols(input, source.syntax(), &mut spellings)?;
+            collect_tree_symbols(
+                input,
+                source.syntax(),
+                Some(target_selection),
+                &mut spellings,
+            )?;
         }
     }
     Ok(SymbolTable::from_spellings(spellings))
@@ -709,32 +731,38 @@ fn collect_symbols(
 fn collect_tree_symbols(
     input: &CompileUnitInput<'_>,
     tree: &nocter_syntax::SyntaxTree,
+    target_selection: Option<&TargetSelection>,
     spellings: &mut Vec<Box<str>>,
 ) -> Result<(), LoweringError> {
     let source = require_source(input, tree.source())?;
-    for token in tree.lexed().tokens() {
-        if token.kind() == TokenKind::Identifier {
-            let spelling = source
-                .text_at(token.span().range())
-                .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
-            spellings.push(spelling.into());
-        }
-    }
-    let mut pending = vec![tree.root_id()];
-    while let Some(node) = pending.pop() {
-        if tree
-            .node(node)
-            .is_some_and(|syntax| syntax.kind() == NodeKind::StringLiteral)
-        {
-            let decoded = nocter_syntax::decode_string_literal(source, tree, node)
-                .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
-            spellings.push(decoded);
-            continue;
-        }
-        for child in tree.children(node).iter().rev() {
-            if let SyntaxElement::Node(child) = child {
-                pending.push(*child);
+    let mut pending = vec![SyntaxElement::Node(tree.root_id())];
+    while let Some(element) = pending.pop() {
+        match element {
+            SyntaxElement::Node(node) => {
+                let kind = tree
+                    .node(node)
+                    .ok_or(LoweringError::InconsistentSyntax(tree.source()))?
+                    .kind();
+                if kind == NodeKind::Item
+                    && target_selection.is_some_and(|selection| !selection.item_is_active(node))
+                {
+                    continue;
+                }
+                if kind == NodeKind::StringLiteral {
+                    let decoded = nocter_syntax::decode_string_literal(source, tree, node)
+                        .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
+                    spellings.push(decoded);
+                    continue;
+                }
+                pending.extend(tree.children(node).iter().rev().copied());
             }
+            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+                let spelling = source
+                    .text_at(token.range())
+                    .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
+                spellings.push(spelling.into());
+            }
+            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
         }
     }
     Ok(())

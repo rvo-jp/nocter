@@ -64,7 +64,13 @@ fn prepare<'syntax>(
     modules: Vec<ModuleInput<'syntax>>,
     uses: Vec<UseResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
-    let input = CompileUnitInput::new(sources, packages, modules, uses);
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        sources,
+        packages,
+        modules,
+        uses,
+    );
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();

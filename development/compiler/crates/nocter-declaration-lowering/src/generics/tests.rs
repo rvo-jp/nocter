@@ -42,7 +42,13 @@ fn prepare<'syntax>(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
         module_sources,
     );
-    let input = CompileUnitInput::new(sources, vec![package], vec![module], use_resolutions);
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        sources,
+        vec![package],
+        vec![module],
+        use_resolutions,
+    );
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();

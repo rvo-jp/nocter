@@ -110,7 +110,13 @@ impl Fixture {
             )]
         });
         (
-            CompileUnitInput::new(&self.sources, packages, modules, resolutions),
+            CompileUnitInput::new(
+                nocter_model::CompilationTarget::Arm64Darwin,
+                &self.sources,
+                packages,
+                modules,
+                resolutions,
+            ),
             prelude,
         )
     }

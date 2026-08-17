@@ -279,6 +279,7 @@ mod tests {
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -328,6 +329,7 @@ mod tests {
         let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
         let b_identity = ModuleIdentity::new(package_identity, ["b"]);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -372,6 +374,7 @@ mod tests {
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -420,6 +423,7 @@ mod tests {
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -460,6 +464,7 @@ mod tests {
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let child = parse_source(&sources, child_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -503,6 +508,7 @@ mod tests {
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -557,6 +563,7 @@ mod tests {
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package(
                 "workspace:app",
@@ -613,6 +620,7 @@ mod tests {
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
@@ -666,6 +674,7 @@ mod tests {
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
@@ -721,6 +730,7 @@ mod tests {
         let prelude_identity =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
@@ -779,6 +789,7 @@ mod tests {
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
@@ -831,6 +842,7 @@ mod tests {
         let prelude_identity =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
@@ -1480,7 +1492,13 @@ mod tests {
             packages.reverse();
             modules.reverse();
         }
-        CompileUnitInput::new(sources, packages, modules, Vec::new())
+        CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            sources,
+            packages,
+            modules,
+            Vec::new(),
+        )
     }
 
     fn module<'syntax>(

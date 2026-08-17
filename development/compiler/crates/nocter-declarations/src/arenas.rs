@@ -352,7 +352,8 @@ mod tests {
     fn reservations_must_be_completed_exactly_once() {
         let symbols = SymbolTable::from_spellings(["app"]);
         let app_name = symbols.get("app").unwrap();
-        let mut program = DeclarationProgramBuilder::new(symbols);
+        let mut program =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let package = program.add_package(app_name).unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
         program

@@ -68,6 +68,8 @@ Source-backed module-surface diagnostics:
   exclusively by the module root source.
 - `E0232`: a construction contract member in a module root source omits its required explicit
   non-private visibility.
+- `E0233`: a `#target` gate names a target not recognized by this compiler release. The primary
+  span is the gate's string literal.
 
 Source-backed namespace diagnostics:
 

@@ -160,6 +160,13 @@ re-exports, fields, or interface members. A following contract pass rejects cons
 coercion entries that do not supply a declared root contract. This inventory is consumed by
 declaration reservation and never becomes a second long-lived program model.
 
+The compile-unit input carries one closed `CompilationTarget`, and the frozen declaration graph
+retains that identity through checking. Before import-edge validation or symbol collection, one
+temporary target-selection inventory decodes every `#target` gate. Import validation, symbol
+collection, and surface collection consume that same inventory. An inactive item therefore
+contributes no block import, spelling, declaration, body, or semantic ID. Later semantic stages do
+not filter declarations or reinterpret target strings.
+
 Before allocating callable IDs, a contract-joining pass compares canonical header token sequences.
 It excludes visibility, bodies, newlines, and the `default` marker that construction
 implementations do not repeat, while retaining names, owner patterns, generic requirements,

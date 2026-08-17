@@ -67,7 +67,13 @@ pub(super) fn bind<'syntax>(
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<PreparedTypeBindings<'syntax>, TypeBindingError> {
-    let input = CompileUnitInput::new(sources, packages, modules, uses);
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        sources,
+        packages,
+        modules,
+        uses,
+    );
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();

@@ -55,6 +55,7 @@ fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![module(
@@ -99,6 +100,7 @@ fn duplicate_module_names_are_order_independent() {
     let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![module(
@@ -138,6 +140,7 @@ fn visibility_scopes_resolve_to_semantic_package_and_module_boundaries() {
     let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
     let child = parse_source(&sources, child_id, ParseGoal::ModuleSource);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![

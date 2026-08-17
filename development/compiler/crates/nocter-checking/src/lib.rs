@@ -24,6 +24,8 @@ mod standard_semantics;
 #[cfg(test)]
 mod standard_semantics_tests;
 mod syntax;
+#[cfg(test)]
+mod target_tests;
 mod type_relations;
 mod type_validity;
 

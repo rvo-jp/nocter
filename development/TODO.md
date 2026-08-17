@@ -10,12 +10,19 @@ implementation input.
 
 ## Immediate Work
 
-1. Audit the target, package, entry, buildability, and CLI specifications for every observable
-   choice required by one immutable `TargetProgram` boundary.
-2. Define the Phase 4 ownership map and syntax-independent target/executable schemas before adding
-   lowering code.
-3. Implement target validation as the sole shared acceptance boundary; executable reachability and
-   monomorphization must consume it rather than repeat package or body checks.
+1. Lower discovery-resolved `#executable` and `#test` records into the existing typed package-target
+   arena without reinterpreting module paths in declaration lowering.
+2. Introduce the target-program crate and immutable toolchain snapshot, then make it the sole
+   selected-target buildability boundary for `check`, `build`, and `run`.
+3. Derive exact entry selection and deterministic monomorphization from `TargetProgram`; MIR must
+   consume resolved concrete dispatch rather than repeat requirement or conformance selection.
+
+The Phase 4 responsibility map is recorded in
+`development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
+compile-unit input and retained by `DeclarationGraph` through `CheckedProgram`. One shared
+target-selection inventory excludes inactive items before block-import validation, symbol-table
+construction, and declaration reservation. Unknown target gate names project `E0233`; recognized
+reserved names remain distinct from implemented target availability.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

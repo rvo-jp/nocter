@@ -185,6 +185,9 @@ Rules:
 - It does not apply to `use`, `test`, `construct`, `instance`, or `conform` declarations.
 - The declaration participates in name resolution and compilation only when the selected target
   matches exactly.
+- A gate name outside the compiler release's recognized target set is an error. A recognized but
+  unimplemented target name remains valid in a gate and is rejected only when selected for a
+  target program.
 - A target-independent declaration has no `#target` directive.
 - Directive names are contextual identifiers after `#`; `target` is not a reserved keyword.
 - Target-specific constants, syscall numbers, calling conventions, and raw handles remain inside

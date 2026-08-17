@@ -192,7 +192,8 @@ mod tests {
         let first_name = symbols.get("first").unwrap();
         let second_name = symbols.get("second").unwrap();
         let name = symbols.get("value").unwrap();
-        let mut program = DeclarationProgramBuilder::new(symbols);
+        let mut program =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let package = program.add_package(app_name).unwrap();
         let first = program
             .add_module(package, ModulePath::from_segments([first_name]))
@@ -224,7 +225,8 @@ mod tests {
         let symbols = SymbolTable::from_spellings(["app", "value"]);
         let app_name = symbols.get("app").unwrap();
         let name = symbols.get("value").unwrap();
-        let mut program = DeclarationProgramBuilder::new(symbols);
+        let mut program =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let package = program.add_package(app_name).unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
         let target = ExportedEntity::Module(module);

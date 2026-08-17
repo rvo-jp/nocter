@@ -13,6 +13,7 @@ pub enum SurfaceRule {
     ImplementationVisibility,
     ImplementationMember,
     MissingConstructionVisibility,
+    UnknownTargetGate,
 }
 
 impl SurfaceRule {
@@ -22,6 +23,7 @@ impl SurfaceRule {
             Self::ImplementationVisibility => "E0230",
             Self::ImplementationMember => "E0231",
             Self::MissingConstructionVisibility => "E0232",
+            Self::UnknownTargetGate => "E0233",
         }
     }
 
@@ -37,6 +39,7 @@ impl SurfaceRule {
             Self::MissingConstructionVisibility => {
                 "a root-source construction member requires explicit visibility"
             }
+            Self::UnknownTargetGate => "target gate names an unrecognized compilation target",
         }
     }
 
@@ -49,6 +52,9 @@ impl SurfaceRule {
             Self::ImplementationMember => "move the declaration to the module's index.nct",
             Self::MissingConstructionVisibility => {
                 "add pub, pub(./), or another non-private visibility to the construction member"
+            }
+            Self::UnknownTargetGate => {
+                "use one of the target names recognized by this compiler release"
             }
         }
     }
@@ -116,6 +122,7 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         SurfaceError::MissingConstructionVisibility(node) => {
             Some((SurfaceRule::MissingConstructionVisibility, *node))
         }
+        SurfaceError::UnknownTargetGate(node) => Some((SurfaceRule::UnknownTargetGate, *node)),
         SurfaceError::Topology(_)
         | SurfaceError::SyntaxErrors(_)
         | SurfaceError::InvalidRootShape(_)
@@ -197,6 +204,40 @@ mod tests {
         assert_eq!(diagnostic.source().primary().source(), root_id);
     }
 
+    #[test]
+    fn unknown_target_names_have_a_source_backed_rule() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "#target: \"unknown-target\"\nfunc main(): void {}\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let input = compile_unit(
+            &sources,
+            &manifest,
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            Vec::new(),
+        );
+
+        let error = collect_declaration_surface(&input).unwrap_err();
+        let diagnostic = SurfaceDiagnostic::project(error, &input).unwrap();
+
+        assert_eq!(diagnostic.rule(), SurfaceRule::UnknownTargetGate);
+        assert_eq!(diagnostic.source().code(), "E0233");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            9
+        );
+    }
+
     fn implementation_diagnostic(
         text: &str,
         expected_rule: SurfaceRule,
@@ -251,6 +292,7 @@ mod tests {
         resolutions: Vec<crate::UseResolutionInput>,
     ) -> CompileUnitInput<'syntax> {
         CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             sources,
             vec![PackageInput::new(
                 PackageIdentity::new("workspace:app"),

@@ -120,7 +120,13 @@ fn try_lower<'syntax>(
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
-    let input = CompileUnitInput::new(sources, packages, modules, uses);
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        sources,
+        packages,
+        modules,
+        uses,
+    );
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -146,6 +152,7 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
     let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![
             package("workspace:app", "app", "/app/nocter.nct", &app_manifest),

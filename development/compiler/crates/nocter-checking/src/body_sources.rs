@@ -337,7 +337,13 @@ mod tests {
                 packages.reverse();
                 modules.reverse();
             }
-            let input = CompileUnitInput::new(&sources, packages, modules, Vec::new());
+            let input = CompileUnitInput::new(
+                nocter_model::CompilationTarget::Arm64Darwin,
+                &sources,
+                packages,
+                modules,
+                Vec::new(),
+            );
             let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
             let catalog =
                 catalog_body_sources(&input, lowered.program().graph(), lowered.source_index())
@@ -388,6 +394,7 @@ mod tests {
         let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
                 package("workspace:app", "app", "/app/nocter.nct", &app_manifest),

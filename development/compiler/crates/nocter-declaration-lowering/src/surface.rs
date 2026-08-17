@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_model::SymbolTable;
+use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
 
+use crate::target_selection::TargetSelection;
 use crate::topology::{PreparedCompileUnit, UseResolutionKey, prepare_compile_unit};
 use crate::{
     CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput, UseTargetInput,
@@ -183,6 +184,7 @@ impl SurfaceDeclaration {
 /// pass, but it cannot enter the syntax-independent declaration program.
 #[derive(Debug)]
 pub struct DeclarationSurface<'syntax> {
+    target: CompilationTarget,
     source_map: &'syntax SourceMap,
     symbols: SymbolTable,
     packages: Box<[PackageInput<'syntax>]>,
@@ -193,6 +195,11 @@ pub struct DeclarationSurface<'syntax> {
 }
 
 impl<'syntax> DeclarationSurface<'syntax> {
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
     #[must_use]
     pub const fn source_map(&self) -> &'syntax SourceMap {
         self.source_map
@@ -230,6 +237,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
 
     pub(crate) fn into_parts(self) -> SurfaceParts<'syntax> {
         SurfaceParts {
+            target: self.target,
             source_map: self.source_map,
             symbols: self.symbols,
             packages: self.packages,
@@ -242,6 +250,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
 }
 
 pub(crate) struct SurfaceParts<'syntax> {
+    pub(crate) target: CompilationTarget,
     pub(crate) source_map: &'syntax SourceMap,
     pub(crate) symbols: SymbolTable,
     pub(crate) packages: Box<[PackageInput<'syntax>]>,
@@ -261,6 +270,7 @@ pub enum SurfaceError {
     ImplementationMember(NodeId),
     MissingConstructionVisibility(NodeId),
     InconsistentUseResolution(NodeId),
+    UnknownTargetGate(NodeId),
 }
 
 impl fmt::Display for SurfaceError {
@@ -297,6 +307,9 @@ impl fmt::Display for SurfaceError {
                     "use declaration {node:?} lost its resolved target"
                 )
             }
+            Self::UnknownTargetGate(literal) => {
+                write!(formatter, "unknown compilation target in {literal:?}")
+            }
         }
     }
 }
@@ -318,12 +331,17 @@ impl From<LoweringError> for SurfaceError {
 pub fn collect_declaration_surface<'syntax>(
     input: &CompileUnitInput<'syntax>,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
+    let prepared = prepare_compile_unit(input).map_err(|error| match error {
+        LoweringError::UnknownTargetGate(literal) => SurfaceError::UnknownTargetGate(literal),
+        error => SurfaceError::Topology(error),
+    })?;
     let PreparedCompileUnit {
         symbols,
         packages,
         modules,
         use_resolutions,
-    } = prepare_compile_unit(input)?;
+        target_selection,
+    } = prepared;
     let mut sources = Vec::new();
     let mut imports = Vec::new();
     let mut declarations = Vec::new();
@@ -354,6 +372,7 @@ pub fn collect_declaration_surface<'syntax>(
             SurfaceSourceId(index),
             source,
             &use_resolutions,
+            &target_selection,
             &source_by_path,
             &mut imports,
             &mut declarations,
@@ -361,6 +380,7 @@ pub fn collect_declaration_surface<'syntax>(
     }
 
     Ok(DeclarationSurface {
+        target: input.target(),
         source_map: input.sources(),
         symbols,
         packages: packages
@@ -390,6 +410,7 @@ fn collect_source(
     source_id: SurfaceSourceId,
     source: &SurfaceSource<'_>,
     use_resolutions: &BTreeMap<UseResolutionKey, &crate::UseResolutionInput>,
+    target_selection: &TargetSelection,
     source_by_path: &BTreeMap<&str, SurfaceSourceId>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
@@ -427,7 +448,9 @@ fn collect_source(
                 });
             }
             Some(NodeKind::Item) => {
-                collect_item(source_id, source.kind(), tree, child, declarations)?;
+                if target_selection.item_is_active(child) {
+                    collect_item(source_id, source.kind(), tree, child, declarations)?;
+                }
             }
             Some(_) | None => return Err(SurfaceError::InvalidRootShape(tree.source())),
         }

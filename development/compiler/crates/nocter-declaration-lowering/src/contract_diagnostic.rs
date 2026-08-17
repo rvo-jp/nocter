@@ -247,6 +247,7 @@ mod tests {
             ],
         );
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![package],
             vec![module],
@@ -286,6 +287,7 @@ mod tests {
         let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
         let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![PackageInput::new(
                 PackageIdentity::new("workspace:app"),

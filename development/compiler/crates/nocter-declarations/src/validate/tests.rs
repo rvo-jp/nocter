@@ -17,7 +17,8 @@ fn two_pass_definitions_support_recursive_header_identity() {
     let box_name = symbols.get("Box").unwrap();
     let parameter_name = symbols.get("T").unwrap();
     let field_name = symbols.get("value").unwrap();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
@@ -78,7 +79,8 @@ fn orphaned_members_cannot_enter_the_immutable_program() {
     let app_name = symbols.get("app").unwrap();
     let box_name = symbols.get("Box").unwrap();
     let field_name = symbols.get("value").unwrap();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
@@ -123,7 +125,8 @@ fn empty_enums_cannot_enter_the_immutable_program() {
     let symbols = SymbolTable::from_spellings(["app", "Empty"]);
     let app_name = symbols.get("app").unwrap();
     let empty_name = symbols.get("Empty").unwrap();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
@@ -165,7 +168,8 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
     let buffer_name = symbols.get("Buffer").unwrap();
     let self_name = symbols.get("self").unwrap();
     let method_name = symbols.get("view").unwrap();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
@@ -251,7 +255,8 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
         let app_name = symbols.get("app").unwrap();
         let standard_name = symbols.get("std").unwrap();
         let str_name = symbols.get("str").unwrap();
-        let mut program = DeclarationProgramBuilder::new(symbols);
+        let mut program =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let app = program.add_package(app_name).unwrap();
         let standard = program.add_package(standard_name).unwrap();
         let app_str = program
@@ -302,7 +307,8 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
     let box_name = symbols.get("Box").unwrap();
     let t_name = symbols.get("T").unwrap();
     let u_name = symbols.get("U").unwrap();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
     let package = program.add_package(app_name).unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
@@ -383,7 +389,8 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         let value_name = symbols.get("Value").unwrap();
         let empty_name = symbols.get("empty").unwrap();
         let self_name = symbols.get("self").unwrap();
-        let mut program = DeclarationProgramBuilder::new(symbols);
+        let mut program =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let package = program.add_package(app_name).unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
         program

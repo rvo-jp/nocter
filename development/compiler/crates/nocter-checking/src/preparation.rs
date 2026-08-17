@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_declaration_lowering::CompileUnitInput;
 use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{Arena, BodyId, TypeStore};
+use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
@@ -125,6 +125,10 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 
 #[derive(Debug)]
 pub enum PreparationError {
+    TargetMismatch {
+        input: CompilationTarget,
+        program: CompilationTarget,
+    },
     TypeValidity(DeclarationTypeValidityError),
     Copyability(CopyabilityBuildError),
     DropTable(DropTableError),
@@ -141,7 +145,10 @@ impl PreparationError {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
-            Self::DropTable(_) | Self::ConstructionSurfaces(_) | Self::StandardSemantics(_) => None,
+            Self::TargetMismatch { .. }
+            | Self::DropTable(_)
+            | Self::ConstructionSurfaces(_)
+            | Self::StandardSemantics(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
@@ -152,6 +159,10 @@ impl PreparationError {
 impl fmt::Display for PreparationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::TargetMismatch { input, program } => write!(
+                formatter,
+                "checking input target {input} does not match declaration program target {program}"
+            ),
             Self::TypeValidity(error) => error.fmt(formatter),
             Self::Copyability(error) => error.fmt(formatter),
             Self::DropTable(error) => error.fmt(formatter),
@@ -230,6 +241,12 @@ pub fn prepare_program_checking<'syntax>(
     program: DeclarationProgram,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
+    if input.target() != program.target() {
+        return Err(PreparationError::TargetMismatch {
+            input: input.target(),
+            program: program.target(),
+        });
+    }
     let (graph, mut types) = program.into_parts();
     let body_sources = catalog_body_sources(input, &graph, &source_index)
         .map_err(NameResolutionInternalError::from)

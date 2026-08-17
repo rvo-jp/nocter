@@ -234,6 +234,7 @@ pub(crate) fn reserve_with_contracts(
     contracts: CallableContracts,
 ) -> Result<ReservedDeclarations<'_>, ReservationError> {
     let SurfaceParts {
+        target,
         source_map,
         symbols,
         packages,
@@ -242,7 +243,7 @@ pub(crate) fn reserve_with_contracts(
         imports,
         declarations,
     } = surface.into_parts();
-    let mut program = DeclarationProgramBuilder::new(symbols);
+    let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = SourceIndexBuilder::new();
     let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;

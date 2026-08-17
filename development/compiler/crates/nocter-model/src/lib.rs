@@ -8,6 +8,7 @@ mod arena;
 mod id;
 mod origin;
 mod symbol;
+mod target;
 mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
@@ -20,6 +21,7 @@ pub use id::{
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use symbol::{Symbol, SymbolTable};
+pub use target::CompilationTarget;
 pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
     TypeKind, TypeStore, UnknownTypeId,

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, DeclarationSiteId, ImportId, ModuleId, PackageId, PackageTargetId, Symbol,
-    SymbolTable, TypeStore,
+    Arena, ArenaBuilder, CompilationTarget, DeclarationSiteId, ImportId, ModuleId, PackageId,
+    PackageTargetId, Symbol, SymbolTable, TypeStore,
 };
 
 use crate::{
@@ -62,6 +62,7 @@ impl DeclarationSite {
 
 #[derive(Debug)]
 pub struct DeclarationGraph {
+    target: CompilationTarget,
     symbols: SymbolTable,
     packages: Arena<PackageId, Package>,
     standard_library: Option<StandardLibrary>,
@@ -81,6 +82,11 @@ pub struct DeclarationProgram {
 }
 
 impl DeclarationGraph {
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
     #[must_use]
     pub const fn symbols(&self) -> &SymbolTable {
         &self.symbols
@@ -192,6 +198,11 @@ impl DeclarationGraph {
 
 impl DeclarationProgram {
     #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.graph.target()
+    }
+
+    #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
         &self.graph
     }
@@ -290,6 +301,7 @@ impl DeclarationProgram {
 
 #[derive(Debug)]
 pub struct DeclarationProgramBuilder {
+    target: CompilationTarget,
     symbols: SymbolTable,
     packages: ArenaBuilder<PackageId, Package>,
     standard_library: Option<StandardLibrary>,
@@ -305,8 +317,9 @@ pub struct DeclarationProgramBuilder {
 
 impl DeclarationProgramBuilder {
     #[must_use]
-    pub fn new(symbols: SymbolTable) -> Self {
+    pub fn new(target: CompilationTarget, symbols: SymbolTable) -> Self {
         Self {
+            target,
             symbols,
             packages: ArenaBuilder::new(),
             standard_library: None,
@@ -526,6 +539,7 @@ impl DeclarationProgramBuilder {
             })?;
         let program = DeclarationProgram {
             graph: DeclarationGraph {
+                target: self.target,
                 symbols: self.symbols,
                 packages: self.packages.finish(),
                 standard_library: self.standard_library,
@@ -658,7 +672,8 @@ mod tests {
         let app_name = symbols.get("app").unwrap();
         let dependency_name = symbols.get("dependency").unwrap();
         let parser = symbols.get("parser").unwrap();
-        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let app = builder.add_package(app_name).unwrap();
         let dependency = builder.add_package(dependency_name).unwrap();
 
@@ -685,7 +700,8 @@ mod tests {
         let parser_name = symbols.get("parser").unwrap();
         let lexer_name = symbols.get("lexer").unwrap();
         let other_name = symbols.get("other").unwrap();
-        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let app = builder.add_package(app_name).unwrap();
         let other = builder.add_package(other_name).unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
@@ -723,7 +739,8 @@ mod tests {
     fn program_is_frozen_with_its_type_store() {
         let symbols = SymbolTable::from_spellings(["app"]);
         let app_name = symbols.get("app").unwrap();
-        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let app = builder.add_package(app_name).unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
         builder
@@ -746,7 +763,8 @@ mod tests {
     fn phase_three_extends_the_single_type_store_without_translating_ids() {
         let symbols = SymbolTable::from_spellings(["app"]);
         let app_name = symbols.get("app").unwrap();
-        let mut builder = DeclarationProgramBuilder::new(symbols);
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let i32_type = builder.types().builtin(BuiltinType::I32);
         let app = builder.add_package(app_name).unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
