@@ -1,5 +1,5 @@
 use nocter_checking::{CleanupTarget, ConcreteDestructionKind, StaticDispatch};
-use nocter_declarations::CallableOwner;
+use nocter_declarations::{CallableKind, CallableOwner, LiteralShape};
 use nocter_model::BuiltinType;
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
@@ -302,6 +302,53 @@ fn executable_signature_specializes_even_unused_parameters() {
     );
     assert_eq!(item.signature().inputs()[0].ty(), i32_);
     assert_eq!(item.signature().result(), i32_);
+}
+
+#[test]
+fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
+    let target = build_target_program(&Fixture::with_app(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self { return Self {} }\n\
+         }\n\
+         func main(): i32 {\n\
+             let values = Vec [1, 2]\n\
+             drop values\n\
+             0\n\
+         }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let (declaration, item) = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| {
+            let ExecutableItemKey::Callable(key) = item.key() else {
+                return None;
+            };
+            let declaration = executable
+                .target()
+                .checked()
+                .graph()
+                .declarations()
+                .callables()
+                .get(key.callable())?;
+            (declaration.kind() == CallableKind::Literal(LiteralShape::Sequence))
+                .then_some((declaration, item))
+        })
+        .unwrap();
+    let pack = item.signature().pack().unwrap();
+
+    assert!(item.signature().inputs().is_empty());
+    assert_eq!(pack.source(), declaration.parameters()[0]);
+    assert_eq!(pack.element(), executable.types().builtin(BuiltinType::I32));
 }
 
 #[test]

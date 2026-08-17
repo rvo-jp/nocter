@@ -1,5 +1,5 @@
 use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution};
-use nocter_declarations::{Parameter, ParameterRole};
+use nocter_declarations::{CallableKind, LiteralShape, Parameter, ParameterRole};
 use nocter_model::{
     BodyId, BorrowCapability, BuiltinType, CallableCapability, ClosureId, LocalBindingId,
     ParameterId, TypeId, TypeKind,
@@ -23,6 +23,29 @@ pub struct ExecutableInput {
     ty: TypeId,
 }
 
+/// One compiler-owned sequence-literal pack input.
+///
+/// This is deliberately separate from [`ExecutableInput`]: a pack is neither one element value
+/// nor an ordinary variadic ABI parameter. Its concrete call-site representation is selected by
+/// MIR lowering from the frozen sequence plan.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExecutablePackInput {
+    source: ParameterId,
+    element: TypeId,
+}
+
+impl ExecutablePackInput {
+    #[must_use]
+    pub const fn source(self) -> ParameterId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn element(self) -> TypeId {
+        self.element
+    }
+}
+
 impl ExecutableInput {
     #[must_use]
     pub const fn source(self) -> ExecutableInputSource {
@@ -39,6 +62,7 @@ impl ExecutableInput {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutableSignature {
     inputs: Box<[ExecutableInput]>,
+    pack: Option<ExecutablePackInput>,
     result: TypeId,
 }
 
@@ -46,6 +70,11 @@ impl ExecutableSignature {
     #[must_use]
     pub const fn inputs(&self) -> &[ExecutableInput] {
         &self.inputs
+    }
+
+    #[must_use]
+    pub const fn pack(&self) -> Option<ExecutablePackInput> {
+        self.pack
     }
 
     #[must_use]
@@ -85,25 +114,45 @@ pub(super) fn callable_signature(
         .ok_or_else(|| {
             ExecutableProgramError::UnknownItem(ExecutableItemKey::Callable(key.clone()))
         })?;
-    let inputs = callable
+    let mut inputs = Vec::new();
+    let mut pack = None;
+    for parameter in callable
         .receiver()
         .iter()
         .chain(callable.parameters())
         .copied()
-        .map(|parameter| {
-            let declaration = declarations
-                .parameters()
-                .get(parameter)
-                .copied()
-                .ok_or(ExecutableProgramError::MissingParameter(parameter))?;
-            Ok(ExecutableInput {
-                source: ExecutableInputSource::Parameter(parameter),
-                ty: runtime_parameter_type(resolver, declaration, substitution)?,
-            })
-        })
-        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    {
+        let declaration = declarations
+            .parameters()
+            .get(parameter)
+            .copied()
+            .ok_or(ExecutableProgramError::MissingParameter(parameter))?;
+        if matches!(
+            declaration.role(),
+            ParameterRole::Ordinary { variadic: true, .. }
+        ) {
+            if callable.kind() != CallableKind::Literal(LiteralShape::Sequence)
+                || pack
+                    .replace(ExecutablePackInput {
+                        source: parameter,
+                        element: resolver.specialize_type(declaration.ty(), substitution)?,
+                    })
+                    .is_some()
+            {
+                return Err(ExecutableProgramError::InvalidLiteralPackSignature(
+                    key.callable(),
+                ));
+            }
+            continue;
+        }
+        inputs.push(ExecutableInput {
+            source: ExecutableInputSource::Parameter(parameter),
+            ty: runtime_parameter_type(resolver, declaration, substitution)?,
+        });
+    }
     Ok(ExecutableSignature {
         inputs: inputs.into_boxed_slice(),
+        pack,
         result: resolver.specialize_type(callable.result(), substitution)?,
     })
 }
@@ -159,6 +208,7 @@ fn closure_signature(
     }
     Ok(ExecutableSignature {
         inputs: inputs.into_boxed_slice(),
+        pack: None,
         result: resolver.specialize_type(definition.signature().result(), substitution)?,
     })
 }
@@ -185,6 +235,7 @@ fn drop_signature(
             source: ExecutableInputSource::Parameter(declaration.receiver()),
             ty: runtime_parameter_type(resolver, *parameter, substitution)?,
         }]),
+        pack: None,
         result: resolver.types().builtin(BuiltinType::Void),
     })
 }
@@ -225,6 +276,7 @@ fn test_signature(
         .ok_or(ExecutableProgramError::MissingRoot(root))?;
     Ok(ExecutableSignature {
         inputs: Box::new([]),
+        pack: None,
         result: resolver.specialize_type(checked.ty(), substitution)?,
     })
 }

@@ -221,6 +221,13 @@ body's length and consuming-loop operations explicitly. Until that schema is com
 nodes and pack-body operations remain an honest MIR unsupported boundary rather than lowering to
 a misleading ordinary call.
 
+`ExecutableSignature` now separates its ordinary input list from one optional
+`ExecutablePackInput`. That pack input freezes the source `ParameterId` and specialized element
+type; it never receives an ordinary parameter position. Non-sequence callables cannot acquire this
+schema. MIR lowering currently rejects any function carrying the pack schema before constructing
+a partial function, so the remaining call-site pack state work cannot accidentally pass as an
+ordinary ABI implementation.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact

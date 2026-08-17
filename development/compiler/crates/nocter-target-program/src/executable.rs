@@ -23,7 +23,9 @@ mod signature;
 
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
-pub use signature::{ExecutableInput, ExecutableInputSource, ExecutableSignature};
+pub use signature::{
+    ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
+};
 
 /// One canonical monomorphized source-body identity.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -457,6 +459,7 @@ pub enum ExecutableProgramError {
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
+    InvalidLiteralPackSignature(nocter_model::CallableId),
     InvalidCallableInvocation(TypeId),
     DuplicateClosureLayout(TypeId),
     DuplicateItem(ExecutableItemKey),
@@ -490,6 +493,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)
+            | Self::InvalidLiteralPackSignature(_)
             | Self::InvalidCallableInvocation(_)
             | Self::DuplicateClosureLayout(_)
             | Self::DuplicateItem(_) => None,

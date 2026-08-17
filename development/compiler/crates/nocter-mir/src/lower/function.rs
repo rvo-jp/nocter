@@ -23,6 +23,9 @@ pub(super) fn lower_function(
     item_id: ExecutableItemId,
     item: &ExecutableItem,
 ) -> Result<MirFunction, MirLoweringError> {
+    if item.signature().pack().is_some() {
+        return Err(MirLoweringError::UnsupportedOperation(item.body().root()));
+    }
     let checked = executable
         .target()
         .checked()

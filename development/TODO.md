@@ -18,8 +18,10 @@ implementation input.
    static/typed strings to typed sequences, interpolation, and opaque witnesses. Checked HIR now
    models the sequence literal body's non-escaping element pack through dedicated length and
    consuming-loop operations and rejects ordinary pack value use with `E0409`; executable and MIR
-   construction must preserve that boundary with a dedicated pack schema rather than an ordinary
-   variadic ABI. Never repeat requirement, conformance, layout, or drop-pattern selection.
+   construction preserve that boundary with a dedicated `ExecutablePackInput` outside the
+   ordinary signature input list. Next freeze the call-site pack state and lower its length,
+   consuming iteration, transfer, and residual cleanup without an ordinary variadic ABI. Never
+   repeat requirement, conformance, layout, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
