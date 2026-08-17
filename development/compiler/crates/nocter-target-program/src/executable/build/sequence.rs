@@ -1,11 +1,15 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_checking::{SequenceElement, StaticSelection, TypeSubstitution};
+use nocter_checking::{
+    ConcreteDestructionPlan, DropSelection, SequenceElement, StaticSelection, TypeSubstitution,
+};
 use nocter_model::{BodyId, BodyNodeId, ExecutableItemId, TypeId};
 
 use super::{
-    DraftDispatchEdge, DraftDispatchPlan, DraftDispatchStep, ExecutableClosureBuilder, item_id,
+    DraftDispatchEdge, DraftDispatchPlan, DraftDispatchStep, ExecutableClosureBuilder,
+    collect_drops, item_id,
 };
+use crate::executable::ExecutableSequenceIteration;
 use crate::{
     CallableInstanceKey, ExecutableItemKey, ExecutablePackInput, ExecutableProgramError,
     ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
@@ -18,6 +22,14 @@ pub(super) struct DraftSequencePlan {
     result: TypeId,
     segments: Vec<ExecutableSequenceSegment>,
     allocation: nocter_checking::AllocationSelection,
+}
+
+struct SegmentSpecialization<'a> {
+    owner: BodyNodeId,
+    input: ExecutablePackInput,
+    substitution: &'a TypeSubstitution,
+    dispatches: &'a [DraftDispatchEdge],
+    node_types: &'a BTreeMap<BodyNodeId, TypeId>,
 }
 
 impl DraftSequencePlan {
@@ -43,6 +55,7 @@ impl ExecutableClosureBuilder<'_> {
         dependencies: &crate::CheckedBodyDependencies,
         substitution: &TypeSubstitution,
         dispatches: &[DraftDispatchEdge],
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
     ) -> Result<Vec<DraftSequencePlan>, ExecutableProgramError> {
         let (node_types, sequences) = {
             let checked = self
@@ -99,14 +112,14 @@ impl ExecutableClosureBuilder<'_> {
                 .elements()
                 .iter()
                 .map(|element| {
-                    self.specialize_sequence_segment(
-                        source,
-                        element,
+                    let context = SegmentSpecialization {
+                        owner: source,
                         input,
                         substitution,
                         dispatches,
-                        &node_types,
-                    )
+                        node_types: &node_types,
+                    };
+                    self.specialize_sequence_segment(element, &context, drops)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             plans.push(DraftSequencePlan {
@@ -123,26 +136,31 @@ impl ExecutableClosureBuilder<'_> {
 
     fn specialize_sequence_segment(
         &mut self,
-        owner: BodyNodeId,
         element: &SequenceElement,
-        input: ExecutablePackInput,
-        substitution: &TypeSubstitution,
-        dispatches: &[DraftDispatchEdge],
-        node_types: &BTreeMap<BodyNodeId, TypeId>,
+        context: &SegmentSpecialization<'_>,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
     ) -> Result<ExecutableSequenceSegment, ExecutableProgramError> {
         match element {
             SequenceElement::Value(source) => {
-                let ty = node_types
+                let source_type = context
+                    .node_types
                     .get(source)
                     .copied()
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(owner))?;
-                let ty = self.resolver.specialize_type(ty, substitution)?;
-                if ty != input.element() {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(owner));
+                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                let ty = self
+                    .resolver
+                    .specialize_type(source_type, context.substitution)?;
+                if ty != context.input.element() {
+                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
                 }
+                let destruction = self
+                    .resolver
+                    .resolve_destruction(source_type, context.substitution)?;
+                self.record_sequence_destruction(destruction.as_ref(), drops)?;
                 Ok(ExecutableSequenceSegment::Value {
                     source: *source,
                     ty,
+                    destruction,
                 })
             }
             SequenceElement::Spread {
@@ -150,39 +168,67 @@ impl ExecutableClosureBuilder<'_> {
                 iteration,
                 exact_size,
             } => {
-                if !is_invocation_dispatch(dispatches, iteration.next())
-                    || !is_invocation_dispatch(dispatches, exact_size)
+                if !is_invocation_dispatch(context.dispatches, iteration.next())
+                    || !is_invocation_dispatch(context.dispatches, exact_size)
                 {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(owner));
+                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
                 }
-                let iterator_type = node_types
+                let iterator_type = context
+                    .node_types
                     .get(&iteration.iterator())
                     .copied()
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(owner))?;
-                let iterator_type = self.resolver.specialize_type(iterator_type, substitution)?;
+                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                let destruction = self
+                    .resolver
+                    .resolve_destruction(iterator_type, context.substitution)?;
+                let iterator_type = self
+                    .resolver
+                    .specialize_type(iterator_type, context.substitution)?;
                 let item = self
                     .resolver
-                    .specialize_type(iteration.item(), substitution)?;
+                    .specialize_type(iteration.item(), context.substitution)?;
                 let contribution = mode
                     .contribution_type(self.target.checked().types(), iteration.item())
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(owner))?;
-                let contribution = self.resolver.specialize_type(contribution, substitution)?;
-                if contribution != input.element() {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(owner));
+                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                let contribution = self
+                    .resolver
+                    .specialize_type(contribution, context.substitution)?;
+                if contribution != context.input.element() {
+                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
                 }
+                self.record_sequence_destruction(destruction.as_ref(), drops)?;
                 Ok(ExecutableSequenceSegment::Spread(
                     ExecutableSequenceSpread::new(
                         *mode,
-                        iteration.iterator(),
-                        iterator_type,
-                        item,
+                        ExecutableSequenceIteration::new(
+                            iteration.iterator(),
+                            iterator_type,
+                            item,
+                            iteration.next().clone(),
+                            exact_size.clone(),
+                        ),
                         contribution,
-                        iteration.next().clone(),
-                        exact_size.clone(),
+                        destruction,
                     ),
                 ))
             }
         }
+    }
+
+    fn record_sequence_destruction(
+        &mut self,
+        plan: Option<&ConcreteDestructionPlan>,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<(), ExecutableProgramError> {
+        let Some(plan) = plan else {
+            return Ok(());
+        };
+        let mut selections = BTreeSet::new();
+        collect_drops(plan, &mut selections);
+        for selection in selections {
+            self.record_drop(selection, drops)?;
+        }
+        Ok(())
     }
 }
 

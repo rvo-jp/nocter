@@ -24,6 +24,7 @@ mod signature;
 
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
+pub(crate) use sequence_pack::ExecutableSequenceIteration;
 pub use sequence_pack::{
     ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
 };

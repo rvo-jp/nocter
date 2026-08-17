@@ -382,17 +382,20 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
          construct Vec<T> {\n\
              pub literal [](...items: T): Self { return Self {} }\n\
          }\n\
+         struct Item {}\n\
+         drop Item(&+self) { return }\n\
          struct Iter {}\n\
          conform Iterator for Iter {\n\
-             type Item = i32\n\
-             method &+self.next(): i32? { return none }\n\
+             type Item = Item\n\
+             method &+self.next(): Item? { return none }\n\
          }\n\
          conform ExactSizeIterator for Iter {\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
+         drop Iter(&+self) { return }\n\
          func main(): i32 {\n\
              let iterator = Iter {}\n\
-             let values = Vec [1, ...move iterator, 3]\n\
+             let values = Vec [Item {}, ...move iterator, Item {}]\n\
              drop values\n\
              0\n\
          }\n",
@@ -416,9 +419,17 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
         panic!("expected one sequence plan")
     };
     let [
-        ExecutableSequenceSegment::Value { ty: first, .. },
+        ExecutableSequenceSegment::Value {
+            ty: first,
+            destruction: first_destruction,
+            ..
+        },
         ExecutableSequenceSegment::Spread(spread),
-        ExecutableSequenceSegment::Value { ty: last, .. },
+        ExecutableSequenceSegment::Value {
+            ty: last,
+            destruction: last_destruction,
+            ..
+        },
     ] = plan.segments()
     else {
         panic!("expected fixed, spread, fixed segment order")
@@ -426,9 +437,13 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
 
     assert_eq!(*first, plan.input().element());
     assert_eq!(*last, plan.input().element());
+    assert!(first_destruction.is_some());
+    assert!(last_destruction.is_some());
     assert_eq!(spread.mode(), SpreadMode::Move);
     assert_eq!(spread.item(), plan.input().element());
     assert_eq!(spread.contribution(), plan.input().element());
+    assert!(spread.destruction().is_some());
+    assert_eq!(main.body().drops().len(), 2);
     assert!(matches!(
         main.body().dispatch(spread.next()),
         Some(ExecutableDispatchPlan::Invocation(_))

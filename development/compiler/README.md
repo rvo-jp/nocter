@@ -297,7 +297,9 @@ be introduced to make an unresolved syntax choice.
   types, cleanup-specific glue, and one call-site plan for every sequence literal. A sequence plan
   binds the dense literal item and specialized pack signature to its fixed/spread producer order,
   concrete iterator/item/contribution types, already selected iteration operations, and allocation
-  selection without creating ordinary variadic inputs. Closure items also retain one concrete ordered environment
+  selection without creating ordinary variadic inputs. Fixed values and spread iterators retain
+  concrete residual destruction plans that close every required user drop body before MIR. Closure
+  items also retain one concrete ordered environment
   layout, including binding identities and stored capture types. Composite comparison and index
   dispatch retain named coercion and operation lanes, so MIR
   never infers operand ownership from step order. Enum residual cleanup keeps its active variant

@@ -1,4 +1,4 @@
-use nocter_checking::{AllocationSelection, SpreadMode, StaticSelection};
+use nocter_checking::{AllocationSelection, ConcreteDestructionPlan, SpreadMode, StaticSelection};
 use nocter_model::{BodyNodeId, ExecutableItemId, TypeId};
 
 use super::ExecutablePackInput;
@@ -7,32 +7,50 @@ use super::ExecutablePackInput;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutableSequenceSpread {
     mode: SpreadMode,
+    iteration: ExecutableSequenceIteration,
+    contribution: TypeId,
+    destruction: Option<ConcreteDestructionPlan>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ExecutableSequenceIteration {
     iterator: BodyNodeId,
     iterator_type: TypeId,
     item: TypeId,
-    contribution: TypeId,
     next: StaticSelection,
     exact_size: StaticSelection,
+}
+
+impl ExecutableSequenceIteration {
+    pub(crate) const fn new(
+        iterator: BodyNodeId,
+        iterator_type: TypeId,
+        item: TypeId,
+        next: StaticSelection,
+        exact_size: StaticSelection,
+    ) -> Self {
+        Self {
+            iterator,
+            iterator_type,
+            item,
+            next,
+            exact_size,
+        }
+    }
 }
 
 impl ExecutableSequenceSpread {
     pub(crate) fn new(
         mode: SpreadMode,
-        iterator: BodyNodeId,
-        iterator_type: TypeId,
-        item: TypeId,
+        iteration: ExecutableSequenceIteration,
         contribution: TypeId,
-        next: StaticSelection,
-        exact_size: StaticSelection,
+        destruction: Option<ConcreteDestructionPlan>,
     ) -> Self {
         Self {
             mode,
-            iterator,
-            iterator_type,
-            item,
+            iteration,
             contribution,
-            next,
-            exact_size,
+            destruction,
         }
     }
 
@@ -43,17 +61,17 @@ impl ExecutableSequenceSpread {
 
     #[must_use]
     pub const fn iterator(&self) -> BodyNodeId {
-        self.iterator
+        self.iteration.iterator
     }
 
     #[must_use]
     pub const fn iterator_type(&self) -> TypeId {
-        self.iterator_type
+        self.iteration.iterator_type
     }
 
     #[must_use]
     pub const fn item(&self) -> TypeId {
-        self.item
+        self.iteration.item
     }
 
     #[must_use]
@@ -63,19 +81,28 @@ impl ExecutableSequenceSpread {
 
     #[must_use]
     pub const fn next(&self) -> &StaticSelection {
-        &self.next
+        &self.iteration.next
     }
 
     #[must_use]
     pub const fn exact_size(&self) -> &StaticSelection {
-        &self.exact_size
+        &self.iteration.exact_size
+    }
+
+    #[must_use]
+    pub const fn destruction(&self) -> Option<&ConcreteDestructionPlan> {
+        self.destruction.as_ref()
     }
 }
 
 /// One source-ordered producer in a concrete sequence-literal pack.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutableSequenceSegment {
-    Value { source: BodyNodeId, ty: TypeId },
+    Value {
+        source: BodyNodeId,
+        ty: TypeId,
+        destruction: Option<ConcreteDestructionPlan>,
+    },
     Spread(ExecutableSequenceSpread),
 }
 

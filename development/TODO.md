@@ -23,7 +23,9 @@ implementation input.
    construction preserve that boundary with a dedicated `ExecutablePackInput` outside the
    ordinary signature input list. Executable bodies now freeze each call site's constructor item,
    specialized pack/result types, fixed and spread producer order, spread iteration contracts, and
-   allocation selection in one `ExecutableSequencePlan`. Next lower that plan into dedicated MIR
+   allocation selection in one `ExecutableSequencePlan`. Each fixed value and spread iterator also
+   retains its concrete residual destruction plan and makes every required drop body reachable.
+   Next lower that plan into dedicated MIR
    pack state, cached length, consuming iteration, transfer, and residual cleanup without an
    ordinary variadic ABI. Never repeat requirement, conformance, layout, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without

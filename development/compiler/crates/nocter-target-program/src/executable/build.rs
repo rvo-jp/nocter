@@ -199,6 +199,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             &dependencies,
             &substitution,
             &dispatches,
+            &mut drops,
         )?;
         let closure = self.specialize_closure_layout(key, &substitution)?;
 

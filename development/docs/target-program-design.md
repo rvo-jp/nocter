@@ -235,11 +235,13 @@ type; it never receives an ordinary parameter position. Non-sequence callables c
 schema. Every reachable sequence expression now has one `ExecutableSequencePlan` that freezes its
 dense constructor item, exact pack input, specialized result, source-ordered fixed values and
 spread producers, concrete iterator/item/contribution types, retained `next` and exact-size
-selections, and allocation selection. Construction rejects a plan whose value or contribution type
-differs from the literal pack element, whose constructor has ordinary inputs, or whose iterator
-operations do not resolve to invocations. MIR lowering still rejects a function carrying the pack
-schema before constructing a partial function, so dedicated pack state cannot accidentally pass as
-an ordinary ABI implementation.
+selections, allocation selection, and the concrete destruction plan for every fixed value and
+spread iterator. Those plans enqueue their reachable user drop bodies during executable closure,
+so MIR never rematches a segment type to clean an unconsumed suffix. Construction rejects a plan
+whose value or contribution type differs from the literal pack element, whose constructor has
+ordinary inputs, or whose iterator operations do not resolve to invocations. MIR lowering still
+rejects a function carrying the pack schema before constructing a partial function, so dedicated
+pack state cannot accidentally pass as an ordinary ABI implementation.
 
 ## MIR Authority
 
