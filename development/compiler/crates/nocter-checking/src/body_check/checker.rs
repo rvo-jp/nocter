@@ -52,6 +52,7 @@ mod interpolation;
 mod iterations;
 mod loops;
 mod methods;
+mod opaque_witness;
 mod operators;
 mod outcomes;
 mod patterns;
@@ -62,6 +63,7 @@ mod type_uses;
 mod typed_literals;
 mod value_planning;
 use loops::LoopConstruction;
+use opaque_witness::OpaqueResultState;
 
 struct NodeProjection {
     entity: SemanticEntity,
@@ -136,6 +138,7 @@ pub fn check_prepared_program<'syntax>(
     let CheckedBodiesOutput {
         bodies: mut checked_bodies,
         projections,
+        opaque_witnesses,
     } = check_declared_bodies(
         input,
         facts,
@@ -147,6 +150,8 @@ pub fn check_prepared_program<'syntax>(
     )?;
 
     let closures = closures.finish()?;
+    let opaque_witnesses = crate::OpaqueWitnessTable::build(&graph, opaque_witnesses)
+        .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)?;
     for (body, checked) in &mut checked_bodies {
         let source = body_sources
             .get(*body)
@@ -203,6 +208,7 @@ pub fn check_prepared_program<'syntax>(
                 provenance,
                 loans,
                 closures,
+                opaque_witnesses,
             },
             bodies.finish(),
         ),
@@ -221,6 +227,7 @@ fn check_declared_bodies<'input, 'syntax>(
 ) -> Result<CheckedBodiesOutput, BodyCheckError> {
     let mut checked_bodies = Vec::new();
     let mut projections = Vec::new();
+    let mut opaque_witnesses = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
         let source = body_sources
             .get(body)
@@ -239,17 +246,22 @@ fn check_declared_bodies<'input, 'syntax>(
         let mut checked =
             BodyChecker::new(input, facts, types, copyabilities, closures, unit)?.check()?;
         projections.append(&mut checked.projections);
+        if let Some(witness) = checked.opaque_witness {
+            opaque_witnesses.push(witness);
+        }
         checked_bodies.push((body, checked));
     }
     Ok(CheckedBodiesOutput {
         bodies: checked_bodies,
         projections,
+        opaque_witnesses,
     })
 }
 
 struct CheckedBodiesOutput {
     bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
+    opaque_witnesses: Vec<(nocter_model::OpaqueTypeId, TypeId)>,
 }
 
 fn reserve_body_closures(
@@ -326,6 +338,7 @@ struct CheckedBodyOutput {
     body: CheckedBody,
     projections: Vec<NodeProjection>,
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
+    opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
 }
 
 struct BodyUnitInput<'input, 'syntax> {
@@ -362,6 +375,7 @@ struct BodyChecker<'input, 'syntax> {
     closure_result_inference: Option<closure_results::ClosureResultInference>,
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
     closure_type_arguments: Box<[TypeId]>,
+    opaque_result: Option<OpaqueResultState>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -429,6 +443,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .into_boxed_slice();
         let assumptions = body_assumptions(graph, types, conformances, instance_operations, source)
             .map_err(BodyCheckInternalError::BodyAssumptions)?;
+        let opaque_result = OpaqueResultState::for_body(graph, types, source, result_type)?;
         Ok(Self {
             input,
             graph,
@@ -457,6 +472,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             closure_result_inference: None,
             closure_ids,
             closure_type_arguments,
+            opaque_result,
         })
     }
 
@@ -465,11 +481,13 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if self.consumed_uses.len() != self.names.uses().len() {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
         }
+        let opaque_witness = self.finish_opaque_witness(self.source.block())?;
         let body = self.builder.finish(root)?;
         Ok(CheckedBodyOutput {
             body,
             projections: self.projections,
             node_origins: self.node_origins,
+            opaque_witness,
         })
     }
 

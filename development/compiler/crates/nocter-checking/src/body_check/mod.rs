@@ -47,6 +47,8 @@ mod method_tests;
 #[cfg(test)]
 mod move_tests;
 #[cfg(test)]
+mod opaque_tests;
+#[cfg(test)]
 mod operator_tests;
 #[cfg(test)]
 mod outcome_tests;

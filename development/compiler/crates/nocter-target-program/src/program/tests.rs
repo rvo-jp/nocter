@@ -527,9 +527,9 @@ fn body_dependencies_follow_only_executable_checked_edges() {
         .iter()
         .filter_map(|selection| match selection.dispatch() {
             StaticDispatch::Direct(callable) => Some(callable),
-            StaticDispatch::InterfaceMethod { .. } | StaticDispatch::StructuralRequirement(_) => {
-                None
-            }
+            StaticDispatch::InterfaceMethod { .. }
+            | StaticDispatch::OpaqueMethod { .. }
+            | StaticDispatch::StructuralRequirement(_) => None,
         })
         .collect::<Vec<_>>();
 
@@ -642,6 +642,51 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
         CallableOwner::Conformance(_)
     ));
     assert!(method_dispatch.generic_arguments().as_slice().is_empty());
+}
+
+#[test]
+fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
+    let target = build_target_program(&Fixture::with_app(
+        "pub interface Readable {\n\
+             pub method &self.read(): i32\n\
+         }\n\
+         struct Value {}\n\
+         conform Readable for Value {\n\
+             method &self.read(): i32 { 42 }\n\
+         }\n\
+         func hide<T>(value: T): some Readable where T: Readable { move value }\n\
+         func main(): i32 { hide(Value {}).read() }\n",
+    ));
+    let main = named_callable(&target, "main");
+    let dependencies = callable_dependencies(&target, main);
+    let selection = dependencies
+        .selections()
+        .iter()
+        .find(|selection| matches!(selection.dispatch(), StaticDispatch::OpaqueMethod { .. }))
+        .unwrap();
+    let mut resolver = ConcreteDispatchResolver::new(target.checked());
+    let plan = resolver
+        .resolve(
+            selection,
+            &nocter_checking::TypeSubstitution::default(),
+            callable_module(&target, main),
+        )
+        .unwrap();
+    let [ResolvedDispatchStep::Direct(method)] = plan.steps() else {
+        panic!("opaque dispatch must resolve to one conformance method")
+    };
+
+    assert!(matches!(
+        target
+            .checked()
+            .graph()
+            .declarations()
+            .callables()
+            .get(method.callable())
+            .unwrap()
+            .owner(),
+        CallableOwner::Conformance(_)
+    ));
 }
 
 #[test]

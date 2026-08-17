@@ -181,7 +181,12 @@ be introduced to make an unresolved syntax choice.
   The syntax-independent output schema has separate dense place, loop, and typed-node identities;
   selected calls, requirements, coercions, indexing, iteration, outcomes, aggregates, closures,
   literals, and control operations are explicit rather than rediscovered by later stages. A shared
-  structural unifier treats only an explicitly supplied set of generic identities as variables;
+  opaque-result authority selects one concrete witness pattern only from reachable success paths,
+  proves its advertised interface and associated bindings, and preserves outcome injection through
+  an explicit HIR conversion. Calls expose only advertised interface methods; `OpaqueMethod`
+  dispatch opens the witness table only after executable specialization supplies concrete generic
+  arguments. The structural unifier treats only an explicitly supplied set of generic identities
+  as variables;
   requester-owned generics remain opaque. Callable inference collects receiver, argument,
   contextual-result, and equality evidence independent of discovery order, projects statically
   known outcome layers, ranks exact result identity before recursive outcome injection, and rejects

@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, StructuralCapability};
 use nocter_model::{
     BorrowCapability, CallableContract, CallableId, GenericParameterId, ModuleId, RequirementId,
-    TypeId, TypeStore,
+    TypeId, TypeKind, TypeStore,
 };
 
 use crate::conformance::normalize_requirements;
@@ -83,6 +83,12 @@ pub struct ConcreteDispatchResolver<'program> {
     copyabilities: crate::CopyabilityTable,
 }
 
+struct SpecializedOpaqueWitness {
+    definition: nocter_model::OpaqueTypeId,
+    witness: TypeId,
+    application: nocter_declarations::InterfaceApplication,
+}
+
 impl<'program> ConcreteDispatchResolver<'program> {
     #[must_use]
     pub fn new(program: &'program CheckedProgram) -> Self {
@@ -124,6 +130,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 requirement,
                 method,
             } => self.resolve_interface_method(requirement, method, &arguments, enclosing, from),
+            StaticDispatch::OpaqueMethod { opaque, method } => {
+                self.resolve_opaque_method(opaque, method, &arguments, enclosing, from)
+            }
             StaticDispatch::StructuralRequirement(requirement) => {
                 self.resolve_structural(requirement, enclosing, from)
             }
@@ -213,7 +222,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 &[],
                 from,
             );
-            selector.select_conformance_method(subject, application.interface(), surface)?
+            selector.select_conformance_method_for_application(subject, &application, surface)?
         };
         let candidate = exactly_one(candidates, requirement)?;
         let target = candidate.callable();
@@ -260,6 +269,143 @@ impl<'program> ConcreteDispatchResolver<'program> {
             })]
             .into_boxed_slice(),
         ))
+    }
+
+    fn resolve_opaque_method(
+        &mut self,
+        opaque: TypeId,
+        surface: CallableId,
+        specialized_arguments: &GenericArguments,
+        enclosing: &TypeSubstitution,
+        from: ModuleId,
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
+        let specialized = self.specialize_opaque_witness(opaque, enclosing)?;
+        let definition = specialized.definition;
+        let candidates = {
+            let mut selector = InstanceOperationSelector::new(
+                self.program.graph(),
+                &mut self.types,
+                self.program.conformances(),
+                &mut self.copyabilities,
+                self.program.instance_operations(),
+                &[],
+                from,
+            );
+            selector.select_conformance_method_for_application(
+                specialized.witness,
+                &specialized.application,
+                surface,
+            )?
+        };
+        let [candidate] = candidates.as_slice() else {
+            return Err(if candidates.is_empty() {
+                ConcreteDispatchError::MissingOpaqueEvidence(definition)
+            } else {
+                ConcreteDispatchError::AmbiguousOpaqueEvidence(definition)
+            });
+        };
+        let target = candidate.callable();
+        let surface_declaration = self
+            .program
+            .graph()
+            .declarations()
+            .callables()
+            .get(surface)
+            .ok_or(ConcreteDispatchError::UnknownCallable(surface))?;
+        let target_declaration = self
+            .program
+            .graph()
+            .declarations()
+            .callables()
+            .get(target)
+            .ok_or(ConcreteDispatchError::UnknownCallable(target))?;
+        if surface_declaration.generic_parameters().len()
+            != target_declaration.generic_parameters().len()
+        {
+            return Err(ConcreteDispatchError::MethodGenericDomainMismatch { surface, target });
+        }
+        let mut target_arguments = candidate.generic_arguments().as_slice().to_vec();
+        for (source, target_parameter) in surface_declaration
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(target_declaration.generic_parameters().iter().copied())
+        {
+            let ty = specialized_arguments.get(source).ok_or(
+                ConcreteDispatchError::MissingMethodArgument {
+                    method: surface,
+                    parameter: source,
+                },
+            )?;
+            target_arguments.push(GenericArgument::new(target_parameter, ty));
+        }
+        let generic_arguments = GenericArguments::new(target_arguments)
+            .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
+        Ok(ResolvedDispatchPlan(
+            vec![ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+                callable: target,
+                generic_arguments,
+            })]
+            .into_boxed_slice(),
+        ))
+    }
+
+    fn specialize_opaque_witness(
+        &mut self,
+        opaque: TypeId,
+        enclosing: &TypeSubstitution,
+    ) -> Result<SpecializedOpaqueWitness, ConcreteDispatchError> {
+        let opaque = enclosing.apply_type(&mut self.types, opaque)?;
+        let Some(TypeKind::Opaque {
+            definition,
+            arguments,
+        }) = self.types.get(opaque).cloned()
+        else {
+            return Err(ConcreteDispatchError::InvalidOpaqueType(opaque));
+        };
+        let declaration = self
+            .program
+            .graph()
+            .declarations()
+            .opaque_types()
+            .get(definition)
+            .cloned()
+            .ok_or(ConcreteDispatchError::InvalidOpaqueType(opaque))?;
+        if declaration.generic_parameters().len() != arguments.len() {
+            return Err(ConcreteDispatchError::InvalidOpaqueType(opaque));
+        }
+        let mut substitution = TypeSubstitution::default();
+        for (parameter, argument) in declaration
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(arguments)
+        {
+            substitution.bind_generic(parameter, argument);
+        }
+        let witness = self
+            .program
+            .opaque_witnesses()
+            .get(definition)
+            .ok_or(ConcreteDispatchError::MissingOpaqueWitness(definition))?;
+        let witness = substitution.apply_type(&mut self.types, witness)?;
+        if !is_concrete_type(&self.types, witness)? {
+            return Err(ConcreteDispatchError::InvalidOpaqueType(opaque));
+        }
+        let application = nocter_declarations::InterfaceApplication::new(
+            declaration.interface().interface(),
+            declaration
+                .interface()
+                .arguments()
+                .iter()
+                .map(|argument| substitution.apply_type(&mut self.types, *argument))
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        Ok(SpecializedOpaqueWitness {
+            definition,
+            witness,
+            application,
+        })
     }
 
     fn resolve_structural(
@@ -533,6 +679,10 @@ pub enum ConcreteDispatchError {
         method: CallableId,
         parameter: GenericParameterId,
     },
+    InvalidOpaqueType(TypeId),
+    MissingOpaqueWitness(nocter_model::OpaqueTypeId),
+    MissingOpaqueEvidence(nocter_model::OpaqueTypeId),
+    AmbiguousOpaqueEvidence(nocter_model::OpaqueTypeId),
     InvalidIndexResult(RequirementId),
     InvalidCoercion(RequirementId),
     NonRuntimeRequirement(RequirementId),
@@ -567,6 +717,18 @@ impl fmt::Display for ConcreteDispatchError {
                 .write_str("interface and implementation method generic domains do not match"),
             Self::MissingMethodArgument { .. } => {
                 formatter.write_str("interface dispatch is missing a method generic argument")
+            }
+            Self::InvalidOpaqueType(_) => {
+                formatter.write_str("opaque dispatch does not name one concrete opaque type")
+            }
+            Self::MissingOpaqueWitness(_) => {
+                formatter.write_str("opaque dispatch has no checked witness")
+            }
+            Self::MissingOpaqueEvidence(_) => {
+                formatter.write_str("opaque witness has no applicable interface evidence")
+            }
+            Self::AmbiguousOpaqueEvidence(_) => {
+                formatter.write_str("opaque witness has ambiguous interface evidence")
             }
             Self::InvalidIndexResult(_) => {
                 formatter.write_str("structural index dispatch has an invalid result contract")

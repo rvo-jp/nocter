@@ -6,7 +6,7 @@ use super::build::{ConformanceBuildError, ConformanceInternalError};
 use super::diagnostic;
 use super::model::{CheckedConformance, ConformanceTable};
 use super::predicate::normalize_requirements;
-use super::proof::proves;
+use super::selection::proves;
 use crate::type_relations::TypeSubstitution;
 
 pub(super) fn validate_associated_bounds(

@@ -136,6 +136,7 @@ pub enum BodyCheckInternalError {
     CleanupPlanning,
     ProvenanceAnalysis,
     LoanAnalysis,
+    OpaqueWitnessPlanning,
 }
 
 impl fmt::Display for BodyCheckInternalError {

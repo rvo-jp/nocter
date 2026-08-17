@@ -10,6 +10,10 @@ pub enum StaticDispatch {
         requirement: RequirementId,
         method: CallableId,
     },
+    OpaqueMethod {
+        opaque: TypeId,
+        method: CallableId,
+    },
     StructuralRequirement(RequirementId),
 }
 

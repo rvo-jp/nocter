@@ -25,6 +25,24 @@ impl TypeSubstitution {
         self.associated.insert(declaration, target);
     }
 
+    pub(crate) fn extend(&mut self, other: &Self) {
+        if let Some((interface, target)) = other.interface_self {
+            self.set_interface_self(interface, target);
+        }
+        self.generics.extend(
+            other
+                .generics
+                .iter()
+                .map(|(parameter, ty)| (*parameter, *ty)),
+        );
+        self.associated.extend(
+            other
+                .associated
+                .iter()
+                .map(|(declaration, ty)| (*declaration, *ty)),
+        );
+    }
+
     /// Applies this semantic substitution and interns the normalized result in `types`.
     ///
     /// # Errors

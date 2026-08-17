@@ -258,6 +258,7 @@ impl OwnershipAnalyzer<'_> {
                 Ok(reaches && checked.ty() != self.types.builtin(BuiltinType::Never))
             }
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
+            CheckedOperation::OpaqueWitness(witness) => self.visit(witness.value(), state),
             CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),
             CheckedOperation::Closure(closure) => self.visit_value_sequence(
                 closure

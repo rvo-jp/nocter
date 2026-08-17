@@ -4,6 +4,7 @@ mod cleanup;
 mod closure;
 mod loan;
 mod node;
+mod opaque;
 mod place;
 mod program;
 mod provenance;
@@ -34,6 +35,7 @@ pub use node::{
     PatternSubjectPreparation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
     ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode, TypedIteration,
 };
+pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;
 pub use program::{CheckedProgram, CheckedProgramOutput};

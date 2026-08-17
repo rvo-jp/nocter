@@ -64,6 +64,11 @@ Closure types now pair their lexical `ClosureId` with the complete enclosing gen
 generic closure is no longer misclassified as globally concrete; specialization substitutes those
 arguments into one distinct environment type, and the shared copyability authority carries its
 capture condition across that specialization.
+Opaque callable results now select one reachable witness pattern during body checking. A single
+table proves the advertised interface and associated bindings, and checked conversions retain the
+hidden representation through outcome injection. Callers see only advertised methods through an
+`OpaqueMethod` edge; concrete dispatch opens the witness after specializing the opaque type's own
+generic argument vector.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

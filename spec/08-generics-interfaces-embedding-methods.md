@@ -349,6 +349,9 @@ Rules:
   unknown bindings are errors.
 - Every reachable value return and the callable body result must select the same concrete witness
   after alias and projection normalization.
+- At least one reachable success-producing return or callable body result must select that witness.
+  A failure-only, absence-only, or diverging implementation does not provide a layout witness and
+  is rejected.
 - The witness must explicitly conform to the advertised interface, and every named associated
   binding must equal the conformance's selected type.
 - The initial form is accepted only as the success payload of a body-bearing function, associated

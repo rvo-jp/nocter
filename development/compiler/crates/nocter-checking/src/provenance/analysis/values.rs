@@ -53,7 +53,7 @@ impl Analyzer<'_, '_> {
                     }
                     source
                 }
-                StaticDispatch::InterfaceMethod { .. } => {
+                StaticDispatch::InterfaceMethod { .. } | StaticDispatch::OpaqueMethod { .. } => {
                     return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                 }
             },
@@ -89,6 +89,9 @@ impl Analyzer<'_, '_> {
         let callable = match iteration.next().dispatch() {
             StaticDispatch::Direct(callable)
             | StaticDispatch::InterfaceMethod {
+                method: callable, ..
+            }
+            | StaticDispatch::OpaqueMethod {
                 method: callable, ..
             } => callable,
             StaticDispatch::StructuralRequirement(_) => {
@@ -306,15 +309,8 @@ impl Analyzer<'_, '_> {
     ) -> Result<ValueProvenance, BodyCheckError> {
         Ok(match call.target() {
             CallTarget::Static(selection) => {
-                let callable = match selection.dispatch() {
-                    StaticDispatch::Direct(callable)
-                    | StaticDispatch::InterfaceMethod {
-                        method: callable, ..
-                    } => callable,
-                    StaticDispatch::StructuralRequirement(_) => {
-                        return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
-                    }
-                };
+                let callable = static_callable(selection.dispatch())
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
                 self.map_callable_summary(
                     callable,
                     evaluated.receiver.as_ref(),
@@ -541,5 +537,18 @@ impl Analyzer<'_, '_> {
                 Ok(value)
             }
         }
+    }
+}
+
+fn static_callable(dispatch: StaticDispatch) -> Option<nocter_model::CallableId> {
+    match dispatch {
+        StaticDispatch::Direct(callable)
+        | StaticDispatch::InterfaceMethod {
+            method: callable, ..
+        }
+        | StaticDispatch::OpaqueMethod {
+            method: callable, ..
+        } => Some(callable),
+        StaticDispatch::StructuralRequirement(_) => None,
     }
 }

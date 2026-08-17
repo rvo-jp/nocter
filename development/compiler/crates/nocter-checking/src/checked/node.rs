@@ -50,6 +50,7 @@ pub enum CheckedOperation {
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),
     Outcome(CheckedOutcome),
+    OpaqueWitness(super::CheckedOpaqueWitness),
     Closure(CheckedClosure),
     IteratorAcquisition(CheckedIteratorAcquisition),
     Sequence(CheckedSequence),

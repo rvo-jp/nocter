@@ -246,6 +246,9 @@ impl Analyzer<'_, '_> {
                     StaticDispatch::Direct(callable)
                     | StaticDispatch::InterfaceMethod {
                         method: callable, ..
+                    }
+                    | StaticDispatch::OpaqueMethod {
+                        method: callable, ..
                     } => callable,
                     StaticDispatch::StructuralRequirement(_) => {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());

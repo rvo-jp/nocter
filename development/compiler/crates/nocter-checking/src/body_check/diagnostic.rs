@@ -40,6 +40,7 @@ pub enum BodyRule {
     InvalidCollectionIterator,
     InvalidBodyTypeUse,
     InvalidDiscardBinding,
+    InvalidOpaqueWitness,
 }
 
 impl BodyRule {
@@ -81,6 +82,7 @@ impl BodyRule {
         Self::InvalidCollectionIterator,
         Self::InvalidBodyTypeUse,
         Self::InvalidDiscardBinding,
+        Self::InvalidOpaqueWitness,
     ];
 
     #[must_use]
@@ -123,6 +125,7 @@ impl BodyRule {
             Self::InvalidCollectionIterator => "E0405",
             Self::InvalidBodyTypeUse => "E0406",
             Self::InvalidDiscardBinding => "E0407",
+            Self::InvalidOpaqueWitness => "E0408",
         }
     }
 
@@ -158,6 +161,10 @@ impl BodyRule {
             | Self::InvalidCollectionAcquisition
             | Self::InvalidCollectionIterator => self.iteration_message(),
             Self::InvalidBodyTypeUse | Self::InvalidDiscardBinding => self.binding_message(),
+            Self::InvalidOpaqueWitness => (
+                "opaque result does not select one valid concrete witness",
+                "return one consistent type that conforms to the advertised interface and associated bindings",
+            ),
             _ => self.operation_message(),
         }
     }

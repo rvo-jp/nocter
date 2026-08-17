@@ -478,7 +478,7 @@ impl BodyChecker<'_, '_> {
             StaticDispatch::StructuralRequirement(requirement) => {
                 SemanticEntity::Requirement(requirement)
             }
-            StaticDispatch::InterfaceMethod { .. } => {
+            StaticDispatch::InterfaceMethod { .. } | StaticDispatch::OpaqueMethod { .. } => {
                 return Err(BodyCheckInternalError::CallContractSelection);
             }
         };

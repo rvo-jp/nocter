@@ -274,6 +274,9 @@ Source-backed checked-body diagnostics:
   arguments and satisfied requirements.
 - `E0407`: a discard binding uses `var` or carries a type annotation instead of the exact
   `let _ = expression` form.
+- `E0408`: an opaque callable result has no reachable concrete witness, selects different witness
+  types on reachable success paths, selects a type that does not conform to the advertised
+  interface, or disagrees with an advertised associated-type binding.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and
@@ -652,14 +655,15 @@ Required diagnostic families:
 - `return` value type mismatch when both expected and actual types are known.
 - Opaque result in an unsupported type position or bodyless contract.
 - Opaque result whose return paths select different witnesses, whose witness does not conform to
-  the advertised interface, or whose associated binding disagrees with the conformance.
+  the advertised interface, or whose associated binding disagrees with the conformance (`E0408`).
 - Assignment between distinct declaration-scoped opaque result identities, even when their
   rendered interface contracts are identical.
 - Non-`void` function reaching the end without an explicit return.
 - A re-export whose visibility boundary is wider than the imported declaration's boundary.
 - Reserved target requested before implementation.
 
-These families do not require final numeric code assignment in the language design phase. The implementation should assign codes when the diagnostics are implemented.
+Families above without an assigned code do not require final numeric code assignment in the
+language design phase. The implementation assigns a code when it implements that diagnostic.
 
 ## Examples
 

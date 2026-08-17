@@ -7,7 +7,7 @@ use crate::{
     InstanceOperationTable, LoanTable, ProvenanceTable, StandardSemanticTable,
 };
 
-use super::CheckedBody;
+use super::{CheckedBody, OpaqueWitnessTable};
 
 /// Complete syntax-independent Phase 3 program.
 #[derive(Debug)]
@@ -23,6 +23,7 @@ pub struct CheckedProgram {
     provenance: ProvenanceTable,
     loans: LoanTable,
     closures: ClosureTable,
+    opaque_witnesses: OpaqueWitnessTable,
     bodies: Arena<BodyId, CheckedBody>,
 }
 
@@ -36,6 +37,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) provenance: ProvenanceTable,
     pub(crate) loans: LoanTable,
     pub(crate) closures: ClosureTable,
+    pub(crate) opaque_witnesses: OpaqueWitnessTable,
 }
 
 impl CheckedProgram {
@@ -57,6 +59,7 @@ impl CheckedProgram {
             provenance: authorities.provenance,
             loans: authorities.loans,
             closures: authorities.closures,
+            opaque_witnesses: authorities.opaque_witnesses,
             bodies,
         }
     }
@@ -114,6 +117,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn closures(&self) -> &ClosureTable {
         &self.closures
+    }
+
+    #[must_use]
+    pub const fn opaque_witnesses(&self) -> &OpaqueWitnessTable {
+        &self.opaque_witnesses
     }
 
     #[must_use]

@@ -188,6 +188,21 @@ impl<'program> DependencyCollector<'program> {
                     self.record_selection(selection);
                 }
             }
+            CheckedOperation::OpaqueWitness(witness) => {
+                self.visit_node(witness.value())?;
+                self.record_type(witness.witness())?;
+                if self
+                    .program
+                    .checked()
+                    .opaque_witnesses()
+                    .get(witness.definition())
+                    != Some(witness.witness())
+                {
+                    return Err(BodyDependencyError::InvalidOpaqueWitness(
+                        witness.definition(),
+                    ));
+                }
+            }
             CheckedOperation::Comparison(comparison) => {
                 self.visit_readonly_operand(comparison.left())?;
                 self.visit_readonly_operand(comparison.right())?;
@@ -584,6 +599,7 @@ pub enum BodyDependencyError {
     },
     UnknownDrop(DropId),
     InvalidDropArguments(DropId),
+    InvalidOpaqueWitness(nocter_model::OpaqueTypeId),
     UnknownType(TypeId),
 }
 

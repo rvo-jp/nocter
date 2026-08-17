@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-16">
+    <meta property="article:modified_time" content="2026-08-17">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Generics, Interfaces, and Methods - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Generics, Interfaces, and Methods - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/","mainEntityOfPage":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"08 Generics Interfaces Embedding Methods","item":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Generics, Interfaces, and Methods - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/","mainEntityOfPage":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/","dateModified":"2026-08-17","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"08 Generics Interfaces Embedding Methods","item":"https://nocter.dev/spec/08-generics-interfaces-embedding-methods/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -244,7 +244,9 @@
 </code></pre><p>Rules:</p><ul><li><code>some</code> is contextual at the start of a callable result. It commits that result to the opaque
   form and remains an ordinary value identifier in value position.</li><li>The advertised type must be one accessible nominal interface.</li><li>Every named binding must name one associated type declared by that interface. Duplicate and
   unknown bindings are errors.</li><li>Every reachable value return and the callable body result must select the same concrete witness
-  after alias and projection normalization.</li><li>The witness must explicitly conform to the advertised interface, and every named associated
+  after alias and projection normalization.</li><li>At least one reachable success-producing return or callable body result must select that witness.
+  A failure-only, absence-only, or diverging implementation does not provide a layout witness and
+  is rejected.</li><li>The witness must explicitly conform to the advertised interface, and every named associated
   binding must equal the conformance's selected type.</li><li>The initial form is accepted only as the success payload of a body-bearing function, associated
   function, inherent method, or body-bearing interface default method.</li><li>Parameters, fields, aliases, callable value types, primitives, construction literals, bodyless
   interface requirements, conformance method contracts, coercions, and drop declarations

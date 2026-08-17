@@ -42,7 +42,13 @@ impl BodyChecker<'_, '_> {
         match plan_expected_type(self.types, expected, ExpectedEvidence::Typed(actual)) {
             Ok(plan) => self.materialize_plan(node, plan, Some(value)),
             Err(ExpectedTypeError::Mismatch { .. }) => {
-                self.apply_borrow_conversion(node, value, actual, expected)
+                if let Some(converted) =
+                    self.try_apply_opaque_witness(node, value, actual, expected)?
+                {
+                    Ok(converted)
+                } else {
+                    self.apply_borrow_conversion(node, value, actual, expected)
+                }
             }
             Err(error) => Err(self.expected_error(node, error)),
         }

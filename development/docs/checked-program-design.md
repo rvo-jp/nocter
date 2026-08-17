@@ -40,9 +40,10 @@ authored/internal failure. No public partial checked program exists.
 | Instance target normalization, retained requirements, operation members, and overlap | program-wide instance-operation table | body operation selection and instantiation |
 | Data-position type well-formedness after normalization | Phase 3 type-validity checker | every checked destination and generic constraint |
 | Expected types, inference constraints, outcome injection, direct/abstract calls, members, operators, coercions, construction, literals, iteration, and interpolation | typed body node construction | instantiation and MIR |
+| Opaque witness selection, interface and associated-binding proof, and public-surface dispatch | checked opaque-witness authority | instantiation and MIR |
 | Reachability, initialization, moves, copies, loans, provenance, regions, destruction, and generated semantic operations | checked control-flow and ownership analysis | target validation and MIR |
 | Target gates, selected primitive availability, entry validity, and toolchain capability | `TargetProgram` | executable instantiation |
-| Concrete generic substitution, requirement proof, conformance dispatch, opaque witness, and reachable callable graph | executable-program instantiation | MIR |
+| Concrete generic substitution, requirement proof, conformance dispatch, opaque-witness specialization, and reachable callable graph | executable-program instantiation | MIR |
 | Basic blocks, explicit cleanup edges, concrete places, and operation sequencing | MIR | machine lowering |
 
 The checker may record an abstract interface or structural requirement selected for a generic

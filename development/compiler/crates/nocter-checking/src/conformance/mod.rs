@@ -3,7 +3,7 @@ mod diagnostic;
 mod model;
 mod overlap;
 mod predicate;
-mod proof;
+mod selection;
 mod validate;
 
 #[cfg(test)]
@@ -16,4 +16,4 @@ pub use model::{CheckedConformance, ConformanceMethod, ConformanceTable, MethodS
 pub(crate) use predicate::normalize_requirements;
 pub(crate) use predicate::substitute_predicate;
 pub use predicate::{CheckedPredicate, CheckedRequirement};
-pub(crate) use proof::proves as proves_predicate;
+pub(crate) use selection::{proves as proves_predicate, select_conformance};

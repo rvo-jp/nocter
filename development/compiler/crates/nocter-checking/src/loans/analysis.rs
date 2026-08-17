@@ -351,6 +351,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.evaluate(conversion.value(), state, extra_active)?
             }
+            CheckedOperation::OpaqueWitness(witness) => {
+                self.evaluate(witness.value(), state, extra_active)?
+            }
             CheckedOperation::Primitive(operation) => {
                 self.evaluate_primitive(&operation, state, extra_active)?
             }
@@ -450,7 +453,8 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                     }
                     source
                 }
-                crate::StaticDispatch::InterfaceMethod { .. } => {
+                crate::StaticDispatch::InterfaceMethod { .. }
+                | crate::StaticDispatch::OpaqueMethod { .. } => {
                     return Err(BodyCheckInternalError::LoanAnalysis.into());
                 }
             },

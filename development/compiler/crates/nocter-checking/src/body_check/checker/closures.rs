@@ -436,6 +436,7 @@ impl BodyChecker<'_, '_> {
         let saved_loops = mem::take(&mut self.loops);
         let saved_reachable = self.flow_reachable;
         let saved_inference = self.closure_result_inference.take();
+        let saved_opaque_result = self.opaque_result.take();
         self.result_type =
             fixed_result.unwrap_or_else(|| self.types.builtin(nocter_model::BuiltinType::Void));
         self.flow_reachable = true;
@@ -452,6 +453,7 @@ impl BodyChecker<'_, '_> {
         };
         let closure_loops = mem::replace(&mut self.loops, saved_loops);
         self.closure_result_inference = saved_inference;
+        self.opaque_result = saved_opaque_result;
         self.result_type = saved_result;
         self.flow_reachable = saved_reachable;
         if !closure_loops.is_empty() {
