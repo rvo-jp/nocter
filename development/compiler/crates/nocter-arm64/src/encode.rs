@@ -14,7 +14,8 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::VariableShift { .. }) => encode_arithmetic(instruction),
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
-        instruction @ (Arm64Instruction::ConditionalSet { .. }
+        instruction @ (Arm64Instruction::NoOperation
+        | Arm64Instruction::ConditionalSet { .. }
         | Arm64Instruction::Branch { .. }
         | Arm64Instruction::BranchConditional { .. }
         | Arm64Instruction::BranchRegister { .. }
@@ -147,6 +148,7 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
 
 fn encode_control(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
     match instruction {
+        Arm64Instruction::NoOperation => Ok(0xd503_201f),
         Arm64Instruction::ConditionalSet {
             size,
             destination,
@@ -404,46 +406,6 @@ fn signed_scaled(displacement: i64, bits: u8) -> Result<u32, Arm64EncodingError>
         words
     };
     u32::try_from(encoded).map_err(|_| Arm64EncodingError::BranchOutOfRange)
-}
-
-impl Arm64BranchCondition {
-    const fn encoding(self) -> u8 {
-        match self {
-            Self::Equal => 0,
-            Self::NotEqual => 1,
-            Self::CarrySet => 2,
-            Self::CarryClear => 3,
-            Self::Minus => 4,
-            Self::Plus => 5,
-            Self::Overflow => 6,
-            Self::NoOverflow => 7,
-            Self::UnsignedHigher => 8,
-            Self::UnsignedLowerOrSame => 9,
-            Self::SignedGreaterOrEqual => 10,
-            Self::SignedLess => 11,
-            Self::SignedGreater => 12,
-            Self::SignedLessOrEqual => 13,
-        }
-    }
-
-    const fn invert(self) -> Self {
-        match self {
-            Self::Equal => Self::NotEqual,
-            Self::NotEqual => Self::Equal,
-            Self::CarrySet => Self::CarryClear,
-            Self::CarryClear => Self::CarrySet,
-            Self::Minus => Self::Plus,
-            Self::Plus => Self::Minus,
-            Self::Overflow => Self::NoOverflow,
-            Self::NoOverflow => Self::Overflow,
-            Self::UnsignedHigher => Self::UnsignedLowerOrSame,
-            Self::UnsignedLowerOrSame => Self::UnsignedHigher,
-            Self::SignedGreaterOrEqual => Self::SignedLess,
-            Self::SignedLess => Self::SignedGreaterOrEqual,
-            Self::SignedGreater => Self::SignedLessOrEqual,
-            Self::SignedLessOrEqual => Self::SignedGreater,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

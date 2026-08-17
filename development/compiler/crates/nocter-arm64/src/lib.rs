@@ -3,10 +3,12 @@
 //! This crate consumes only [`nocter_machine::MachineProgram`]. Source, semantic, executable, and
 //! MIR representations are deliberately absent from its dependency graph.
 
+mod code;
 mod encode;
 mod instruction;
 mod register;
 
+pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;
 pub use instruction::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,

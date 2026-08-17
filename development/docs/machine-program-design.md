@@ -173,6 +173,12 @@ It rejects out-of-range immediates, invalid wide-move shifts, misaligned branche
 would otherwise be silently truncated. Encoding tests are cross-checked against the platform ARM64
 assembler rather than treating hand-written hexadecimal values as their own authority.
 
+Local control flow uses dense `Arm64LabelId` values until final function layout. One builder binds
+each label once, rejects unresolved identities, computes byte offsets with checked arithmetic, and
+encodes only after placement stabilizes. A conditional branch outside its signed 19-bit word range
+is expanded to an inverted short condition over one signed 26-bit unconditional branch. Relaxation
+is monotonic and recomputes every affected label; it never patches a truncated displacement.
+
 The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
 linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
 byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
@@ -212,6 +218,7 @@ process error reporting. Standard primitive calls also carry ordinary ABI plans 
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and layout-owned residual destruction recipes.
 
-The typed ARM64 register and instruction-encoding foundation is implemented. Machine instruction
-selection, virtual-register allocation, frame construction, label/fixup resolution, and Mach-O
-serialization are the remaining Phase 5 implementation areas.
+The typed ARM64 register, instruction-encoding, local-label, and conditional-branch relaxation
+foundation is implemented. Machine instruction selection, virtual-register allocation, frame
+construction, cross-function/data fixups, and Mach-O serialization are the remaining Phase 5
+implementation areas.

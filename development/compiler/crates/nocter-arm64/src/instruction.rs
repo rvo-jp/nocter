@@ -62,9 +62,51 @@ pub enum Arm64BranchCondition {
     SignedLessOrEqual,
 }
 
+impl Arm64BranchCondition {
+    #[must_use]
+    pub const fn invert(self) -> Self {
+        match self {
+            Self::Equal => Self::NotEqual,
+            Self::NotEqual => Self::Equal,
+            Self::CarrySet => Self::CarryClear,
+            Self::CarryClear => Self::CarrySet,
+            Self::Minus => Self::Plus,
+            Self::Plus => Self::Minus,
+            Self::Overflow => Self::NoOverflow,
+            Self::NoOverflow => Self::Overflow,
+            Self::UnsignedHigher => Self::UnsignedLowerOrSame,
+            Self::UnsignedLowerOrSame => Self::UnsignedHigher,
+            Self::SignedGreaterOrEqual => Self::SignedLess,
+            Self::SignedLess => Self::SignedGreaterOrEqual,
+            Self::SignedGreater => Self::SignedLessOrEqual,
+            Self::SignedLessOrEqual => Self::SignedGreater,
+        }
+    }
+
+    pub(crate) const fn encoding(self) -> u8 {
+        match self {
+            Self::Equal => 0,
+            Self::NotEqual => 1,
+            Self::CarrySet => 2,
+            Self::CarryClear => 3,
+            Self::Minus => 4,
+            Self::Plus => 5,
+            Self::Overflow => 6,
+            Self::NoOverflow => 7,
+            Self::UnsignedHigher => 8,
+            Self::UnsignedLowerOrSame => 9,
+            Self::SignedGreaterOrEqual => 10,
+            Self::SignedLess => 11,
+            Self::SignedGreater => 12,
+            Self::SignedLessOrEqual => 13,
+        }
+    }
+}
+
 /// Closed instruction subset required by Nocter's integer, memory, call, and control lowering.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64Instruction {
+    NoOperation,
     AddSubtractImmediate {
         size: Arm64DataSize,
         operation: Arm64AddSubtract,

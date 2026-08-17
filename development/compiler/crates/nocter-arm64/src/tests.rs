@@ -250,3 +250,74 @@ fn rejects_values_that_would_be_truncated_or_change_register_meaning() {
         Err(Arm64EncodingError::MisalignedBranch)
     );
 }
+
+#[test]
+fn code_builder_resolves_forward_and_backward_local_labels() {
+    let mut builder = crate::Arm64CodeBuilder::new();
+    let start = builder.create_label();
+    let end = builder.create_label();
+    builder.bind(start).unwrap();
+    builder.branch(end, false);
+    builder.append(Arm64Instruction::NoOperation);
+    builder.bind(end).unwrap();
+    builder.branch(start, false);
+    let code = builder.finish().unwrap();
+    let words = code
+        .bytes()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(words, [0x1400_0002, 0xd503_201f, 0x17ff_fffe]);
+    assert_eq!(code.label_offset(start), Some(0));
+    assert_eq!(code.label_offset(end), Some(8));
+    assert_eq!(code.instruction_count(), 3);
+}
+
+#[test]
+fn code_builder_relaxes_a_distant_conditional_branch_once() {
+    let mut builder = crate::Arm64CodeBuilder::new();
+    let target = builder.create_label();
+    builder.branch_conditional(target, Arm64BranchCondition::Equal);
+    for _ in 0..262_144 {
+        builder.append(Arm64Instruction::NoOperation);
+    }
+    builder.bind(target).unwrap();
+    let code = builder.finish().unwrap();
+    let first = u32::from_le_bytes(code.bytes()[0..4].try_into().unwrap());
+    let second = u32::from_le_bytes(code.bytes()[4..8].try_into().unwrap());
+
+    assert_eq!(first, 0x5400_0041);
+    assert_eq!(second, 0x1404_0001);
+    assert_eq!(code.label_offset(target), Some(1_048_584));
+    assert_eq!(code.instruction_count(), 262_146);
+}
+
+#[test]
+fn code_builder_rejects_duplicate_and_unbound_labels() {
+    let mut duplicate = crate::Arm64CodeBuilder::new();
+    let label = duplicate.create_label();
+    duplicate.bind(label).unwrap();
+    assert_eq!(
+        duplicate.bind(label),
+        Err(crate::Arm64CodeError::DuplicateLabel(label))
+    );
+
+    let mut unbound = crate::Arm64CodeBuilder::new();
+    let label = unbound.create_label();
+    unbound.branch(label, false);
+    assert_eq!(
+        unbound.finish(),
+        Err(crate::Arm64CodeError::UnboundLabel(label))
+    );
+
+    let mut owner = crate::Arm64CodeBuilder::new();
+    let _first = owner.create_label();
+    let foreign = owner.create_label();
+    let mut unknown = crate::Arm64CodeBuilder::new();
+    unknown.branch(foreign, false);
+    assert_eq!(
+        unknown.finish(),
+        Err(crate::Arm64CodeError::UnknownLabel(foreign))
+    );
+}
