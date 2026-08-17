@@ -514,6 +514,9 @@ impl<'program> DependencyCollector<'program> {
                     place: id,
                 })?;
         self.record_type(place.ty())?;
+        for ty in place.projection_types() {
+            self.record_type(*ty)?;
+        }
         self.visit_place_projections(&place)
     }
 

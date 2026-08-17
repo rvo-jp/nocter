@@ -1,4 +1,5 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_model::BuiltinType;
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
@@ -208,6 +209,11 @@ fn borrow_dereference_preserves_the_initialized_owned_field_prefix() {
     assert_eq!(
         place.access(),
         PlaceAccess::Borrowed(nocter_model::BorrowCapability::Readonly)
+    );
+    assert_eq!(place.projection_types().len(), place.projections().len());
+    assert_eq!(
+        place.projection_types().last().copied(),
+        Some(output.program().types().builtin(BuiltinType::I32))
     );
 }
 

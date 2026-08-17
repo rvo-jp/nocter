@@ -20,6 +20,7 @@ struct PlaceDraft {
     access: PlaceAccess,
     writable: bool,
     projections: Vec<PlaceProjection>,
+    projection_types: Vec<TypeId>,
     partial_parents: Vec<nocter_model::NominalTypeId>,
 }
 
@@ -201,6 +202,7 @@ impl BodyChecker<'_, '_> {
             access,
             writable,
             projections: Vec::new(),
+            projection_types: Vec::new(),
             partial_parents: Vec::new(),
         })
     }
@@ -252,6 +254,7 @@ impl BodyChecker<'_, '_> {
             .projections
             .push(PlaceProjection::Field(selected.field()));
         draft.ty = selected.ty();
+        draft.projection_types.push(draft.ty);
         Ok(())
     }
 
@@ -281,6 +284,7 @@ impl BodyChecker<'_, '_> {
                 .projections
                 .push(PlaceProjection::BuiltinIndex { index });
             draft.ty = element;
+            draft.projection_types.push(draft.ty);
             return Ok(());
         }
         let receiver_writable = draft.writable;
@@ -345,6 +349,7 @@ impl BodyChecker<'_, '_> {
             (None, None) => return Err(BodyCheckInternalError::IndexSelection.into()),
         }
         draft.ty = selected.result();
+        draft.projection_types.push(draft.ty);
         draft.access = PlaceAccess::Borrowed(capability);
         draft.writable = capability == BorrowCapability::ReadWrite && receiver_writable;
         Ok(())
@@ -374,6 +379,7 @@ impl BodyChecker<'_, '_> {
                         PlaceAccess::Borrowed(BorrowCapability::ReadWrite)
                     );
                     ty = *referent;
+                    draft.projection_types.push(ty);
                 }
                 Some(_) => return Ok(ty),
                 None => return Err(BodyCheckInternalError::UnknownType(ty).into()),
@@ -386,6 +392,7 @@ impl BodyChecker<'_, '_> {
             id: self.builder.add_place(
                 draft.root,
                 draft.projections,
+                draft.projection_types,
                 draft.ty,
                 draft.access,
                 draft.writable,

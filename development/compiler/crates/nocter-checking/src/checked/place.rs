@@ -44,6 +44,7 @@ pub enum PlaceProjection {
 pub struct CheckedPlace {
     root: PlaceRoot,
     projections: Box<[PlaceProjection]>,
+    projection_types: Box<[TypeId]>,
     ty: TypeId,
     access: PlaceAccess,
     writable: bool,
@@ -53,6 +54,7 @@ impl CheckedPlace {
     pub(super) fn new(
         root: PlaceRoot,
         projections: impl Into<Box<[PlaceProjection]>>,
+        projection_types: impl Into<Box<[TypeId]>>,
         ty: TypeId,
         access: PlaceAccess,
         writable: bool,
@@ -60,6 +62,7 @@ impl CheckedPlace {
         Self {
             root,
             projections: projections.into(),
+            projection_types: projection_types.into(),
             ty,
             access,
             writable,
@@ -74,6 +77,12 @@ impl CheckedPlace {
     #[must_use]
     pub const fn projections(&self) -> &[PlaceProjection] {
         &self.projections
+    }
+
+    /// Returns the type after each projection in the same order as [`Self::projections`].
+    #[must_use]
+    pub const fn projection_types(&self) -> &[TypeId] {
+        &self.projection_types
     }
 
     #[must_use]
@@ -134,6 +143,7 @@ mod tests {
         let owned = CheckedPlace {
             root: PlaceRoot::Local(local),
             projections: Box::new([PlaceProjection::Field(field)]),
+            projection_types: Box::new([types.builtin(BuiltinType::I32)]),
             ty: types.builtin(BuiltinType::I32),
             access: PlaceAccess::Owned,
             writable: true,

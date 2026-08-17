@@ -94,12 +94,19 @@ impl CheckedBodyBuilder {
         &mut self,
         root: PlaceRoot,
         projections: impl Into<Box<[PlaceProjection]>>,
+        projection_types: impl Into<Box<[TypeId]>>,
         ty: TypeId,
         access: PlaceAccess,
         writable: bool,
     ) -> PlaceId {
-        self.places
-            .insert(CheckedPlace::new(root, projections, ty, access, writable))
+        self.places.insert(CheckedPlace::new(
+            root,
+            projections,
+            projection_types,
+            ty,
+            access,
+            writable,
+        ))
     }
 
     pub(crate) fn place(&self, place: PlaceId) -> Option<&CheckedPlace> {
@@ -183,6 +190,12 @@ impl CheckedBodyBuilder {
             LoopSlot::Reserved => Err(BuildCheckedBodyError::IncompleteLoop(loop_)),
             LoopSlot::Defined(definition) => Ok(definition),
         })?;
+        let places = self.places.try_finish_with(|place, value| {
+            if value.projections().len() != value.projection_types().len() {
+                return Err(BuildCheckedBodyError::InvalidProjectionTypeCount(place));
+            }
+            Ok(value)
+        })?;
         let nodes = self.nodes.finish();
         let mut cleanup_schedules =
             ArenaBuilder::<BodyNodeId, Box<[super::CleanupSchedule]>>::new();
@@ -194,7 +207,7 @@ impl CheckedBodyBuilder {
                 scopes: self.scopes,
                 locals,
                 captures,
-                places: self.places.finish(),
+                places,
                 loops,
                 nodes,
             },
@@ -222,6 +235,7 @@ pub enum BuildCheckedBodyError {
     DuplicateLoop(LoopId),
     IncompleteLoop(LoopId),
     UnknownNode(BodyNodeId),
+    InvalidProjectionTypeCount(PlaceId),
     InvalidCleanupCount { expected: usize, actual: usize },
 }
 

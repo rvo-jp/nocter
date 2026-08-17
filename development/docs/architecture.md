@@ -426,9 +426,12 @@ number of fixed-point iterations from changing semantic identity or source proje
 One checked-place construction path handles field and index projections for reads, borrows, and
 assignment. It records implicit borrow dereferences rather than collapsing them into the final
 readonly/readwrite authority. This preserves the exact owned field prefix required by
-initialization analysis and gives MIR an ordered projection plan. Dynamic index expressions are
-stored as checked node identities once; consumers execute those nodes in projection order instead
-of reconstructing an index expression from syntax.
+initialization analysis and gives MIR an ordered projection plan. Each projection stores the
+checked type produced immediately after that step. Executable specialization freezes those
+intermediate types beside the final place type, so MIR never repeats field lookup, dereference
+typing, or index-result selection while rebuilding a concrete place. Dynamic index expressions
+are stored as checked node identities once; consumers execute those nodes in projection order
+instead of reconstructing an index expression from syntax.
 
 Name resolution assigns each syntax block one exact body-scope identity and checked construction
 stores that identity on the block node. Ownership analysis therefore computes scope-exit edges
