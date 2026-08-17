@@ -7,6 +7,7 @@ use nocter_model::{
 use nocter_source_index::SourceOrigin;
 
 mod cleanup;
+mod interpolation;
 mod outcomes;
 mod patterns;
 mod sequences;
@@ -264,8 +265,8 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::StringLiteral { allocation, .. } => {
                 self.visit_allocation(*allocation, state)
             }
-            CheckedOperation::Interpolation(_) => {
-                Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
+            CheckedOperation::Interpolation(interpolation) => {
+                self.visit_interpolation(node, interpolation, state)
             }
         }
     }

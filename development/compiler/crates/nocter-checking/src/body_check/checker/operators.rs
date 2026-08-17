@@ -11,17 +11,10 @@ use crate::body_check::literal::{
 use crate::instance_operations::{ComparisonCandidateImplementation, InstanceOperationSelector};
 use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
 use crate::{
-    CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedOperation,
+    CheckedComparison, CheckedControl, CheckedOperation, CheckedReadonlyOperand,
     ComparisonImplementation, ComparisonOperation, ConstantValue, LogicalOperation,
-    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
-
-struct ComparisonOperandDraft {
-    value: nocter_model::BodyNodeId,
-    ty: TypeId,
-    owner: TypeId,
-    preparation: ReadonlyOperandPreparation,
-}
 
 impl BodyChecker<'_, '_> {
     pub(super) fn check_unary(
@@ -206,11 +199,11 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let [left_syntax, right_syntax] = binary_operands(self, node)?;
-        let left = self.check_comparison_operand(left_syntax, None)?;
+        let left = self.check_readonly_operand(left_syntax, None)?;
         let right_expected = (is_integer_type(self.types, left.owner)
             && direct_integer_literal(self, right_syntax).is_some())
         .then_some(left.owner);
-        let right = self.check_comparison_operand(right_syntax, right_expected)?;
+        let right = self.check_readonly_operand(right_syntax, right_expected)?;
         let never = self.types.builtin(BuiltinType::Never);
         let punctuation = operator_punctuation(self, node)?;
         let (operation, reverse, negate) = comparison_derivation(punctuation)
@@ -273,8 +266,8 @@ impl BodyChecker<'_, '_> {
             ty,
             CheckedOperation::Comparison(CheckedComparison::new(
                 operation,
-                CheckedComparisonOperand::new(left.value, left.preparation, left_coercion),
-                CheckedComparisonOperand::new(right.value, right.preparation, right_coercion),
+                CheckedReadonlyOperand::new(left.value, left.preparation, left_coercion),
+                CheckedReadonlyOperand::new(right.value, right.preparation, right_coercion),
                 implementation,
                 reverse,
                 negate,
@@ -316,57 +309,6 @@ impl BodyChecker<'_, '_> {
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
-        })
-    }
-
-    fn check_comparison_operand(
-        &mut self,
-        root: NodeId,
-        expected: Option<TypeId>,
-    ) -> Result<ComparisonOperandDraft, BodyCheckError> {
-        let mut syntax = root;
-        while self.kind(syntax).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(self.tree(), syntax);
-            let [child] = children.as_slice() else {
-                break;
-            };
-            syntax = *child;
-        }
-        let place = match self.kind(syntax)? {
-            NodeKind::ReferenceExpression => Some(self.named_place(syntax)?),
-            NodeKind::PostfixExpression => {
-                Some(self.postfix_place(syntax, BorrowCapability::Readonly)?)
-            }
-            _ => None,
-        };
-        let (value, ty, is_place) = if let Some(place) = place {
-            (
-                self.add_node(syntax, place.ty, CheckedOperation::Place(place.id))?,
-                place.ty,
-                true,
-            )
-        } else {
-            let value = self.check_expression(root, expected)?;
-            (value, self.node_type(value)?, false)
-        };
-        let (owner, preparation) = match self.types.get(ty) {
-            Some(TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
-                referent,
-            }) => (*referent, ReadonlyOperandPreparation::UseReadonlyBorrow),
-            Some(TypeKind::Borrow {
-                capability: BorrowCapability::ReadWrite,
-                referent,
-            }) => (*referent, ReadonlyOperandPreparation::WeakenReadwriteBorrow),
-            Some(_) if is_place => (ty, ReadonlyOperandPreparation::BorrowPlace),
-            Some(_) => (ty, ReadonlyOperandPreparation::BorrowTemporary),
-            None => return Err(BodyCheckInternalError::UnknownType(ty).into()),
-        };
-        Ok(ComparisonOperandDraft {
-            value,
-            ty,
-            owner,
-            preparation,
         })
     }
 }

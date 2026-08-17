@@ -3,7 +3,7 @@
 ## Current Task
 
 Continue v0.14.0 Phase 3 by using the completed value, temporary, ownership, provenance, and loan
-boundaries to close typed literals and interpolation.
+boundaries to close exact-size spread in typed sequence literals.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
@@ -11,9 +11,9 @@ implementation input.
 ## Immediate Work
 
 1. Extend the checked typed-literal path from fixed sequence elements, decoded string construction,
-   and explicit allocation-context selection to exact-size spread.
-2. Complete interpolation through the same evaluation-order, formatting-dispatch, allocation,
-   provenance, loan, and cleanup authorities used by ordinary calls and aggregate values.
+   explicit allocation-context selection, and interpolation to exact-size spread.
+2. Re-run the unsupported-syntax inventory after spread closes and select the next complete
+   vertical slice rather than adding a partial checked operation.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -84,7 +84,7 @@ their parent, and join inherited field state without enumerating a struct eagerl
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
 branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
-typed sequence spread, and interpolation remain incomplete.
+typed sequence spread remains incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -98,8 +98,7 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, typed sequence spread, and interpolation remain
-incomplete.
+edge. Collection iteration, executable regions, and typed sequence spread remain incomplete.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one
@@ -119,6 +118,17 @@ accepts only a place of an established aborting allocator or allocation-context 
 place as an explicit HIR operand, and projects `E0399` for an authored wrong type. Ownership,
 provenance, loan, and closure-capability consumers all evaluate that operand before literal
 elements; current-region literals retain the existing implicit selection.
+
+Ordinary interpolation now decodes text and expression parts once in source order, normalizes
+multiline indentation across interpolation boundaries, and constructs the exact role-selected
+owned `String`. Every non-diverging expression is a shared readonly operand plan and selects only
+the exact role-selected `Format.format_into` method through a concrete conformance or lexical
+generic requirement; a same-spelled project interface has no authority. The checked operation
+retains the formatter dispatch, allocation selection, and partial-output type independently of its
+possibly diverging result type. Ownership activates the partial `String` before operands, keeps
+formatted temporaries alive through their call, and places partial-output destruction on a later
+postfix-propagation edge. Provenance and loans consume the same source order without reconstructing
+format lookup. Missing or ambiguous formatting evidence projects `E0400`.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership

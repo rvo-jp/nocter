@@ -257,6 +257,8 @@ Source-backed checked-body diagnostics:
   destination boundary that outlives its storage source.
 - `E0399`: a `using` allocation-context place is not an established aborting allocator or
   allocation context.
+- `E0400`: a string interpolation expression lacks one exact conformance to the active standard
+  `Format` interface.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

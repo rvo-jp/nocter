@@ -7,6 +7,7 @@ use crate::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum TemporaryIdentity {
     Value(BodyNodeId),
+    InterpolationInProgress(BodyNodeId),
     PatternResidual(BodyNodeId),
     PatternUnmatched(BodyNodeId),
 }

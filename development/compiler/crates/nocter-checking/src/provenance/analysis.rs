@@ -748,15 +748,14 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::Interpolation(interpolation) => {
                 let allocation = self.allocation_provenance(interpolation.allocation(), state)?;
                 for part in interpolation.parts() {
-                    if let crate::InterpolationPart::Formatted { value, .. } = part {
-                        let (_, reaches) = self.evaluate(*value, state)?;
-                        if !reaches {
-                            return Ok(self.record_node(
-                                node,
-                                ValueProvenance::independent(),
-                                false,
-                            ));
-                        }
+                    let value = match part {
+                        crate::InterpolationPart::Text(_) => continue,
+                        crate::InterpolationPart::Formatted { operand, .. } => operand.value(),
+                        crate::InterpolationPart::Diverging(value) => *value,
+                    };
+                    let (_, reaches) = self.evaluate(value, state)?;
+                    if !reaches {
+                        return Ok(self.record_node(node, ValueProvenance::independent(), false));
                     }
                 }
                 (allocation, true)

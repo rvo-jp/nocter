@@ -4,6 +4,7 @@ use std::fmt;
 use nocter_declaration_lowering::StandardRoleInput;
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ParameterRole, StandardDeclarationRole,
+    Visibility,
 };
 use nocter_model::{
     BorrowCapability, BuiltinType, CallableCapability, CallableId, DeclarationSiteId, InterfaceId,
@@ -222,6 +223,12 @@ fn validate_format_method(
         .callables()
         .get(method)
         .ok_or(StandardSemanticError::InvalidFormatContract)?;
+    let public = |site| {
+        graph
+            .declaration_sites()
+            .get(site)
+            .is_some_and(|site| site.visibility() == Visibility::Public)
+    };
     let Some(receiver) = callable
         .receiver()
         .and_then(|id| graph.declarations().parameters().get(id))
@@ -241,6 +248,9 @@ fn validate_format_method(
         || callable.kind() != CallableKind::Method
         || callable.owner() != CallableOwner::Interface(interface)
         || !interface_declaration.methods().contains(&method)
+        || !public(string_declaration.site())
+        || !public(interface_declaration.site())
+        || !public(callable.site())
         || receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
         || output.role()
             != (ParameterRole::Ordinary {

@@ -173,10 +173,19 @@ impl Analyzer<'_> {
                 self.allocation(sequence.allocation(), live)?
             }
             CheckedOperation::Interpolation(interpolation) => {
-                let operands = interpolation.parts().iter().filter_map(|part| match part {
-                    crate::InterpolationPart::Text(_) => None,
-                    crate::InterpolationPart::Formatted { value, .. } => Some(*value),
-                });
+                let mut operands = Vec::new();
+                for part in interpolation.parts() {
+                    match part {
+                        crate::InterpolationPart::Text(_) => {}
+                        crate::InterpolationPart::Formatted { operand, .. } => {
+                            operands.push(operand.value());
+                        }
+                        crate::InterpolationPart::Diverging(value) => {
+                            operands.push(*value);
+                            break;
+                        }
+                    }
+                }
                 let live = self.operands(operands, live)?;
                 self.allocation(interpolation.allocation(), live)?
             }

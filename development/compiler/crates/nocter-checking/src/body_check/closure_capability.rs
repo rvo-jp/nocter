@@ -240,23 +240,31 @@ fn append_operands(
             }
         }
         CheckedOperation::Interpolation(interpolation) => {
-            pending.extend(
-                interpolation
-                    .parts()
-                    .iter()
-                    .rev()
-                    .filter_map(|part| match part {
-                        crate::InterpolationPart::Text(_) => None,
-                        crate::InterpolationPart::Formatted { value, .. } => Some(*value),
-                    }),
-            );
-            if let AllocationSelection::Explicit(allocator) = interpolation.allocation() {
-                pending.push(allocator);
-            }
+            append_interpolation_operands(interpolation, pending);
         }
         CheckedOperation::Control(_) => unreachable!("control operations return above"),
     }
     Ok(())
+}
+
+fn append_interpolation_operands(
+    interpolation: &crate::CheckedInterpolation,
+    pending: &mut Vec<BodyNodeId>,
+) {
+    pending.extend(
+        interpolation
+            .parts()
+            .iter()
+            .rev()
+            .filter_map(|part| match part {
+                crate::InterpolationPart::Text(_) => None,
+                crate::InterpolationPart::Formatted { operand, .. } => Some(operand.value()),
+                crate::InterpolationPart::Diverging(value) => Some(*value),
+            }),
+    );
+    if let AllocationSelection::Explicit(allocator) = interpolation.allocation() {
+        pending.push(allocator);
+    }
 }
 
 fn append_control_operands(

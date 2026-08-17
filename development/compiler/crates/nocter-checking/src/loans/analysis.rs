@@ -375,7 +375,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 self.evaluate_sequence(&sequence, state, extra_active)?
             }
             CheckedOperation::Interpolation(interpolation) => {
-                self.evaluate_interpolation(&interpolation, state, extra_active)?
+                self.evaluate_interpolation(node, &interpolation, state, extra_active)?
             }
             CheckedOperation::Closure(closure) => {
                 self.evaluate_closure(&closure, state, extra_active)?
@@ -387,16 +387,31 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
 
     fn evaluate_interpolation(
         &mut self,
+        owner: BodyNodeId,
         interpolation: &crate::CheckedInterpolation,
         state: &mut LoanState,
         extra_active: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {
         self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
-        for part in interpolation.parts() {
-            if let crate::InterpolationPart::Formatted { value, .. } = part
-                && !self.evaluate(*value, state, extra_active)?.1
-            {
-                return Ok((LoanValue::independent(), false));
+        for (position, part) in interpolation.parts().iter().enumerate() {
+            match part {
+                crate::InterpolationPart::Text(_) => {}
+                crate::InterpolationPart::Formatted { operand, .. } => {
+                    let position = u16::try_from(position)
+                        .map_err(|_| BodyCheckInternalError::LoanAnalysis)?;
+                    if !self
+                        .evaluate_readonly_operand(owner, position, operand, state, extra_active)?
+                        .1
+                    {
+                        return Ok((LoanValue::independent(), false));
+                    }
+                }
+                crate::InterpolationPart::Diverging(value) => {
+                    if !self.evaluate(*value, state, extra_active)?.1 {
+                        return Ok((LoanValue::independent(), false));
+                    }
+                    return Err(BodyCheckInternalError::LoanAnalysis.into());
+                }
             }
         }
         Ok((LoanValue::independent(), true))

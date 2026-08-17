@@ -288,7 +288,7 @@ pub enum ComparisonOperation {
     Less,
 }
 
-/// How one source operand becomes the readonly logical value consumed by a comparison.
+/// How one source operand becomes the readonly receiver of a compiler-selected operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ReadonlyOperandPreparation {
     BorrowPlace,
@@ -298,13 +298,13 @@ pub enum ReadonlyOperandPreparation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedComparisonOperand {
+pub struct CheckedReadonlyOperand {
     value: BodyNodeId,
     preparation: ReadonlyOperandPreparation,
     coercion: Option<StaticSelection>,
 }
 
-impl CheckedComparisonOperand {
+impl CheckedReadonlyOperand {
     pub(crate) const fn new(
         value: BodyNodeId,
         preparation: ReadonlyOperandPreparation,
@@ -344,8 +344,8 @@ pub enum ComparisonImplementation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedComparison {
     operation: ComparisonOperation,
-    left: CheckedComparisonOperand,
-    right: CheckedComparisonOperand,
+    left: CheckedReadonlyOperand,
+    right: CheckedReadonlyOperand,
     implementation: ComparisonImplementation,
     reverse: bool,
     negate: bool,
@@ -354,8 +354,8 @@ pub struct CheckedComparison {
 impl CheckedComparison {
     pub(crate) const fn new(
         operation: ComparisonOperation,
-        left: CheckedComparisonOperand,
-        right: CheckedComparisonOperand,
+        left: CheckedReadonlyOperand,
+        right: CheckedReadonlyOperand,
         implementation: ComparisonImplementation,
         reverse: bool,
         negate: bool,
@@ -376,12 +376,12 @@ impl CheckedComparison {
     }
 
     #[must_use]
-    pub const fn left(&self) -> &CheckedComparisonOperand {
+    pub const fn left(&self) -> &CheckedReadonlyOperand {
         &self.left
     }
 
     #[must_use]
-    pub const fn right(&self) -> &CheckedComparisonOperand {
+    pub const fn right(&self) -> &CheckedReadonlyOperand {
         &self.right
     }
 
@@ -615,21 +615,40 @@ impl CheckedSequence {
 pub enum InterpolationPart {
     Text(Box<str>),
     Formatted {
-        value: BodyNodeId,
+        operand: CheckedReadonlyOperand,
         formatter: StaticSelection,
     },
+    Diverging(BodyNodeId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedInterpolation {
     parts: Box<[InterpolationPart]>,
+    output: TypeId,
     allocation: AllocationSelection,
 }
 
 impl CheckedInterpolation {
+    pub(crate) fn new(
+        parts: impl Into<Box<[InterpolationPart]>>,
+        output: TypeId,
+        allocation: AllocationSelection,
+    ) -> Self {
+        Self {
+            parts: parts.into(),
+            output,
+            allocation,
+        }
+    }
+
     #[must_use]
     pub const fn parts(&self) -> &[InterpolationPart] {
         &self.parts
+    }
+
+    #[must_use]
+    pub const fn output(&self) -> TypeId {
+        self.output
     }
 
     #[must_use]

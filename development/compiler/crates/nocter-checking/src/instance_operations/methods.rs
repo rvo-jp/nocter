@@ -73,6 +73,41 @@ impl MethodCandidate {
 }
 
 impl InstanceOperationSelector<'_> {
+    /// Selects only one compiler-supplied interface method identity.
+    ///
+    /// This bypasses ordinary spelling-based method lookup without bypassing conformance proof,
+    /// lexical generic evidence, visibility, signature substitution, or static dispatch freezing.
+    pub(crate) fn select_exact_interface_method(
+        &mut self,
+        target: TypeId,
+        interface_id: nocter_model::InterfaceId,
+        surface: CallableId,
+    ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
+        let interface = self
+            .graph
+            .declarations()
+            .interfaces()
+            .get(interface_id)
+            .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
+        let callable = self
+            .graph
+            .declarations()
+            .callables()
+            .get(surface)
+            .ok_or(InstanceSelectionError::MissingCallable(surface))?;
+        if !interface.methods().contains(&surface)
+            || callable.kind() != CallableKind::Method
+            || !visible_callable(self.graph, self.from, callable.site())?
+        {
+            return Ok(Vec::new());
+        }
+        if is_concrete_type(self.types, target)? {
+            self.select_conformance_method(target, interface_id, surface)
+        } else {
+            self.select_lexical_interface_method(target, interface_id, surface)
+        }
+    }
+
     /// Selects all exact-receiver inherent and interface method candidates with one name.
     ///
     /// Concrete receivers use explicit conformances. Unresolved generic receivers use only their
@@ -258,6 +293,58 @@ impl InstanceOperationSelector<'_> {
         Ok(selected)
     }
 
+    fn select_lexical_interface_method(
+        &mut self,
+        target: TypeId,
+        interface_id: nocter_model::InterfaceId,
+        surface: CallableId,
+    ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
+        let interface = self
+            .graph
+            .declarations()
+            .interfaces()
+            .get(interface_id)
+            .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
+        let requirements = self.assumptions.to_vec();
+        let mut selected = Vec::new();
+        for requirement in requirements {
+            let CheckedPredicate::Capability {
+                subject,
+                capability: StructuralCapability::Interface(application),
+            } = requirement.predicate()
+            else {
+                continue;
+            };
+            if *subject != target || application.interface() != interface_id {
+                continue;
+            }
+            let associated_types = interface.associated_types().to_vec();
+            let mut substitution = self.interface_substitution(target, application)?;
+            self.bind_lexical_associated_types(
+                interface_id,
+                target,
+                &associated_types,
+                &mut substitution,
+            )?;
+            let generic_arguments = interface_generic_arguments(interface, application)?;
+            let capability =
+                receiver_capability(self.graph, self.types, surface, &substitution, target)?;
+            selected.push(MethodCandidate {
+                callable: surface,
+                surface,
+                receiver_capability: capability,
+                generic_arguments,
+                substitution,
+                dispatch: StaticDispatch::InterfaceMethod {
+                    requirement: requirement.declaration(),
+                    method: surface,
+                },
+                receiver_coercion: None,
+            });
+        }
+        Ok(selected)
+    }
+
     fn select_conformance_methods(
         &mut self,
         target: TypeId,
@@ -293,68 +380,85 @@ impl InstanceOperationSelector<'_> {
             if !visible_callable(self.graph, self.from, surface_declaration.site())? {
                 continue;
             }
-            for conformance_id in self.conformances.candidates(interface_id).to_vec() {
-                let conformance = self
-                    .conformances
-                    .entries()
-                    .get(conformance_id)
-                    .cloned()
-                    .ok_or(InstanceSelectionError::MissingConformance(conformance_id))?;
-                let mut pattern_substitution = TypeSubstitution::default();
-                for refinement in conformance.refinements() {
-                    pattern_substitution.bind_generic(refinement.parameter(), refinement.ty());
-                }
-                let Some(bindings) = match_type_pattern(self.types, conformance.target(), target)?
-                else {
-                    continue;
-                };
-                for (parameter, ty) in bindings.iter() {
-                    pattern_substitution.bind_generic(parameter, ty);
-                }
-                if !self.requirements_hold(conformance.requirements(), &pattern_substitution)? {
-                    continue;
-                }
-                let selection = conformance
-                    .method(surface)
-                    .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
-                let (callable, substitution, generic_arguments) = match selection {
-                    MethodSelection::Implementation(callable) => {
-                        let arguments = selected_generic_arguments(
-                            self.types,
-                            conformance.generic_parameters(),
-                            &pattern_substitution,
-                        )?;
-                        (callable, pattern_substitution, arguments)
-                    }
-                    MethodSelection::Default(callable) => {
-                        let application = specialized_application(
-                            self.types,
-                            conformance.interface(),
-                            &pattern_substitution,
-                        )?;
-                        let mut substitution = self.interface_substitution(target, &application)?;
-                        for binding in conformance.associated_types() {
-                            substitution.bind_associated(
-                                binding.declaration(),
-                                pattern_substitution.apply_type(self.types, binding.ty())?,
-                            );
-                        }
-                        let arguments = interface_generic_arguments(interface, &application)?;
-                        (callable, substitution, arguments)
-                    }
-                };
-                let capability =
-                    receiver_capability(self.graph, self.types, callable, &substitution, target)?;
-                selected.push(MethodCandidate {
-                    callable,
-                    surface,
-                    receiver_capability: capability,
-                    generic_arguments,
-                    substitution,
-                    dispatch: StaticDispatch::Direct(callable),
-                    receiver_coercion: None,
-                });
+            selected.extend(self.select_conformance_method(target, interface_id, surface)?);
+        }
+        Ok(selected)
+    }
+
+    fn select_conformance_method(
+        &mut self,
+        target: TypeId,
+        interface_id: nocter_model::InterfaceId,
+        surface: CallableId,
+    ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
+        let interface = self
+            .graph
+            .declarations()
+            .interfaces()
+            .get(interface_id)
+            .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
+        let mut selected = Vec::new();
+        for conformance_id in self.conformances.candidates(interface_id).to_vec() {
+            let conformance = self
+                .conformances
+                .entries()
+                .get(conformance_id)
+                .cloned()
+                .ok_or(InstanceSelectionError::MissingConformance(conformance_id))?;
+            let mut pattern_substitution = TypeSubstitution::default();
+            for refinement in conformance.refinements() {
+                pattern_substitution.bind_generic(refinement.parameter(), refinement.ty());
             }
+            let Some(bindings) = match_type_pattern(self.types, conformance.target(), target)?
+            else {
+                continue;
+            };
+            for (parameter, ty) in bindings.iter() {
+                pattern_substitution.bind_generic(parameter, ty);
+            }
+            if !self.requirements_hold(conformance.requirements(), &pattern_substitution)? {
+                continue;
+            }
+            let selection = conformance
+                .method(surface)
+                .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
+            let (callable, substitution, generic_arguments) = match selection {
+                MethodSelection::Implementation(callable) => {
+                    let arguments = selected_generic_arguments(
+                        self.types,
+                        conformance.generic_parameters(),
+                        &pattern_substitution,
+                    )?;
+                    (callable, pattern_substitution, arguments)
+                }
+                MethodSelection::Default(callable) => {
+                    let application = specialized_application(
+                        self.types,
+                        conformance.interface(),
+                        &pattern_substitution,
+                    )?;
+                    let mut substitution = self.interface_substitution(target, &application)?;
+                    for binding in conformance.associated_types() {
+                        substitution.bind_associated(
+                            binding.declaration(),
+                            pattern_substitution.apply_type(self.types, binding.ty())?,
+                        );
+                    }
+                    let arguments = interface_generic_arguments(interface, &application)?;
+                    (callable, substitution, arguments)
+                }
+            };
+            let capability =
+                receiver_capability(self.graph, self.types, callable, &substitution, target)?;
+            selected.push(MethodCandidate {
+                callable,
+                surface,
+                receiver_capability: capability,
+                generic_arguments,
+                substitution,
+                dispatch: StaticDispatch::Direct(callable),
+                receiver_coercion: None,
+            });
         }
         Ok(selected)
     }

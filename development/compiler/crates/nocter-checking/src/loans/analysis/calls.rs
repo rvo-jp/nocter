@@ -35,7 +35,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         owner: BodyNodeId,
         position: u16,
-        operand: &crate::CheckedComparisonOperand,
+        operand: &crate::CheckedReadonlyOperand,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {

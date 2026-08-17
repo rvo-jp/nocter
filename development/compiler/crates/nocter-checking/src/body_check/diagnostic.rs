@@ -32,6 +32,7 @@ pub enum BodyRule {
     BorrowedPlaceMutation,
     InvalidStorageEscape,
     InvalidAllocationContext,
+    InvalidInterpolation,
 }
 
 impl BodyRule {
@@ -65,6 +66,7 @@ impl BodyRule {
         Self::BorrowedPlaceMutation,
         Self::InvalidStorageEscape,
         Self::InvalidAllocationContext,
+        Self::InvalidInterpolation,
     ];
 
     #[must_use]
@@ -99,6 +101,7 @@ impl BodyRule {
             Self::BorrowedPlaceMutation => "E0397",
             Self::InvalidStorageEscape => "E0398",
             Self::InvalidAllocationContext => "E0399",
+            Self::InvalidInterpolation => "E0400",
         }
     }
 
@@ -255,6 +258,10 @@ impl BodyRule {
             Self::InvalidAllocationContext => (
                 "allocation override is not an established aborting allocator or context",
                 "use a place whose exact standard semantic role permits aborting allocation",
+            ),
+            Self::InvalidInterpolation => (
+                "interpolation value does not conform to the selected standard Format contract",
+                "add an explicit conformance to the active standard Format interface or interpolate a supported value",
             ),
             _ => unreachable!("value body rule"),
         }

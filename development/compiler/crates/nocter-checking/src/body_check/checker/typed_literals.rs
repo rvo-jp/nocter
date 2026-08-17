@@ -16,8 +16,8 @@ use crate::conformance::normalize_requirements;
 use crate::syntax::{direct_child, direct_children};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    AllocationSelection, CallableInference, CheckedOperation, CheckedSequence, ConstantValue,
-    GenericArgument, GenericArguments, SequenceElement, StaticDispatch, StaticSelection,
+    AllocationSelection, CallableInference, CheckedOperation, CheckedSequence, GenericArgument,
+    GenericArguments, SequenceElement, StaticDispatch, StaticSelection,
 };
 
 struct LiteralPlan {
@@ -179,42 +179,6 @@ impl BodyChecker<'_, '_> {
                 text,
                 allocation,
             },
-        )?;
-        expected.map_or(Ok(checked), |expected| {
-            self.apply_expected(node, checked, expected)
-        })
-    }
-
-    pub(super) fn check_string_expression(
-        &mut self,
-        node: NodeId,
-        expected: Option<TypeId>,
-    ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
-        let source = self
-            .input
-            .sources()
-            .get(self.tree().source())
-            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let Some(text) = nocter_syntax::decode_plain_string_expression(source, self.tree(), node)
-        else {
-            return Err(BodyCheckInternalError::UnsupportedSyntax(
-                node,
-                NodeKind::StringExpression,
-            )
-            .into());
-        };
-        let referent = self.types.builtin(BuiltinType::Str);
-        let ty = self
-            .types
-            .intern(TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
-                referent,
-            })
-            .map_err(|_| BodyCheckInternalError::UnknownType(referent))?;
-        let checked = self.add_node(
-            node,
-            ty,
-            CheckedOperation::Constant(ConstantValue::Text(text)),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)

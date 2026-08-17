@@ -285,8 +285,9 @@ Standard-library semantics that cannot be expressed by an ordinary source declar
 second closed identity boundary at checked-program preparation. Discovery supplies the exact
 declaration-name token for each compiler-owned role. Preparation resolves that token through the
 shared `SourceIndex`, requires the declaration to belong to the selected standard package,
-validates its complete semantic shape, and freezes one role-to-ID table. Consumers cannot search
-for `Allocator`, `String`, `Format`, `format_into`, or a textual module path. A missing or malformed
+validates its complete semantic shape and required public surface, and freezes one role-to-ID
+table. Consumers cannot search for `Allocator`, `String`, `Format`, `format_into`, or a textual
+module path. A missing or malformed
 role is a toolchain integrity failure; an authored `using` place whose resolved type is not one of
 the validated allocator/context families is a source rule.
 

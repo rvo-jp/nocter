@@ -23,7 +23,7 @@ fn exact_standard_format_contract_is_accepted() {
     let fixture = Fixture::with_standard(
         "",
         r"
-struct String {}
+pub struct String {}
 pub interface Format {
     pub method &self.format_into(output: &+String): void
 }
@@ -74,9 +74,46 @@ fn near_miss_format_contract_is_rejected_once_during_preparation() {
     let fixture = Fixture::with_standard(
         "",
         r"
-struct String {}
+pub struct String {}
 pub interface Format {
     pub method &self.format_into(output: &String): void
+}
+",
+    );
+    let error = with_prepared_roles(
+        &fixture,
+        vec![
+            StandardRoleInput::new(
+                StandardDeclarationRole::OwnedString,
+                fixture.standard_declaration_token(NodeKind::StructDeclaration, "String"),
+            ),
+            StandardRoleInput::new(
+                StandardDeclarationRole::FormatInterface,
+                fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "Format"),
+            ),
+            StandardRoleInput::new(
+                StandardDeclarationRole::FormatMethod,
+                fixture.standard_declaration_token(NodeKind::InterfaceMethod, "format_into"),
+            ),
+        ],
+        |_| (),
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidFormatContract)
+    ));
+}
+
+#[test]
+fn format_contract_requires_a_public_owned_string_surface() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+struct String {}
+pub interface Format {
+    pub method &self.format_into(output: &+String): void
 }
 ",
     );

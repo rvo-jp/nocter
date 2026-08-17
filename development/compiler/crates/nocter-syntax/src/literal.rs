@@ -1,6 +1,19 @@
 use nocter_source::SourceFile;
 
-use crate::{NodeId, StringDelimiter, SyntaxElement, SyntaxTree, TokenKind};
+use crate::{NodeId, NodeKind, StringDelimiter, SyntaxElement, SyntaxTree, TokenKind};
+
+/// One decoded ordinary string-expression part in exact source order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DecodedStringPart {
+    Text(Box<str>),
+    Expression(NodeId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AuthoredStringUnit {
+    Byte(u8),
+    Expression(NodeId),
+}
 
 pub(super) fn valid_integer(text: &str) -> bool {
     let (digits, valid_digit): (&str, fn(char) -> bool) =
@@ -112,6 +125,28 @@ pub fn decode_plain_string_expression(
     tree: &SyntaxTree,
     node: NodeId,
 ) -> Option<Box<str>> {
+    let parts = decode_string_expression(source, tree, node)?;
+    let mut text = String::new();
+    for part in parts {
+        match part {
+            DecodedStringPart::Text(part) => text.push_str(&part),
+            DecodedStringPart::Expression(_) => return None,
+        }
+    }
+    Some(text.into_boxed_str())
+}
+
+/// Decodes one parser-validated ordinary string expression into text and expression parts.
+///
+/// Multiline indentation is normalized over the complete authored stream before it is split back
+/// into parts. An interpolation boundary therefore cannot make two consumers disagree about text
+/// that appears before and after it.
+#[must_use]
+pub fn decode_string_expression(
+    source: &SourceFile,
+    tree: &SyntaxTree,
+    node: NodeId,
+) -> Option<Box<[DecodedStringPart]>> {
     let delimiter = tree
         .children(node)
         .iter()
@@ -122,26 +157,50 @@ pub fn decode_plain_string_expression(
             },
             SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
         })?;
-    let mut authored = String::new();
+    let mut authored = Vec::new();
     for element in tree.children(node) {
         let SyntaxElement::Node(part) = element else {
             continue;
         };
-        let mut text = None;
+        if tree.node(*part)?.kind() != NodeKind::StringPart {
+            return None;
+        }
+        let mut found = false;
         for element in tree.children(*part) {
             match element {
                 SyntaxElement::Token(token) if token.kind() == TokenKind::StringText => {
-                    text = Some(source.text_at(token.range())?);
+                    if found {
+                        return None;
+                    }
+                    authored.extend(
+                        source
+                            .text_at(token.range())?
+                            .bytes()
+                            .map(AuthoredStringUnit::Byte),
+                    );
+                    found = true;
+                }
+                SyntaxElement::Node(expression)
+                    if tree.node(*expression)?.kind() == NodeKind::Expression =>
+                {
+                    if found {
+                        return None;
+                    }
+                    authored.push(AuthoredStringUnit::Expression(*expression));
+                    found = true;
                 }
                 SyntaxElement::Node(_) => return None,
                 SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
             }
         }
-        if let Some(text) = text {
-            authored.push_str(text);
+        if !found {
+            return None;
         }
     }
-    decode_authored_string(delimiter, &authored)
+    if delimiter == StringDelimiter::MultiLine {
+        authored = normalize_multiline_units(authored)?;
+    }
+    decode_string_units(authored)
 }
 
 /// Decodes the authored content of one string-text segment after any delimiter-owned multiline
@@ -172,6 +231,80 @@ fn decode_authored_string(delimiter: StringDelimiter, text: &str) -> Option<Box<
     decode_string_text(&authored)
 }
 
+fn normalize_multiline_units(
+    mut authored: Vec<AuthoredStringUnit>,
+) -> Option<Vec<AuthoredStringUnit>> {
+    if authored.first() != Some(&AuthoredStringUnit::Byte(b'\n')) {
+        return None;
+    }
+    authored.remove(0);
+    let final_newline = authored
+        .iter()
+        .rposition(|unit| *unit == AuthoredStringUnit::Byte(b'\n'))?;
+    let indentation = authored[final_newline + 1..]
+        .iter()
+        .map(|unit| match unit {
+            AuthoredStringUnit::Byte(byte @ (b' ' | b'\t')) => Some(*byte),
+            AuthoredStringUnit::Byte(_) | AuthoredStringUnit::Expression(_) => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    authored.truncate(final_newline);
+
+    let mut normalized = Vec::with_capacity(authored.len());
+    let mut cursor = 0;
+    let mut line_start = true;
+    while cursor < authored.len() {
+        if line_start {
+            let line_end = authored[cursor..]
+                .iter()
+                .position(|unit| *unit == AuthoredStringUnit::Byte(b'\n'))
+                .map_or(authored.len(), |offset| cursor + offset);
+            if line_end != cursor {
+                for byte in &indentation {
+                    if authored.get(cursor) != Some(&AuthoredStringUnit::Byte(*byte)) {
+                        return None;
+                    }
+                    cursor += 1;
+                }
+            }
+            if cursor == authored.len() {
+                break;
+            }
+        }
+        let unit = authored[cursor];
+        cursor += 1;
+        line_start = unit == AuthoredStringUnit::Byte(b'\n');
+        normalized.push(unit);
+    }
+    Some(normalized)
+}
+
+fn decode_string_units(authored: Vec<AuthoredStringUnit>) -> Option<Box<[DecodedStringPart]>> {
+    let mut parts = Vec::new();
+    let mut text = Vec::new();
+    for unit in authored {
+        match unit {
+            AuthoredStringUnit::Byte(byte) => text.push(byte),
+            AuthoredStringUnit::Expression(expression) => {
+                push_decoded_text(&mut parts, &mut text)?;
+                parts.push(DecodedStringPart::Expression(expression));
+            }
+        }
+    }
+    push_decoded_text(&mut parts, &mut text)?;
+    Some(parts.into_boxed_slice())
+}
+
+fn push_decoded_text(parts: &mut Vec<DecodedStringPart>, text: &mut Vec<u8>) -> Option<()> {
+    if text.is_empty() {
+        return Some(());
+    }
+    let authored = std::str::from_utf8(text).ok()?;
+    parts.push(DecodedStringPart::Text(decode_string_text(authored)?));
+    text.clear();
+    Some(())
+}
+
 fn normalize_multiline(text: &str) -> Option<String> {
     let content = text.strip_prefix('\n')?;
     let final_newline = content.rfind('\n')?;
@@ -197,8 +330,11 @@ fn normalize_multiline(text: &str) -> Option<String> {
 mod decode_tests {
     use nocter_source::{SourceMap, SourceName};
 
-    use super::{decode_plain_string_expression, decode_string_literal};
-    use crate::{NodeKind, ParseGoal, SyntaxElement, parse};
+    use super::{
+        DecodedStringPart, decode_plain_string_expression, decode_string_expression,
+        decode_string_literal,
+    };
+    use crate::{NodeId, NodeKind, ParseGoal, SyntaxElement, parse};
 
     #[test]
     fn decodes_single_and_multiline_string_syntax_once() {
@@ -256,5 +392,43 @@ mod decode_tests {
         }
         assert_eq!(expressions[0].as_deref(), Some("line\nvalue"));
         assert_eq!(expressions[1], None);
+    }
+
+    #[test]
+    fn interpolation_parts_share_multiline_indentation_normalization() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("strings.nct"),
+                b"func rendered(first: i32, second: i32): void {\n    let text = \"\"\"\n        before ${first}\n        ${second} after\\n\n        \"\"\"\n    return\n}\n",
+            )
+            .unwrap();
+        let file = sources.get(source).unwrap();
+        let tree = parse(file, ParseGoal::ModuleSource);
+        assert!(!tree.has_errors(), "{:#?}", tree.diagnostics());
+        let expression = find_node(&tree, NodeKind::StringExpression);
+        let parts = decode_string_expression(file, &tree, expression).unwrap();
+
+        assert_eq!(parts.len(), 5);
+        assert_eq!(parts[0], DecodedStringPart::Text("before ".into()));
+        assert!(matches!(parts[1], DecodedStringPart::Expression(_)));
+        assert_eq!(parts[2], DecodedStringPart::Text("\n".into()));
+        assert!(matches!(parts[3], DecodedStringPart::Expression(_)));
+        assert_eq!(parts[4], DecodedStringPart::Text(" after\n".into()));
+    }
+
+    fn find_node(tree: &crate::SyntaxTree, kind: NodeKind) -> NodeId {
+        let mut pending = vec![tree.root_id()];
+        while let Some(node) = pending.pop() {
+            if tree.node(node).is_some_and(|node| node.kind() == kind) {
+                return node;
+            }
+            for child in tree.children(node).iter().rev() {
+                if let SyntaxElement::Node(child) = child {
+                    pending.push(*child);
+                }
+            }
+        }
+        panic!("missing {kind:?}")
     }
 }
