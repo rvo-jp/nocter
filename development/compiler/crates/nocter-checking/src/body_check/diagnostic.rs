@@ -36,6 +36,8 @@ pub enum BodyRule {
     InvalidSpreadAcquisition,
     InvalidSpreadIterator,
     InvalidSpreadElement,
+    InvalidCollectionAcquisition,
+    InvalidCollectionIterator,
 }
 
 impl BodyRule {
@@ -73,6 +75,8 @@ impl BodyRule {
         Self::InvalidSpreadAcquisition,
         Self::InvalidSpreadIterator,
         Self::InvalidSpreadElement,
+        Self::InvalidCollectionAcquisition,
+        Self::InvalidCollectionIterator,
     ];
 
     #[must_use]
@@ -111,6 +115,8 @@ impl BodyRule {
             Self::InvalidSpreadAcquisition => "E0401",
             Self::InvalidSpreadIterator => "E0402",
             Self::InvalidSpreadElement => "E0403",
+            Self::InvalidCollectionAcquisition => "E0404",
+            Self::InvalidCollectionIterator => "E0405",
         }
     }
 
@@ -283,6 +289,14 @@ impl BodyRule {
             Self::InvalidSpreadElement => (
                 "spread iterator item is incompatible with this spread mode or literal element type",
                 "yield readonly references for copy and borrow spreads, and make copied referents copyable",
+            ),
+            Self::InvalidCollectionAcquisition => (
+                "collection source has no unique acquisition for its explicit ownership mode",
+                "use a direct iterator, or provide one expansion matching `&`, `&+`, or `move`",
+            ),
+            Self::InvalidCollectionIterator => (
+                "collection acquisition does not provide one trusted iterator contract",
+                "make the acquired type conform uniquely to the active standard Iterator interface",
             ),
             _ => unreachable!("value body rule"),
         }

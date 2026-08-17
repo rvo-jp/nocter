@@ -311,6 +311,15 @@ impl Analyzer<'_, '_> {
         {
             return Ok((LoanValue::independent(), false));
         }
+        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
+            let (value, reaches) = self.evaluate(iteration.iterator(), state, extra)?;
+            if !reaches {
+                return Ok((LoanValue::independent(), false));
+            }
+            Some(value)
+        } else {
+            None
+        };
         let preheader = state.clone();
         let mut header = preheader.clone();
         loop {
@@ -325,19 +334,30 @@ impl Analyzer<'_, '_> {
                 LoopKind::While { condition } => {
                     self.evaluate(*condition, &mut iteration, extra)?.1
                 }
-                LoopKind::Infinite | LoopKind::Range { .. } => true,
-                LoopKind::For { .. } => {
-                    return Err(BodyCheckInternalError::LoanAnalysis.into());
-                }
+                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. }
+                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
                 iteration.set_root(PlaceRoot::Local(*binding), LoanValue::independent());
+            }
+            if condition_reaches
+                && let LoopKind::For {
+                    binding,
+                    iteration: contract,
+                } = definition.kind()
+            {
+                let value = self.iteration_item_loans(
+                    contract,
+                    iterator
+                        .as_ref()
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                )?;
+                iteration.set_root(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =
                 condition_reaches && self.evaluate(definition.body(), &mut iteration, extra)?.1;

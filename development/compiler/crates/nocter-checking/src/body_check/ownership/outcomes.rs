@@ -16,8 +16,7 @@ impl OwnershipAnalyzer<'_> {
             return Ok(false);
         }
         let mut failure_state = state.clone();
-        let mut actions = self.temporary_cleanup_actions(&failure_state, &[])?;
-        actions.extend(self.all_scope_cleanup(&mut failure_state)?);
+        let actions = self.transfer_cleanup(&mut failure_state)?;
         self.record_cleanup(node, CleanupTiming::OnOutcomePropagation, actions);
         Ok(true)
     }

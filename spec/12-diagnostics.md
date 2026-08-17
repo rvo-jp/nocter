@@ -259,6 +259,15 @@ Source-backed checked-body diagnostics:
   allocation context.
 - `E0400`: a string interpolation expression lacks one exact conformance to the active standard
   `Format` interface.
+- `E0401`: a sequence-spread source lacks one expansion operation for its copy, borrow, or move
+  mode.
+- `E0402`: the iterator selected for sequence spread does not provide one exact `Iterator` and
+  `ExactSizeIterator` contract.
+- `E0403`: a sequence-spread item is incompatible with its copy, borrow, or move contribution.
+- `E0404`: a collection-loop source lacks one acquisition for its explicit `&`, `&+`, `move`, or
+  bare direct-iterator form.
+- `E0405`: the type acquired by a collection loop does not provide one exact trusted `Iterator`
+  contract.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

@@ -2,18 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by reusing the completed iterator-acquisition, ownership, provenance, and
-loan boundaries to close collection `for` iteration.
+Continue v0.14.0 Phase 3 by giving authored binding annotations one normalized type-checking and
+expected-type boundary before implementing executable regions.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Give collection `for` one checked iteration plan over readonly, readwrite, owned-expansion, and
-   direct-iterator sources without rebuilding spread selection.
-2. Close per-iteration binding, backedge ownership, item-loan end, early transfer cleanup, and
-   provenance before selecting executable regions.
+1. Resolve every authored binding annotation through the existing body type-use authority and
+   check its initializer through the ordinary expected-type path.
+2. Define the exact inference and diagnostic rules for annotations without duplicating callable,
+   construction, or literal specialization.
+3. Close executable region semantics only after binding types no longer depend on inference-only
+   locals.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -83,7 +85,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Typed binding annotations, collection iteration, and regions remain incomplete.
+branch-local paths. Typed binding annotations and regions remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -97,7 +99,15 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration and executable regions remain incomplete.
+edge. Collection iteration now shares the exact iterator-acquisition authority used by sequence
+spread without requiring exact-size evidence. Explicit readonly and readwrite modes select their
+matching expansion; moved sources prioritize direct Iterator evidence over owned expansion; bare
+sources admit direct Iterator evidence only. The checked loop owns one retained iterator temporary,
+initializes the Item binding per iteration, preserves the iterator across `continue`, and cleans
+the current item before the iterator on exhaustion or outward transfer. Provenance and loans map
+the binding through the selected `next` contract, while liveness keeps borrowed sources active
+through the body. Authored acquisition and Iterator failures project `E0404`-`E0405`. Executable
+regions remain incomplete.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one

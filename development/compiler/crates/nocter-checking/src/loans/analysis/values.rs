@@ -9,6 +9,43 @@ use crate::{
 };
 
 impl Analyzer<'_, '_> {
+    pub(super) fn iteration_item_loans(
+        &self,
+        iteration: &crate::TypedIteration,
+        iterator: &LoanValue,
+    ) -> Result<LoanValue, BodyCheckInternalError> {
+        let acquisition = self
+            .input
+            .body
+            .nodes()
+            .get(iteration.iterator())
+            .and_then(|node| match node.operation() {
+                crate::CheckedOperation::IteratorAcquisition(acquisition) => Some(acquisition),
+                _ => None,
+            })
+            .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+        if acquisition.source().preparation() == crate::ReceiverPreparation::Owned
+            && matches!(
+                self.types.get(iteration.item()),
+                Some(nocter_model::TypeKind::Borrow { .. })
+            )
+        {
+            return Ok(LoanValue::independent());
+        }
+        let callable = match iteration.next().dispatch() {
+            crate::StaticDispatch::Direct(callable)
+            | crate::StaticDispatch::InterfaceMethod {
+                method: callable, ..
+            } => callable,
+            crate::StaticDispatch::StructuralRequirement(_) => {
+                return Err(BodyCheckInternalError::LoanAnalysis);
+            }
+        };
+        Ok(self
+            .map_callable_result(callable, Some(iterator), &[])?
+            .projected(ProvenanceProjection::OutcomeValue))
+    }
+
     pub(super) fn evaluate_primitive(
         &mut self,
         operation: &crate::PrimitiveOperation,
@@ -185,27 +222,10 @@ impl Analyzer<'_, '_> {
                     let contribution = mode
                         .contribution_type(self.types, iteration.item())
                         .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    if !self.types.may_carry_storage(contribution)
-                        || (*mode == crate::SpreadMode::Move
-                            && matches!(
-                                self.types.get(iteration.item()),
-                                Some(nocter_model::TypeKind::Borrow { .. })
-                            ))
-                    {
+                    if !self.types.may_carry_storage(contribution) {
                         continue;
                     }
-                    let callable = match iteration.next().dispatch() {
-                        crate::StaticDispatch::Direct(callable)
-                        | crate::StaticDispatch::InterfaceMethod {
-                            method: callable, ..
-                        } => callable,
-                        crate::StaticDispatch::StructuralRequirement(_) => {
-                            return Err(BodyCheckInternalError::LoanAnalysis.into());
-                        }
-                    };
-                    let value = self
-                        .map_callable_result(callable, Some(&iterator), &[])?
-                        .projected(ProvenanceProjection::OutcomeValue);
+                    let value = self.iteration_item_loans(iteration, &iterator)?;
                     elements.union_with(&value);
                 }
             }

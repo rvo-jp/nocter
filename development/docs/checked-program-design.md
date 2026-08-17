@@ -521,6 +521,16 @@ on partial propagation, while provenance and loans derive contributed element st
 selected `next` contract. The common `SpreadMode::contribution_type` projection prevents those
 analyses from retaining a source loan for a copied scalar or losing it for a retained borrow.
 
+Collection `for` consumes the same acquisition and `TypedIteration` facts without reopening
+selection or requiring exact-size evidence. Explicit readonly/readwrite modes select only their
+matching expansion, moved sources use direct Iterator evidence before owned expansion, and bare
+sources admit only direct Iterator evidence under ordinary ownership. The loop-owned iterator is a
+retained temporary lifetime rather than an ordinary body temporary: `continue` preserves it,
+whereas normal exhaustion and outward transfers clean the current item before the iterator. Nested
+loops interleave those lifetimes by body scope. Provenance and loans map the per-step binding
+through the selected `next` result, and liveness keeps a borrowed acquisition's source loan active
+through every body execution.
+
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, instance-operation
 table, checked-body arena, and source projection only after every body succeeds. Unsupported valid syntax remains an internal

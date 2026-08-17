@@ -323,9 +323,15 @@ impl Analyzer<'_, '_> {
         {
             return Ok((ValueProvenance::independent(), false));
         }
-        if matches!(definition.kind(), LoopKind::For { .. }) {
-            return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
-        }
+        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
+            let (value, reaches) = self.evaluate(iteration.iterator(), state)?;
+            if !reaches {
+                return Ok((ValueProvenance::independent(), false));
+            }
+            Some(value)
+        } else {
+            None
+        };
         let preheader = state.clone();
         let mut header = preheader.clone();
         loop {
@@ -337,17 +343,31 @@ impl Analyzer<'_, '_> {
             let mut iteration = header.clone();
             let condition_reaches = match definition.kind() {
                 LoopKind::While { condition } => self.evaluate(*condition, &mut iteration)?.1,
-                LoopKind::Infinite | LoopKind::Range { .. } => true,
-                LoopKind::For { .. } => unreachable!(),
+                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. }
+                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
                 iteration.set_value(PlaceRoot::Local(*binding), ValueProvenance::independent());
+            }
+            if condition_reaches
+                && let LoopKind::For {
+                    binding,
+                    iteration: contract,
+                } = definition.kind()
+            {
+                let value = self.iteration_item_provenance(
+                    contract,
+                    iterator
+                        .as_ref()
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    iteration.current_allocation(),
+                )?;
+                iteration.set_value(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =
                 condition_reaches && self.evaluate(definition.body(), &mut iteration)?.1;

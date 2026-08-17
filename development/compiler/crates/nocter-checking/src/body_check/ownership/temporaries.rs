@@ -63,4 +63,20 @@ impl TemporaryPlanner {
             })
             .collect()
     }
+
+    pub(super) fn cleanup_action(
+        &self,
+        identity: TemporaryIdentity,
+        state: &OwnershipState,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        let condition = match state.temporary_initialization(identity) {
+            InitializationState::Initialized => CleanupCondition::Always,
+            InitializationState::MaybeInitialized => CleanupCondition::IfInitialized,
+            InitializationState::Uninitialized => return Ok(None),
+        };
+        self.actions
+            .get(&identity)
+            .map(|action| Some(action.with_condition(condition)))
+            .ok_or(BodyCheckInternalError::CleanupPlanning)
+    }
 }

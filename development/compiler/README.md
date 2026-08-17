@@ -283,9 +283,9 @@ Phase 2 is complete. Declaration validation identifies exact semantic subjects, 
 project them through `SourceIndex` without duplicating validation in lowering. Every production
 failure is classified as an authored rule or an internal compiler/discovery integrity error.
 Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package
-and module input order. Phase 3 checked-body construction remains incomplete for collection
-iteration and regions; unsupported valid constructs fail internally without returning a partial
-checked program.
+and module input order. Phase 3 checked-body construction now includes collection iteration. Typed
+binding annotations and regions remain incomplete; unsupported valid constructs fail internally
+without returning a partial checked program.
 
 ## Verification
 

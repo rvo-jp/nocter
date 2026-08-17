@@ -90,7 +90,6 @@ pub enum BodyCheckInternalError {
     UnsupportedOwnershipOperation(BodyNodeId),
     LoopStack,
     UnknownLoop(LoopId),
-    UnsupportedLoop(LoopId),
     Copyability(CopyabilityError),
     ExpectedType(ExpectedTypeError),
     Construction(BuildCheckedBodyError),

@@ -7,8 +7,8 @@ use crate::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, BodyCheckError,
     BodyCheckInternalError, CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation,
     CheckedOutcome, CheckedReceiver, CheckedSequence, IterationAcquisition, PlaceRoot,
-    ProvenanceProjection, ProvenanceSource, ReceiverPreparation, SequenceElement, SpreadMode,
-    StaticDispatch, ValueProvenance,
+    ProvenanceProjection, ProvenanceSource, ReceiverPreparation, SequenceElement, StaticDispatch,
+    ValueProvenance,
 };
 
 struct CallableValueProvenance {
@@ -59,6 +59,45 @@ impl Analyzer<'_, '_> {
             },
         };
         Ok((result, true))
+    }
+
+    pub(super) fn iteration_item_provenance(
+        &self,
+        iteration: &crate::TypedIteration,
+        iterator: &ValueProvenance,
+        current_allocation: &ValueProvenance,
+    ) -> Result<ValueProvenance, BodyCheckInternalError> {
+        let acquisition = self
+            .body
+            .nodes()
+            .get(iteration.iterator())
+            .and_then(|node| match node.operation() {
+                CheckedOperation::IteratorAcquisition(acquisition) => Some(acquisition),
+                _ => None,
+            })
+            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+        if acquisition.source().preparation() == ReceiverPreparation::Owned
+            && matches!(
+                self.types.get(iteration.item()),
+                Some(nocter_model::TypeKind::Borrow { .. })
+            )
+        {
+            return Ok(ValueProvenance::from_source(ProvenanceSource::Temporary(
+                iteration.iterator(),
+            )));
+        }
+        let callable = match iteration.next().dispatch() {
+            StaticDispatch::Direct(callable)
+            | StaticDispatch::InterfaceMethod {
+                method: callable, ..
+            } => callable,
+            StaticDispatch::StructuralRequirement(_) => {
+                return Err(BodyCheckInternalError::ProvenanceAnalysis);
+            }
+        };
+        Ok(self
+            .map_callable_summary(callable, Some(iterator), &[], current_allocation)?
+            .projected(ProvenanceProjection::OutcomeValue))
     }
 
     pub(super) fn evaluate_aggregate(
@@ -474,32 +513,11 @@ impl Analyzer<'_, '_> {
                     if !self.types.may_carry_storage(contribution) {
                         continue;
                     }
-                    let value = if *mode == SpreadMode::Move
-                        && matches!(
-                            self.types.get(iteration.item()),
-                            Some(nocter_model::TypeKind::Borrow { .. })
-                        ) {
-                        ValueProvenance::from_source(ProvenanceSource::Temporary(
-                            iteration.iterator(),
-                        ))
-                    } else {
-                        let callable = match iteration.next().dispatch() {
-                            StaticDispatch::Direct(callable)
-                            | StaticDispatch::InterfaceMethod {
-                                method: callable, ..
-                            } => callable,
-                            StaticDispatch::StructuralRequirement(_) => {
-                                return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
-                            }
-                        };
-                        self.map_callable_summary(
-                            callable,
-                            Some(&iterator),
-                            &[],
-                            state.current_allocation(),
-                        )?
-                        .projected(ProvenanceProjection::OutcomeValue)
-                    };
+                    let value = self.iteration_item_provenance(
+                        iteration,
+                        &iterator,
+                        state.current_allocation(),
+                    )?;
                     elements.union_with(&value);
                 }
             }

@@ -16,7 +16,9 @@ mod temporaries;
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::{Copyability, CopyabilityTable};
-use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
+use crate::ownership::{
+    MovePath, OwnershipState, OwnershipStateError, TemporaryIdentity, initialized_body_roots,
+};
 use crate::{
     AggregateConstruction, BodySource, CheckedBody, CheckedControl, CheckedOperation,
     CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming, ClosureDefinition,
@@ -128,6 +130,8 @@ struct OwnershipAnalyzer<'program> {
 struct LoopFlow {
     id: LoopId,
     body_scope: BodyScopeId,
+    iterator: Option<TemporaryIdentity>,
+    retained_temporaries: Vec<TemporaryIdentity>,
     breaks: Vec<OwnershipState>,
     continues: Vec<OwnershipState>,
 }
@@ -320,8 +324,7 @@ impl OwnershipAnalyzer<'_> {
                 {
                     return Ok(false);
                 }
-                let mut actions = self.temporary_cleanup_actions(state, &[])?;
-                actions.extend(self.all_scope_cleanup(state)?);
+                let actions = self.transfer_cleanup(state)?;
                 self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
                 Ok(false)
             }
@@ -469,10 +472,19 @@ impl OwnershipAnalyzer<'_> {
         let Some(frame) = self.loops.last().filter(|frame| frame.id == loop_) else {
             return Err(BodyCheckInternalError::LoopStack.into());
         };
-        let mut actions = self.temporary_cleanup_actions(state, &[])?;
-        actions.extend(self.loop_scope_cleanup(frame.body_scope, state)?);
+        let body_scope = frame.body_scope;
+        let iterator = frame.iterator;
+        let retained = frame.retained_temporaries.clone();
+        let mut actions = self.temporary_cleanup_actions(state, &retained)?;
+        state.forget_temporaries_except(&retained);
+        actions.extend(self.loop_scope_cleanup(body_scope, state)?);
+        if is_break
+            && let Some(iterator) = iterator
+            && let Some(action) = self.consume_temporary_cleanup(iterator, state)?
+        {
+            actions.push(action);
+        }
         self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
-        state.forget_temporaries_except(&[]);
         let frame = self
             .loops
             .last_mut()
@@ -642,13 +654,25 @@ impl OwnershipAnalyzer<'_> {
         {
             return Ok(false);
         }
+        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
+            if !self.visit(iteration.iterator(), state)? {
+                return Ok(false);
+            }
+            self.activate_expression_temporary(iteration.iterator(), state)?
+                .then_some(TemporaryIdentity::Value(iteration.iterator()))
+        } else {
+            None
+        };
         let body_scope = self.block_scope(definition.body())?;
         let preheader = state.clone();
+        let retained_temporaries = preheader.temporary_identities();
         let mut header = preheader.clone();
         loop {
             self.loops.push(LoopFlow {
                 id: loop_,
                 body_scope,
+                iterator,
+                retained_temporaries: retained_temporaries.clone(),
                 breaks: Vec::new(),
                 continues: Vec::new(),
             });
@@ -656,10 +680,7 @@ impl OwnershipAnalyzer<'_> {
             let retained_condition_temporaries = iteration.temporary_identities();
             let condition_reaches = match definition.kind() {
                 LoopKind::While { condition } => self.visit(*condition, &mut iteration)?,
-                LoopKind::Infinite | LoopKind::Range { .. } => true,
-                LoopKind::For { .. } => {
-                    return Err(BodyCheckInternalError::UnsupportedLoop(loop_).into());
-                }
+                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
             };
             if condition_reaches && let LoopKind::While { condition } = definition.kind() {
                 let actions =
@@ -670,10 +691,13 @@ impl OwnershipAnalyzer<'_> {
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. }
+                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
                 ))
             .then(|| iteration.clone());
-            if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
+            if condition_reaches
+                && let LoopKind::Range { binding, .. } | LoopKind::For { binding, .. } =
+                    definition.kind()
+            {
                 iteration
                     .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
                     .map_err(|_| BodyCheckInternalError::OwnershipState)?;
@@ -846,17 +870,56 @@ impl OwnershipAnalyzer<'_> {
         .replacement_place_action(place, ty)
     }
 
-    fn all_scope_cleanup(
+    pub(super) fn transfer_cleanup(
         &mut self,
         state: &mut OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let retained = self.active_loop_temporaries();
+        let mut actions = self.temporary_cleanup_actions(state, &retained)?;
+        state.forget_temporaries_except(&retained);
+        let loop_lifetimes = self
+            .loops
+            .iter()
+            .filter_map(|frame| frame.iterator.map(|iterator| (frame.body_scope, iterator)))
+            .collect::<Vec<_>>();
         let scopes = self.scopes.clone();
-        let mut actions = Vec::new();
         for scope in scopes.into_iter().rev() {
             actions.extend(self.scope_cleanup(scope, state)?);
+            if let Some((_, iterator)) = loop_lifetimes
+                .iter()
+                .rev()
+                .find(|(body_scope, _)| *body_scope == scope)
+                && let Some(action) = self.consume_temporary_cleanup(*iterator, state)?
+            {
+                actions.push(action);
+            }
         }
         actions.extend(self.execution_storage_cleanup(state)?);
         Ok(actions)
+    }
+
+    fn active_loop_temporaries(&self) -> Vec<TemporaryIdentity> {
+        let mut retained = self
+            .loops
+            .iter()
+            .filter_map(|frame| frame.iterator)
+            .collect::<Vec<_>>();
+        retained.sort_unstable();
+        retained
+    }
+
+    fn consume_temporary_cleanup(
+        &self,
+        identity: TemporaryIdentity,
+        state: &mut OwnershipState,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        let action = self.temporaries.cleanup_action(identity, state)?;
+        if action.is_some() {
+            state
+                .consume_temporary(identity)
+                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        }
+        Ok(action)
     }
 
     fn loop_scope_cleanup(

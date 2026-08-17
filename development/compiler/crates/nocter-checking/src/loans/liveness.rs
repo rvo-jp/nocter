@@ -473,7 +473,11 @@ impl Analyzer<'_> {
                 break_live: after.clone(),
                 continue_live: header.clone(),
             });
-            let mut body_live = self.transfer(definition.body(), header.clone())?;
+            let mut body_after = header.clone();
+            if let LoopKind::For { iteration, .. } = definition.kind() {
+                body_after.insert(LiveSlot::Node(iteration.iterator()));
+            }
+            let mut body_live = self.transfer(definition.body(), body_after)?;
             if let LoopKind::Range { binding, .. } | LoopKind::For { binding, .. } =
                 definition.kind()
             {
