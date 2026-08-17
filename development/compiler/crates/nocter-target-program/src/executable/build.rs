@@ -18,6 +18,8 @@ use super::{
     ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
     ExecutableProgramError, ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
 };
+
+mod sequence;
 use crate::{
     CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
     collect_body_dependencies, select_executable_entry, select_test_target,
@@ -192,6 +194,12 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
 
         let prepared_borrows = self.specialize_prepared_borrows(&dependencies, &substitution)?;
+        let sequences = self.specialize_sequence_plans(
+            context.body,
+            &dependencies,
+            &substitution,
+            &dispatches,
+        )?;
         let closure = self.specialize_closure_layout(key, &substitution)?;
 
         let mut destructions = Vec::new();
@@ -230,6 +238,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             types,
             prepared_borrows,
             destructions,
+            sequences,
         })
     }
 
@@ -699,6 +708,7 @@ struct DraftItem {
     types: Vec<ExecutableTypeEdge>,
     prepared_borrows: Vec<ExecutableBorrowEdge>,
     destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
+    sequences: Vec<sequence::DraftSequencePlan>,
 }
 
 struct DraftDispatchEdge {
@@ -823,6 +833,11 @@ fn freeze_body(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    let sequences = draft
+        .sequences
+        .into_iter()
+        .map(|plan| plan.freeze(item_ids))
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
     Ok((
         signature,
         closure,
@@ -841,6 +856,7 @@ fn freeze_body(
                 .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
+            sequences: sequences.into_boxed_slice(),
         },
     ))
 }

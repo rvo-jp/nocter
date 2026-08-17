@@ -19,10 +19,14 @@ use crate::{
 mod build;
 mod callable_invocation;
 mod closure_layout;
+mod sequence_pack;
 mod signature;
 
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
+pub use sequence_pack::{
+    ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
+};
 pub use signature::{
     ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
 };
@@ -232,6 +236,7 @@ pub struct ExecutableBody {
     types: Box<[ExecutableTypeEdge]>,
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
     destructions: Box<[ExecutableDestructionEdge]>,
+    sequences: Box<[ExecutableSequencePlan]>,
 }
 
 impl ExecutableBody {
@@ -329,6 +334,16 @@ impl ExecutableBody {
             .iter()
             .find(|edge| edge.source == source)
             .map(|edge| &edge.plan)
+    }
+
+    #[must_use]
+    pub const fn sequences(&self) -> &[ExecutableSequencePlan] {
+        &self.sequences
+    }
+
+    #[must_use]
+    pub fn sequence(&self, source: BodyNodeId) -> Option<&ExecutableSequencePlan> {
+        self.sequences.iter().find(|plan| plan.source() == source)
     }
 }
 
@@ -501,6 +516,7 @@ pub enum ExecutableProgramError {
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
     InvalidLiteralPackSignature(nocter_model::CallableId),
+    InvalidSequencePlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
     DuplicateClosureLayout(TypeId),
     DuplicateItem(ExecutableItemKey),
@@ -535,6 +551,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)
             | Self::InvalidLiteralPackSignature(_)
+            | Self::InvalidSequencePlan(_)
             | Self::InvalidCallableInvocation(_)
             | Self::DuplicateClosureLayout(_)
             | Self::DuplicateItem(_) => None,

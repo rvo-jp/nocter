@@ -21,9 +21,11 @@ implementation input.
    models the sequence literal body's non-escaping element pack through dedicated length and
    consuming-loop operations and rejects ordinary pack value use with `E0409`; executable and MIR
    construction preserve that boundary with a dedicated `ExecutablePackInput` outside the
-   ordinary signature input list. Next freeze the call-site pack state and lower its length,
-   consuming iteration, transfer, and residual cleanup without an ordinary variadic ABI. Never
-   repeat requirement, conformance, layout, or drop-pattern selection.
+   ordinary signature input list. Executable bodies now freeze each call site's constructor item,
+   specialized pack/result types, fixed and spread producer order, spread iteration contracts, and
+   allocation selection in one `ExecutableSequencePlan`. Next lower that plan into dedicated MIR
+   pack state, cached length, consuming iteration, transfer, and residual cleanup without an
+   ordinary variadic ABI. Never repeat requirement, conformance, layout, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 

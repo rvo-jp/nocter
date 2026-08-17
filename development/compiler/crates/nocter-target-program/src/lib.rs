@@ -35,8 +35,8 @@ pub use executable::{
     ExecutableClosureEdge, ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep,
     ExecutableDropEdge, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
     ExecutableOpaqueReceiver, ExecutablePackInput, ExecutablePrimitiveCall, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableProgramError, ExecutableRoot, ExecutableSequencePlan, ExecutableSequenceSegment,
+    ExecutableSequenceSpread, ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

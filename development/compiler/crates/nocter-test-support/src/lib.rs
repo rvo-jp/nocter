@@ -16,6 +16,9 @@ pub interface Iterator {
     pub type Item
     pub method &+self.next(): Self.Item?
 }
+pub interface ExactSizeIterator {
+    pub method &self.remaining_len(): usize
+}
 ";
 const ALLOCATION_SOURCE: &str = "\
 pub struct Allocator {}
@@ -141,6 +144,16 @@ const ITERATION_ROLES: &[StandardRoleSpec] = &[
         role: StandardDeclarationRole::IteratorNextMethod,
         kind: NodeKind::InterfaceMethod,
         name: "next",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::ExactSizeIteratorInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "ExactSizeIterator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "remaining_len",
     },
 ];
 

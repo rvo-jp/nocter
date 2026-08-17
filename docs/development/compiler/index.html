@@ -385,7 +385,10 @@
   converts bodyless standard calls to typed primitive roles with concrete signatures, opens
   checked destruction plans, and assigns dense item IDs only after closure in semantic-key order.
   Each body retains its exact reachable node domain, source-to-concrete type edges, prepared borrow
-  types, and cleanup-specific glue. Closure items also retain one concrete ordered environment
+  types, cleanup-specific glue, and one call-site plan for every sequence literal. A sequence plan
+  binds the dense literal item and specialized pack signature to its fixed/spread producer order,
+  concrete iterator/item/contribution types, already selected iteration operations, and allocation
+  selection without creating ordinary variadic inputs. Closure items also retain one concrete ordered environment
   layout, including binding identities and stored capture types. Composite comparison and index
   dispatch retain named coercion and operation lanes, so MIR
   never infers operand ownership from step order. Enum residual cleanup keeps its active variant

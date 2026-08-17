@@ -1,11 +1,11 @@
-use nocter_checking::{CleanupTarget, ConcreteDestructionKind, StaticDispatch};
+use nocter_checking::{CleanupTarget, ConcreteDestructionKind, SpreadMode, StaticDispatch};
 use nocter_declarations::{CallableKind, CallableOwner, LiteralShape};
 use nocter_model::BuiltinType;
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
-    ExecutableProgram, ExecutableRoot, PrimitiveRole,
+    ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment, PrimitiveRole,
 };
 
 #[test]
@@ -326,10 +326,10 @@ fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
         .unwrap()
         .0;
     let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let (declaration, item) = executable
+    let (literal_id, declaration, item) = executable
         .items()
         .iter()
-        .find_map(|(_, item)| {
+        .find_map(|(item_id, item)| {
             let ExecutableItemKey::Callable(key) = item.key() else {
                 return None;
             };
@@ -340,8 +340,11 @@ fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
                 .declarations()
                 .callables()
                 .get(key.callable())?;
-            (declaration.kind() == CallableKind::Literal(LiteralShape::Sequence))
-                .then_some((declaration, item))
+            (declaration.kind() == CallableKind::Literal(LiteralShape::Sequence)).then_some((
+                item_id,
+                declaration,
+                item,
+            ))
         })
         .unwrap();
     let pack = item.signature().pack().unwrap();
@@ -349,6 +352,91 @@ fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
     assert!(item.signature().inputs().is_empty());
     assert_eq!(pack.source(), declaration.parameters()[0]);
     assert_eq!(pack.element(), executable.types().builtin(BuiltinType::I32));
+
+    let ExecutableRoot::Process { entry, .. } = executable.root() else {
+        panic!("expected process root")
+    };
+    let main = executable.items().get(*entry).unwrap();
+    let [plan] = main.body().sequences() else {
+        panic!("expected one sequence plan")
+    };
+    assert_eq!(main.body().sequence(plan.source()), Some(plan));
+    assert_eq!(plan.constructor(), literal_id);
+    assert_eq!(plan.input(), pack);
+    assert_eq!(plan.result(), item.signature().result());
+    assert!(matches!(
+        plan.segments(),
+        [
+            ExecutableSequenceSegment::Value { ty: left, .. },
+            ExecutableSequenceSegment::Value { ty: right, .. },
+        ] if *left == pack.element() && *right == pack.element()
+    ));
+}
+
+#[test]
+fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
+    let fixture = Fixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self { return Self {} }\n\
+         }\n\
+         struct Iter {}\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? { return none }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return 0 }\n\
+         }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {}\n\
+             let values = Vec [1, ...move iterator, 3]\n\
+             drop values\n\
+             0\n\
+         }\n",
+        &[&[], &[]],
+    );
+    let target = build_target_program(&fixture);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let ExecutableRoot::Process { entry, .. } = executable.root() else {
+        panic!("expected process root")
+    };
+    let main = executable.items().get(*entry).unwrap();
+    let [plan] = main.body().sequences() else {
+        panic!("expected one sequence plan")
+    };
+    let [
+        ExecutableSequenceSegment::Value { ty: first, .. },
+        ExecutableSequenceSegment::Spread(spread),
+        ExecutableSequenceSegment::Value { ty: last, .. },
+    ] = plan.segments()
+    else {
+        panic!("expected fixed, spread, fixed segment order")
+    };
+
+    assert_eq!(*first, plan.input().element());
+    assert_eq!(*last, plan.input().element());
+    assert_eq!(spread.mode(), SpreadMode::Move);
+    assert_eq!(spread.item(), plan.input().element());
+    assert_eq!(spread.contribution(), plan.input().element());
+    assert!(matches!(
+        main.body().dispatch(spread.next()),
+        Some(ExecutableDispatchPlan::Invocation(_))
+    ));
+    assert!(matches!(
+        main.body().dispatch(spread.exact_size()),
+        Some(ExecutableDispatchPlan::Invocation(_))
+    ));
 }
 
 #[test]
