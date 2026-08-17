@@ -21,6 +21,7 @@ mod callable_invocation;
 mod closure_layout;
 mod sequence_pack;
 mod signature;
+mod type_representation;
 
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
@@ -30,6 +31,10 @@ pub use sequence_pack::{
 };
 pub use signature::{
     ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
+};
+pub use type_representation::{
+    ExecutableFieldRepresentation, ExecutablePayloadRepresentation, ExecutableTypeRepresentation,
+    ExecutableTypeRepresentationTable, ExecutableVariantRepresentation,
 };
 
 /// One canonical monomorphized source-body identity.
@@ -425,6 +430,7 @@ pub struct ExecutableProgram {
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     closure_layouts: BTreeMap<TypeId, ExecutableItemId>,
+    type_representations: ExecutableTypeRepresentationTable,
     root: ExecutableRoot,
 }
 
@@ -497,6 +503,11 @@ impl ExecutableProgram {
     }
 
     #[must_use]
+    pub const fn type_representations(&self) -> &ExecutableTypeRepresentationTable {
+        &self.type_representations
+    }
+
+    #[must_use]
     pub const fn root(&self) -> &ExecutableRoot {
         &self.root
     }
@@ -525,6 +536,11 @@ pub enum ExecutableProgramError {
     InvalidSequencePlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
     DuplicateClosureLayout(TypeId),
+    InvalidTypeRepresentation(TypeId),
+    MissingRepresentationField(nocter_model::FieldId),
+    MissingRepresentationVariant(nocter_model::VariantId),
+    MissingRepresentationParameter(nocter_model::ParameterId),
+    MissingRepresentationWitness(nocter_model::OpaqueTypeId),
     DuplicateItem(ExecutableItemKey),
 }
 
@@ -560,6 +576,11 @@ impl std::error::Error for ExecutableProgramError {
             | Self::InvalidSequencePlan(_)
             | Self::InvalidCallableInvocation(_)
             | Self::DuplicateClosureLayout(_)
+            | Self::InvalidTypeRepresentation(_)
+            | Self::MissingRepresentationField(_)
+            | Self::MissingRepresentationVariant(_)
+            | Self::MissingRepresentationParameter(_)
+            | Self::MissingRepresentationWitness(_)
             | Self::DuplicateItem(_) => None,
         }
     }

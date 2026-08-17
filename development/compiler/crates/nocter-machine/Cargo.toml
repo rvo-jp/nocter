@@ -1,0 +1,21 @@
+[package]
+name = "nocter-machine"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-mir = { path = "../nocter-mir" }
+nocter-model = { path = "../nocter-model" }
+nocter-target-program = { path = "../nocter-target-program" }
+
+[dev-dependencies]
+nocter-checking = { path = "../nocter-checking" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-declarations = { path = "../nocter-declarations" }
+nocter-test-support = { path = "../nocter-test-support" }
+
+[lints]
+workspace = true

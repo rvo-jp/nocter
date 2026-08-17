@@ -365,6 +365,16 @@ be introduced to make an unresolved syntax choice.
   and allocation-free `ReportError` operations. Test targets retain one isolated root per case in
   declaration order, including a valid empty target. Callable `Return` and root `Exit` contracts
   are disjoint and validated before whole-program direct-call validation.
+- `nocter-machine` owns target-independent stored layout and the remaining machine-program
+  boundary. Executable specialization first freezes declaration-order concrete field and variant
+  payload types plus exact opaque witnesses; layout never re-runs generic substitution or
+  conformance selection. `MachineLayoutStore` then closes only the runtime types referenced by
+  validated MIR and records size, alignment, stride, representation kind, and every view, error,
+  tag, payload, field, and capture offset required by later lowering. Stored layout remains
+  separate from callable transport. Symbolic or unsized values, incomplete representations,
+  recursive by-value storage, invalid alignment, and arithmetic overflow are typed integrity
+  failures. Machine operations, ABI transport planning, ARM64 selection, and Mach-O serialization
+  remain the next Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

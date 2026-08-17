@@ -5,7 +5,8 @@ use nocter_model::BuiltinType;
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
-    ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment, PrimitiveRole,
+    ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment, ExecutableTypeRepresentation,
+    PrimitiveRole,
 };
 
 #[test]
@@ -765,4 +766,86 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
             .and_then(nocter_declarations::CallableDeclaration::name)
             .and_then(|name| graph.symbols().spelling(name)) == Some("unused"))
     }));
+}
+
+#[test]
+fn executable_type_representations_specialize_complete_nominal_storage() {
+    let target = build_target_program(&Fixture::with_app(
+        "struct Pair<T> {\n\
+             first: T\n\
+             second: u8\n\
+         }\n\
+         enum Choice<T> {\n\
+             one(value: T)\n\
+             pair(first: T, second: u8)\n\
+         }\n\
+         func select(value: Choice<i32>): i32 {\n\
+             match value {\n\
+                 Choice.one(item) { item }\n\
+                 Choice.pair(item, _) { item }\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let pair = Pair { first: 1, second: 2 }\n\
+             let result = select(Choice.pair(pair.first, pair.second))\n\
+             result\n\
+         }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let graph = executable.target().checked().graph();
+    let i32_ = executable.types().builtin(BuiltinType::I32);
+    let u8_ = executable.types().builtin(BuiltinType::U8);
+
+    let mut pair_seen = false;
+    let mut choice_seen = false;
+    for (ty, representation) in executable.type_representations().iter() {
+        let Some(nocter_model::TypeKind::Nominal { definition, .. }) = executable.types().get(ty)
+        else {
+            continue;
+        };
+        let name = graph
+            .declarations()
+            .nominal_types()
+            .get(*definition)
+            .and_then(|nominal| graph.symbols().spelling(nominal.name()));
+        match (name, representation) {
+            (Some("Pair"), ExecutableTypeRepresentation::Struct { fields }) => {
+                assert_eq!(
+                    fields.iter().map(|field| field.ty()).collect::<Vec<_>>(),
+                    [i32_, u8_]
+                );
+                pair_seen = true;
+            }
+            (Some("Choice"), ExecutableTypeRepresentation::Enum { variants }) => {
+                assert_eq!(variants.len(), 2);
+                assert_eq!(
+                    variants[0]
+                        .payload()
+                        .iter()
+                        .map(|payload| payload.ty())
+                        .collect::<Vec<_>>(),
+                    [i32_]
+                );
+                assert_eq!(
+                    variants[1]
+                        .payload()
+                        .iter()
+                        .map(|payload| payload.ty())
+                        .collect::<Vec<_>>(),
+                    [i32_, u8_]
+                );
+                choice_seen = true;
+            }
+            _ => {}
+        }
+    }
+    assert!(pair_seen && choice_seen);
 }

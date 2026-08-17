@@ -39,6 +39,7 @@ pub(super) fn build_executable(
         items: frozen.items,
         item_ids: frozen.item_ids,
         closure_layouts: frozen.closure_layouts,
+        type_representations: frozen.type_representations,
         root: ExecutableRoot::Process {
             target: selected,
             entry: entry_item,
@@ -76,6 +77,7 @@ pub(super) fn build_tests(
         items: frozen.items,
         item_ids: frozen.item_ids,
         closure_layouts: frozen.closure_layouts,
+        type_representations: frozen.type_representations,
         root: ExecutableRoot::Tests {
             target: selected,
             cases: cases.into_boxed_slice(),
@@ -88,6 +90,7 @@ struct FrozenClosure {
     items: nocter_model::Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     closure_layouts: BTreeMap<nocter_model::TypeId, ExecutableItemId>,
+    type_representations: super::ExecutableTypeRepresentationTable,
 }
 
 impl FrozenClosure {
@@ -131,8 +134,12 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 return Err(ExecutableProgramError::DuplicateItem(key));
             }
         }
+        let type_representations = super::type_representation::close_type_representations(
+            self.target,
+            &mut self.resolver,
+        )?;
         let types = self.resolver.into_types();
-        freeze_items(self.items, types)
+        freeze_items(self.items, types, type_representations)
     }
 
     fn enqueue(&mut self, key: ExecutableItemKey) {
@@ -745,6 +752,7 @@ struct DraftCallableInvocation {
 fn freeze_items(
     drafts: BTreeMap<ExecutableItemKey, DraftItem>,
     types: nocter_model::TypeStore,
+    type_representations: super::ExecutableTypeRepresentationTable,
 ) -> Result<FrozenClosure, ExecutableProgramError> {
     let mut key_arena = ArenaBuilder::<ExecutableItemId, _>::new();
     let mut item_ids = BTreeMap::new();
@@ -782,6 +790,7 @@ fn freeze_items(
         items: items.finish(),
         item_ids,
         closure_layouts,
+        type_representations,
     })
 }
 

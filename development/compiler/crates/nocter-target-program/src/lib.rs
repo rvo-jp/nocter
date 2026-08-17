@@ -33,10 +33,13 @@ pub use entry::{
 pub use executable::{
     ExecutableBody, ExecutableBorrowEdge, ExecutableCallableInvocation, ExecutableClosureCapture,
     ExecutableClosureEdge, ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep,
-    ExecutableDropEdge, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
-    ExecutableOpaqueReceiver, ExecutablePackInput, ExecutablePrimitiveCall, ExecutableProgram,
+    ExecutableDropEdge, ExecutableFieldRepresentation, ExecutableInput, ExecutableInputSource,
+    ExecutableItem, ExecutableItemKey, ExecutableOpaqueReceiver, ExecutablePackInput,
+    ExecutablePayloadRepresentation, ExecutablePrimitiveCall, ExecutableProgram,
     ExecutableProgramError, ExecutableRoot, ExecutableSequencePlan, ExecutableSequenceSegment,
     ExecutableSequenceSpread, ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableTypeRepresentation, ExecutableTypeRepresentationTable,
+    ExecutableVariantRepresentation,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

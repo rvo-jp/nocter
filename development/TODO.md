@@ -11,8 +11,16 @@ implementation input.
 
 ## Immediate Work
 
-1. Define the machine-program authority, typed operation schema, deterministic linkage identities,
-   and MIR-to-machine validation boundary before implementing ARM64 encoding or Mach-O output.
+1. Define callable argument/result transport from the completed immutable stored-layout table,
+   then define the machine-program typed operation schema, deterministic linkage identities, and
+   MIR-to-machine validation boundary before implementing ARM64 encoding or Mach-O output.
+
+`ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
+and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive
+stored-layout table for MIR-referenced scalar, pointer, view, error, nominal, array, closure,
+outcome, and opaque types. Layout entries expose every downstream offset; later lowering must not
+repeat ABI padding arithmetic. The responsibility map is recorded in
+`development/docs/machine-program-design.md`.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
