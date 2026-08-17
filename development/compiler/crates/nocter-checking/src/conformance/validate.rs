@@ -107,7 +107,7 @@ fn conformance_substitution(
         .iter()
         .zip(conformance.interface().arguments())
     {
-        substitution.bind_type(*parameter, *argument);
+        substitution.bind_generic(*parameter, *argument);
     }
     for binding in conformance.associated_types() {
         substitution.bind_associated(binding.declaration(), binding.ty());

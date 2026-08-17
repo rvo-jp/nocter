@@ -13,7 +13,7 @@ pub enum StaticDispatch {
     StructuralRequirement(RequirementId),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GenericArgument {
     parameter: GenericParameterId,
     ty: TypeId,
@@ -37,7 +37,7 @@ impl GenericArgument {
 }
 
 /// Canonically ordered substitution selected for one generic operation.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GenericArguments(Box<[GenericArgument]>);
 
 impl GenericArguments {

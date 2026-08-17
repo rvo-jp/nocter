@@ -6,34 +6,32 @@ use nocter_model::{
 };
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct TypeSubstitution {
+pub struct TypeSubstitution {
     interface_self: Option<(InterfaceId, TypeId)>,
     generics: HashMap<GenericParameterId, TypeId>,
     associated: HashMap<nocter_model::AssociatedTypeId, TypeId>,
 }
 
 impl TypeSubstitution {
-    pub(crate) fn set_interface_self(&mut self, interface: InterfaceId, target: TypeId) {
+    pub fn set_interface_self(&mut self, interface: InterfaceId, target: TypeId) {
         self.interface_self = Some((interface, target));
     }
 
-    pub(crate) fn bind_generic(&mut self, source: GenericParameterId, target_type: TypeId) {
+    pub fn bind_generic(&mut self, source: GenericParameterId, target_type: TypeId) {
         self.generics.insert(source, target_type);
     }
 
-    pub(crate) fn bind_type(&mut self, source: GenericParameterId, target: TypeId) {
-        self.generics.insert(source, target);
-    }
-
-    pub(crate) fn bind_associated(
-        &mut self,
-        declaration: nocter_model::AssociatedTypeId,
-        target: TypeId,
-    ) {
+    pub fn bind_associated(&mut self, declaration: nocter_model::AssociatedTypeId, target: TypeId) {
         self.associated.insert(declaration, target);
     }
 
-    pub(crate) fn apply_type(
+    /// Applies this semantic substitution and interns the normalized result in `types`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure when the source store is incomplete, a replacement cycle exists,
+    /// or rebuilding a structural type would violate store integrity.
+    pub fn apply_type(
         &self,
         types: &mut TypeStore,
         root: TypeId,

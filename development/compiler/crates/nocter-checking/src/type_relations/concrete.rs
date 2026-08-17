@@ -9,7 +9,12 @@ use super::SubstitutionError;
 /// Body checking cannot select a concrete declaration for a type that still contains a lexical
 /// generic, interface `Self`, or associated projection. Those operations require exact lexical
 /// evidence and are resolved only after executable specialization supplies concrete types.
-pub(crate) fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, SubstitutionError> {
+///
+/// # Errors
+///
+/// Returns [`SubstitutionError::UnknownType`] when the root or a referenced type is absent from
+/// the supplied store.
+pub fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, SubstitutionError> {
     let mut pending = vec![root];
     let mut visited = HashSet::new();
     while let Some(ty) = pending.pop() {

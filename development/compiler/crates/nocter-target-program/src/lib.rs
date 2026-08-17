@@ -6,6 +6,7 @@
 
 mod capabilities;
 mod entry;
+mod instance_key;
 mod primitive_contracts;
 mod primitive_registry;
 mod program;
@@ -19,6 +20,7 @@ pub use entry::{
     EntryContractRule, EntrySelectionError, ExecutableEntry, ProcessResultContract,
     ProcessSuccessType, select_executable_entry,
 };
+pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{
     PrimitiveContractError, PrimitiveContractRule, PrimitiveRegistryValidationError,
 };

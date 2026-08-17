@@ -474,7 +474,7 @@ fn conformance_substitution(
         .iter()
         .zip(normalized_interface.arguments())
     {
-        substitution.bind_type(*parameter, *argument);
+        substitution.bind_generic(*parameter, *argument);
     }
     for binding in associated_types {
         substitution.bind_associated(binding.declaration(), binding.ty());

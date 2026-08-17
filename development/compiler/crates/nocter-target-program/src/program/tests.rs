@@ -1,19 +1,21 @@
-use nocter_checking::{check_prepared_program, prepare_program_checking};
+use nocter_checking::{
+    GenericArgument, GenericArguments, check_prepared_program, prepare_program_checking,
+};
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
     PackageTargetResolutionInput, lower_compile_unit_declarations,
 };
 use nocter_declarations::{CallableKind, CallableOwner};
-use nocter_model::CompilationTarget;
+use nocter_model::{BuiltinType, CompilationTarget, TypeKind};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use super::{TargetProgram, TargetProgramError};
 use crate::{
-    EntrySelectionError, PrimitiveBinding, PrimitiveContractRule, PrimitiveRegistry,
-    PrimitiveRegistryValidationError, PrimitiveRole, ProcessSuccessType, ToolchainSnapshot,
-    select_executable_entry, select_test_target,
+    CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, PrimitiveBinding,
+    PrimitiveContractRule, PrimitiveRegistry, PrimitiveRegistryValidationError, PrimitiveRole,
+    ProcessSuccessType, ToolchainSnapshot, select_executable_entry, select_test_target,
 };
 
 const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
@@ -421,6 +423,63 @@ fn executable_entry_rejects_missing_non_function_and_invalid_callable_contracts(
             _ => panic!("unexpected entry-selection result for {source:?}"),
         }
     }
+}
+
+#[test]
+fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
+    let target = build_target_program(&Fixture::with_app(
+        "func helper<T>(value: T): T { return move value }\n\
+         func main(): void { return }\n",
+    ));
+    let graph = target.checked().graph();
+    let helper = graph
+        .declarations()
+        .callables()
+        .iter()
+        .find_map(|(id, declaration)| {
+            (declaration
+                .name()
+                .and_then(|name| graph.symbols().spelling(name))
+                == Some("helper"))
+            .then_some(id)
+        })
+        .unwrap();
+    let parameter = graph
+        .declarations()
+        .callables()
+        .get(helper)
+        .unwrap()
+        .generic_parameters()[0];
+    let concrete = target.checked().types().builtin(BuiltinType::I32);
+    let key = CallableInstanceKey::new(
+        &target,
+        helper,
+        GenericArguments::new([GenericArgument::new(parameter, concrete)]).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(key.callable(), helper);
+    assert_eq!(key.generic_arguments().get(parameter), Some(concrete));
+
+    assert!(matches!(
+        CallableInstanceKey::new(&target, helper, GenericArguments::default()),
+        Err(CallableInstanceKeyError::GenericDomainMismatch { .. })
+    ));
+    let symbolic = target
+        .checked()
+        .types()
+        .iter()
+        .find_map(|(id, kind)| {
+            matches!(kind, TypeKind::GenericParameter(actual) if *actual == parameter).then_some(id)
+        })
+        .unwrap();
+    assert!(matches!(
+        CallableInstanceKey::new(
+            &target,
+            helper,
+            GenericArguments::new([GenericArgument::new(parameter, symbolic)]).unwrap(),
+        ),
+        Err(CallableInstanceKeyError::SymbolicArgument { .. })
+    ));
 }
 
 #[test]

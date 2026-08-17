@@ -189,7 +189,7 @@ impl TypeKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TypeStore {
     kinds: Vec<TypeKind>,
     interned: HashMap<TypeKind, TypeId>,

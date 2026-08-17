@@ -85,6 +85,7 @@ pub use names::{
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{PreparationError, PreparedChecking, prepare_program_checking};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
+pub use type_relations::{TypeSubstitution, is_concrete_type};
 pub use type_validity::{
     DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,
     TypeValidityRule, TypeValidityViolation, validate_declaration_types, validate_type,
