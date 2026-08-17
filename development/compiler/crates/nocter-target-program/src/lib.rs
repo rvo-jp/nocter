@@ -4,6 +4,7 @@
 //! backend capability. Later target-program validation consumes a complete immutable
 //! [`ToolchainSnapshot`] instead of reconstructing capability from target or package spellings.
 
+mod body_dependencies;
 mod capabilities;
 mod entry;
 mod instance_key;
@@ -13,6 +14,9 @@ mod program;
 mod snapshot;
 mod test_entry;
 
+pub use body_dependencies::{
+    BodyDependencyError, CheckedBodyDependencies, collect_body_dependencies,
+};
 pub use capabilities::{
     ExecutableWriterIdentity, TargetAbiIdentity, TargetBackendIdentity, TargetUnavailable,
 };

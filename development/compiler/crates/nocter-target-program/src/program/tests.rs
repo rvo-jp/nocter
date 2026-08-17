@@ -1,5 +1,6 @@
 use nocter_checking::{
-    GenericArgument, GenericArguments, check_prepared_program, prepare_program_checking,
+    GenericArgument, GenericArguments, StaticDispatch, check_prepared_program,
+    prepare_program_checking,
 };
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
@@ -15,7 +16,8 @@ use super::{TargetProgram, TargetProgramError};
 use crate::{
     CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, PrimitiveBinding,
     PrimitiveContractRule, PrimitiveRegistry, PrimitiveRegistryValidationError, PrimitiveRole,
-    ProcessSuccessType, ToolchainSnapshot, select_executable_entry, select_test_target,
+    ProcessSuccessType, ToolchainSnapshot, collect_body_dependencies, select_executable_entry,
+    select_test_target,
 };
 
 const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
@@ -480,6 +482,59 @@ fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
         ),
         Err(CallableInstanceKeyError::SymbolicArgument { .. })
     ));
+}
+
+#[test]
+fn body_dependencies_follow_only_executable_checked_edges() {
+    let target = build_target_program(&Fixture::with_app(
+        "func live(): void { return }\n\
+         func dead(): void { return }\n\
+         func main(): void {\n\
+             live()\n\
+             return\n\
+             dead()\n\
+         }\n",
+    ));
+    let graph = target.checked().graph();
+    let callable_named = |expected: &str| {
+        graph
+            .declarations()
+            .callables()
+            .iter()
+            .find_map(|(id, declaration)| {
+                (declaration
+                    .name()
+                    .and_then(|name| graph.symbols().spelling(name))
+                    == Some(expected))
+                .then_some(id)
+            })
+            .unwrap()
+    };
+    let main = callable_named("main");
+    let live = callable_named("live");
+    let dead = callable_named("dead");
+    let body = graph
+        .declarations()
+        .callables()
+        .get(main)
+        .unwrap()
+        .body()
+        .unwrap();
+    let root = target.checked().bodies().get(body).unwrap().root();
+    let dependencies = collect_body_dependencies(&target, body, root).unwrap();
+    let direct = dependencies
+        .selections()
+        .iter()
+        .filter_map(|selection| match selection.dispatch() {
+            StaticDispatch::Direct(callable) => Some(callable),
+            StaticDispatch::InterfaceMethod { .. } | StaticDispatch::StructuralRequirement(_) => {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    assert!(direct.contains(&live));
+    assert!(!direct.contains(&dead));
 }
 
 #[test]
