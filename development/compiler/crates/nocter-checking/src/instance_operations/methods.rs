@@ -385,7 +385,7 @@ impl InstanceOperationSelector<'_> {
         Ok(selected)
     }
 
-    fn select_conformance_method(
+    pub(crate) fn select_conformance_method(
         &mut self,
         target: TypeId,
         interface_id: nocter_model::InterfaceId,

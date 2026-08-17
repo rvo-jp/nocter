@@ -10,9 +10,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Build deterministic entry-driven monomorphization from the frozen executable/test roots,
-   including concrete generic arguments,
-   closure bodies, drop bodies, construction members, and frozen conformance dispatch.
+1. Close deterministic entry-driven monomorphization from the frozen executable/test roots. The
+   canonical callable key, executable checked-body edge inventory, and checking-owned concrete
+   dispatch-plan resolver are complete; the remaining closure must enqueue closure bodies, drop
+   bodies, construction members, and opaque witnesses into one item table.
 2. Define compiler-generated process and test runner roots without creating source declarations or
    backend-name lookups; preserve process-result and test failure behavior explicitly.
 3. Lower the resulting `ExecutableProgram` into MIR; MIR must
@@ -49,6 +50,14 @@ modules, non-functions, generic or parameterized entries, bodyless entries, and 
 cannot become executable roots. Test selection freezes only direct `TestId` declarations in the
 selected module and retains their canonical declaration order; it never scans imports or
 dependencies.
+Callable specialization now uses one canonical key containing callable identity plus the complete
+owner-and-callable generic domain. Missing, extra, and symbolic arguments are rejected, and owner
+target types are derived rather than duplicated as receiver state. A single checked-body traversal
+enumerates every executable static selection, closure, explicit pattern drop, referenced type, and
+cleanup type while excluding unreachable retained source. `ConcreteDispatchResolver` forks the
+checked type store and resolves direct, interface, and structural dispatch into ordered direct,
+primitive, or indirect-callable steps. Structural comparison and indexing retain coercion steps;
+MIR will not receive an unresolved requirement or repeat conformance selection.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

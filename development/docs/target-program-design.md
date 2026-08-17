@@ -118,9 +118,25 @@ modules and dependencies are not traversed, and no callable or synthetic source 
 
 ## Instantiation Authority
 
-A monomorphized item key contains callable identity, optional concrete receiver type, and generic
-arguments keyed by `GenericParameterId`. The work queue is deterministic by that complete key.
-Insertion of the same key with different substitutions is an internal integrity failure.
+A monomorphized callable key contains callable identity and the complete owner-plus-callable
+generic domain keyed by `GenericParameterId`. Receiver type is not stored a second time: an
+instance, construction, or conformance target is reconstructed from its declaration and that one
+substitution. The canonical key rejects missing, extra, duplicate, and still-symbolic arguments.
+The work queue is deterministic by the complete key.
+
+Executable specialization forks the checked type store while preserving its existing `TypeId`
+prefix. Applying generic substitutions may intern additional concrete types only in this fork.
+One checking-owned concrete dispatch resolver consumes checked `StaticSelection` values and
+produces ordered plans of direct callable, compiler primitive, or indirect callable-value steps.
+Structural indexing and comparison may therefore retain required coercion steps instead of being
+incorrectly collapsed to one callable. Interface requirements resolve through the retained
+conformance authority, including required/default method selection. MIR never receives an
+unresolved `RequirementId`.
+
+One executable dependency traversal covers calls, receiver and operand coercions, comparisons,
+index projections, iteration, typed literals, interpolation, closures, explicit pattern drops,
+and every scheduled cleanup type. It excludes source retained under `Unreachable` and unreachable
+pattern fallbacks. This is the only edge inventory from which the monomorphization queue may grow.
 
 Instantiation substitutes the checked signature and body, proves retained requirements through
 the checked program's conformance authority, resolves abstract dispatch once, and enqueues exact
@@ -147,8 +163,9 @@ integrity checks over an accepted program, not a second source diagnostic system
 4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
    buildability into `TargetProgram`. **Complete.**
-6. Select an executable/test entry (**complete**) and instantiate one deterministic reachable
-   graph (**pending**).
+6. Select an executable/test entry (**complete**), define canonical concrete callable keys,
+   enumerate checked-body dependencies, and resolve concrete dispatch plans (**complete**), then
+   close one deterministic reachable item graph (**pending**).
 7. Lower concrete checked bodies and cleanup schedules into MIR.
 8. Validate MIR without source or syntax access.
 

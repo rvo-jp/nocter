@@ -65,7 +65,7 @@ enum CopyabilityAction {
 ///
 /// Generic proof identities come from normalized `copy` requirements. Concrete structural facts
 /// are memoized by canonical `TypeId`, then retained in `CheckedProgram` for later stages.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CopyabilityTable {
     parameters: BTreeSet<GenericParameterId>,
     conditions: BTreeMap<TypeId, CopyCondition>,

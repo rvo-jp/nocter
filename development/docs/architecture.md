@@ -521,8 +521,11 @@ call planner. The table remains in `CheckedProgram`, so editor queries, instanti
 checking cannot invent independent construction-member indexes.
 
 Type checking selects either a direct callable or an exact abstract requirement. When generic
-substitution makes an abstract receiver concrete, instantiation resolves that requirement once
-through one conformance table. MIR and later stages have no dispatch API.
+substitution makes an abstract receiver concrete, the checking-owned `ConcreteDispatchResolver`
+resolves that requirement once through the retained conformance and instance-operation tables.
+Its ordered plan distinguishes direct callable bodies, compiler primitives, and indirect
+callable-value invocation; coercion-plus-operation evidence is not flattened. MIR and later stages
+have no requirement or conformance dispatch API.
 
 ## Target Program
 
@@ -534,9 +537,17 @@ language subset.
 
 ## Executable Program
 
-Entry-driven instantiation produces the only reachable callable graph. A monomorphized key contains
-semantic callable identity, optional concrete receiver type, and substitutions keyed by generic
-parameter identity. Duplicate keys with different values are errors.
+Entry-driven instantiation produces the only reachable callable graph. A monomorphized callable
+key contains semantic callable identity and one canonical substitution covering both its owner and
+callable generic domains. Receiver type is derived from the owner declaration and is not duplicated
+in the key. Missing, extra, duplicate, or symbolic arguments are integrity failures.
+
+The checked-program layer owns concrete dispatch resolution because it already owns conformance,
+instance-operation, and recursive requirement-proof authorities. Specialization supplies one
+concrete enclosing substitution and receives an ordered plan containing direct callable steps,
+compiler primitives, or an indirect callable-value contract. Composite structural evidence such
+as coercion followed by built-in indexing remains composite. The executable-program layer only
+enqueues direct steps; MIR cannot repeat requirement proof or conformance selection.
 
 MIR construction and linkage consume this graph. They cannot build parallel callable indexes.
 Runtime symbol spelling is generated after item selection and cannot be used to find a semantic

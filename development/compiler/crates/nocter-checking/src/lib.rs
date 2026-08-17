@@ -7,6 +7,7 @@
 mod body_check;
 mod body_sources;
 mod checked;
+mod concrete_dispatch;
 mod conformance;
 mod construction_surfaces;
 mod copyability;
@@ -54,6 +55,10 @@ pub use checked::{
     PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource, ProvenanceTable,
     ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch,
     StaticSelection, TypedIteration, ValueProvenance,
+};
+pub use concrete_dispatch::{
+    ConcreteDispatchError, ConcreteDispatchResolver, ResolvedCallableDispatch,
+    ResolvedDispatchPlan, ResolvedDispatchStep, ResolvedPrimitiveDispatch,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,

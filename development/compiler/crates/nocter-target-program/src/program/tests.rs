@@ -1,6 +1,6 @@
 use nocter_checking::{
-    GenericArgument, GenericArguments, StaticDispatch, check_prepared_program,
-    prepare_program_checking,
+    ConcreteDispatchResolver, GenericArgument, GenericArguments, ResolvedDispatchStep,
+    ResolvedPrimitiveDispatch, StaticDispatch, check_prepared_program, prepare_program_checking,
 };
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
@@ -538,6 +538,113 @@ fn body_dependencies_follow_only_executable_checked_edges() {
 }
 
 #[test]
+fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
+    let target = build_target_program(&Fixture::with_app(
+        "func equal<T>(left: T, right: T): bool where (&T == &T): bool {\n\
+             return left == right\n\
+         }\n\
+         func main(): void {\n\
+             let _ = equal(1, 2)\n\
+             return\n\
+         }\n",
+    ));
+    let main = named_callable(&target, "main");
+    let equal = named_callable(&target, "equal");
+    let main_dependencies = callable_dependencies(&target, main);
+    let equal_selection = main_dependencies
+        .selections()
+        .iter()
+        .find(|selection| selection.dispatch() == StaticDispatch::Direct(equal))
+        .unwrap();
+    let equal_key =
+        CallableInstanceKey::new(&target, equal, equal_selection.generic_arguments().clone())
+            .unwrap();
+    let equal_dependencies = callable_dependencies(&target, equal);
+    let structural = equal_dependencies
+        .selections()
+        .iter()
+        .find(|selection| {
+            matches!(
+                selection.dispatch(),
+                StaticDispatch::StructuralRequirement(_)
+            )
+        })
+        .unwrap();
+    let module = callable_module(&target, equal);
+    let mut resolver = ConcreteDispatchResolver::new(target.checked());
+    let plan = resolver
+        .resolve(structural, &equal_key.substitution(), module)
+        .unwrap();
+
+    assert_eq!(
+        plan.steps(),
+        [ResolvedDispatchStep::Primitive(
+            ResolvedPrimitiveDispatch::Equality(target.checked().types().builtin(BuiltinType::I32))
+        )]
+    );
+}
+
+#[test]
+fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
+    let target = build_target_program(&Fixture::with_app(
+        "pub interface Readable {\n\
+             pub method &self.read(): i32\n\
+         }\n\
+         struct Value {}\n\
+         conform Readable for Value {\n\
+             method &self.read(): i32 { return 42 }\n\
+         }\n\
+         func generic<T>(input: &T): i32 where T: Readable {\n\
+             return input.read()\n\
+         }\n\
+         func main(): i32 {\n\
+             let value = Value {}\n\
+             return generic(&value)\n\
+         }\n",
+    ));
+    let graph = target.checked().graph();
+    let generic = named_callable(&target, "generic");
+    let main = named_callable(&target, "main");
+    let main_dependencies = callable_dependencies(&target, main);
+    let generic_selection = main_dependencies
+        .selections()
+        .iter()
+        .find(|selection| selection.dispatch() == StaticDispatch::Direct(generic))
+        .unwrap();
+    let generic_key = CallableInstanceKey::new(
+        &target,
+        generic,
+        generic_selection.generic_arguments().clone(),
+    )
+    .unwrap();
+    let generic_dependencies = callable_dependencies(&target, generic);
+    let interface_selection = generic_dependencies
+        .selections()
+        .iter()
+        .find(|selection| matches!(selection.dispatch(), StaticDispatch::InterfaceMethod { .. }))
+        .unwrap();
+    let module = callable_module(&target, generic);
+    let mut dispatch_resolver = ConcreteDispatchResolver::new(target.checked());
+    let plan = dispatch_resolver
+        .resolve(interface_selection, &generic_key.substitution(), module)
+        .unwrap();
+    let [ResolvedDispatchStep::Direct(method_dispatch)] = plan.steps() else {
+        panic!("interface dispatch must resolve to one conformance method")
+    };
+
+    assert!(matches!(
+        graph
+            .declarations()
+            .callables()
+            .get(method_dispatch.callable())
+            .unwrap()
+            .owner(),
+        CallableOwner::Conformance(_)
+    ));
+    assert!(method_dispatch.generic_arguments().as_slice().is_empty());
+}
+
+#[test]
 fn test_target_selects_only_direct_cases_in_source_order() {
     let target = build_target_program(&Fixture::with_tests(
         "test first { return }\n\
@@ -634,6 +741,60 @@ fn build_target_program(fixture: &Fixture) -> TargetProgram {
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
     TargetProgram::build(checked, snapshot).unwrap()
+}
+
+fn named_callable(target: &TargetProgram, expected: &str) -> nocter_model::CallableId {
+    let graph = target.checked().graph();
+    graph
+        .declarations()
+        .callables()
+        .iter()
+        .find_map(|(id, declaration)| {
+            (declaration
+                .name()
+                .and_then(|name| graph.symbols().spelling(name))
+                == Some(expected))
+            .then_some(id)
+        })
+        .unwrap_or_else(|| panic!("missing fixture callable {expected}"))
+}
+
+fn callable_dependencies(
+    target: &TargetProgram,
+    callable: nocter_model::CallableId,
+) -> crate::CheckedBodyDependencies {
+    let body = target
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(callable)
+        .and_then(nocter_declarations::CallableDeclaration::body)
+        .unwrap();
+    collect_body_dependencies(
+        target,
+        body,
+        target.checked().bodies().get(body).unwrap().root(),
+    )
+    .unwrap()
+}
+
+fn callable_module(
+    target: &TargetProgram,
+    callable: nocter_model::CallableId,
+) -> nocter_model::ModuleId {
+    let CallableOwner::Module(module) = target
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(callable)
+        .unwrap()
+        .owner()
+    else {
+        panic!("fixture callable must be module-owned")
+    };
+    module
 }
 
 fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {

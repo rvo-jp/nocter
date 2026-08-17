@@ -32,6 +32,26 @@ impl CallableInstanceKey {
         callable: CallableId,
         generic_arguments: GenericArguments,
     ) -> Result<Self, CallableInstanceKeyError> {
+        Self::new_in(
+            program,
+            program.checked().types(),
+            callable,
+            generic_arguments,
+        )
+    }
+
+    /// Creates an identity in an executable specialization type-store fork.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same closed validation failures as [`Self::new`]. `types` must preserve the
+    /// checked store's identity prefix and may contain additional concrete specialized types.
+    pub fn new_in(
+        program: &TargetProgram,
+        types: &TypeStore,
+        callable: CallableId,
+        generic_arguments: GenericArguments,
+    ) -> Result<Self, CallableInstanceKeyError> {
         let graph = program.checked().graph();
         let declaration = graph
             .declarations()
@@ -53,7 +73,7 @@ impl CallableInstanceKey {
             });
         }
         for argument in generic_arguments.as_slice() {
-            let concrete = is_concrete_type(program.checked().types(), argument.ty())
+            let concrete = is_concrete_type(types, argument.ty())
                 .map_err(CallableInstanceKeyError::InvalidTypeStore)?;
             if !concrete {
                 return Err(CallableInstanceKeyError::SymbolicArgument {
