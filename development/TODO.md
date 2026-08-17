@@ -2,22 +2,21 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 4 from the completed target-program success boundary shared by `check`,
-`build`, and `run`, then derive entry-driven executable-program construction from it.
+Continue v0.14.0 Phase 4 from the completed deterministic `ExecutableProgram` boundary and lower
+its already resolved items, roots, types, dispatch, and cleanup plans into validated MIR.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Close deterministic entry-driven monomorphization from the frozen executable/test roots. The
-   canonical callable key, executable checked-body edge inventory, and checking-owned concrete
-   dispatch and recursive destruction-plan resolvers are complete; the remaining closure must
-   enqueue callable, closure, and drop bodies plus compiler-owned operations into one item table.
-2. Define compiler-generated process and test runner roots without creating source declarations or
-   backend-name lookups; preserve process-result and test failure behavior explicitly.
-3. Lower the resulting `ExecutableProgram` into MIR; MIR must
-   consume resolved concrete dispatch rather than repeat requirement or conformance selection.
+1. Define the MIR program, function, block, operation, place, and terminator identity domains plus
+   their immutable builders and validators.
+2. Lower each dense executable item without source lookup. Consume its frozen direct item IDs,
+   typed primitive steps, concrete type edges, closure edges, and cleanup-specific destruction
+   plans; never repeat requirement, conformance, or drop-pattern selection.
+3. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
+   synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
@@ -76,6 +75,14 @@ metadata stores the captured binding and stored type as one field, preventing a 
 readwrite capture from being treated as ownership of its referent. The deterministic executable
 closure can therefore enqueue every reachable user drop body without re-running source type
 matching.
+`ExecutableProgram` now owns the deterministic reachable closure. Callable, closure, drop, and test
+keys enter one key-ordered work set; dense `ExecutableItemId` values are assigned only after the
+set closes. Each concrete body freezes direct item IDs, typed standard/structural primitives,
+indirect callable contracts, nested closure and exact drop edges, source-to-concrete type mappings,
+and representation-specific cleanup glue. Bodyless callables are accepted only through the closed
+toolchain primitive registry. Process and test roots remain compiler metadata, while test cases
+retain declaration order. Enum residual cleanup is not collapsed to its nominal type: it excludes
+the already-run owner drop and every transferred payload.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

@@ -254,6 +254,14 @@ impl PrimitiveRegistry {
     pub fn callable(&self, role: PrimitiveRole) -> CallableId {
         self.bindings[role_index(role)].callable()
     }
+
+    #[must_use]
+    pub fn role(&self, callable: CallableId) -> Option<PrimitiveRole> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.callable() == callable)
+            .map(|binding| binding.role())
+    }
 }
 
 fn role_index(role: PrimitiveRole) -> usize {

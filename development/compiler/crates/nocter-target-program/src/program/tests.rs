@@ -5,7 +5,8 @@ use nocter_checking::{
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, lower_compile_unit_declarations,
+    PackageTargetResolutionInput, UseResolutionInput, UseTargetInput,
+    lower_compile_unit_declarations,
 };
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::{BuiltinType, CompilationTarget, TypeKind};
@@ -19,6 +20,8 @@ use crate::{
     ProcessSuccessType, ToolchainSnapshot, collect_body_dependencies, select_executable_entry,
     select_test_target,
 };
+
+mod executable;
 
 const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
 const MEM_SOURCE: &str = "\
@@ -127,6 +130,7 @@ struct Fixture {
     standard: SyntaxTree,
     prelude: SyntaxTree,
     modules: Vec<FixtureModule>,
+    app_standard_uses: Vec<Box<[Box<str>]>>,
 }
 
 impl Fixture {
@@ -143,6 +147,21 @@ impl Fixture {
             app_source,
             Some("#test: { name: \"unit\", module: \".\", }\n"),
         )
+    }
+
+    fn with_app_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
+        let mut fixture = Self::with_app(app_source);
+        fixture.app_standard_uses = modules
+            .iter()
+            .map(|segments| {
+                segments
+                    .iter()
+                    .map(|segment| Box::<str>::from(*segment))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+            })
+            .collect();
+        fixture
     }
 
     fn build(app_source: &str, app_manifest_source: Option<&str>) -> Self {
@@ -203,6 +222,7 @@ impl Fixture {
             standard,
             prelude,
             modules,
+            app_standard_uses: Vec::new(),
         }
     }
 
@@ -270,13 +290,14 @@ impl Fixture {
                 &fixture.syntax,
             )
         }));
+        let use_resolutions = self.app_use_resolutions(&standard_package);
         let prelude = ModuleIdentity::new(standard_package, ["prelude"]);
         let mut input = CompileUnitInput::new(
             CompilationTarget::Arm64Darwin,
             &self.sources,
             packages,
             modules,
-            Vec::new(),
+            use_resolutions,
         );
         if let Some(manifest) = &self.app_manifest {
             let declaration = manifest
@@ -302,6 +323,48 @@ impl Fixture {
         }
         (input, prelude)
     }
+
+    fn app_use_resolutions(&self, standard: &PackageIdentity) -> Vec<UseResolutionInput> {
+        let nodes = use_declarations(&self.app);
+        assert_eq!(nodes.len(), self.app_standard_uses.len());
+        nodes
+            .into_iter()
+            .zip(&self.app_standard_uses)
+            .map(|(declaration, path)| {
+                UseResolutionInput::new(
+                    declaration,
+                    UseTargetInput::Module(ModuleIdentity::new(
+                        standard.clone(),
+                        path.iter().map(AsRef::as_ref),
+                    )),
+                )
+            })
+            .collect()
+    }
+}
+
+fn use_declarations(tree: &SyntaxTree) -> Vec<nocter_syntax::NodeId> {
+    let mut declarations = Vec::new();
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree
+            .node(node)
+            .is_some_and(|node| node.kind() == NodeKind::UseDeclaration)
+        {
+            declarations.push(node);
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    declarations.sort_unstable_by_key(|node| {
+        tree.node(*node)
+            .map(nocter_syntax::SyntaxNode::range)
+            .map(nocter_source::TextRange::start)
+    });
+    declarations
 }
 
 #[test]

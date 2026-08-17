@@ -3,7 +3,10 @@ use nocter_model::{BuiltinType, FieldId, ParameterId, TypeId, TypeKind};
 
 use super::{ConcreteDestructionKind, ConcreteDispatchResolver};
 use crate::test_support::Fixture;
-use crate::{CheckedProgram, TypeSubstitution, check_prepared_program, prepare_program_checking};
+use crate::{
+    CheckedProgram, CleanupTarget, TypeSubstitution, check_prepared_program,
+    prepare_program_checking,
+};
 
 fn check(source: &str) -> crate::CheckedProgramOutput {
     let fixture = Fixture::new(source);
@@ -135,6 +138,61 @@ fn enum_glue_retains_only_active_payload_work_in_reverse_order() {
             .map(|payload| parameter_name(program, payload.parameter()))
             .collect::<Vec<_>>(),
         ["second", "first"]
+    );
+}
+
+#[test]
+fn enum_residual_excludes_the_already_run_owner_drop_and_moved_payload() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         enum Pair { values(first: Owned, second: Owned) }\n\
+         drop Pair(&+self) { return }\n\
+         func consume(first: Owned, second: Owned): void {\n\
+             let _ = match Pair.values(move first, move second) {\n\
+                 Pair.values(item, _) { move item }\n\
+             }\n\
+             return\n\
+         }\n",
+    );
+    let program = output.program();
+    let (variant, payload, ty) = program
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| {
+            body.nodes()
+                .iter()
+                .flat_map(|(node, _)| body.cleanups().schedules(node).into_iter().flatten())
+        })
+        .flat_map(crate::CleanupSchedule::actions)
+        .find_map(|action| match action.target() {
+            CleanupTarget::EnumResidual {
+                variant,
+                payload,
+                ty,
+                ..
+            } => Some((*variant, payload.clone(), *ty)),
+            CleanupTarget::Path(_)
+            | CleanupTarget::Place { .. }
+            | CleanupTarget::Value { .. }
+            | CleanupTarget::Region { .. } => None,
+        })
+        .expect("consuming pattern must retain its residual payload cleanup");
+    let mut resolver = ConcreteDispatchResolver::new(program);
+    let plan = resolver
+        .resolve_enum_residual(ty, variant, &payload, &TypeSubstitution::default())
+        .unwrap()
+        .unwrap();
+    let ConcreteDestructionKind::Enum { drop, variants } = plan.kind() else {
+        panic!("residual must retain enum representation selection")
+    };
+
+    assert!(drop.is_none());
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].payload().len(), 1);
+    assert_eq!(
+        parameter_name(program, variants[0].payload()[0].parameter()),
+        "second"
     );
 }
 

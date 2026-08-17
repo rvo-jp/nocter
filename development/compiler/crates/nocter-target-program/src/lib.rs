@@ -6,7 +6,10 @@
 
 mod body_dependencies;
 mod capabilities;
+mod closure_instance;
+mod drop_instance;
 mod entry;
+mod executable;
 mod instance_key;
 mod primitive_contracts;
 mod primitive_registry;
@@ -15,14 +18,22 @@ mod snapshot;
 mod test_entry;
 
 pub use body_dependencies::{
-    BodyDependencyError, CheckedBodyDependencies, collect_body_dependencies,
+    BodyDependencyError, CheckedBodyDependencies, CheckedDestruction, collect_body_dependencies,
 };
 pub use capabilities::{
     ExecutableWriterIdentity, TargetAbiIdentity, TargetBackendIdentity, TargetUnavailable,
 };
+pub use closure_instance::{ClosureInstanceKey, ClosureInstanceKeyError};
+pub use drop_instance::{DropInstanceKey, DropInstanceKeyError};
 pub use entry::{
     EntryContractRule, EntrySelectionError, ExecutableEntry, ProcessResultContract,
     ProcessSuccessType, select_executable_entry,
+};
+pub use executable::{
+    ExecutableBody, ExecutableClosureEdge, ExecutableDispatchPlan, ExecutableDispatchStep,
+    ExecutableDropEdge, ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall,
+    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableTestCase,
+    ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

@@ -61,4 +61,5 @@ semantic_ids! {
     ClosureId,
     OpaqueTypeId,
     TypeId,
+    ExecutableItemId,
 }

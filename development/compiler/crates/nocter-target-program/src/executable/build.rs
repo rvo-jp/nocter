@@ -1,0 +1,599 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+use nocter_checking::{
+    ConcreteDestructionKind, ConcreteDestructionPlan, ConcreteDispatchResolver, DropSelection,
+    GenericArgument, GenericArguments, ResolvedDispatchStep, StaticSelection, TypeSubstitution,
+};
+use nocter_declarations::BodyOwner;
+use nocter_model::{ArenaBuilder, BodyId, BodyNodeId, ExecutableItemId, ModuleId};
+
+use super::{
+    ExecutableBody, ExecutableClosureEdge, ExecutableDestructionEdge, ExecutableDispatchEdge,
+    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableItem,
+    ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError,
+    ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
+};
+use crate::{
+    CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
+    collect_body_dependencies, select_executable_entry, select_test_target,
+};
+
+pub(super) fn build_executable(
+    target: TargetProgram,
+    selected: nocter_model::PackageTargetId,
+) -> Result<ExecutableProgram, ExecutableProgramError> {
+    let entry = select_executable_entry(&target, selected)?;
+    let entry_key = ExecutableItemKey::Callable(CallableInstanceKey::for_entry(&target, entry)?);
+    let frozen = ExecutableClosureBuilder::new(&target).close([entry_key.clone()])?;
+    let entry_item = frozen.item_id(&entry_key)?;
+    Ok(ExecutableProgram {
+        target,
+        types: frozen.types,
+        items: frozen.items,
+        item_ids: frozen.item_ids,
+        root: ExecutableRoot::Process {
+            target: selected,
+            entry: entry_item,
+            result: entry.process_result(),
+        },
+    })
+}
+
+pub(super) fn build_tests(
+    target: TargetProgram,
+    selected: nocter_model::PackageTargetId,
+) -> Result<ExecutableProgram, ExecutableProgramError> {
+    let selection = select_test_target(&target, selected)?;
+    let roots = selection
+        .tests()
+        .iter()
+        .map(|test| ExecutableItemKey::Test(test.declaration()))
+        .collect::<Vec<_>>();
+    let frozen = ExecutableClosureBuilder::new(&target).close(roots.iter().cloned())?;
+    let cases = selection
+        .tests()
+        .iter()
+        .zip(roots)
+        .map(|(test, key)| {
+            Ok(ExecutableTestCase {
+                declaration: test.declaration(),
+                name: test.name(),
+                item: frozen.item_id(&key)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    Ok(ExecutableProgram {
+        target,
+        types: frozen.types,
+        items: frozen.items,
+        item_ids: frozen.item_ids,
+        root: ExecutableRoot::Tests {
+            target: selected,
+            cases: cases.into_boxed_slice(),
+        },
+    })
+}
+
+struct FrozenClosure {
+    types: nocter_model::TypeStore,
+    items: nocter_model::Arena<ExecutableItemId, ExecutableItem>,
+    item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
+}
+
+impl FrozenClosure {
+    fn item_id(&self, key: &ExecutableItemKey) -> Result<ExecutableItemId, ExecutableProgramError> {
+        self.item_ids
+            .get(key)
+            .copied()
+            .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))
+    }
+}
+
+struct ExecutableClosureBuilder<'program> {
+    target: &'program TargetProgram,
+    resolver: ConcreteDispatchResolver<'program>,
+    known: BTreeSet<ExecutableItemKey>,
+    pending: BTreeSet<ExecutableItemKey>,
+    items: BTreeMap<ExecutableItemKey, DraftItem>,
+}
+
+impl<'program> ExecutableClosureBuilder<'program> {
+    fn new(target: &'program TargetProgram) -> Self {
+        Self {
+            target,
+            resolver: ConcreteDispatchResolver::new(target.checked()),
+            known: BTreeSet::new(),
+            pending: BTreeSet::new(),
+            items: BTreeMap::new(),
+        }
+    }
+
+    fn close(
+        mut self,
+        roots: impl IntoIterator<Item = ExecutableItemKey>,
+    ) -> Result<FrozenClosure, ExecutableProgramError> {
+        for root in roots {
+            self.enqueue(root);
+        }
+        while let Some(key) = self.pending.pop_first() {
+            let item = self.build_item(&key)?;
+            if self.items.insert(key.clone(), item).is_some() {
+                return Err(ExecutableProgramError::DuplicateItem(key));
+            }
+        }
+        let types = self.resolver.into_types();
+        freeze_items(self.items, types)
+    }
+
+    fn enqueue(&mut self, key: ExecutableItemKey) {
+        if self.known.insert(key.clone()) {
+            self.pending.insert(key);
+        }
+    }
+
+    fn build_item(&mut self, key: &ExecutableItemKey) -> Result<DraftItem, ExecutableProgramError> {
+        let context = item_context(self.target, key)?;
+        let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
+        let substitution = item_substitution(key);
+        let mut dispatches = Vec::new();
+        for selection in dependencies.selections() {
+            let plan = self
+                .resolver
+                .resolve(selection, &substitution, context.module)?;
+            dispatches.push(DraftDispatchEdge {
+                source: selection.clone(),
+                plan: self.convert_dispatch(&plan)?,
+            });
+        }
+
+        let mut closures = Vec::new();
+        for closure in dependencies.closures().iter().copied() {
+            let key = ExecutableItemKey::Closure(ClosureInstanceKey::new_in(
+                self.target,
+                self.resolver.types(),
+                closure,
+                item_generic_arguments(key),
+            )?);
+            self.enqueue(key.clone());
+            closures.push((closure, key));
+        }
+
+        let mut drops = BTreeMap::new();
+        for selection in dependencies.drop_selections() {
+            let selection = self.specialize_drop(selection, &substitution)?;
+            self.record_drop(selection, &mut drops)?;
+        }
+
+        let types = dependencies
+            .types()
+            .iter()
+            .copied()
+            .map(|source| {
+                self.resolver
+                    .specialize_type(source, &substitution)
+                    .map(|concrete| ExecutableTypeEdge { source, concrete })
+                    .map_err(Into::into)
+            })
+            .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+
+        let mut destructions = Vec::new();
+        for source in dependencies.destructions() {
+            let plan = match source {
+                CheckedDestruction::Complete(ty) => {
+                    self.resolver.resolve_destruction(*ty, &substitution)?
+                }
+                CheckedDestruction::EnumResidual {
+                    ty,
+                    variant,
+                    payload,
+                } => self
+                    .resolver
+                    .resolve_enum_residual(*ty, *variant, payload, &substitution)?,
+            };
+            if let Some(plan) = plan {
+                let mut selections = BTreeSet::new();
+                collect_drops(&plan, &mut selections);
+                for selection in selections {
+                    self.record_drop(selection, &mut drops)?;
+                }
+                destructions.push((source.clone(), plan));
+            }
+        }
+
+        Ok(DraftItem {
+            body: context.body,
+            root: context.root,
+            dispatches,
+            closures,
+            drops: drops.into_iter().collect(),
+            types,
+            destructions,
+        })
+    }
+
+    fn convert_dispatch(
+        &mut self,
+        plan: &nocter_checking::ResolvedDispatchPlan,
+    ) -> Result<DraftDispatchPlan, ExecutableProgramError> {
+        let mut steps = Vec::new();
+        for step in plan.steps() {
+            match step {
+                ResolvedDispatchStep::Direct(dispatch) => {
+                    let callable_key = CallableInstanceKey::new_in(
+                        self.target,
+                        self.resolver.types(),
+                        dispatch.callable(),
+                        dispatch.generic_arguments().clone(),
+                    )?;
+                    let declaration = self
+                        .target
+                        .checked()
+                        .graph()
+                        .declarations()
+                        .callables()
+                        .get(dispatch.callable())
+                        .ok_or(ExecutableProgramError::BodylessCallable(
+                            dispatch.callable(),
+                        ))?;
+                    if declaration.body().is_some() {
+                        let key = ExecutableItemKey::Callable(callable_key);
+                        self.enqueue(key.clone());
+                        steps.push(DraftDispatchStep::Direct(key));
+                    } else if let Some(role) = self
+                        .target
+                        .toolchain()
+                        .primitives()
+                        .role(dispatch.callable())
+                    {
+                        steps.push(DraftDispatchStep::StandardPrimitive(
+                            ExecutablePrimitiveCall {
+                                role,
+                                generic_arguments: callable_key.generic_arguments().clone(),
+                            },
+                        ));
+                    } else {
+                        return Err(ExecutableProgramError::BodylessCallable(
+                            dispatch.callable(),
+                        ));
+                    }
+                }
+                ResolvedDispatchStep::Primitive(primitive) => {
+                    steps.push(DraftDispatchStep::StructuralPrimitive(primitive.clone()));
+                }
+                ResolvedDispatchStep::IndirectCallable(contract) => {
+                    steps.push(DraftDispatchStep::IndirectCallable(contract.clone()));
+                }
+            }
+        }
+        Ok(DraftDispatchPlan(steps))
+    }
+
+    fn specialize_drop(
+        &mut self,
+        selection: &DropSelection,
+        substitution: &TypeSubstitution,
+    ) -> Result<DropSelection, ExecutableProgramError> {
+        let arguments = selection
+            .generic_arguments()
+            .as_slice()
+            .iter()
+            .map(|argument| {
+                self.resolver
+                    .specialize_type(argument.ty(), substitution)
+                    .map(|ty| GenericArgument::new(argument.parameter(), ty))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let arguments = GenericArguments::new(arguments)
+            .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
+        Ok(DropSelection::new(selection.declaration(), arguments))
+    }
+
+    fn record_drop(
+        &mut self,
+        selection: DropSelection,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<(), ExecutableProgramError> {
+        if drops.contains_key(&selection) {
+            return Ok(());
+        }
+        let key = ExecutableItemKey::Drop(DropInstanceKey::new_in(
+            self.target,
+            self.resolver.types(),
+            selection.declaration(),
+            selection.generic_arguments().clone(),
+        )?);
+        self.enqueue(key.clone());
+        drops.insert(selection, key);
+        Ok(())
+    }
+}
+
+struct ItemContext {
+    body: BodyId,
+    root: BodyNodeId,
+    module: ModuleId,
+}
+
+fn item_context(
+    target: &TargetProgram,
+    key: &ExecutableItemKey,
+) -> Result<ItemContext, ExecutableProgramError> {
+    let checked = target.checked();
+    let graph = checked.graph();
+    let (body, root) = match key {
+        ExecutableItemKey::Callable(key) => {
+            let declaration = graph
+                .declarations()
+                .callables()
+                .get(key.callable())
+                .ok_or_else(|| {
+                    ExecutableProgramError::UnknownItem(ExecutableItemKey::Callable(key.clone()))
+                })?;
+            let body = declaration
+                .body()
+                .ok_or(ExecutableProgramError::BodylessCallable(key.callable()))?;
+            let root = checked
+                .bodies()
+                .get(body)
+                .ok_or(ExecutableProgramError::UnknownBody(body))?
+                .root();
+            (body, root)
+        }
+        ExecutableItemKey::Closure(key) => {
+            let definition = checked.closures().get(key.closure()).ok_or_else(|| {
+                ExecutableProgramError::UnknownItem(ExecutableItemKey::Closure(key.clone()))
+            })?;
+            (definition.owner(), definition.body())
+        }
+        ExecutableItemKey::Drop(key) => {
+            let declaration = graph
+                .declarations()
+                .drops()
+                .get(key.drop())
+                .ok_or_else(|| {
+                    ExecutableProgramError::UnknownItem(ExecutableItemKey::Drop(key.clone()))
+                })?;
+            (
+                declaration.body(),
+                checked
+                    .bodies()
+                    .get(declaration.body())
+                    .ok_or(ExecutableProgramError::UnknownBody(declaration.body()))?
+                    .root(),
+            )
+        }
+        ExecutableItemKey::Test(test) => {
+            let declaration = graph
+                .declarations()
+                .tests()
+                .get(*test)
+                .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
+            (
+                declaration.body(),
+                checked
+                    .bodies()
+                    .get(declaration.body())
+                    .ok_or(ExecutableProgramError::UnknownBody(declaration.body()))?
+                    .root(),
+            )
+        }
+    };
+    let owner = graph
+        .declarations()
+        .bodies()
+        .get(body)
+        .ok_or(ExecutableProgramError::UnknownBody(body))?
+        .owner();
+    let site = match owner {
+        BodyOwner::Callable(callable) => graph
+            .declarations()
+            .callables()
+            .get(callable)
+            .map(nocter_declarations::CallableDeclaration::site),
+        BodyOwner::Drop(drop) => graph
+            .declarations()
+            .drops()
+            .get(drop)
+            .map(nocter_declarations::DropDeclaration::site),
+        BodyOwner::Test(test) => graph
+            .declarations()
+            .tests()
+            .get(test)
+            .map(|declaration| declaration.site()),
+    }
+    .ok_or(ExecutableProgramError::MissingDeclarationSite(body))?;
+    let module = graph
+        .declaration_sites()
+        .get(site)
+        .map(|site| site.module())
+        .ok_or(ExecutableProgramError::MissingDeclarationSite(body))?;
+    Ok(ItemContext { body, root, module })
+}
+
+fn item_generic_arguments(key: &ExecutableItemKey) -> GenericArguments {
+    match key {
+        ExecutableItemKey::Callable(key) => key.generic_arguments().clone(),
+        ExecutableItemKey::Closure(key) => key.generic_arguments().clone(),
+        ExecutableItemKey::Drop(key) => key.generic_arguments().clone(),
+        ExecutableItemKey::Test(_) => GenericArguments::default(),
+    }
+}
+
+fn item_substitution(key: &ExecutableItemKey) -> TypeSubstitution {
+    match key {
+        ExecutableItemKey::Callable(key) => key.substitution(),
+        ExecutableItemKey::Closure(key) => key.substitution(),
+        ExecutableItemKey::Drop(key) => key.substitution(),
+        ExecutableItemKey::Test(_) => TypeSubstitution::default(),
+    }
+}
+
+fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelection>) {
+    match plan.kind() {
+        ConcreteDestructionKind::Struct { drop, fields } => {
+            drops.extend(drop.iter().cloned());
+            for field in fields {
+                collect_drops(field.plan(), drops);
+            }
+        }
+        ConcreteDestructionKind::Enum { drop, variants } => {
+            drops.extend(drop.iter().cloned());
+            for variant in variants {
+                for payload in variant.payload() {
+                    collect_drops(payload.plan(), drops);
+                }
+            }
+        }
+        ConcreteDestructionKind::FixedArray { element, .. }
+        | ConcreteDestructionKind::Optional(element)
+        | ConcreteDestructionKind::Fallible(element) => collect_drops(element, drops),
+        ConcreteDestructionKind::Closure(captures) => {
+            for capture in captures {
+                collect_drops(capture.plan(), drops);
+            }
+        }
+        ConcreteDestructionKind::Opaque { plan, .. } => collect_drops(plan, drops),
+    }
+}
+
+struct DraftItem {
+    body: BodyId,
+    root: BodyNodeId,
+    dispatches: Vec<DraftDispatchEdge>,
+    closures: Vec<(nocter_model::ClosureId, ExecutableItemKey)>,
+    drops: Vec<(DropSelection, ExecutableItemKey)>,
+    types: Vec<ExecutableTypeEdge>,
+    destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
+}
+
+struct DraftDispatchEdge {
+    source: StaticSelection,
+    plan: DraftDispatchPlan,
+}
+
+struct DraftDispatchPlan(Vec<DraftDispatchStep>);
+
+enum DraftDispatchStep {
+    Direct(ExecutableItemKey),
+    StandardPrimitive(ExecutablePrimitiveCall),
+    StructuralPrimitive(nocter_checking::ResolvedPrimitiveDispatch),
+    IndirectCallable(nocter_model::CallableContract),
+}
+
+fn freeze_items(
+    drafts: BTreeMap<ExecutableItemKey, DraftItem>,
+    types: nocter_model::TypeStore,
+) -> Result<FrozenClosure, ExecutableProgramError> {
+    let mut key_arena = ArenaBuilder::<ExecutableItemId, _>::new();
+    let mut item_ids = BTreeMap::new();
+    for key in drafts.keys() {
+        let id = key_arena.insert(key.clone());
+        item_ids.insert(key.clone(), id);
+    }
+    let _ = key_arena.finish();
+    let mut items = ArenaBuilder::new();
+    for (key, draft) in drafts {
+        let expected = item_ids
+            .get(&key)
+            .copied()
+            .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
+        let body = freeze_body(draft, &item_ids)?;
+        let actual = items.insert(ExecutableItem {
+            key: key.clone(),
+            body,
+        });
+        if actual != expected {
+            return Err(ExecutableProgramError::DuplicateItem(key));
+        }
+    }
+    Ok(FrozenClosure {
+        types,
+        items: items.finish(),
+        item_ids,
+    })
+}
+
+fn freeze_body(
+    draft: DraftItem,
+    item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
+) -> Result<ExecutableBody, ExecutableProgramError> {
+    let dispatches = draft
+        .dispatches
+        .into_iter()
+        .map(|edge| {
+            Ok(ExecutableDispatchEdge {
+                source: edge.source,
+                plan: ExecutableDispatchPlan(
+                    edge.plan
+                        .0
+                        .into_iter()
+                        .map(|step| freeze_dispatch_step(step, item_ids))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    let closures = draft
+        .closures
+        .into_iter()
+        .map(|(closure, key)| {
+            Ok(ExecutableClosureEdge {
+                closure,
+                item: item_id(item_ids, &key)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    let drops = draft
+        .drops
+        .into_iter()
+        .map(|(selection, key)| {
+            Ok(ExecutableDropEdge {
+                selection,
+                item: item_id(item_ids, &key)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    Ok(ExecutableBody {
+        body: draft.body,
+        root: draft.root,
+        dispatches: dispatches.into_boxed_slice(),
+        closures: closures.into_boxed_slice(),
+        drops: drops.into_boxed_slice(),
+        types: draft.types.into_boxed_slice(),
+        destructions: draft
+            .destructions
+            .into_iter()
+            .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+    })
+}
+
+fn freeze_dispatch_step(
+    step: DraftDispatchStep,
+    item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
+) -> Result<ExecutableDispatchStep, ExecutableProgramError> {
+    Ok(match step {
+        DraftDispatchStep::Direct(key) => ExecutableDispatchStep::Direct(item_id(item_ids, &key)?),
+        DraftDispatchStep::StandardPrimitive(call) => {
+            ExecutableDispatchStep::StandardPrimitive(call)
+        }
+        DraftDispatchStep::StructuralPrimitive(primitive) => {
+            ExecutableDispatchStep::StructuralPrimitive(primitive)
+        }
+        DraftDispatchStep::IndirectCallable(contract) => {
+            ExecutableDispatchStep::IndirectCallable(contract)
+        }
+    })
+}
+
+fn item_id(
+    item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
+    key: &ExecutableItemKey,
+) -> Result<ExecutableItemId, ExecutableProgramError> {
+    item_ids
+        .get(key)
+        .copied()
+        .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))
+}

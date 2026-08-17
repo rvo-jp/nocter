@@ -14,10 +14,10 @@ mod type_store;
 pub use arena::{Arena, ArenaBuilder};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
-    ConformanceId, ConstructionId, DeclarationSiteId, DropId, FieldId, GenericParameterId,
-    ImportId, InstanceId, InterfaceId, LocalBindingId, LoopId, ModuleId, NominalTypeId,
-    OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId, TestId,
-    TypeAliasId, TypeId, VariantId,
+    ConformanceId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
+    GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, LoopId, ModuleId,
+    NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId,
+    TestId, TypeAliasId, TypeId, VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use symbol::{Symbol, SymbolTable};

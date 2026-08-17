@@ -26,6 +26,10 @@ validates the selected module's entry contract, then instantiates the entry-driv
 It owns the only monomorphized item table and freezes every concrete conformance dispatch. It
 cannot retain a callable requirement that MIR would have to resolve again.
 
+The implemented executable root is compiler-owned metadata, not a synthetic source declaration. A
+process root names one dense entry item and its process-result contract. A test root retains direct
+test cases in declaration order and maps each case to a dense item. Empty test targets remain valid.
+
 `MirProgram` consumes one `ExecutableProgram`. It owns concrete control-flow graphs, places,
 operations, calls, and cleanup edges. MIR validation checks representation integrity only; it does
 not reject a source-language capability accepted by `TargetProgram`.
@@ -143,6 +147,12 @@ for ownership of its referent. Opaque destruction opens only the checked witness
 opaque generic domain is concrete. The executable closure can enumerate every required drop body
 without rematching types or reconstructing storage layout.
 
+Checked cleanup dependencies preserve their representation shape rather than collapsing to a type
+set. Complete values use ordinary recursive glue. An enum residual records its exact active variant
+and still-initialized payload identities after pattern transfer; its plan excludes both moved
+payloads and an owner drop body that already ran before transfer. This distinction prevents a later
+generic lowering from turning residual cleanup into a second whole-enum destruction.
+
 One executable dependency traversal covers calls, receiver and operand coercions, comparisons,
 index projections, iteration, typed literals, interpolation, closures, explicit pattern drops,
 and every scheduled cleanup type. It excludes source retained under `Unreachable` and unreachable
@@ -155,6 +165,15 @@ the checked program's conformance authority, resolves abstract dispatch once, an
 callees, drop bodies, construction members, closures, and compiler-generated semantic operations.
 Opaque witnesses become concrete at this boundary. Unreachable generic declarations are not
 instantiated and cannot create target code.
+
+This closure is implemented with `CallableInstanceKey`, `ClosureInstanceKey`, and
+`DropInstanceKey`, each validated against the complete declaration-owned generic domain. A
+`BTreeSet` work queue closes semantic keys; dense `ExecutableItemId` values are assigned only after
+closure, in full key order. Discovery order and first-use queue order therefore cannot affect item
+identity. Each executable body freezes source-to-concrete type edges, direct item IDs, typed
+standard and structural primitive calls, indirect callable contracts, nested closure IDs, exact
+drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are accepted only
+when the selected toolchain registry assigns their callable to a primitive role.
 
 ## MIR Authority
 
@@ -175,9 +194,9 @@ integrity checks over an accepted program, not a second source diagnostic system
 4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
    buildability into `TargetProgram`. **Complete.**
-6. Select an executable/test entry, define canonical concrete callable keys, enumerate checked-body
-   dependencies, and resolve concrete dispatch and destruction plans (**complete**), then close one
-   deterministic reachable item graph (**pending**).
+6. Select an executable/test entry, define canonical concrete callable/closure/drop keys, enumerate
+   checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
+   deterministic reachable item graph. **Complete.**
 7. Lower concrete checked bodies and cleanup schedules into MIR.
 8. Validate MIR without source or syntax access.
 

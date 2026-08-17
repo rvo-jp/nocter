@@ -285,6 +285,17 @@ be introduced to make an unresolved syntax choice.
   stores caller-visible origins separately from compiler-owned current-allocation dependence.
   Return validation projects `E0395` for local, owned-parameter, temporary, region, unknown, or
   undeclared origins, and conformance implementations cannot exceed their interface method bound.
+- `nocter-target-program` owns the selected-target and executable boundaries. `TargetProgram`
+  consumes the checked program and one immutable toolchain snapshot, validates target/package
+  identity and the complete closed primitive registry, and is shared by check, build, and run.
+  `ExecutableProgram` then selects one process or test root and closes only reachable callable,
+  closure, and drop instance keys. Every key carries its complete concrete declaration-owned
+  generic domain. A key-ordered work set resolves interface, opaque, and structural dispatch once,
+  converts bodyless standard calls to typed primitive roles, opens checked destruction plans, and
+  assigns dense item IDs only after closure in semantic-key order. Each body retains exact
+  source-to-concrete type edges and cleanup-specific glue. Enum residual cleanup keeps its active
+  variant and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or
+  destroy a moved payload. No unresolved requirement or source name reaches MIR.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

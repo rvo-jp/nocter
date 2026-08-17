@@ -8,7 +8,9 @@ use nocter_checking::{
     DropSelection, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
     PrimitiveOperation, SequenceElement, StaticSelection, TypedIteration,
 };
-use nocter_model::{BodyId, BodyNodeId, ClosureId, DropId, LoopId, PlaceId, TypeId};
+use nocter_model::{
+    BodyId, BodyNodeId, ClosureId, DropId, LoopId, ParameterId, PlaceId, TypeId, VariantId,
+};
 
 use crate::TargetProgram;
 
@@ -23,6 +25,7 @@ pub struct CheckedBodyDependencies {
     closures: Box<[ClosureId]>,
     drop_selections: Box<[DropSelection]>,
     types: Box<[TypeId]>,
+    destructions: Box<[CheckedDestruction]>,
 }
 
 impl CheckedBodyDependencies {
@@ -45,6 +48,53 @@ impl CheckedBodyDependencies {
     #[must_use]
     pub const fn types(&self) -> &[TypeId] {
         &self.types
+    }
+
+    /// Exact destruction shapes required by reachable cleanup schedules.
+    #[must_use]
+    pub const fn destructions(&self) -> &[CheckedDestruction] {
+        &self.destructions
+    }
+}
+
+/// The representation work selected by one checked cleanup target.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum CheckedDestruction {
+    Complete(TypeId),
+    EnumResidual {
+        ty: TypeId,
+        variant: VariantId,
+        payload: Box<[ParameterId]>,
+    },
+}
+
+impl CheckedDestruction {
+    #[must_use]
+    pub fn for_cleanup(target: &CleanupTarget) -> Option<Self> {
+        match target {
+            CleanupTarget::Path(path) => Some(Self::Complete(path.ty())),
+            CleanupTarget::Place { ty, .. } | CleanupTarget::Value { ty, .. } => {
+                Some(Self::Complete(*ty))
+            }
+            CleanupTarget::EnumResidual {
+                variant,
+                payload,
+                ty,
+                ..
+            } => Some(Self::EnumResidual {
+                ty: *ty,
+                variant: *variant,
+                payload: payload.clone(),
+            }),
+            CleanupTarget::Region { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn ty(&self) -> TypeId {
+        match self {
+            Self::Complete(ty) | Self::EnumResidual { ty, .. } => *ty,
+        }
     }
 }
 
@@ -84,10 +134,12 @@ struct DependencyCollector<'program> {
     closure_set: HashSet<ClosureId>,
     drop_set: HashSet<DropSelection>,
     type_set: HashSet<TypeId>,
+    destruction_set: HashSet<CheckedDestruction>,
     selections: Vec<StaticSelection>,
     closures: Vec<ClosureId>,
     drop_selections: Vec<DropSelection>,
     types: Vec<TypeId>,
+    destructions: Vec<CheckedDestruction>,
 }
 
 impl<'program> DependencyCollector<'program> {
@@ -103,10 +155,12 @@ impl<'program> DependencyCollector<'program> {
             closure_set: HashSet::new(),
             drop_set: HashSet::new(),
             type_set: HashSet::new(),
+            destruction_set: HashSet::new(),
             selections: Vec::new(),
             closures: Vec::new(),
             drop_selections: Vec::new(),
             types: Vec::new(),
+            destructions: Vec::new(),
         }
     }
 
@@ -116,6 +170,7 @@ impl<'program> DependencyCollector<'program> {
             closures: self.closures.into_boxed_slice(),
             drop_selections: self.drop_selections.into_boxed_slice(),
             types: self.types.into_boxed_slice(),
+            destructions: self.destructions.into_boxed_slice(),
         }
     }
 
@@ -491,8 +546,11 @@ impl<'program> DependencyCollector<'program> {
     }
 
     fn visit_cleanup(&mut self, target: &CleanupTarget) -> Result<(), BodyDependencyError> {
+        if let Some(destruction) = CheckedDestruction::for_cleanup(target) {
+            self.record_destruction(destruction)?;
+        }
         match target {
-            CleanupTarget::Path(path) => self.record_type(path.ty())?,
+            CleanupTarget::Path(_) => {}
             CleanupTarget::Place { place, ty } => {
                 self.visit_place(*place)?;
                 self.record_type(*ty)?;
@@ -570,6 +628,17 @@ impl<'program> DependencyCollector<'program> {
         }
         if self.type_set.insert(ty) {
             self.types.push(ty);
+        }
+        Ok(())
+    }
+
+    fn record_destruction(
+        &mut self,
+        destruction: CheckedDestruction,
+    ) -> Result<(), BodyDependencyError> {
+        self.record_type(destruction.ty())?;
+        if self.destruction_set.insert(destruction.clone()) {
+            self.destructions.push(destruction);
         }
         Ok(())
     }

@@ -129,6 +129,24 @@ impl ConcreteCaptureDestruction {
 }
 
 impl ConcreteDispatchResolver<'_> {
+    /// Applies one enclosing specialization and requires a fully concrete result.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed invariant failure when substitution cannot rebuild the type or leaves a
+    /// symbolic identity at the executable boundary.
+    pub fn specialize_type(
+        &mut self,
+        ty: TypeId,
+        enclosing: &TypeSubstitution,
+    ) -> Result<TypeId, ConcreteDestructionError> {
+        let ty = enclosing.apply_type(&mut self.types, ty)?;
+        if !is_concrete_type(&self.types, ty)? {
+            return Err(ConcreteDestructionError::SymbolicType(ty));
+        }
+        Ok(ty)
+    }
+
     /// Resolves the exact recursive glue required to destroy one specialized type.
     ///
     /// # Errors
@@ -140,11 +158,108 @@ impl ConcreteDispatchResolver<'_> {
         ty: TypeId,
         enclosing: &TypeSubstitution,
     ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
-        let ty = enclosing.apply_type(&mut self.types, ty)?;
-        if !is_concrete_type(&self.types, ty)? {
-            return Err(ConcreteDestructionError::SymbolicType(ty));
-        }
+        let ty = self.specialize_type(ty, enclosing)?;
         self.plan_type(ty, &mut BTreeSet::new())
+    }
+
+    /// Resolves only the still-initialized payload fields of one consumed enum pattern.
+    ///
+    /// The enum's own drop body is deliberately absent: checked ownership runs it before the first
+    /// named move-only payload leaves the value.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed invariant failure when the specialized type is not the selected enum,
+    /// payload identities do not belong to the selected variant, or child destruction is invalid.
+    pub fn resolve_enum_residual(
+        &mut self,
+        ty: TypeId,
+        variant: VariantId,
+        payload: &[nocter_model::ParameterId],
+        enclosing: &TypeSubstitution,
+    ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
+        let ty = self.specialize_type(ty, enclosing)?;
+        let Some(TypeKind::Nominal {
+            definition,
+            arguments,
+        }) = self.types.get(ty).cloned()
+        else {
+            return Err(ConcreteDestructionError::InvalidEnumResidual(ty));
+        };
+        let nominal = self
+            .program
+            .graph()
+            .declarations()
+            .nominal_types()
+            .get(definition)
+            .cloned()
+            .ok_or(ConcreteDestructionError::MissingNominal(definition))?;
+        let NominalShape::Enum { variants } = nominal.shape() else {
+            return Err(ConcreteDestructionError::InvalidEnumResidual(ty));
+        };
+        if !variants.contains(&variant) || nominal.generic_parameters().len() != arguments.len() {
+            return Err(ConcreteDestructionError::InvalidEnumResidual(ty));
+        }
+        let mut substitution = TypeSubstitution::default();
+        for (parameter, argument) in nominal
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+        {
+            substitution.bind_generic(parameter, argument);
+        }
+        let variant_declaration = self
+            .program
+            .graph()
+            .declarations()
+            .variants()
+            .get(variant)
+            .cloned()
+            .ok_or(ConcreteDestructionError::MissingVariant(variant))?;
+        let selected = payload.iter().copied().collect::<BTreeSet<_>>();
+        if selected.len() != payload.len()
+            || selected
+                .iter()
+                .any(|parameter| !variant_declaration.payload().contains(parameter))
+        {
+            return Err(ConcreteDestructionError::InvalidEnumResidual(ty));
+        }
+        let mut plans = Vec::new();
+        let mut active = BTreeSet::new();
+        for parameter in variant_declaration.payload().iter().rev().copied() {
+            if !selected.contains(&parameter) {
+                continue;
+            }
+            let declaration = self
+                .program
+                .graph()
+                .declarations()
+                .parameters()
+                .get(parameter)
+                .copied()
+                .ok_or(ConcreteDestructionError::MissingPayload(parameter))?;
+            if declaration.owner() != ParameterOwner::Variant(variant) {
+                return Err(ConcreteDestructionError::PayloadOwnerMismatch(parameter));
+            }
+            let field_ty = substitution.apply_type(&mut self.types, declaration.ty())?;
+            if let Some(plan) = self.plan_type(field_ty, &mut active)? {
+                plans.push(ConcretePayloadDestruction { parameter, plan });
+            }
+        }
+        Ok((!plans.is_empty()).then(|| {
+            ConcreteDestructionPlan::new(
+                ty,
+                ConcreteDestructionKind::Enum {
+                    drop: None,
+                    variants: vec![ConcreteVariantDestruction {
+                        variant,
+                        payload: plans.into_boxed_slice(),
+                    }]
+                    .into_boxed_slice(),
+                },
+            )
+        }))
     }
 
     fn plan_type(
@@ -499,6 +614,7 @@ pub enum ConcreteDestructionError {
     MissingOpaque(OpaqueTypeId),
     InvalidOpaqueDomain(OpaqueTypeId),
     MissingOpaqueWitness(OpaqueTypeId),
+    InvalidEnumResidual(TypeId),
     Substitution(SubstitutionError),
     Selection(InstanceSelectionError),
     Copyability(CopyabilityError),
