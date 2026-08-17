@@ -33,6 +33,13 @@ uses a content-sorted deduplicated `MachineDataTable`, so MIR traversal order ca
 identity. Machine-operation lowering must reference these tables rather than allocate labels or
 data on demand.
 
+`MachineProgram` now translates each semantic linkage entry into a distinct dense machine function
+and gives each body independent stack-object, drop-flag, SSA-value, operation, and basic-block
+domains. Constants, scalar operations, block arguments, scalar switches, direct calls, returns, and
+root exits have closed machine nodes. Next, lower every MIR place through layout-owned byte offsets
+and strides; read, borrow, write, aggregate, destruction, region, primitive, and pack operations
+must then consume those machine addresses rather than retain semantic projection identities.
+
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
 compile-unit input and retained by `DeclarationGraph` through `CheckedProgram`. One shared

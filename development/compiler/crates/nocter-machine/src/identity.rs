@@ -32,6 +32,12 @@ pub(crate) trait MachineId: Copy {
 }
 
 machine_ids! {
+    MachineFunctionId,
+    MachineBlockId,
+    MachineValueId,
+    MachineStackId,
+    MachineOperationId,
+    MachineDropFlagId,
     MachineLinkageId,
     MachineDataId,
 }

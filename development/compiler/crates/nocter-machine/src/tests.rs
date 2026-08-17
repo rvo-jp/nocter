@@ -12,8 +12,9 @@ use nocter_test_support::CompilerFixture;
 use crate::{
     MachineAbiPlan, MachineArgumentLocation, MachineDataTable, MachineEndianness,
     MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore, MachineLinkageKey,
-    MachineLinkageTable, MachineOutcomeKind, MachineResultAbi, MachineResultLocation,
-    MachineRootLinkage, MachineScalar, MachineValueClass,
+    MachineLinkageTable, MachineOperationKind, MachineOutcomeKind, MachineProgram,
+    MachineProgramRoot, MachineResultAbi, MachineResultLocation, MachineRootLinkage, MachineScalar,
+    MachineTerminator, MachineValueClass,
 };
 
 #[test]
@@ -620,6 +621,65 @@ fn test_root_linkage_retains_declaration_order_separately_from_key_order() {
             Some(linked.body()),
             linkage.id(MachineLinkageKey::Item(source.item()))
         );
+    }
+}
+
+#[test]
+fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
+    let mir = lower_fixture(
+        "func main(): i32 {\n\
+             if true {\n\
+                 return 7\n\
+             }\n\
+             return 9\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { root, entry } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    assert_eq!(program.functions().len(), 2);
+    assert!(matches!(
+        program.function(root).unwrap().kind(),
+        crate::MachineFunctionKind::ProcessRoot
+    ));
+    assert!(matches!(
+        program.function(entry).unwrap().kind(),
+        crate::MachineFunctionKind::Callable(_)
+    ));
+
+    let root_body = program.function(root).unwrap().body();
+    let direct_target = root_body
+        .operations()
+        .find_map(|(_, operation)| match operation.kind() {
+            MachineOperationKind::DirectCall(call) => Some(call.target()),
+            _ => None,
+        });
+    assert_eq!(direct_target, Some(entry));
+    assert!(
+        root_body
+            .blocks()
+            .any(|(_, block)| matches!(block.terminator(), MachineTerminator::Exit(Some(_))))
+    );
+
+    let entry_body = program.function(entry).unwrap().body();
+    assert_eq!(entry_body.values().len(), 3);
+    assert_eq!(
+        entry_body
+            .operations()
+            .filter(|(_, operation)| {
+                matches!(operation.kind(), MachineOperationKind::Constant(_))
+            })
+            .count(),
+        3
+    );
+    assert!(
+        entry_body
+            .blocks()
+            .any(|(_, block)| matches!(block.terminator(), MachineTerminator::Branch { .. }))
+    );
+    for (_, value) in entry_body.values() {
+        assert!(program.layouts().get(value.ty()).is_some());
     }
 }
 
