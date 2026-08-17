@@ -106,6 +106,11 @@ pub enum MachineOperationKind {
     IntegerConversion {
         operand: MachineValueId,
     },
+    Comparison(crate::MachineComparison),
+    IndexBorrow(crate::MachineIndexBorrow),
+    BorrowWeakening {
+        source: MachineValueId,
+    },
     Aggregate(MachineAggregate),
     InvokeDrop {
         target: MachineFunctionId,

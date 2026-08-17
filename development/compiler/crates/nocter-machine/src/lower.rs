@@ -20,6 +20,7 @@ mod control;
 mod destruction;
 mod operation;
 mod pack;
+mod structural;
 
 use body::lower_body;
 
@@ -28,9 +29,8 @@ impl MachineProgram {
     ///
     /// # Errors
     ///
-    /// Returns a compiler-integrity error when layout, ABI, linkage, or a not-yet-closed machine
-    /// operation cannot be materialized. Unsupported operations are explicit errors; MIR is never
-    /// retained as an escape hatch in the resulting program.
+    /// Returns a compiler-integrity error when layout, ABI, linkage, or a machine operation cannot
+    /// be materialized. MIR is never retained as an escape hatch in the resulting program.
     pub fn lower(program: &MirProgram) -> Result<Self, MachineProgramError> {
         let layouts = MachineLayoutStore::build(program)?;
         let abi = MachineAbiPlan::build(program, &layouts)?;
@@ -162,23 +162,6 @@ fn require_function(
         .ok_or(MachineProgramError::MissingFunctionLinkage(linkage))
 }
 
-pub(super) const fn unsupported(
-    owner: MachineLinkageId,
-    operation: MirOperationId,
-    kind: MachineUnsupportedOperation,
-) -> MachineProgramError {
-    MachineProgramError::UnsupportedOperation {
-        owner,
-        operation,
-        kind,
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MachineUnsupportedOperation {
-    StructuralCall,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAddressError {
     InvalidRoot,
@@ -227,14 +210,18 @@ pub enum MachineProgramError {
         operation: MirOperationId,
         error: crate::MachineDestructionError,
     },
-    MissingOperationResult {
+    Structural {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+        error: crate::MachineStructuralError,
+    },
+    InvalidPackTarget {
         owner: MachineLinkageId,
         operation: MirOperationId,
     },
-    UnsupportedOperation {
+    MissingOperationResult {
         owner: MachineLinkageId,
         operation: MirOperationId,
-        kind: MachineUnsupportedOperation,
     },
     UnsupportedPlaceSwitch(MachineLinkageId),
     InvalidValueSwitch(MachineLinkageId),
@@ -267,8 +254,9 @@ impl std::error::Error for MachineProgramError {
             | Self::Address { .. }
             | Self::Aggregate { .. }
             | Self::Destruction { .. }
+            | Self::Structural { .. }
+            | Self::InvalidPackTarget { .. }
             | Self::MissingOperationResult { .. }
-            | Self::UnsupportedOperation { .. }
             | Self::UnsupportedPlaceSwitch(_)
             | Self::InvalidValueSwitch(_)
             | Self::InvalidTagSwitch(_) => None,

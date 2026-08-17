@@ -389,8 +389,10 @@ be introduced to make an unresolved syntax choice.
   primitives retain closed roles and use the same concrete ABI planner as direct calls. Direct and
   primitive targets share one call representation. Literal descriptors retain ordered fixed and
   spread segments through a dedicated body-local identity, while residual cleanup is frozen into
-  machine-function targets, tags, strides, and byte offsets. Structural operations, ARM64
-  selection, and Mach-O serialization remain the next Phase 5 boundaries.
+  machine-function targets, tags, strides, and byte offsets. Compiler-provided comparison, checked
+  index, and borrow-weakening dispatch is lowered into representation-exact machine operations;
+  no structural call target survives. ARM64 selection and Mach-O serialization remain the next
+  Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

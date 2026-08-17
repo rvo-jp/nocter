@@ -132,7 +132,7 @@ fn lower_operation(
             region: ids.stack(*region)?,
         },
         MirOperationKind::Call(call) => {
-            MachineOperationKind::Call(lower_call(operation, call, types, layouts, functions, ids)?)
+            lower_call(operation, call, types, layouts, functions, ids)?
         }
         MirOperationKind::PackLength => MachineOperationKind::PackLength,
         MirOperationKind::PackNext => MachineOperationKind::PackNext,

@@ -151,6 +151,13 @@ arguments and allocation context. That signature is passed through the same call
 as source functions. A primitive cannot introduce a private register convention, and ARM64
 selection never looks up a primitive by module or declaration spelling.
 
+Compiler-provided structural behavior does not cross a call boundary. Machine lowering replaces
+primitive equality and ordering with comparisons that name exact scalar signedness or an enum tag
+offset. Built-in indexing becomes one checked borrow operation containing its fixed bound or view
+pointer/length offsets and element stride. Readwrite-to-readonly borrow weakening becomes an
+explicit representation-preserving operation. The machine program therefore retains neither a
+structural dispatch target nor a reason to reopen type selection.
+
 ## ARM64 and Mach-O Boundaries
 
 ARM64 lowering receives only validated machine operations and completed transport plans. It owns
@@ -197,5 +204,5 @@ process error reporting. Standard primitive calls also carry ordinary ABI plans 
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and layout-owned residual destruction recipes.
 
-Structural operations, ARM64 instruction lowering, and Mach-O serialization are the remaining
-Phase 5 implementation areas.
+ARM64 instruction lowering and Mach-O serialization are the remaining Phase 5 implementation
+areas.

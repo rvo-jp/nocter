@@ -42,8 +42,10 @@ closed machine nodes. Stored, completion, and diverging SSA values are separate;
 region lifetime operations, and root error reporting consume machine identities. Standard
 primitives retain closed roles and use the ordinary ABI planner through one common call-target
 domain. Literal packs now consume exact value/address identities, and their residual destruction
-uses only machine-function targets plus layout-owned tags, strides, and byte offsets. Next,
-structural operations must close without retaining semantic dispatch operands.
+uses only machine-function targets plus layout-owned tags, strides, and byte offsets. Structural
+comparison, checked index, and borrow weakening now consume exact scalar, tag, bound, stride, and
+view-layout facts without retaining semantic dispatch operands. ARM64 selection is the next closed
+boundary.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

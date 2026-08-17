@@ -1022,6 +1022,101 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
     ));
 }
 
+#[test]
+fn primitive_comparisons_freeze_scalar_and_enum_tag_representations() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "enum Flag { off\n    on }\n\
+         func main(): i32 {\n\
+             let integer_equal = 1 == 2\n\
+             let integer_less = 1 < 2\n\
+             let boolean_equal = true == false\n\
+             let left = Flag.off\n\
+             let right = Flag.on\n\
+             let enum_equal = left == right\n\
+             if integer_equal { return 1 }\n\
+             if integer_less { return 2 }\n\
+             if boolean_equal { return 3 }\n\
+             if enum_equal { return 4 }\n\
+             0\n\
+         }\n",
+    ))
+    .unwrap();
+    let representations = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter_map(|(_, operation)| {
+            let MachineOperationKind::Comparison(comparison) = operation.kind() else {
+                return None;
+            };
+            Some((comparison.operation(), comparison.representation()))
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(representations.len(), 4);
+    assert!(representations.iter().any(|(operation, representation)| {
+        *operation == crate::MachineComparisonOperation::Less
+            && matches!(
+                representation,
+                crate::MachineComparisonRepresentation::Scalar(MachineScalar::Integer {
+                    bits: 32,
+                    signed: true,
+                })
+            )
+    }));
+    assert!(representations.iter().any(|(_, representation)| {
+        matches!(
+            representation,
+            crate::MachineComparisonRepresentation::Scalar(MachineScalar::Bool)
+        )
+    }));
+    assert!(representations.iter().any(|(_, representation)| {
+        matches!(
+            representation,
+            crate::MachineComparisonRepresentation::Tag { offset: 0 }
+        )
+    }));
+}
+
+#[test]
+fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func read<C, V>(source: &C, index: usize): V where copy V, (&C[usize]): &V {\n\
+             source[index]\n\
+         }\n\
+         func weaken(value: &+i32): &i32 { value }\n\
+         func main(): i32 {\n\
+             let values: [i32; 2] = [7, 9]\n\
+             var mutable: i32 = 1\n\
+             let readonly = weaken(&+mutable)\n\
+             let _ = readonly\n\
+             read(&values, 1)\n\
+         }\n",
+    ))
+    .unwrap();
+    let operations = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .map(|(_, operation)| operation.kind())
+        .collect::<Vec<_>>();
+
+    assert!(operations.iter().any(|operation| {
+        matches!(
+            operation,
+            MachineOperationKind::IndexBorrow(index)
+                if index.domain()
+                    == crate::MachineIndexDomain::Fixed {
+                        length: 2,
+                        stride: 4,
+                    }
+        )
+    }));
+    assert!(
+        operations
+            .iter()
+            .any(|operation| matches!(operation, MachineOperationKind::BorrowWeakening { .. }))
+    );
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();

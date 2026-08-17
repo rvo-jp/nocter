@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use nocter_mir::{MirCall, MirCallAllocation, MirCallTarget};
 use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
 
+use super::MachineProgramError;
 use super::body::BodyIdentities;
-use super::{MachineProgramError, MachineUnsupportedOperation, unsupported};
+use super::structural::lower_structural;
 use crate::{
     MachineCall, MachineCallAllocation, MachineCallTarget, MachineFunctionId, MachineLayoutStore,
-    MachinePrimitiveTarget,
+    MachineOperationKind, MachinePrimitiveTarget,
 };
 
 pub(super) fn lower_call(
@@ -17,7 +18,10 @@ pub(super) fn lower_call(
     layouts: &MachineLayoutStore,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
     ids: &BodyIdentities,
-) -> Result<MachineCall, MachineProgramError> {
+) -> Result<MachineOperationKind, MachineProgramError> {
+    if let MirCallTarget::Structural(target) = call.target() {
+        return lower_structural(operation, target, call.arguments(), types, layouts, ids);
+    }
     let target = lower_call_target(operation, call.target(), types, layouts, functions, ids)?;
     let arguments = call
         .arguments()
@@ -29,7 +33,9 @@ pub(super) fn lower_call(
         MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
     };
     let pack = call.pack().map(|_| ids.pack(operation)).transpose()?;
-    Ok(MachineCall::new(target, arguments, allocation, pack))
+    Ok(MachineOperationKind::Call(MachineCall::new(
+        target, arguments, allocation, pack,
+    )))
 }
 
 pub(super) fn lower_call_target(
@@ -64,10 +70,9 @@ pub(super) fn lower_call_target(
                 abi,
             )))
         }
-        MirCallTarget::Structural(_) => Err(unsupported(
-            ids.owner(),
+        MirCallTarget::Structural(_) => Err(MachineProgramError::InvalidPackTarget {
+            owner: ids.owner(),
             operation,
-            MachineUnsupportedOperation::StructuralCall,
-        )),
+        }),
     }
 }

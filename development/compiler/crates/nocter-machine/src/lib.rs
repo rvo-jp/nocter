@@ -14,6 +14,7 @@ mod operation;
 mod pack;
 mod program;
 mod storage;
+mod structural;
 mod target;
 mod transport;
 
@@ -40,9 +41,7 @@ pub use linkage::{
     MachineData, MachineDataTable, MachineLinkageEntry, MachineLinkageError, MachineLinkageKey,
     MachineLinkageTable, MachineRootLinkage, MachineTestLinkage,
 };
-pub use lower::{
-    MachineAddressError, MachineAggregateError, MachineProgramError, MachineUnsupportedOperation,
-};
+pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};
 pub use operation::{
     MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineConstant,
     MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
@@ -58,6 +57,10 @@ pub use program::{
 pub use storage::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineDropFlag, MachineIndex,
     MachineIndexBound, MachineStackObject, MachineStackPurpose,
+};
+pub use structural::{
+    MachineComparison, MachineComparisonOperation, MachineComparisonRepresentation,
+    MachineIndexBorrow, MachineIndexDomain, MachineStructuralError,
 };
 pub use target::{MachineEndianness, MachineTarget};
 pub use transport::{
