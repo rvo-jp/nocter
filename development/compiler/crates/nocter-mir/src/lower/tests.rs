@@ -389,6 +389,93 @@ fn lowers_specialized_structural_index_with_its_receiver_lane() {
 }
 
 #[test]
+fn lowers_fallible_injection_and_propagation_through_typed_storage() {
+    let program = lower_fixture(
+        "func pass(input: i32!): i32! { input? }\n\
+         func main(): i32! { pass(1) }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .blocks()
+            .iter()
+            .any(|(_, block)| matches!(block.terminator(), MirTerminator::Switch { .. }))
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(crate::MirAggregate::FallibleFailure(_))
+            )
+        })
+    }));
+}
+
+#[test]
+fn lowers_forced_optional_failure_to_an_explicit_trap_edge() {
+    let program = lower_fixture(
+        "func force(input: i32?): i32 { input! }\n\
+         func main(): i32 { force(1) }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .blocks()
+            .iter()
+            .any(|(_, block)| matches!(block.terminator(), MirTerminator::Trap))
+    }));
+}
+
+#[test]
+fn lowers_fallible_recovery_binding_and_value_join() {
+    let program = lower_fixture(
+        "func recover(input: i32!): i32 { input catch failure { 0 } }\n\
+         func main(): i32 { recover(1) }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .blocks()
+            .iter()
+            .any(|(_, block)| !block.parameters().is_empty())
+    }));
+}
+
+#[test]
+fn preserves_outer_outcome_layers_on_propagation_failure_edges() {
+    let program = lower_fixture(
+        "func lift_absence(input: i32?): (i32?)! { input? }\n\
+         func lift_failure(input: i32!): (i32!)? { input? }\n\
+         func main(): i32 {\n\
+             let _ = lift_absence(none)\n\
+             let _ = lift_failure(1)\n\
+             0\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(crate::MirAggregate::FallibleSuccess(_))
+            )
+        })
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(crate::MirAggregate::Optional(Some(_)))
+            )
+        })
+    }));
+}
+
+#[test]
 fn refuses_to_silently_drop_checked_cleanup() {
     let error = lower_fixture(
         "struct Owned { value: i32 }\n\

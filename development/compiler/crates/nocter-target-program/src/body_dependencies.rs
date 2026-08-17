@@ -10,8 +10,8 @@ use nocter_checking::{
     StaticSelection, TypedIteration,
 };
 use nocter_model::{
-    BodyId, BodyNodeId, BorrowCapability, ClosureId, DropId, LoopId, ParameterId, PlaceId, TypeId,
-    VariantId,
+    BodyId, BodyNodeId, BorrowCapability, ClosureId, DropId, LocalBindingId, LoopId, ParameterId,
+    PlaceId, TypeId, VariantId,
 };
 
 use crate::TargetProgram;
@@ -454,9 +454,21 @@ impl<'program> DependencyCollector<'program> {
                 operand: payload, ..
             } => self.visit_node(*payload)?,
             CheckedOutcome::Recover {
-                operand, fallback, ..
+                operand,
+                binding,
+                fallback,
+                ..
             } => {
                 self.visit_node(*operand)?;
+                if let Some(binding) = binding {
+                    let local = self.body.locals().get(*binding).copied().ok_or(
+                        BodyDependencyError::UnknownLocal {
+                            body: self.body_id,
+                            local: *binding,
+                        },
+                    )?;
+                    self.record_type(local.ty())?;
+                }
                 self.visit_node(*fallback)?;
             }
         }
@@ -751,6 +763,10 @@ pub enum BodyDependencyError {
     UnknownLoop {
         body: BodyId,
         loop_: LoopId,
+    },
+    UnknownLocal {
+        body: BodyId,
+        local: LocalBindingId,
     },
     UnknownClosure(ClosureId),
     ClosureOwnerMismatch {

@@ -14,6 +14,7 @@ mod control;
 mod function;
 mod index_place;
 mod operand;
+mod outcome;
 mod place;
 
 #[cfg(test)]
