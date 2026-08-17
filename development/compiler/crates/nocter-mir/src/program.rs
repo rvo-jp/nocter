@@ -1,16 +1,18 @@
 use std::fmt;
 
-use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TypeId};
-use nocter_target_program::ExecutableProgram;
+use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId};
+use nocter_target_program::{ExecutableProgram, ExecutableRoot};
 
 use crate::program_validation::validate_program;
-use crate::{MirFunction, MirValidationError, validate_function};
+use crate::validate::validate_root;
+use crate::{MirFunction, MirRoot, MirValidationError, validate_function};
 
-/// One closed executable and exactly one validated MIR function per executable item.
+/// One closed executable with one function per executable item and its compiler-owned roots.
 #[derive(Debug)]
 pub struct MirProgram {
     executable: ExecutableProgram,
     functions: Arena<ExecutableItemId, MirFunction>,
+    root: MirRoot,
 }
 
 impl MirProgram {
@@ -23,6 +25,11 @@ impl MirProgram {
     pub const fn functions(&self) -> &Arena<ExecutableItemId, MirFunction> {
         &self.functions
     }
+
+    #[must_use]
+    pub const fn root(&self) -> &MirRoot {
+        &self.root
+    }
 }
 
 /// The sole mutable construction path for a [`MirProgram`].
@@ -30,6 +37,7 @@ impl MirProgram {
 pub struct MirProgramBuilder {
     executable: ExecutableProgram,
     functions: ArenaBuilder<ExecutableItemId, Option<MirFunction>>,
+    root: Option<MirRoot>,
 }
 
 impl MirProgramBuilder {
@@ -42,7 +50,31 @@ impl MirProgramBuilder {
         Self {
             executable,
             functions,
+            root: None,
         }
+    }
+
+    /// Installs the compiler-owned root set exactly once.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a root whose identities differ from the executable closure or whose bodies violate
+    /// root-local MIR invariants.
+    pub fn define_root(&mut self, root: MirRoot) -> Result<(), MirProgramBuildError> {
+        if self.root.is_some() {
+            return Err(MirProgramBuildError::DuplicateRoot);
+        }
+        validate_root_metadata(&root, self.executable.root())?;
+        match &root {
+            MirRoot::Process(process) => validate_root(process.body(), &self.executable)?,
+            MirRoot::Tests { cases, .. } => {
+                for case in cases {
+                    validate_root(case.body(), &self.executable)?;
+                }
+            }
+        }
+        self.root = Some(root);
+        Ok(())
     }
 
     #[must_use]
@@ -77,21 +109,68 @@ impl MirProgramBuilder {
         Ok(())
     }
 
-    /// Freezes the complete function arena and validates cross-function calls.
+    /// Freezes the complete program and validates every cross-body call.
     ///
     /// # Errors
     ///
-    /// Rejects a missing function or any direct-call signature mismatch.
+    /// Rejects a missing function/root or any direct-call signature mismatch.
     pub fn finish(self) -> Result<MirProgram, MirProgramBuildError> {
         let functions = self.functions.try_finish_with(|item, function| {
             function.ok_or(MirProgramBuildError::MissingFunction(item))
         })?;
-        validate_program(&functions, &self.executable)?;
+        let root = self.root.ok_or(MirProgramBuildError::MissingRoot)?;
+        validate_program(&functions, &root, &self.executable)?;
         Ok(MirProgram {
             executable: self.executable,
             functions,
+            root,
         })
     }
+}
+
+fn validate_root_metadata(
+    root: &MirRoot,
+    executable: &ExecutableRoot,
+) -> Result<(), MirProgramBuildError> {
+    let matches = match (root, executable) {
+        (
+            MirRoot::Process(root),
+            ExecutableRoot::Process {
+                target,
+                entry,
+                result,
+            },
+        ) => root.target() == *target && root.entry() == *entry && root.result() == *result,
+        (
+            MirRoot::Tests {
+                target: root_target,
+                cases: root_cases,
+            },
+            ExecutableRoot::Tests { target, cases },
+        ) => {
+            root_target == target
+                && root_cases.len() == cases.len()
+                && root_cases.iter().zip(cases).all(|(root, case)| {
+                    root.declaration() == case.declaration()
+                        && root.name() == case.name()
+                        && root.item() == case.item()
+                })
+        }
+        _ => false,
+    };
+    if matches {
+        Ok(())
+    } else {
+        Err(MirProgramBuildError::MismatchedRoot)
+    }
+}
+
+/// One exact owner used when validating calls that cross MIR body boundaries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MirProgramOwner {
+    Function(ExecutableItemId),
+    ProcessRoot,
+    TestRoot(TestId),
 }
 
 #[derive(Debug)]
@@ -104,22 +183,29 @@ pub enum MirProgramBuildError {
     },
     DuplicateFunction(ExecutableItemId),
     MissingFunction(ExecutableItemId),
+    DuplicateRoot,
+    MissingRoot,
+    MismatchedRoot,
+    InvalidRootCall {
+        owner: MirProgramOwner,
+        expected: ExecutableItemId,
+    },
     DirectCallSignature {
-        caller: ExecutableItemId,
+        caller: MirProgramOwner,
         callee: ExecutableItemId,
     },
     DropCallSignature {
-        caller: ExecutableItemId,
+        caller: MirProgramOwner,
         callee: ExecutableItemId,
         place: MirPlaceId,
     },
     DeferredDropSignature {
-        caller: ExecutableItemId,
+        caller: MirProgramOwner,
         callee: ExecutableItemId,
         ty: TypeId,
     },
     ClosureConstructionSignature {
-        caller: ExecutableItemId,
+        caller: MirProgramOwner,
         body: ExecutableItemId,
     },
 }
@@ -138,6 +224,10 @@ impl std::error::Error for MirProgramBuildError {
             | Self::MismatchedItem { .. }
             | Self::DuplicateFunction(_)
             | Self::MissingFunction(_)
+            | Self::DuplicateRoot
+            | Self::MissingRoot
+            | Self::MismatchedRoot
+            | Self::InvalidRootCall { .. }
             | Self::DirectCallSignature { .. }
             | Self::DropCallSignature { .. }
             | Self::DeferredDropSignature { .. }

@@ -1,6 +1,6 @@
 use nocter_model::BorrowCapability;
 
-use crate::{MirFunction, MirPlace, MirPlaceRoot, MirProjectionKind, MirValidationError};
+use crate::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind, MirValidationError};
 
 #[derive(Clone, Copy)]
 pub(crate) struct PlaceFacts {
@@ -9,7 +9,7 @@ pub(crate) struct PlaceFacts {
 }
 
 pub(crate) fn place_facts(
-    function: &MirFunction,
+    function: &MirBody,
     place: &MirPlace,
 ) -> Result<PlaceFacts, MirValidationError> {
     let (mut facts, mut crossed_borrow) = match place.root() {

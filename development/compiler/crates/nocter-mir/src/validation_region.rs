@@ -1,11 +1,11 @@
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{MirLocalId, MirOperationId, MirValueId, TypeId, TypeKind};
 
-use crate::{MirFunction, MirLocalKind, MirValidationEnvironment, MirValidationError};
+use crate::{MirBody, MirLocalKind, MirValidationEnvironment, MirValidationError};
 
 pub(crate) fn validate_region_creation(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     operation: MirOperationId,
     parent: MirValueId,
     result: TypeId,
@@ -37,7 +37,7 @@ pub(crate) fn validate_region_creation(
 
 pub(crate) fn validate_region_release(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     operation: MirOperationId,
     region: MirLocalId,
     result: Option<TypeId>,

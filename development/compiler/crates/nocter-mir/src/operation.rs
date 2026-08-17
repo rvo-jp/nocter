@@ -74,7 +74,8 @@ pub enum MirAggregate {
     },
     FixedArray(Box<[MirValueId]>),
     Optional(Option<MirValueId>),
-    FallibleSuccess(MirValueId),
+    /// A successful fallible payload. `None` is the canonical representation of `void!` success.
+    FallibleSuccess(Option<MirValueId>),
     FallibleFailure(MirValueId),
     Closure {
         body: ExecutableItemId,
@@ -273,6 +274,10 @@ pub enum MirOperationKind {
     InvokeDrop {
         body: ExecutableItemId,
         place: MirPlaceId,
+    },
+    /// Reports one built-in error at a compiler-owned process boundary without allocation.
+    ReportError {
+        error: MirValueId,
     },
     CreateRegion {
         parent: MirValueId,

@@ -2,16 +2,17 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 4 from the completed deterministic `ExecutableProgram` boundary and lower
-its already resolved items, roots, types, dispatch, and cleanup plans into validated MIR.
+Continue v0.14.0 Phase 5 from the completed validated `MirProgram` boundary and project its types,
+functions, process roots, and ordered test roots through the specified ABI into a
+target-independent machine program.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
-   synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
+1. Define the machine-program authority, typed operation schema, deterministic linkage identities,
+   and MIR-to-machine validation boundary before implementing ARM64 encoding or Mach-O output.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
@@ -81,9 +82,9 @@ keys enter one key-ordered work set; dense `ExecutableItemId` values are assigne
 set closes. Each concrete body freezes direct item IDs, typed standard/structural primitives,
 statically specialized callable-value invocations, nested closure and exact drop edges,
 source-to-concrete type mappings, and representation-specific cleanup glue. Bodyless callables are
-accepted only through the closed toolchain primitive registry. Process and test roots remain
-compiler metadata, while test cases
-retain declaration order. Enum residual cleanup is not collapsed to its nominal type: it excludes
+accepted only through the closed toolchain primitive registry. Executable process and test roots
+remain compiler metadata, while test cases retain declaration order. Enum residual cleanup is not
+collapsed to its nominal type: it excludes
 the already-run owner drop and every transferred payload.
 Every executable item also freezes its complete concrete runtime signature independently of body
 use. Unused parameters therefore remain ABI inputs; receivers precede ordinary parameters, closure
@@ -101,8 +102,12 @@ layouts, operation typing, block closure and reachability, edge arity and types,
 switch subject shape, direct semantic item references, and terminal result behavior. A narrow
 `MirValidationEnvironment` supplies only immutable type, declaration, and executable-item
 authority, leaving package and source setup outside MIR. `MirProgramBuilder` requires exactly one
-function for every executable item and validates direct-call and drop-body signatures across the
-closed function arena. The checked-body lowering path now consumes frozen concrete item and
+function for every executable item plus the exact compiler-owned root set, and validates
+direct-call and drop-body signatures across functions and roots. Functions and roots share one
+`MirBody` CFG schema without a synthetic executable item. Process roots lower all six entry
+contracts into root-only exit and allocation-free error-reporting operations; test targets retain
+one isolated root per declaration-order case and preserve empty targets. The checked-body lowering
+path now consumes frozen concrete item and
 primitive signatures, materializes receiver borrow capability, performs selected receiver and
 operand coercions, and lowers primitive or selected comparisons without reopening selection.
 Selected and coerced index projections now lower by borrowing the current place prefix, executing

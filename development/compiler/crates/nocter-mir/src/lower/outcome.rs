@@ -26,8 +26,8 @@ impl FunctionLowerer<'_> {
     ) -> Result<Option<MirValueId>, MirLoweringError> {
         match outcome {
             CheckedOutcome::Inject { layer, payload } => {
-                let payload = self.require_value(*payload)?;
-                self.inject_outcome(ty, *layer, payload).map(Some)
+                let payload = self.outcome_injection_payload(*payload)?;
+                self.inject_outcome(node, ty, *layer, payload).map(Some)
             }
             CheckedOutcome::Absent => self
                 .append_value(
@@ -278,7 +278,7 @@ impl FunctionLowerer<'_> {
             }
         };
         for (layer, wrapper) in outer.iter().copied().zip(wrappers) {
-            value = self.inject_outcome(wrapper, layer, value)?;
+            value = self.inject_outcome(node, wrapper, layer, Some(value))?;
         }
         Ok(value)
     }
@@ -306,15 +306,40 @@ impl FunctionLowerer<'_> {
 
     fn inject_outcome(
         &mut self,
+        node: BodyNodeId,
         ty: TypeId,
         layer: OutcomeLayer,
-        payload: MirValueId,
+        payload: Option<MirValueId>,
     ) -> Result<MirValueId, MirLoweringError> {
         let aggregate = match layer {
-            OutcomeLayer::Optional => MirAggregate::Optional(Some(payload)),
+            OutcomeLayer::Optional => {
+                MirAggregate::Optional(Some(payload.ok_or(MirLoweringError::InvalidOutcome(node))?))
+            }
             OutcomeLayer::Fallible => MirAggregate::FallibleSuccess(payload),
         };
         self.append_value(ty, MirOperationKind::Aggregate(aggregate))
+    }
+
+    fn outcome_injection_payload(
+        &mut self,
+        payload: BodyNodeId,
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
+        let source_type = self
+            .body
+            .nodes()
+            .get(payload)
+            .map(nocter_checking::CheckedNode::ty)
+            .ok_or(MirLoweringError::UnknownNode(payload))?;
+        let payload_type = self.concrete_type(source_type)?;
+        if matches!(
+            self.executable.types().get(payload_type),
+            Some(TypeKind::Builtin(BuiltinType::Void))
+        ) {
+            self.lower_node(payload)?;
+            Ok(None)
+        } else {
+            self.require_value(payload).map(Some)
+        }
     }
 
     fn join_outcome_values(

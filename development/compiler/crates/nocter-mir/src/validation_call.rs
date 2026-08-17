@@ -3,13 +3,13 @@ use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, Ty
 
 use crate::validation_pack::validate_call_pack;
 use crate::{
-    MirCall, MirCallAllocation, MirCallTarget, MirFunction, MirStructuralCall,
+    MirBody, MirCall, MirCallAllocation, MirCallTarget, MirStructuralCall,
     MirValidationEnvironment, MirValidationError,
 };
 
 pub(crate) fn validate_call(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     operation: MirOperationId,
     call: &MirCall,
     result: TypeId,
@@ -25,7 +25,7 @@ pub(crate) fn validate_call(
 
 struct CallValidation<'a, E: ?Sized> {
     environment: &'a E,
-    function: &'a MirFunction,
+    function: &'a MirBody,
     operation: MirOperationId,
     result: TypeId,
 }

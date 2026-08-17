@@ -5,7 +5,7 @@ use nocter_model::{
 };
 use nocter_target_program::ExecutableProgram;
 
-use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
+use crate::{MirBodyBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
 
 mod allocation;
 mod assignment;
@@ -32,6 +32,7 @@ mod outcome;
 mod pattern;
 mod place;
 mod region;
+mod root;
 mod sequence;
 mod string;
 mod value_storage;
@@ -54,10 +55,12 @@ pub fn lower_executable(executable: ExecutableProgram) -> Result<MirProgram, Mir
             function::lower_function(&executable, item, definition).map(|function| (item, function))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let root = root::lower_root(&executable)?;
     let mut program = MirProgramBuilder::new(executable);
     for (item, function) in functions {
         program.define(item, function)?;
     }
+    program.define_root(root)?;
     program.finish().map_err(Into::into)
 }
 
@@ -91,7 +94,9 @@ pub enum MirLoweringError {
     InvalidOpaqueWitness(BodyNodeId),
     InvalidCapture(nocter_model::CaptureId),
     InvalidTerminalResult(ExecutableItemId),
-    Function(MirFunctionBuildError),
+    InvalidRootItem(ExecutableItemId),
+    InvalidOutcome(BodyNodeId),
+    Body(MirBodyBuildError),
     Program(MirProgramBuildError),
 }
 
@@ -104,16 +109,16 @@ impl fmt::Display for MirLoweringError {
 impl std::error::Error for MirLoweringError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Function(error) => Some(error),
+            Self::Body(error) => Some(error),
             Self::Program(error) => Some(error),
             _ => None,
         }
     }
 }
 
-impl From<MirFunctionBuildError> for MirLoweringError {
-    fn from(error: MirFunctionBuildError) -> Self {
-        Self::Function(error)
+impl From<MirBodyBuildError> for MirLoweringError {
+    fn from(error: MirBodyBuildError) -> Self {
+        Self::Body(error)
     }
 }
 

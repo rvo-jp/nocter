@@ -3,7 +3,7 @@ use nocter_model::{
     TypeId, VariantId,
 };
 
-/// Why one function-local storage slot exists.
+/// Why one MIR-body-local storage slot exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MirLocalKind {
     Parameter { position: usize },
@@ -12,7 +12,7 @@ pub enum MirLocalKind {
     Region,
 }
 
-/// One concrete function-local storage slot.
+/// One concrete MIR-body-local storage slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MirLocal {
     ty: TypeId,

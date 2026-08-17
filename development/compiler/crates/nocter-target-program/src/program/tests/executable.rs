@@ -739,9 +739,14 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
         ["first", "second"]
     );
     assert!(
-        cases
-            .iter()
-            .all(|case| executable.items().get(case.item()).is_some())
+        cases.iter().all(|case| executable
+            .items()
+            .get(case.item())
+            .is_some_and(|item| matches!(
+                executable.types().get(item.signature().result()),
+                Some(nocter_model::TypeKind::Fallible(payload))
+                    if *payload == executable.types().builtin(BuiltinType::Void)
+            )))
     );
     assert!(executable.items().iter().any(|(_, item)| {
         matches!(item.key(), ExecutableItemKey::Callable(key) if graph

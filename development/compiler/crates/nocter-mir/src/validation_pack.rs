@@ -3,13 +3,13 @@ use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, TypeKind};
 use crate::validation_call::validate_call;
 use crate::validation_destruction::validate_destruction_plan;
 use crate::{
-    MirCall, MirCallTarget, MirFunction, MirPackArgument, MirPackContribution, MirPackSegment,
+    MirBody, MirCall, MirCallTarget, MirPackArgument, MirPackContribution, MirPackSegment,
     MirValidationEnvironment, MirValidationError,
 };
 
 pub(crate) fn validate_call_pack(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     operation: MirOperationId,
     call: &MirCall,
 ) -> Result<(), MirValidationError> {
@@ -28,7 +28,7 @@ pub(crate) fn validate_call_pack(
 
 fn validate_pack(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     operation: MirOperationId,
     call: &MirCall,
     pack: &MirPackArgument,

@@ -10,10 +10,11 @@ use nocter_model::{
 };
 
 use crate::{
-    MirBinaryOperation, MirBranchTarget, MirCall, MirCallAllocation, MirCallTarget, MirConstant,
-    MirDestructionKind, MirDestructionPlan, MirFunctionBuildError, MirFunctionBuilder,
-    MirLocalKind, MirOperationKind, MirPackArgument, MirPackSegment, MirPlaceRoot, MirProjection,
-    MirProjectionKind, MirReadMode, MirTerminator, MirValidationEnvironment, MirValidationError,
+    MirBinaryOperation, MirBodyBuildError, MirBodyBuilder, MirBranchTarget, MirCall,
+    MirCallAllocation, MirCallTarget, MirConstant, MirDestructionKind, MirDestructionPlan,
+    MirFunctionBuilder, MirLocalKind, MirOperationKind, MirPackArgument, MirPackSegment,
+    MirPlaceRoot, MirProjection, MirProjectionKind, MirReadMode, MirTerminator,
+    MirValidationEnvironment, MirValidationError,
 };
 
 struct TestEnvironment {
@@ -148,7 +149,7 @@ fn an_outer_readonly_borrow_remains_a_write_authority_ceiling() {
 
     assert!(matches!(
         builder.finish(entry, &environment),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::OperationType(_)
         ))
     ));
@@ -259,7 +260,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
     for result in [build(allocator_ty, false), build(i32_, true)] {
         assert!(matches!(
             result,
-            Err(MirFunctionBuildError::Validation(
+            Err(MirBodyBuildError::Validation(
                 MirValidationError::OperationType(_)
             ))
         ));
@@ -296,13 +297,13 @@ fn pack_inputs_require_exact_types_and_destruction_on_every_return() {
     assert!(build(crate::MirPackInput::new(i32_, next), true).is_ok());
     assert!(matches!(
         build(crate::MirPackInput::new(i32_, next), false),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::InvalidPackExit(_)
         ))
     ));
     assert!(matches!(
         build(crate::MirPackInput::new(void, next), true),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::InvalidPackInput(_)
         ))
     ));
@@ -328,7 +329,7 @@ fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
 
     assert!(matches!(
         build_pack_call(&environment, caller, literal, i32_, next, false, None),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::OperationType(_)
         ))
     ));
@@ -350,7 +351,7 @@ fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
             true,
             Some(invalid_plan),
         ),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::InvalidDestruction(ty)
         )) if ty == i32_
     ));
@@ -364,7 +365,7 @@ fn build_pack_call(
     next: TypeId,
     include_pack: bool,
     destruction: Option<MirDestructionPlan>,
-) -> Result<crate::MirFunction, MirFunctionBuildError> {
+) -> Result<crate::MirFunction, MirBodyBuildError> {
     let mut builder = MirFunctionBuilder::new(caller, element);
     let (entry, _) = builder.create_block([]);
     let call = if include_pack {
@@ -490,7 +491,7 @@ fn region_operations_require_the_selected_standard_contract() {
         .unwrap();
     assert!(matches!(
         invalid.finish(entry, &environment),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::OperationType(_)
         ))
     ));
@@ -575,7 +576,7 @@ fn edge_arguments_must_match_block_parameter_types() {
 
     assert!(matches!(
         builder.finish(entry, &environment),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::EdgeType { block, position: 0 }
         )) if block == join
     ));
@@ -641,7 +642,7 @@ fn a_value_from_one_branch_does_not_dominate_its_sibling() {
 
     assert!(matches!(
         builder.finish(entry, &environment),
-        Err(MirFunctionBuildError::Validation(
+        Err(MirBodyBuildError::Validation(
             MirValidationError::ValueDoesNotDominate { value, block }
         )) if value == left_value && block == right
     ));
@@ -656,8 +657,34 @@ fn builder_rejects_unterminated_blocks_before_validation() {
 
     assert!(matches!(
         builder.finish(entry, &environment),
-        Err(MirFunctionBuildError::UnterminatedBlock(block)) if block == entry
+        Err(MirBodyBuildError::UnterminatedBlock(block)) if block == entry
     ));
+}
+
+#[test]
+fn functions_and_process_roots_have_disjoint_terminal_contracts() {
+    let (environment, item) = TestEnvironment::new();
+    let void = environment.types.builtin(BuiltinType::Void);
+    let mut function = MirFunctionBuilder::new(item, void);
+    let (entry, _) = function.create_block([]);
+    function
+        .terminate(entry, MirTerminator::Exit(None))
+        .unwrap();
+    assert!(matches!(
+        function.finish(entry, &environment),
+        Err(MirBodyBuildError::Validation(
+            MirValidationError::InvalidReturn(block)
+        )) if block == entry
+    ));
+
+    let mut root = MirBodyBuilder::new();
+    let (entry, _) = root.create_block([]);
+    root.terminate(entry, MirTerminator::Return(None)).unwrap();
+    let body = root.finish(entry).unwrap();
+    assert_eq!(
+        crate::validate::validate_root(&body, &environment),
+        Err(MirValidationError::InvalidRootTerminator(entry))
+    );
 }
 
 #[test]
@@ -719,7 +746,7 @@ fn rejecting_a_second_terminator_preserves_the_first() {
 
     assert!(matches!(
         builder.terminate(entry, MirTerminator::Trap),
-        Err(MirFunctionBuildError::AlreadyTerminated)
+        Err(MirBodyBuildError::AlreadyTerminated)
     ));
     let function = builder.finish(entry, &environment).unwrap();
     assert!(matches!(

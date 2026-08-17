@@ -1,8 +1,8 @@
 use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution};
 use nocter_declarations::{CallableKind, LiteralShape, Parameter, ParameterRole};
 use nocter_model::{
-    BodyId, BorrowCapability, BuiltinType, CallableCapability, ClosureId, LocalBindingId,
-    ParameterId, TypeId, TypeKind,
+    BorrowCapability, BuiltinType, CallableCapability, ClosureId, LocalBindingId, ParameterId,
+    TypeId, TypeKind,
 };
 
 use super::{ExecutableItemKey, ExecutableProgramError};
@@ -93,8 +93,6 @@ pub(super) fn build_signature(
     target: &TargetProgram,
     resolver: &mut ConcreteDispatchResolver<'_>,
     key: &ExecutableItemKey,
-    body: BodyId,
-    root: nocter_model::BodyNodeId,
 ) -> Result<ExecutableSignature, ExecutableProgramError> {
     let substitution = item_substitution(key);
     match key {
@@ -103,7 +101,7 @@ pub(super) fn build_signature(
         }
         ExecutableItemKey::Closure(key) => closure_signature(target, resolver, key, &substitution),
         ExecutableItemKey::Drop(key) => drop_signature(target, resolver, key, &substitution),
-        ExecutableItemKey::Test(_) => test_signature(target, resolver, body, root, &substitution),
+        ExecutableItemKey::Test(_) => test_signature(resolver),
     }
 }
 
@@ -271,22 +269,15 @@ fn runtime_parameter_type(
 }
 
 fn test_signature(
-    target: &TargetProgram,
     resolver: &mut ConcreteDispatchResolver<'_>,
-    body: BodyId,
-    root: nocter_model::BodyNodeId,
-    substitution: &TypeSubstitution,
 ) -> Result<ExecutableSignature, ExecutableProgramError> {
-    let checked = target
-        .checked()
-        .bodies()
-        .get(body)
-        .and_then(|body| body.nodes().get(root))
-        .ok_or(ExecutableProgramError::MissingRoot(root))?;
+    let result = resolver.intern_concrete(TypeKind::Fallible(
+        resolver.types().builtin(BuiltinType::Void),
+    ))?;
     Ok(ExecutableSignature {
         inputs: Box::new([]),
         pack: None,
-        result: resolver.specialize_type(checked.ty(), substitution)?,
+        result,
     })
 }
 

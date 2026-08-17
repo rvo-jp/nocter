@@ -1,7 +1,8 @@
 use nocter_model::{
     Arena, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
-    MirValueId, TypeId, VariantId,
+    MirValueId, PackageTargetId, Symbol, TestId, TypeId, VariantId,
 };
+use nocter_target_program::ProcessResultContract;
 
 use crate::{MirLocal, MirOperation, MirPackInput, MirPlace};
 
@@ -147,6 +148,8 @@ pub enum MirTerminator {
         fallback: MirBranchTarget,
     },
     Return(Option<MirValueId>),
+    /// Terminates one compiler-owned process root with status zero or an `i32`/`usize` value.
+    Exit(Option<MirValueId>),
     Trap,
     Unreachable,
 }
@@ -188,13 +191,11 @@ impl MirBlock {
     }
 }
 
-/// One complete monomorphized function body.
+/// The storage, SSA, and control-flow domains shared by source functions and compiler roots.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MirFunction {
-    item: ExecutableItemId,
+pub struct MirBody {
     parameters: Box<[MirLocalId]>,
     pack: Option<MirPackInput>,
-    result: TypeId,
     locals: Arena<MirLocalId, MirLocal>,
     drop_flags: Arena<MirDropFlagId, MirDropFlag>,
     places: Arena<MirPlaceId, MirPlace>,
@@ -204,7 +205,7 @@ pub struct MirFunction {
     entry: MirBlockId,
 }
 
-pub(crate) struct MirFunctionDomains {
+pub(crate) struct MirBodyDomains {
     pub(crate) locals: Arena<MirLocalId, MirLocal>,
     pub(crate) drop_flags: Arena<MirDropFlagId, MirDropFlag>,
     pub(crate) places: Arena<MirPlaceId, MirPlace>,
@@ -213,20 +214,16 @@ pub(crate) struct MirFunctionDomains {
     pub(crate) blocks: Arena<MirBlockId, MirBlock>,
 }
 
-impl MirFunction {
+impl MirBody {
     pub(crate) fn new(
-        item: ExecutableItemId,
         parameters: impl Into<Box<[MirLocalId]>>,
         pack: Option<MirPackInput>,
-        result: TypeId,
-        domains: MirFunctionDomains,
+        domains: MirBodyDomains,
         entry: MirBlockId,
     ) -> Self {
         Self {
-            item,
             parameters: parameters.into(),
             pack,
-            result,
             locals: domains.locals,
             drop_flags: domains.drop_flags,
             places: domains.places,
@@ -238,11 +235,6 @@ impl MirFunction {
     }
 
     #[must_use]
-    pub const fn item(&self) -> ExecutableItemId {
-        self.item
-    }
-
-    #[must_use]
     pub const fn parameters(&self) -> &[MirLocalId] {
         &self.parameters
     }
@@ -250,11 +242,6 @@ impl MirFunction {
     #[must_use]
     pub const fn pack(&self) -> Option<MirPackInput> {
         self.pack
-    }
-
-    #[must_use]
-    pub const fn result(&self) -> TypeId {
-        self.result
     }
 
     #[must_use]
@@ -291,4 +278,178 @@ impl MirFunction {
     pub const fn entry(&self) -> MirBlockId {
         self.entry
     }
+}
+
+/// One complete monomorphized callable body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MirFunction {
+    item: ExecutableItemId,
+    result: TypeId,
+    body: MirBody,
+}
+
+impl MirFunction {
+    pub(crate) const fn new(item: ExecutableItemId, result: TypeId, body: MirBody) -> Self {
+        Self { item, result, body }
+    }
+
+    #[must_use]
+    pub const fn item(&self) -> ExecutableItemId {
+        self.item
+    }
+
+    #[must_use]
+    pub const fn result(&self) -> TypeId {
+        self.result
+    }
+
+    #[must_use]
+    pub const fn body(&self) -> &MirBody {
+        &self.body
+    }
+
+    #[must_use]
+    pub const fn parameters(&self) -> &[MirLocalId] {
+        self.body.parameters()
+    }
+
+    #[must_use]
+    pub const fn pack(&self) -> Option<MirPackInput> {
+        self.body.pack()
+    }
+
+    #[must_use]
+    pub const fn locals(&self) -> &Arena<MirLocalId, MirLocal> {
+        self.body.locals()
+    }
+
+    #[must_use]
+    pub const fn drop_flags(&self) -> &Arena<MirDropFlagId, MirDropFlag> {
+        self.body.drop_flags()
+    }
+
+    #[must_use]
+    pub const fn places(&self) -> &Arena<MirPlaceId, MirPlace> {
+        self.body.places()
+    }
+
+    #[must_use]
+    pub const fn values(&self) -> &Arena<MirValueId, MirValue> {
+        self.body.values()
+    }
+
+    #[must_use]
+    pub const fn operations(&self) -> &Arena<MirOperationId, MirOperation> {
+        self.body.operations()
+    }
+
+    #[must_use]
+    pub const fn blocks(&self) -> &Arena<MirBlockId, MirBlock> {
+        self.body.blocks()
+    }
+
+    #[must_use]
+    pub const fn entry(&self) -> MirBlockId {
+        self.body.entry()
+    }
+}
+
+/// The allocation-free wrapper for one selected executable entry.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MirProcessRoot {
+    target: PackageTargetId,
+    entry: ExecutableItemId,
+    result: ProcessResultContract,
+    body: MirBody,
+}
+
+impl MirProcessRoot {
+    pub(crate) const fn new(
+        target: PackageTargetId,
+        entry: ExecutableItemId,
+        result: ProcessResultContract,
+        body: MirBody,
+    ) -> Self {
+        Self {
+            target,
+            entry,
+            result,
+            body,
+        }
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> PackageTargetId {
+        self.target
+    }
+
+    #[must_use]
+    pub const fn entry(&self) -> ExecutableItemId {
+        self.entry
+    }
+
+    #[must_use]
+    pub const fn result(&self) -> ProcessResultContract {
+        self.result
+    }
+
+    #[must_use]
+    pub const fn body(&self) -> &MirBody {
+        &self.body
+    }
+}
+
+/// One isolated compiler-owned test process in declaration order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MirTestRoot {
+    declaration: TestId,
+    name: Symbol,
+    item: ExecutableItemId,
+    body: MirBody,
+}
+
+impl MirTestRoot {
+    pub(crate) const fn new(
+        declaration: TestId,
+        name: Symbol,
+        item: ExecutableItemId,
+        body: MirBody,
+    ) -> Self {
+        Self {
+            declaration,
+            name,
+            item,
+            body,
+        }
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> TestId {
+        self.declaration
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> Symbol {
+        self.name
+    }
+
+    #[must_use]
+    pub const fn item(&self) -> ExecutableItemId {
+        self.item
+    }
+
+    #[must_use]
+    pub const fn body(&self) -> &MirBody {
+        &self.body
+    }
+}
+
+/// Compiler-owned process identities, never represented as source declarations.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MirRoot {
+    Process(MirProcessRoot),
+    Tests {
+        target: PackageTargetId,
+        cases: Box<[MirTestRoot]>,
+    },
 }

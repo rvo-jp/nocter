@@ -28,9 +28,8 @@ impl FunctionLowerer<'_> {
                     .copied()
                     .map(nocter_checking::CheckedLocal::ty)
                     .ok_or(MirLoweringError::UnknownLocal(*binding))?;
-                let place =
-                    self.builder
-                        .add_place(MirPlaceRoot::Local(local), [], self.concrete_type(ty)?);
+                let ty = self.concrete_type(ty)?;
+                let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
                 self.append_effect(MirOperationKind::Initialize {
                     destination: place,
                     value,

@@ -11,9 +11,9 @@ use crate::validation_types::{
     nominal_application,
 };
 use crate::{
-    MirAggregate, MirBinaryOperation, MirBranchTarget, MirConstant, MirFunction, MirLocalKind,
-    MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind, MirReadMode,
-    MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
+    MirAggregate, MirBinaryOperation, MirBody, MirBranchTarget, MirConstant, MirFunction,
+    MirLocalKind, MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind,
+    MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
 };
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
@@ -22,7 +22,7 @@ use nocter_model::{
     MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
 };
 
-/// Validates every function-local reference, type relation, CFG edge, and SSA use.
+/// Validates every body-local reference, type relation, CFG edge, and SSA use.
 ///
 /// # Errors
 ///
@@ -32,23 +32,54 @@ pub fn validate_function(
     environment: &impl MirValidationEnvironment,
 ) -> Result<(), MirValidationError> {
     let context = ValidationContext {
-        function,
+        function: function.body(),
+        contract: BodyContract::Function {
+            item: function.item(),
+            result: function.result(),
+        },
         environment,
         types: environment.types(),
     };
     context.validate()
 }
 
+pub(crate) fn validate_root(
+    body: &MirBody,
+    environment: &impl MirValidationEnvironment,
+) -> Result<(), MirValidationError> {
+    let context = ValidationContext {
+        function: body,
+        contract: BodyContract::Root,
+        environment,
+        types: environment.types(),
+    };
+    context.validate()
+}
+
+#[derive(Clone, Copy)]
+enum BodyContract {
+    Function {
+        item: ExecutableItemId,
+        result: TypeId,
+    },
+    Root,
+}
+
 struct ValidationContext<'a, E: ?Sized> {
-    function: &'a MirFunction,
+    function: &'a MirBody,
+    contract: BodyContract,
     environment: &'a E,
     types: &'a TypeStore,
 }
 
 impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
     fn validate(&self) -> Result<(), MirValidationError> {
-        self.require_item(self.function.item())?;
-        self.require_type(self.function.result())?;
+        if let BodyContract::Function { item, result } = self.contract {
+            self.require_item(item)?;
+            self.require_type(result)?;
+        } else if !self.function.parameters().is_empty() || self.function.pack().is_some() {
+            return Err(MirValidationError::InvalidRootSignature);
+        }
         self.validate_pack_input()?;
         self.validate_parameters()?;
         for (_, local) in self.function.locals().iter() {
@@ -98,7 +129,12 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
     }
 
     fn validate_pack_input(&self) -> Result<(), MirValidationError> {
-        let expected = self.environment.item_pack_input(self.function.item());
+        let (item, expected) = match self.contract {
+            BodyContract::Function { item, .. } => {
+                (Some(item), self.environment.item_pack_input(item))
+            }
+            BodyContract::Root => (None, None),
+        };
         let actual = self.function.pack().map(|pack| {
             self.require_type(pack.element())?;
             self.require_type(pack.next())?;
@@ -106,12 +142,18 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 self.types.get(pack.next()),
                 Some(TypeKind::Optional(payload)) if *payload == pack.element()
             ) {
-                return Err(MirValidationError::InvalidPackInput(self.function.item()));
+                return Err(item.map_or(
+                    MirValidationError::InvalidRootSignature,
+                    MirValidationError::InvalidPackInput,
+                ));
             }
             Ok((pack.element(), pack.next()))
         });
         if actual.transpose()? != expected {
-            return Err(MirValidationError::InvalidPackInput(self.function.item()));
+            return Err(item.map_or(
+                MirValidationError::InvalidRootSignature,
+                MirValidationError::InvalidPackInput,
+            ));
         }
         Ok(())
     }
@@ -618,6 +660,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
+            MirOperationKind::ReportError { error } => {
+                if !matches!(self.contract, BodyContract::Root)
+                    || result.is_some()
+                    || self.value_type(*error)? != self.types.builtin(BuiltinType::Error)
+                {
+                    return Err(mismatch());
+                }
+            }
             MirOperationKind::CreateRegion { parent } => validate_region_creation(
                 self.environment,
                 self.function,
@@ -735,7 +785,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 let Some(TypeKind::Fallible(payload)) = self.types.get(result) else {
                     return Err(invalid());
                 };
-                if self.value_type(*value)? != *payload {
+                let valid = match value {
+                    Some(value) => self.value_type(*value)? == *payload,
+                    None => matches!(
+                        self.types.get(*payload),
+                        Some(TypeKind::Builtin(BuiltinType::Void))
+                    ),
+                };
+                if !valid {
                     return Err(invalid());
                 }
             }
@@ -833,12 +890,29 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     values.extend_from_slice(fallback.arguments());
                 }
                 MirTerminator::Return(value) => {
-                    match (value, self.types.get(self.function.result())) {
+                    let BodyContract::Function { result, .. } = self.contract else {
+                        return Err(MirValidationError::InvalidRootTerminator(block));
+                    };
+                    match (value, self.types.get(result)) {
                         (None, Some(TypeKind::Builtin(BuiltinType::Void))) => {}
-                        (Some(value), _) if self.value_type(*value)? == self.function.result() => {
+                        (Some(value), _) if self.value_type(*value)? == result => {
                             values.push(*value);
                         }
                         _ => return Err(MirValidationError::InvalidReturn(block)),
+                    }
+                }
+                MirTerminator::Exit(status) => {
+                    if !matches!(self.contract, BodyContract::Root) {
+                        return Err(MirValidationError::InvalidReturn(block));
+                    }
+                    if let Some(status) = status {
+                        let status_type = self.value_type(*status)?;
+                        if status_type != self.types.builtin(BuiltinType::I32)
+                            && status_type != self.types.builtin(BuiltinType::Usize)
+                        {
+                            return Err(MirValidationError::InvalidRootTerminator(block));
+                        }
+                        values.push(*status);
                     }
                 }
                 MirTerminator::Trap | MirTerminator::Unreachable => {}
@@ -896,6 +970,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::DestroyPack
             | MirOperationKind::ReleaseRegion { .. } => {}
             MirOperationKind::CreateRegion { parent } => values.push(*parent),
+            MirOperationKind::ReportError { error } => values.push(*error),
             MirOperationKind::Read { place, .. }
             | MirOperationKind::Borrow { place, .. }
             | MirOperationKind::InvokeDrop { place, .. } => {
@@ -921,10 +996,12 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 MirAggregate::Closure { captures, .. } => {
                     values.extend(captures.iter().map(|capture| capture.value()));
                 }
-                MirAggregate::Optional(value) => values.extend(*value),
-                MirAggregate::FallibleSuccess(value)
-                | MirAggregate::FallibleFailure(value)
-                | MirAggregate::Opaque { witness: value } => values.push(*value),
+                MirAggregate::Optional(value) | MirAggregate::FallibleSuccess(value) => {
+                    values.extend(*value);
+                }
+                MirAggregate::FallibleFailure(value) | MirAggregate::Opaque { witness: value } => {
+                    values.push(*value);
+                }
             },
             MirOperationKind::Call(call) => {
                 values.extend(call.arguments().iter().copied());

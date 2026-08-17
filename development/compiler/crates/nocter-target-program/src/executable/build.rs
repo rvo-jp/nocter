@@ -143,13 +143,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
 
     fn build_item(&mut self, key: &ExecutableItemKey) -> Result<DraftItem, ExecutableProgramError> {
         let context = item_context(self.target, key)?;
-        let signature = build_signature(
-            self.target,
-            &mut self.resolver,
-            key,
-            context.body,
-            context.root,
-        )?;
+        let signature = build_signature(self.target, &mut self.resolver, key)?;
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
         let substitution = item_substitution(key);
         let mut drops = BTreeMap::new();

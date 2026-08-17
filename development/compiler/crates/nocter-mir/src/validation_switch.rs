@@ -3,13 +3,13 @@ use nocter_model::{MirBlockId, TypeKind};
 
 use crate::validation_types::is_integer;
 use crate::{
-    MirFunction, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirValidationEnvironment,
+    MirBody, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirValidationEnvironment,
     MirValidationError,
 };
 
 pub(crate) fn validate_switch_subject(
     environment: &(impl MirValidationEnvironment + ?Sized),
-    function: &MirFunction,
+    function: &MirBody,
     block: MirBlockId,
     subject: MirSwitchSubject,
     cases: &[MirSwitchCase],

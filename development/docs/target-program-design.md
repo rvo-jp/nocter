@@ -291,15 +291,27 @@ one ordered operation list and exactly one terminator; conditional cleanup branc
 drop flag. Enum, optional, and fallible switches inspect a typed place directly, so cleanup and
 pattern lowering never move an aggregate merely to recover its active representation.
 
-Construction is mutable only through `MirFunctionBuilder` and `MirProgramBuilder`; finishing
-consumes both builders. Function validation receives a narrow immutable environment containing
+Construction is mutable only through `MirBodyBuilder`, `MirFunctionBuilder`, and
+`MirProgramBuilder`; finishing consumes every builder. `MirBody` is the one storage, SSA, and CFG
+schema shared by callable functions and compiler-owned roots. `MirFunction` adds only its dense
+item identity and callable result contract; roots therefore do not forge an executable item.
+Body validation receives a narrow immutable environment containing
 only the concrete type store, declaration members needed for projection validation, concrete
 closure layouts, and the closed executable-item domain. It validates specialized nominal and
 closure-capture projections, aggregate layout, local and place capability, operation typing, edge
-arguments, reachability, SSA dominance, switch shape, and return behavior. Program validation then
-checks direct calls, closure environment signatures, and drop invocations against the complete
-function arena. This split permits future per-item incremental validation without giving MIR
-access to source or package setup state.
+arguments, reachability, SSA dominance, switch shape, and owner-specific terminal behavior.
+Program validation then checks direct calls, closure environment signatures, drop invocations,
+and the exact entry call of every root against the complete function arena. This split permits
+future per-item incremental validation without giving MIR access to source or package setup state.
+
+One process root calls the selected entry exactly once and turns all six accepted result contracts
+into explicit process exits. Fallible results are stored once and switched in place. Success exits
+with zero or the returned `i32`/`usize`; failure copies the built-in borrowed `error`, performs one
+allocation-free `ReportError` boundary effect, and exits with status one. `void!` success has no
+fictional SSA payload. Test targets retain one independent root body per declaration-order case,
+so the native runner can launch separate processes without a synthetic source `main`; an empty
+target has no invented root case. `Exit` and `ReportError` are valid only in root bodies, while
+`Return` is valid only in callable bodies.
 
 Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
 must supply the witness pattern selected during checking after substituting the opaque
@@ -327,9 +339,8 @@ diagnostic system.
    checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
    deterministic reachable item graph. **Complete.**
 7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
-8. Lower concrete checked bodies and cleanup schedules into MIR. Sequence pack construction,
-   transfer, body consumption, residual destruction, and interpolation are complete. Next
-   materialize compiler-owned process and test roots.
+8. Lower concrete checked bodies, cleanup schedules, and compiler-owned process/test roots into
+   validated MIR. **Complete.**
 
 The current end-to-end lowering slice covers concrete signatures, constants, primitive integer
 operations, aggregate construction, ordinary copy/move/borrow places, initialization and

@@ -360,7 +360,11 @@ be introduced to make an unresolved syntax choice.
   interpolation node's canonical temporary. Normal completion moves it once; postfix propagation
   and explicit return destroy the same slot; a forced-outcome trap has no fictional cleanup. MIR
   and later stages do not know the `String` layout or recover any operation from a spelling.
-  Remaining checked operations still fail explicitly instead of being omitted.
+  Callables and compiler-owned roots share one `MirBody` CFG schema without forging source-item
+  identities. Process roots materialize all six entry result contracts through root-only `Exit`
+  and allocation-free `ReportError` operations. Test targets retain one isolated root per case in
+  declaration order, including a valid empty target. Callable `Return` and root `Exit` contracts
+  are disjoint and validated before whole-program direct-call validation.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

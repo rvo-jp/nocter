@@ -26,7 +26,7 @@ mod validation_region;
 mod validation_switch;
 mod validation_types;
 
-pub use builder::{MirBlockBuilder, MirFunctionBuildError, MirFunctionBuilder};
+pub use builder::{MirBlockBuilder, MirBodyBuildError, MirBodyBuilder, MirFunctionBuilder};
 pub use destruction::{
     MirCaptureDestruction, MirDestructionKind, MirDestructionPlan, MirFieldDestruction,
     MirPayloadDestruction, MirVariantDestruction,
@@ -41,10 +41,11 @@ pub use pack::{
     MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment, MirPackSpread,
 };
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
-pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder};
+pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder, MirProgramOwner};
 pub use schema::{
-    MirBlock, MirBranchTarget, MirDropFlag, MirFunction, MirSwitchCase, MirSwitchSubject,
-    MirSwitchValue, MirTerminator, MirValue, MirValueDefinition,
+    MirBlock, MirBody, MirBranchTarget, MirDropFlag, MirFunction, MirProcessRoot, MirRoot,
+    MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator, MirTestRoot, MirValue,
+    MirValueDefinition,
 };
 pub use validate::validate_function;
 pub use validation_environment::MirValidationEnvironment;

@@ -62,6 +62,8 @@ pub enum MirValidationError {
     DuplicateSwitchCase(MirBlockId),
     InvalidSwitchSubject(MirBlockId),
     InvalidReturn(MirBlockId),
+    InvalidRootSignature,
+    InvalidRootTerminator(MirBlockId),
     InvalidPackExit(MirBlockId),
 }
 

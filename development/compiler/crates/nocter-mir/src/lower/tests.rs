@@ -12,6 +12,7 @@ use super::{MirLoweringError, lower_executable};
 use crate::{MirAggregate, MirOperationKind, MirProjectionKind, MirTerminator};
 
 mod interpolation;
+mod root;
 
 #[test]
 fn lowers_scalar_control_flow_through_the_complete_frontend() {
@@ -1990,6 +1991,16 @@ fn lower_compiler_fixture(
 }
 
 fn executable_fixture(fixture: &CompilerFixture) -> ExecutableProgram {
+    let (target, selected) = target_fixture(fixture);
+    ExecutableProgram::for_executable(target, selected).unwrap()
+}
+
+fn test_executable_fixture(fixture: &CompilerFixture) -> ExecutableProgram {
+    let (target, selected) = target_fixture(fixture);
+    ExecutableProgram::for_tests(target, selected).unwrap()
+}
+
+fn target_fixture(fixture: &CompilerFixture) -> (TargetProgram, nocter_model::PackageTargetId) {
     let (input, prelude) = fixture.input();
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (declarations, source_index) = lowered.into_parts();
@@ -2012,7 +2023,7 @@ fn executable_fixture(fixture: &CompilerFixture) -> ExecutableProgram {
         .next()
         .unwrap()
         .0;
-    ExecutableProgram::for_executable(target, selected).unwrap()
+    (target, selected)
 }
 
 fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {

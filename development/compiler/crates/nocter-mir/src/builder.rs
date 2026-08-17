@@ -1,16 +1,17 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 use nocter_model::{
     ArenaBuilder, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId,
     MirPlaceId, MirValueId, TypeId,
 };
 
-use crate::schema::MirFunctionDomains;
+use crate::schema::MirBodyDomains;
 use crate::{
-    MirBlock, MirDropFlag, MirFunction, MirLocal, MirLocalKind, MirOperation, MirOperationKind,
-    MirPackInput, MirPlace, MirPlaceRoot, MirTerminator, MirValidationEnvironment,
-    MirValidationError, MirValue, MirValueDefinition, validate_function,
+    MirBlock, MirBody, MirDropFlag, MirFunction, MirLocal, MirLocalKind, MirOperation,
+    MirOperationKind, MirPackInput, MirPlace, MirPlaceRoot, MirTerminator,
+    MirValidationEnvironment, MirValidationError, MirValue, MirValueDefinition, validate_function,
 };
 
 /// Mutable state for one basic block while a function is being built.
@@ -38,11 +39,9 @@ impl MirBlockBuilder {
     }
 }
 
-/// The sole mutable construction path for a [`MirFunction`].
+/// The sole mutable construction path for the CFG domains shared by functions and roots.
 #[derive(Debug)]
-pub struct MirFunctionBuilder {
-    item: ExecutableItemId,
-    result: TypeId,
+pub struct MirBodyBuilder {
     parameters: Vec<MirLocalId>,
     pack: Option<MirPackInput>,
     locals: ArenaBuilder<MirLocalId, MirLocal>,
@@ -54,12 +53,16 @@ pub struct MirFunctionBuilder {
     blocks: ArenaBuilder<MirBlockId, MirBlockBuilder>,
 }
 
-impl MirFunctionBuilder {
+impl Default for MirBodyBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MirBodyBuilder {
     #[must_use]
-    pub fn new(item: ExecutableItemId, result: TypeId) -> Self {
+    pub fn new() -> Self {
         Self {
-            item,
-            result,
             parameters: Vec::new(),
             pack: None,
             locals: ArenaBuilder::new(),
@@ -87,10 +90,10 @@ impl MirFunctionBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`MirFunctionBuildError::DuplicatePackInput`] when the input was already installed.
-    pub fn set_pack_input(&mut self, input: MirPackInput) -> Result<(), MirFunctionBuildError> {
+    /// Returns [`MirBodyBuildError::DuplicatePackInput`] when the input was already installed.
+    pub fn set_pack_input(&mut self, input: MirPackInput) -> Result<(), MirBodyBuildError> {
         if self.pack.replace(input).is_some() {
-            return Err(MirFunctionBuildError::DuplicatePackInput);
+            return Err(MirBodyBuildError::DuplicatePackInput);
         }
         Ok(())
     }
@@ -174,16 +177,16 @@ impl MirFunctionBuilder {
         block: MirBlockId,
         ty: TypeId,
         kind: MirOperationKind,
-    ) -> Result<MirValueId, MirFunctionBuildError> {
+    ) -> Result<MirValueId, MirBodyBuildError> {
         if !kind.produces_value() {
-            return Err(MirFunctionBuildError::EffectKindUsedAsValue);
+            return Err(MirBodyBuildError::EffectKindUsedAsValue);
         }
         let block_data = self
             .blocks
             .get_mut(block)
-            .ok_or(MirFunctionBuildError::UnknownBlock(block))?;
+            .ok_or(MirBodyBuildError::UnknownBlock(block))?;
         if block_data.terminator.is_some() {
-            return Err(MirFunctionBuildError::AlreadyTerminated);
+            return Err(MirBodyBuildError::AlreadyTerminated);
         }
         let operation = self.operations.next_id();
         let value = self
@@ -204,16 +207,16 @@ impl MirFunctionBuilder {
         &mut self,
         block: MirBlockId,
         kind: MirOperationKind,
-    ) -> Result<MirOperationId, MirFunctionBuildError> {
+    ) -> Result<MirOperationId, MirBodyBuildError> {
         if kind.produces_value() {
-            return Err(MirFunctionBuildError::ValueKindUsedAsEffect);
+            return Err(MirBodyBuildError::ValueKindUsedAsEffect);
         }
         let block_data = self
             .blocks
             .get_mut(block)
-            .ok_or(MirFunctionBuildError::UnknownBlock(block))?;
+            .ok_or(MirBodyBuildError::UnknownBlock(block))?;
         if block_data.terminator.is_some() {
-            return Err(MirFunctionBuildError::AlreadyTerminated);
+            return Err(MirBodyBuildError::AlreadyTerminated);
         }
         let operation = self.operations.insert(MirOperation::new(kind, None));
         block_data.operations.push(operation);
@@ -229,44 +232,38 @@ impl MirFunctionBuilder {
         &mut self,
         block: MirBlockId,
         terminator: MirTerminator,
-    ) -> Result<(), MirFunctionBuildError> {
+    ) -> Result<(), MirBodyBuildError> {
         let block = self
             .blocks
             .get_mut(block)
-            .ok_or(MirFunctionBuildError::UnknownBlock(block))?;
+            .ok_or(MirBodyBuildError::UnknownBlock(block))?;
         if block.terminator.is_some() {
-            return Err(MirFunctionBuildError::AlreadyTerminated);
+            return Err(MirBodyBuildError::AlreadyTerminated);
         }
         block.terminator = Some(terminator);
         Ok(())
     }
 
-    /// Freezes and validates the complete function.
+    /// Freezes the complete body. The owning function or root performs contract validation.
     ///
     /// # Errors
     ///
-    /// Returns an error for an unterminated block or any closed MIR invariant violation.
-    pub fn finish(
-        self,
-        entry: MirBlockId,
-        environment: &impl MirValidationEnvironment,
-    ) -> Result<MirFunction, MirFunctionBuildError> {
+    /// Returns an error for an unterminated block.
+    pub fn finish(self, entry: MirBlockId) -> Result<MirBody, MirBodyBuildError> {
         let blocks = self.blocks.try_finish_with(|block, draft| {
             let terminator = draft
                 .terminator
-                .ok_or(MirFunctionBuildError::UnterminatedBlock(block))?;
-            Ok::<MirBlock, MirFunctionBuildError>(MirBlock::new(
+                .ok_or(MirBodyBuildError::UnterminatedBlock(block))?;
+            Ok::<MirBlock, MirBodyBuildError>(MirBlock::new(
                 draft.parameters,
                 draft.operations,
                 terminator,
             ))
         })?;
-        let function = MirFunction::new(
-            self.item,
+        Ok(MirBody::new(
             self.parameters,
             self.pack,
-            self.result,
-            MirFunctionDomains {
+            MirBodyDomains {
                 locals: self.locals.finish(),
                 drop_flags: self.drop_flags.finish(),
                 places: self.places.finish(),
@@ -275,14 +272,12 @@ impl MirFunctionBuilder {
                 blocks,
             },
             entry,
-        );
-        validate_function(&function, environment)?;
-        Ok(function)
+        ))
     }
 }
 
 #[derive(Debug)]
-pub enum MirFunctionBuildError {
+pub enum MirBodyBuildError {
     UnknownBlock(MirBlockId),
     AlreadyTerminated,
     UnterminatedBlock(MirBlockId),
@@ -292,13 +287,13 @@ pub enum MirFunctionBuildError {
     Validation(MirValidationError),
 }
 
-impl fmt::Display for MirFunctionBuildError {
+impl fmt::Display for MirBodyBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "MIR function construction failed: {self:?}")
+        write!(formatter, "MIR body construction failed: {self:?}")
     }
 }
 
-impl std::error::Error for MirFunctionBuildError {
+impl std::error::Error for MirBodyBuildError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Validation(error) => Some(error),
@@ -312,8 +307,56 @@ impl std::error::Error for MirFunctionBuildError {
     }
 }
 
-impl From<MirValidationError> for MirFunctionBuildError {
+impl From<MirValidationError> for MirBodyBuildError {
     fn from(error: MirValidationError) -> Self {
         Self::Validation(error)
+    }
+}
+
+/// Mutable construction of one callable and its shared MIR body.
+#[derive(Debug)]
+pub struct MirFunctionBuilder {
+    item: ExecutableItemId,
+    result: TypeId,
+    body: MirBodyBuilder,
+}
+
+impl MirFunctionBuilder {
+    #[must_use]
+    pub fn new(item: ExecutableItemId, result: TypeId) -> Self {
+        Self {
+            item,
+            result,
+            body: MirBodyBuilder::new(),
+        }
+    }
+
+    /// Freezes and validates the complete function.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unterminated block or any closed MIR invariant violation.
+    pub fn finish(
+        self,
+        entry: MirBlockId,
+        environment: &impl MirValidationEnvironment,
+    ) -> Result<MirFunction, MirBodyBuildError> {
+        let function = MirFunction::new(self.item, self.result, self.body.finish(entry)?);
+        validate_function(&function, environment)?;
+        Ok(function)
+    }
+}
+
+impl Deref for MirFunctionBuilder {
+    type Target = MirBodyBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.body
+    }
+}
+
+impl DerefMut for MirFunctionBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.body
     }
 }

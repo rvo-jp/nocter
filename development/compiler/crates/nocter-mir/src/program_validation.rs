@@ -4,60 +4,117 @@ use nocter_model::{
 };
 use nocter_target_program::{ExecutableItemKey, ExecutableProgram};
 
-use crate::program::MirProgramBuildError;
+use crate::program::{MirProgramBuildError, MirProgramOwner};
 use crate::validation_closure::has_valid_closure_environment_signature;
 use crate::{
-    MirAggregate, MirCallTarget, MirDestructionKind, MirDestructionPlan, MirFunction,
-    MirOperationKind, MirPackSegment,
+    MirAggregate, MirBody, MirCallTarget, MirDestructionKind, MirDestructionPlan, MirFunction,
+    MirOperationKind, MirPackSegment, MirRoot,
 };
 
 pub(crate) fn validate_program(
     functions: &Arena<ExecutableItemId, MirFunction>,
+    root: &MirRoot,
     executable: &ExecutableProgram,
 ) -> Result<(), MirProgramBuildError> {
     for (caller, function) in functions.iter() {
-        for (_, operation) in function.operations().iter() {
-            match operation.kind() {
-                MirOperationKind::Call(call) => {
-                    if let MirCallTarget::Direct(callee) = call.target() {
-                        validate_direct_call(
-                            caller,
-                            function,
-                            *callee,
-                            call.arguments(),
-                            operation
-                                .result()
-                                .and_then(|value| value_type(function, value)),
-                            call.pack().map(|pack| (pack.element(), pack.next())),
-                            functions,
-                        )?;
-                    }
-                    validate_pack_dependencies(caller, function, call, functions, executable)?;
-                }
-                MirOperationKind::InvokeDrop { body, place } => {
-                    let place_type = place_type(function, *place);
-                    if !place_type.is_some_and(|ty| {
-                        has_valid_drop_signature(*body, ty, functions, executable)
-                    }) {
-                        return Err(MirProgramBuildError::DropCallSignature {
-                            caller,
-                            callee: *body,
-                            place: *place,
-                        });
-                    }
-                }
-                MirOperationKind::Aggregate(MirAggregate::Closure { body, .. }) => {
-                    validate_closure(caller, *body, functions, executable)?;
-                }
-                _ => {}
+        validate_body(
+            MirProgramOwner::Function(caller),
+            function.body(),
+            functions,
+            executable,
+        )?;
+    }
+    match root {
+        MirRoot::Process(process) => {
+            let owner = MirProgramOwner::ProcessRoot;
+            validate_root_entry(owner, process.body(), process.entry())?;
+            validate_body(owner, process.body(), functions, executable)?;
+        }
+        MirRoot::Tests { cases, .. } => {
+            for case in cases {
+                let owner = MirProgramOwner::TestRoot(case.declaration());
+                validate_root_entry(owner, case.body(), case.item())?;
+                validate_body(owner, case.body(), functions, executable)?;
             }
         }
     }
     Ok(())
 }
 
+fn validate_root_entry(
+    owner: MirProgramOwner,
+    body: &MirBody,
+    expected: ExecutableItemId,
+) -> Result<(), MirProgramBuildError> {
+    let mut calls = body
+        .operations()
+        .iter()
+        .filter_map(|(_, operation)| match operation.kind() {
+            MirOperationKind::Call(call) => Some(call),
+            _ => None,
+        });
+    let Some(call) = calls.next() else {
+        return Err(MirProgramBuildError::InvalidRootCall { owner, expected });
+    };
+    if calls.next().is_some()
+        || call.target() != &MirCallTarget::Direct(expected)
+        || !call.arguments().is_empty()
+        || call.pack().is_some()
+        || call.allocation() != crate::MirCallAllocation::Inherit
+    {
+        return Err(MirProgramBuildError::InvalidRootCall { owner, expected });
+    }
+    Ok(())
+}
+
+fn validate_body(
+    caller: MirProgramOwner,
+    body: &MirBody,
+    functions: &Arena<ExecutableItemId, MirFunction>,
+    executable: &ExecutableProgram,
+) -> Result<(), MirProgramBuildError> {
+    for (_, operation) in body.operations().iter() {
+        match operation.kind() {
+            MirOperationKind::Call(call) => {
+                if let MirCallTarget::Direct(callee) = call.target() {
+                    validate_direct_call(
+                        caller,
+                        body,
+                        *callee,
+                        call.arguments(),
+                        operation.result().and_then(|value| value_type(body, value)),
+                        call.pack().map(|pack| (pack.element(), pack.next())),
+                        functions,
+                    )?;
+                }
+                validate_pack_dependencies(caller, body, call, functions, executable)?;
+            }
+            MirOperationKind::InvokeDrop {
+                body: drop_body,
+                place,
+            } => {
+                let place_type = place_type(body, *place);
+                if !place_type.is_some_and(|ty| {
+                    has_valid_drop_signature(*drop_body, ty, functions, executable)
+                }) {
+                    return Err(MirProgramBuildError::DropCallSignature {
+                        caller,
+                        callee: *drop_body,
+                        place: *place,
+                    });
+                }
+            }
+            MirOperationKind::Aggregate(MirAggregate::Closure { body, .. }) => {
+                validate_closure(caller, *body, functions, executable)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 fn validate_closure(
-    caller: ExecutableItemId,
+    caller: MirProgramOwner,
     body: ExecutableItemId,
     functions: &Arena<ExecutableItemId, MirFunction>,
     executable: &ExecutableProgram,
@@ -75,8 +132,8 @@ fn validate_closure(
 }
 
 fn validate_direct_call(
-    owner: ExecutableItemId,
-    function: &MirFunction,
+    owner: MirProgramOwner,
+    body: &MirBody,
     target: ExecutableItemId,
     arguments: &[MirValueId],
     result: Option<TypeId>,
@@ -106,7 +163,7 @@ fn validate_direct_call(
             .iter()
             .copied()
             .zip(arguments.iter().copied())
-            .any(|(expected, argument)| value_type(function, argument) != Some(expected))
+            .any(|(expected, argument)| value_type(body, argument) != Some(expected))
         || result != Some(target_function.result())
         || pack != expected_pack
     {
@@ -119,8 +176,8 @@ fn validate_direct_call(
 }
 
 fn validate_pack_dependencies(
-    caller: ExecutableItemId,
-    function: &MirFunction,
+    caller: MirProgramOwner,
+    body: &MirBody,
     call: &crate::MirCall,
     functions: &Arena<ExecutableItemId, MirFunction>,
     executable: &ExecutableProgram,
@@ -139,7 +196,7 @@ fn validate_pack_dependencies(
                 if let MirCallTarget::Direct(callee) = spread.next_target() {
                     validate_direct_call(
                         caller,
-                        function,
+                        body,
                         *callee,
                         &[spread.receiver()],
                         Some(spread.next_result()),
@@ -157,7 +214,7 @@ fn validate_pack_dependencies(
 }
 
 fn validate_deferred_drop_calls(
-    caller: ExecutableItemId,
+    caller: MirProgramOwner,
     plan: &MirDestructionPlan,
     functions: &Arena<ExecutableItemId, MirFunction>,
     executable: &ExecutableProgram,
@@ -233,16 +290,12 @@ fn has_valid_drop_signature(
         )
 }
 
-fn value_type(function: &MirFunction, value: MirValueId) -> Option<TypeId> {
-    function
-        .values()
-        .get(value)
-        .copied()
-        .map(crate::MirValue::ty)
+fn value_type(body: &MirBody, value: MirValueId) -> Option<TypeId> {
+    body.values().get(value).copied().map(crate::MirValue::ty)
 }
 
-fn place_type(function: &MirFunction, place: MirPlaceId) -> Option<TypeId> {
-    function.places().get(place).map(crate::MirPlace::ty)
+fn place_type(body: &MirBody, place: MirPlaceId) -> Option<TypeId> {
+    body.places().get(place).map(crate::MirPlace::ty)
 }
 
 fn parameter_type(function: &MirFunction, position: usize) -> Option<TypeId> {
