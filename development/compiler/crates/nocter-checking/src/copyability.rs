@@ -3,8 +3,8 @@ use std::fmt;
 
 use nocter_declarations::{DeclarationGraph, NominalShape, RequirementKind};
 use nocter_model::{
-    BorrowCapability, BuiltinType, FieldId, GenericParameterId, NominalTypeId, TypeId, TypeKind,
-    TypeStore, VariantId,
+    BorrowCapability, BuiltinType, ClosureId, FieldId, GenericParameterId, NominalTypeId, TypeId,
+    TypeKind, TypeStore, VariantId,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
@@ -70,6 +70,13 @@ pub struct CopyabilityTable {
     parameters: BTreeSet<GenericParameterId>,
     conditions: BTreeMap<TypeId, CopyCondition>,
     families: BTreeMap<NominalTypeId, CopyCondition>,
+    closures: BTreeMap<ClosureId, ClosureCopyCondition>,
+}
+
+#[derive(Clone, Debug)]
+struct ClosureCopyCondition {
+    parameters: Box<[GenericParameterId]>,
+    condition: CopyCondition,
 }
 
 impl CopyabilityTable {
@@ -166,8 +173,24 @@ impl CopyabilityTable {
         closure: TypeId,
         stored_captures: impl IntoIterator<Item = TypeId>,
     ) -> Result<(), CopyabilityError> {
-        if !matches!(types.get(closure), Some(TypeKind::Closure(_)))
-            || self.conditions.contains_key(&closure)
+        let Some(TypeKind::Closure {
+            definition,
+            arguments,
+        }) = types.get(closure)
+        else {
+            return Err(CopyabilityError::InvalidClosureRegistration(closure));
+        };
+        let definition = *definition;
+        let parameters = arguments
+            .iter()
+            .map(|argument| match types.get(*argument) {
+                Some(TypeKind::GenericParameter(parameter)) => Ok(*parameter),
+                _ => Err(CopyabilityError::InvalidClosureRegistration(closure)),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if self.conditions.contains_key(&closure)
+            || self.closures.contains_key(&definition)
+            || parameters.iter().copied().collect::<BTreeSet<_>>().len() != parameters.len()
         {
             return Err(CopyabilityError::InvalidClosureRegistration(closure));
         }
@@ -175,7 +198,14 @@ impl CopyabilityTable {
         for capture in stored_captures {
             condition = condition.conjoin(self.evaluate(graph, types, capture)?.clone());
         }
-        self.conditions.insert(closure, condition);
+        self.conditions.insert(closure, condition.clone());
+        self.closures.insert(
+            definition,
+            ClosureCopyCondition {
+                parameters: parameters.into_boxed_slice(),
+                condition,
+            },
+        );
         Ok(())
     }
 
@@ -281,9 +311,16 @@ impl CopyabilityTable {
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
             | TypeKind::Opaque { .. } => Some(CopyCondition::Impossible),
-            TypeKind::Closure(_) => {
-                return Err(CopyabilityError::MissingClosureCondition(ty));
-            }
+            TypeKind::Closure {
+                definition,
+                arguments,
+            } => match self.closure_dependencies(ty, definition, &arguments)? {
+                Some(dependencies) => {
+                    schedule_dependencies(ty, dependencies, &self.conditions, pending);
+                    None
+                }
+                None => Some(CopyCondition::Impossible),
+            },
             TypeKind::GenericParameter(parameter) => {
                 Some(if self.parameters.contains(&parameter) {
                     CopyCondition::Always
@@ -313,6 +350,38 @@ impl CopyabilityTable {
             self.conditions.insert(ty, condition);
         }
         Ok(())
+    }
+
+    fn closure_dependencies(
+        &self,
+        ty: TypeId,
+        definition: ClosureId,
+        arguments: &[TypeId],
+    ) -> Result<Option<Vec<TypeId>>, CopyabilityError> {
+        let closure = self
+            .closures
+            .get(&definition)
+            .ok_or(CopyabilityError::MissingClosureCondition(ty))?;
+        if closure.parameters.len() != arguments.len() {
+            return Err(CopyabilityError::MissingClosureCondition(ty));
+        }
+        Ok(match &closure.condition {
+            CopyCondition::Always => Some(Vec::new()),
+            CopyCondition::Impossible => None,
+            CopyCondition::Requires(required) => Some(
+                required
+                    .iter()
+                    .map(|required| {
+                        closure
+                            .parameters
+                            .iter()
+                            .position(|parameter| parameter == required)
+                            .map(|index| arguments[index])
+                            .ok_or(CopyabilityError::MissingClosureCondition(ty))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+        })
     }
 
     /// Closes the table over every type in the final store, including types interned by

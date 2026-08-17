@@ -168,7 +168,7 @@ impl BodyChecker<'_, '_> {
         };
         if let Some(contract) = contract {
             let closure = match self.types.get(self.node_type(value)?) {
-                Some(TypeKind::Closure(closure)) => *closure,
+                Some(TypeKind::Closure { definition, .. }) => *definition,
                 _ => return Err(BodyCheckInternalError::CallContractSelection.into()),
             };
             let signature = self
@@ -200,9 +200,17 @@ impl BodyChecker<'_, '_> {
             .get(&node)
             .copied()
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let closure_type = self.types.intern(TypeKind::Closure(closure)).map_err(|_| {
-            BodyCheckInternalError::UnknownType(self.types.builtin(nocter_model::BuiltinType::Void))
-        })?;
+        let closure_type = self
+            .types
+            .intern(TypeKind::Closure {
+                definition: closure,
+                arguments: self.closure_type_arguments.clone(),
+            })
+            .map_err(|_| {
+                BodyCheckInternalError::UnknownType(
+                    self.types.builtin(nocter_model::BuiltinType::Void),
+                )
+            })?;
         let head = direct_child(self.tree(), node, NodeKind::ClosureHead)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let checked_head =

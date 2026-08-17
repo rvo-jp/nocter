@@ -25,8 +25,10 @@ pub fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, Substit
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => return Ok(false),
-            TypeKind::Builtin(_) | TypeKind::Closure(_) => {}
-            TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. } => {
+            TypeKind::Builtin(_) => {}
+            TypeKind::Nominal { arguments, .. }
+            | TypeKind::Opaque { arguments, .. }
+            | TypeKind::Closure { arguments, .. } => {
                 pending.extend(arguments.iter().copied());
             }
             TypeKind::Pointer(base)

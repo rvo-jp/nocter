@@ -80,7 +80,11 @@ impl BodyChecker<'_, '_> {
         subject: TypeId,
         node: NodeId,
     ) -> Result<CallableValueContract, BodyCheckError> {
-        if let Some(TypeKind::Closure(closure)) = self.types.get(subject) {
+        if let Some(TypeKind::Closure {
+            definition: closure,
+            ..
+        }) = self.types.get(subject)
+        {
             let definition = self
                 .closures
                 .get(*closure)

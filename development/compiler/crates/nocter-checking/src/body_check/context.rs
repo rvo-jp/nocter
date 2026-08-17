@@ -1,5 +1,5 @@
 use nocter_declarations::{BodyOwner, DeclarationGraph};
-use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
+use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SourceIndex;
 
 use super::error::BodyCheckInternalError;
@@ -36,6 +36,25 @@ pub(super) fn body_result_type(
         BodyOwner::Test(_) => types
             .intern(TypeKind::Fallible(types.builtin(BuiltinType::Void)))
             .map_err(|_| BodyCheckInternalError::UnknownType(types.builtin(BuiltinType::Void))),
+    }
+}
+
+pub(super) fn body_generic_domain(
+    graph: &DeclarationGraph,
+    source: BodySource<'_>,
+) -> Result<Box<[GenericParameterId]>, BodyCheckInternalError> {
+    match source.owner() {
+        BodyOwner::Callable(callable) => graph
+            .declarations()
+            .callable_generic_domain(callable)
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
+        BodyOwner::Drop(drop) => graph
+            .declarations()
+            .drops()
+            .get(drop)
+            .map(|declaration| Box::from(declaration.generic_parameters()))
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
+        BodyOwner::Test(_) => Ok(Box::new([])),
     }
 }
 

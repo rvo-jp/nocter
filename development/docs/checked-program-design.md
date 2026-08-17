@@ -491,8 +491,11 @@ compiler-owned dimension. Values retain field, variant-payload, outcome, and ele
 so selecting one component does not acquire sibling origins. The same return validator enforces
 authored contracts, inferred contracts, temporary-receiver escape, and conformance method bounds.
 Closure expressions reserve lexical `ClosureId` identities before type inference and freeze a
-concrete closure type, normalized callable signature, parameter bindings, capture fields, callable
-requirements, and body root in the program-owned `ClosureTable`. Contextual callable contracts and
+structural closure type, normalized callable signature, parameter bindings, capture fields,
+callable requirements, and body root in the program-owned `ClosureTable`. A closure type contains
+its definition plus the complete enclosing owner-and-callable generic domain. Concrete
+substitution therefore fixes environment identity, layout, copyability, and destruction together;
+`ClosureId` alone never claims that a generic environment is concrete. Contextual callable contracts and
 ordinary argument evidence participate in one dependency-driven inference pass, so closure
 parameter and result types do not depend on source argument order. Unannotated results join tail
 values, explicit returns, absence, propagation, and divergence without allowing closure control to

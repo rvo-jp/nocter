@@ -192,7 +192,11 @@ impl BodyChecker<'_, '_> {
                 ordinary.push(requirement);
                 continue;
             };
-            let Some(TypeKind::Closure(closure)) = self.types.get(*subject) else {
+            let Some(TypeKind::Closure {
+                definition: closure,
+                ..
+            }) = self.types.get(*subject)
+            else {
                 ordinary.push(requirement);
                 continue;
             };

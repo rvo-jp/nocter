@@ -181,7 +181,21 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
         (TypeKind::Builtin(left), TypeKind::Builtin(right)) => left == right,
         (TypeKind::GenericParameter(left), TypeKind::GenericParameter(right)) => left == right,
         (TypeKind::InterfaceSelf(left), TypeKind::InterfaceSelf(right)) => left == right,
-        (TypeKind::Closure(left), TypeKind::Closure(right)) => left == right,
+        (
+            TypeKind::Closure {
+                definition: left_definition,
+                arguments: left_arguments,
+            },
+            TypeKind::Closure {
+                definition: right_definition,
+                arguments: right_arguments,
+            },
+        ) if left_definition == right_definition
+            && left_arguments.len() == right_arguments.len() =>
+        {
+            append_paired(left_arguments, right_arguments, pending);
+            true
+        }
         (
             TypeKind::Nominal {
                 definition: left_definition,
@@ -284,11 +298,10 @@ fn append_paired(left: &[TypeId], right: &[TypeId], pending: &mut Vec<(TypeId, T
 
 fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
     match kind {
-        TypeKind::Builtin(_)
-        | TypeKind::GenericParameter(_)
-        | TypeKind::InterfaceSelf(_)
-        | TypeKind::Closure(_) => {}
-        TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. } => {
+        TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+        TypeKind::Nominal { arguments, .. }
+        | TypeKind::Opaque { arguments, .. }
+        | TypeKind::Closure { arguments, .. } => {
             output.extend(arguments.iter().copied());
         }
         TypeKind::AssociatedProjection { base, .. }

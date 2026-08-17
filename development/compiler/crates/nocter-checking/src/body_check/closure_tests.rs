@@ -1,9 +1,11 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_model::{CallableCapability, TypeKind};
+use nocter_model::{BuiltinType, CallableCapability, TypeKind};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
-use crate::{CallTarget, CheckedOperation, prepare_program_checking};
+use crate::{
+    CallTarget, CheckedOperation, TypeSubstitution, is_concrete_type, prepare_program_checking,
+};
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
@@ -27,9 +29,10 @@ fn annotated_closure_has_concrete_identity_and_direct_static_dispatch() {
         definition.signature().capability(),
         CallableCapability::Readonly
     );
-    assert!(
-        matches!(program.types().get(definition.ty()), Some(TypeKind::Closure(actual)) if *actual == closure)
-    );
+    assert!(matches!(
+        program.types().get(definition.ty()),
+        Some(TypeKind::Closure { definition: actual, .. }) if *actual == closure
+    ));
     assert!(program.bodies().iter().any(|(_, body)| {
         body.nodes().iter().any(|(_, node)| {
             matches!(
@@ -39,6 +42,54 @@ fn annotated_closure_has_concrete_identity_and_direct_static_dispatch() {
             )
         })
     }));
+}
+
+#[test]
+fn generic_closure_identity_specializes_its_enclosing_generic_domain() {
+    let output = check(
+        "func generic<T>(value: &T): void {\n\
+             let inspect = (&value;): void { return }\n\
+             inspect()\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let program = output.program();
+    let (_, definition) = program.closures().definitions().iter().next().unwrap();
+    let TypeKind::Closure {
+        definition: closure,
+        arguments,
+    } = program.types().get(definition.ty()).unwrap()
+    else {
+        panic!("checked closure must have a structural closure type")
+    };
+    assert_eq!(arguments.len(), 1);
+    assert!(matches!(
+        program.types().get(arguments[0]),
+        Some(TypeKind::GenericParameter(_))
+    ));
+    assert!(!is_concrete_type(program.types(), definition.ty()).unwrap());
+
+    let parameter = match program.types().get(arguments[0]).unwrap() {
+        TypeKind::GenericParameter(parameter) => *parameter,
+        _ => unreachable!(),
+    };
+    let mut types = program.types().clone();
+    let concrete = types.builtin(BuiltinType::I32);
+    let mut substitution = TypeSubstitution::default();
+    substitution.bind_generic(parameter, concrete);
+    let specialized = substitution
+        .apply_type(&mut types, definition.ty())
+        .unwrap();
+
+    assert!(is_concrete_type(&types, specialized).unwrap());
+    assert!(matches!(
+        types.get(specialized),
+        Some(TypeKind::Closure {
+            definition: actual,
+            arguments,
+        }) if actual == closure && arguments.as_ref() == [concrete]
+    ));
 }
 
 #[test]

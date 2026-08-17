@@ -158,7 +158,10 @@ pub enum TypeKind {
     /// The signature and environment layout live in the checked-program closure authority. A
     /// structural [`CallableContract`] remains a generic bound and is never used as storage for a
     /// closure value.
-    Closure(ClosureId),
+    Closure {
+        definition: ClosureId,
+        arguments: Box<[TypeId]>,
+    },
     Callable(CallableContract),
     Optional(TypeId),
     Fallible(TypeId),
@@ -167,11 +170,10 @@ pub enum TypeKind {
 impl TypeKind {
     fn references(&self, visit: &mut impl FnMut(TypeId)) {
         match self {
-            Self::Builtin(_)
-            | Self::GenericParameter(_)
-            | Self::InterfaceSelf(_)
-            | Self::Closure(_) => {}
-            Self::Nominal { arguments, .. } | Self::Opaque { arguments, .. } => {
+            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
+            Self::Nominal { arguments, .. }
+            | Self::Opaque { arguments, .. }
+            | Self::Closure { arguments, .. } => {
                 arguments.iter().copied().for_each(visit);
             }
             Self::AssociatedProjection { base, .. }
@@ -244,7 +246,7 @@ impl TypeStore {
                     | TypeKind::Pointer(_)
                     | TypeKind::Borrow { .. }
                     | TypeKind::Slice(_)
-                    | TypeKind::Closure(_)
+                    | TypeKind::Closure { .. }
                     | TypeKind::Callable(_),
                 ) => return true,
                 Some(

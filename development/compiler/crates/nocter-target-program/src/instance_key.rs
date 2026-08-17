@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
-use nocter_declarations::{CallableOwner, DeclarationArenas};
+use nocter_declarations::CallableOwner;
 use nocter_model::{CallableId, GenericParameterId, TypeId, TypeStore};
 
 use crate::{ExecutableEntry, TargetProgram};
@@ -58,17 +58,22 @@ impl CallableInstanceKey {
             .callables()
             .get(callable)
             .ok_or(CallableInstanceKeyError::UnknownCallable(callable))?;
-        let expected =
-            complete_generic_domain(graph.declarations(), declaration.owner(), callable)?;
+        let expected = graph
+            .declarations()
+            .callable_generic_domain(callable)
+            .ok_or(CallableInstanceKeyError::UnknownOwner {
+                callable,
+                owner: declaration.owner(),
+            })?;
         let actual = generic_arguments
             .as_slice()
             .iter()
             .map(|argument| argument.parameter())
             .collect::<Vec<_>>();
-        if actual != expected {
+        if actual.as_slice() != expected.as_ref() {
             return Err(CallableInstanceKeyError::GenericDomainMismatch {
                 callable,
-                expected: expected.into_boxed_slice(),
+                expected,
                 actual: actual.into_boxed_slice(),
             });
         }
@@ -133,49 +138,6 @@ impl CallableInstanceKey {
     ) -> Result<TypeId, SubstitutionError> {
         self.substitution().apply_type(types, ty)
     }
-}
-
-fn complete_generic_domain(
-    declarations: &DeclarationArenas,
-    owner: CallableOwner,
-    callable: CallableId,
-) -> Result<Vec<GenericParameterId>, CallableInstanceKeyError> {
-    let owner_parameters = match owner {
-        CallableOwner::Module(_) => &[][..],
-        CallableOwner::Construction(id) => declarations
-            .constructions()
-            .get(id)
-            .ok_or(CallableInstanceKeyError::UnknownOwner { callable, owner })?
-            .generic_parameters(),
-        CallableOwner::Instance(id) => declarations
-            .instances()
-            .get(id)
-            .ok_or(CallableInstanceKeyError::UnknownOwner { callable, owner })?
-            .generic_parameters(),
-        CallableOwner::Interface(id) => declarations
-            .interfaces()
-            .get(id)
-            .ok_or(CallableInstanceKeyError::UnknownOwner { callable, owner })?
-            .generic_parameters(),
-        CallableOwner::Conformance(id) => declarations
-            .conformances()
-            .get(id)
-            .ok_or(CallableInstanceKeyError::UnknownOwner { callable, owner })?
-            .generic_parameters(),
-    };
-    let callable_parameters = declarations
-        .callables()
-        .get(callable)
-        .ok_or(CallableInstanceKeyError::UnknownCallable(callable))?
-        .generic_parameters();
-    let mut complete = owner_parameters
-        .iter()
-        .chain(callable_parameters)
-        .copied()
-        .collect::<Vec<_>>();
-    complete.sort_unstable();
-    complete.dedup();
-    Ok(complete)
 }
 
 /// Failure to construct one canonical callable-specialization identity.

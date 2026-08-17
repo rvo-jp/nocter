@@ -1076,7 +1076,11 @@ fn contains_associated_projection(store: &TypeStore, root: TypeId) -> bool {
         }
         match store.get(ty) {
             Some(TypeKind::AssociatedProjection { .. }) => return true,
-            Some(TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. }) => {
+            Some(
+                TypeKind::Nominal { arguments, .. }
+                | TypeKind::Opaque { arguments, .. }
+                | TypeKind::Closure { arguments, .. },
+            ) => {
                 pending.extend(arguments.iter().copied());
             }
             Some(
@@ -1092,10 +1096,7 @@ fn contains_associated_projection(store: &TypeStore, root: TypeId) -> bool {
                 pending.extend(callable.parameters().iter().copied());
             }
             Some(
-                TypeKind::Builtin(_)
-                | TypeKind::GenericParameter(_)
-                | TypeKind::InterfaceSelf(_)
-                | TypeKind::Closure(_),
+                TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_),
             )
             | None => {}
         }

@@ -58,6 +58,10 @@ cleanup type while excluding unreachable retained source. `ConcreteDispatchResol
 checked type store and resolves direct, interface, and structural dispatch into ordered direct,
 primitive, or indirect-callable steps. Structural comparison and indexing retain coercion steps;
 MIR will not receive an unresolved requirement or repeat conformance selection.
+Closure types now pair their lexical `ClosureId` with the complete enclosing generic domain. A
+generic closure is no longer misclassified as globally concrete; specialization substitutes those
+arguments into one distinct environment type, and the shared copyability authority carries its
+capture condition across that specialization.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

@@ -13,7 +13,7 @@ use nocter_syntax::{
 };
 
 use super::assumptions::body_assumptions;
-use super::context::{BodyProgramFacts, body_result_type};
+use super::context::{BodyProgramFacts, body_generic_domain, body_result_type};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
@@ -361,6 +361,7 @@ struct BodyChecker<'input, 'syntax> {
     assumptions: Vec<crate::CheckedRequirement>,
     closure_result_inference: Option<closure_results::ClosureResultInference>,
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
+    closure_type_arguments: Box<[TypeId]>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -417,6 +418,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         let result_type = body_result_type(graph, types, source)?;
+        let closure_type_arguments = body_generic_domain(graph, source)?
+            .iter()
+            .map(|parameter| {
+                types
+                    .intern(TypeKind::GenericParameter(*parameter))
+                    .map_err(|_| BodyCheckInternalError::UnknownType(result_type))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_boxed_slice();
         let assumptions = body_assumptions(graph, types, conformances, instance_operations, source)
             .map_err(BodyCheckInternalError::BodyAssumptions)?;
         Ok(Self {
@@ -446,6 +456,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             assumptions,
             closure_result_inference: None,
             closure_ids,
+            closure_type_arguments,
         })
     }
 

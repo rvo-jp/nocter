@@ -246,7 +246,12 @@ mod tests {
         let mut types = TypeStore::new();
         let mut closures = ClosureTableBuilder::new();
         let closure = closures.reserve(owner);
-        let ty = types.intern(TypeKind::Closure(closure)).unwrap();
+        let ty = types
+            .intern(TypeKind::Closure {
+                definition: closure,
+                arguments: Box::new([]),
+            })
+            .unwrap();
         closures
             .define(
                 closure,

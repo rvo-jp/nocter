@@ -384,9 +384,12 @@ readonly, readwrite, or owned access. Body checking never discovers captures by 
 and later stages never reinterpret a stored borrow as an implicit source dereference. Copies and
 moves of a closure retain the same capture and loan identities through ordinary value flow.
 Closure identities are reserved in lexical source order before contextual inference begins. One
-program-owned definition then records the concrete closure type, normalized signature, parameter
-bindings, captures, structural callable evidence, and independent body root. Callable-contract and
-ordinary argument constraints are solved as a dependency graph rather than in argument order.
+program-owned definition then records a structural closure type, normalized signature, parameter
+bindings, captures, structural callable evidence, and independent body root. The type pairs its
+`ClosureId` with the enclosing body's complete generic domain; substitution therefore creates a
+distinct concrete environment type for each callable specialization instead of treating a generic
+capture layout as globally concrete. Callable-contract and ordinary argument constraints are
+solved as a dependency graph rather than in argument order.
 Unannotated result inference joins tail values, explicit returns, outcome propagation, and
 divergence at that root. Ownership, provenance, liveness, and loan passes enter each closure root
 with its parameters and capture fields initialized, then summarize result dependence on invocation

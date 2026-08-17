@@ -161,6 +161,34 @@ impl DeclarationArenas {
         bodies: BodyId => Body,
         opaque_types: OpaqueTypeId => OpaqueTypeDeclaration,
     }
+
+    /// Returns the complete owner-plus-callable generic domain in semantic identity order.
+    #[must_use]
+    pub fn callable_generic_domain(
+        &self,
+        callable: CallableId,
+    ) -> Option<Box<[GenericParameterId]>> {
+        let declaration = self.callables.get(callable)?;
+        let owner = match declaration.owner() {
+            crate::CallableOwner::Module(_) => &[][..],
+            crate::CallableOwner::Construction(id) => {
+                self.constructions.get(id)?.generic_parameters()
+            }
+            crate::CallableOwner::Instance(id) => self.instances.get(id)?.generic_parameters(),
+            crate::CallableOwner::Interface(id) => self.interfaces.get(id)?.generic_parameters(),
+            crate::CallableOwner::Conformance(id) => {
+                self.conformances.get(id)?.generic_parameters()
+            }
+        };
+        let mut complete = owner
+            .iter()
+            .chain(declaration.generic_parameters())
+            .copied()
+            .collect::<Vec<_>>();
+        complete.sort_unstable();
+        complete.dedup();
+        Some(complete.into_boxed_slice())
+    }
 }
 
 /// Two-pass builder for mutually referential declaration headers.

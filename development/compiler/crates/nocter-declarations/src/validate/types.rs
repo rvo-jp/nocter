@@ -10,7 +10,7 @@ use super::{
 pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
     for (_, kind) in program.types().iter() {
         match kind {
-            TypeKind::Closure(_) => {
+            TypeKind::Closure { .. } => {
                 return Err(ProgramIntegrityError::InvalidPosition(
                     DeclarationDomain::Type,
                 ));
