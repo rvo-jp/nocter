@@ -315,7 +315,10 @@ be introduced to make an unresolved syntax choice.
   and cleanup share one canonical value-storage slot. Conditional path and value cleanup uses
   explicit entry-visible drop flags updated by initialization, move, replacement, and destruction;
   typed place interning keeps those flags on the same identity used by ordinary operations.
-  Remaining checked operations still fail explicitly instead of being omitted.
+  Block fallthrough, explicit drop, compound integer assignment, `break`, `continue`, while and
+  infinite loops, and integer ranges lower through the same cleanup events and closed CFG builder.
+  Nonbreaking loops omit an exit block, while ranges use a dedicated increment latch. Collection
+  iteration and remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

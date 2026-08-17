@@ -5,13 +5,14 @@ use nocter_checking::{
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
 use nocter_model::{
-    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, MirBlockId, MirDropFlagId,
+    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId,
     MirLocalId, MirPlaceId, MirValueId, ParameterId, TypeId, TypeKind,
 };
 use nocter_target_program::{ExecutableInputSource, ExecutableItem, ExecutableProgram};
 
 use super::MirLoweringError;
 use super::cleanup_flags::CleanupIdentity;
+use super::loop_control::LoopTargets;
 use crate::{
     MirAggregate, MirBinaryOperation, MirConstant, MirFunction, MirFunctionBuilder, MirLocalKind,
     MirOperationKind, MirTerminator, MirUnaryOperation,
@@ -74,6 +75,7 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) value_storage: BTreeMap<BodyNodeId, MirPlaceId>,
     pub(super) initialized_value_storage: BTreeSet<BodyNodeId>,
     pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
+    pub(super) loops: BTreeMap<LoopId, LoopTargets>,
 }
 
 impl<'a> FunctionLowerer<'a> {
@@ -113,6 +115,7 @@ impl<'a> FunctionLowerer<'a> {
             value_storage: BTreeMap::new(),
             initialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
+            loops: BTreeMap::new(),
         }
     }
 
@@ -228,16 +231,7 @@ impl<'a> FunctionLowerer<'a> {
                 left,
                 right,
             } => MirOperationKind::Binary {
-                operation: match operation {
-                    PrimitiveBinary::Add => MirBinaryOperation::Add,
-                    PrimitiveBinary::Subtract => MirBinaryOperation::Subtract,
-                    PrimitiveBinary::Multiply => MirBinaryOperation::Multiply,
-                    PrimitiveBinary::Divide => MirBinaryOperation::Divide,
-                    PrimitiveBinary::Remainder => MirBinaryOperation::Remainder,
-                    PrimitiveBinary::ShiftLeft => MirBinaryOperation::ShiftLeft,
-                    PrimitiveBinary::ShiftRightSigned => MirBinaryOperation::ShiftRightSigned,
-                    PrimitiveBinary::ShiftRightUnsigned => MirBinaryOperation::ShiftRightUnsigned,
-                },
+                operation: mir_binary_operation(*operation),
                 left: self.require_value(*left)?,
                 right: self.require_value(*right)?,
             },
@@ -342,5 +336,18 @@ impl<'a> FunctionLowerer<'a> {
         let local = self.builder.add_local(ty, kind, mutable);
         self.locals.insert(binding, local);
         Ok(local)
+    }
+}
+
+pub(super) const fn mir_binary_operation(operation: PrimitiveBinary) -> MirBinaryOperation {
+    match operation {
+        PrimitiveBinary::Add => MirBinaryOperation::Add,
+        PrimitiveBinary::Subtract => MirBinaryOperation::Subtract,
+        PrimitiveBinary::Multiply => MirBinaryOperation::Multiply,
+        PrimitiveBinary::Divide => MirBinaryOperation::Divide,
+        PrimitiveBinary::Remainder => MirBinaryOperation::Remainder,
+        PrimitiveBinary::ShiftLeft => MirBinaryOperation::ShiftLeft,
+        PrimitiveBinary::ShiftRightSigned => MirBinaryOperation::ShiftRightSigned,
+        PrimitiveBinary::ShiftRightUnsigned => MirBinaryOperation::ShiftRightUnsigned,
     }
 }

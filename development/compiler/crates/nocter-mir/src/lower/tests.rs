@@ -612,6 +612,80 @@ fn borrowed_temporary_and_cleanup_share_one_storage_slot() {
     }));
 }
 
+#[test]
+fn lowers_while_infinite_and_range_loops_with_explicit_transfer_targets() {
+    let program = lower_fixture(
+        "func main(): void {\n\
+             var value = 0\n\
+             value += 2\n\
+             while false { continue }\n\
+             loop { break }\n\
+             for index in 0..<3 { let _ = index }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Binary {
+                    operation: crate::MirBinaryOperation::Add,
+                    ..
+                }
+            )
+        }) && function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Binary {
+                    operation: crate::MirBinaryOperation::Less,
+                    ..
+                }
+            )
+        }) && function.blocks().len() >= 10
+    }));
+}
+
+#[test]
+fn never_loop_closes_without_an_invented_exit_block() {
+    let program = lower_fixture("func main(): void { loop {} }\n").unwrap();
+    let (_, function) = program.functions().iter().next().unwrap();
+
+    assert_eq!(function.blocks().len(), 2);
+    assert!(
+        function
+            .blocks()
+            .iter()
+            .all(|(_, block)| { matches!(block.terminator(), crate::MirTerminator::Goto(_)) })
+    );
+}
+
+#[test]
+fn explicit_drop_and_fallthrough_blocks_use_the_same_cleanup_lowering() {
+    for main in [
+        "func main(): void {\n    let value = Owned { value: 1 }\n    drop value\n    return\n}",
+        "func main(): void {\n    let value = Owned { value: 1 }\n}",
+    ] {
+        let program = lower_fixture(&format!(
+            "struct Owned {{ value: i32 }}\n\
+             drop Owned(&+self) {{ return }}\n\
+             {main}\n"
+        ))
+        .unwrap();
+        let invocations = program
+            .functions()
+            .iter()
+            .flat_map(|(_, function)| function.operations().iter())
+            .filter(|(_, operation)| {
+                matches!(operation.kind(), MirOperationKind::InvokeDrop { .. })
+            })
+            .count();
+
+        assert_eq!(invocations, 1);
+    }
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }

@@ -21,7 +21,11 @@ impl FunctionLowerer<'_> {
                         return Ok(None);
                     }
                 }
-                result.map_or(Ok(None), |result| self.lower_node(result))
+                let value = result.map_or(Ok(None), |result| self.lower_node(result))?;
+                if self.current.is_some() {
+                    self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
+                }
+                Ok(value)
             }
             CheckedControl::Bind {
                 binding,
@@ -47,11 +51,15 @@ impl FunctionLowerer<'_> {
                 Ok(None)
             }
             CheckedControl::Assign { target, value } => {
-                let value = self.require_value(*value)?;
-                let destination = self.lower_place(*target)?;
-                self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeStore)?;
-                self.append_effect(MirOperationKind::Store { destination, value })?;
-                self.mark_place_initialized(*target, true)?;
+                self.lower_assignment(node, *target, *value)?;
+                Ok(None)
+            }
+            CheckedControl::CompoundAssign {
+                target,
+                value,
+                operation,
+            } => {
+                self.lower_compound_assignment(*target, *value, *operation)?;
                 Ok(None)
             }
             CheckedControl::Discard(value) => {
@@ -68,6 +76,18 @@ impl FunctionLowerer<'_> {
                 }
                 Ok(None)
             }
+            CheckedControl::Break(loop_) => {
+                self.lower_loop_transfer(node, *loop_, true)?;
+                Ok(None)
+            }
+            CheckedControl::Continue(loop_) => {
+                self.lower_loop_transfer(node, *loop_, false)?;
+                Ok(None)
+            }
+            CheckedControl::Drop(_) => {
+                self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
+                Ok(None)
+            }
             CheckedControl::If {
                 condition,
                 then_branch,
@@ -78,13 +98,13 @@ impl FunctionLowerer<'_> {
                 left,
                 right,
             } => self.lower_logical(*operation, *left, *right).map(Some),
-            CheckedControl::CompoundAssign { .. }
-            | CheckedControl::Break(_)
-            | CheckedControl::Continue(_)
-            | CheckedControl::Drop(_)
-            | CheckedControl::Pattern { .. }
-            | CheckedControl::Loop(_)
-            | CheckedControl::Region { .. } => Err(MirLoweringError::UnsupportedOperation(node)),
+            CheckedControl::Loop(loop_) => {
+                self.lower_loop(node, *loop_)?;
+                Ok(None)
+            }
+            CheckedControl::Pattern { .. } | CheckedControl::Region { .. } => {
+                Err(MirLoweringError::UnsupportedOperation(node))
+            }
         }
     }
 

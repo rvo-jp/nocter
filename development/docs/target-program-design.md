@@ -251,8 +251,11 @@ callee-owned cleanup. One canonical value-storage slot is shared by borrow prepa
 inspection, future pattern projection, and cleanup. Conditional path and value schedules use
 explicit entry-visible drop flags updated on initialization, move, replacement, and destruction.
 Exact typed place interning makes the flag and ordinary storage operations share one identity.
-Unsupported checked operations still fail; the current slice cannot silently omit accepted
-semantics.
+Block fallthrough and explicit control transfer consume the same checked `BeforeTransfer` cleanup
+events. Explicit drop, compound integer assignment, `break`, `continue`, while and infinite loops,
+and integer ranges lower into closed CFG; a checked nonbreaking loop has no synthetic exit, and a
+range uses a dedicated increment latch. Collection iteration and other unsupported checked
+operations still fail; the current slice cannot silently omit accepted semantics.
 
 ## Prohibited Designs
 

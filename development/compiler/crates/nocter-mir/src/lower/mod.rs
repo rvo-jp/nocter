@@ -1,12 +1,13 @@
 use std::fmt;
 
 use nocter_model::{
-    BodyId, BodyNodeId, ExecutableItemId, LocalBindingId, ParameterId, PlaceId, TypeId,
+    BodyId, BodyNodeId, ExecutableItemId, LocalBindingId, LoopId, ParameterId, PlaceId, TypeId,
 };
 use nocter_target_program::ExecutableProgram;
 
 use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
 
+mod assignment;
 mod borrow_conversion;
 mod call;
 mod cleanup;
@@ -15,6 +16,7 @@ mod comparison;
 mod control;
 mod function;
 mod index_place;
+mod loop_control;
 mod operand;
 mod outcome;
 mod place;
@@ -51,6 +53,7 @@ pub enum MirLoweringError {
     UnknownNode(BodyNodeId),
     UnknownPlace(PlaceId),
     UnknownLocal(LocalBindingId),
+    InvalidLoop(LoopId),
     UnknownParameter(ParameterId),
     MissingConcreteType(TypeId),
     MissingInput(ParameterId),
