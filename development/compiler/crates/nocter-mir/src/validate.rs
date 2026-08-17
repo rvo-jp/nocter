@@ -49,6 +49,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
     fn validate(&self) -> Result<(), MirValidationError> {
         self.require_item(self.function.item())?;
         self.require_type(self.function.result())?;
+        self.validate_pack_input()?;
         self.validate_parameters()?;
         for (_, local) in self.function.locals().iter() {
             self.require_type(local.ty())?;
@@ -64,6 +65,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         }
         self.validate_value_definitions()?;
         let operation_locations = self.validate_operation_membership()?;
+        self.validate_pack_exits()?;
         let predecessors = self.validate_edges_and_reachability()?;
         let dominators = self.compute_dominators(&predecessors);
         self.validate_operations(&operation_locations, &dominators)?;
@@ -90,6 +92,57 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 && self.function.parameters().get(position) != Some(&local)
             {
                 return Err(MirValidationError::OrphanParameter(local));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_pack_input(&self) -> Result<(), MirValidationError> {
+        let expected = self.environment.item_pack_input(self.function.item());
+        let actual = self.function.pack().map(|pack| {
+            self.require_type(pack.element())?;
+            self.require_type(pack.next())?;
+            if !matches!(
+                self.types.get(pack.next()),
+                Some(TypeKind::Optional(payload)) if *payload == pack.element()
+            ) {
+                return Err(MirValidationError::InvalidPackInput(self.function.item()));
+            }
+            Ok((pack.element(), pack.next()))
+        });
+        if actual.transpose()? != expected {
+            return Err(MirValidationError::InvalidPackInput(self.function.item()));
+        }
+        Ok(())
+    }
+
+    fn validate_pack_exits(&self) -> Result<(), MirValidationError> {
+        for (block, body) in self.function.blocks().iter() {
+            let destroys = body
+                .operations()
+                .iter()
+                .copied()
+                .filter(|operation| {
+                    self.function
+                        .operations()
+                        .get(*operation)
+                        .is_some_and(|operation| {
+                            matches!(operation.kind(), MirOperationKind::DestroyPack)
+                        })
+                })
+                .collect::<Vec<_>>();
+            if !destroys.is_empty()
+                && (!matches!(body.terminator(), MirTerminator::Return(_))
+                    || destroys.len() != 1
+                    || body.operations().last() != destroys.first())
+            {
+                return Err(MirValidationError::InvalidPackExit(block));
+            }
+            if self.function.pack().is_some()
+                && matches!(body.terminator(), MirTerminator::Return(_))
+                && destroys.len() != 1
+            {
+                return Err(MirValidationError::InvalidPackExit(block));
             }
         }
         Ok(())
@@ -541,6 +594,23 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     result.ok_or_else(mismatch)?,
                 )?;
             }
+            MirOperationKind::PackLength => {
+                if self.function.pack().is_none()
+                    || result != Some(self.types.builtin(BuiltinType::Usize))
+                {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::PackNext => {
+                if self.function.pack().map(crate::MirPackInput::next) != result {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::DestroyPack => {
+                if self.function.pack().is_none() || result.is_some() {
+                    return Err(mismatch());
+                }
+            }
             MirOperationKind::InvokeDrop { body, place } => {
                 self.require_item(*body)?;
                 self.require_place(*place)?;
@@ -821,6 +891,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         match operation.kind() {
             MirOperationKind::Constant(_)
             | MirOperationKind::SetDropFlag { .. }
+            | MirOperationKind::PackLength
+            | MirOperationKind::PackNext
+            | MirOperationKind::DestroyPack
             | MirOperationKind::ReleaseRegion { .. } => {}
             MirOperationKind::CreateRegion { parent } => values.push(*parent),
             MirOperationKind::Read { place, .. }

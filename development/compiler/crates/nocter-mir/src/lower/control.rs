@@ -58,6 +58,7 @@ impl FunctionLowerer<'_> {
             CheckedControl::Return(value) => {
                 let value = value.map(|value| self.require_value(value)).transpose()?;
                 self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeTransfer)?;
+                self.destroy_pack()?;
                 if let Some(block) = self.current.take() {
                     self.builder
                         .terminate(block, MirTerminator::Return(value))?;

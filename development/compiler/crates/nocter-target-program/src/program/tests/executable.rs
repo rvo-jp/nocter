@@ -352,6 +352,10 @@ fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
     assert!(item.signature().inputs().is_empty());
     assert_eq!(pack.source(), declaration.parameters()[0]);
     assert_eq!(pack.element(), executable.types().builtin(BuiltinType::I32));
+    assert!(matches!(
+        executable.types().get(pack.next()),
+        Some(nocter_model::TypeKind::Optional(payload)) if *payload == pack.element()
+    ));
 
     let ExecutableRoot::Process { entry, .. } = executable.root() else {
         panic!("expected process root")

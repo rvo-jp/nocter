@@ -23,19 +23,17 @@ pub(super) fn lower_function(
     item_id: ExecutableItemId,
     item: &ExecutableItem,
 ) -> Result<MirFunction, MirLoweringError> {
-    if item.signature().pack().is_some() {
-        return Err(MirLoweringError::UnsupportedOperation(item.body().root()));
-    }
     let checked = executable
         .target()
         .checked()
         .bodies()
         .get(item.body().body())
         .ok_or(MirLoweringError::UnknownBody(item.body().body()))?;
-    let mut lowerer = FunctionLowerer::new(executable, item_id, item, checked);
+    let mut lowerer = FunctionLowerer::new(executable, item_id, item, checked)?;
     lowerer.prepare_cleanup_flags()?;
     let result = lowerer.lower_node(item.body().root())?;
     if let Some(block) = lowerer.current {
+        lowerer.destroy_pack()?;
         match executable.types().get(item.signature().result()) {
             Some(TypeKind::Builtin(BuiltinType::Void)) => {
                 lowerer
@@ -88,8 +86,11 @@ impl<'a> FunctionLowerer<'a> {
         item_id: ExecutableItemId,
         item: &'a ExecutableItem,
         body: &'a CheckedBody,
-    ) -> Self {
+    ) -> Result<Self, MirLoweringError> {
         let mut builder = MirFunctionBuilder::new(item_id, item.signature().result());
+        if let Some(pack) = item.signature().pack() {
+            builder.set_pack_input(crate::MirPackInput::new(pack.element(), pack.next()))?;
+        }
         let mut parameters = BTreeMap::new();
         let mut locals = BTreeMap::new();
         let mut closure_environments = BTreeMap::new();
@@ -108,7 +109,7 @@ impl<'a> FunctionLowerer<'a> {
             }
         }
         let (entry, _) = builder.create_block([]);
-        Self {
+        Ok(Self {
             executable,
             item,
             body,
@@ -124,7 +125,7 @@ impl<'a> FunctionLowerer<'a> {
             materialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
             loops: BTreeMap::new(),
-        }
+        })
     }
 
     pub(super) fn lower_node(
@@ -146,15 +147,7 @@ impl<'a> FunctionLowerer<'a> {
         let ty = self.concrete_type(checked.ty())?;
         let lowered = match checked.operation() {
             CheckedOperation::Complete => Ok(None),
-            CheckedOperation::Constant(constant) => {
-                let constant = match constant {
-                    ConstantValue::Bool(value) => MirConstant::Bool(*value),
-                    ConstantValue::Integer(value) => MirConstant::Integer(*value),
-                    ConstantValue::Text(value) => MirConstant::Text(value.clone()),
-                };
-                self.append_value(ty, MirOperationKind::Constant(constant))
-                    .map(Some)
-            }
+            CheckedOperation::Constant(constant) => self.lower_constant(ty, constant).map(Some),
             CheckedOperation::Copy(place) => {
                 let place = self.lower_place(*place)?;
                 self.append_value(
@@ -196,6 +189,9 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::OpaqueWitness(witness) => {
                 self.lower_opaque_witness(node, ty, *witness).map(Some)
             }
+            CheckedOperation::LiteralPackLength(parameter) => {
+                self.lower_pack_length(node, ty, *parameter).map(Some)
+            }
             CheckedOperation::Comparison(comparison) => self.lower_comparison(node, comparison),
             CheckedOperation::Outcome(outcome) => self.lower_outcome(node, ty, outcome),
             CheckedOperation::Primitive(primitive) => self.lower_primitive(ty, primitive).map(Some),
@@ -214,7 +210,6 @@ impl<'a> FunctionLowerer<'a> {
                 .map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
-            | CheckedOperation::LiteralPackLength(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::Interpolation(_) => {
                 Err(MirLoweringError::UnsupportedOperation(node))
@@ -230,6 +225,19 @@ impl<'a> FunctionLowerer<'a> {
             self.lower_cleanup(node, nocter_checking::CleanupTiming::AtStatementEnd)?;
         }
         Ok(lowered)
+    }
+
+    fn lower_constant(
+        &mut self,
+        ty: TypeId,
+        constant: &ConstantValue,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let constant = match constant {
+            ConstantValue::Bool(value) => MirConstant::Bool(*value),
+            ConstantValue::Integer(value) => MirConstant::Integer(*value),
+            ConstantValue::Text(value) => MirConstant::Text(value.clone()),
+        };
+        self.append_value(ty, MirOperationKind::Constant(constant))
     }
 
     fn lower_primitive(

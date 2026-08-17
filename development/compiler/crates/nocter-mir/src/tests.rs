@@ -21,6 +21,7 @@ struct TestEnvironment {
     items: Arena<ExecutableItemId, ()>,
     allocation_items: BTreeSet<ExecutableItemId>,
     standard_nominals: BTreeMap<StandardDeclarationRole, NominalTypeId>,
+    pack_inputs: BTreeMap<ExecutableItemId, (TypeId, TypeId)>,
 }
 
 impl TestEnvironment {
@@ -37,6 +38,7 @@ impl TestEnvironment {
                 items: items.finish(),
                 allocation_items: BTreeSet::new(),
                 standard_nominals: BTreeMap::new(),
+                pack_inputs: BTreeMap::new(),
             },
             item,
         )
@@ -165,6 +167,10 @@ impl MirValidationEnvironment for TestEnvironment {
         self.allocation_items.contains(&item)
     }
 
+    fn item_pack_input(&self, item: ExecutableItemId) -> Option<(TypeId, TypeId)> {
+        self.pack_inputs.get(&item).copied()
+    }
+
     fn nominal_type(&self, _id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
         None
     }
@@ -226,6 +232,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
             items: environment.items.clone(),
             allocation_items: accepted.then_some(item).into_iter().collect(),
             standard_nominals: environment.standard_nominals.clone(),
+            pack_inputs: environment.pack_inputs.clone(),
         };
         let mut builder = MirFunctionBuilder::new(item, void);
         let parameter = builder.add_parameter(place_ty, false);
@@ -257,6 +264,48 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
             ))
         ));
     }
+}
+
+#[test]
+fn pack_inputs_require_exact_types_and_destruction_on_every_return() {
+    let mut types = TypeStore::new();
+    let void = types.builtin(BuiltinType::Void);
+    let i32_ = types.builtin(BuiltinType::I32);
+    let next = types.intern(TypeKind::Optional(i32_)).unwrap();
+    let (mut environment, item) = TestEnvironment::with_types(types);
+    environment.pack_inputs.insert(item, (i32_, next));
+
+    let build = |input: crate::MirPackInput, destroys: bool| {
+        let mut builder = MirFunctionBuilder::new(item, void);
+        builder.set_pack_input(input).unwrap();
+        let (entry, _) = builder.create_block([]);
+        builder
+            .append_value(entry, next, MirOperationKind::PackNext)
+            .unwrap();
+        if destroys {
+            builder
+                .append_effect(entry, MirOperationKind::DestroyPack)
+                .unwrap();
+        }
+        builder
+            .terminate(entry, MirTerminator::Return(None))
+            .unwrap();
+        builder.finish(entry, &environment)
+    };
+
+    assert!(build(crate::MirPackInput::new(i32_, next), true).is_ok());
+    assert!(matches!(
+        build(crate::MirPackInput::new(i32_, next), false),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::InvalidPackExit(_)
+        ))
+    ));
+    assert!(matches!(
+        build(crate::MirPackInput::new(void, next), true),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::InvalidPackInput(_)
+        ))
+    ));
 }
 
 #[test]

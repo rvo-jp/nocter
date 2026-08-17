@@ -5,6 +5,30 @@ use nocter_model::{
 
 use crate::{MirLocal, MirOperation, MirPlace};
 
+/// The sole compiler-owned element pack accepted by a sequence-literal body.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MirPackInput {
+    element: TypeId,
+    next: TypeId,
+}
+
+impl MirPackInput {
+    #[must_use]
+    pub const fn new(element: TypeId, next: TypeId) -> Self {
+        Self { element, next }
+    }
+
+    #[must_use]
+    pub const fn element(self) -> TypeId {
+        self.element
+    }
+
+    #[must_use]
+    pub const fn next(self) -> TypeId {
+        self.next
+    }
+}
+
 /// One conditional-initialization bit associated with exact storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MirDropFlag {
@@ -193,6 +217,7 @@ impl MirBlock {
 pub struct MirFunction {
     item: ExecutableItemId,
     parameters: Box<[MirLocalId]>,
+    pack: Option<MirPackInput>,
     result: TypeId,
     locals: Arena<MirLocalId, MirLocal>,
     drop_flags: Arena<MirDropFlagId, MirDropFlag>,
@@ -216,6 +241,7 @@ impl MirFunction {
     pub(crate) fn new(
         item: ExecutableItemId,
         parameters: impl Into<Box<[MirLocalId]>>,
+        pack: Option<MirPackInput>,
         result: TypeId,
         domains: MirFunctionDomains,
         entry: MirBlockId,
@@ -223,6 +249,7 @@ impl MirFunction {
         Self {
             item,
             parameters: parameters.into(),
+            pack,
             result,
             locals: domains.locals,
             drop_flags: domains.drop_flags,
@@ -242,6 +269,11 @@ impl MirFunction {
     #[must_use]
     pub const fn parameters(&self) -> &[MirLocalId] {
         &self.parameters
+    }
+
+    #[must_use]
+    pub const fn pack(&self) -> Option<MirPackInput> {
+        self.pack
     }
 
     #[must_use]

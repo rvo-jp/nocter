@@ -15,6 +15,9 @@ use nocter_target_program::{ExecutableClosureLayout, ExecutableItemKey, Executab
 pub trait MirValidationEnvironment {
     fn types(&self) -> &TypeStore;
     fn contains_item(&self, item: ExecutableItemId) -> bool;
+    fn item_pack_input(&self, _item: ExecutableItemId) -> Option<(TypeId, TypeId)> {
+        None
+    }
     fn item_accepts_allocation_override(&self, _item: ExecutableItemId) -> bool {
         false
     }
@@ -40,6 +43,13 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn contains_item(&self, item: ExecutableItemId) -> bool {
         self.items().get(item).is_some()
+    }
+
+    fn item_pack_input(&self, item: ExecutableItemId) -> Option<(TypeId, TypeId)> {
+        self.items()
+            .get(item)
+            .and_then(|item| item.signature().pack())
+            .map(|pack| (pack.element(), pack.next()))
     }
 
     fn item_accepts_allocation_override(&self, item: ExecutableItemId) -> bool {

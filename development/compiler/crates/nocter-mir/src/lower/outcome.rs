@@ -74,6 +74,7 @@ impl FunctionLowerer<'_> {
         self.current = Some(failure);
         self.lower_cleanup(node, nocter_checking::CleanupTiming::OnOutcomePropagation)?;
         let returned = self.propagated_failure(node, place, layer, outer)?;
+        self.destroy_pack()?;
         let failure_block = self
             .current
             .take()

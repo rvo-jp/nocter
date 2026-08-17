@@ -165,6 +165,71 @@ fn lowers_typed_string_literals_to_the_declared_constructor() {
 }
 
 #[test]
+fn lowers_literal_pack_body_through_its_dedicated_input_lane() {
+    let executable = executable_fixture(&CompilerFixture::with_app(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let length = items.len()\n\
+                 for item in items {}\n\
+                 let _ = length\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let values = Vec [1, 2]\n\
+             drop values\n\
+             0\n\
+         }\n",
+    ));
+    let (item_id, item) = executable
+        .items()
+        .iter()
+        .find(|(_, item)| item.signature().pack().is_some())
+        .unwrap();
+    let function = super::function::lower_function(&executable, item_id, item).unwrap();
+    let pack = item.signature().pack().unwrap();
+
+    assert_eq!(
+        function.pack(),
+        Some(crate::MirPackInput::new(pack.element(), pack.next()))
+    );
+    assert!(
+        function
+            .operations()
+            .iter()
+            .any(|(_, operation)| { matches!(operation.kind(), MirOperationKind::PackLength) })
+    );
+    assert!(
+        function
+            .operations()
+            .iter()
+            .any(|(_, operation)| { matches!(operation.kind(), MirOperationKind::PackNext) })
+    );
+    assert!(function.blocks().iter().any(|(_, block)| {
+        matches!(
+            block.terminator(),
+            MirTerminator::Switch { cases, .. }
+                if cases.iter().any(|case| case.value() == crate::MirSwitchValue::OptionalPresent)
+        )
+    }));
+    for (_, block) in function
+        .blocks()
+        .iter()
+        .filter(|(_, block)| matches!(block.terminator(), MirTerminator::Return(_)))
+    {
+        let last = block.operations().last().copied().unwrap();
+        assert!(matches!(
+            function
+                .operations()
+                .get(last)
+                .map(crate::MirOperation::kind),
+            Some(MirOperationKind::DestroyPack)
+        ));
+    }
+}
+
+#[test]
 fn lowers_opaque_results_with_their_specialized_witness() {
     let program = lower_fixture(
         "pub interface Show { pub method &self.show(): i32 }\n\

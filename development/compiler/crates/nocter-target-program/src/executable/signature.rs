@@ -32,6 +32,7 @@ pub struct ExecutableInput {
 pub struct ExecutablePackInput {
     source: ParameterId,
     element: TypeId,
+    next: TypeId,
 }
 
 impl ExecutablePackInput {
@@ -43,6 +44,11 @@ impl ExecutablePackInput {
     #[must_use]
     pub const fn element(self) -> TypeId {
         self.element
+    }
+
+    #[must_use]
+    pub const fn next(self) -> TypeId {
+        self.next
     }
 }
 
@@ -131,11 +137,14 @@ pub(super) fn callable_signature(
             declaration.role(),
             ParameterRole::Ordinary { variadic: true, .. }
         ) {
+            let element = resolver.specialize_type(declaration.ty(), substitution)?;
+            let next = resolver.intern_concrete(TypeKind::Optional(element))?;
             if callable.kind() != CallableKind::Literal(LiteralShape::Sequence)
                 || pack
                     .replace(ExecutablePackInput {
                         source: parameter,
-                        element: resolver.specialize_type(declaration.ty(), substitution)?,
+                        element,
+                        next,
                     })
                     .is_some()
             {

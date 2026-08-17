@@ -220,18 +220,19 @@ place must resolve to the compiler-selected aborting allocator or allocation-con
 keeps allocation context out of ordinary source ABI parameters and makes restoration a call-boundary
 obligation rather than an inferred backend convention.
 
-Sequence literal packs require a dedicated executable input schema. The checked variadic
+Sequence literal packs use a dedicated executable and MIR input schema. The checked variadic
 parameter cannot become one ordinary element-typed input, a slice, a `Vec`, or an erased variadic
 ABI. Executable construction must freeze the element type and the source-ordered fixed/spread
 producers as one compiler-owned pack plan. MIR must then materialize checked total length,
 single-acquisition spread state, per-element transfer, remaining-element cleanup, and the pack
-body's length and consuming-loop operations explicitly. Until that schema is complete, sequence
-nodes and pack-body operations remain an honest MIR unsupported boundary rather than lowering to
-a misleading ordinary call.
+body's length and consuming-loop operations explicitly. A sequence call remains an honest MIR
+unsupported boundary until its caller-side pack state is materialized; it never lowers to a
+misleading ordinary call.
 
 `ExecutableSignature` now separates its ordinary input list from one optional
-`ExecutablePackInput`. That pack input freezes the source `ParameterId` and specialized element
-type; it never receives an ordinary parameter position. Non-sequence callables cannot acquire this
+`ExecutablePackInput`. That pack input freezes the source `ParameterId`, specialized element type,
+and exact `Optional<T>` type returned by consuming iteration; it never receives an ordinary
+parameter position. Non-sequence callables cannot acquire this
 schema. Every reachable sequence expression now has one `ExecutableSequencePlan` that freezes its
 dense constructor item, exact pack input, specialized result, source-ordered fixed values and
 spread producers, concrete iterator/item/contribution types, retained `next` and exact-size
@@ -239,9 +240,17 @@ selections, allocation selection, and the concrete destruction plan for every fi
 spread iterator. Those plans enqueue their reachable user drop bodies during executable closure,
 so MIR never rematches a segment type to clean an unconsumed suffix. Construction rejects a plan
 whose value or contribution type differs from the literal pack element, whose constructor has
-ordinary inputs, or whose iterator operations do not resolve to invocations. MIR lowering still
-rejects a function carrying the pack schema before constructing a partial function, so dedicated
-pack state cannot accidentally pass as an ordinary ABI implementation.
+ordinary inputs, or whose iterator operations do not resolve to invocations.
+
+Literal bodies lower the executable schema to one `MirPackInput`. `PackLength` reads its exact
+length and `PackNext` consumes one element as the frozen `Optional<T>`; neither operation accepts a
+normal value operand. `DestroyPack` is effect-only and must be the final operation before every
+return. MIR validation compares the complete pack schema with the executable item, validates the
+optional payload, rejects pack operations in ordinary functions, and rejects any returning pack
+body that does not destroy its remaining state exactly once. Fallthrough, explicit return, and
+outcome propagation all use the same exit operation. Caller-side sequence materialization remains
+the next boundary: it must instantiate `ExecutableSequencePlan` without reconstructing dispatch or
+destruction from types.
 
 ## MIR Authority
 
@@ -292,8 +301,9 @@ diagnostic system.
    checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
    deterministic reachable item graph. **Complete.**
 7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
-8. Lower concrete checked bodies and cleanup schedules into MIR, then materialize compiler-owned
-   process and test roots.
+8. Lower concrete checked bodies and cleanup schedules into MIR. Literal pack body input and
+   consumption are complete; caller-side pack materialization remains. Then materialize
+   compiler-owned process and test roots.
 
 The current end-to-end lowering slice covers concrete signatures, constants, primitive integer
 operations, aggregate construction, ordinary copy/move/borrow places, initialization and

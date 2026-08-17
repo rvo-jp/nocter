@@ -24,6 +24,7 @@ pub enum MirValidationError {
         position: usize,
     },
     OrphanParameter(MirLocalId),
+    InvalidPackInput(ExecutableItemId),
     InvalidPlaceRoot {
         place: MirPlaceId,
     },
@@ -60,6 +61,7 @@ pub enum MirValidationError {
     DuplicateSwitchCase(MirBlockId),
     InvalidSwitchSubject(MirBlockId),
     InvalidReturn(MirBlockId),
+    InvalidPackExit(MirBlockId),
 }
 
 impl fmt::Display for MirValidationError {

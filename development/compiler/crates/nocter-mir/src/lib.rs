@@ -31,8 +31,8 @@ pub use operation::{
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder};
 pub use schema::{
-    MirBlock, MirBranchTarget, MirDropFlag, MirFunction, MirSwitchCase, MirSwitchSubject,
-    MirSwitchValue, MirTerminator, MirValue, MirValueDefinition,
+    MirBlock, MirBranchTarget, MirDropFlag, MirFunction, MirPackInput, MirSwitchCase,
+    MirSwitchSubject, MirSwitchValue, MirTerminator, MirValue, MirValueDefinition,
 };
 pub use validate::validate_function;
 pub use validation_environment::MirValidationEnvironment;

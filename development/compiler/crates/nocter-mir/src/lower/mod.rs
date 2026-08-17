@@ -22,6 +22,7 @@ mod control;
 mod function;
 mod index_place;
 mod iteration;
+mod literal_pack;
 mod loop_control;
 mod opaque;
 mod operand;

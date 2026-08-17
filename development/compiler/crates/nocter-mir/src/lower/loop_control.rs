@@ -39,7 +39,18 @@ impl FunctionLowerer<'_> {
             LoopKind::For { binding, iteration } => {
                 self.lower_collection_loop(node, loop_, *binding, iteration, definition.body())
             }
-            LoopKind::LiteralPack { .. } => Err(MirLoweringError::UnsupportedOperation(node)),
+            LoopKind::LiteralPack {
+                binding,
+                parameter,
+                item,
+            } => self.lower_literal_pack_loop(
+                node,
+                loop_,
+                *binding,
+                *parameter,
+                *item,
+                definition.body(),
+            ),
         }
     }
 

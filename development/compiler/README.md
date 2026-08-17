@@ -346,6 +346,11 @@ be introduced to make an unresolved syntax choice.
   through a capability-preserving witness projection whose specialized type is validated against
   the checked witness table. Exact iterator selection and ordinary method lookup share this same
   advertised-interface evidence path.
+  Sequence literal bodies use one dedicated `MirPackInput`, separate from ABI parameters.
+  `PackLength` and consuming `PackNext` expose only the checked pack operations, and every returning
+  path ends in validator-required `DestroyPack` cleanup. Caller-side construction from the frozen
+  executable sequence plan remains unsupported until MIR can preserve source order, one-time spread
+  acquisition, and per-segment residual destruction without reconstructing semantic selection.
   Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and

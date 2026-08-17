@@ -243,6 +243,9 @@ pub enum MirOperationKind {
     },
     Aggregate(MirAggregate),
     Call(MirCall),
+    PackLength,
+    PackNext,
+    DestroyPack,
     InvokeDrop {
         body: ExecutableItemId,
         place: MirPlaceId,
@@ -268,6 +271,8 @@ impl MirOperationKind {
                 | Self::IntegerConversion { .. }
                 | Self::Aggregate(_)
                 | Self::Call(_)
+                | Self::PackLength
+                | Self::PackNext
                 | Self::CreateRegion { .. }
         )
     }

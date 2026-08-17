@@ -9,8 +9,8 @@ use nocter_model::{
 use crate::schema::MirFunctionDomains;
 use crate::{
     MirBlock, MirDropFlag, MirFunction, MirLocal, MirLocalKind, MirOperation, MirOperationKind,
-    MirPlace, MirPlaceRoot, MirTerminator, MirValidationEnvironment, MirValidationError, MirValue,
-    MirValueDefinition, validate_function,
+    MirPackInput, MirPlace, MirPlaceRoot, MirTerminator, MirValidationEnvironment,
+    MirValidationError, MirValue, MirValueDefinition, validate_function,
 };
 
 /// Mutable state for one basic block while a function is being built.
@@ -44,6 +44,7 @@ pub struct MirFunctionBuilder {
     item: ExecutableItemId,
     result: TypeId,
     parameters: Vec<MirLocalId>,
+    pack: Option<MirPackInput>,
     locals: ArenaBuilder<MirLocalId, MirLocal>,
     drop_flags: ArenaBuilder<MirDropFlagId, MirDropFlag>,
     places: ArenaBuilder<MirPlaceId, MirPlace>,
@@ -60,6 +61,7 @@ impl MirFunctionBuilder {
             item,
             result,
             parameters: Vec::new(),
+            pack: None,
             locals: ArenaBuilder::new(),
             drop_flags: ArenaBuilder::new(),
             places: ArenaBuilder::new(),
@@ -79,6 +81,18 @@ impl MirFunctionBuilder {
         ));
         self.parameters.push(local);
         local
+    }
+
+    /// Installs the one non-ABI sequence pack input accepted by a literal body.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MirFunctionBuildError::DuplicatePackInput`] when the input was already installed.
+    pub fn set_pack_input(&mut self, input: MirPackInput) -> Result<(), MirFunctionBuildError> {
+        if self.pack.replace(input).is_some() {
+            return Err(MirFunctionBuildError::DuplicatePackInput);
+        }
+        Ok(())
     }
 
     pub fn add_local(&mut self, ty: TypeId, kind: MirLocalKind, mutable: bool) -> MirLocalId {
@@ -250,6 +264,7 @@ impl MirFunctionBuilder {
         let function = MirFunction::new(
             self.item,
             self.parameters,
+            self.pack,
             self.result,
             MirFunctionDomains {
                 locals: self.locals.finish(),
@@ -273,6 +288,7 @@ pub enum MirFunctionBuildError {
     UnterminatedBlock(MirBlockId),
     EffectKindUsedAsValue,
     ValueKindUsedAsEffect,
+    DuplicatePackInput,
     Validation(MirValidationError),
 }
 
@@ -290,7 +306,8 @@ impl std::error::Error for MirFunctionBuildError {
             | Self::AlreadyTerminated
             | Self::UnterminatedBlock(_)
             | Self::EffectKindUsedAsValue
-            | Self::ValueKindUsedAsEffect => None,
+            | Self::ValueKindUsedAsEffect
+            | Self::DuplicatePackInput => None,
         }
     }
 }
