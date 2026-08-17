@@ -307,6 +307,19 @@ impl<'program> ExecutableClosureBuilder<'program> {
             ResolvedDispatchPlan::Invocation(step) => {
                 DraftDispatchPlan::Invocation(self.convert_dispatch_step(step, drops)?)
             }
+            ResolvedDispatchPlan::OpaqueInvocation {
+                receiver,
+                operation,
+            } => DraftDispatchPlan::OpaqueInvocation {
+                receiver: super::ExecutableOpaqueReceiver {
+                    definition: receiver.definition(),
+                    opaque: receiver.opaque(),
+                    witness: receiver.witness(),
+                    source: receiver.source(),
+                    target: receiver.target(),
+                },
+                operation: self.convert_dispatch_step(operation, drops)?,
+            },
             ResolvedDispatchPlan::Comparison {
                 left_coercion,
                 right_coercion,
@@ -695,6 +708,10 @@ struct DraftDispatchEdge {
 
 enum DraftDispatchPlan {
     Invocation(DraftDispatchStep),
+    OpaqueInvocation {
+        receiver: super::ExecutableOpaqueReceiver,
+        operation: DraftDispatchStep,
+    },
     Comparison {
         left_coercion: Option<DraftDispatchStep>,
         right_coercion: Option<DraftDispatchStep>,
@@ -859,6 +876,13 @@ fn freeze_dispatch_plan(
         DraftDispatchPlan::Invocation(step) => {
             ExecutableDispatchPlan::Invocation(freeze_dispatch_step(step, item_ids)?)
         }
+        DraftDispatchPlan::OpaqueInvocation {
+            receiver,
+            operation,
+        } => ExecutableDispatchPlan::OpaqueInvocation {
+            receiver,
+            operation: freeze_dispatch_step(operation, item_ids)?,
+        },
         DraftDispatchPlan::Comparison {
             left_coercion,
             right_coercion,

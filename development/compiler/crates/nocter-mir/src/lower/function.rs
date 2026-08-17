@@ -193,6 +193,9 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
             }
+            CheckedOperation::OpaqueWitness(witness) => {
+                self.lower_opaque_witness(node, ty, *witness).map(Some)
+            }
             CheckedOperation::Comparison(comparison) => self.lower_comparison(node, comparison),
             CheckedOperation::Outcome(outcome) => self.lower_outcome(node, ty, outcome),
             CheckedOperation::Primitive(primitive) => self.lower_primitive(ty, primitive).map(Some),
@@ -211,7 +214,6 @@ impl<'a> FunctionLowerer<'a> {
                 .map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
-            | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::LiteralPackLength(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::Interpolation(_) => {

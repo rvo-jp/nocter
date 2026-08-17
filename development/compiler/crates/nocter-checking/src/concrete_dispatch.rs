@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::{ExpansionCapability, StructuralCapability};
+use nocter_declarations::{ExpansionCapability, ParameterRole, StructuralCapability};
 use nocter_model::{
-    BorrowCapability, CallableContract, CallableId, GenericParameterId, ModuleId, RequirementId,
-    TypeId, TypeKind, TypeStore,
+    BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
+    ModuleId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
 use crate::conformance::normalize_requirements;
@@ -72,6 +72,44 @@ pub enum ResolvedDispatchStep {
     },
 }
 
+/// Concrete representation opening required before invoking a method advertised by an opaque
+/// result contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ResolvedOpaqueReceiver {
+    definition: OpaqueTypeId,
+    opaque: TypeId,
+    witness: TypeId,
+    source: TypeId,
+    target: TypeId,
+}
+
+impl ResolvedOpaqueReceiver {
+    #[must_use]
+    pub const fn definition(self) -> OpaqueTypeId {
+        self.definition
+    }
+
+    #[must_use]
+    pub const fn opaque(self) -> TypeId {
+        self.opaque
+    }
+
+    #[must_use]
+    pub const fn witness(self) -> TypeId {
+        self.witness
+    }
+
+    #[must_use]
+    pub const fn source(self) -> TypeId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn target(self) -> TypeId {
+        self.target
+    }
+}
+
 /// The complete lowering plan for one checked static selection.
 ///
 /// Composite operations retain their operand lanes. A flat step sequence cannot distinguish a
@@ -80,6 +118,10 @@ pub enum ResolvedDispatchStep {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResolvedDispatchPlan {
     Invocation(ResolvedDispatchStep),
+    OpaqueInvocation {
+        receiver: ResolvedOpaqueReceiver,
+        operation: ResolvedDispatchStep,
+    },
     Comparison {
         left_coercion: Option<ResolvedDispatchStep>,
         right_coercion: Option<ResolvedDispatchStep>,
@@ -365,12 +407,37 @@ impl<'program> ConcreteDispatchResolver<'program> {
         }
         let generic_arguments = GenericArguments::new(target_arguments)
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
-        Ok(ResolvedDispatchPlan::Invocation(
-            ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+        let receiver = target_declaration
+            .receiver()
+            .and_then(|receiver| {
+                self.program
+                    .graph()
+                    .declarations()
+                    .parameters()
+                    .get(receiver)
+            })
+            .and_then(|receiver| match receiver.role() {
+                ParameterRole::Receiver(capability) => Some(capability),
+                ParameterRole::Ordinary { .. } => None,
+            })
+            .ok_or(ConcreteDispatchError::InvalidOpaqueType(opaque))?;
+        let source = opaque_receiver_type(&mut self.types, receiver, opaque)
+            .map_err(|_| ConcreteDispatchError::InvalidOpaqueType(opaque))?;
+        let receiver_target = opaque_receiver_type(&mut self.types, receiver, specialized.witness)
+            .map_err(|_| ConcreteDispatchError::InvalidOpaqueType(opaque))?;
+        Ok(ResolvedDispatchPlan::OpaqueInvocation {
+            receiver: ResolvedOpaqueReceiver {
+                definition,
+                opaque,
+                witness: specialized.witness,
+                source,
+                target: receiver_target,
+            },
+            operation: ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                 callable: target,
                 generic_arguments,
             }),
-        ))
+        })
     }
 
     fn specialize_opaque_witness(
@@ -696,6 +763,24 @@ fn exactly_one<T>(
         return Err(ConcreteDispatchError::AmbiguousEvidence(requirement));
     }
     Ok(candidate)
+}
+
+fn opaque_receiver_type(
+    types: &mut TypeStore,
+    capability: CallableCapability,
+    referent: TypeId,
+) -> Result<TypeId, nocter_model::UnknownTypeId> {
+    match capability {
+        CallableCapability::Owned => Ok(referent),
+        CallableCapability::Readonly => types.intern(TypeKind::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent,
+        }),
+        CallableCapability::ReadWrite => types.intern(TypeKind::Borrow {
+            capability: BorrowCapability::ReadWrite,
+            referent,
+        }),
+    }
 }
 
 fn borrow_result(types: &TypeStore, ty: TypeId) -> Option<(BorrowCapability, TypeId)> {

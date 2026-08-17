@@ -336,6 +336,11 @@ be introduced to make an unresolved syntax choice.
   Static text constants are typed as readonly `&str` values. Typed string construction calls the
   frozen literal body and carries `using` as a call-scoped allocation-place override; MIR validates
   both the literal item authority and the selected allocator/context nominal identity.
+  Static opaque results retain their public identity through one explicit executable receiver
+  representation lane. MIR constructs the checked witness as an opaque aggregate and opens it only
+  through a capability-preserving witness projection whose specialized type is validated against
+  the checked witness table. Exact iterator selection and ordinary method lookup share this same
+  advertised-interface evidence path.
   Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and

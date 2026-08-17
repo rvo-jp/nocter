@@ -139,6 +139,14 @@ losing which value a coercion consumes. Interface requirements resolve through t
 conformance authority, including required/default method selection. MIR never receives an
 unresolved `RequirementId`.
 
+An opaque method invocation is a distinct representation lane rather than an ordinary invocation
+whose receiver type happens not to match. It freezes the specialized opaque type, exact checked
+witness type, source receiver representation, target receiver representation, and selected direct
+operation. Source and target preserve the same owned, readonly, or readwrite capability. Exact
+compiler-selected interface operations and ordinary method lookup share the advertised opaque
+interface evidence path; collection iteration therefore uses the same lane as a source method
+call. The public opaque identity remains intact until MIR explicitly opens that receiver.
+
 The same resolver owns concrete destruction planning and its specialized type-store fork. A plan
 records a nominal type's exact drop-body substitution before its reverse-order field or active
 variant payload work, and recursively covers arrays, outcomes, closure environments, and opaque
@@ -250,6 +258,13 @@ arguments, reachability, SSA dominance, switch shape, and return behavior. Progr
 checks direct calls, closure environment signatures, and drop invocations against the complete
 function arena. This split permits future per-item incremental validation without giving MIR
 access to source or package setup state.
+
+Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
+must supply the witness pattern selected during checking after substituting the opaque
+declaration's concrete generic arguments. Projection must produce that same specialized witness.
+The MIR validation environment exposes only the declaration and checked witness table required to
+prove those representation facts; it does not expose interface selection or permit witness member
+lookup.
 
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
 and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive

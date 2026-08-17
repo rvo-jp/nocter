@@ -15,7 +15,9 @@ implementation input.
    coercions, borrow conversions, comparisons, selected/coerced index places, outcome CFG,
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
    assignment, all loop forms, enum patterns, lexical regions, callable-bound closure values, and
-   static/typed strings to typed sequences, interpolation, and opaque witnesses. Checked HIR now
+   static/typed strings to typed sequences and interpolation. Opaque result construction and
+   capability-preserving witness access now lower through an explicit target-owned representation
+   lane and exact MIR aggregates and projections. Checked HIR now
    models the sequence literal body's non-escaping element pack through dedicated length and
    consuming-loop operations and rejects ordinary pack value use with `E0409`; executable and MIR
    construction preserve that boundary with a dedicated `ExecutablePackInput` outside the
@@ -75,7 +77,12 @@ Opaque callable results now select one reachable witness pattern during body che
 table proves the advertised interface and associated bindings, and checked conversions retain the
 hidden representation through outcome injection. Callers see only advertised methods through an
 `OpaqueMethod` edge; concrete dispatch opens the witness after specializing the opaque type's own
-generic argument vector.
+generic argument vector. Exact compiler-selected interface operations use the same opaque evidence
+path as ordinary named methods, so collection iteration does not need an opaque-specific fallback.
+Executable dispatch retains the opaque and witness receiver representations plus their exact owned,
+readonly, or readwrite capability. MIR constructs the opaque aggregate and opens that lane through
+one typed witness projection; validation specializes the declaration's witness pattern and rejects
+any aggregate or projection whose concrete representation differs.
 Concrete destruction now uses that same specialization authority. Exact generic drop selections
 precede recursive reverse-order struct fields and active enum payloads; arrays, outcomes, closure
 environments, and opaque witnesses retain explicit representation plans. Closure environment

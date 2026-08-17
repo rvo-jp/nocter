@@ -52,7 +52,8 @@ impl FunctionLowerer<'_> {
                 receiver_coercion,
                 operation,
             } => (operation.clone(), receiver_coercion.clone()),
-            ExecutableDispatchPlan::Comparison { .. } => {
+            ExecutableDispatchPlan::Comparison { .. }
+            | ExecutableDispatchPlan::OpaqueInvocation { .. } => {
                 return Err(MirLoweringError::InvalidPlaceDispatch(place));
             }
         };

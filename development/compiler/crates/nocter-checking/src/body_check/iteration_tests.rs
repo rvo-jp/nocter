@@ -205,6 +205,46 @@ func visit<C, I>(source: &C): void where (...&C): I, I: Iterator {
 }
 
 #[test]
+fn opaque_iterator_uses_its_advertised_exact_interface_evidence() {
+    let output = check_iteration(
+        r"
+struct Iter {}
+conform Iterator for Iter {
+    type Item = i32
+    method &+self.next(): i32? { return none }
+}
+func make(): some Iterator<Item = i32> { return Iter {} }
+func visit(): void {
+    var iterator = make()
+    for item in move iterator {}
+    return
+}
+",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| body.loops().len() == 1)
+        .unwrap();
+    let (_, loop_) = body.loops().iter().next().unwrap();
+    let LoopKind::For { iteration, .. } = loop_.kind() else {
+        panic!("expected collection iteration")
+    };
+
+    assert!(matches!(
+        iteration.next().dispatch(),
+        StaticDispatch::OpaqueMethod { opaque, .. }
+            if opaque == body.nodes().get(iteration.iterator()).unwrap().ty()
+    ));
+    assert!(matches!(
+        output.program().types().get(iteration.item()),
+        Some(TypeKind::Builtin(nocter_model::BuiltinType::I32))
+    ));
+}
+
+#[test]
 fn missing_acquisition_and_iterator_contracts_have_distinct_diagnostics() {
     let missing_acquisition = check_iteration(
         r"

@@ -103,6 +103,16 @@ impl InstanceOperationSelector<'_> {
         {
             return Ok(Vec::new());
         }
+        if matches!(self.types.get(target), Some(TypeKind::Opaque { .. })) {
+            let Some(name) = callable.name() else {
+                return Ok(Vec::new());
+            };
+            return Ok(self
+                .select_opaque_methods(target, name)?
+                .into_iter()
+                .filter(|candidate| candidate.surface() == surface)
+                .collect());
+        }
         if is_concrete_type(self.types, target)? {
             self.select_conformance_method(target, interface_id, surface)
         } else {

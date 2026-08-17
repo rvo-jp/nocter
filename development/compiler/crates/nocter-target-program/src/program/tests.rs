@@ -398,9 +398,22 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
             callable_module(&target, main),
         )
         .unwrap();
-    let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method)) = plan else {
+    let ResolvedDispatchPlan::OpaqueInvocation {
+        receiver,
+        operation: ResolvedDispatchStep::Direct(method),
+    } = plan
+    else {
         panic!("opaque dispatch must resolve to one conformance method")
     };
+
+    assert!(matches!(
+        resolver.types().get(receiver.source()),
+        Some(TypeKind::Borrow { referent, .. }) if *referent == receiver.opaque()
+    ));
+    assert!(matches!(
+        resolver.types().get(receiver.target()),
+        Some(TypeKind::Borrow { referent, .. }) if *referent == receiver.witness()
+    ));
 
     assert!(matches!(
         target

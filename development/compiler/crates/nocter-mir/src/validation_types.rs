@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    BuiltinType, GenericParameterId, MirPlaceId, NominalTypeId, TypeId, TypeKind, TypeStore,
+    BuiltinType, GenericParameterId, MirPlaceId, NominalTypeId, OpaqueTypeId, TypeId, TypeKind,
+    TypeStore,
 };
 
 use crate::{MirValidationEnvironment, MirValidationError};
@@ -61,7 +62,54 @@ pub(crate) fn matches_nominal_member(
     matches_type(types, pattern, actual, &substitution)
 }
 
-fn matches_type(
+pub(crate) fn matches_opaque_witness(
+    environment: &(impl MirValidationEnvironment + ?Sized),
+    types: &TypeStore,
+    opaque: TypeId,
+    witness: TypeId,
+) -> bool {
+    let Some(TypeKind::Opaque {
+        definition,
+        arguments,
+    }) = types.get(opaque)
+    else {
+        return false;
+    };
+    let Some(declaration) = environment.opaque_type(*definition) else {
+        return false;
+    };
+    let Some(pattern) = environment.opaque_witness(*definition) else {
+        return false;
+    };
+    if declaration.generic_parameters().len() != arguments.len() {
+        return false;
+    }
+    let substitution = declaration
+        .generic_parameters()
+        .iter()
+        .copied()
+        .zip(arguments.iter().copied())
+        .collect::<BTreeMap<_, _>>();
+    matches_type(types, pattern, witness, &substitution)
+}
+
+pub(crate) fn matches_opaque_projection(
+    environment: &(impl MirValidationEnvironment + ?Sized),
+    types: &TypeStore,
+    opaque: TypeId,
+    definition: OpaqueTypeId,
+    witness: TypeId,
+) -> bool {
+    matches!(
+        types.get(opaque),
+        Some(TypeKind::Opaque {
+            definition: actual,
+            ..
+        }) if *actual == definition
+    ) && matches_opaque_witness(environment, types, opaque, witness)
+}
+
+pub(crate) fn matches_type(
     types: &TypeStore,
     pattern: TypeId,
     actual: TypeId,

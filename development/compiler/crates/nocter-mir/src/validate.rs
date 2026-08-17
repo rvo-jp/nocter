@@ -6,7 +6,10 @@ use crate::validation_graph::{place_values, successors};
 use crate::validation_place::place_facts;
 use crate::validation_region::{validate_region_creation, validate_region_release};
 use crate::validation_switch::validate_switch_subject;
-use crate::validation_types::{is_integer, matches_nominal_member, nominal_application};
+use crate::validation_types::{
+    is_integer, matches_nominal_member, matches_opaque_projection, matches_opaque_witness,
+    nominal_application,
+};
 use crate::{
     MirAggregate, MirBinaryOperation, MirBranchTarget, MirConstant, MirFunction, MirLocalKind,
     MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind, MirReadMode,
@@ -16,7 +19,7 @@ use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
 use nocter_model::{
     BorrowCapability, BuiltinType, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId,
-    MirOperationId, MirPlaceId, MirValueId, TypeId, TypeKind, TypeStore,
+    MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
 };
 
 /// Validates every function-local reference, type relation, CFG edge, and SSA use.
@@ -219,14 +222,22 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 }
                 _ => return Err(MirValidationError::InvalidProjection { place }),
             },
-            MirProjectionKind::OpaqueWitness(definition) => match self.types.get(source) {
-                Some(TypeKind::Opaque {
-                    definition: actual, ..
-                }) if *actual == definition => {}
-                _ => return Err(MirValidationError::InvalidProjection { place }),
-            },
+            MirProjectionKind::OpaqueWitness(definition)
+                if self.opaque_projection_matches(source, definition, result) => {}
+            MirProjectionKind::OpaqueWitness(_) => {
+                return Err(MirValidationError::InvalidProjection { place });
+            }
         }
         Ok(())
+    }
+
+    fn opaque_projection_matches(
+        &self,
+        source: TypeId,
+        definition: OpaqueTypeId,
+        result: TypeId,
+    ) -> bool {
+        matches_opaque_projection(self.environment, self.types, source, definition, result)
     }
 
     fn validate_value_definitions(&self) -> Result<(), MirValidationError> {
@@ -680,10 +691,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 )?;
             }
             MirAggregate::Opaque { witness } => {
-                if !matches!(self.types.get(result), Some(TypeKind::Opaque { .. })) {
+                if !matches_opaque_witness(
+                    self.environment,
+                    self.types,
+                    result,
+                    self.value_type(*witness)?,
+                ) {
                     return Err(invalid());
                 }
-                self.value_type(*witness)?;
             }
         }
         Ok(())

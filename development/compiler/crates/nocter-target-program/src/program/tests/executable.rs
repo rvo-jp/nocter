@@ -526,7 +526,10 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
 
 fn dispatch_steps(plan: &ExecutableDispatchPlan) -> Vec<&ExecutableDispatchStep> {
     match plan {
-        ExecutableDispatchPlan::Invocation(step) => vec![step],
+        ExecutableDispatchPlan::Invocation(step)
+        | ExecutableDispatchPlan::OpaqueInvocation {
+            operation: step, ..
+        } => vec![step],
         ExecutableDispatchPlan::Comparison {
             left_coercion,
             right_coercion,

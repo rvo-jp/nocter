@@ -70,10 +70,51 @@ pub enum ExecutableDispatchStep {
     CallableValue(ExecutableCallableInvocation),
 }
 
+/// One fully specialized opaque receiver representation change.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExecutableOpaqueReceiver {
+    definition: nocter_model::OpaqueTypeId,
+    opaque: TypeId,
+    witness: TypeId,
+    source: TypeId,
+    target: TypeId,
+}
+
+impl ExecutableOpaqueReceiver {
+    #[must_use]
+    pub const fn definition(self) -> nocter_model::OpaqueTypeId {
+        self.definition
+    }
+
+    #[must_use]
+    pub const fn opaque(self) -> TypeId {
+        self.opaque
+    }
+
+    #[must_use]
+    pub const fn witness(self) -> TypeId {
+        self.witness
+    }
+
+    #[must_use]
+    pub const fn source(self) -> TypeId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn target(self) -> TypeId {
+        self.target
+    }
+}
+
 /// One frozen dispatch plan with every composite operand lane kept explicit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutableDispatchPlan {
     Invocation(ExecutableDispatchStep),
+    OpaqueInvocation {
+        receiver: ExecutableOpaqueReceiver,
+        operation: ExecutableDispatchStep,
+    },
     Comparison {
         left_coercion: Option<ExecutableDispatchStep>,
         right_coercion: Option<ExecutableDispatchStep>,

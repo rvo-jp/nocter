@@ -1,9 +1,10 @@
 use nocter_declarations::{
-    CallableKind, FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
-    VariantDeclaration,
+    CallableKind, FieldDeclaration, NominalTypeDeclaration, OpaqueTypeDeclaration, Parameter,
+    StandardDeclarationRole, VariantDeclaration,
 };
 use nocter_model::{
-    CaptureId, ExecutableItemId, FieldId, NominalTypeId, ParameterId, TypeId, TypeStore, VariantId,
+    CaptureId, ExecutableItemId, FieldId, NominalTypeId, OpaqueTypeId, ParameterId, TypeId,
+    TypeStore, VariantId,
 };
 use nocter_target_program::{ExecutableClosureLayout, ExecutableItemKey, ExecutableProgram};
 
@@ -18,6 +19,12 @@ pub trait MirValidationEnvironment {
         false
     }
     fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration>;
+    fn opaque_type(&self, _id: OpaqueTypeId) -> Option<&OpaqueTypeDeclaration> {
+        None
+    }
+    fn opaque_witness(&self, _id: OpaqueTypeId) -> Option<TypeId> {
+        None
+    }
     fn field(&self, id: FieldId) -> Option<&FieldDeclaration>;
     fn variant(&self, id: VariantId) -> Option<&VariantDeclaration>;
     fn parameter(&self, id: ParameterId) -> Option<&Parameter>;
@@ -59,6 +66,19 @@ impl MirValidationEnvironment for ExecutableProgram {
             .declarations()
             .nominal_types()
             .get(id)
+    }
+
+    fn opaque_type(&self, id: OpaqueTypeId) -> Option<&OpaqueTypeDeclaration> {
+        self.target()
+            .checked()
+            .graph()
+            .declarations()
+            .opaque_types()
+            .get(id)
+    }
+
+    fn opaque_witness(&self, id: OpaqueTypeId) -> Option<TypeId> {
+        self.target().checked().opaque_witnesses().get(id)
     }
 
     fn field(&self, id: FieldId) -> Option<&FieldDeclaration> {

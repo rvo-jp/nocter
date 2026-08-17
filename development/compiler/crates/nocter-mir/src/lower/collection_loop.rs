@@ -2,7 +2,7 @@ use nocter_checking::TypedIteration;
 use nocter_model::{
     BodyNodeId, BorrowCapability, LocalBindingId, LoopId, MirPlaceId, TypeId, TypeKind,
 };
-use nocter_target_program::ExecutableDispatchStep;
+use nocter_target_program::{ExecutableDispatchStep, ExecutableOpaqueReceiver};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
@@ -17,7 +17,9 @@ struct IterationContract {
     item: TypeId,
     next: TypeId,
     receiver: TypeId,
+    target_receiver: TypeId,
     capability: BorrowCapability,
+    opaque_receiver: Option<ExecutableOpaqueReceiver>,
     step: ExecutableDispatchStep,
 }
 
@@ -36,7 +38,9 @@ impl FunctionLowerer<'_> {
             item: item_ty,
             next: next_ty,
             receiver: receiver_ty,
+            target_receiver,
             capability,
+            opaque_receiver,
             step,
         } = contract;
         let next_local = self
@@ -67,6 +71,17 @@ impl FunctionLowerer<'_> {
 
         self.current = Some(header);
         let receiver = self.borrow_place(iterator_place, capability, receiver_ty)?;
+        let receiver = if let Some(opaque) = opaque_receiver {
+            self.lower_opaque_receiver(
+                node,
+                iteration.iterator(),
+                receiver,
+                opaque,
+                target_receiver,
+            )?
+        } else {
+            receiver
+        };
         let next = self.emit_dispatch_step(node, next_ty, &step, [receiver])?;
         self.append_effect(MirOperationKind::Initialize {
             destination: next_place,
@@ -134,15 +149,25 @@ impl FunctionLowerer<'_> {
             .map(crate::MirPlace::ty)
             .ok_or(MirLoweringError::InvalidLoop(loop_))?;
         let item_ty = self.concrete_type(iteration.item())?;
-        let step = self.invocation_step(node, iteration.next())?;
+        let invocation = self.invocation_plan(node, iteration.next())?;
+        let step = invocation.step;
         let signature = self.step_signature(&step)?;
-        let [receiver_ty] = signature.parameters() else {
+        let [target_receiver] = signature.parameters() else {
             return Err(MirLoweringError::InvalidLoop(loop_));
         };
+        let receiver_ty = invocation
+            .opaque_receiver
+            .map_or(*target_receiver, ExecutableOpaqueReceiver::source);
+        if invocation
+            .opaque_receiver
+            .is_some_and(|opaque| opaque.target() != *target_receiver)
+        {
+            return Err(MirLoweringError::InvalidLoop(loop_));
+        }
         let Some(TypeKind::Borrow {
             capability,
             referent,
-        }) = self.executable.types().get(*receiver_ty)
+        }) = self.executable.types().get(receiver_ty)
         else {
             return Err(MirLoweringError::InvalidLoop(loop_));
         };
@@ -158,8 +183,10 @@ impl FunctionLowerer<'_> {
             iterator_place,
             item: item_ty,
             next: signature.result(),
-            receiver: *receiver_ty,
+            receiver: receiver_ty,
+            target_receiver: *target_receiver,
             capability: *capability,
+            opaque_receiver: invocation.opaque_receiver,
             step,
         })
     }

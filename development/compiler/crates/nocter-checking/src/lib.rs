@@ -67,7 +67,7 @@ pub use concrete_destruction::{
 };
 pub use concrete_dispatch::{
     ConcreteDispatchError, ConcreteDispatchResolver, ResolvedCallableDispatch,
-    ResolvedDispatchPlan, ResolvedDispatchStep, ResolvedPrimitiveDispatch,
+    ResolvedDispatchPlan, ResolvedDispatchStep, ResolvedOpaqueReceiver, ResolvedPrimitiveDispatch,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,

@@ -1,7 +1,8 @@
 use nocter_checking::{CallTarget, CheckedCall, ResolvedPrimitiveDispatch, StaticSelection};
 use nocter_model::{BodyNodeId, BuiltinType, MirValueId, PlaceId, TypeId, TypeKind};
 use nocter_target_program::{
-    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutablePrimitiveCall, ExecutableSignature,
+    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableOpaqueReceiver,
+    ExecutablePrimitiveCall, ExecutableSignature,
 };
 
 use super::MirLoweringError;
@@ -11,21 +12,50 @@ use crate::{
     MirStructuralCall, MirTerminator,
 };
 
+pub(super) struct InvocationPlan {
+    pub(super) step: ExecutableDispatchStep,
+    pub(super) opaque_receiver: Option<ExecutableOpaqueReceiver>,
+}
+
 impl FunctionLowerer<'_> {
+    pub(super) fn invocation_plan(
+        &self,
+        node: BodyNodeId,
+        selection: &StaticSelection,
+    ) -> Result<InvocationPlan, MirLoweringError> {
+        match self
+            .item
+            .body()
+            .dispatch(selection)
+            .ok_or(MirLoweringError::InvalidDispatch(node))?
+        {
+            ExecutableDispatchPlan::Invocation(step) => Ok(InvocationPlan {
+                step: step.clone(),
+                opaque_receiver: None,
+            }),
+            ExecutableDispatchPlan::OpaqueInvocation {
+                receiver,
+                operation,
+            } => Ok(InvocationPlan {
+                step: operation.clone(),
+                opaque_receiver: Some(*receiver),
+            }),
+            ExecutableDispatchPlan::Comparison { .. } | ExecutableDispatchPlan::Index { .. } => {
+                Err(MirLoweringError::InvalidDispatch(node))
+            }
+        }
+    }
+
     pub(super) fn invocation_step(
         &self,
         node: BodyNodeId,
         selection: &StaticSelection,
     ) -> Result<ExecutableDispatchStep, MirLoweringError> {
-        let plan = self
-            .item
-            .body()
-            .dispatch(selection)
-            .ok_or(MirLoweringError::InvalidDispatch(node))?;
-        let ExecutableDispatchPlan::Invocation(step) = plan else {
+        let plan = self.invocation_plan(node, selection)?;
+        if plan.opaque_receiver.is_some() {
             return Err(MirLoweringError::InvalidDispatch(node));
-        };
-        Ok(step.clone())
+        }
+        Ok(plan.step)
     }
 
     pub(super) fn lower_call(
@@ -41,17 +71,10 @@ impl FunctionLowerer<'_> {
                 CallTarget::Static(_) => unreachable!("matched above"),
             };
         };
-        let step = {
-            let plan = self
-                .item
-                .body()
-                .dispatch(selection)
-                .ok_or(MirLoweringError::InvalidDispatch(node))?;
-            let ExecutableDispatchPlan::Invocation(step) = plan else {
-                return Err(MirLoweringError::UnsupportedOperation(node));
-            };
-            step.clone()
-        };
+        let InvocationPlan {
+            step,
+            opaque_receiver,
+        } = self.invocation_plan(node, selection)?;
         let signature = self.step_signature(&step)?;
         if signature.result() != ty {
             return Err(MirLoweringError::InvalidDispatch(node));
@@ -64,7 +87,15 @@ impl FunctionLowerer<'_> {
                 .first()
                 .copied()
                 .ok_or(MirLoweringError::InvalidDispatch(node))?;
-            arguments.push(self.lower_receiver(node, receiver, expected)?);
+            let source = opaque_receiver.map_or(expected, ExecutableOpaqueReceiver::source);
+            let value = self.lower_receiver(node, receiver, source)?;
+            arguments.push(if let Some(opaque) = opaque_receiver {
+                self.lower_opaque_receiver(node, receiver.value(), value, opaque, expected)?
+            } else {
+                value
+            });
+        } else if opaque_receiver.is_some() {
+            return Err(MirLoweringError::InvalidDispatch(node));
         }
         arguments.extend(
             call.arguments()

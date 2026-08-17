@@ -165,6 +165,69 @@ fn lowers_typed_string_literals_to_the_declared_constructor() {
 }
 
 #[test]
+fn lowers_opaque_results_with_their_specialized_witness() {
+    let program = lower_fixture(
+        "pub interface Show { pub method &self.show(): i32 }\n\
+         struct Value {}\n\
+         conform Show for Value { method &self.show(): i32 { 7 } }\n\
+         func make(): some Show { Value {} }\n\
+         func main(): i32 { make().show() }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(MirAggregate::Opaque { .. })
+            )
+        })
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.places().iter().any(|(_, place)| {
+            place
+                .projections()
+                .iter()
+                .any(|projection| matches!(projection.kind(), MirProjectionKind::OpaqueWitness(_)))
+        })
+    }));
+}
+
+#[test]
+fn opens_owned_and_readwrite_opaque_receivers_without_erasing_capability() {
+    let program = lower_fixture(
+        "pub interface Consume { pub method self.consume(): i32 }\n\
+         pub interface Mutate { pub method &+self.bump(): i32 }\n\
+         struct OwnedValue {}\n\
+         struct MutableValue { value: i32 }\n\
+         conform Consume for OwnedValue { method self.consume(): i32 { 2 } }\n\
+         conform Mutate for MutableValue {\n\
+             method &+self.bump(): i32 {\n\
+                 self.value += 1\n\
+                 self.value\n\
+             }\n\
+         }\n\
+         func make_owned(): some Consume { OwnedValue {} }\n\
+         func make_mutable(): some Mutate { MutableValue { value: 3 } }\n\
+         func main(): i32 {\n\
+             let consumed = make_owned().consume()\n\
+             var mutable = make_mutable()\n\
+             consumed + mutable.bump()\n\
+         }\n",
+    )
+    .unwrap();
+
+    let opaque_projections = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.places().iter())
+        .flat_map(|(_, place)| place.projections())
+        .filter(|projection| matches!(projection.kind(), MirProjectionKind::OpaqueWitness(_)))
+        .count();
+    assert!(opaque_projections >= 2);
+}
+
+#[test]
 fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
@@ -858,6 +921,51 @@ fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
                 }
             )
         })
+    }));
+}
+
+#[test]
+fn collection_iteration_opens_an_opaque_iterator_receiver() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         struct Iter { remaining: i32 }\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? {\n\
+                 if self.remaining == 0 {\n\
+                     return none\n\
+                 }\n\
+                 self.remaining -= 1\n\
+                 return self.remaining\n\
+             }\n\
+         }\n\
+         func make(): some Iterator<Item = i32> { Iter { remaining: 2 } }\n\
+         func main(): void {\n\
+             var iterator = make()\n\
+             for item in move iterator {\n\
+                 let _ = item\n\
+             }\n\
+             return\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        let opens_witness = function.places().iter().any(|(_, place)| {
+            place
+                .projections()
+                .iter()
+                .any(|projection| matches!(projection.kind(), MirProjectionKind::OpaqueWitness(_)))
+        });
+        let iterates = function.blocks().iter().any(|(_, block)| {
+            matches!(
+                block.terminator(),
+                MirTerminator::Switch { cases, .. }
+                    if cases.iter().any(|case| case.value() == crate::MirSwitchValue::OptionalPresent)
+            )
+        });
+        opens_witness && iterates
     }));
 }
 

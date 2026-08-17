@@ -104,7 +104,8 @@ impl FunctionLowerer<'_> {
                         operation.clone(),
                         [left_coercion.clone(), right_coercion.clone()],
                     ),
-                    ExecutableDispatchPlan::Index { .. } => {
+                    ExecutableDispatchPlan::Index { .. }
+                    | ExecutableDispatchPlan::OpaqueInvocation { .. } => {
                         return Err(MirLoweringError::InvalidDispatch(node));
                     }
                 };

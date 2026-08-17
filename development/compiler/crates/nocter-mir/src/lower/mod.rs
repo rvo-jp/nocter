@@ -23,6 +23,7 @@ mod function;
 mod index_place;
 mod iteration;
 mod loop_control;
+mod opaque;
 mod operand;
 mod outcome;
 mod pattern;
@@ -82,6 +83,7 @@ pub enum MirLoweringError {
     InvalidClosure(BodyNodeId),
     InvalidCallable(BodyNodeId),
     InvalidStringLiteral(BodyNodeId),
+    InvalidOpaqueWitness(BodyNodeId),
     InvalidCapture(nocter_model::CaptureId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
