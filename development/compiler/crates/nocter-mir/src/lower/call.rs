@@ -1,4 +1,4 @@
-use nocter_checking::{CallTarget, CheckedCall, ResolvedPrimitiveDispatch};
+use nocter_checking::{CallTarget, CheckedCall, ResolvedPrimitiveDispatch, StaticSelection};
 use nocter_model::{BodyNodeId, BuiltinType, MirValueId, PlaceId, TypeId, TypeKind};
 use nocter_target_program::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutablePrimitiveCall, ExecutableSignature,
@@ -11,6 +11,22 @@ use crate::{
 };
 
 impl FunctionLowerer<'_> {
+    pub(super) fn invocation_step(
+        &self,
+        node: BodyNodeId,
+        selection: &StaticSelection,
+    ) -> Result<ExecutableDispatchStep, MirLoweringError> {
+        let plan = self
+            .item
+            .body()
+            .dispatch(selection)
+            .ok_or(MirLoweringError::InvalidDispatch(node))?;
+        let ExecutableDispatchPlan::Invocation(step) = plan else {
+            return Err(MirLoweringError::InvalidDispatch(node));
+        };
+        Ok(step.clone())
+    }
+
     pub(super) fn lower_call(
         &mut self,
         node: BodyNodeId,

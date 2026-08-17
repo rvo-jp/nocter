@@ -686,6 +686,64 @@ fn explicit_drop_and_fallthrough_blocks_use_the_same_cleanup_lowering() {
     }
 }
 
+#[test]
+fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         struct Source { remaining: i32 }\n\
+         struct Iter { remaining: i32 }\n\
+         drop Iter(&+self) { return }\n\
+         instance Source {\n\
+             pub operator (...self): Iter {\n\
+                 return Iter { remaining: self.remaining }\n\
+             }\n\
+         }\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? {\n\
+                 if self.remaining == 0 {\n\
+                     return none\n\
+                 }\n\
+                 self.remaining -= 1\n\
+                 return self.remaining\n\
+             }\n\
+         }\n\
+         func main(): void {\n\
+             let source = Source { remaining: 2 }\n\
+             for item in move source {\n\
+                 if item == 0 {\n\
+                     continue\n\
+                 }\n\
+                 break\n\
+             }\n\
+             return\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.drop_flags().len() == 1 && function.blocks().iter().any(|(_, block)| {
+            matches!(
+                block.terminator(),
+                crate::MirTerminator::Switch {
+                    subject: crate::MirSwitchSubject::Place(_),
+                    cases,
+                    ..
+                } if cases.iter().any(|case| case.value() == crate::MirSwitchValue::OptionalPresent)
+            )
+        }) && function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Borrow {
+                    capability: nocter_model::BorrowCapability::ReadWrite,
+                    ..
+                }
+            )
+        })
+    }));
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }

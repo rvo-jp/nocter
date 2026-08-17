@@ -96,6 +96,7 @@ name = "nocter-test-support"
 version = "0.0.0"
 dependencies = [
  "nocter-declaration-lowering",
+ "nocter-declarations",
  "nocter-model",
  "nocter-source",
  "nocter-syntax",

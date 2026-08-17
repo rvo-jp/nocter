@@ -254,8 +254,11 @@ Exact typed place interning makes the flag and ordinary storage operations share
 Block fallthrough and explicit control transfer consume the same checked `BeforeTransfer` cleanup
 events. Explicit drop, compound integer assignment, `break`, `continue`, while and infinite loops,
 and integer ranges lower into closed CFG; a checked nonbreaking loop has no synthetic exit, and a
-range uses a dedicated increment latch. Collection iteration and other unsupported checked
-operations still fail; the current slice cannot silently omit accepted semantics.
+range uses a dedicated increment latch. Collection loops consume frozen source-expansion and
+`next` dispatch, retain one canonical iterator slot, borrow it at the loop header, switch on the
+returned optional place, and move only a present payload into the loop binding. Exhaustion, break,
+and return cleanup share the iterator drop flag. Other unsupported checked operations still fail;
+the current slice cannot silently omit accepted semantics.
 
 ## Prohibited Designs
 

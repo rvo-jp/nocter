@@ -14,8 +14,8 @@ implementation input.
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
    conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, and non-collection loops to collection loops, patterns, closures, and regions.
-   Never repeat requirement, conformance, or drop-pattern selection.
+   assignment, and all loop forms to patterns, closures, and regions. Never repeat requirement,
+   conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -123,8 +123,11 @@ and region construction remain the current task. Block fallthrough now consumes 
 `BeforeTransfer` event as explicit return and loop transfer. Explicit `drop`, compound integer
 assignment, `break`, `continue`, while loops, breakable/nonbreaking infinite loops, and integer
 ranges lower to closed CFG directly. A checked `never` loop has no invented exit block, and range
-continuation uses a dedicated increment latch. Collection iteration remains pending with iterator
-acquisition rather than being approximated as a range.
+continuation uses a dedicated increment latch. Collection iteration now consumes its frozen source
+expansion and `next` dispatch, retains the iterator in canonical value storage, borrows it at each
+header, switches on the returned optional place, moves only the present payload into the loop
+binding, and shares one iterator drop flag across exhaustion, break, and return cleanup. The common
+compiler fixture can opt into exact iterator semantic roles without changing unrelated fixtures.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

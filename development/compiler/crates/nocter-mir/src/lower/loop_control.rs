@@ -10,8 +10,8 @@ use crate::{
 
 #[derive(Clone, Copy)]
 pub(super) struct LoopTargets {
-    continue_: MirBlockId,
-    break_: Option<MirBlockId>,
+    pub(super) continue_: MirBlockId,
+    pub(super) break_: Option<MirBlockId>,
 }
 
 impl FunctionLowerer<'_> {
@@ -36,7 +36,9 @@ impl FunctionLowerer<'_> {
                 start,
                 end,
             } => self.lower_range_loop(loop_, *binding, *start, *end, definition.body()),
-            LoopKind::For { .. } => Err(MirLoweringError::UnsupportedOperation(node)),
+            LoopKind::For { binding, iteration } => {
+                self.lower_collection_loop(node, loop_, *binding, iteration, definition.body())
+            }
         }
     }
 
@@ -266,7 +268,10 @@ impl FunctionLowerer<'_> {
         )
     }
 
-    fn finish_loop_iteration(&mut self, target: MirBlockId) -> Result<(), MirLoweringError> {
+    pub(super) fn finish_loop_iteration(
+        &mut self,
+        target: MirBlockId,
+    ) -> Result<(), MirLoweringError> {
         if let Some(block) = self.current.take() {
             self.builder
                 .terminate(block, MirTerminator::Goto(MirBranchTarget::new(target, [])))?;
@@ -274,14 +279,18 @@ impl FunctionLowerer<'_> {
         Ok(())
     }
 
-    fn enter_loop(&mut self, loop_: LoopId, targets: LoopTargets) -> Result<(), MirLoweringError> {
+    pub(super) fn enter_loop(
+        &mut self,
+        loop_: LoopId,
+        targets: LoopTargets,
+    ) -> Result<(), MirLoweringError> {
         if self.loops.insert(loop_, targets).is_some() {
             return Err(MirLoweringError::InvalidLoop(loop_));
         }
         Ok(())
     }
 
-    fn leave_loop(&mut self, loop_: LoopId) -> Result<(), MirLoweringError> {
+    pub(super) fn leave_loop(&mut self, loop_: LoopId) -> Result<(), MirLoweringError> {
         self.loops
             .remove(&loop_)
             .map(|_| ())

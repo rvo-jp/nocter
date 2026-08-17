@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-declarations = { path = "../nocter-declarations" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-model = { path = "../nocter-model" }

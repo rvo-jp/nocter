@@ -190,11 +190,13 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Primitive(primitive) => self.lower_primitive(ty, primitive).map(Some),
             CheckedOperation::Aggregate(aggregate) => self.lower_aggregate(ty, aggregate).map(Some),
             CheckedOperation::Call(call) => self.lower_call(node, ty, call).map(Some),
+            CheckedOperation::IteratorAcquisition(acquisition) => self
+                .lower_iterator_acquisition(node, ty, acquisition)
+                .map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
             | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::Closure(_)
-            | CheckedOperation::IteratorAcquisition(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
             | CheckedOperation::Interpolation(_) => {

@@ -138,7 +138,7 @@ impl FunctionLowerer<'_> {
         self.require_value(node)
     }
 
-    fn borrow_place(
+    pub(super) fn borrow_place(
         &mut self,
         place: MirPlaceId,
         capability: BorrowCapability,

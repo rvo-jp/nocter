@@ -3,13 +3,20 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, UseResolutionInput, UseTargetInput,
+    PackageTargetResolutionInput, StandardRoleInput, UseResolutionInput, UseTargetInput,
 };
+use nocter_declarations::StandardDeclarationRole;
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
+const ITERATION_SOURCE: &str = "\
+pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+";
 const MEM_SOURCE: &str = "\
 pub(/) primitive current_allocator_state(): usize
 pub(/) primitive current_allocator_kind(): usize
@@ -119,6 +126,7 @@ pub struct CompilerFixture {
     prelude: SyntaxTree,
     modules: Vec<FixtureModule>,
     app_standard_uses: Vec<Box<[Box<str>]>>,
+    iteration_roles: bool,
 }
 
 impl CompilerFixture {
@@ -129,7 +137,20 @@ impl CompilerFixture {
 
     #[must_use]
     pub fn with_app(app_source: &str) -> Self {
-        Self::build(app_source, None)
+        Self::build(app_source, None, "", false)
+    }
+
+    /// Builds the complete target fixture with the compiler-selected iterator semantic surface.
+    #[must_use]
+    pub fn with_app_iteration(app_source: &str) -> Self {
+        Self::build(app_source, None, ITERATION_SOURCE, true)
+    }
+
+    /// Builds the iterator fixture and resolves application `use` declarations to standard
+    /// modules in source order.
+    #[must_use]
+    pub fn with_app_iteration_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
+        Self::with_standard_uses(Self::with_app_iteration(app_source), modules)
     }
 
     #[must_use]
@@ -137,12 +158,17 @@ impl CompilerFixture {
         Self::build(
             app_source,
             Some("#test: { name: \"unit\", module: \".\", }\n"),
+            "",
+            false,
         )
     }
 
     #[must_use]
     pub fn with_app_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
-        let mut fixture = Self::with_app(app_source);
+        Self::with_standard_uses(Self::with_app(app_source), modules)
+    }
+
+    fn with_standard_uses(mut fixture: Self, modules: &[&[&str]]) -> Self {
         fixture.app_standard_uses = modules
             .iter()
             .map(|segments| {
@@ -156,7 +182,12 @@ impl CompilerFixture {
         fixture
     }
 
-    fn build(app_source: &str, app_manifest_source: Option<&str>) -> Self {
+    fn build(
+        app_source: &str,
+        app_manifest_source: Option<&str>,
+        standard_source: &str,
+        iteration_roles: bool,
+    ) -> Self {
         let mut sources = SourceMap::new();
         let std_manifest = add_parsed(&mut sources, "/std/nocter.nct", "", ParseGoal::PackageFile);
         let app_manifest = app_manifest_source.map(|text| {
@@ -173,7 +204,12 @@ impl CompilerFixture {
             "/tmp/app.nct"
         };
         let app = add_parsed(&mut sources, app_path, app_source, ParseGoal::ModuleSource);
-        let standard = add_parsed(&mut sources, "/std/index.nct", "", ParseGoal::ModuleSource);
+        let standard = add_parsed(
+            &mut sources,
+            "/std/index.nct",
+            standard_source,
+            ParseGoal::ModuleSource,
+        );
         let prelude = add_parsed(
             &mut sources,
             "/std/prelude/index.nct",
@@ -215,6 +251,7 @@ impl CompilerFixture {
             prelude,
             modules,
             app_standard_uses: Vec::new(),
+            iteration_roles,
         }
     }
 
@@ -319,7 +356,38 @@ impl CompilerFixture {
                 ModuleIdentity::new(app_package, Vec::<&str>::new()),
             )]);
         }
+        if self.iteration_roles {
+            input = input.with_standard_roles(self.iteration_role_inputs());
+        }
         (input, prelude)
+    }
+
+    fn iteration_role_inputs(&self) -> Vec<StandardRoleInput> {
+        [
+            (
+                StandardDeclarationRole::IteratorInterface,
+                NodeKind::InterfaceDeclaration,
+                "Iterator",
+            ),
+            (
+                StandardDeclarationRole::IteratorItem,
+                NodeKind::AssociatedTypeDeclaration,
+                "Item",
+            ),
+            (
+                StandardDeclarationRole::IteratorNextMethod,
+                NodeKind::InterfaceMethod,
+                "next",
+            ),
+        ]
+        .into_iter()
+        .map(|(role, kind, name)| {
+            StandardRoleInput::new(
+                role,
+                declaration_token(&self.sources, &self.standard, kind, name),
+            )
+        })
+        .collect()
     }
 
     fn app_use_resolutions(&self, standard: &PackageIdentity) -> Vec<UseResolutionInput> {
@@ -369,6 +437,42 @@ fn use_declarations(tree: &SyntaxTree) -> Vec<nocter_syntax::NodeId> {
             .map(nocter_source::TextRange::start)
     });
     declarations
+}
+
+fn declaration_token(
+    sources: &SourceMap,
+    tree: &SyntaxTree,
+    kind: NodeKind,
+    name: &str,
+) -> nocter_syntax::SyntaxToken {
+    let source = sources.get(tree.source()).expect("fixture source");
+    let mut pending = vec![tree.root_id()];
+    while let Some(node) = pending.pop() {
+        if tree.node(node).is_some_and(|node| node.kind() == kind) {
+            let mut descendants = vec![node];
+            while let Some(descendant) = descendants.pop() {
+                for child in tree.children(descendant).iter().rev() {
+                    match child {
+                        SyntaxElement::Token(token)
+                            if source
+                                .text_at(token.range())
+                                .is_some_and(|text| text == name) =>
+                        {
+                            return *token;
+                        }
+                        SyntaxElement::Node(child) => descendants.push(*child),
+                        SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
+                    }
+                }
+            }
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    panic!("fixture declaration {kind:?} named {name} is missing")
 }
 
 fn add_parsed(sources: &mut SourceMap, name: &str, text: &str, goal: ParseGoal) -> SyntaxTree {

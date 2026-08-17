@@ -1,6 +1,6 @@
 use nocter_checking::{
     CheckedComparison, CheckedReadonlyOperand, ComparisonImplementation, ComparisonOperation,
-    ReadonlyOperandPreparation, StaticSelection,
+    ReadonlyOperandPreparation,
 };
 use nocter_model::{BodyNodeId, BorrowCapability, MirValueId, TypeId, TypeKind};
 use nocter_target_program::{ExecutableDispatchPlan, ExecutableDispatchStep};
@@ -159,22 +159,6 @@ impl FunctionLowerer<'_> {
             return Err(MirLoweringError::InvalidDispatch(node));
         }
         Ok(value)
-    }
-
-    fn invocation_step(
-        &self,
-        node: BodyNodeId,
-        selection: &StaticSelection,
-    ) -> Result<ExecutableDispatchStep, MirLoweringError> {
-        let plan = self
-            .item
-            .body()
-            .dispatch(selection)
-            .ok_or(MirLoweringError::InvalidDispatch(node))?;
-        let ExecutableDispatchPlan::Invocation(step) = plan else {
-            return Err(MirLoweringError::InvalidDispatch(node));
-        };
-        Ok(step.clone())
     }
 
     fn unary_step_types(
