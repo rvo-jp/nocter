@@ -81,6 +81,11 @@ and representation-specific cleanup glue. Bodyless callables are accepted only t
 toolchain primitive registry. Process and test roots remain compiler metadata, while test cases
 retain declaration order. Enum residual cleanup is not collapsed to its nominal type: it excludes
 the already-run owner drop and every transferred payload.
+Every executable item also freezes its complete concrete runtime signature independently of body
+use. Unused parameters therefore remain ABI inputs; receivers precede ordinary parameters, closure
+bodies receive one capability-correct environment input before their declared parameters, drops
+retain their exact readwrite receiver, and tests retain an empty input domain. MIR never applies a
+generic substitution to recover a function signature.
 
 `nocter-mir` now owns the canonical backend-independent representation. Function-local locals,
 drop flags, places, SSA values, operations, and blocks use separate dense identity domains and can

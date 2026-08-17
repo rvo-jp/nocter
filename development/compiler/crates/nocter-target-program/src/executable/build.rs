@@ -7,6 +7,7 @@ use nocter_checking::{
 use nocter_declarations::BodyOwner;
 use nocter_model::{ArenaBuilder, BodyId, BodyNodeId, ExecutableItemId, ModuleId};
 
+use super::signature::build_signature;
 use super::{
     ExecutableBody, ExecutableClosureEdge, ExecutableDestructionEdge, ExecutableDispatchEdge,
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableItem,
@@ -133,6 +134,13 @@ impl<'program> ExecutableClosureBuilder<'program> {
 
     fn build_item(&mut self, key: &ExecutableItemKey) -> Result<DraftItem, ExecutableProgramError> {
         let context = item_context(self.target, key)?;
+        let signature = build_signature(
+            self.target,
+            &mut self.resolver,
+            key,
+            context.body,
+            context.root,
+        )?;
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
         let substitution = item_substitution(key);
         let mut dispatches = Vec::new();
@@ -201,6 +209,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         }
 
         Ok(DraftItem {
+            signature,
             body: context.body,
             root: context.root,
             dispatches,
@@ -457,6 +466,7 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
 }
 
 struct DraftItem {
+    signature: super::ExecutableSignature,
     body: BodyId,
     root: BodyNodeId,
     dispatches: Vec<DraftDispatchEdge>,
@@ -497,9 +507,10 @@ fn freeze_items(
             .get(&key)
             .copied()
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
-        let body = freeze_body(draft, &item_ids)?;
+        let (signature, body) = freeze_body(draft, &item_ids)?;
         let actual = items.insert(ExecutableItem {
             key: key.clone(),
+            signature,
             body,
         });
         if actual != expected {
@@ -516,7 +527,8 @@ fn freeze_items(
 fn freeze_body(
     draft: DraftItem,
     item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
-) -> Result<ExecutableBody, ExecutableProgramError> {
+) -> Result<(super::ExecutableSignature, ExecutableBody), ExecutableProgramError> {
+    let signature = draft.signature;
     let dispatches = draft
         .dispatches
         .into_iter()
@@ -554,20 +566,23 @@ fn freeze_body(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
-    Ok(ExecutableBody {
-        body: draft.body,
-        root: draft.root,
-        dispatches: dispatches.into_boxed_slice(),
-        closures: closures.into_boxed_slice(),
-        drops: drops.into_boxed_slice(),
-        types: draft.types.into_boxed_slice(),
-        destructions: draft
-            .destructions
-            .into_iter()
-            .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
-    })
+    Ok((
+        signature,
+        ExecutableBody {
+            body: draft.body,
+            root: draft.root,
+            dispatches: dispatches.into_boxed_slice(),
+            closures: closures.into_boxed_slice(),
+            drops: drops.into_boxed_slice(),
+            types: draft.types.into_boxed_slice(),
+            destructions: draft
+                .destructions
+                .into_iter()
+                .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        },
+    ))
 }
 
 fn freeze_dispatch_step(

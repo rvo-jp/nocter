@@ -129,6 +129,22 @@ impl ConcreteCaptureDestruction {
 }
 
 impl ConcreteDispatchResolver<'_> {
+    /// Interns one newly assembled concrete type in the specialization store.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown referenced type or a kind that still contains symbolic components.
+    pub fn intern_concrete(&mut self, kind: TypeKind) -> Result<TypeId, ConcreteDestructionError> {
+        let ty = self
+            .types
+            .intern(kind)
+            .map_err(|unknown| ConcreteDestructionError::UnknownType(unknown.id()))?;
+        if !is_concrete_type(&self.types, ty)? {
+            return Err(ConcreteDestructionError::SymbolicType(ty));
+        }
+        Ok(ty)
+    }
+
     /// Applies one enclosing specialization and requires a fully concrete result.
     ///
     /// # Errors

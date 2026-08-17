@@ -4,7 +4,8 @@ use nocter_model::BuiltinType;
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
-    ExecutableDispatchStep, ExecutableItemKey, ExecutableProgram, ExecutableRoot, PrimitiveRole,
+    ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey, ExecutableProgram,
+    ExecutableRoot, PrimitiveRole,
 };
 
 #[test]
@@ -206,6 +207,49 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
         key.generic_arguments().as_slice()[0].ty(),
         executable.types().builtin(BuiltinType::I32)
     );
+}
+
+#[test]
+fn executable_signature_specializes_even_unused_parameters() {
+    let target = build_target_program(&Fixture::with_app(
+        "func constant<T>(unused: T): i32 { 7 }\n\
+         func main(): i32 { constant(1) }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let constant = named_callable(executable.target(), "constant");
+    let declaration = executable
+        .target()
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(constant)
+        .unwrap();
+    let item = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.key() {
+            ExecutableItemKey::Callable(key) if key.callable() == constant => Some(item),
+            _ => None,
+        })
+        .unwrap();
+    let i32_ = executable.types().builtin(BuiltinType::I32);
+
+    assert_eq!(item.signature().inputs().len(), 1);
+    assert_eq!(
+        item.signature().inputs()[0].source(),
+        ExecutableInputSource::Parameter(declaration.parameters()[0])
+    );
+    assert_eq!(item.signature().inputs()[0].ty(), i32_);
+    assert_eq!(item.signature().result(), i32_);
 }
 
 #[test]

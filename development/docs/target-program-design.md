@@ -175,6 +175,12 @@ standard and structural primitive calls, indirect callable contracts, nested clo
 drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are accepted only
 when the selected toolchain registry assigns their callable to a primitive role.
 
+Each item separately freezes its complete concrete runtime signature even when a parameter is
+unused by the body. Callable receivers precede ordinary parameters. Closure signatures add one
+capability-correct environment input before closure parameters. Drop bodies retain their exact
+readwrite receiver, and tests have no inputs. Signature specialization belongs to executable
+construction; MIR cannot apply generic substitution or infer ABI inputs from body references.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact

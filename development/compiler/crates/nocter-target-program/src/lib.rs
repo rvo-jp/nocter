@@ -31,9 +31,9 @@ pub use entry::{
 };
 pub use executable::{
     ExecutableBody, ExecutableClosureEdge, ExecutableDispatchPlan, ExecutableDispatchStep,
-    ExecutableDropEdge, ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall,
-    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableDropEdge, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
+    ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
+    ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

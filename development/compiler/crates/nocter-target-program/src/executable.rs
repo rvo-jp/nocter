@@ -17,6 +17,9 @@ use crate::{
 };
 
 mod build;
+mod signature;
+
+pub use signature::{ExecutableInput, ExecutableInputSource, ExecutableSignature};
 
 /// One canonical monomorphized source-body identity.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -216,6 +219,7 @@ impl ExecutableBody {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutableItem {
     key: ExecutableItemKey,
+    signature: ExecutableSignature,
     body: ExecutableBody,
 }
 
@@ -223,6 +227,11 @@ impl ExecutableItem {
     #[must_use]
     pub const fn key(&self) -> &ExecutableItemKey {
         &self.key
+    }
+
+    #[must_use]
+    pub const fn signature(&self) -> &ExecutableSignature {
+        &self.signature
     }
 
     #[must_use]
@@ -346,6 +355,9 @@ pub enum ExecutableProgramError {
     UnknownItem(ExecutableItemKey),
     BodylessCallable(nocter_model::CallableId),
     MissingDeclarationSite(BodyId),
+    MissingParameter(nocter_model::ParameterId),
+    MissingRoot(BodyNodeId),
+    InvalidClosureSignature(ClosureId),
     DuplicateItem(ExecutableItemKey),
 }
 
@@ -374,6 +386,9 @@ impl std::error::Error for ExecutableProgramError {
             | Self::UnknownItem(_)
             | Self::BodylessCallable(_)
             | Self::MissingDeclarationSite(_)
+            | Self::MissingParameter(_)
+            | Self::MissingRoot(_)
+            | Self::InvalidClosureSignature(_)
             | Self::DuplicateItem(_) => None,
         }
     }
