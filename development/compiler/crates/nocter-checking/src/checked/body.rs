@@ -121,10 +121,10 @@ impl CheckedBody {
         &self.cleanups
     }
 
-    pub(crate) fn with_cleanups(
-        mut self,
+    pub(crate) fn attach_cleanups(
+        &mut self,
         cleanups: CleanupTable,
-    ) -> Result<Self, super::BuildCheckedBodyError> {
+    ) -> Result<(), super::BuildCheckedBodyError> {
         if cleanups.len() != self.nodes.len() {
             return Err(super::BuildCheckedBodyError::InvalidCleanupCount {
                 expected: self.nodes.len(),
@@ -132,7 +132,7 @@ impl CheckedBody {
             });
         }
         self.cleanups = cleanups;
-        Ok(self)
+        Ok(())
     }
 
     #[must_use]

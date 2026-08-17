@@ -23,6 +23,7 @@ use crate::checked::{
 };
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::preparation::PreparedCheckingParts;
+use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
     is_transparent_expression, token_text,
@@ -110,7 +111,7 @@ pub fn check_prepared_program<'syntax>(
         body_names,
         source_index,
     } = prepared.into_parts();
-    let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
+    let mut checked_bodies = Vec::new();
     let mut projections = Vec::new();
     let facts = BodyProgramFacts::new(
         &graph,
@@ -131,14 +132,51 @@ pub fn check_prepared_program<'syntax>(
         if names.body() != body {
             return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
         }
-        let checked =
+        let mut checked =
             BodyChecker::new(input, facts, &mut types, &mut copyabilities, source, names)?
                 .check()?;
+        projections.append(&mut checked.projections);
+        checked_bodies.push((body, checked));
+    }
+
+    for (body, checked) in &mut checked_bodies {
+        let source = body_sources
+            .get(*body)
+            .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+        let cleanups = analyze_body_ownership(
+            &graph,
+            &mut types,
+            &mut copyabilities,
+            &drops,
+            source,
+            &checked.body,
+            &checked.node_origins,
+        )?;
+        checked.body.attach_cleanups(cleanups)?;
+    }
+
+    let provenance_inputs = checked_bodies
+        .iter()
+        .map(|(body, checked)| {
+            let source = body_sources
+                .get(*body)
+                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+            Ok(ProvenanceBodyInput::new(
+                source,
+                &checked.body,
+                &checked.node_origins,
+            ))
+        })
+        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let provenance = analyze_program_provenance(&graph, &types, &conformances, &provenance_inputs)?;
+    drop(provenance_inputs);
+
+    let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
+    for (body, checked) in checked_bodies {
         let actual = bodies.insert(checked.body);
         if actual != body {
             return Err(BodyCheckInternalError::NonCanonicalBody(body).into());
         }
-        projections.extend(checked.projections);
     }
 
     let mut source_index = source_index.into_builder();
@@ -160,6 +198,7 @@ pub fn check_prepared_program<'syntax>(
                 instance_operations,
                 copyabilities,
                 drops,
+                provenance,
             },
             bodies.finish(),
         ),
@@ -170,6 +209,7 @@ pub fn check_prepared_program<'syntax>(
 struct CheckedBodyOutput {
     body: CheckedBody,
     projections: Vec<NodeProjection>,
+    node_origins: HashMap<BodyNodeId, SourceOrigin>,
 }
 
 struct BodyChecker<'input, 'syntax> {
@@ -264,19 +304,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
         }
         let body = self.builder.finish(root)?;
-        let cleanups = analyze_body_ownership(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.source,
-            &body,
-            &self.node_origins,
-        )?;
-        let body = body.with_cleanups(cleanups)?;
         Ok(CheckedBodyOutput {
             body,
             projections: self.projections,
+            node_origins: self.node_origins,
         })
     }
 

@@ -2,17 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 with the common loan/provenance authority needed by closures, borrowed
-enum payloads, and temporary-borrow escape, then use it to close closure expressions.
+Continue v0.14.0 Phase 3 with the general loan authority, then use the completed ownership,
+provenance, and loan boundaries to close closure expressions.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
-   receivers through the common loan/provenance authority.
-2. Complete closures through that authority, including explicit captures and callable capability.
+1. Implement source-level non-lexical loan conflicts and destination-lifetime escape checks over
+   checked places and control flow.
+2. Complete closures through the ownership, provenance, and loan authorities, including explicit
+   captures and callable capability.
 3. Complete typed literals and interpolation only through the same expected-type,
    temporary-flow, and cleanup authorities already used by ordinary values.
 
@@ -99,8 +100,8 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, regions, closures, typed literals, interpolation, loans, and
-provenance remain incomplete.
+edge. Collection iteration, executable regions, closures, typed literals, interpolation, and
+general loan conflicts remain incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
@@ -187,8 +188,13 @@ coercion tiers, ambiguity, and direct-method priority match other instance opera
 `CheckedCallReceiver` freezes owned copy/move, place or temporary borrowing, existing-borrow
 preservation/weakening, selected coercion dispatch, and post-coercion weakening. Concrete calls
 freeze their implementation/default callable; generic calls retain the exact interface
-requirement. Closure expressions, temporary-loan escape, and program-wide result-provenance
-inference remain incomplete.
+requirement. A program-wide provenance fixed point now derives exact caller-visible origins and
+compiler-owned current-allocation dependence after ownership has attached cleanup. It retains
+field, enum-payload, outcome, and element projections independently, maps results through static
+and structural calls, and records a dense node/body/callable authority in `CheckedProgram`.
+Return validation rejects local, owned-parameter, temporary, region, unknown, and undeclared input
+origins as `E0395`; conformance implementations are additionally bounded by the corresponding
+interface method contract. General loan conflicts and closure expressions remain incomplete.
 
 `ConstructionSurfaceTable` now indexes the complete construction surface of every nominal family:
 structural field identity and declaration order, enum variants by semantic name, and any authored

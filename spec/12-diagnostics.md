@@ -241,6 +241,15 @@ Source-backed checked-body diagnostics:
 - `E0389`: no unique accessible equality or strict-ordering operation accepts both operands.
 - `E0390`: a call has no valid callable target, capability, arity, argument, generic substitution,
   and requirement plan.
+- `E0391`: a construction expression has no valid accessible structural, variant, or authored
+  construction entry and complete type plan.
+- `E0392`: an outcome operation is incompatible with its operand or enclosing callable result.
+- `E0393`: an enum pattern is incompatible with its subject or payload bindings.
+- `E0394`: match arms do not form one complete, unambiguous enum partition.
+- `E0395`: a returned storage-bearing value retains an origin outside the callable's effective
+  result-provenance contract. Local, owned-parameter, temporary, expired-region, and unknown
+  storage cannot escape; a conformance implementation also cannot exceed its interface method's
+  external-origin bound.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

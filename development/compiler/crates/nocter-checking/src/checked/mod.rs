@@ -4,6 +4,7 @@ mod cleanup;
 mod node;
 mod place;
 mod program;
+mod provenance;
 mod selection;
 
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
@@ -28,6 +29,11 @@ pub use node::{
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;
 pub use program::{CheckedProgram, CheckedProgramOutput};
+pub use provenance::{
+    AmbientStorageDependence, CallableProvenanceTable, CheckedBodyProvenance,
+    CheckedCallableProvenance, ProvenanceProjection, ProvenanceSource, ProvenanceTable,
+    ValueProvenance,
+};
 pub use selection::{
     DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
 };

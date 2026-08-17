@@ -468,16 +468,23 @@ place-borrow, temporary-borrow, preserved-borrow, or weakened-borrow preparation
 checked receiver coercion retains its static selection and whether its result borrow is preserved
 or weakened for the selected method. Owned methods freeze a copy or move node immediately;
 lowering and ownership analysis never reconstruct receiver semantics from syntax or callable
-spelling. Closure-expression, borrowed-pattern escape, temporary-loan escape, and
-result-provenance passes remain
-subsequent increments rather than alternate paths inside call checking.
+spelling. Program-wide result provenance is a post-ownership checked authority rather than a path
+inside call selection. Its fixed point maps exact receiver and parameter origins through direct,
+interface, and structural calls while retaining current-allocation dependence as a separate
+compiler-owned dimension. Values retain field, variant-payload, outcome, and element projections,
+so selecting one component does not acquire sibling origins. The same return validator enforces
+authored contracts, inferred contracts, temporary-receiver escape, and conformance method bounds.
+Closure-expression checking and general loan conflicts remain subsequent increments over these
+frozen identities.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction
 rejects a copy or borrow target before HIR can claim a destruction operation. On a reachable edge,
 ownership analysis requires the exact path to be initialized, attaches one unconditional path
 action to the checked drop node, and transitions that path to uninitialized. Scope exit therefore
 cannot schedule a second action. Unreachable valid drop source remains typed HIR but receives no
-executable cleanup schedule. Loan conflicts remain subsequent work in the general loan analysis.
+executable cleanup schedule. Loan conflicts remain subsequent work in the general loan analysis;
+result escape no longer waits for that pass because the provenance authority already rejects
+local, parameter-owned, region, temporary, and unknown origins at return edges.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, instance-operation

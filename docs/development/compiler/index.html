@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-16">
+    <meta property="article:modified_time" content="2026-08-17">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="New Nocter Compiler - Nocter">
     <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-16","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-17","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -342,7 +342,13 @@
   inputs in language order and therefore uses the ordinary explicit-move state transitions.
   Explicit <code>drop name</code> uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
-  drop edge, and later automatic cleanup cannot destroy it twice.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  drop edge, and later automatic cleanup cannot destroy it twice.
+  A post-ownership program-wide provenance fixed point interprets that immutable HIR without
+  reopening call selection. It retains field-sensitive aggregate, enum-payload, outcome, and
+  element origins; maps exact callable summaries through receiver and parameter identities; and
+  stores caller-visible origins separately from compiler-owned current-allocation dependence.
+  Return validation projects <code>E0395</code> for local, owned-parameter, temporary, region, unknown, or
+  undeclared origins, and conformance implementations cannot exceed their interface method bound.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 checked-body construction is intentionally incomplete beyond its first production slice; unsupported valid constructs fail internally without returning a partial checked program.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>

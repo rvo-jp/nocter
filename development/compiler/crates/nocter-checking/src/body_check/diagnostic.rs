@@ -27,6 +27,7 @@ pub enum BodyRule {
     InvalidOutcomeOperation,
     InvalidPatternOperation,
     InvalidMatchCoverage,
+    InvalidResultProvenance,
 }
 
 impl BodyRule {
@@ -55,6 +56,7 @@ impl BodyRule {
         Self::InvalidOutcomeOperation,
         Self::InvalidPatternOperation,
         Self::InvalidMatchCoverage,
+        Self::InvalidResultProvenance,
     ];
 
     #[must_use]
@@ -84,19 +86,42 @@ impl BodyRule {
             Self::InvalidOutcomeOperation => "E0392",
             Self::InvalidPatternOperation => "E0393",
             Self::InvalidMatchCoverage => "E0394",
+            Self::InvalidResultProvenance => "E0395",
         }
     }
 
-    pub(super) fn diagnostic(self, primary: SourceOrigin) -> SourceDiagnostic {
+    pub(crate) fn diagnostic(self, primary: SourceOrigin) -> SourceDiagnostic {
         self.diagnostic_with_notes(primary, [])
     }
 
-    pub(super) fn diagnostic_with_notes(
+    pub(crate) fn diagnostic_with_notes(
         self,
         primary: SourceOrigin,
         notes: impl Into<Box<[DiagnosticNote]>>,
     ) -> SourceDiagnostic {
-        let (message, help) = match self {
+        let (message, help) = self.message_and_help();
+        SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))
+    }
+
+    fn message_and_help(self) -> (&'static str, &'static str) {
+        match self {
+            Self::TypeMismatch
+            | Self::ImplicitMove
+            | Self::InvalidStatementValue
+            | Self::MissingBodyResult
+            | Self::IntegerOutOfRange
+            | Self::MoveCopyValue
+            | Self::InvalidMoveSource
+            | Self::UninitializedPlace
+            | Self::UnknownField
+            | Self::InaccessibleField
+            | Self::PartialMoveThroughDrop => self.value_message(),
+            _ => self.operation_message(),
+        }
+    }
+
+    fn value_message(self) -> (&'static str, &'static str) {
+        match self {
             Self::TypeMismatch => (
                 "expression type is incompatible with its expected destination type",
                 "produce the exact expected type or use one applicable explicit conversion",
@@ -141,6 +166,12 @@ impl BodyRule {
                 "field move would partially initialize a struct with a drop declaration",
                 "move the complete struct or keep every field initialized",
             ),
+            _ => unreachable!("non-value body rule"),
+        }
+    }
+
+    fn operation_message(self) -> (&'static str, &'static str) {
+        match self {
             Self::InvalidLoopControl => (
                 "loop control has no enclosing loop in this callable body",
                 "place `break` or `continue` inside the loop it should target",
@@ -193,8 +224,12 @@ impl BodyRule {
                 "match arms do not form one complete, unambiguous enum partition",
                 "cover every variant exactly once or end the match with one `_` fallback arm",
             ),
-        };
-        SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))
+            Self::InvalidResultProvenance => (
+                "returned value carries storage outside the callable's result-provenance contract",
+                "return static, current-allocation, or declared input-derived storage and do not let local, temporary, region, or unknown storage escape",
+            ),
+            _ => unreachable!("value body rule"),
+        }
     }
 }
 

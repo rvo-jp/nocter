@@ -43,6 +43,8 @@ mod outcome_tests;
 mod pattern_tests;
 #[cfg(test)]
 mod place_tests;
+#[cfg(test)]
+mod provenance_tests;
 
 pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckInternalError};

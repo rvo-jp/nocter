@@ -251,6 +251,12 @@ be introduced to make an unresolved syntax choice.
   Explicit `drop name` uses the same root place, path state, and cleanup action. Copy and borrow
   bindings are rejected structurally, an initialized owned binding becomes uninitialized after its
   drop edge, and later automatic cleanup cannot destroy it twice.
+  A post-ownership program-wide provenance fixed point interprets that immutable HIR without
+  reopening call selection. It retains field-sensitive aggregate, enum-payload, outcome, and
+  element origins; maps exact callable summaries through receiver and parameter identities; and
+  stores caller-visible origins separately from compiler-owned current-allocation dependence.
+  Return validation projects `E0395` for local, owned-parameter, temporary, region, unknown, or
+  undeclared origins, and conformance implementations cannot exceed their interface method bound.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

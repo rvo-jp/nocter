@@ -35,7 +35,7 @@ impl BodyCheckError {
         }
     }
 
-    pub(super) const fn from_rule(rule: BodyRule, diagnostic: SourceDiagnostic) -> Self {
+    pub(crate) const fn from_rule(rule: BodyRule, diagnostic: SourceDiagnostic) -> Self {
         Self::Rule { rule, diagnostic }
     }
 }
@@ -104,6 +104,7 @@ pub enum BodyCheckInternalError {
     ConstructionSurfaceSelection(crate::ConstructionSurfaceSelectionError),
     ExpectedConversion,
     CleanupPlanning,
+    ProvenanceAnalysis,
 }
 
 impl fmt::Display for BodyCheckInternalError {

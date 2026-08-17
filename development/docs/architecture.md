@@ -560,9 +560,15 @@ assignment into source-shaped duplicate target expressions.
 Checked static calls retain one exact dispatch identity, canonical generic substitution, optional
 receiver, and source-ordered arguments. Body checking resolves and proves that plan once. Ownership
 and MIR visit a callable value first when present, then the receiver, then arguments from left to
-right; they do not re-run generic inference or requirement proof. Program-wide callable provenance
-and execution-allocation summaries remain separate post-body tables, so adding those analyses does
-not change call selection identity or evaluation order.
+right; they do not re-run generic inference or requirement proof. After ownership attaches cleanup,
+one program-wide provenance fixed point interprets the same immutable HIR. It retains
+projection-sensitive value origins, maps effective callable summaries through receiver and
+argument positions, and keeps caller-visible input origins separate from compiler-owned
+current-allocation dependence. The final `ProvenanceTable` is dense by callable, body, and checked
+node. Return validation rejects storage outside authored or inferred contracts, including
+temporary receiver results, and intersects implementation origins with the selected interface
+method contract. This post-body authority does not change call selection identity or evaluation
+order.
 
 Interpolation lowering owns its partial `String` as an ordinary MIR temporary. Recoverable exits
 use normal cleanup edges, while the shared safety-trap operation has no cleanup edge. Interpolation

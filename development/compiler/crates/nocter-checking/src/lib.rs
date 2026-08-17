@@ -18,6 +18,7 @@ mod names;
 mod ownership;
 mod pattern_requirements;
 mod preparation;
+mod provenance;
 mod syntax;
 mod type_relations;
 mod type_validity;
@@ -28,9 +29,10 @@ mod test_support;
 pub use body_check::{BodyCheckError, BodyCheckInternalError, BodyRule, check_prepared_program};
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
-    AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
-    BorrowConversionPreparation, BuildCheckedBodyError, CallTarget, CheckedBody,
-    CheckedBorrowConversion, CheckedCall, CheckedCallReceiver, CheckedCapture, CheckedClosure,
+    AggregateConstruction, AllocationSelection, AmbientStorageDependence,
+    BorrowConversionImplementation, BorrowConversionPreparation, BuildCheckedBodyError, CallTarget,
+    CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedBorrowConversion,
+    CheckedCall, CheckedCallReceiver, CheckedCallableProvenance, CheckedCapture, CheckedClosure,
     CheckedComparison, CheckedComparisonOperand, CheckedControl, CheckedInterpolation,
     CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPattern,
     CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot, CheckedPatternSubject,
@@ -40,8 +42,9 @@ pub use checked::{
     ConstantValue, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
     IterationAcquisition, LogicalOperation, LoopKind, PatternSubjectPreparation, PlaceAccess,
     PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch,
-    StaticSelection, TypedIteration,
+    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
+    ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch, StaticSelection,
+    TypedIteration, ValueProvenance,
 };
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
