@@ -38,8 +38,10 @@ and gives each body independent stack-object, drop-flag, address, SSA-value, ope
 basic-block domains. Every MIR place now closes to layout-owned byte offsets, dereference steps, and
 checked fixed/view indexes. Loads, address formation, stores, aggregate writes, stored-tag switches,
 allocation contexts, scalar operations, block arguments, direct calls, returns, and root exits have
-closed machine nodes. Next, destruction, region, primitive, and pack operations must consume those
-machine addresses and exact callable/data identities rather than retain semantic operands.
+closed machine nodes. Stored, completion, and diverging SSA values are separate; user destruction,
+region lifetime operations, and root error reporting consume machine identities. Next, primitive
+and pack operations must consume exact layout, callable, address, and data identities rather than
+retain semantic operands.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

@@ -149,6 +149,19 @@ pub enum MachineOperationKind {
         operand: MachineValueId,
     },
     Aggregate(MachineAggregate),
+    InvokeDrop {
+        target: MachineFunctionId,
+        place: MachineAddressId,
+    },
+    ReportError {
+        error: MachineValueId,
+    },
+    CreateRegion {
+        parent: MachineValueId,
+    },
+    ReleaseRegion {
+        region: crate::MachineStackId,
+    },
     SetDropFlag {
         flag: MachineDropFlagId,
         initialized: bool,
@@ -183,12 +196,21 @@ impl MachineOperation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineValue {
     ty: TypeId,
+    representation: MachineValueRepresentation,
     definition: MachineValueDefinition,
 }
 
 impl MachineValue {
-    pub(crate) const fn new(ty: TypeId, definition: MachineValueDefinition) -> Self {
-        Self { ty, definition }
+    pub(crate) const fn new(
+        ty: TypeId,
+        representation: MachineValueRepresentation,
+        definition: MachineValueDefinition,
+    ) -> Self {
+        Self {
+            ty,
+            representation,
+            definition,
+        }
     }
 
     #[must_use]
@@ -197,9 +219,21 @@ impl MachineValue {
     }
 
     #[must_use]
+    pub const fn representation(self) -> MachineValueRepresentation {
+        self.representation
+    }
+
+    #[must_use]
     pub const fn definition(self) -> MachineValueDefinition {
         self.definition
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineValueRepresentation {
+    Stored { size: u64, alignment: u64 },
+    Completion,
+    Diverging,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

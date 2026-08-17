@@ -800,6 +800,56 @@ fn outcome_switch_uses_layout_tag_offsets_and_frozen_tag_values() {
     );
 }
 
+#[test]
+fn process_error_reporting_and_user_drop_are_closed_machine_operations() {
+    let fallible = MachineProgram::lower(&lower_fixture("func main(): i32! { 1 }\n")).unwrap();
+    assert!(fallible.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(operation.kind(), MachineOperationKind::ReportError { .. })
+        })
+    }));
+
+    let dropped_mir = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func main(): void {\n\
+             let value = Owned { value: 1 }\n\
+             return\n\
+         }\n",
+    );
+    let dropped = MachineProgram::lower(&dropped_mir).unwrap();
+    assert!(dropped.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(operation.kind(), MachineOperationKind::InvokeDrop { .. })
+        })
+    }));
+}
+
+#[test]
+fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         func main(): void {\n\
+             let allocator = Allocator {}\n\
+             region temporary using allocator {}\n\
+             return\n\
+         }\n",
+        &[&[]],
+    );
+    let mir = lower_selected_fixture(&fixture, false);
+    let program = MachineProgram::lower(&mir).unwrap();
+    let lifetime = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter_map(|(_, operation)| match operation.kind() {
+            MachineOperationKind::CreateRegion { .. } => Some("create"),
+            MachineOperationKind::ReleaseRegion { .. } => Some("release"),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(lifetime, ["create", "release"]);
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();

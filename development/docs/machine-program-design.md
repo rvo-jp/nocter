@@ -126,6 +126,13 @@ stored-layout offsets and tag values as address projection. An explicit call all
 an address identity rather than a retained MIR place. Unsupported MIR operations fail construction
 explicitly instead of surviving inside a generic passthrough operation.
 
+SSA identity and stored representation are intentionally separate. A `MachineValue` is classified
+as stored bytes, successful completion, or divergence. Only stored values require size and
+alignment; explicit MIR completion values therefore survive control and call wiring without
+inventing a zero-byte layout for `void` or `never`. User-drop invocation names a machine function
+and machine address. Region creation and release name machine values and stack objects, and process
+error reporting names the exact machine error value. None retain MIR-local identities.
+
 ## ARM64 and Mach-O Boundaries
 
 ARM64 lowering receives only validated machine operations and completed transport plans. It owns
@@ -166,8 +173,9 @@ and enum members, scalar and pointer sizes, view and built-in error offsets, enu
 outcome layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque
 witness representation, register-window closure, aligned stack placement, direct and indirect
 results, the compiler-owned literal-pack lane, ordered test roots, static-text deduplication, dense
-scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access, and
-outcome tag control.
+scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access,
+outcome tag control, explicit completion values, user destruction, region lifetime operations, and
+process error reporting.
 
-Destruction, regions, primitive calls, literal-pack descriptors, ARM64 instruction lowering, and
-Mach-O serialization are the remaining Phase 5 implementation areas.
+Primitive calls, literal-pack descriptors, ARM64 instruction lowering, and Mach-O serialization are
+the remaining Phase 5 implementation areas.

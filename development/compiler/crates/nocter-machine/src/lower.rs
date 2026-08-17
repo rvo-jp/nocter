@@ -179,10 +179,6 @@ pub enum MachineUnsupportedOperation {
     PackLength,
     PackNext,
     DestroyPack,
-    InvokeDrop,
-    ReportError,
-    CreateRegion,
-    ReleaseRegion,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -205,16 +201,16 @@ impl From<&MirOperationKind> for MachineUnsupportedOperation {
             MirOperationKind::PackLength => Self::PackLength,
             MirOperationKind::PackNext => Self::PackNext,
             MirOperationKind::DestroyPack => Self::DestroyPack,
-            MirOperationKind::InvokeDrop { .. } => Self::InvokeDrop,
-            MirOperationKind::ReportError { .. } => Self::ReportError,
-            MirOperationKind::CreateRegion { .. } => Self::CreateRegion,
-            MirOperationKind::ReleaseRegion { .. } => Self::ReleaseRegion,
             MirOperationKind::Constant(_)
             | MirOperationKind::Read { .. }
             | MirOperationKind::Borrow { .. }
             | MirOperationKind::Store { .. }
             | MirOperationKind::Initialize { .. }
             | MirOperationKind::Aggregate(_)
+            | MirOperationKind::InvokeDrop { .. }
+            | MirOperationKind::ReportError { .. }
+            | MirOperationKind::CreateRegion { .. }
+            | MirOperationKind::ReleaseRegion { .. }
             | MirOperationKind::SetDropFlag { .. }
             | MirOperationKind::Unary { .. }
             | MirOperationKind::Binary { .. }

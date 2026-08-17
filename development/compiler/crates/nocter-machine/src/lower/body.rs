@@ -3,8 +3,8 @@ use std::fmt;
 
 use nocter_mir::{MirBody, MirLocalKind, MirValueDefinition};
 use nocter_model::{
-    ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
-    MirValueId, TypeStore,
+    BuiltinType, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId,
+    MirPlaceId, MirValueId, TypeKind, TypeStore,
 };
 
 use super::MachineProgramError;
@@ -16,6 +16,7 @@ use crate::{
     MachineAddressId, MachineBlockId, MachineDataTable, MachineDropFlag, MachineDropFlagId,
     MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineOperationId, MachineStackId,
     MachineStackObject, MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
+    MachineValueRepresentation,
 };
 
 pub(super) fn lower_body(
@@ -39,7 +40,7 @@ pub(super) fn lower_body(
         .map(|(_, flag)| MachineDropFlag::new(flag.initially_initialized()))
         .collect::<Vec<_>>();
     let addresses = lower_addresses(body, types, layouts, &ids)?;
-    let values = lower_values(body, layouts, &ids)?;
+    let values = lower_values(body, types, layouts, &ids)?;
     let operations = lower_operations(body, layouts, data, functions, &ids)?;
     let blocks = lower_blocks(body, layouts, &ids)?;
 
@@ -85,15 +86,31 @@ fn lower_stack(
 
 fn lower_values(
     body: &MirBody,
+    types: &TypeStore,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineValue>, MachineProgramError> {
     body.values()
         .iter()
         .map(|(_, value)| {
-            if layouts.get(value.ty()).is_none() {
-                return Err(MachineProgramError::MissingStoredLayout(value.ty()));
-            }
+            let representation = match types.get(value.ty()) {
+                Some(TypeKind::Builtin(BuiltinType::Void)) => {
+                    MachineValueRepresentation::Completion
+                }
+                Some(TypeKind::Builtin(BuiltinType::Never)) => {
+                    MachineValueRepresentation::Diverging
+                }
+                Some(_) => {
+                    let layout = layouts
+                        .get(value.ty())
+                        .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?;
+                    MachineValueRepresentation::Stored {
+                        size: layout.size(),
+                        alignment: layout.alignment(),
+                    }
+                }
+                None => return Err(MachineProgramError::MissingStoredLayout(value.ty())),
+            };
             let definition = match value.definition() {
                 MirValueDefinition::BlockParameter { block, position } => {
                     MachineValueDefinition::BlockParameter {
@@ -105,7 +122,7 @@ fn lower_values(
                     MachineValueDefinition::Operation(ids.operation(operation)?)
                 }
             };
-            Ok(MachineValue::new(value.ty(), definition))
+            Ok(MachineValue::new(value.ty(), representation, definition))
         })
         .collect()
 }

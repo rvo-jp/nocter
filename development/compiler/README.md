@@ -384,8 +384,9 @@ be introduced to make an unresolved syntax choice.
   operation, block, linkage, and data identities. Layout-owned byte offsets, checked fixed/view
   indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
   explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
-  Destruction, regions, primitives, packs, ARM64 selection, and Mach-O serialization remain the
-  next Phase 5 boundaries.
+  Stored, completion, and diverging SSA representations are distinct. User-drop calls, process
+  error reporting, and region creation/release now use machine identities as well. Primitives,
+  packs, ARM64 selection, and Mach-O serialization remain the next Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

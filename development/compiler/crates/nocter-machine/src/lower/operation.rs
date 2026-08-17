@@ -97,6 +97,22 @@ fn lower_operation(
                 operation, aggregate, ty, layouts, ids,
             )?)
         }
+        MirOperationKind::InvokeDrop { body, place } => MachineOperationKind::InvokeDrop {
+            target: functions
+                .get(body)
+                .copied()
+                .ok_or(MachineProgramError::MissingItemFunction(*body))?,
+            place: ids.address(*place)?,
+        },
+        MirOperationKind::ReportError { error } => MachineOperationKind::ReportError {
+            error: ids.value(*error)?,
+        },
+        MirOperationKind::CreateRegion { parent } => MachineOperationKind::CreateRegion {
+            parent: ids.value(*parent)?,
+        },
+        MirOperationKind::ReleaseRegion { region } => MachineOperationKind::ReleaseRegion {
+            region: ids.stack(*region)?,
+        },
         MirOperationKind::Call(call) => lower_direct_call(operation, call, functions, ids)?,
         kind => {
             return Err(unsupported(
