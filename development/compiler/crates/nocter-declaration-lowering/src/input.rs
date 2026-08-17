@@ -177,6 +177,36 @@ impl UseResolutionInput {
     }
 }
 
+/// One package target directive and the exact directory module selected by package discovery.
+///
+/// The directive remains the authority for target kind, name, and declaration order. Discovery
+/// owns only path resolution; lowering never reinterprets the authored `module` string.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct PackageTargetResolutionInput {
+    declaration: NodeId,
+    module: ModuleIdentity,
+}
+
+impl PackageTargetResolutionInput {
+    #[must_use]
+    pub const fn new(declaration: NodeId, module: ModuleIdentity) -> Self {
+        Self {
+            declaration,
+            module,
+        }
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> NodeId {
+        self.declaration
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+}
+
 /// One exact source declaration selected for a compiler-owned standard semantic role.
 ///
 /// Package discovery supplies the declaration-name token. Checking validates its semantic shape
@@ -272,6 +302,7 @@ pub struct CompileUnitInput<'syntax> {
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
     use_resolutions: Vec<UseResolutionInput>,
+    package_target_resolutions: Vec<PackageTargetResolutionInput>,
     standard_roles: Vec<StandardRoleInput>,
 }
 
@@ -290,6 +321,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
             packages,
             modules,
             use_resolutions,
+            package_target_resolutions: Vec::new(),
             standard_roles: Vec::new(),
         }
     }
@@ -303,6 +335,16 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn with_target(mut self, target: CompilationTarget) -> Self {
         self.target = target;
+        self
+    }
+
+    /// Attaches package-discovery target resolutions to the immutable source snapshot.
+    #[must_use]
+    pub fn with_package_target_resolutions(
+        mut self,
+        resolutions: Vec<PackageTargetResolutionInput>,
+    ) -> Self {
+        self.package_target_resolutions = resolutions;
         self
     }
 
@@ -332,6 +374,11 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn use_resolutions(&self) -> &[UseResolutionInput] {
         &self.use_resolutions
+    }
+
+    #[must_use]
+    pub fn package_target_resolutions(&self) -> &[PackageTargetResolutionInput] {
+        &self.package_target_resolutions
     }
 
     #[must_use]

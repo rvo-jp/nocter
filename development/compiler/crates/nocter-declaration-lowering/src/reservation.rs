@@ -10,7 +10,9 @@ use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
     DuplicateSourceBinding, SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole,
 };
+use nocter_syntax::NodeId;
 
+use crate::package_targets::reserve_package_targets;
 use crate::surface::SurfaceParts;
 use crate::{
     CallableContractError, CallableContracts, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
@@ -65,6 +67,8 @@ pub enum ReservationError {
     InvalidOwner(SurfaceDeclarationId),
     InconsistentSurface(SurfaceDeclarationId),
     InconsistentSource(SourceId),
+    InvalidPackageTarget(NodeId),
+    DuplicatePackageTarget(NodeId),
 }
 
 impl fmt::Display for ReservationError {
@@ -94,6 +98,18 @@ impl fmt::Display for ReservationError {
             ),
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent syntax origin")
+            }
+            Self::InvalidPackageTarget(declaration) => {
+                write!(
+                    formatter,
+                    "package target {declaration:?} is inconsistent with discovery"
+                )
+            }
+            Self::DuplicatePackageTarget(declaration) => {
+                write!(
+                    formatter,
+                    "package target {declaration:?} repeats a selected target name"
+                )
             }
         }
     }
@@ -241,12 +257,22 @@ pub(crate) fn reserve_with_contracts(
         modules,
         sources,
         imports,
+        package_target_resolutions,
         declarations,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = SourceIndexBuilder::new();
     let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
+    reserve_package_targets(
+        source_map,
+        &packages,
+        &package_target_resolutions,
+        &package_ids,
+        &module_ids,
+        &mut program,
+        &mut source_index,
+    )?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
     let entities = reserve_surface_entities(&declarations, &contracts, &mut program)?;
     let semantic_packages = packages

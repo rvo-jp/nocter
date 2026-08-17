@@ -166,6 +166,9 @@ fn exported_entity_module(
 pub(super) fn validate_package_targets(
     program: &DeclarationProgram,
 ) -> Result<(), ProgramIntegrityError> {
+    let mut names = std::collections::HashSet::new();
+    let mut positions = std::collections::HashSet::new();
+    let mut previous = None;
     for (_, target) in program.package_targets().iter() {
         require_symbol(program, target.name(), DeclarationDomain::PackageTarget)?;
         require(
@@ -183,6 +186,20 @@ pub(super) fn validate_package_targets(
                 DeclarationDomain::PackageTarget,
             ));
         }
+        if !names.insert((target.package(), target.kind(), target.name()))
+            || !positions.insert((target.package(), target.declaration_order()))
+        {
+            return Err(ProgramIntegrityError::DuplicateReference(
+                DeclarationDomain::PackageTarget,
+            ));
+        }
+        let position = (target.package(), target.declaration_order());
+        if previous.is_some_and(|previous| previous > position) {
+            return Err(ProgramIntegrityError::InvalidPosition(
+                DeclarationDomain::PackageTarget,
+            ));
+        }
+        previous = Some(position);
     }
     Ok(())
 }

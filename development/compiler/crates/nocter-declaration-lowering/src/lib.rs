@@ -17,6 +17,7 @@ mod imports;
 mod input;
 mod namespace;
 mod namespace_diagnostic;
+mod package_targets;
 mod pipeline;
 mod reservation;
 mod surface;
@@ -52,8 +53,8 @@ pub use imports::{
 };
 pub use input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, StandardRoleInput,
-    UseResolutionInput, UseTargetInput,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageTargetResolutionInput, StandardRoleInput, UseResolutionInput, UseTargetInput,
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
@@ -68,7 +69,9 @@ pub use surface::{
     collect_declaration_surface,
 };
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
-pub use topology::{LoweredDeclarations, LoweringError, lower_compile_unit_topology};
+pub use topology::{
+    LoweredDeclarations, LoweringError, PackageTargetResolutionError, lower_compile_unit_topology,
+};
 pub use topology_diagnostic::TopologyDiagnostic;
 pub use topology_violation::{TopologyRule, TopologyViolation};
 pub use type_binding_diagnostic::TypeBindingDiagnostic;

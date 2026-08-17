@@ -1,6 +1,6 @@
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
-use crate::{ModuleIdentity, UseResolutionInput, UseTargetInput};
+use crate::{ModuleIdentity, PackageTargetResolutionInput, UseResolutionInput, UseTargetInput};
 
 pub(crate) fn source_use(
     tree: &SyntaxTree,
@@ -24,6 +24,15 @@ pub(crate) fn module_use(
     )
 }
 
+pub(crate) fn package_target(
+    sources: &nocter_source::SourceMap,
+    tree: &SyntaxTree,
+    position: usize,
+    module: ModuleIdentity,
+) -> PackageTargetResolutionInput {
+    PackageTargetResolutionInput::new(package_target_declarations(sources, tree)[position], module)
+}
+
 fn use_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
     let mut declarations = Vec::new();
     let mut pending = vec![tree.root_id()];
@@ -43,4 +52,31 @@ fn use_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
         }
     }
     declarations
+}
+
+fn package_target_declarations(
+    sources: &nocter_source::SourceMap,
+    tree: &SyntaxTree,
+) -> Vec<NodeId> {
+    let source = sources.get(tree.source()).unwrap();
+    tree.children(tree.root_id())
+        .iter()
+        .filter_map(|element| {
+            let SyntaxElement::Node(node) = element else {
+                return None;
+            };
+            tree.children(*node)
+                .iter()
+                .any(|element| match element {
+                    SyntaxElement::Token(token) => {
+                        token.kind()
+                            == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::Test)
+                            || (token.kind() == nocter_syntax::TokenKind::Identifier
+                                && source.text_at(token.range()) == Some("executable"))
+                    }
+                    SyntaxElement::Node(_) | SyntaxElement::Missing(_) => false,
+                })
+                .then_some(*node)
+        })
+        .collect()
 }

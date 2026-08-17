@@ -26,6 +26,39 @@ pub struct LoweredDeclarations {
     source_index: SourceIndex,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PackageTargetResolutionError {
+    Duplicate(NodeId),
+    Invalid(NodeId),
+    UnknownModule(NodeId),
+    OutsidePackage(NodeId),
+}
+
+impl fmt::Display for PackageTargetResolutionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Duplicate(declaration) => write!(
+                formatter,
+                "package target {declaration:?} has more than one resolved module"
+            ),
+            Self::Invalid(declaration) => write!(
+                formatter,
+                "package target resolution {declaration:?} does not identify a selected target directive"
+            ),
+            Self::UnknownModule(declaration) => write!(
+                formatter,
+                "package target {declaration:?} resolves outside the compile-unit module graph"
+            ),
+            Self::OutsidePackage(declaration) => write!(
+                formatter,
+                "package target {declaration:?} resolves to a module in another package"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for PackageTargetResolutionError {}
+
 impl LoweredDeclarations {
     pub(crate) const fn new(program: DeclarationProgram, source_index: SourceIndex) -> Self {
         Self {
@@ -67,6 +100,7 @@ pub enum LoweringError {
     InvalidModuleLayout(ModuleIdentity),
     InvalidPackageModuleSet(PackageIdentity),
     InvalidSingleFilePackage(PackageIdentity),
+    PackageTargetResolution(PackageTargetResolutionError),
     MissingUseResolution(NodeId),
     UnknownTargetGate(NodeId),
     DuplicateUseResolution(NodeId),
@@ -80,6 +114,7 @@ pub enum LoweringError {
 impl fmt::Display for LoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::PackageTargetResolution(error) => error.fmt(formatter),
             Self::Rule(violation) => write!(
                 formatter,
                 "{}: {}",
@@ -260,6 +295,7 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) packages: Vec<&'input PackageInput<'syntax>>,
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
     pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
+    pub(crate) package_target_resolutions: Vec<&'input crate::PackageTargetResolutionInput>,
     pub(crate) target_selection: TargetSelection,
 }
 
@@ -270,6 +306,8 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let modules = canonical_modules(input, &packages)?;
     validate_sources(input, &packages, &modules)?;
     let target_selection = TargetSelection::prepare(input, &modules)?;
+    let package_target_resolutions =
+        validate_package_target_resolutions(input, &packages, &modules)?;
     let use_resolutions = validate_use_resolutions(input, &modules, &target_selection)?;
     let symbols = collect_symbols(input, &packages, &modules, &target_selection)?;
     Ok(PreparedCompileUnit {
@@ -277,8 +315,108 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
         packages,
         modules,
         use_resolutions,
+        package_target_resolutions,
         target_selection,
     })
+}
+
+fn validate_package_target_resolutions<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+    packages: &[&'input PackageInput<'syntax>],
+    modules: &[&'input ModuleInput<'syntax>],
+) -> Result<Vec<&'input crate::PackageTargetResolutionInput>, LoweringError> {
+    let package_sources: BTreeMap<_, _> = packages
+        .iter()
+        .filter_map(|package| {
+            package
+                .declaration()
+                .map(|declaration| (declaration.syntax().source(), package.identity()))
+        })
+        .collect();
+    let module_packages: BTreeMap<_, _> = modules
+        .iter()
+        .map(|module| (module.identity(), module.identity().package()))
+        .collect();
+    let mut resolutions: Vec<_> = input.package_target_resolutions().iter().collect();
+    resolutions.sort_unstable_by_key(|resolution| {
+        let declaration = resolution.declaration();
+        (declaration.source(), declaration.index())
+    });
+    for pair in resolutions.windows(2) {
+        if pair[0].declaration() == pair[1].declaration() {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::Duplicate(pair[0].declaration()),
+            ));
+        }
+    }
+    for resolution in &resolutions {
+        let declaration = resolution.declaration();
+        let Some(package) = package_sources.get(&declaration.source()).copied() else {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::Invalid(declaration),
+            ));
+        };
+        let tree = packages
+            .iter()
+            .find_map(|candidate| {
+                candidate
+                    .declaration()
+                    .filter(|input| input.syntax().source() == declaration.source())
+                    .map(crate::PackageDeclarationInput::syntax)
+            })
+            .ok_or(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::Invalid(declaration),
+            ))?;
+        if tree
+            .node(declaration)
+            .is_none_or(|node| node.kind() != NodeKind::PackageDirective)
+            || !tree
+                .children(tree.root_id())
+                .iter()
+                .any(|child| matches!(child, SyntaxElement::Node(node) if *node == declaration))
+            || !is_package_target_directive(input, tree, declaration)?
+        {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::Invalid(declaration),
+            ));
+        }
+        let Some(module_package) = module_packages.get(resolution.module()).copied() else {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::UnknownModule(declaration),
+            ));
+        };
+        if module_package != package {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::OutsidePackage(declaration),
+            ));
+        }
+    }
+    resolutions.sort_unstable_by(|left, right| {
+        left.module()
+            .package()
+            .cmp(right.module().package())
+            .then_with(|| left.declaration().index().cmp(&right.declaration().index()))
+    });
+    Ok(resolutions)
+}
+
+fn is_package_target_directive(
+    input: &CompileUnitInput<'_>,
+    tree: &nocter_syntax::SyntaxTree,
+    declaration: NodeId,
+) -> Result<bool, LoweringError> {
+    let source = require_source(input, tree.source())?;
+    Ok(tree
+        .children(declaration)
+        .iter()
+        .any(|element| match element {
+            SyntaxElement::Token(token) => {
+                token.kind() == TokenKind::Keyword(Keyword::Test)
+                    || (token.kind() == TokenKind::Identifier
+                        && source.text_at(token.range()) == Some("executable"))
+            }
+            SyntaxElement::Node(_) | SyntaxElement::Missing(_) => false,
+        }))
 }
 
 fn canonical_packages<'input, 'syntax>(

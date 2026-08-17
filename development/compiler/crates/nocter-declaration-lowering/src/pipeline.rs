@@ -254,16 +254,129 @@ fn normalize_types<'syntax>(
 
 #[cfg(test)]
 mod tests {
+    use nocter_declarations::PackageTargetKind;
     use nocter_source::{SourceMap, SourceName};
+    use nocter_source_index::SemanticEntity;
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-    use crate::test_support::{module_use, source_use};
+    use crate::test_support::{module_use, package_target, source_use};
     use crate::{
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, DefinitionRule,
         GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         NamespaceRule, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
         TopologyRule, TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
     };
+
+    #[test]
+    fn package_targets_retain_resolved_modules_source_order_and_exact_name_origins() {
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(
+            &mut sources,
+            "/app/nocter.nct",
+            "#name: \"app\"\n\
+             #executable: { name: \"app\", }\n\
+             #test: { name: \"unit\", module: \"./tests/unit\", }\n\
+             #executable: { name: \"tool\", module: \"./tools/tool\", }\n",
+        );
+        let app_id = add_source(&mut sources, "/app/index.nct", "");
+        let test_id = add_source(&mut sources, "/app/tests/unit/index.nct", "");
+        let tool_id = add_source(&mut sources, "/app/tools/tool/index.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let tests = parse_source(&sources, test_id, ParseGoal::ModuleSource);
+        let tool = parse_source(&sources, tool_id, ParseGoal::ModuleSource);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app_package = PackageIdentity::new("workspace:app");
+        let app_root = ModuleIdentity::new(app_package.clone(), Vec::<&str>::new());
+        let test_module = ModuleIdentity::new(app_package.clone(), ["tests", "unit"]);
+        let tool_module = ModuleIdentity::new(app_package.clone(), ["tools", "tool"]);
+        let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            ],
+            vec![
+                module("workspace:app", &[], "/app/index.nct", &app),
+                module(
+                    "workspace:app",
+                    &["tests", "unit"],
+                    "/app/tests/unit/index.nct",
+                    &tests,
+                ),
+                module(
+                    "workspace:app",
+                    &["tools", "tool"],
+                    "/app/tools/tool/index.nct",
+                    &tool,
+                ),
+                module("toolchain:std", &[], "/std/index.nct", &standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    &prelude,
+                ),
+            ],
+            Vec::new(),
+        )
+        .with_package_target_resolutions(vec![
+            package_target(&sources, &app_manifest, 2, tool_module),
+            package_target(&sources, &app_manifest, 0, app_root),
+            package_target(&sources, &app_manifest, 1, test_module),
+        ]);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+
+        let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+        assert_package_targets(&sources, &lowered);
+    }
+
+    fn assert_package_targets(sources: &SourceMap, lowered: &crate::LoweredDeclarations) {
+        let targets = lowered
+            .program()
+            .package_targets()
+            .iter()
+            .map(|(id, target)| {
+                (
+                    id,
+                    lowered.program().symbols().spelling(target.name()).unwrap(),
+                    target.kind(),
+                    target.declaration_order(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            targets
+                .iter()
+                .map(|(_, name, kind, order)| (*name, *kind, *order))
+                .collect::<Vec<_>>(),
+            [
+                ("app", PackageTargetKind::Executable, 0),
+                ("unit", PackageTargetKind::Test, 1),
+                ("tool", PackageTargetKind::Executable, 2),
+            ]
+        );
+        for (id, name, _, _) in targets {
+            let bindings = lowered
+                .source_index()
+                .bindings_for(SemanticEntity::PackageTarget(id));
+            assert_eq!(bindings.len(), 1);
+            let origin = bindings[0].origin();
+            let text = sources
+                .get(origin.source())
+                .and_then(|source| source.text_at(origin.span().range()))
+                .unwrap();
+            assert_eq!(text, format!("\"{name}\""));
+        }
+    }
 
     #[test]
     fn production_pipeline_projects_surface_diagnostics() {

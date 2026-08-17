@@ -10,10 +10,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Lower discovery-resolved `#executable` and `#test` records into the existing typed package-target
-   arena without reinterpreting module paths in declaration lowering.
-2. Introduce the target-program crate and immutable toolchain snapshot, then make it the sole
+1. Introduce the target-program crate and immutable toolchain snapshot, then make it the sole
    selected-target buildability boundary for `check`, `build`, and `run`.
+2. Validate selected target availability and exact compiler-owned primitive roles before any
+   executable selection or monomorphization can begin.
 3. Derive exact entry selection and deterministic monomorphization from `TargetProgram`; MIR must
    consume resolved concrete dispatch rather than repeat requirement or conformance selection.
 
@@ -23,6 +23,10 @@ compile-unit input and retained by `DeclarationGraph` through `CheckedProgram`. 
 target-selection inventory excludes inactive items before block-import validation, symbol-table
 construction, and declaration reservation. Unknown target gate names project `E0233`; recognized
 reserved names remain distinct from implemented target availability.
+Discovery-selected package target directives now pair their exact syntax node with one resolved
+module identity. Declaration lowering derives target kind, name, and order from that directive,
+allocates canonical `PackageTargetId` values, and projects each identity to its exact name literal;
+it never parses an authored module path.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

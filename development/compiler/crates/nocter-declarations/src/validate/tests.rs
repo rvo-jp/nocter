@@ -5,10 +5,49 @@ use crate::{
     CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
     DeclarationProgramBuilder, DeclarationRule, DeclarationViolation, DropDeclaration,
     FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModuleNamespace,
-    ModulePath, NominalShape, NominalTypeDeclaration, Parameter, ParameterOwner, ParameterRole,
-    ProgramBuildError, ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin,
-    VariantDeclaration, Visibility,
+    ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, PackageTargetKind, Parameter,
+    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError,
+    ProgramValidationError, ProvenanceOrigin, VariantDeclaration, Visibility,
 };
+
+#[test]
+fn package_target_names_and_positions_are_unique_within_their_typed_domains() {
+    let symbols = SymbolTable::from_spellings(["app", "run"]);
+    let app_name = symbols.get("app").unwrap();
+    let run_name = symbols.get("run").unwrap();
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+    let package = program.add_package(app_name).unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
+    program
+        .add_package_target(PackageTarget::new(
+            package,
+            module,
+            run_name,
+            PackageTargetKind::Executable,
+            0,
+        ))
+        .unwrap();
+    program
+        .add_package_target(PackageTarget::new(
+            package,
+            module,
+            run_name,
+            PackageTargetKind::Executable,
+            1,
+        ))
+        .unwrap();
+
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Integrity(
+            ProgramIntegrityError::DuplicateReference(DeclarationDomain::PackageTarget)
+        ))
+    );
+}
 
 #[test]
 fn two_pass_definitions_support_recursive_header_identity() {

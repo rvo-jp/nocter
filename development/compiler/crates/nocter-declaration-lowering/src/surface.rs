@@ -191,6 +191,7 @@ pub struct DeclarationSurface<'syntax> {
     modules: Box<[ModuleIdentity]>,
     sources: Box<[SurfaceSource<'syntax>]>,
     imports: Box<[SurfaceImport]>,
+    package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
 }
 
@@ -244,6 +245,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             modules: self.modules,
             sources: self.sources,
             imports: self.imports,
+            package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
         }
     }
@@ -257,6 +259,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) imports: Box<[SurfaceImport]>,
+    pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
 }
 
@@ -340,6 +343,7 @@ pub fn collect_declaration_surface<'syntax>(
         packages,
         modules,
         use_resolutions,
+        package_target_resolutions,
         target_selection,
     } = prepared;
     let mut sources = Vec::new();
@@ -395,6 +399,11 @@ pub fn collect_declaration_surface<'syntax>(
             .into_boxed_slice(),
         sources: sources.into_boxed_slice(),
         imports: imports.into_boxed_slice(),
+        package_target_resolutions: package_target_resolutions
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
         declarations: declarations.into_boxed_slice(),
     })
 }

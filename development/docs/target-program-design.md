@@ -66,10 +66,17 @@ they never search declarations by spelling.
 
 ## Package Targets and Entries
 
-Package discovery lowers each `#executable` and `#test` record to an exact package, module, target
-name, kind, and declaration order. Directive path interpretation ends at discovery. The existing
-typed `PackageTargetId` arena is populated during declaration lowering and becomes the only target
-selection index.
+Package discovery selects each relevant `#executable` and `#test` record and resolves its exact
+module. Directive path interpretation ends at discovery. The existing typed `PackageTargetId`
+arena is populated during declaration lowering and becomes the only target selection index.
+
+The implemented lowering input pairs an exact package-directive `NodeId` with the resolved
+`ModuleIdentity`. The directive remains the authority for target kind, decoded name, and source
+order; the resolution supplies only the module edge. Lowering validates that the node is a direct
+target directive in the owning package and that the module belongs to that package, then reserves
+the typed target in canonical package/source order. `SourceIndex` projects `PackageTargetId` to the
+exact name literal. Duplicate selected names and declaration positions cannot enter a frozen
+program.
 
 Target validation checks that every supplied target belongs to its package and selected module.
 Executable construction selects one `PackageTargetId`; no filename convention or imported `main`
@@ -107,7 +114,7 @@ integrity checks over an accepted program, not a second source diagnostic system
 
 1. Select and validate target gates before import and symbol processing.
 2. Freeze the selected target into `DeclarationGraph` and preserve it through checking.
-3. Lower discovery-owned package targets into typed semantic identities.
+3. Lower discovery-owned package targets into typed semantic identities. **Complete.**
 4. Introduce the target-program crate and immutable toolchain capability snapshot.
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
    buildability into `TargetProgram`.

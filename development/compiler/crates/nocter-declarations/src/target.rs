@@ -1,6 +1,6 @@
 use nocter_model::{ModuleId, PackageId, Symbol};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PackageTargetKind {
     Executable,
     Test,
