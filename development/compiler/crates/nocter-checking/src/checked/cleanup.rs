@@ -56,10 +56,16 @@ pub struct CleanupAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CleanupTiming {
+    /// Runs after one complete statement has committed its result or destination.
+    AtStatementEnd,
+    /// Runs after a boolean control header and before selecting or entering its branch/body.
+    AtControlHeaderEnd,
     /// Runs after child evaluation and before the node performs its outgoing control transfer.
     BeforeTransfer,
     /// Runs after right-hand-side and target evaluation, immediately before assignment storage.
     BeforeStore,
+    /// Runs only on the absence/failure branch selected by postfix `?`, before it returns.
+    OnOutcomePropagation,
 }
 
 /// One ordered cleanup event attached to an exact checked operation.
@@ -102,30 +108,43 @@ impl CleanupAction {
     pub const fn condition(&self) -> CleanupCondition {
         self.condition
     }
+
+    pub(crate) fn with_condition(&self, condition: CleanupCondition) -> Self {
+        Self {
+            target: self.target.clone(),
+            condition,
+        }
+    }
 }
 
-/// Cleanup schedules keyed by the checked node that owns their exact execution point.
+/// Cleanup events keyed by the checked node that owns their exact execution point.
 #[derive(Debug)]
 pub struct CleanupTable {
-    schedules: Arena<BodyNodeId, Option<CleanupSchedule>>,
+    schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>,
 }
 
 impl CleanupTable {
-    pub(crate) const fn new(schedules: Arena<BodyNodeId, Option<CleanupSchedule>>) -> Self {
+    pub(crate) const fn new(schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>) -> Self {
         Self { schedules }
     }
 
     #[must_use]
-    pub fn schedule(&self, node: BodyNodeId) -> Option<&CleanupSchedule> {
-        self.schedules.get(node).and_then(Option::as_ref)
+    pub fn schedules(&self, node: BodyNodeId) -> Option<&[CleanupSchedule]> {
+        self.schedules.get(node).map(AsRef::as_ref)
     }
 
-    /// Returns the actions for a known node, including an empty slice when it has no schedule.
     #[must_use]
-    pub fn actions(&self, node: BodyNodeId) -> Option<&[CleanupAction]> {
-        self.schedules
-            .get(node)
-            .map(|schedule| schedule.as_ref().map_or(&[][..], CleanupSchedule::actions))
+    pub fn schedule(&self, node: BodyNodeId, timing: CleanupTiming) -> Option<&CleanupSchedule> {
+        self.schedules.get(node).and_then(|schedules| {
+            schedules
+                .iter()
+                .find(|schedule| schedule.timing() == timing)
+        })
+    }
+
+    #[must_use]
+    pub fn actions(&self, node: BodyNodeId, timing: CleanupTiming) -> Option<&[CleanupAction]> {
+        self.schedule(node, timing).map(CleanupSchedule::actions)
     }
 
     #[must_use]

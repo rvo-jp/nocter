@@ -45,6 +45,7 @@ mod expected;
 mod loops;
 mod methods;
 mod operators;
+mod outcomes;
 mod place;
 mod type_uses;
 mod value_planning;
@@ -596,6 +597,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_reference(current, expected);
                 }
                 NodeKind::MoveExpression => self.check_move(current)?,
+                NodeKind::OutcomeExpression => {
+                    return self.check_outcome_expression(current, expected);
+                }
+                NodeKind::RecoveryExpression => {
+                    return self.check_recovery_expression(current, expected);
+                }
                 NodeKind::UnaryExpression => return self.check_unary(current, expected),
                 _ => return Err(BodyCheckInternalError::UnsupportedSyntax(current, kind).into()),
             };
@@ -759,10 +766,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     )
             )
         }) {
-            return Err(
-                BodyCheckInternalError::UnsupportedSyntax(node, NodeKind::MoveExpression).into(),
-            );
+            return self.check_outcome_expression(node, None);
         }
+        self.check_move_place(node)
+    }
+
+    fn check_move_place(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let operand = self.required_child(node, NodeKind::NamedPlace)?;
         let place = self.named_place(operand)?;
         match self

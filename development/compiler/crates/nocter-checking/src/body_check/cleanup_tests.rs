@@ -3,8 +3,8 @@ use nocter_declaration_lowering::lower_compile_unit_declarations;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, PlaceProjection, PlaceRoot,
-    prepare_program_checking,
+    CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, CleanupTiming,
+    PlaceProjection, PlaceRoot, prepare_program_checking,
 };
 
 fn check(source: &str) -> crate::CheckedProgramOutput {
@@ -35,7 +35,7 @@ fn return_cleanup_reverses_locals_then_owned_parameters() {
         .unwrap();
     let roots = body
         .cleanups()
-        .actions(return_)
+        .actions(return_, CleanupTiming::BeforeTransfer)
         .unwrap()
         .iter()
         .map(|action| match action.target() {
@@ -69,7 +69,11 @@ fn returned_move_is_not_cleaned_in_the_callee() {
         })
         .unwrap();
 
-    assert!(body.cleanups().actions(return_).unwrap().is_empty());
+    assert!(
+        body.cleanups()
+            .actions(return_, CleanupTiming::BeforeTransfer)
+            .is_none()
+    );
 }
 
 #[test]
@@ -79,7 +83,10 @@ fn normal_callable_fallthrough_cleans_owned_parameters() {
          func finish(value: Owned): void {}\n",
     );
     let (_, body) = output.program().bodies().iter().next().unwrap();
-    let actions = body.cleanups().actions(body.root()).unwrap();
+    let actions = body
+        .cleanups()
+        .actions(body.root(), CleanupTiming::BeforeTransfer)
+        .unwrap();
 
     assert_eq!(actions.len(), 1);
     assert!(matches!(
@@ -114,7 +121,10 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
         })
         .unwrap();
     assert!(matches!(
-        body.cleanups().actions(discard).unwrap()[0].target(),
+        body.cleanups()
+            .actions(discard, CleanupTiming::AtStatementEnd)
+            .unwrap()[0]
+            .target(),
         CleanupTarget::Value { .. }
     ));
 
@@ -128,7 +138,11 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
             )
         })
         .unwrap();
-    let [remaining] = body.cleanups().actions(return_).unwrap() else {
+    let [remaining] = body
+        .cleanups()
+        .actions(return_, CleanupTiming::BeforeTransfer)
+        .unwrap()
+    else {
         panic!("expected exactly one remaining field cleanup");
     };
     let CleanupTarget::Path(path) = remaining.target() else {
@@ -157,7 +171,10 @@ fn branch_move_produces_conditional_return_cleanup() {
             )
         })
         .unwrap();
-    let actions = body.cleanups().actions(return_).unwrap();
+    let actions = body
+        .cleanups()
+        .actions(return_, CleanupTiming::BeforeTransfer)
+        .unwrap();
 
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].condition(), CleanupCondition::IfInitialized);
@@ -180,7 +197,11 @@ fn break_cleans_loop_scopes_before_joining_the_exit() {
             )
         })
         .unwrap();
-    let [action] = body.cleanups().actions(break_).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(break_, CleanupTiming::BeforeTransfer)
+        .unwrap()
+    else {
         panic!("break must clean its live loop local");
     };
 
@@ -205,5 +226,131 @@ fn copy_and_borrow_bindings_create_no_cleanup_action() {
         })
         .unwrap();
 
-    assert!(body.cleanups().actions(return_).unwrap().is_empty());
+    assert!(
+        body.cleanups()
+            .actions(return_, CleanupTiming::BeforeTransfer)
+            .is_none()
+    );
+}
+
+#[test]
+fn one_assignment_retains_distinct_store_and_statement_cleanup_events() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         struct Wrapper { value: Owned }\n\
+         instance Wrapper {\n\
+             pub method &self.select(value: Owned): Owned { move value }\n\
+         }\n\
+         func replace(first: Owned, second: Owned, third: Owned): void {\n\
+             var target = move first\n\
+             target = Wrapper { value: move second }.select(move third)\n\
+             return\n\
+         }\n",
+    );
+    let (body, assignment) = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes().iter().find_map(|(node, checked)| {
+                matches!(
+                    checked.operation(),
+                    CheckedOperation::Control(CheckedControl::Assign { .. })
+                )
+                .then_some((body, node))
+            })
+        })
+        .expect("assignment node");
+    let [store] = body
+        .cleanups()
+        .actions(assignment, CleanupTiming::BeforeStore)
+        .expect("old target cleanup")
+    else {
+        panic!("assignment must clean exactly one old target");
+    };
+    let [temporary] = body
+        .cleanups()
+        .actions(assignment, CleanupTiming::AtStatementEnd)
+        .expect("borrowed receiver temporary cleanup")
+    else {
+        panic!("assignment must clean exactly one receiver temporary");
+    };
+
+    assert!(matches!(store.target(), CleanupTarget::Path(_)));
+    assert!(matches!(temporary.target(), CleanupTarget::Value { .. }));
+    assert_eq!(body.cleanups().schedules(assignment).unwrap().len(), 2);
+}
+
+#[test]
+fn branch_only_temporaries_receive_conditional_statement_cleanup() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         instance Owned {\n\
+             pub operator (&self == other: &Self): bool { self.value == other.value }\n\
+         }\n\
+         func compare(condition: bool): void {\n\
+             let _ = if condition {\n\
+                 Owned { value: 1 } == Owned { value: 2 }\n\
+             } else {\n\
+                 true\n\
+             }\n\
+             return\n\
+         }\n",
+    );
+    let (body, discard) = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes().iter().find_map(|(node, checked)| {
+                matches!(
+                    checked.operation(),
+                    CheckedOperation::Control(CheckedControl::Discard(_))
+                )
+                .then_some((body, node))
+            })
+        })
+        .expect("discard statement");
+    let actions = body
+        .cleanups()
+        .actions(discard, CleanupTiming::AtStatementEnd)
+        .expect("conditional branch temporaries");
+
+    assert_eq!(actions.len(), 2);
+    assert!(actions.iter().all(|action| {
+        action.condition() == CleanupCondition::IfInitialized
+            && matches!(action.target(), CleanupTarget::Value { .. })
+    }));
+}
+
+#[test]
+fn condition_temporaries_end_before_the_selected_branch() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         instance Owned {\n\
+             pub method &self.ready(): bool { true }\n\
+         }\n\
+         func inspect(): void {\n\
+             if (Owned { value: 1 }).ready() {\n\
+             }\n\
+             return\n\
+         }\n",
+    );
+    let actions = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter().map(move |(node, _)| (body, node)))
+        .find_map(|(body, node)| {
+            body.cleanups()
+                .actions(node, CleanupTiming::AtControlHeaderEnd)
+        })
+        .expect("condition temporary cleanup");
+
+    assert!(matches!(
+        actions,
+        [action]
+            if action.condition() == CleanupCondition::Always
+                && matches!(action.target(), CleanupTarget::Value { .. })
+    ));
 }

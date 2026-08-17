@@ -53,6 +53,9 @@ impl<'program> CleanupPlanner<'program> {
         let mut actions = Vec::new();
         while let Some((local, ty)) = locals.pop() {
             let root = PlaceRoot::Local(local);
+            if !state.contains_root(root) {
+                continue;
+            }
             self.plan_path(&MovePath::root(root), ty, state, &mut actions)?;
             state.forget_root(root);
         }

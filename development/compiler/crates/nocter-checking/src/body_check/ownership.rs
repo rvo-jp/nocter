@@ -1,21 +1,25 @@
 use std::collections::HashMap;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{ArenaBuilder, BodyNodeId, BodyScopeId, CallableCapability, LoopId, TypeStore};
+use nocter_model::{ArenaBuilder, BodyNodeId, BodyScopeId, BuiltinType, LoopId, TypeStore};
 use nocter_source_index::SourceOrigin;
 
 mod cleanup;
+mod outcomes;
+mod sequences;
+mod temporaries;
 
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{MovePath, OwnershipState, OwnershipStateError, initialized_body_roots};
 use crate::{
-    AggregateConstruction, BodySource, CallTarget, CheckedBody, CheckedCall, CheckedControl,
-    CheckedOperation, CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming,
-    DropTable, LoopKind, PlaceAccess, PrimitiveOperation,
+    AggregateConstruction, BodySource, CheckedBody, CheckedControl, CheckedOperation,
+    CheckedOutcome, CleanupAction, CleanupSchedule, CleanupTable, CleanupTiming, DropTable,
+    LoopKind, PlaceAccess, PrimitiveOperation, ReadonlyOperandPreparation,
 };
 use cleanup::CleanupPlanner;
+use temporaries::TemporaryPlanner;
 
 /// Validates flow-dependent ownership after typed HIR construction.
 pub(super) fn analyze_body_ownership(
@@ -45,6 +49,7 @@ pub(super) fn analyze_body_ownership(
         origins,
         loops: Vec::new(),
         scopes: Vec::new(),
+        temporaries: TemporaryPlanner::default(),
         cleanup_schedules: HashMap::new(),
     };
     analyzer.visit(body.root(), &mut state)?;
@@ -62,7 +67,8 @@ struct OwnershipAnalyzer<'program> {
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopFlow>,
     scopes: Vec<BodyScopeId>,
-    cleanup_schedules: HashMap<BodyNodeId, CleanupSchedule>,
+    temporaries: TemporaryPlanner,
+    cleanup_schedules: HashMap<BodyNodeId, Vec<CleanupSchedule>>,
 }
 
 struct LoopFlow {
@@ -79,7 +85,12 @@ impl OwnershipAnalyzer<'_> {
         }
         let mut schedules = ArenaBuilder::new();
         for (node, _) in self.body.nodes().iter() {
-            let actual = schedules.insert(self.cleanup_schedules.remove(&node));
+            let actual = schedules.insert(
+                self.cleanup_schedules
+                    .remove(&node)
+                    .unwrap_or_default()
+                    .into_boxed_slice(),
+            );
             if actual != node {
                 return Err(BodyCheckInternalError::CleanupPlanning);
             }
@@ -134,6 +145,18 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::Outcome(
                 CheckedOutcome::Inject { payload, .. } | CheckedOutcome::Failure(payload),
             ) => self.visit(*payload, state),
+            CheckedOperation::Outcome(CheckedOutcome::Propagate { operand, .. }) => {
+                self.visit_propagate(node, *operand, state)
+            }
+            CheckedOperation::Outcome(CheckedOutcome::Force { operand, .. }) => {
+                self.visit(*operand, state)
+            }
+            CheckedOperation::Outcome(CheckedOutcome::Recover {
+                operand,
+                binding,
+                fallback,
+                ..
+            }) => self.visit_recover(*operand, *binding, *fallback, state),
             CheckedOperation::Primitive(
                 PrimitiveOperation::Unary { operand, .. }
                 | PrimitiveOperation::IntegerConversion { operand, .. },
@@ -148,16 +171,25 @@ impl OwnershipAnalyzer<'_> {
                 if !self.visit(comparison.left().value(), state)? {
                     return Ok(false);
                 }
-                self.visit(comparison.right().value(), state)
+                if comparison.left().preparation() == ReadonlyOperandPreparation::BorrowTemporary {
+                    self.activate_owned_temporary(comparison.left().value(), state)?;
+                }
+                if !self.visit(comparison.right().value(), state)? {
+                    return Ok(false);
+                }
+                if comparison.right().preparation() == ReadonlyOperandPreparation::BorrowTemporary {
+                    self.activate_owned_temporary(comparison.right().value(), state)?;
+                }
+                Ok(true)
             }
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
-            CheckedOperation::Call(call) => self.visit_call(call, state),
+            CheckedOperation::Call(call) => {
+                let reaches = self.visit_call(call, state)?;
+                Ok(reaches && checked.ty() != self.types.builtin(BuiltinType::Never))
+            }
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
             CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),
-            CheckedOperation::Outcome(
-                CheckedOutcome::Propagate { .. } | CheckedOutcome::Recover { .. },
-            )
-            | CheckedOperation::Closure(_)
+            CheckedOperation::Closure(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
             | CheckedOperation::Interpolation(_) => {
@@ -171,24 +203,14 @@ impl OwnershipAnalyzer<'_> {
         aggregate: &AggregateConstruction,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
-        match aggregate {
+        let values = match aggregate {
             AggregateConstruction::Struct { fields, .. } => {
-                for (_, value) in fields {
-                    if !self.visit(*value, state)? {
-                        return Ok(false);
-                    }
-                }
+                return self.visit_value_sequence(fields.iter().map(|(_, value)| *value), state);
             }
             AggregateConstruction::Enum { payload, .. }
-            | AggregateConstruction::FixedArray(payload) => {
-                for value in payload {
-                    if !self.visit(*value, state)? {
-                        return Ok(false);
-                    }
-                }
-            }
-        }
-        Ok(true)
+            | AggregateConstruction::FixedArray(payload) => payload,
+        };
+        self.visit_value_sequence(values.iter().copied(), state)
     }
 
     fn visit_control(
@@ -222,7 +244,8 @@ impl OwnershipAnalyzer<'_> {
                 {
                     return Ok(false);
                 }
-                let actions = self.all_scope_cleanup(state)?;
+                let mut actions = self.temporary_cleanup_actions(state, &[])?;
+                actions.extend(self.all_scope_cleanup(state)?);
                 self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
                 Ok(false)
             }
@@ -249,49 +272,6 @@ impl OwnershipAnalyzer<'_> {
         }
     }
 
-    fn visit_call(
-        &mut self,
-        call: &CheckedCall,
-        state: &mut OwnershipState,
-    ) -> Result<bool, BodyCheckError> {
-        if let CallTarget::CallableValue {
-            value, capability, ..
-        } = call.target()
-        {
-            if !self.visit(*value, state)? {
-                return Ok(false);
-            }
-            if *capability == CallableCapability::Owned {
-                let place = self
-                    .body
-                    .nodes()
-                    .get(*value)
-                    .and_then(|node| match node.operation() {
-                        CheckedOperation::Place(place) => Some(*place),
-                        _ => None,
-                    })
-                    .ok_or(BodyCheckInternalError::UnsupportedOwnershipOperation(
-                        *value,
-                    ))?;
-                let path = self.move_path(place)?;
-                state
-                    .move_out(&path)
-                    .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-            }
-        }
-        if let Some(receiver) = call.receiver()
-            && !self.visit(receiver.value(), state)?
-        {
-            return Ok(false);
-        }
-        for argument in call.arguments() {
-            if !self.visit(*argument, state)? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
     fn visit_block(
         &mut self,
         node: BodyNodeId,
@@ -303,10 +283,14 @@ impl OwnershipAnalyzer<'_> {
         self.enter_scope(scope)?;
         let mut reaches = true;
         for statement in statements {
+            let retained_temporaries = state.temporary_identities();
             if !self.visit(*statement, state)? {
                 reaches = false;
                 break;
             }
+            let actions = self.temporary_cleanup_actions(state, &retained_temporaries)?;
+            self.record_cleanup(*statement, CleanupTiming::AtStatementEnd, actions);
+            state.forget_temporaries_except(&retained_temporaries);
         }
         if reaches && let Some(result) = result {
             reaches = self.visit(result, state)?;
@@ -314,6 +298,9 @@ impl OwnershipAnalyzer<'_> {
         if reaches {
             let mut actions = self.scope_cleanup(scope, state)?;
             if self.scopes.len() == 1 {
+                let mut temporary_actions = self.temporary_cleanup_actions(state, &[])?;
+                temporary_actions.append(&mut actions);
+                actions = temporary_actions;
                 actions.extend(self.parameter_cleanup(state)?);
             }
             self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
@@ -324,22 +311,14 @@ impl OwnershipAnalyzer<'_> {
 
     fn visit_discard(
         &mut self,
-        node: BodyNodeId,
+        _node: BodyNodeId,
         value: BodyNodeId,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
         if !self.visit(value, state)? {
             return Ok(false);
         }
-        let ty = self
-            .body
-            .nodes()
-            .get(value)
-            .map(crate::CheckedNode::ty)
-            .ok_or(BodyCheckInternalError::MissingNode(value))?;
-        if let Some(action) = self.value_cleanup(value, ty)? {
-            self.record_cleanup(node, CleanupTiming::BeforeTransfer, vec![action]);
-        }
+        self.activate_owned_temporary(value, state)?;
         Ok(true)
     }
 
@@ -350,9 +329,13 @@ impl OwnershipAnalyzer<'_> {
         else_branch: Option<BodyNodeId>,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
+        let retained_temporaries = state.temporary_identities();
         if !self.visit(condition, state)? {
             return Ok(false);
         }
+        let actions = self.temporary_cleanup_actions(state, &retained_temporaries)?;
+        self.record_cleanup(condition, CleanupTiming::AtControlHeaderEnd, actions);
+        state.forget_temporaries_except(&retained_temporaries);
         let entry = state.clone();
         let mut incoming = Vec::new();
         let mut then_state = entry.clone();
@@ -404,8 +387,10 @@ impl OwnershipAnalyzer<'_> {
         let Some(frame) = self.loops.last().filter(|frame| frame.id == loop_) else {
             return Err(BodyCheckInternalError::LoopStack.into());
         };
-        let actions = self.loop_scope_cleanup(frame.body_scope, state)?;
+        let mut actions = self.temporary_cleanup_actions(state, &[])?;
+        actions.extend(self.loop_scope_cleanup(frame.body_scope, state)?);
         self.record_cleanup(node, CleanupTiming::BeforeTransfer, actions);
+        state.forget_temporaries_except(&[]);
         let frame = self
             .loops
             .last_mut()
@@ -473,7 +458,9 @@ impl OwnershipAnalyzer<'_> {
                             }
                             OwnershipStateError::DuplicatePath(_)
                             | OwnershipStateError::UnknownPath(_)
-                            | OwnershipStateError::NotInitialized { .. } => {
+                            | OwnershipStateError::NotInitialized { .. }
+                            | OwnershipStateError::DuplicateTemporary(_)
+                            | OwnershipStateError::UnavailableTemporary(_) => {
                                 Err(BodyCheckInternalError::OwnershipState.into())
                             }
                         };
@@ -584,6 +571,7 @@ impl OwnershipAnalyzer<'_> {
                 continues: Vec::new(),
             });
             let mut iteration = header.clone();
+            let retained_condition_temporaries = iteration.temporary_identities();
             let condition_reaches = match definition.kind() {
                 LoopKind::While { condition } => self.visit(*condition, &mut iteration)?,
                 LoopKind::Infinite | LoopKind::Range { .. } => true,
@@ -591,6 +579,12 @@ impl OwnershipAnalyzer<'_> {
                     return Err(BodyCheckInternalError::UnsupportedLoop(loop_).into());
                 }
             };
+            if condition_reaches && let LoopKind::While { condition } = definition.kind() {
+                let actions =
+                    self.temporary_cleanup_actions(&iteration, &retained_condition_temporaries)?;
+                self.record_cleanup(*condition, CleanupTiming::AtControlHeaderEnd, actions);
+                iteration.forget_temporaries_except(&retained_condition_temporaries);
+            }
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
@@ -799,11 +793,18 @@ impl OwnershipAnalyzer<'_> {
         timing: CleanupTiming,
         actions: Vec<CleanupAction>,
     ) {
-        if actions.is_empty() {
-            self.cleanup_schedules.remove(&node);
-        } else {
-            self.cleanup_schedules
-                .insert(node, CleanupSchedule::new(timing, actions));
+        let schedules = self.cleanup_schedules.entry(node).or_default();
+        if let Some(index) = schedules
+            .iter()
+            .position(|schedule| schedule.timing() == timing)
+        {
+            if actions.is_empty() {
+                schedules.remove(index);
+            } else {
+                schedules[index] = CleanupSchedule::new(timing, actions);
+            }
+        } else if !actions.is_empty() {
+            schedules.push(CleanupSchedule::new(timing, actions));
         }
     }
 
@@ -836,7 +837,9 @@ impl OwnershipAnalyzer<'_> {
             Err(
                 OwnershipStateError::DuplicatePath(_)
                 | OwnershipStateError::UnknownPath(_)
-                | OwnershipStateError::UnavailableAssignmentParent { .. },
+                | OwnershipStateError::UnavailableAssignmentParent { .. }
+                | OwnershipStateError::DuplicateTemporary(_)
+                | OwnershipStateError::UnavailableTemporary(_),
             ) => Err(BodyCheckInternalError::OwnershipState.into()),
         }
     }

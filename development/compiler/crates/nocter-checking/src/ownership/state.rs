@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_model::FieldId;
+use nocter_model::{BodyNodeId, FieldId};
 
 use crate::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 
@@ -101,10 +101,11 @@ impl InitializationState {
     }
 }
 
-/// Flow state keyed only by semantic owned paths.
+/// Flow state for named storage and evaluated owned temporaries.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct OwnershipState {
     paths: BTreeMap<MovePath, InitializationState>,
+    temporaries: BTreeMap<BodyNodeId, InitializationState>,
 }
 
 impl OwnershipState {
@@ -217,7 +218,70 @@ impl OwnershipState {
             }
             joined.insert(path, state);
         }
-        Ok(Self { paths: joined })
+        let temporary_ids = incoming
+            .iter()
+            .flat_map(|state| state.temporaries.keys().copied())
+            .collect::<BTreeSet<_>>();
+        let temporaries = temporary_ids
+            .into_iter()
+            .filter_map(|temporary| {
+                let mut states = incoming.iter().map(|state| {
+                    state
+                        .temporaries
+                        .get(&temporary)
+                        .copied()
+                        .unwrap_or(InitializationState::Uninitialized)
+                });
+                let first = states.next().expect("nonempty incoming state was checked");
+                let joined = states.fold(first, InitializationState::join);
+                (joined != InitializationState::Uninitialized).then_some((temporary, joined))
+            })
+            .collect();
+        Ok(Self {
+            paths: joined,
+            temporaries,
+        })
+    }
+
+    pub(crate) fn declare_temporary(
+        &mut self,
+        temporary: BodyNodeId,
+    ) -> Result<(), OwnershipStateError> {
+        if self
+            .temporaries
+            .insert(temporary, InitializationState::Initialized)
+            .is_some()
+        {
+            return Err(OwnershipStateError::DuplicateTemporary(temporary));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn consume_temporary(
+        &mut self,
+        temporary: BodyNodeId,
+    ) -> Result<(), OwnershipStateError> {
+        match self.temporaries.remove(&temporary) {
+            Some(InitializationState::Initialized) => Ok(()),
+            Some(InitializationState::Uninitialized | InitializationState::MaybeInitialized)
+            | None => Err(OwnershipStateError::UnavailableTemporary(temporary)),
+        }
+    }
+
+    pub(crate) fn temporary_initialization(&self, temporary: BodyNodeId) -> InitializationState {
+        self.temporaries
+            .get(&temporary)
+            .copied()
+            .unwrap_or(InitializationState::Uninitialized)
+    }
+
+    pub(crate) fn temporary_identities(&self) -> Vec<BodyNodeId> {
+        self.temporaries.keys().copied().collect()
+    }
+
+    pub(crate) fn forget_temporaries_except(&mut self, retained: &[BodyNodeId]) {
+        self.temporaries
+            .retain(|temporary, _| retained.binary_search(temporary).is_ok());
     }
 
     pub(crate) fn initialization(
@@ -231,6 +295,10 @@ impl OwnershipState {
         self.paths
             .keys()
             .any(|candidate| candidate != path && path.is_prefix_of(candidate))
+    }
+
+    pub(crate) fn contains_root(&self, root: PlaceRoot) -> bool {
+        self.paths.keys().any(|path| path.root_identity() == root)
     }
 
     pub(crate) fn forget_root(&mut self, root: PlaceRoot) {
@@ -250,11 +318,13 @@ pub(crate) enum OwnershipStateError {
         path: MovePath,
         state: InitializationState,
     },
+    DuplicateTemporary(BodyNodeId),
+    UnavailableTemporary(BodyNodeId),
 }
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, FieldId, LocalBindingId};
+    use nocter_model::{ArenaBuilder, BodyNodeId, FieldId, LocalBindingId};
 
     use super::{InitializationState, MovePath, OwnershipState, OwnershipStateError};
     use crate::PlaceRoot;
@@ -299,6 +369,22 @@ mod tests {
                 path,
                 state: InitializationState::MaybeInitialized,
             })
+        );
+    }
+
+    #[test]
+    fn branch_temporary_joins_as_conditionally_initialized() {
+        let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
+        let temporary = nodes.insert(());
+        let _ = nodes.finish();
+        let entry = OwnershipState::default();
+        let mut branch = entry.clone();
+        branch.declare_temporary(temporary).unwrap();
+        let joined = entry.join_reachable(&[entry.clone(), branch]).unwrap();
+
+        assert_eq!(
+            joined.temporary_initialization(temporary),
+            InitializationState::MaybeInitialized
         );
     }
 

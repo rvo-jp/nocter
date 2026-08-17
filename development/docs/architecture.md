@@ -405,8 +405,9 @@ of reconstructing an index expression from syntax.
 Name resolution assigns each syntax block one exact body-scope identity and checked construction
 stores that identity on the block node. Ownership analysis therefore computes scope-exit edges
 without source containment queries. Its dense cleanup table is keyed by the operation that owns
-the schedule. Each nonempty entry distinguishes cleanup immediately before control transfer from
-replacement cleanup immediately before assignment storage. Path actions retain only an owned
+each event. One node may own separate statement-end, control-header-end, pre-store, propagation,
+and control-transfer events; later lowering never derives timing from an operation variant. Path
+actions retain only an owned
 root, exact field identities, type, and unconditional-or-conditional state; borrowed replacement
 actions retain an already evaluated place; discarded owned temporaries name their checked value
 node. MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue
@@ -425,9 +426,20 @@ nodes at every authoritative expected-type boundary. Each node names its expecte
 selected tag, and recursively checked payload. An expression already having the complete expected
 outcome type requires no injection node. MIR must consume these decisions; it cannot reopen a
 rendered type spelling or reconstruct outcome order.
-Checked propagation nodes identify the exact declared outcome layer they target and reuse the same
-injection path as an explicit `return`; they do not encode only an unqualified "failure" or
-"absence" action.
+Checked propagation nodes identify the immediate operand layer and the ordered enclosing success
+or presence injections required by the callable result; they do not encode only an unqualified
+"failure" or "absence" action. Their failure edge cleans every already-created statement
+temporary before live scope storage. Forced unwrap names the same immediate layer but has no trap
+cleanup edge. Recovery nodes retain the operand, matching layer, optional catch binding, and
+fallback block; ownership joins only the success and normally completing fallback states.
+
+Evaluated owned temporaries participate in the same branch state as named storage. Callables,
+owned receivers, arguments, and aggregate children remain staged until their enclosing operation
+commits. A later propagating child therefore sees and cleans earlier staged values; successful
+commit consumes them into the callee or aggregate. Borrowed receiver and comparison temporaries
+remain live to the statement boundary. A value created on only one reachable branch joins as
+conditionally initialized, so the statement-end event emits one conditional action rather than
+duplicating branch-specific lifetime logic.
 
 Generic inference may project a statically known expected outcome shape to collect payload
 constraints. It completes the unique substitution before checked injection nodes are built.

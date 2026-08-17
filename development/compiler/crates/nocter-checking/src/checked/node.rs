@@ -439,6 +439,11 @@ pub enum CheckedOutcome {
     Propagate {
         operand: BodyNodeId,
         layer: OutcomeLayer,
+        outer: Box<[OutcomeLayer]>,
+    },
+    Force {
+        operand: BodyNodeId,
+        layer: OutcomeLayer,
     },
     Recover {
         operand: BodyNodeId,

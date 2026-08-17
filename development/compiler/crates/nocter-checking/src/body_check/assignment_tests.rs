@@ -39,12 +39,19 @@ fn initialized_var_assignment_drops_the_old_value_before_replacement() {
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
     let assign = assignment_node(body);
-    let [action] = body.cleanups().actions(assign).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assign, CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("replacement must clean exactly one initialized value");
     };
 
     assert_eq!(
-        body.cleanups().schedule(assign).unwrap().timing(),
+        body.cleanups()
+            .schedule(assign, CleanupTiming::BeforeStore)
+            .unwrap()
+            .timing(),
         CleanupTiming::BeforeStore
     );
     assert_eq!(action.condition(), CleanupCondition::Always);
@@ -62,9 +69,8 @@ fn moved_or_dropped_var_can_be_reinitialized_without_old_value_cleanup() {
 
         assert!(
             body.cleanups()
-                .actions(assignment_node(body))
-                .unwrap()
-                .is_empty()
+                .actions(assignment_node(body), CleanupTiming::BeforeStore)
+                .is_none()
         );
     }
 }
@@ -79,9 +85,8 @@ fn assignment_restores_a_moved_named_field_and_complete_parent() {
 
     assert!(
         body.cleanups()
-            .actions(assignment_node(body))
-            .unwrap()
-            .is_empty()
+            .actions(assignment_node(body), CleanupTiming::BeforeStore)
+            .is_none()
     );
 }
 
@@ -92,7 +97,11 @@ fn maybe_initialized_var_uses_conditional_replacement_cleanup() {
     ))
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
-    let [action] = body.cleanups().actions(assignment_node(body)).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assignment_node(body), CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("maybe initialized replacement needs one conditional cleanup");
     };
 
@@ -109,9 +118,8 @@ fn rhs_move_is_observed_before_replacement_cleanup_is_planned() {
 
     assert!(
         body.cleanups()
-            .actions(assignment_node(body))
-            .unwrap()
-            .is_empty()
+            .actions(assignment_node(body), CleanupTiming::BeforeStore)
+            .is_none()
     );
 }
 
@@ -122,7 +130,11 @@ fn whole_assignment_over_a_partial_parent_cleans_only_remaining_fields() {
     ))
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
-    let [action] = body.cleanups().actions(assignment_node(body)).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assignment_node(body), CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("only the remaining initialized field should be cleaned");
     };
     let CleanupTarget::Path(path) = action.target() else {
@@ -140,7 +152,11 @@ fn maybe_initialized_field_uses_conditional_replacement_cleanup() {
     ))
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
-    let [action] = body.cleanups().actions(assignment_node(body)).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assignment_node(body), CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("maybe initialized field needs one conditional cleanup");
     };
 
@@ -160,7 +176,11 @@ fn readwrite_borrowed_field_uses_an_exact_place_cleanup() {
     else {
         unreachable!();
     };
-    let [action] = body.cleanups().actions(assign).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assign, CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("borrowed replacement needs one place cleanup");
     };
 
@@ -363,7 +383,11 @@ fn fixed_array_assignment_builds_one_index_without_requiring_index_reads() {
         place.projections()[0],
         PlaceProjection::BuiltinIndex { .. }
     ));
-    assert!(body.cleanups().actions(assign).unwrap().is_empty());
+    assert!(
+        body.cleanups()
+            .actions(assign, CleanupTiming::BeforeStore)
+            .is_none()
+    );
 }
 
 #[test]
@@ -374,12 +398,19 @@ fn indexed_move_only_replacement_uses_a_pre_store_place_cleanup() {
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
     let assign = assignment_node(body);
-    let [action] = body.cleanups().actions(assign).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(assign, CleanupTiming::BeforeStore)
+        .unwrap()
+    else {
         panic!("indexed replacement must destroy its old move-only element");
     };
 
     assert_eq!(
-        body.cleanups().schedule(assign).unwrap().timing(),
+        body.cleanups()
+            .schedule(assign, CleanupTiming::BeforeStore)
+            .unwrap()
+            .timing(),
         CleanupTiming::BeforeStore
     );
     assert!(matches!(action.target(), CleanupTarget::Place { .. }));
@@ -434,7 +465,11 @@ fn rhs_partial_move_does_not_invalidate_the_disjoint_indexed_base() {
     .unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();
 
-    assert!(body.cleanups().schedule(assignment_node(body)).is_some());
+    assert!(
+        body.cleanups()
+            .schedule(assignment_node(body), CleanupTiming::BeforeStore)
+            .is_some()
+    );
 }
 
 #[test]
@@ -470,7 +505,10 @@ fn source_defined_readwrite_index_supports_assignment() {
     ));
     assert!(place.is_writable());
     assert_eq!(
-        body.cleanups().schedule(assign).unwrap().timing(),
+        body.cleanups()
+            .schedule(assign, CleanupTiming::BeforeStore)
+            .unwrap()
+            .timing(),
         CleanupTiming::BeforeStore
     );
 }

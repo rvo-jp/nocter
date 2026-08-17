@@ -24,6 +24,7 @@ pub enum BodyRule {
     InvalidComparisonOperation,
     InvalidCall,
     InvalidConstruction,
+    InvalidOutcomeOperation,
 }
 
 impl BodyRule {
@@ -49,6 +50,7 @@ impl BodyRule {
         Self::InvalidComparisonOperation,
         Self::InvalidCall,
         Self::InvalidConstruction,
+        Self::InvalidOutcomeOperation,
     ];
 
     #[must_use]
@@ -75,6 +77,7 @@ impl BodyRule {
             Self::InvalidComparisonOperation => "E0389",
             Self::InvalidCall => "E0390",
             Self::InvalidConstruction => "E0391",
+            Self::InvalidOutcomeOperation => "E0392",
         }
     }
 
@@ -171,6 +174,10 @@ impl BodyRule {
             Self::InvalidConstruction => (
                 "this expression has no valid construction entry and type plan",
                 "use an accessible structural or variant entry with complete fields, payloads, and type evidence",
+            ),
+            Self::InvalidOutcomeOperation => (
+                "this outcome operation is incompatible with its operand or enclosing callable",
+                "use `?`, `!`, `catch`, or `otherwise` with the matching optional or fallible layer",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

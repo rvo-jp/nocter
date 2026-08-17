@@ -104,12 +104,13 @@ name-resolved and type-checked, but flow-dependent initialization, move, loan, a
 does not invent an incoming executable edge. Scope exit records generated drops in reverse
 declaration order and conditional drops for maybe-initialized storage.
 
-`CleanupTable` is a dense checked-node-indexed schedule annotation. A nonempty schedule declares
-an exact `BeforeTransfer` or `BeforeStore` timing and an ordered action list. A target is an
-owned root plus exact `FieldId` path, an already evaluated writable `PlaceId`, or a consumed
-temporary value node. Its condition is `Always` or `IfInitialized`; it never embeds a source name,
-syntax range, or independently inferred liveness bit. Later MIR expands the target type through
-the program's `DropTable` and structural drop glue without recovering timing from the node kind.
+`CleanupTable` is a dense checked-node-indexed event annotation. One node may own independent
+`AtStatementEnd`, `AtControlHeaderEnd`, `BeforeStore`, `OnOutcomePropagation`, and
+`BeforeTransfer` schedules, each with an ordered action list. A target is an owned root plus exact
+`FieldId` path, an already evaluated writable `PlaceId`, or an evaluated temporary value node. Its
+condition is `Always` or `IfInitialized`; it never embeds a source name, syntax range, or
+independently inferred liveness bit. Later MIR expands the target type through the program's
+`DropTable` and structural drop glue without recovering timing from the node kind.
 
 ## Construction Order
 
@@ -196,6 +197,15 @@ classifies absence, failure, and divergence explicitly, and returns presence/suc
 inner-to-outer construction order. Binding initializers, arguments, fields, fallbacks, returns, and
 body results must consume this plan rather than encode their own optional or fallible cases.
 
+Outcome elimination is equally explicit. `CheckedOutcome::Propagate` retains the immediate
+optional/fallible operand layer plus the ordered enclosing success/presence layers required by the
+callable result. `Force` retains the immediate layer and deliberately receives no trap cleanup.
+`Recover` retains the operand, matching clause kind, optional catch binding, and fallback block.
+The fallback is checked against the operated-on payload type; ownership initializes the catch
+binding only on failure and joins only normally completing success/fallback paths. Propagation has
+its own cleanup event so it can destroy active statement temporaries before ordinary scope and
+parameter storage without pretending to be a source `return` node.
+
 The production checked-body slice consumes `PreparedChecking` through
 `check_prepared_program`. It builds blocks, scalar constants, inferred local bindings,
 parameter/local/named-field places, readonly borrows, explicit discards, simple and compound named-
@@ -277,6 +287,16 @@ reverse order and emits actions only for remaining live field paths; the earlier
 guarantees no expanded parent has a type-owned drop body. Discarding a move-only expression records
 the consumed value node itself, so cleanup does not invent a hidden local or lose the transferred
 value.
+
+Temporary liveness is part of `OwnershipState`, not a second expression walker. The body-wide
+temporary catalog retains one checked value identity, cleanup action, and creation order; branch
+joins combine only its initialized state. Callables, owned receivers, arguments, and aggregate
+children are activated while their enclosing sequence is incomplete and consumed when it commits.
+Borrowed temporary receivers and comparison operands remain active until the enclosing statement
+or boolean control header ends. Statement and control-header boundaries clean only identities
+created below their entry snapshot, preserving temporaries owned by an enclosing expression.
+Branch-only values therefore become `IfInitialized` actions, and reverse catalog order implements
+reverse runtime creation order without adding hidden locals.
 
 Simple assignment owns one destination place and one RHS node. Construction accepts a complete
 `var` binding, a statically named field below it, a built-in fixed-array index below writable owned
@@ -406,8 +426,9 @@ specialized nominal-requirement proof. Struct aggregates preserve authored field
 independently of declaration order. Payloadless variants require member syntax, payload variants
 require call syntax, and both retain the exact `VariantId`. Fixed arrays either consume a matching
 expected element/length contract or infer one data-valid element type, then retain all element
-nodes in source order. Aggregate ownership traverses those retained children directly. A later
-propagating child still requires partial-aggregate cleanup from the outcome-control increment.
+nodes in source order. Aggregate ownership traverses those retained children directly. Each
+completed child is staged until construction commits; propagation from a later child cleans
+earlier staged children and successful construction consumes them into the resulting aggregate.
 
 Method lookup uses the same normalized instance and conformance authorities. A name-index stored
 with `ConformanceTable` finds interface surfaces without a declaration scan at each call. Exact
@@ -426,7 +447,7 @@ place-borrow, temporary-borrow, preserved-borrow, or weakened-borrow preparation
 checked receiver coercion retains its static selection and whether its result borrow is preserved
 or weakened for the selected method. Owned methods freeze a copy or move node immediately;
 lowering and ownership analysis never reconstruct receiver semantics from syntax or callable
-spelling. Closure-expression, temporary-loan/cleanup, and result-provenance passes remain
+spelling. Closure-expression, temporary-loan escape, and result-provenance passes remain
 subsequent increments rather than alternate paths inside call checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction

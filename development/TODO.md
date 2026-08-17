@@ -2,20 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by adding outcome propagation and recovery to the closed checked body
-model, then connect temporary ownership and cleanup edges to the existing analysis.
+Continue v0.14.0 Phase 3 with enum pattern control (`if is` and `match`) on the closed checked body
+model, then add the common loan/provenance authority needed by closures and temporary-borrow escape.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Extend the closed checked-operation traversal as outcomes and pattern control enter body
-   construction. No new construct may carry a private ownership side channel.
-2. Add temporary ownership and cleanup edges for call arguments/results without teaching ownership
-   analysis to rediscover callable semantics.
-3. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
+1. Add one pattern plan shared by `if is` and `match`, including target preparation, variant
+   identity, payload bindings/discards, exhaustiveness, and branch-local ownership.
+2. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
    receivers through the common loan/provenance authority.
+3. Complete typed literals, interpolation, and closures only through the same expected-type,
+   temporary-flow, and cleanup authorities already used by ordinary values.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -53,8 +53,9 @@ static dispatch retain exact decisions, and generic arguments are identity-keyed
 `check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
 for the current vertical body slice: scalar literals, inferred locals, parameter/local/named-field
 places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
-injection, ordinary conditionals, while/infinite/integer-range loops, named construction functions,
-and receiver methods. Every typed node receives
+injection and elimination, `catch`/`otherwise` recovery, ordinary conditionals,
+while/infinite/integer-range loops, calls and receiver methods, named construction functions,
+named-field struct/enum construction, and fixed arrays. Every typed node receives
 an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
 failed rule. `CopyabilityTable` collects normalized `copy`
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
@@ -76,8 +77,8 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Annotation binding, remaining operators, aggregates, pattern conditionals,
-`match`, collection iteration, regions, closures, literals, and interpolation remain incomplete.
+branch-local paths. Typed binding annotations, expansion operators, pattern conditionals, `match`,
+collection iteration, regions, closures, typed literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -88,13 +89,16 @@ endpoints are evaluated once before iteration and the typed loop binding is init
 iteration. A repeated move is therefore rejected without rebuilding HIR or allocating different
 semantic identities on an analysis pass. Unreachable source after a terminal remains under an
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
-checked but creates no flow-dependent initialization continuation. Collection iteration, pattern
-conditionals, and `match` remain incomplete.
+checked but creates no flow-dependent initialization continuation. Pattern conditionals,
+`match`, collection iteration, regions, closures, typed literals, interpolation, loans, and
+provenance remain incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
 analysis materializes one dense `CleanupTable` keyed by the checked node that owns each scheduled
-event. Normal block exits, `return`, `break`, and `continue` all derive cleanup from the same
+event. A node may own independent pre-store, statement-end, control-header, propagation, and
+control-transfer events; no node kind is asked to imply timing. Normal block exits, `return`,
+`break`, and `continue` all derive cleanup from the same
 field-sensitive initialization state. Actions preserve reverse declaration order, distinguish
 unconditional from maybe-initialized destruction, omit moved roots and non-owning borrows, expand a
 partially moved struct to only its remaining fields, and represent a discarded move-only result as
@@ -103,8 +107,13 @@ the fixed-point join. Simple assignment accepts whole mutable bindings, their st
 fields, and fields reached through readwrite borrows. It checks the RHS before replacement, applies
 the destination expected type, restores moved and maybe-initialized paths, rejects immutable or
 unavailable-parent targets, and obtains old-value cleanup from the same partial-path planner used
-by scope exit. Each cleanup schedule declares whether it runs before control transfer or before
-assignment storage, so later MIR cannot infer ordering from the node kind. Checked integer
+by scope exit. Each cleanup schedule declares its exact event timing, so later MIR cannot infer
+ordering from the node kind. Evaluated owned
+temporaries use the same flow state as named paths: call/aggregate staging consumes them on
+success, branch joins make one-sided creation conditional, and statement/control-header edges
+destroy remaining values in reverse creation order. Postfix propagation owns a distinct failure
+edge that destroys active temporaries before scope storage, while forced unwrap and a `never` call
+retain the specified no-unwinding behavior. Checked integer
 arithmetic selects `Add`, `Subtract`, `Multiply`, `Divide`, or `Remainder` once and evaluates
 operands left-to-right. Compound assignment reuses that selection, retains one target and one RHS,
 requires a definitely initialized numeric place, and never constructs a fictional binary
@@ -120,8 +129,8 @@ place model. Selection prefers a unique direct operation over coercion paths, re
 ranked paths as `E0388`, and carries one complete `StaticSelection` containing dispatch identity
 and generic arguments. Lexical structural index requirements dispatch through their exact
 `RequirementId`; concrete instance candidates must satisfy normalized declaration and callable
-requirements, while unresolved generic receivers require lexical evidence. Temporary cleanup for
-calls and aggregates and executable MIR lowering remain incomplete.
+requirements, while unresolved generic receivers require lexical evidence. Executable MIR
+lowering remains incomplete.
 
 Closed prefix, shift, logical, and comparison selection is complete. A directly negated
 integer literal becomes one signed `i128`-domain constant, including each exact signed minimum;
@@ -138,8 +147,8 @@ ranked `CallableInference` result supplies canonical generic arguments; normaliz
 requirements re-enter the shared instance-operation proof authority. Concrete parameters
 contextualize literals before inference, `none` remains deferred until another constraint fixes its
 payload, and the result context prefers complete identity before outcome injection. `CheckedCall`
-retains exact static dispatch and source-order arguments. Ownership visits the callee value (when
-later supported), receiver, and arguments in language order, so explicit moves and use-after-move
+retains exact static dispatch and source-order arguments. Ownership visits the callee value,
+receiver, and arguments in language order, so explicit moves and use-after-move
 share ordinary place state. The common expected-type boundary now owns exact compatibility,
 recursive outcome injection, built-in readwrite-to-readonly weakening, and one-step source-defined
 borrow coercion. It records the exact target, source preparation, and static selection in
@@ -164,8 +173,8 @@ coercion tiers, ambiguity, and direct-method priority match other instance opera
 `CheckedCallReceiver` freezes owned copy/move, place or temporary borrowing, existing-borrow
 preservation/weakening, selected coercion dispatch, and post-coercion weakening. Concrete calls
 freeze their implementation/default callable; generic calls retain the exact interface
-requirement. Closure expressions, temporary cleanup/loan escape, and program-wide
-result-provenance inference remain incomplete.
+requirement. Closure expressions, temporary-loan escape, and program-wide result-provenance
+inference remain incomplete.
 
 `ConstructionSurfaceTable` now indexes the complete construction surface of every nominal family:
 structural field identity and declaration order, enum variants by semantic name, and any authored
@@ -176,8 +185,9 @@ fixed-array literals now produce closed aggregate operations. Struct fields and 
 reuse the same source-order contextual-inference planner as callable arguments, so omitted owner
 arguments, expected result evidence, deferred absence, explicit moves, and nominal requirements do
 not form a parallel inference system. Aggregate ownership traverses retained children in source
-order. Cleanup of a partially initialized aggregate on a later propagating child remains coupled
-to the upcoming outcome-control edge work.
+order. Earlier initialized children become staged value temporaries until the aggregate commits;
+a later propagating child cleans them on its failure edge and successful construction consumes
+them into the aggregate.
 
 Explicit `drop name` now constructs the same root `CheckedPlace` used by move analysis. Structural
 checking rejects copy and borrow bindings as `E0383` even in unreachable source. Reachable drop

@@ -3,7 +3,7 @@ use nocter_declaration_lowering::lower_compile_unit_declarations;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, PlaceRoot,
+    CheckedControl, CheckedOperation, CleanupCondition, CleanupTarget, CleanupTiming, PlaceRoot,
     prepare_program_checking,
 };
 
@@ -34,7 +34,11 @@ fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
             )
         })
         .unwrap();
-    let [action] = body.cleanups().actions(drop_).unwrap() else {
+    let [action] = body
+        .cleanups()
+        .actions(drop_, CleanupTiming::BeforeTransfer)
+        .unwrap()
+    else {
         panic!("explicit drop must own exactly one cleanup action");
     };
 
@@ -43,7 +47,11 @@ fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
         action.target(),
         CleanupTarget::Path(path) if matches!(path.root(), PlaceRoot::Parameter(_)) && path.fields().is_empty()
     ));
-    assert!(body.cleanups().actions(body.root()).unwrap().is_empty());
+    assert!(
+        body.cleanups()
+            .actions(body.root(), CleanupTiming::BeforeTransfer)
+            .is_none()
+    );
 }
 
 #[test]
@@ -103,5 +111,9 @@ fn unreachable_valid_drop_has_no_executable_cleanup_edge() {
         })
         .unwrap();
 
-    assert!(body.cleanups().actions(drop_).unwrap().is_empty());
+    assert!(
+        body.cleanups()
+            .actions(drop_, CleanupTiming::BeforeTransfer)
+            .is_none()
+    );
 }

@@ -124,9 +124,9 @@ impl CheckedBodyBuilder {
         })?;
         let nodes = self.nodes.finish();
         let mut cleanup_schedules =
-            ArenaBuilder::<BodyNodeId, Option<super::CleanupSchedule>>::new();
+            ArenaBuilder::<BodyNodeId, Box<[super::CleanupSchedule]>>::new();
         for _ in 0..nodes.len() {
-            cleanup_schedules.insert(None);
+            cleanup_schedules.insert(Box::new([]));
         }
         Ok(CheckedBody::new(
             CheckedBodyDomains {
