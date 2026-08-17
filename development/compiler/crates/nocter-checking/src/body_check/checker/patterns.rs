@@ -11,18 +11,20 @@ use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
+use crate::instance_operations::selected_generic_arguments;
 use crate::syntax::{
     descendants, direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
     is_transparent_expression,
 };
-use crate::type_relations::TypeSubstitution;
+use crate::type_relations::{TypeSubstitution, match_type_pattern};
 use crate::{
     CheckedControl, CheckedOperation, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
-    CheckedPatternSlot, CheckedPatternSubject, PatternSubjectPreparation,
+    CheckedPatternSlot, CheckedPatternSubject, DropSelection, PatternSubjectPreparation,
 };
 
 struct PatternSubjectPlan {
     checked: CheckedPatternSubject,
+    ty: TypeId,
     arguments: Box<[TypeId]>,
 }
 
@@ -199,6 +201,7 @@ impl BodyChecker<'_, '_> {
         }
         Ok(PatternSubjectPlan {
             checked: CheckedPatternSubject::new(value, definition, preparation),
+            ty: nominal_type,
             arguments,
         })
     }
@@ -334,12 +337,39 @@ impl BodyChecker<'_, '_> {
                     | PatternSubjectPreparation::ConsumedPlace
             ))
         .then(|| self.drops.get(resolved.nominal))
-        .flatten();
+        .flatten()
+        .map(|drop| self.select_pattern_drop(drop, subject.ty))
+        .transpose()?;
         Ok(CheckedPattern::new(
             resolved.variant,
             slots,
             before_transfer_drop,
         ))
+    }
+
+    fn select_pattern_drop(
+        &mut self,
+        drop: nocter_model::DropId,
+        subject: TypeId,
+    ) -> Result<DropSelection, BodyCheckError> {
+        let declaration = self
+            .graph
+            .declarations()
+            .drops()
+            .get(drop)
+            .cloned()
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        let bindings = match_type_pattern(self.types, declaration.target(), subject)
+            .map_err(BodyCheckInternalError::BodyAssumptions)?
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        let mut substitution = TypeSubstitution::default();
+        for (parameter, ty) in bindings.iter() {
+            substitution.bind_generic(parameter, ty);
+        }
+        let arguments =
+            selected_generic_arguments(self.types, declaration.generic_parameters(), &substitution)
+                .map_err(BodyCheckInternalError::from)?;
+        Ok(DropSelection::new(drop, arguments))
     }
 
     fn pattern_binding_type(

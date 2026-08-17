@@ -49,7 +49,7 @@ pub use checked::{
     CleanupSchedule, CleanupTable, CleanupTarget, CleanupTiming, ClosureDefinition,
     ClosureProvenanceTable, ClosureSignature, ClosureTable, ClosureTableBuildError,
     CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
-    DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
+    DropSelection, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
     IterationAcquisition, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable, LogicalOperation,
     LoopKind, PatternSubjectPreparation, PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary,
     PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource, ProvenanceTable,

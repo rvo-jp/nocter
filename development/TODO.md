@@ -54,7 +54,9 @@ Callable specialization now uses one canonical key containing callable identity 
 owner-and-callable generic domain. Missing, extra, and symbolic arguments are rejected, and owner
 target types are derived rather than duplicated as receiver state. A single checked-body traversal
 enumerates every executable static selection, closure, explicit pattern drop, referenced type, and
-cleanup type while excluding unreachable retained source. `ConcreteDispatchResolver` forks the
+cleanup type while excluding unreachable retained source. Every explicit pattern drop retains its
+declaration plus canonical generic substitution, so generic drop bodies do not lose the concrete
+subject type before executable specialization. `ConcreteDispatchResolver` forks the
 checked type store and resolves direct, interface, and structural dispatch into ordered direct,
 primitive, or indirect-callable steps. Structural comparison and indexing retain coercion steps;
 MIR will not receive an unresolved requirement or repeat conformance selection.
@@ -122,7 +124,8 @@ Coverage rejects duplicate variants, missing variants, and non-final fallbacks. 
 types are specialized from the subject's nominal arguments. Retained places may name only copyable
 payloads, while borrowed subjects bind every named payload with the subject borrow capability.
 When a type-owned drop body must run before a move-only payload leaves, the pattern freezes its
-exact `DropId`; copy-only bindings retain the complete enum for ordinary value cleanup instead.
+exact `DropId` and canonical declaration-generic substitution; copy-only bindings retain the
+complete enum for ordinary value cleanup instead.
 Whole-binding state now tracks parameter and local move
 paths, emits exact `Move` nodes, rejects moves of copy values and borrow bindings, and reports
 later uses through `E0376`-`E0378`. Statically named fields now resolve through one visibility-aware

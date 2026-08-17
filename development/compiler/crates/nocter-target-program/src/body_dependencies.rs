@@ -5,8 +5,8 @@ use nocter_checking::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation, CallTarget,
     CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedPlace,
     CheckedReadonlyOperand, CheckedReceiver, CleanupTarget, ComparisonImplementation,
-    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PrimitiveOperation,
-    SequenceElement, StaticSelection, TypedIteration,
+    DropSelection, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
+    PrimitiveOperation, SequenceElement, StaticSelection, TypedIteration,
 };
 use nocter_model::{BodyId, BodyNodeId, ClosureId, DropId, LoopId, PlaceId, TypeId};
 
@@ -21,7 +21,7 @@ use crate::TargetProgram;
 pub struct CheckedBodyDependencies {
     selections: Box<[StaticSelection]>,
     closures: Box<[ClosureId]>,
-    explicit_drops: Box<[DropId]>,
+    drop_selections: Box<[DropSelection]>,
     types: Box<[TypeId]>,
 }
 
@@ -37,8 +37,8 @@ impl CheckedBodyDependencies {
     }
 
     #[must_use]
-    pub const fn explicit_drops(&self) -> &[DropId] {
-        &self.explicit_drops
+    pub const fn drop_selections(&self) -> &[DropSelection] {
+        &self.drop_selections
     }
 
     /// Types used by reachable nodes, places, iteration plans, and executable cleanup actions.
@@ -82,11 +82,11 @@ struct DependencyCollector<'program> {
     visited_loops: HashSet<LoopId>,
     selection_set: HashSet<StaticSelection>,
     closure_set: HashSet<ClosureId>,
-    drop_set: HashSet<DropId>,
+    drop_set: HashSet<DropSelection>,
     type_set: HashSet<TypeId>,
     selections: Vec<StaticSelection>,
     closures: Vec<ClosureId>,
-    explicit_drops: Vec<DropId>,
+    drop_selections: Vec<DropSelection>,
     types: Vec<TypeId>,
 }
 
@@ -105,7 +105,7 @@ impl<'program> DependencyCollector<'program> {
             type_set: HashSet::new(),
             selections: Vec::new(),
             closures: Vec::new(),
-            explicit_drops: Vec::new(),
+            drop_selections: Vec::new(),
             types: Vec::new(),
         }
     }
@@ -114,7 +114,7 @@ impl<'program> DependencyCollector<'program> {
         CheckedBodyDependencies {
             selections: self.selections.into_boxed_slice(),
             closures: self.closures.into_boxed_slice(),
-            explicit_drops: self.explicit_drops.into_boxed_slice(),
+            drop_selections: self.drop_selections.into_boxed_slice(),
             types: self.types.into_boxed_slice(),
         }
     }
@@ -521,20 +521,30 @@ impl<'program> DependencyCollector<'program> {
         Ok(())
     }
 
-    fn record_drop(&mut self, drop: DropId) -> Result<(), BodyDependencyError> {
-        if self
+    fn record_drop(&mut self, selection: &DropSelection) -> Result<(), BodyDependencyError> {
+        let declaration = self
             .program
             .checked()
             .graph()
             .declarations()
             .drops()
-            .get(drop)
-            .is_none()
+            .get(selection.declaration())
+            .ok_or(BodyDependencyError::UnknownDrop(selection.declaration()))?;
+        if declaration.generic_parameters().len() != selection.generic_arguments().as_slice().len()
+            || declaration
+                .generic_parameters()
+                .iter()
+                .any(|parameter| selection.generic_arguments().get(*parameter).is_none())
         {
-            return Err(BodyDependencyError::UnknownDrop(drop));
+            return Err(BodyDependencyError::InvalidDropArguments(
+                selection.declaration(),
+            ));
         }
-        if self.drop_set.insert(drop) {
-            self.explicit_drops.push(drop);
+        for argument in selection.generic_arguments().as_slice() {
+            self.record_type(argument.ty())?;
+        }
+        if self.drop_set.insert(selection.clone()) {
+            self.drop_selections.push(selection.clone());
         }
         Ok(())
     }
@@ -573,6 +583,7 @@ pub enum BodyDependencyError {
         actual: BodyId,
     },
     UnknownDrop(DropId),
+    InvalidDropArguments(DropId),
     UnknownType(TypeId),
 }
 

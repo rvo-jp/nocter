@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_model::{CallableId, GenericParameterId, RequirementId, TypeId};
+use nocter_model::{CallableId, DropId, GenericParameterId, RequirementId, TypeId};
 
 /// Static operation selected during body checking.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -94,6 +94,33 @@ impl StaticSelection {
     #[must_use]
     pub const fn dispatch(&self) -> StaticDispatch {
         self.dispatch
+    }
+
+    #[must_use]
+    pub const fn generic_arguments(&self) -> &GenericArguments {
+        &self.generic_arguments
+    }
+}
+
+/// One exact type-owned drop body and the complete declaration-generic substitution it requires.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct DropSelection {
+    declaration: DropId,
+    generic_arguments: GenericArguments,
+}
+
+impl DropSelection {
+    #[must_use]
+    pub const fn new(declaration: DropId, generic_arguments: GenericArguments) -> Self {
+        Self {
+            declaration,
+            generic_arguments,
+        }
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> DropId {
+        self.declaration
     }
 
     #[must_use]

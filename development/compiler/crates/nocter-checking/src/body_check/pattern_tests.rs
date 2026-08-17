@@ -494,3 +494,59 @@ fn type_owned_drop_is_frozen_before_move_only_payload_transfer() {
             .any(|action| matches!(action.target(), CleanupTarget::Value { .. }))
     );
 }
+
+#[test]
+fn pattern_drop_preserves_the_concrete_drop_substitution() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         enum Resource<T> { active(item: T) }\n\
+         drop Resource<T>(&+self) { return }\n\
+         func consume(value: Owned): void {\n\
+             let _ = match Resource.active(move value) {\n\
+                 Resource.active(item) { move item }\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let pattern = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes()
+                .iter()
+                .find_map(|(_, checked)| match checked.operation() {
+                    CheckedOperation::Control(CheckedControl::Pattern { arms, .. }) => {
+                        Some(arms[0].pattern())
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let selection = pattern.before_transfer_drop().unwrap();
+    let drop = output
+        .program()
+        .graph()
+        .declarations()
+        .drops()
+        .get(selection.declaration())
+        .unwrap();
+    let parameter = drop.generic_parameters()[0];
+    let argument = selection.generic_arguments().get(parameter).unwrap();
+    let Some(TypeKind::Nominal { definition, .. }) = output.program().types().get(argument) else {
+        panic!("drop argument must retain the concrete nominal type")
+    };
+    let nominal = output
+        .program()
+        .graph()
+        .declarations()
+        .nominal_types()
+        .get(*definition)
+        .unwrap();
+
+    assert_eq!(
+        output.program().graph().symbols().spelling(nominal.name()),
+        Some("Owned")
+    );
+}

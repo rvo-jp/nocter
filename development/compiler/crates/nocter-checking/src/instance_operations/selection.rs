@@ -528,7 +528,7 @@ impl<'program> InstanceOperationSelector<'program> {
     }
 }
 
-pub(super) fn selected_generic_arguments(
+pub(crate) fn selected_generic_arguments(
     types: &mut TypeStore,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,

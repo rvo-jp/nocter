@@ -137,6 +137,8 @@ One executable dependency traversal covers calls, receiver and operand coercions
 index projections, iteration, typed literals, interpolation, closures, explicit pattern drops,
 and every scheduled cleanup type. It excludes source retained under `Unreachable` and unreachable
 pattern fallbacks. This is the only edge inventory from which the monomorphization queue may grow.
+An explicit pattern drop retains both its `DropId` and the complete declaration-generic
+substitution selected from the subject type; a later stage never rematches a source type pattern.
 
 Instantiation substitutes the checked signature and body, proves retained requirements through
 the checked program's conformance authority, resolves abstract dispatch once, and enqueues exact

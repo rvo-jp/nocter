@@ -203,6 +203,8 @@ be introduced to make an unresolved syntax choice.
   generic owner arguments and emits exact field source projections. The checked program owns one
   nominal-family `DropTable`; a partial move through the nearest enclosing type-owned drop projects
   `E0381` and the exact drop declaration instead of rediscovering cleanup by method or name lookup.
+  Pattern transfer records that drop together with its canonical declaration-generic substitution,
+  so executable specialization never rematches a source type pattern.
   The checker also rejects copy-value moves, borrow-binding moves, later uninitialized uses,
   value-producing expression statements, and reachable non-value fallthrough, and projects every
   `BodyNodeId` back to its exact syntax origin.

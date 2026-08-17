@@ -1,12 +1,11 @@
 use nocter_model::{
-    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, DropId,
-    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, TypeKind,
-    VariantId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, FieldId,
+    LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, TypeKind, VariantId,
 };
 
 use crate::expected::OutcomeLayer;
 
-use super::StaticSelection;
+use super::{DropSelection, StaticSelection};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedNode {
@@ -790,14 +789,14 @@ impl CheckedPatternSlot {
 pub struct CheckedPattern {
     variant: VariantId,
     slots: Box<[CheckedPatternSlot]>,
-    before_transfer_drop: Option<DropId>,
+    before_transfer_drop: Option<DropSelection>,
 }
 
 impl CheckedPattern {
     pub(crate) fn new(
         variant: VariantId,
         slots: impl Into<Box<[CheckedPatternSlot]>>,
-        before_transfer_drop: Option<DropId>,
+        before_transfer_drop: Option<DropSelection>,
     ) -> Self {
         Self {
             variant,
@@ -818,8 +817,8 @@ impl CheckedPattern {
 
     /// The type-owned drop body that observes complete `Self` before move-only payload transfer.
     #[must_use]
-    pub const fn before_transfer_drop(&self) -> Option<DropId> {
-        self.before_transfer_drop
+    pub const fn before_transfer_drop(&self) -> Option<&DropSelection> {
+        self.before_transfer_drop.as_ref()
     }
 }
 

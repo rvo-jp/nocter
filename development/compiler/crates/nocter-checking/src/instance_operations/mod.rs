@@ -20,4 +20,5 @@ pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;
 pub(crate) use selection::{
     IndexOperationCandidate, InstanceOperationSelector, retain_direct_candidates,
+    selected_generic_arguments,
 };

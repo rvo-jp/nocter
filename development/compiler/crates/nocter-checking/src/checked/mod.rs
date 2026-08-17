@@ -43,5 +43,6 @@ pub use provenance::{
     ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
 };
 pub use selection::{
-    DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+    DropSelection, DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch,
+    StaticSelection,
 };

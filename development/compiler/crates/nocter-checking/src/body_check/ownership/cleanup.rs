@@ -138,7 +138,7 @@ impl<'program> CleanupPlanner<'program> {
         }
         let owner_drop = self.drops.get(definition);
         if let Some(drop) = pattern.before_transfer_drop() {
-            if owner_drop != Some(drop) {
+            if owner_drop != Some(drop.declaration()) {
                 return Err(BodyCheckInternalError::CleanupPlanning);
             }
         } else if owner_drop.is_some() {
