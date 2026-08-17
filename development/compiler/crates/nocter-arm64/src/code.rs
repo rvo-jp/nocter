@@ -1,4 +1,8 @@
-use crate::{Arm64BranchCondition, Arm64EncodingError, Arm64Instruction};
+use crate::{
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
+    Arm64DataId, Arm64DataSize, Arm64EncodingError, Arm64FunctionId, Arm64Instruction,
+    Arm64Register,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Arm64LabelId(usize);
@@ -13,6 +17,28 @@ enum CodeItem {
     ConditionalBranch {
         target: Arm64LabelId,
         condition: Arm64BranchCondition,
+    },
+    FunctionBranch {
+        target: Arm64FunctionId,
+        link: bool,
+    },
+    DataAddress {
+        target: Arm64DataId,
+        destination: Arm64Register,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Arm64CodeFixup {
+    FunctionBranch {
+        offset: u64,
+        target: Arm64FunctionId,
+        link: bool,
+    },
+    DataAddress {
+        offset: u64,
+        target: Arm64DataId,
+        destination: Arm64Register,
     },
 }
 
@@ -68,6 +94,24 @@ impl Arm64CodeBuilder {
             .push(CodeItem::ConditionalBranch { target, condition });
     }
 
+    /// Emits a whole-program function reference to be resolved after text layout.
+    pub fn branch_function(&mut self, target: Arm64FunctionId, link: bool) {
+        self.items.push(CodeItem::FunctionBranch { target, link });
+    }
+
+    /// Emits a linked whole-program function call.
+    pub fn call(&mut self, target: Arm64FunctionId) {
+        self.branch_function(target, true);
+    }
+
+    /// Materializes one read-only-data address through a page and page-offset fixup pair.
+    pub fn load_data_address(&mut self, target: Arm64DataId, destination: Arm64Register) {
+        self.items.push(CodeItem::DataAddress {
+            target,
+            destination,
+        });
+    }
+
     /// Resolves all labels and relaxes out-of-range conditional branches before encoding.
     ///
     /// # Errors
@@ -115,6 +159,7 @@ impl Arm64CodeBuilder {
 pub struct Arm64Code {
     bytes: Box<[u8]>,
     label_offsets: Box<[u64]>,
+    fixups: Box<[Arm64CodeFixup]>,
     instruction_count: usize,
 }
 
@@ -133,6 +178,10 @@ impl Arm64Code {
     pub const fn instruction_count(&self) -> usize {
         self.instruction_count
     }
+
+    pub(crate) fn into_parts(self) -> (Box<[u8]>, Box<[Arm64CodeFixup]>) {
+        (self.bytes, self.fixups)
+    }
 }
 
 fn item_offsets(items: &[CodeItem], expanded: &[bool]) -> Result<Vec<u64>, Arm64CodeError> {
@@ -140,10 +189,10 @@ fn item_offsets(items: &[CodeItem], expanded: &[bool]) -> Result<Vec<u64>, Arm64
     let mut offset = 0_u64;
     for (index, item) in items.iter().enumerate() {
         offsets.push(offset);
-        let size = if matches!(item, CodeItem::ConditionalBranch { .. }) && expanded[index] {
-            8
-        } else {
-            4
+        let size = match item {
+            CodeItem::ConditionalBranch { .. } if expanded[index] => 8,
+            CodeItem::DataAddress { .. } => 8,
+            _ => 4,
         };
         offset = offset
             .checked_add(size)
@@ -180,6 +229,7 @@ fn encode_items(
     let capacity = usize::try_from(*offsets.last().ok_or(Arm64CodeError::OffsetOverflow)?)
         .map_err(|_| Arm64CodeError::OffsetOverflow)?;
     let mut bytes = Vec::with_capacity(capacity);
+    let mut fixups = Vec::new();
     for (index, item) in items.into_iter().enumerate() {
         match item {
             CodeItem::Instruction(instruction) => append(&mut bytes, instruction)?,
@@ -218,12 +268,56 @@ fn encode_items(
                     condition,
                 },
             )?,
+            CodeItem::FunctionBranch { target, link } => {
+                append(
+                    &mut bytes,
+                    Arm64Instruction::Branch {
+                        displacement: 0,
+                        link,
+                    },
+                )?;
+                fixups.push(Arm64CodeFixup::FunctionBranch {
+                    offset: offsets[index],
+                    target,
+                    link,
+                });
+            }
+            CodeItem::DataAddress {
+                target,
+                destination,
+            } => {
+                append(
+                    &mut bytes,
+                    Arm64Instruction::AddressPage {
+                        destination,
+                        displacement: 0,
+                    },
+                )?;
+                append(
+                    &mut bytes,
+                    Arm64Instruction::AddSubtractImmediate {
+                        size: Arm64DataSize::Bits64,
+                        operation: Arm64AddSubtract::Add,
+                        set_flags: false,
+                        destination: Arm64AddSubtractDestination::General(destination),
+                        source: Arm64BaseRegister::General(destination),
+                        immediate: 0,
+                        shift_12: false,
+                    },
+                )?;
+                fixups.push(Arm64CodeFixup::DataAddress {
+                    offset: offsets[index],
+                    target,
+                    destination,
+                });
+            }
         }
     }
     let instruction_count = bytes.len() / 4;
     Ok(Arm64Code {
         bytes: bytes.into_boxed_slice(),
         label_offsets: labels.into_boxed_slice(),
+        fixups: fixups.into_boxed_slice(),
         instruction_count,
     })
 }

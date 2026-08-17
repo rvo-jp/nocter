@@ -402,8 +402,10 @@ be introduced to make an unresolved syntax choice.
   allocation. Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Machine instruction selection, virtual-register allocation,
-  prologue/epilogue materialization, and cross-function/data fixups remain separate later
-  responsibilities in this crate.
+  prologue/epilogue materialization, and Mach-O serialization remain separate later
+  responsibilities in this crate. Dense function and data identities already feed typed fixups:
+  function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
+  only after the writer supplies final section virtual addresses.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

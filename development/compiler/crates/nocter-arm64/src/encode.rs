@@ -15,6 +15,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
         instruction @ (Arm64Instruction::NoOperation
+        | Arm64Instruction::AddressPage { .. }
         | Arm64Instruction::ConditionalSet { .. }
         | Arm64Instruction::Branch { .. }
         | Arm64Instruction::BranchConditional { .. }
@@ -149,6 +150,21 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
 fn encode_control(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
     match instruction {
         Arm64Instruction::NoOperation => Ok(0xd503_201f),
+        Arm64Instruction::AddressPage {
+            destination,
+            displacement,
+        } => {
+            let immediate = signed_scaled_by(
+                displacement,
+                12,
+                21,
+                Arm64EncodingError::MisalignedPageAddress,
+                Arm64EncodingError::PageAddressOutOfRange,
+            )?;
+            let low = immediate & 0b11;
+            let high = immediate >> 2;
+            Ok(0x9000_0000 | (low << 29) | (high << 5) | u32::from(destination.number()))
+        }
         Arm64Instruction::ConditionalSet {
             size,
             destination,
@@ -391,21 +407,38 @@ fn encode_load_store(
 }
 
 fn signed_scaled(displacement: i64, bits: u8) -> Result<u32, Arm64EncodingError> {
-    if displacement % 4 != 0 {
-        return Err(Arm64EncodingError::MisalignedBranch);
+    signed_scaled_by(
+        displacement,
+        2,
+        bits,
+        Arm64EncodingError::MisalignedBranch,
+        Arm64EncodingError::BranchOutOfRange,
+    )
+}
+
+fn signed_scaled_by(
+    displacement: i64,
+    scale: u8,
+    bits: u8,
+    misaligned: Arm64EncodingError,
+    out_of_range: Arm64EncodingError,
+) -> Result<u32, Arm64EncodingError> {
+    let unit = 1_i64 << scale;
+    if displacement % unit != 0 {
+        return Err(misaligned);
     }
-    let words = displacement / 4;
+    let units = displacement / unit;
     let minimum = -(1_i64 << (bits - 1));
     let maximum = (1_i64 << (bits - 1)) - 1;
-    if words < minimum || words > maximum {
-        return Err(Arm64EncodingError::BranchOutOfRange);
+    if units < minimum || units > maximum {
+        return Err(out_of_range);
     }
-    let encoded = if words < 0 {
-        (1_i64 << bits) + words
+    let encoded = if units < 0 {
+        (1_i64 << bits) + units
     } else {
-        words
+        units
     };
-    u32::try_from(encoded).map_err(|_| Arm64EncodingError::BranchOutOfRange)
+    u32::try_from(encoded).map_err(|_| out_of_range)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -416,4 +449,6 @@ pub enum Arm64EncodingError {
     OffsetOutOfRange,
     MisalignedBranch,
     BranchOutOfRange,
+    MisalignedPageAddress,
+    PageAddressOutOfRange,
 }

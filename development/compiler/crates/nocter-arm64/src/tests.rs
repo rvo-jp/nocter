@@ -76,6 +76,33 @@ fn encodes_integer_arithmetic_without_untyped_register_31() {
 }
 
 #[test]
+fn encodes_page_relative_addresses_without_truncation() {
+    assert_eq!(
+        word(Arm64Instruction::AddressPage {
+            destination: x(3),
+            displacement: 0,
+        }),
+        0x9000_0003
+    );
+    assert_eq!(
+        Arm64Instruction::AddressPage {
+            destination: x(0),
+            displacement: 1,
+        }
+        .encode(),
+        Err(Arm64EncodingError::MisalignedPageAddress)
+    );
+    assert_eq!(
+        Arm64Instruction::AddressPage {
+            destination: x(0),
+            displacement: 1_i64 << 32,
+        }
+        .encode(),
+        Err(Arm64EncodingError::PageAddressOutOfRange)
+    );
+}
+
+#[test]
 fn encodes_multiply_divide_shift_and_wide_immediates() {
     assert_eq!(
         word(Arm64Instruction::MoveWide {
@@ -418,4 +445,118 @@ fn abi_register_roles_form_one_closed_partition() {
     assert!(crate::Arm64NocterAbi::is_allocatable(x(19)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(16)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(18)));
+}
+
+#[test]
+fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let target = builder.declare_function();
+    let caller = builder.declare_function();
+    let _prefix = builder.add_data([1, 2, 3], 1).unwrap();
+    let text = builder.add_data([9], 8).unwrap();
+
+    let mut target_code = crate::Arm64CodeBuilder::new();
+    target_code.append(Arm64Instruction::Return { target: x(30) });
+    builder
+        .define_function(target, target_code.finish().unwrap())
+        .unwrap();
+
+    let mut caller_code = crate::Arm64CodeBuilder::new();
+    caller_code.append(Arm64Instruction::NoOperation);
+    caller_code.call(target);
+    caller_code.load_data_address(text, x(3));
+    caller_code.append(Arm64Instruction::Return { target: x(30) });
+    builder
+        .define_function(caller, caller_code.finish().unwrap())
+        .unwrap();
+    builder.set_entry(caller).unwrap();
+    let program = builder.finish().unwrap();
+    let words = program
+        .text()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        words,
+        [
+            0xd65f_03c0,
+            0xd503_201f,
+            0x97ff_fffe,
+            0x9000_0003,
+            0x9100_0063,
+            0xd65f_03c0,
+        ]
+    );
+    assert_eq!(program.function(target).unwrap().offset(), 0);
+    assert_eq!(program.function(caller).unwrap().offset(), 4);
+    assert_eq!(program.entry(), caller);
+    assert_eq!(program.read_only_data(), [1, 2, 3, 0, 0, 0, 0, 0, 9]);
+    assert_eq!(program.data(text).unwrap().offset(), 8);
+    assert_eq!(program.data_fixups().len(), 1);
+    assert_eq!(program.data_fixups()[0].instruction_offset(), 12);
+    assert_eq!(program.data_fixups()[0].target_offset(), 8);
+    assert_eq!(program.data_fixups()[0].destination(), x(3));
+
+    let relocated = program
+        .relocate_data_addresses(0x1_0000_0000, 0x1_0000_2000)
+        .unwrap();
+    let relocated_words = relocated
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+    assert_eq!(relocated_words[3], 0xd000_0003);
+    assert_eq!(relocated_words[4], 0x9100_2063);
+    assert_eq!(
+        program.relocate_data_addresses(0, 1_u64 << 32),
+        Err(crate::Arm64ProgramError::Encoding(
+            Arm64EncodingError::PageAddressOutOfRange
+        ))
+    );
+}
+
+#[test]
+fn program_layout_rejects_incomplete_and_foreign_identities() {
+    let empty = crate::Arm64ProgramBuilder::new();
+    assert_eq!(empty.finish(), Err(crate::Arm64ProgramError::MissingEntry));
+
+    let mut missing = crate::Arm64ProgramBuilder::new();
+    let missing_body = missing.declare_function();
+    missing.set_entry(missing_body).unwrap();
+    assert_eq!(
+        missing.finish(),
+        Err(crate::Arm64ProgramError::MissingFunction(missing_body))
+    );
+
+    let mut owner = crate::Arm64ProgramBuilder::new();
+    let _first = owner.declare_function();
+    let foreign = owner.declare_function();
+    let mut branches = crate::Arm64ProgramBuilder::new();
+    let entry = branches.declare_function();
+    let mut code = crate::Arm64CodeBuilder::new();
+    code.call(foreign);
+    branches
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    branches.set_entry(entry).unwrap();
+    assert_eq!(
+        branches.finish(),
+        Err(crate::Arm64ProgramError::UnknownFunction(foreign))
+    );
+
+    let mut data_owner = crate::Arm64ProgramBuilder::new();
+    let _first = data_owner.add_data([], 1).unwrap();
+    let foreign = data_owner.add_data([], 1).unwrap();
+    let mut references = crate::Arm64ProgramBuilder::new();
+    let entry = references.declare_function();
+    let mut code = crate::Arm64CodeBuilder::new();
+    code.load_data_address(foreign, x(0));
+    references
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    references.set_entry(entry).unwrap();
+    assert_eq!(
+        references.finish(),
+        Err(crate::Arm64ProgramError::UnknownData(foreign))
+    );
 }

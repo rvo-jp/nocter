@@ -187,6 +187,16 @@ It rejects invalid alignment, non-callee-saved preservation, and every size or o
 Zero-sized objects retain an aligned address without consuming bytes. The completed frame size is
 always a multiple of the 16-byte call-boundary alignment.
 
+Whole-program code and data use distinct dense `Arm64FunctionId` and `Arm64DataId` domains. Function
+bodies may emit typed function-branch and data-address fixups, but the function-local code builder
+never guesses a global displacement. `Arm64ProgramBuilder` lays functions out in declaration order,
+rejects missing or duplicate definitions, validates every target, and resolves direct and tail
+branches only after all text offsets are stable. Read-only data is aligned in deterministic input
+order. Its address materialization remains one typed `adrp`/`add` pair until the Mach-O writer
+supplies final section virtual addresses; the shared relocation method validates page arithmetic,
+the signed 21-bit page displacement, the 12-bit page offset, and both instruction locations before
+returning relocated text.
+
 The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
 linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
 byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
@@ -227,6 +237,7 @@ Literal packs now have dense identities, closed fixed/spread segments, explicit 
 operations, and layout-owned residual destruction recipes.
 
 The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
-register-role, and fixed-frame placement foundations are implemented. Machine instruction
-selection, virtual-register allocation, frame instruction materialization, cross-function/data
-fixups, and Mach-O serialization are the remaining Phase 5 implementation areas.
+register-role, fixed-frame placement, whole-program text/data ownership, and typed fixup foundations
+are implemented. Machine instruction selection, virtual-register allocation, frame instruction
+materialization, Mach-O section placement, and serialization are the remaining Phase 5
+implementation areas.
