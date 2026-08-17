@@ -179,6 +179,14 @@ encodes only after placement stabilizes. A conditional branch outside its signed
 is expanded to an inverted short condition over one signed 26-bit unconditional branch. Relaxation
 is monotonic and recomputes every affected label; it never patches a truncated displacement.
 
+The target ABI register partition is one closed authority shared by allocation and frame planning.
+The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
+stack pointer, places selector and allocator objects in stable insertion order, preserves requested
+`x19`-`x28` registers in numeric order, and ends with the canonical saved `x29`/`x30` frame record.
+It rejects invalid alignment, non-callee-saved preservation, and every size or offset overflow.
+Zero-sized objects retain an aligned address without consuming bytes. The completed frame size is
+always a multiple of the 16-byte call-boundary alignment.
+
 The Mach-O writer receives encoded code, read-only data, relocation/fixup records, and deterministic
 linkage metadata. It owns section order, load commands, symbol/string tables, entry metadata, and
 byte serialization. It does not understand MIR, types, declarations, or primitives. Runtime and
@@ -218,7 +226,7 @@ process error reporting. Standard primitive calls also carry ordinary ABI plans 
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and layout-owned residual destruction recipes.
 
-The typed ARM64 register, instruction-encoding, local-label, and conditional-branch relaxation
-foundation is implemented. Machine instruction selection, virtual-register allocation, frame
-construction, cross-function/data fixups, and Mach-O serialization are the remaining Phase 5
-implementation areas.
+The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
+register-role, and fixed-frame placement foundations are implemented. Machine instruction
+selection, virtual-register allocation, frame instruction materialization, cross-function/data
+fixups, and Mach-O serialization are the remaining Phase 5 implementation areas.

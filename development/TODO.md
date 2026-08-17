@@ -47,8 +47,9 @@ comparison, checked index, and borrow weakening now consume exact scalar, tag, b
 view-layout facts without retaining semantic dispatch operands. The independent `nocter-arm64`
 crate now types physical register-31 roles and rejects truncating instruction encodings. ARM64
 local labels bind exactly once and resolve after monotonic conditional-branch relaxation. ARM64
-selection, virtual-register allocation, frames, and cross-function/data fixups are the next closed
-boundaries.
+ABI register roles and deterministic fixed-frame placement are also closed. ARM64 selection,
+virtual-register allocation, prologue/epilogue materialization, and cross-function/data fixups are
+the next closed boundaries.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

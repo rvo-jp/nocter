@@ -321,3 +321,101 @@ fn code_builder_rejects_duplicate_and_unbound_labels() {
         Err(crate::Arm64CodeError::UnknownLabel(foreign))
     );
 }
+
+#[test]
+fn frame_layout_separates_outgoing_objects_saves_and_frame_record() {
+    let mut builder = crate::Arm64FrameLayoutBuilder::new();
+    builder.require_outgoing_argument_size(16).unwrap();
+    builder.require_outgoing_argument_size(0).unwrap();
+    let bytes = builder.add_object(3, 1).unwrap();
+    let aligned = builder.add_object(16, 16).unwrap();
+    let zero = builder.add_object(0, 8).unwrap();
+    builder.preserve(x(21)).unwrap();
+    builder.preserve(x(19)).unwrap();
+    builder.preserve(x(21)).unwrap();
+    let frame = builder.finish().unwrap();
+
+    assert_eq!(frame.outgoing_argument_size(), 16);
+    assert_eq!(frame.object(bytes).unwrap().offset(), 16);
+    assert_eq!(frame.object(aligned).unwrap().offset(), 32);
+    assert_eq!(frame.object(zero).unwrap().offset(), 48);
+    assert_eq!(
+        frame
+            .saved_registers()
+            .iter()
+            .map(|saved| (saved.register().number(), saved.offset()))
+            .collect::<Vec<_>>(),
+        [(19, 48), (21, 56)]
+    );
+    assert_eq!(frame.frame_record_offset(), 64);
+    assert_eq!(frame.size(), 80);
+}
+
+#[test]
+fn frame_layout_rejects_invalid_requests_and_overflow() {
+    let mut builder = crate::Arm64FrameLayoutBuilder::new();
+    assert_eq!(
+        builder.require_outgoing_argument_size(8),
+        Err(crate::Arm64FrameLayoutError::MisalignedOutgoingArguments(8))
+    );
+    assert_eq!(
+        builder.add_object(1, 3),
+        Err(crate::Arm64FrameLayoutError::InvalidObjectAlignment(3))
+    );
+    assert_eq!(
+        builder.add_object(1, 32),
+        Err(crate::Arm64FrameLayoutError::InvalidObjectAlignment(32))
+    );
+    assert_eq!(
+        builder.preserve(x(9)),
+        Err(crate::Arm64FrameLayoutError::NotCalleeSaved(x(9)))
+    );
+
+    let mut overflow = crate::Arm64FrameLayoutBuilder::new();
+    overflow
+        .require_outgoing_argument_size(u64::MAX - 15)
+        .unwrap();
+    assert_eq!(
+        overflow.finish(),
+        Err(crate::Arm64FrameLayoutError::FrameOverflow)
+    );
+}
+
+#[test]
+fn abi_register_roles_form_one_closed_partition() {
+    use crate::Arm64AbiRegisterRole;
+
+    let roles = (0..31)
+        .map(|number| crate::Arm64NocterAbi::role(x(number)))
+        .collect::<Vec<_>>();
+    assert!(
+        roles[0..8]
+            .iter()
+            .all(|role| *role == Arm64AbiRegisterRole::ArgumentAndResult)
+    );
+    assert_eq!(roles[8], Arm64AbiRegisterRole::IndirectResult);
+    assert!(
+        roles[9..16]
+            .iter()
+            .all(|role| *role == Arm64AbiRegisterRole::CallerSaved)
+    );
+    assert!(
+        roles[16..18]
+            .iter()
+            .all(|role| *role == Arm64AbiRegisterRole::CompilerScratch)
+    );
+    assert_eq!(roles[18], Arm64AbiRegisterRole::Reserved);
+    assert!(
+        roles[19..29]
+            .iter()
+            .all(|role| *role == Arm64AbiRegisterRole::CalleeSaved)
+    );
+    assert_eq!(roles[29], Arm64AbiRegisterRole::FramePointer);
+    assert_eq!(roles[30], Arm64AbiRegisterRole::Link);
+    assert_eq!(crate::Arm64NocterAbi::argument_register(7), Some(x(7)));
+    assert_eq!(crate::Arm64NocterAbi::argument_register(8), None);
+    assert_eq!(crate::Arm64NocterAbi::indirect_result_register(), x(8));
+    assert!(crate::Arm64NocterAbi::is_allocatable(x(19)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(16)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(18)));
+}

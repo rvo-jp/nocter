@@ -398,8 +398,12 @@ be introduced to make an unresolved syntax choice.
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
   before little-endian encoding. Dense local labels are resolved only after monotonic conditional
   branch relaxation; duplicate, unbound, misaligned, and out-of-range targets are typed failures.
-  Machine instruction selection, virtual-register allocation, frames, and cross-function/data
-  fixups remain separate later responsibilities in this crate.
+  One ABI register-role authority excludes compiler scratch and reserved registers from general
+  allocation. Fixed frames reserve the maximum outgoing argument area, lay out objects and
+  callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
+  preserving 16-byte alignment. Machine instruction selection, virtual-register allocation,
+  prologue/epilogue materialization, and cross-function/data fixups remain separate later
+  responsibilities in this crate.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
