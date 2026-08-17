@@ -6,7 +6,7 @@ use nocter_declarations::{
 };
 use nocter_model::{
     Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, FieldId, NominalTypeId,
-    ParameterId, TypeKind, TypeStore, VariantId,
+    ParameterId, TypeId, TypeKind, TypeStore, VariantId,
 };
 
 use crate::{
@@ -176,6 +176,21 @@ impl MirValidationEnvironment for TestEnvironment {
 
     fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
         self.standard_nominals.get(&role).copied()
+    }
+
+    fn closure_layout(
+        &self,
+        _item: ExecutableItemId,
+    ) -> Option<&nocter_target_program::ExecutableClosureLayout> {
+        None
+    }
+
+    fn closure_capture_type(
+        &self,
+        _closure_ty: TypeId,
+        _capture: nocter_model::CaptureId,
+    ) -> Option<TypeId> {
+        None
     }
 }
 

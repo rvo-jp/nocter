@@ -11,11 +11,12 @@ implementation input.
 ## Immediate Work
 
 1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
-   value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
-   conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
+   value-producing branches, concrete closures, direct/primitive calls, receiver and operand
+   coercions, borrow conversions, comparisons, selected/coerced index places, outcome CFG,
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, all loop forms, enum patterns, and lexical regions to closures. Never repeat requirement,
-   conformance, or drop-pattern selection.
+   assignment, all loop forms, enum patterns, and lexical regions to indirect callable values,
+   typed sequences, strings, interpolation, and opaque witnesses. Never repeat requirement,
+   conformance, layout, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -118,8 +119,15 @@ destruction. One canonical value-storage authority now prevents borrow preparati
 inspection, and cleanup from duplicating ownership. Conditional path and value cleanup reserves
 entry-visible drop flags, updates them on initialization, move, replacement, and destruction, and
 branches without reconstructing source control history. MIR places are interned by exact typed
-shape, so flags and ordinary operations share storage identity. Closure construction remains the
-current checked-body task. Block fallthrough now consumes the same checked
+shape, so flags and ordinary operations share storage identity. Concrete closure construction and
+invocation now consume one executable-owned layout containing the specialized environment type,
+invocation capability, and binding-preserving stored capture types. MIR aggregate validation
+checks the exact closure body, capture order, binding identities, and concrete value types. Closure
+body places reify the hidden environment borrow, capture field, and stored capture borrow as typed
+projections; owned capture moves and recursive destruction use those same projections and cleanup
+flags. Each executable body also freezes its deterministic reachable node domain, preventing an
+outer function from preparing cleanup state for nested closure nodes that share its `CheckedBody`.
+Block fallthrough now consumes the same checked
 `BeforeTransfer` event as explicit return and loop transfer. Explicit `drop`, compound integer
 assignment, `break`, `continue`, while loops, breakable/nonbreaking infinite loops, and integer
 ranges lower to closed CFG directly. A checked `never` loop has no invented exit block, and range

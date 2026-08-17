@@ -40,8 +40,10 @@ impl FunctionLowerer<'_> {
                     .ok_or(MirLoweringError::MissingInput(parameter))?,
             ),
             PlaceRoot::Local(local) => MirPlaceRoot::Local(self.ensure_local(local)?),
-            PlaceRoot::Capture(_) => {
-                return Err(MirLoweringError::UnsupportedPlaceProjection(place));
+            PlaceRoot::Capture(capture) => {
+                let mut path = self.lower_capture_path(capture)?;
+                path.projections.reserve(checked.projections().len());
+                return self.finish_lower_place(place, &checked, path);
             }
         };
         let root_ty = match root {
@@ -51,11 +53,20 @@ impl FunctionLowerer<'_> {
                 .ok_or(MirLoweringError::UnknownPlace(place))?,
             MirPlaceRoot::Dereference { .. } => unreachable!("checked roots start from locals"),
         };
-        let mut path = LoweredPlacePath {
+        let path = LoweredPlacePath {
             root,
             projections: Vec::with_capacity(checked.projections().len()),
             ty: root_ty,
         };
+        self.finish_lower_place(place, &checked, path)
+    }
+
+    fn finish_lower_place(
+        &mut self,
+        place: PlaceId,
+        checked: &nocter_checking::CheckedPlace,
+        mut path: LoweredPlacePath,
+    ) -> Result<MirPlaceId, MirLoweringError> {
         for (projection, source_ty) in checked.projections().iter().zip(checked.projection_types())
         {
             let ty = self.concrete_type(*source_ty)?;

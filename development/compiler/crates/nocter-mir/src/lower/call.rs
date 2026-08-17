@@ -34,7 +34,13 @@ impl FunctionLowerer<'_> {
         call: &CheckedCall,
     ) -> Result<MirValueId, MirLoweringError> {
         let CallTarget::Static(selection) = call.target() else {
-            return Err(MirLoweringError::UnsupportedOperation(node));
+            return match call.target() {
+                CallTarget::ClosureValue { .. } => self.lower_closure_call(node, ty, call),
+                CallTarget::CallableValue { .. } => {
+                    Err(MirLoweringError::UnsupportedOperation(node))
+                }
+                CallTarget::Static(_) => unreachable!("matched above"),
+            };
         };
         let step = {
             let plan = self

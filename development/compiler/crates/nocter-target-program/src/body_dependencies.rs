@@ -23,6 +23,7 @@ use crate::TargetProgram;
 /// and this traversal must not guess a target callable from a requirement.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedBodyDependencies {
+    nodes: Box<[BodyNodeId]>,
     selections: Box<[StaticSelection]>,
     closures: Box<[ClosureId]>,
     drop_selections: Box<[DropSelection]>,
@@ -32,6 +33,12 @@ pub struct CheckedBodyDependencies {
 }
 
 impl CheckedBodyDependencies {
+    /// Checked nodes reachable from this executable root in deterministic first-use order.
+    #[must_use]
+    pub const fn nodes(&self) -> &[BodyNodeId] {
+        &self.nodes
+    }
+
     #[must_use]
     pub const fn selections(&self) -> &[StaticSelection] {
         &self.selections
@@ -155,6 +162,7 @@ struct DependencyCollector<'program> {
     body_id: BodyId,
     body: &'program CheckedBody,
     visited_nodes: HashSet<BodyNodeId>,
+    nodes: Vec<BodyNodeId>,
     visited_places: HashSet<PlaceId>,
     visited_loops: HashSet<LoopId>,
     selection_set: HashSet<StaticSelection>,
@@ -178,6 +186,7 @@ impl<'program> DependencyCollector<'program> {
             body_id,
             body,
             visited_nodes: HashSet::new(),
+            nodes: Vec::new(),
             visited_places: HashSet::new(),
             visited_loops: HashSet::new(),
             selection_set: HashSet::new(),
@@ -197,6 +206,7 @@ impl<'program> DependencyCollector<'program> {
 
     fn finish(self) -> CheckedBodyDependencies {
         CheckedBodyDependencies {
+            nodes: self.nodes.into_boxed_slice(),
             selections: self.selections.into_boxed_slice(),
             closures: self.closures.into_boxed_slice(),
             drop_selections: self.drop_selections.into_boxed_slice(),
@@ -210,6 +220,7 @@ impl<'program> DependencyCollector<'program> {
         if !self.visited_nodes.insert(id) {
             return Ok(());
         }
+        self.nodes.push(id);
         let node = self
             .body
             .nodes()

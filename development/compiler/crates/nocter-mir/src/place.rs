@@ -1,5 +1,6 @@
 use nocter_model::{
-    BorrowCapability, FieldId, MirLocalId, MirValueId, OpaqueTypeId, ParameterId, TypeId, VariantId,
+    BorrowCapability, CaptureId, FieldId, MirLocalId, MirValueId, OpaqueTypeId, ParameterId,
+    TypeId, VariantId,
 };
 
 /// Why one function-local storage slot exists.
@@ -79,6 +80,7 @@ impl MirProjection {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirProjectionKind {
     Field(FieldId),
+    ClosureCapture(CaptureId),
     VariantPayload {
         variant: VariantId,
         parameter: ParameterId,

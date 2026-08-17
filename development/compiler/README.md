@@ -293,8 +293,10 @@ be introduced to make an unresolved syntax choice.
   generic domain. A key-ordered work set resolves interface, opaque, and structural dispatch once,
   converts bodyless standard calls to typed primitive roles with concrete signatures, opens
   checked destruction plans, and assigns dense item IDs only after closure in semantic-key order.
-  Each body retains exact source-to-concrete type edges, prepared borrow types, and cleanup-specific
-  glue. Composite comparison and index dispatch retain named coercion and operation lanes, so MIR
+  Each body retains its exact reachable node domain, source-to-concrete type edges, prepared borrow
+  types, and cleanup-specific glue. Closure items also retain one concrete ordered environment
+  layout, including binding identities and stored capture types. Composite comparison and index
+  dispatch retain named coercion and operation lanes, so MIR
   never infers operand ownership from step order. Enum residual cleanup keeps its active variant
   and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or destroy a
   moved payload. No unresolved requirement or source name reaches MIR.
@@ -324,8 +326,10 @@ be introduced to make an unresolved syntax choice.
   copy/move/borrow modes and complete-or-residual cleanup plans, projects specialized payload
   places, and keeps mutually exclusive cleanup flags separate on one canonical subject slot.
   Lexical regions use paired typed creation and release operations; the existing cleanup schedule
-  orders body destruction before release on fallthrough and early transfer. Remaining checked
-  operations still fail explicitly instead of being omitted.
+  orders body destruction before release on fallthrough and early transfer. Closure construction,
+  concrete invocation, capture access, owned capture moves, and recursive closure destruction use
+  the executable-owned layout and binding-preserving MIR projections. Remaining checked operations
+  still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

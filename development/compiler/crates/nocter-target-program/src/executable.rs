@@ -17,8 +17,10 @@ use crate::{
 };
 
 mod build;
+mod closure_layout;
 mod signature;
 
+pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
 pub use signature::{ExecutableInput, ExecutableInputSource, ExecutableSignature};
 
 /// One canonical monomorphized source-body identity.
@@ -178,6 +180,7 @@ impl ExecutableTypeEdge {
 pub struct ExecutableBody {
     body: BodyId,
     root: BodyNodeId,
+    nodes: Box<[BodyNodeId]>,
     dispatches: Box<[ExecutableDispatchEdge]>,
     closures: Box<[ExecutableClosureEdge]>,
     drops: Box<[ExecutableDropEdge]>,
@@ -198,6 +201,11 @@ impl ExecutableBody {
     }
 
     #[must_use]
+    pub const fn nodes(&self) -> &[BodyNodeId] {
+        &self.nodes
+    }
+
+    #[must_use]
     pub fn dispatch(&self, source: &StaticSelection) -> Option<&ExecutableDispatchPlan> {
         self.dispatches
             .iter()
@@ -208,6 +216,14 @@ impl ExecutableBody {
     #[must_use]
     pub const fn closures(&self) -> &[ExecutableClosureEdge] {
         &self.closures
+    }
+
+    #[must_use]
+    pub fn closure_item(&self, closure: ClosureId) -> Option<ExecutableItemId> {
+        self.closures
+            .iter()
+            .find(|edge| edge.closure == closure)
+            .map(|edge| edge.item)
     }
 
     #[must_use]
@@ -276,6 +292,7 @@ impl ExecutableBody {
 pub struct ExecutableItem {
     key: ExecutableItemKey,
     signature: ExecutableSignature,
+    closure: Option<ExecutableClosureLayout>,
     body: ExecutableBody,
 }
 
@@ -288,6 +305,11 @@ impl ExecutableItem {
     #[must_use]
     pub const fn signature(&self) -> &ExecutableSignature {
         &self.signature
+    }
+
+    #[must_use]
+    pub const fn closure_layout(&self) -> Option<&ExecutableClosureLayout> {
+        self.closure.as_ref()
     }
 
     #[must_use]
@@ -341,6 +363,7 @@ pub struct ExecutableProgram {
     types: TypeStore,
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
+    closure_layouts: BTreeMap<TypeId, ExecutableItemId>,
     root: ExecutableRoot,
 }
 
@@ -390,6 +413,24 @@ impl ExecutableProgram {
     }
 
     #[must_use]
+    pub fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
+        self.items.get(item)?.closure_layout()
+    }
+
+    #[must_use]
+    pub fn closure_capture_type(
+        &self,
+        closure_ty: TypeId,
+        capture: nocter_model::CaptureId,
+    ) -> Option<TypeId> {
+        self.closure_layouts
+            .get(&closure_ty)
+            .and_then(|item| self.closure_layout(*item))
+            .and_then(|layout| layout.capture(capture))
+            .map(ExecutableClosureCapture::ty)
+    }
+
+    #[must_use]
     pub const fn root(&self) -> &ExecutableRoot {
         &self.root
     }
@@ -414,6 +455,7 @@ pub enum ExecutableProgramError {
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
+    DuplicateClosureLayout(TypeId),
     DuplicateItem(ExecutableItemKey),
 }
 
@@ -445,6 +487,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)
+            | Self::DuplicateClosureLayout(_)
             | Self::DuplicateItem(_) => None,
         }
     }

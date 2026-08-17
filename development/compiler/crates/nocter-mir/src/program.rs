@@ -6,7 +6,11 @@ use nocter_model::{
 };
 use nocter_target_program::{ExecutableItemKey, ExecutableProgram};
 
-use crate::{MirCallTarget, MirFunction, MirOperationKind, MirValidationError, validate_function};
+use crate::validation_closure::has_valid_closure_environment_signature;
+use crate::{
+    MirAggregate, MirCallTarget, MirFunction, MirOperationKind, MirValidationError,
+    validate_function,
+};
 
 /// One closed executable and exactly one validated MIR function per executable item.
 #[derive(Debug)]
@@ -172,6 +176,24 @@ fn validate_cross_function_calls(
                         });
                     }
                 }
+                MirOperationKind::Aggregate(MirAggregate::Closure { body, .. }) => {
+                    let callee = functions
+                        .get(*body)
+                        .ok_or(MirProgramBuildError::UnknownItem(*body))?;
+                    let layout = executable.closure_layout(*body).ok_or(
+                        MirProgramBuildError::ClosureConstructionSignature {
+                            caller,
+                            body: *body,
+                        },
+                    )?;
+                    if !has_valid_closure_environment_signature(callee, layout, executable.types())
+                    {
+                        return Err(MirProgramBuildError::ClosureConstructionSignature {
+                            caller,
+                            body: *body,
+                        });
+                    }
+                }
                 _ => {}
             }
         }
@@ -219,6 +241,10 @@ pub enum MirProgramBuildError {
         callee: ExecutableItemId,
         place: MirPlaceId,
     },
+    ClosureConstructionSignature {
+        caller: ExecutableItemId,
+        body: ExecutableItemId,
+    },
 }
 
 impl fmt::Display for MirProgramBuildError {
@@ -236,7 +262,8 @@ impl std::error::Error for MirProgramBuildError {
             | Self::DuplicateFunction(_)
             | Self::MissingFunction(_)
             | Self::DirectCallSignature { .. }
-            | Self::DropCallSignature { .. } => None,
+            | Self::DropCallSignature { .. }
+            | Self::ClosureConstructionSignature { .. } => None,
         }
     }
 }

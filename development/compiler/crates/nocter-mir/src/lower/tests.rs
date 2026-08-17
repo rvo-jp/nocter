@@ -1,15 +1,15 @@
-use nocter_checking::{check_prepared_program, prepare_program_checking};
+use nocter_checking::{check_prepared_program, is_concrete_type, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::CompilationTarget;
 use nocter_target_program::{
-    ExecutableProgram, PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, TargetProgram,
-    ToolchainSnapshot,
+    ExecutableItemKey, ExecutableProgram, PrimitiveBinding, PrimitiveRegistry, PrimitiveRole,
+    TargetProgram, ToolchainSnapshot,
 };
 use nocter_test_support::CompilerFixture;
 
 use super::{MirLoweringError, lower_executable};
-use crate::{MirOperationKind, MirTerminator};
+use crate::{MirAggregate, MirOperationKind, MirProjectionKind, MirTerminator};
 
 #[test]
 fn lowers_scalar_control_flow_through_the_complete_frontend() {
@@ -941,6 +941,279 @@ fn lowers_nested_regions_with_ordered_early_exit_cleanup() {
             })
             .eq(["create", "drop", "release"])
     }));
+}
+
+#[test]
+fn lowers_closure_construction_and_invocation_from_one_concrete_layout() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             let double = (value: i32): i32 { value * 2 }\n\
+             double(3)\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert_eq!(program.functions().len(), 2);
+    let closure_items = program
+        .executable()
+        .items()
+        .iter()
+        .filter(|(_, item)| matches!(item.key(), ExecutableItemKey::Closure(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(closure_items.len(), 1);
+    let (closure_item, item) = closure_items[0];
+    let layout = item.closure_layout().unwrap();
+    assert!(layout.captures().is_empty());
+    assert!(program.functions().iter().any(|(_, function)| {
+        let mut constructed = false;
+        let mut invoked = false;
+        for (_, operation) in function.operations().iter() {
+            match operation.kind() {
+                MirOperationKind::Aggregate(MirAggregate::Closure { body, captures }) => {
+                    constructed |= *body == closure_item && captures.is_empty();
+                }
+                MirOperationKind::Call(call) => {
+                    invoked |= matches!(
+                        call.target(),
+                        crate::MirCallTarget::Direct(body) if *body == closure_item
+                    ) && call.arguments().len() == 2;
+                }
+                _ => {}
+            }
+        }
+        constructed && invoked
+    }));
+}
+
+#[test]
+fn lowers_readonly_capture_through_the_frozen_environment_representation() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             let value = 7\n\
+             let read = (&value;): i32 { value }\n\
+             read()\n\
+         }\n",
+    )
+    .unwrap();
+    let closure = only_closure_function(&program);
+
+    assert!(closure.places().iter().any(|(_, place)| {
+        matches!(
+            place.projections(),
+            [
+                first,
+                capture,
+                stored
+            ] if first.kind() == MirProjectionKind::BorrowDereference(nocter_model::BorrowCapability::Readonly)
+                && matches!(capture.kind(), MirProjectionKind::ClosureCapture(_))
+                && stored.kind() == MirProjectionKind::BorrowDereference(nocter_model::BorrowCapability::Readonly)
+        )
+    }));
+}
+
+#[test]
+fn lowers_readwrite_capture_without_losing_the_outer_authority_ceiling() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             var total = 0\n\
+             var increment = (&+total;): i32 {\n\
+                 total += 1\n\
+                 total\n\
+             }\n\
+             increment()\n\
+         }\n",
+    )
+    .unwrap();
+    let closure = only_closure_function(&program);
+
+    assert!(
+        closure
+            .operations()
+            .iter()
+            .any(|(_, operation)| { matches!(operation.kind(), MirOperationKind::Store { .. }) })
+    );
+    assert!(closure.places().iter().any(|(_, place)| {
+        matches!(
+            place.projections(),
+            [
+                first,
+                capture,
+                stored
+            ] if first.kind() == MirProjectionKind::BorrowDereference(nocter_model::BorrowCapability::ReadWrite)
+                && matches!(capture.kind(), MirProjectionKind::ClosureCapture(_))
+                && stored.kind() == MirProjectionKind::BorrowDereference(nocter_model::BorrowCapability::ReadWrite)
+        )
+    }));
+}
+
+#[test]
+fn lowers_owned_capture_consumption_and_closure_destruction_exactly_once() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func consume(value: Owned): i32 { value.value }\n\
+         func main(): i32 {\n\
+             let value = Owned { value: 7 }\n\
+             let take = (move value;): i32 { consume(move value) }\n\
+             take()\n\
+         }\n",
+    )
+    .unwrap();
+
+    let closure = only_closure_function(&program);
+    assert!(closure.operations().iter().any(|(_, operation)| {
+        let MirOperationKind::Read {
+            place,
+            mode: crate::MirReadMode::Move,
+        } = operation.kind()
+        else {
+            return false;
+        };
+        closure
+            .places()
+            .get(*place)
+            .is_some_and(place_has_capture_projection)
+    }));
+
+    assert!(!closure.operations().iter().any(|(_, operation)| {
+        let MirOperationKind::InvokeDrop { place, .. } = operation.kind() else {
+            return false;
+        };
+        closure
+            .places()
+            .get(*place)
+            .is_some_and(place_has_capture_projection)
+    }));
+}
+
+#[test]
+fn lowers_unused_owned_capture_through_closure_destruction() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func main(): void {\n\
+             let value = Owned { value: 7 }\n\
+             let keep = (move value;): void { return }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            let MirOperationKind::InvokeDrop { place, .. } = operation.kind() else {
+                return false;
+            };
+            function
+                .places()
+                .get(*place)
+                .is_some_and(place_has_capture_projection)
+        })
+    }));
+}
+
+#[test]
+fn specializes_generic_closure_environment_before_mir_lowering() {
+    let program = lower_fixture(
+        "func inspect<T>(value: &T): void {\n\
+             let closure = (&value;): void {\n\
+                 let _ = value\n\
+                 return\n\
+             }\n\
+             closure()\n\
+             return\n\
+         }\n\
+         func main(): void {\n\
+             let value = 7\n\
+             inspect(&value)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let layouts = program
+        .executable()
+        .items()
+        .iter()
+        .filter_map(|(_, item)| item.closure_layout())
+        .collect::<Vec<_>>();
+
+    assert_eq!(layouts.len(), 1);
+    assert!(is_concrete_type(program.executable().types(), layouts[0].ty()).unwrap());
+    assert!(
+        layouts[0].captures().iter().all(|capture| {
+            is_concrete_type(program.executable().types(), capture.ty()).unwrap()
+        })
+    );
+}
+
+#[test]
+fn conditionally_consumed_capture_starts_initialized_and_drops_only_on_the_residual_path() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func consume(value: Owned): void {\n\
+             let _ = value.value\n\
+             return\n\
+         }\n\
+         func main(): void {\n\
+             let value = Owned { value: 7 }\n\
+             let take = (move value; flag: bool): void {\n\
+                 if flag { consume(move value) }\n\
+                 return\n\
+             }\n\
+             take(false)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let closure = only_closure_function(&program);
+
+    assert!(closure.drop_flags().iter().any(|(_, flag)| {
+        flag.initially_initialized()
+            && closure
+                .places()
+                .get(flag.place())
+                .is_some_and(place_has_capture_projection)
+    }));
+    assert!(
+        closure.blocks().iter().any(|(_, block)| {
+            matches!(block.terminator(), MirTerminator::BranchDropFlag { .. })
+        })
+    );
+    assert!(closure.operations().iter().any(|(_, operation)| {
+        let MirOperationKind::InvokeDrop { place, .. } = operation.kind() else {
+            return false;
+        };
+        closure
+            .places()
+            .get(*place)
+            .is_some_and(place_has_capture_projection)
+    }));
+}
+
+fn only_closure_function(program: &crate::MirProgram) -> &crate::MirFunction {
+    program
+        .functions()
+        .iter()
+        .find(|(item, _)| {
+            matches!(
+                program
+                    .executable()
+                    .items()
+                    .get(*item)
+                    .map(nocter_target_program::ExecutableItem::key),
+                Some(ExecutableItemKey::Closure(_))
+            )
+        })
+        .expect("fixture must produce one closure function")
+        .1
+}
+
+fn place_has_capture_projection(place: &crate::MirPlace) -> bool {
+    place
+        .projections()
+        .iter()
+        .any(|projection| matches!(projection.kind(), MirProjectionKind::ClosureCapture(_)))
 }
 
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {

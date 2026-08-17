@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::validation_call::validate_call;
+use crate::validation_closure::validate_closure_aggregate;
 use crate::validation_graph::{place_values, successors};
 use crate::validation_place::place_facts;
 use crate::validation_region::{validate_region_creation, validate_region_release};
@@ -144,6 +145,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         result,
                     )
                 {
+                    return Err(MirValidationError::InvalidProjection { place });
+                }
+            }
+            MirProjectionKind::ClosureCapture(capture) => {
+                if self.environment.closure_capture_type(source, capture) != Some(result) {
                     return Err(MirValidationError::InvalidProjection { place });
                 }
             }
@@ -654,11 +660,19 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
             }
-            MirAggregate::Closure { body, .. } => {
-                self.require_item(*body)?;
-                if !matches!(self.types.get(result), Some(TypeKind::Closure { .. })) {
-                    return Err(invalid());
-                }
+            MirAggregate::Closure { body, captures } => {
+                let capture_types = captures
+                    .iter()
+                    .map(|capture| self.value_type(capture.value()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                validate_closure_aggregate(
+                    self.environment,
+                    operation,
+                    result,
+                    *body,
+                    captures,
+                    &capture_types,
+                )?;
             }
             MirAggregate::Opaque { witness } => {
                 if !matches!(self.types.get(result), Some(TypeKind::Opaque { .. })) {
@@ -808,11 +822,12 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 MirAggregate::Struct { fields, .. } => {
                     values.extend(fields.iter().map(|(_, value)| *value));
                 }
-                MirAggregate::Enum { payload, .. }
-                | MirAggregate::FixedArray(payload)
-                | MirAggregate::Closure {
-                    captures: payload, ..
-                } => values.extend(payload.iter().copied()),
+                MirAggregate::Enum { payload, .. } | MirAggregate::FixedArray(payload) => {
+                    values.extend(payload.iter().copied());
+                }
+                MirAggregate::Closure { captures, .. } => {
+                    values.extend(captures.iter().map(|capture| capture.value()));
+                }
                 MirAggregate::Optional(value) => values.extend(*value),
                 MirAggregate::FallibleSuccess(value)
                 | MirAggregate::FallibleFailure(value)

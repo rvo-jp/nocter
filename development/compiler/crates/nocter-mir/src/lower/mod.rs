@@ -12,6 +12,7 @@ mod borrow_conversion;
 mod call;
 mod cleanup;
 mod cleanup_flags;
+mod closure;
 mod collection_loop;
 mod comparison;
 mod control;
@@ -74,6 +75,8 @@ pub enum MirLoweringError {
     InvalidCleanup(BodyNodeId),
     InvalidPattern(BodyNodeId),
     InvalidRegion(BodyNodeId),
+    InvalidClosure(BodyNodeId),
+    InvalidCapture(nocter_model::CaptureId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
     Program(MirProgramBuildError),

@@ -31,11 +31,11 @@ pub use entry::{
     ProcessSuccessType, select_executable_entry,
 };
 pub use executable::{
-    ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDispatchPlan,
-    ExecutableDispatchStep, ExecutableDropEdge, ExecutableInput, ExecutableInputSource,
-    ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableBody, ExecutableBorrowEdge, ExecutableClosureCapture, ExecutableClosureEdge,
+    ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
+    ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
+    ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
+    ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

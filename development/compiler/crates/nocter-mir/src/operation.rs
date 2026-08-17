@@ -1,6 +1,6 @@
 use nocter_model::{
-    BorrowCapability, CallableContract, ExecutableItemId, FieldId, MirDropFlagId, MirLocalId,
-    MirPlaceId, MirValueId, NominalTypeId, TypeId, VariantId,
+    BorrowCapability, CallableContract, CaptureId, ExecutableItemId, FieldId, MirDropFlagId,
+    MirLocalId, MirPlaceId, MirValueId, NominalTypeId, TypeId, VariantId,
 };
 use nocter_target_program::PrimitiveRole;
 
@@ -37,6 +37,30 @@ pub enum MirBinaryOperation {
     Less,
 }
 
+/// One binding-preserving value supplied to a concrete closure environment field.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MirClosureCapture {
+    binding: CaptureId,
+    value: MirValueId,
+}
+
+impl MirClosureCapture {
+    #[must_use]
+    pub const fn new(binding: CaptureId, value: MirValueId) -> Self {
+        Self { binding, value }
+    }
+
+    #[must_use]
+    pub const fn binding(self) -> CaptureId {
+        self.binding
+    }
+
+    #[must_use]
+    pub const fn value(self) -> MirValueId {
+        self.value
+    }
+}
+
 /// One concrete aggregate value assembled in source-defined member order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirAggregate {
@@ -54,7 +78,7 @@ pub enum MirAggregate {
     FallibleFailure(MirValueId),
     Closure {
         body: ExecutableItemId,
-        captures: Box<[MirValueId]>,
+        captures: Box<[MirClosureCapture]>,
     },
     Opaque {
         witness: MirValueId,

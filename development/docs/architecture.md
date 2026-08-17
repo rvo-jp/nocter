@@ -390,6 +390,14 @@ bindings, captures, structural callable evidence, and independent body root. The
 distinct concrete environment type for each callable specialization instead of treating a generic
 capture layout as globally concrete. Callable-contract and ordinary argument constraints are
 solved as a dependency graph rather than in argument order.
+Executable construction freezes that specialization as one environment layout containing the
+concrete closure type, invocation capability, and ordered capture binding/type pairs. MIR closure
+aggregates name the exact executable body and retain each `CaptureId` beside its value. Capture
+places explicitly project through the capability-correct environment input, the stored field, and
+any stored borrow; construction, body access, and recursive destruction therefore cannot disagree
+about capture order or reinterpret a borrow as owned storage. Executable bodies freeze the node
+domain reachable from their own root, so preparation never crosses into a nested closure root that
+happens to share the checked-body arena.
 Unannotated result inference joins tail values, explicit returns, outcome propagation, and
 divergence at that root. Ownership, provenance, liveness, and loan passes enter each closure root
 with its parameters and capture fields initialized, then summarize result dependence on invocation

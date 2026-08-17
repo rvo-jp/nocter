@@ -65,10 +65,12 @@ impl FunctionLowerer<'_> {
     /// not infer branch history or replay the checked ownership analysis.
     pub(super) fn prepare_cleanup_flags(&mut self) -> Result<(), MirLoweringError> {
         let conditional = self
-            .body
+            .item
+            .body()
             .nodes()
             .iter()
-            .flat_map(|(owner, _)| {
+            .copied()
+            .flat_map(|owner| {
                 self.body
                     .cleanups()
                     .schedules(owner)
@@ -102,7 +104,7 @@ impl FunctionLowerer<'_> {
         let (place, initially_initialized) = match target {
             CleanupTarget::Path(path) => (
                 self.lower_cleanup_path(owner, path)?,
-                matches!(path.root(), PlaceRoot::Parameter(_)),
+                matches!(path.root(), PlaceRoot::Parameter(_) | PlaceRoot::Capture(_)),
             ),
             CleanupTarget::Value { node, ty } => {
                 let ty = self.concrete_type(*ty)?;

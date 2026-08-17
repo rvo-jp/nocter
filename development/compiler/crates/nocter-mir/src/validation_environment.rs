@@ -2,8 +2,10 @@ use nocter_declarations::{
     FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
     VariantDeclaration,
 };
-use nocter_model::{ExecutableItemId, FieldId, NominalTypeId, ParameterId, TypeStore, VariantId};
-use nocter_target_program::ExecutableProgram;
+use nocter_model::{
+    CaptureId, ExecutableItemId, FieldId, NominalTypeId, ParameterId, TypeId, TypeStore, VariantId,
+};
+use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 
 /// The immutable semantic authority required to validate one MIR function.
 ///
@@ -17,6 +19,8 @@ pub trait MirValidationEnvironment {
     fn variant(&self, id: VariantId) -> Option<&VariantDeclaration>;
     fn parameter(&self, id: ParameterId) -> Option<&Parameter>;
     fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId>;
+    fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout>;
+    fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId>;
 }
 
 impl MirValidationEnvironment for ExecutableProgram {
@@ -66,5 +70,13 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
         self.target().checked().standard_semantics().nominal(role)
+    }
+
+    fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
+        self.closure_layout(item)
+    }
+
+    fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId> {
+        self.closure_capture_type(closure_ty, capture)
     }
 }

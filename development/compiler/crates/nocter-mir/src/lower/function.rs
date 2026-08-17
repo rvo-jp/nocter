@@ -5,8 +5,8 @@ use nocter_checking::{
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
 use nocter_model::{
-    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId,
-    MirLocalId, MirPlaceId, MirValueId, ParameterId, TypeId, TypeKind,
+    BodyNodeId, BuiltinType, ClosureId, ExecutableItemId, LocalBindingId, LoopId, MirBlockId,
+    MirDropFlagId, MirLocalId, MirPlaceId, MirValueId, ParameterId, TypeId, TypeKind,
 };
 use nocter_target_program::{ExecutableInputSource, ExecutableItem, ExecutableProgram};
 
@@ -70,6 +70,7 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) current: Option<MirBlockId>,
     pub(super) parameters: BTreeMap<ParameterId, MirLocalId>,
     pub(super) locals: BTreeMap<LocalBindingId, MirLocalId>,
+    pub(super) closure_environments: BTreeMap<ClosureId, MirLocalId>,
     pub(super) values: BTreeMap<BodyNodeId, MirValueId>,
     pub(super) places: BTreeMap<nocter_model::PlaceId, MirPlaceId>,
     pub(super) value_storage: BTreeMap<BodyNodeId, MirPlaceId>,
@@ -88,6 +89,7 @@ impl<'a> FunctionLowerer<'a> {
         let mut builder = MirFunctionBuilder::new(item_id, item.signature().result());
         let mut parameters = BTreeMap::new();
         let mut locals = BTreeMap::new();
+        let mut closure_environments = BTreeMap::new();
         for input in item.signature().inputs().iter().copied() {
             let local = builder.add_parameter(input.ty(), false);
             match input.source() {
@@ -97,7 +99,9 @@ impl<'a> FunctionLowerer<'a> {
                 ExecutableInputSource::ClosureParameter(binding) => {
                     locals.insert(binding, local);
                 }
-                ExecutableInputSource::ClosureEnvironment(_) => {}
+                ExecutableInputSource::ClosureEnvironment(closure) => {
+                    closure_environments.insert(closure, local);
+                }
             }
         }
         let (entry, _) = builder.create_block([]);
@@ -110,6 +114,7 @@ impl<'a> FunctionLowerer<'a> {
             current: Some(entry),
             parameters,
             locals,
+            closure_environments,
             values: BTreeMap::new(),
             places: BTreeMap::new(),
             value_storage: BTreeMap::new(),
@@ -190,13 +195,13 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Primitive(primitive) => self.lower_primitive(ty, primitive).map(Some),
             CheckedOperation::Aggregate(aggregate) => self.lower_aggregate(ty, aggregate).map(Some),
             CheckedOperation::Call(call) => self.lower_call(node, ty, call).map(Some),
+            CheckedOperation::Closure(closure) => self.lower_closure(node, ty, closure).map(Some),
             CheckedOperation::IteratorAcquisition(acquisition) => self
                 .lower_iterator_acquisition(node, ty, acquisition)
                 .map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
             | CheckedOperation::OpaqueWitness(_)
-            | CheckedOperation::Closure(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
             | CheckedOperation::Interpolation(_) => {

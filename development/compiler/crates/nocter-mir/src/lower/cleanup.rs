@@ -92,28 +92,54 @@ impl FunctionLowerer<'_> {
         if path.fields().len() != path.projection_types().len() {
             return Err(MirLoweringError::InvalidCleanup(owner));
         }
-        let root = match path.root() {
-            PlaceRoot::Parameter(parameter) => MirPlaceRoot::Local(
-                *self
+        let mut lowered = match path.root() {
+            PlaceRoot::Parameter(parameter) => {
+                let local = *self
                     .parameters
                     .get(&parameter)
-                    .ok_or(MirLoweringError::InvalidCleanup(owner))?,
-            ),
-            PlaceRoot::Local(local) => MirPlaceRoot::Local(self.ensure_local(local)?),
-            PlaceRoot::Capture(_) => return Err(MirLoweringError::UnsupportedCleanup(owner)),
+                    .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+                let ty = self
+                    .builder
+                    .local_type(local)
+                    .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+                super::place::LoweredPlacePath {
+                    root: MirPlaceRoot::Local(local),
+                    projections: Vec::new(),
+                    ty,
+                }
+            }
+            PlaceRoot::Local(local) => {
+                let local = self.ensure_local(local)?;
+                let ty = self
+                    .builder
+                    .local_type(local)
+                    .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+                super::place::LoweredPlacePath {
+                    root: MirPlaceRoot::Local(local),
+                    projections: Vec::new(),
+                    ty,
+                }
+            }
+            PlaceRoot::Capture(capture) => self.lower_capture_path(capture)?,
         };
-        let projections = path
+        for (field, source_ty) in path
             .fields()
             .iter()
             .copied()
             .zip(path.projection_types().iter().copied())
-            .map(|(field, ty)| {
-                self.concrete_type(ty)
-                    .map(|ty| MirProjection::new(MirProjectionKind::Field(field), ty))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        {
+            lowered.push(
+                MirProjectionKind::Field(field),
+                self.concrete_type(source_ty)?,
+            );
+        }
         let ty = self.concrete_type(path.ty())?;
-        Ok(self.builder.add_place(root, projections, ty))
+        if lowered.ty != ty {
+            return Err(MirLoweringError::InvalidCleanup(owner));
+        }
+        Ok(self
+            .builder
+            .add_place(lowered.root, lowered.projections, ty))
     }
 
     fn materialize_cleanup_value(
@@ -210,8 +236,16 @@ impl FunctionLowerer<'_> {
                 )?;
                 self.lower_destruction(owner, witness, plan)?;
             }
-            ConcreteDestructionKind::Closure(_) => {
-                return Err(MirLoweringError::UnsupportedCleanup(owner));
+            ConcreteDestructionKind::Closure(captures) => {
+                for capture in captures {
+                    let child = self.project_cleanup_place(
+                        owner,
+                        place,
+                        MirProjectionKind::ClosureCapture(capture.capture()),
+                        capture.plan().ty(),
+                    )?;
+                    self.lower_destruction(owner, child, capture.plan())?;
+                }
             }
         }
         Ok(())

@@ -33,6 +33,7 @@ pub(super) fn build_executable(
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
+        closure_layouts: frozen.closure_layouts,
         root: ExecutableRoot::Process {
             target: selected,
             entry: entry_item,
@@ -69,6 +70,7 @@ pub(super) fn build_tests(
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
+        closure_layouts: frozen.closure_layouts,
         root: ExecutableRoot::Tests {
             target: selected,
             cases: cases.into_boxed_slice(),
@@ -80,6 +82,7 @@ struct FrozenClosure {
     types: nocter_model::TypeStore,
     items: nocter_model::Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
+    closure_layouts: BTreeMap<nocter_model::TypeId, ExecutableItemId>,
 }
 
 impl FrozenClosure {
@@ -186,6 +189,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
 
         let prepared_borrows = self.specialize_prepared_borrows(&dependencies, &substitution)?;
+        let closure = self.specialize_closure_layout(key, &substitution)?;
 
         let mut destructions = Vec::new();
         for source in dependencies.destructions() {
@@ -213,8 +217,10 @@ impl<'program> ExecutableClosureBuilder<'program> {
 
         Ok(DraftItem {
             signature,
+            closure,
             body: context.body,
             root: context.root,
+            nodes: dependencies.nodes().to_vec(),
             dispatches,
             closures,
             drops: drops.into_iter().collect(),
@@ -222,6 +228,44 @@ impl<'program> ExecutableClosureBuilder<'program> {
             prepared_borrows,
             destructions,
         })
+    }
+
+    fn specialize_closure_layout(
+        &mut self,
+        key: &ExecutableItemKey,
+        substitution: &TypeSubstitution,
+    ) -> Result<Option<super::ExecutableClosureLayout>, ExecutableProgramError> {
+        let ExecutableItemKey::Closure(key) = key else {
+            return Ok(None);
+        };
+        let definition = self
+            .target
+            .checked()
+            .closures()
+            .get(key.closure())
+            .ok_or_else(|| {
+                ExecutableProgramError::UnknownItem(ExecutableItemKey::Closure(key.clone()))
+            })?;
+        let ty = self
+            .resolver
+            .specialize_type(definition.ty(), substitution)?;
+        let captures = definition
+            .environment()
+            .iter()
+            .copied()
+            .map(|capture| {
+                self.resolver
+                    .specialize_type(capture.ty(), substitution)
+                    .map(|ty| super::ExecutableClosureCapture::new(capture.binding(), ty))
+                    .map_err(Into::into)
+            })
+            .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+        Ok(Some(super::ExecutableClosureLayout::new(
+            key.closure(),
+            ty,
+            definition.signature().capability(),
+            captures,
+        )))
     }
 
     fn specialize_prepared_borrows(
@@ -537,8 +581,10 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
 
 struct DraftItem {
     signature: super::ExecutableSignature,
+    closure: Option<super::ExecutableClosureLayout>,
     body: BodyId,
     root: BodyNodeId,
+    nodes: Vec<BodyNodeId>,
     dispatches: Vec<DraftDispatchEdge>,
     closures: Vec<(nocter_model::ClosureId, ExecutableItemKey)>,
     drops: Vec<(DropSelection, ExecutableItemKey)>,
@@ -584,33 +630,50 @@ fn freeze_items(
     }
     let _ = key_arena.finish();
     let mut items = ArenaBuilder::new();
+    let mut closure_layouts = BTreeMap::new();
     for (key, draft) in drafts {
         let expected = item_ids
             .get(&key)
             .copied()
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
-        let (signature, body) = freeze_body(draft, &item_ids)?;
+        let (signature, closure, body) = freeze_body(draft, &item_ids)?;
+        let closure_ty = closure.as_ref().map(super::ExecutableClosureLayout::ty);
         let actual = items.insert(ExecutableItem {
             key: key.clone(),
             signature,
+            closure,
             body,
         });
         if actual != expected {
             return Err(ExecutableProgramError::DuplicateItem(key));
+        }
+        if let Some(closure_ty) = closure_ty
+            && closure_layouts.insert(closure_ty, actual).is_some()
+        {
+            return Err(ExecutableProgramError::DuplicateClosureLayout(closure_ty));
         }
     }
     Ok(FrozenClosure {
         types,
         items: items.finish(),
         item_ids,
+        closure_layouts,
     })
 }
 
 fn freeze_body(
     draft: DraftItem,
     item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
-) -> Result<(super::ExecutableSignature, ExecutableBody), ExecutableProgramError> {
+) -> Result<
+    (
+        super::ExecutableSignature,
+        Option<super::ExecutableClosureLayout>,
+        ExecutableBody,
+    ),
+    ExecutableProgramError,
+> {
     let signature = draft.signature;
+    let closure = draft.closure;
     let dispatches = draft
         .dispatches
         .into_iter()
@@ -643,9 +706,11 @@ fn freeze_body(
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
     Ok((
         signature,
+        closure,
         ExecutableBody {
             body: draft.body,
             root: draft.root,
+            nodes: draft.nodes.into_boxed_slice(),
             dispatches: dispatches.into_boxed_slice(),
             closures: closures.into_boxed_slice(),
             drops: drops.into_boxed_slice(),

@@ -12,6 +12,7 @@ mod program;
 mod schema;
 mod validate;
 mod validation_call;
+mod validation_closure;
 mod validation_environment;
 mod validation_error;
 mod validation_graph;
@@ -23,8 +24,8 @@ mod validation_types;
 pub use builder::{MirBlockBuilder, MirFunctionBuildError, MirFunctionBuilder};
 pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{
-    MirAggregate, MirBinaryOperation, MirCall, MirCallSignature, MirCallTarget, MirConstant,
-    MirOperation, MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,
+    MirAggregate, MirBinaryOperation, MirCall, MirCallSignature, MirCallTarget, MirClosureCapture,
+    MirConstant, MirOperation, MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,
 };
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder};

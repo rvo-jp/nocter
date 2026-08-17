@@ -185,6 +185,14 @@ retain their exact readwrite receiver, and tests have no inputs. Each standard p
 freezes its concrete signature. Signature specialization belongs to executable construction; MIR
 cannot apply generic substitution or infer ABI inputs from body references.
 
+Each closure item additionally freezes one concrete environment layout: its `ClosureId`, concrete
+closure type, invocation capability, and every capture binding paired with the concrete type stored
+in that field. A borrow capture therefore remains a borrow field rather than being collapsed to its
+referent. The enclosing executable body points to that exact item, so MIR construction, capture
+projection, invocation, and destruction all consume one layout authority. Each executable body
+also freezes the deterministic first-use node domain reached from its root. Preparation passes may
+not scan sibling closure roots merely because those nodes occupy the same checked-body arena.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact
@@ -200,12 +208,13 @@ pattern lowering never move an aggregate merely to recover its active representa
 
 Construction is mutable only through `MirFunctionBuilder` and `MirProgramBuilder`; finishing
 consumes both builders. Function validation receives a narrow immutable environment containing
-only the concrete type store, declaration members needed for projection validation, and the closed
-executable-item domain. It validates specialized nominal projections and aggregate layout, local
-and place capability, operation typing, edge arguments, reachability, SSA dominance, switch shape,
-and return behavior. Program validation then checks direct calls and drop invocations against the
-complete function arena. This split permits future per-item incremental validation without giving
-MIR access to source or package setup state.
+only the concrete type store, declaration members needed for projection validation, concrete
+closure layouts, and the closed executable-item domain. It validates specialized nominal and
+closure-capture projections, aggregate layout, local and place capability, operation typing, edge
+arguments, reachability, SSA dominance, switch shape, and return behavior. Program validation then
+checks direct calls, closure environment signatures, and drop invocations against the complete
+function arena. This split permits future per-item incremental validation without giving MIR
+access to source or package setup state.
 
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
 and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive
@@ -266,8 +275,12 @@ parameters. Lexical region entry creates and initializes one compiler-owned allo
 local from its checked parent borrow. Region exit remains part of the ordinary cleanup schedule,
 which orders inner values before child release on fallthrough and every explicit transfer.
 Validation requires the compiler-selected allocator and allocation-context nominal identities for
-both operations. Other unsupported checked operations still fail; the current slice cannot
-silently omit accepted semantics.
+both operations. Concrete closures lower through a binding-preserving aggregate tied to one
+executable closure item. Direct closure calls borrow or consume that same environment according to
+its frozen capability. Inside the closure body, hidden environment and stored-borrow dereferences
+remain explicit typed place projections; move captures participate in the ordinary cleanup-flag
+and recursive-destruction machinery. Other unsupported checked operations still fail; the current
+slice cannot silently omit accepted semantics.
 
 ## Prohibited Designs
 
