@@ -423,7 +423,13 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 let valid = match constant {
                     MirConstant::Bool(_) => result == self.types.builtin(BuiltinType::Bool),
                     MirConstant::Integer(_) => is_integer(self.types, result),
-                    MirConstant::Text(_) => result == self.types.builtin(BuiltinType::Str),
+                    MirConstant::Text(_) => matches!(
+                        self.types.get(result),
+                        Some(TypeKind::Borrow {
+                            capability: BorrowCapability::Readonly,
+                            referent,
+                        }) if *referent == self.types.builtin(BuiltinType::Str)
+                    ),
                 };
                 if !valid {
                     return Err(mismatch());
@@ -520,8 +526,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     self.environment,
                     self.function,
                     id,
-                    call.target(),
-                    call.arguments(),
+                    call,
                     result.ok_or_else(mismatch)?,
                 )?;
             }
@@ -835,6 +840,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             },
             MirOperationKind::Call(call) => {
                 values.extend(call.arguments().iter().copied());
+                if let crate::MirCallAllocation::Explicit(place) = call.allocation() {
+                    values.extend(place_values(self.require_place(place)?));
+                }
             }
         }
         Ok(values)

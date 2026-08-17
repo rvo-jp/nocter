@@ -92,6 +92,123 @@ fn lowers_standard_calls_with_their_frozen_concrete_signatures() {
 }
 
 #[test]
+fn lowers_static_string_values_as_readonly_str_borrows() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             let text: &str = \"hello\"\n\
+             let _ = text\n\
+             0\n\
+         }\n",
+    )
+    .unwrap();
+    let function = program.functions().iter().next().unwrap().1;
+
+    assert!(function.operations().iter().any(|(_, operation)| {
+        let MirOperationKind::Constant(crate::MirConstant::Text(text)) = operation.kind() else {
+            return false;
+        };
+        let ty = operation
+            .result()
+            .and_then(|value| function.values().get(value))
+            .copied()
+            .map(crate::MirValue::ty);
+        text.as_ref() == "hello"
+            && matches!(
+                ty.and_then(|ty| program.executable().types().get(ty)),
+                Some(nocter_model::TypeKind::Borrow {
+                    capability: nocter_model::BorrowCapability::Readonly,
+                    referent,
+                }) if *referent == program.executable().types().builtin(nocter_model::BuiltinType::Str)
+            )
+    }));
+}
+
+#[test]
+fn lowers_typed_string_literals_to_the_declared_constructor() {
+    let program = lower_fixture(
+        "struct Text {}\n\
+         construct Text {\n\
+             pub literal \"\"(text: &str): Self {\n\
+                 let _ = text\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): void {\n\
+             let _ = Text \"hello\"\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Call(call)
+                    if matches!(call.target(), crate::MirCallTarget::Direct(_))
+                        && call.allocation() == crate::MirCallAllocation::Inherit
+                        && call.arguments().len() == 1
+                        && function.values().get(call.arguments()[0]).is_some_and(|value| {
+                            matches!(
+                                value.definition(),
+                                crate::MirValueDefinition::Operation(operation)
+                                    if matches!(
+                                        function.operations().get(operation).map(crate::MirOperation::kind),
+                                        Some(MirOperationKind::Constant(crate::MirConstant::Text(text)))
+                                            if text.as_ref() == "hello"
+                                    )
+                            )
+                        })
+            )
+        })
+    }));
+}
+
+#[test]
+fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         struct Text {}\n\
+         construct Text {\n\
+             pub literal \"\"(text: &str): Self { return Self {} }\n\
+         }\n\
+         func main(): void {\n\
+             let allocator = Allocator {}\n\
+             let _ = Text \"hello\" using allocator\n\
+             return\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            let MirOperationKind::Call(call) = operation.kind() else {
+                return false;
+            };
+            let crate::MirCallAllocation::Explicit(place) = call.allocation() else {
+                return false;
+            };
+            matches!(call.target(), crate::MirCallTarget::Direct(_))
+                && function.places().get(place).is_some_and(|place| {
+                    matches!(
+                        program.executable().types().get(place.ty()),
+                        Some(nocter_model::TypeKind::Nominal { definition, arguments })
+                            if arguments.is_empty()
+                                && Some(*definition)
+                                    == program
+                                        .executable()
+                                        .target()
+                                        .checked()
+                                        .standard_semantics()
+                                        .nominal(nocter_declarations::StandardDeclarationRole::AbortingAllocator)
+                    )
+                })
+        })
+    }));
+}
+
+#[test]
 fn lowers_primitive_comparison_from_frozen_prepared_borrows() {
     let program = lower_fixture("func main(): i32 { if 1 == 2 { 0 } else { 1 } }\n").unwrap();
     let function = program.functions().iter().next().unwrap().1;

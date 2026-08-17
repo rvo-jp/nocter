@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_declarations::{
     FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
@@ -10,14 +10,16 @@ use nocter_model::{
 };
 
 use crate::{
-    MirBinaryOperation, MirBranchTarget, MirConstant, MirFunctionBuildError, MirFunctionBuilder,
-    MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind, MirReadMode,
-    MirTerminator, MirValidationEnvironment, MirValidationError,
+    MirBinaryOperation, MirBranchTarget, MirCall, MirCallAllocation, MirCallTarget, MirConstant,
+    MirFunctionBuildError, MirFunctionBuilder, MirLocalKind, MirOperationKind, MirPlaceRoot,
+    MirProjection, MirProjectionKind, MirReadMode, MirTerminator, MirValidationEnvironment,
+    MirValidationError,
 };
 
 struct TestEnvironment {
     types: TypeStore,
     items: Arena<ExecutableItemId, ()>,
+    allocation_items: BTreeSet<ExecutableItemId>,
     standard_nominals: BTreeMap<StandardDeclarationRole, NominalTypeId>,
 }
 
@@ -33,6 +35,7 @@ impl TestEnvironment {
             Self {
                 types,
                 items: items.finish(),
+                allocation_items: BTreeSet::new(),
                 standard_nominals: BTreeMap::new(),
             },
             item,
@@ -158,6 +161,10 @@ impl MirValidationEnvironment for TestEnvironment {
         self.items.get(item).is_some()
     }
 
+    fn item_accepts_allocation_override(&self, item: ExecutableItemId) -> bool {
+        self.allocation_items.contains(&item)
+    }
+
     fn nominal_type(&self, _id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
         None
     }
@@ -191,6 +198,64 @@ impl MirValidationEnvironment for TestEnvironment {
         _capture: nocter_model::CaptureId,
     ) -> Option<TypeId> {
         None
+    }
+}
+
+#[test]
+fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() {
+    let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
+    let allocator = nominal_ids.insert(());
+    let mut types = TypeStore::new();
+    let void = types.builtin(BuiltinType::Void);
+    let i32_ = types.builtin(BuiltinType::I32);
+    let allocator_ty = types
+        .intern(TypeKind::Nominal {
+            definition: allocator,
+            arguments: Box::new([]),
+        })
+        .unwrap();
+    let (mut environment, item) = TestEnvironment::with_types(types);
+    environment.allocation_items.insert(item);
+    environment
+        .standard_nominals
+        .insert(StandardDeclarationRole::AbortingAllocator, allocator);
+
+    let build = |place_ty, accepted: bool| {
+        let environment = TestEnvironment {
+            types: environment.types.clone(),
+            items: environment.items.clone(),
+            allocation_items: accepted.then_some(item).into_iter().collect(),
+            standard_nominals: environment.standard_nominals.clone(),
+        };
+        let mut builder = MirFunctionBuilder::new(item, void);
+        let parameter = builder.add_parameter(place_ty, false);
+        let place = builder.add_place(MirPlaceRoot::Local(parameter), [], place_ty);
+        let (entry, _) = builder.create_block([]);
+        builder
+            .append_value(
+                entry,
+                void,
+                MirOperationKind::Call(MirCall::with_allocation(
+                    MirCallTarget::Direct(item),
+                    [],
+                    MirCallAllocation::Explicit(place),
+                )),
+            )
+            .unwrap();
+        builder
+            .terminate(entry, MirTerminator::Return(None))
+            .unwrap();
+        builder.finish(entry, &environment)
+    };
+
+    assert!(build(allocator_ty, true).is_ok());
+    for result in [build(allocator_ty, false), build(i32_, true)] {
+        assert!(matches!(
+            result,
+            Err(MirFunctionBuildError::Validation(
+                MirValidationError::OperationType(_)
+            ))
+        ));
     }
 }
 

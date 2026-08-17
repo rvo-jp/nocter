@@ -7,7 +7,8 @@ use nocter_target_program::{
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirCall, MirCallSignature, MirCallTarget, MirOperationKind, MirStructuralCall, MirTerminator,
+    MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirOperationKind,
+    MirStructuralCall, MirTerminator,
 };
 
 impl FunctionLowerer<'_> {
@@ -88,6 +89,18 @@ impl FunctionLowerer<'_> {
         self.emit_call(ty, target, arguments)
     }
 
+    pub(super) fn emit_dispatch_step_with_allocation(
+        &mut self,
+        node: BodyNodeId,
+        ty: TypeId,
+        step: &ExecutableDispatchStep,
+        arguments: impl Into<Box<[MirValueId]>>,
+        allocation: MirCallAllocation,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let target = step_target(step).ok_or(MirLoweringError::InvalidDispatch(node))?;
+        self.emit_call_with_allocation(ty, target, arguments, allocation)
+    }
+
     pub(super) fn emit_place_dispatch_step(
         &mut self,
         place: PlaceId,
@@ -105,8 +118,20 @@ impl FunctionLowerer<'_> {
         target: MirCallTarget,
         arguments: impl Into<Box<[MirValueId]>>,
     ) -> Result<MirValueId, MirLoweringError> {
-        let value =
-            self.append_value(ty, MirOperationKind::Call(MirCall::new(target, arguments)))?;
+        self.emit_call_with_allocation(ty, target, arguments, MirCallAllocation::Inherit)
+    }
+
+    fn emit_call_with_allocation(
+        &mut self,
+        ty: TypeId,
+        target: MirCallTarget,
+        arguments: impl Into<Box<[MirValueId]>>,
+        allocation: MirCallAllocation,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let value = self.append_value(
+            ty,
+            MirOperationKind::Call(MirCall::with_allocation(target, arguments, allocation)),
+        )?;
         if self.executable.types().get(ty) == Some(&TypeKind::Builtin(BuiltinType::Never)) {
             let block = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
             self.builder.terminate(block, MirTerminator::Unreachable)?;

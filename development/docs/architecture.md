@@ -406,6 +406,12 @@ after a returning call. Owned environments enter that canonical storage before a
 and leave it only after every argument succeeds. An argument propagation edge therefore addresses
 the same storage through the checked cleanup schedule. Destruction is not hidden inside a call
 convention.
+Static text constants lower as readonly borrows of built-in `str`, matching checked HIR instead of
+inventing an unsized by-value result. A typed string lowers to one direct call of its selected
+literal item. The call carries either inherited allocation or one explicit allocator/context place;
+the latter changes ambient allocation only for that call and requires both literal-item authority
+and a compiler-selected standard nominal. It does not read, copy, or move allocator identity into
+an ordinary value argument.
 Unannotated result inference joins tail values, explicit returns, outcome propagation, and
 divergence at that root. Ownership, provenance, liveness, and loan passes enter each closure root
 with its parameters and capture fields initialized, then summarize result dependence on invocation

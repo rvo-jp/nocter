@@ -148,10 +148,22 @@ pub enum MirCallTarget {
     Structural(MirStructuralCall),
 }
 
+/// Allocation context visible only while one call executes.
+///
+/// Lexical regions already change the inherited context through their create/release lifetime.
+/// Typed literal `using` overrides instead name an existing allocator or region place and must be
+/// restored as part of the call boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MirCallAllocation {
+    Inherit,
+    Explicit(MirPlaceId),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirCall {
     target: MirCallTarget,
     arguments: Box<[MirValueId]>,
+    allocation: MirCallAllocation,
 }
 
 impl MirCall {
@@ -160,6 +172,20 @@ impl MirCall {
         Self {
             target,
             arguments: arguments.into(),
+            allocation: MirCallAllocation::Inherit,
+        }
+    }
+
+    #[must_use]
+    pub fn with_allocation(
+        target: MirCallTarget,
+        arguments: impl Into<Box<[MirValueId]>>,
+        allocation: MirCallAllocation,
+    ) -> Self {
+        Self {
+            target,
+            arguments: arguments.into(),
+            allocation,
         }
     }
 
@@ -171,6 +197,11 @@ impl MirCall {
     #[must_use]
     pub const fn arguments(&self) -> &[MirValueId] {
         &self.arguments
+    }
+
+    #[must_use]
+    pub const fn allocation(&self) -> MirCallAllocation {
+        self.allocation
     }
 }
 

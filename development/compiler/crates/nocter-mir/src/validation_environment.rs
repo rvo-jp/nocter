@@ -1,11 +1,11 @@
 use nocter_declarations::{
-    FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
+    CallableKind, FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
     VariantDeclaration,
 };
 use nocter_model::{
     CaptureId, ExecutableItemId, FieldId, NominalTypeId, ParameterId, TypeId, TypeStore, VariantId,
 };
-use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
+use nocter_target_program::{ExecutableClosureLayout, ExecutableItemKey, ExecutableProgram};
 
 /// The immutable semantic authority required to validate one MIR function.
 ///
@@ -14,6 +14,9 @@ use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 pub trait MirValidationEnvironment {
     fn types(&self) -> &TypeStore;
     fn contains_item(&self, item: ExecutableItemId) -> bool;
+    fn item_accepts_allocation_override(&self, _item: ExecutableItemId) -> bool {
+        false
+    }
     fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration>;
     fn field(&self, id: FieldId) -> Option<&FieldDeclaration>;
     fn variant(&self, id: VariantId) -> Option<&VariantDeclaration>;
@@ -30,6 +33,23 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn contains_item(&self, item: ExecutableItemId) -> bool {
         self.items().get(item).is_some()
+    }
+
+    fn item_accepts_allocation_override(&self, item: ExecutableItemId) -> bool {
+        let Some(ExecutableItemKey::Callable(key)) = self
+            .items()
+            .get(item)
+            .map(nocter_target_program::ExecutableItem::key)
+        else {
+            return false;
+        };
+        self.target()
+            .checked()
+            .graph()
+            .declarations()
+            .callables()
+            .get(key.callable())
+            .is_some_and(|callable| matches!(callable.kind(), CallableKind::Literal(_)))
     }
 
     fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration> {

@@ -24,8 +24,9 @@ mod validation_types;
 pub use builder::{MirBlockBuilder, MirFunctionBuildError, MirFunctionBuilder};
 pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{
-    MirAggregate, MirBinaryOperation, MirCall, MirCallSignature, MirCallTarget, MirClosureCapture,
-    MirConstant, MirOperation, MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,
+    MirAggregate, MirBinaryOperation, MirCall, MirCallAllocation, MirCallSignature, MirCallTarget,
+    MirClosureCapture, MirConstant, MirOperation, MirOperationKind, MirReadMode, MirStructuralCall,
+    MirUnaryOperation,
 };
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder};

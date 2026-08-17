@@ -196,6 +196,13 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Aggregate(aggregate) => self.lower_aggregate(ty, aggregate).map(Some),
             CheckedOperation::Call(call) => self.lower_call(node, ty, call).map(Some),
             CheckedOperation::Closure(closure) => self.lower_closure(node, ty, closure).map(Some),
+            CheckedOperation::StringLiteral {
+                constructor,
+                text,
+                allocation,
+            } => self
+                .lower_typed_string(node, ty, constructor, text, *allocation)
+                .map(Some),
             CheckedOperation::IteratorAcquisition(acquisition) => self
                 .lower_iterator_acquisition(node, ty, acquisition)
                 .map(Some),
@@ -203,7 +210,6 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Place(_)
             | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::Sequence(_)
-            | CheckedOperation::StringLiteral { .. }
             | CheckedOperation::Interpolation(_) => {
                 Err(MirLoweringError::UnsupportedOperation(node))
             }

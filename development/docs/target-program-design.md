@@ -204,6 +204,14 @@ environment after all explicit arguments succeed. Both cases stage an owned call
 the canonical expression-temporary slot before argument evaluation; checked propagation cleanup
 uses that same slot. There is no erased callable object, vtable, or indirect callable ABI in MIR.
 
+Static strings remain typed readonly `&str` constants. Typed string construction consumes its
+already frozen literal dispatch and calls the specialized literal item directly. Every MIR call
+records whether it inherits lexical allocation or temporarily overrides it with an existing place.
+Only executable items whose exact declaration kind is a typed literal accept an override, and the
+place must resolve to the compiler-selected aborting allocator or allocation-context nominal. This
+keeps allocation context out of ordinary source ABI parameters and makes restoration a call-boundary
+obligation rather than an inferred backend convention.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact

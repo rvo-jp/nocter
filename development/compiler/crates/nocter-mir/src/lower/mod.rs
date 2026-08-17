@@ -7,6 +7,7 @@ use nocter_target_program::ExecutableProgram;
 
 use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
 
+mod allocation;
 mod assignment;
 mod borrow_conversion;
 mod call;
@@ -27,6 +28,7 @@ mod outcome;
 mod pattern;
 mod place;
 mod region;
+mod string;
 mod value_storage;
 
 #[cfg(test)]
@@ -79,6 +81,7 @@ pub enum MirLoweringError {
     InvalidRegion(BodyNodeId),
     InvalidClosure(BodyNodeId),
     InvalidCallable(BodyNodeId),
+    InvalidStringLiteral(BodyNodeId),
     InvalidCapture(nocter_model::CaptureId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),

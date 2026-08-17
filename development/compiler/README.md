@@ -333,6 +333,9 @@ be introduced to make an unresolved syntax choice.
   intrinsic closure body only borrows its environment. Owned callable operands are staged before
   later arguments and transferred only after those arguments succeed, preserving checked cleanup
   on propagation. No erased callable ABI reaches MIR.
+  Static text constants are typed as readonly `&str` values. Typed string construction calls the
+  frozen literal body and carries `using` as a call-scoped allocation-place override; MIR validates
+  both the literal item authority and the selected allocator/context nominal identity.
   Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and

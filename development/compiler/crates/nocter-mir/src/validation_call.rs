@@ -1,15 +1,16 @@
+use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, TypeId, TypeKind};
 
 use crate::{
-    MirCallTarget, MirFunction, MirStructuralCall, MirValidationEnvironment, MirValidationError,
+    MirCall, MirCallAllocation, MirCallTarget, MirFunction, MirStructuralCall,
+    MirValidationEnvironment, MirValidationError,
 };
 
 pub(crate) fn validate_call(
     environment: &(impl MirValidationEnvironment + ?Sized),
     function: &MirFunction,
     operation: MirOperationId,
-    target: &MirCallTarget,
-    arguments: &[MirValueId],
+    call: &MirCall,
     result: TypeId,
 ) -> Result<(), MirValidationError> {
     CallValidation {
@@ -18,7 +19,7 @@ pub(crate) fn validate_call(
         operation,
         result,
     }
-    .validate(target, arguments)
+    .validate(call)
 }
 
 struct CallValidation<'a, E: ?Sized> {
@@ -29,11 +30,10 @@ struct CallValidation<'a, E: ?Sized> {
 }
 
 impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
-    fn validate(
-        &self,
-        target: &MirCallTarget,
-        arguments: &[MirValueId],
-    ) -> Result<(), MirValidationError> {
+    fn validate(&self, call: &MirCall) -> Result<(), MirValidationError> {
+        self.validate_allocation(call)?;
+        let target = call.target();
+        let arguments = call.arguments();
         match target {
             MirCallTarget::Direct(item) => {
                 if !self.environment.contains_item(*item) {
@@ -66,6 +66,47 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
             }
+        }
+        Ok(())
+    }
+
+    fn validate_allocation(&self, call: &MirCall) -> Result<(), MirValidationError> {
+        let MirCallAllocation::Explicit(place) = call.allocation() else {
+            return Ok(());
+        };
+        let MirCallTarget::Direct(item) = call.target() else {
+            return Err(self.invalid());
+        };
+        if !self.environment.item_accepts_allocation_override(*item) {
+            return Err(self.invalid());
+        }
+        let ty = self
+            .function
+            .places()
+            .get(place)
+            .ok_or(MirValidationError::UnknownPlace(place))?
+            .ty();
+        let referent = match self.environment.types().get(ty) {
+            Some(TypeKind::Borrow { referent, .. }) => *referent,
+            Some(_) => ty,
+            None => return Err(self.invalid()),
+        };
+        let Some(TypeKind::Nominal {
+            definition,
+            arguments,
+        }) = self.environment.types().get(referent)
+        else {
+            return Err(self.invalid());
+        };
+        let valid_role = [
+            StandardDeclarationRole::AbortingAllocator,
+            StandardDeclarationRole::AllocationContext,
+        ]
+        .into_iter()
+        .filter_map(|role| self.environment.standard_nominal(role))
+        .any(|expected| expected == *definition);
+        if !arguments.is_empty() || !valid_role {
+            return Err(self.invalid());
         }
         Ok(())
     }
