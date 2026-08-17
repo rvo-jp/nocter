@@ -2,17 +2,18 @@ use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    lower_compile_unit_declarations,
+    PackageTargetResolutionInput, lower_compile_unit_declarations,
 };
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use super::{TargetProgram, TargetProgramError};
 use crate::{
-    PrimitiveBinding, PrimitiveContractRule, PrimitiveRegistry, PrimitiveRegistryValidationError,
-    PrimitiveRole, ToolchainSnapshot,
+    EntrySelectionError, PrimitiveBinding, PrimitiveContractRule, PrimitiveRegistry,
+    PrimitiveRegistryValidationError, PrimitiveRole, ProcessSuccessType, ToolchainSnapshot,
+    select_executable_entry, select_test_target,
 };
 
 const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
@@ -116,7 +117,7 @@ struct FixtureModule {
 
 struct Fixture {
     sources: SourceMap,
-    app_manifest: SyntaxTree,
+    app_manifest: Option<SyntaxTree>,
     std_manifest: SyntaxTree,
     app: SyntaxTree,
     standard: SyntaxTree,
@@ -126,10 +127,37 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::with_app("func main(): i32! { return 0 }\n")
+    }
+
+    fn with_app(app_source: &str) -> Self {
+        Self::build(app_source, None)
+    }
+
+    fn with_tests(app_source: &str) -> Self {
+        Self::build(
+            app_source,
+            Some("#test: { name: \"unit\", module: \".\", }\n"),
+        )
+    }
+
+    fn build(app_source: &str, app_manifest_source: Option<&str>) -> Self {
         let mut sources = SourceMap::new();
-        let app_manifest = add_parsed(&mut sources, "/app/nocter.nct", "", ParseGoal::PackageFile);
         let std_manifest = add_parsed(&mut sources, "/std/nocter.nct", "", ParseGoal::PackageFile);
-        let app = add_parsed(&mut sources, "/app/index.nct", "", ParseGoal::ModuleSource);
+        let app_manifest = app_manifest_source.map(|text| {
+            add_parsed(
+                &mut sources,
+                "/app/nocter.nct",
+                text,
+                ParseGoal::PackageFile,
+            )
+        });
+        let app_path = if app_manifest.is_some() {
+            "/app/index.nct"
+        } else {
+            "/tmp/app.nct"
+        };
+        let app = add_parsed(&mut sources, app_path, app_source, ParseGoal::ModuleSource);
         let standard = add_parsed(&mut sources, "/std/index.nct", "", ParseGoal::ModuleSource);
         let prelude = add_parsed(
             &mut sources,
@@ -177,12 +205,20 @@ impl Fixture {
     fn input(&self) -> (CompileUnitInput<'_>, ModuleIdentity) {
         let app_package = PackageIdentity::new("workspace:app");
         let standard_package = PackageIdentity::new("toolchain:std");
+        let app_declaration = self
+            .app_manifest
+            .as_ref()
+            .map(|manifest| PackageDeclarationInput::new("/app/nocter.nct", manifest));
         let packages = vec![
-            package(
+            PackageInput::new(
                 app_package.clone(),
                 "app",
-                "/app/nocter.nct",
-                &self.app_manifest,
+                if app_declaration.is_some() {
+                    PackageMode::Declared
+                } else {
+                    PackageMode::SingleFile
+                },
+                app_declaration,
             ),
             package(
                 standard_package.clone(),
@@ -192,7 +228,22 @@ impl Fixture {
             ),
         ];
         let mut modules = vec![
-            module(app_package, &[], "/app/index.nct", &self.app),
+            ModuleInput::new(
+                ModuleIdentity::new(app_package.clone(), Vec::<&str>::new()),
+                vec![ModuleSourceInput::new(
+                    if self.app_manifest.is_some() {
+                        "/app/index.nct"
+                    } else {
+                        "/tmp/app.nct"
+                    },
+                    if self.app_manifest.is_some() {
+                        ModuleSourceKind::Root
+                    } else {
+                        ModuleSourceKind::SingleFile
+                    },
+                    &self.app,
+                )],
+            ),
             module(
                 standard_package.clone(),
                 &[],
@@ -216,16 +267,36 @@ impl Fixture {
             )
         }));
         let prelude = ModuleIdentity::new(standard_package, ["prelude"]);
-        (
-            CompileUnitInput::new(
-                CompilationTarget::Arm64Darwin,
-                &self.sources,
-                packages,
-                modules,
-                Vec::new(),
-            ),
-            prelude,
-        )
+        let mut input = CompileUnitInput::new(
+            CompilationTarget::Arm64Darwin,
+            &self.sources,
+            packages,
+            modules,
+            Vec::new(),
+        );
+        if let Some(manifest) = &self.app_manifest {
+            let declaration = manifest
+                .children(manifest.root_id())
+                .iter()
+                .find_map(|element| match element {
+                    SyntaxElement::Node(node)
+                        if manifest
+                            .node(*node)
+                            .is_some_and(|node| node.kind() == NodeKind::PackageDirective) =>
+                    {
+                        Some(*node)
+                    }
+                    SyntaxElement::Node(_)
+                    | SyntaxElement::Token(_)
+                    | SyntaxElement::Missing(_) => None,
+                })
+                .expect("test fixture manifest has no target directive");
+            input = input.with_package_target_resolutions(vec![PackageTargetResolutionInput::new(
+                declaration,
+                ModuleIdentity::new(app_package, Vec::<&str>::new()),
+            )]);
+        }
+        (input, prelude)
     }
 }
 
@@ -249,6 +320,151 @@ fn complete_closed_registry_constructs_a_target_program() {
         CompilationTarget::Arm64Darwin
     );
     assert_eq!(target.toolchain().primitives().bindings().len(), 49);
+}
+
+#[test]
+fn executable_entry_accepts_exactly_the_six_process_result_forms() {
+    for (source, expected_success, expected_fallible) in [
+        (
+            "func main(): void { return }\n",
+            ProcessSuccessType::Void,
+            false,
+        ),
+        (
+            "func main(): void! { return }\n",
+            ProcessSuccessType::Void,
+            true,
+        ),
+        (
+            "func main(): i32 { return 0 }\n",
+            ProcessSuccessType::I32,
+            false,
+        ),
+        (
+            "func main(): i32! { return 0 }\n",
+            ProcessSuccessType::I32,
+            true,
+        ),
+        (
+            "func main(): usize { return 0 }\n",
+            ProcessSuccessType::Usize,
+            false,
+        ),
+        (
+            "func main(): usize! { return 0 }\n",
+            ProcessSuccessType::Usize,
+            true,
+        ),
+    ] {
+        let target = build_target_program(&Fixture::with_app(source));
+        let (target_id, _) = target
+            .checked()
+            .graph()
+            .package_targets()
+            .iter()
+            .next()
+            .unwrap();
+        let entry = select_executable_entry(&target, target_id).unwrap();
+        assert_eq!(entry.process_result().success(), expected_success);
+        assert_eq!(entry.process_result().is_fallible(), expected_fallible);
+        assert_eq!(entry.target(), target_id);
+        assert_eq!(
+            target
+                .checked()
+                .graph()
+                .declarations()
+                .callables()
+                .get(entry.callable())
+                .and_then(nocter_declarations::CallableDeclaration::body),
+            Some(entry.body())
+        );
+    }
+}
+
+#[test]
+fn executable_entry_rejects_missing_non_function_and_invalid_callable_contracts() {
+    let cases = [
+        ("", None),
+        ("struct main {}\n", None),
+        (
+            "func main<T>(): void { return }\n",
+            Some(crate::EntryContractRule::GenericParameters),
+        ),
+        (
+            "func main(value: i32): void { return }\n",
+            Some(crate::EntryContractRule::ValueParameters),
+        ),
+        (
+            "func main(): u64 { return 0 }\n",
+            Some(crate::EntryContractRule::ResultType),
+        ),
+    ];
+    for (source, expected_rule) in cases {
+        let target = build_target_program(&Fixture::with_app(source));
+        let (target_id, _) = target
+            .checked()
+            .graph()
+            .package_targets()
+            .iter()
+            .next()
+            .unwrap();
+        let error = select_executable_entry(&target, target_id).unwrap_err();
+        match (error, expected_rule) {
+            (
+                EntrySelectionError::MissingMain { .. }
+                | EntrySelectionError::InvalidMainEntity { .. },
+                None,
+            ) => {}
+            (EntrySelectionError::InvalidMainContract { rule: actual, .. }, Some(expected)) => {
+                assert_eq!(actual, expected);
+            }
+            _ => panic!("unexpected entry-selection result for {source:?}"),
+        }
+    }
+}
+
+#[test]
+fn test_target_selects_only_direct_cases_in_source_order() {
+    let target = build_target_program(&Fixture::with_tests(
+        "test first { return }\n\
+         test second { return }\n",
+    ));
+    let (target_id, _) = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap();
+    let selected = select_test_target(&target, target_id).unwrap();
+    assert_eq!(selected.target(), target_id);
+    assert_eq!(selected.tests().len(), 2);
+    assert_eq!(
+        selected
+            .tests()
+            .iter()
+            .map(|test| target
+                .checked()
+                .graph()
+                .symbols()
+                .spelling(test.name())
+                .unwrap())
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
+    for test in selected.tests() {
+        assert_eq!(
+            target
+                .checked()
+                .graph()
+                .declarations()
+                .tests()
+                .get(test.declaration())
+                .copied()
+                .map(nocter_declarations::TestDeclaration::body),
+            Some(test.body())
+        );
+    }
 }
 
 #[test]
@@ -289,6 +505,21 @@ fn semantic_attachment_cannot_swap_same_shaped_primitive_names() {
     };
     assert_eq!(error.role(), PrimitiveRole::CurrentAllocatorState);
     assert_eq!(error.rule(), PrimitiveContractRule::Name);
+}
+
+fn build_target_program(fixture: &Fixture) -> TargetProgram {
+    let (input, prelude) = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+    let (checked, _) = output.into_parts();
+    let standard_package = checked.graph().standard_package().unwrap();
+    let registry = registry_for(&checked);
+    let snapshot =
+        ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
+            .unwrap();
+    TargetProgram::build(checked, snapshot).unwrap()
 }
 
 fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {

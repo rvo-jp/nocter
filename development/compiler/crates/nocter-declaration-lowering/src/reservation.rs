@@ -12,7 +12,7 @@ use nocter_source_index::{
 };
 use nocter_syntax::NodeId;
 
-use crate::package_targets::reserve_package_targets;
+use crate::package_targets::{reserve_package_targets, reserve_single_file_targets};
 use crate::surface::SurfaceParts;
 use crate::{
     CallableContractError, CallableContracts, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
@@ -264,6 +264,14 @@ pub(crate) fn reserve_with_contracts(
     let mut source_index = SourceIndexBuilder::new();
     let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
+    reserve_single_file_targets(
+        &packages,
+        &sources,
+        &package_ids,
+        &module_ids,
+        &mut program,
+        &mut source_index,
+    )?;
     reserve_package_targets(
         source_map,
         &packages,

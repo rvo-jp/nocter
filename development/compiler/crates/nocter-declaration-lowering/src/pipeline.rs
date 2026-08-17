@@ -338,6 +338,78 @@ mod tests {
         assert_package_targets(&sources, &lowered);
     }
 
+    #[test]
+    fn single_file_mode_creates_one_semantic_executable_target() {
+        let mut sources = SourceMap::new();
+        let app_id = add_source(
+            &mut sources,
+            "/tmp/example.nct",
+            "func main(): void { return }\n",
+        );
+        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app_package = PackageIdentity::new("single:/tmp/example.nct");
+        let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![
+                PackageInput::new(
+                    app_package.clone(),
+                    "example",
+                    PackageMode::SingleFile,
+                    None,
+                ),
+                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            ],
+            vec![
+                ModuleInput::new(
+                    ModuleIdentity::new(app_package, Vec::<&str>::new()),
+                    vec![ModuleSourceInput::new(
+                        "/tmp/example.nct",
+                        ModuleSourceKind::SingleFile,
+                        &app,
+                    )],
+                ),
+                module("toolchain:std", &[], "/std/index.nct", &standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    &prelude,
+                ),
+            ],
+            Vec::new(),
+        );
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+
+        let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+        let mut targets = lowered.program().package_targets().iter();
+        let (target_id, target) = targets
+            .next()
+            .expect("single-file lowering did not create a target");
+        assert!(targets.next().is_none());
+        assert_eq!(target.kind(), PackageTargetKind::Executable);
+        assert_eq!(target.declaration_order(), 0);
+        assert_eq!(
+            lowered.program().symbols().spelling(target.name()),
+            Some("example")
+        );
+        let [binding] = lowered
+            .source_index()
+            .bindings_for(SemanticEntity::PackageTarget(target_id))
+        else {
+            panic!("single-file target did not retain one source projection")
+        };
+        assert_eq!(binding.origin().source(), app_id);
+        assert_eq!(binding.origin().span().range(), app.root().range());
+    }
+
     fn assert_package_targets(sources: &SourceMap, lowered: &crate::LoweredDeclarations) {
         let targets = lowered
             .program()

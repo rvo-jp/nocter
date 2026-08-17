@@ -10,10 +10,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Derive exact executable and test entry selection from `TargetProgram`, preserving the selected
-   `PackageTargetId` and exact entry identity without another module or spelling lookup.
-2. Build deterministic entry-driven monomorphization, including concrete generic arguments,
+1. Build deterministic entry-driven monomorphization from the frozen executable/test roots,
+   including concrete generic arguments,
    closure bodies, drop bodies, construction members, and frozen conformance dispatch.
+2. Define compiler-generated process and test runner roots without creating source declarations or
+   backend-name lookups; preserve process-result and test failure behavior explicitly.
 3. Lower the resulting `ExecutableProgram` into MIR; MIR must
    consume resolved concrete dispatch rather than repeat requirement or conformance selection.
 
@@ -39,6 +40,15 @@ consumes `CheckedProgram`, proves target and standard-package identity plus pack
 integrity, and is the first public selected-target success boundary. An integration fixture crosses
 the complete parser-to-target-program pipeline and proves that even same-shaped primitive roles
 cannot be swapped.
+Single-file lowering now creates one ordinary semantic executable target from its discovery-owned
+package mode, root module, and display name. Its `PackageTargetId` projects to the file root, so
+file and package execution have no parallel entry algorithm. Executable selection uses only the
+selected module's authored namespace and freezes the exact `main` callable, body, module, target,
+and one of the six accepted process-result contracts. Prelude fallbacks, re-exports, imported
+modules, non-functions, generic or parameterized entries, bodyless entries, and other result types
+cannot become executable roots. Test selection freezes only direct `TestId` declarations in the
+selected module and retains their canonical declaration order; it never scans imports or
+dependencies.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

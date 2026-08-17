@@ -6,7 +6,10 @@ use nocter_source::{SourceFile, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole};
 use nocter_syntax::{Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind};
 
-use crate::{ModuleIdentity, PackageInput, PackageTargetResolutionInput, ReservationError};
+use crate::{
+    ModuleIdentity, ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput,
+    ReservationError, SurfaceSource,
+};
 
 /// Reserves discovery-selected package targets without interpreting an authored module path.
 pub(crate) fn reserve_package_targets(
@@ -66,6 +69,52 @@ pub(crate) fn reserve_package_targets(
             SourceRole::Declaration,
             SourceOrigin::from_node(tree, name_literal)
                 .map_err(|_| ReservationError::InconsistentSource(tree.source()))?,
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn reserve_single_file_targets(
+    packages: &[PackageInput<'_>],
+    sources: &[SurfaceSource<'_>],
+    package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
+    module_ids: &BTreeMap<ModuleIdentity, ModuleId>,
+    program: &mut DeclarationProgramBuilder,
+    source_index: &mut SourceIndexBuilder,
+) -> Result<(), ReservationError> {
+    for package in packages
+        .iter()
+        .filter(|package| package.mode() == PackageMode::SingleFile)
+    {
+        let module_identity = ModuleIdentity::new(package.identity().clone(), Vec::<&str>::new());
+        let package_id = *package_ids
+            .get(package.identity())
+            .ok_or_else(|| ReservationError::UnknownPackage(module_identity.clone()))?;
+        let module_id = *module_ids
+            .get(&module_identity)
+            .ok_or_else(|| ReservationError::UnknownModule(module_identity.clone()))?;
+        let name = program
+            .symbols()
+            .get(package.display_name())
+            .ok_or_else(|| ReservationError::MissingSymbol(package.display_name().into()))?;
+        let source = sources
+            .iter()
+            .find(|source| {
+                source.module() == &module_identity && source.kind() == ModuleSourceKind::SingleFile
+            })
+            .ok_or_else(|| ReservationError::UnknownModule(module_identity.clone()))?;
+        let target = program.add_package_target(PackageTarget::new(
+            package_id,
+            module_id,
+            name,
+            PackageTargetKind::Executable,
+            0,
+        ))?;
+        source_index.insert(
+            SemanticEntity::PackageTarget(target),
+            SourceRole::Declaration,
+            SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
+                .map_err(|_| ReservationError::InconsistentSource(source.syntax().source()))?,
         )?;
     }
     Ok(())

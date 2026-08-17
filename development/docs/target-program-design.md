@@ -102,6 +102,20 @@ contract. Test targets instead select direct `test` declarations in source order
 Single-file mode creates one explicit executable selection owned by discovery. It does not mutate
 the source into a package manifest and does not introduce a parallel entry algorithm.
 
+That selection is implemented as one ordinary semantic `PackageTargetId`: `PackageMode::SingleFile`
+supplies the sole root module and source display name, and the target projects to the complete file
+root. Package and file execution therefore enter the same target and entry selectors.
+
+Executable entry selection reads only the selected module's authored namespace. It freezes the
+exact target, package, module, callable, body, source result type, and classified process-result
+contract. Only top-level, non-generic, parameter-free functions returning `void`, `void!`, `i32`,
+`i32!`, `usize`, or `usize!` are accepted. Prelude fallback, imported modules, re-exported
+callables, and same-spelled non-functions have no entry authority.
+
+Test-target selection filters the checked `TestId` arena by the exact selected module and retains
+canonical declaration order. Each selected case freezes its declaration, name, and body. Imported
+modules and dependencies are not traversed, and no callable or synthetic source `main` is created.
+
 ## Instantiation Authority
 
 A monomorphized item key contains callable identity, optional concrete receiver type, and generic
@@ -133,7 +147,8 @@ integrity checks over an accepted program, not a second source diagnostic system
 4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
 5. Validate selected-target availability, standard primitive roles, package targets, and complete
    buildability into `TargetProgram`. **Complete.**
-6. Select an executable/test entry and instantiate one deterministic reachable graph.
+6. Select an executable/test entry (**complete**) and instantiate one deterministic reachable
+   graph (**pending**).
 7. Lower concrete checked bodies and cleanup schedules into MIR.
 8. Validate MIR without source or syntax access.
 
