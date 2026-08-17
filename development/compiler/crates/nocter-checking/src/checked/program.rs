@@ -3,7 +3,7 @@ use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
 use crate::{
-    ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable,
+    ClosureTable, ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable,
     InstanceOperationTable, LoanTable, ProvenanceTable,
 };
 
@@ -21,6 +21,7 @@ pub struct CheckedProgram {
     drops: DropTable,
     provenance: ProvenanceTable,
     loans: LoanTable,
+    closures: ClosureTable,
     bodies: Arena<BodyId, CheckedBody>,
 }
 
@@ -32,6 +33,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) drops: DropTable,
     pub(crate) provenance: ProvenanceTable,
     pub(crate) loans: LoanTable,
+    pub(crate) closures: ClosureTable,
 }
 
 impl CheckedProgram {
@@ -51,6 +53,7 @@ impl CheckedProgram {
             drops: authorities.drops,
             provenance: authorities.provenance,
             loans: authorities.loans,
+            closures: authorities.closures,
             bodies,
         }
     }
@@ -98,6 +101,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn loans(&self) -> &LoanTable {
         &self.loans
+    }
+
+    #[must_use]
+    pub const fn closures(&self) -> &ClosureTable {
+        &self.closures
     }
 
     #[must_use]

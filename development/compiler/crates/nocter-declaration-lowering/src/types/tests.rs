@@ -143,7 +143,7 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
             "interface Show<T> {}\n",
             "instance Pair<T> {}\n",
             "conform Show<T> for Pair<T> {}\n",
-            "func inspect<T>(value: &T): void ",
+            "func inspect<T>(outer: &T): void ",
             "where T: Show<T> + &func(value: &T): &T from value { return }\n",
         ),
     );

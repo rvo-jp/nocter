@@ -474,8 +474,18 @@ interface, and structural calls while retaining current-allocation dependence as
 compiler-owned dimension. Values retain field, variant-payload, outcome, and element projections,
 so selecting one component does not acquire sibling origins. The same return validator enforces
 authored contracts, inferred contracts, temporary-receiver escape, and conformance method bounds.
-Closure-expression checking remains a subsequent increment over these frozen identities. General
-loan analysis is now a separate post-provenance authority: reverse structured liveness identifies
+Closure expressions reserve lexical `ClosureId` identities before type inference and freeze a
+concrete closure type, normalized callable signature, parameter bindings, capture fields, callable
+requirements, and body root in the program-owned `ClosureTable`. Contextual callable contracts and
+ordinary argument evidence participate in one dependency-driven inference pass, so closure
+parameter and result types do not depend on source argument order. Unannotated results join tail
+values, explicit returns, absence, propagation, and divergence without allowing closure control to
+escape into the enclosing callable. Capture storage types determine environment copyability;
+actual capture access and nested callable invocation determine readonly, readwrite, or owned
+invocation capability independently. Ownership, provenance, and loan analyses treat every closure
+body as a separate execution root and map parameter, capture-value, and environment-storage
+origins through both direct closure calls and structural callable calls. General loan analysis is
+now a separate post-provenance authority: reverse structured liveness identifies
 the source-level last use of every checked place and node temporary, while forward value flow maps
 loans through fields, outcomes, calls, branches, and loops. `LoanRoot::External` distinguishes
 input-referenced storage from the place carrying that borrow. Scheduled type-owned drop bodies are

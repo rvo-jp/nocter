@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::id::SemanticId;
 use crate::{
-    AssociatedTypeId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
+    AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
     ResultProvenance, TypeId,
 };
 
@@ -153,6 +153,12 @@ pub enum TypeKind {
         element: TypeId,
         length: u64,
     },
+    /// One concrete anonymous closure environment and its statically generated body.
+    ///
+    /// The signature and environment layout live in the checked-program closure authority. A
+    /// structural [`CallableContract`] remains a generic bound and is never used as storage for a
+    /// closure value.
+    Closure(ClosureId),
     Callable(CallableContract),
     Optional(TypeId),
     Fallible(TypeId),
@@ -161,7 +167,10 @@ pub enum TypeKind {
 impl TypeKind {
     fn references(&self, visit: &mut impl FnMut(TypeId)) {
         match self {
-            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
+            Self::Builtin(_)
+            | Self::GenericParameter(_)
+            | Self::InterfaceSelf(_)
+            | Self::Closure(_) => {}
             Self::Nominal { arguments, .. } | Self::Opaque { arguments, .. } => {
                 arguments.iter().copied().for_each(visit);
             }
@@ -235,6 +244,7 @@ impl TypeStore {
                     | TypeKind::Pointer(_)
                     | TypeKind::Borrow { .. }
                     | TypeKind::Slice(_)
+                    | TypeKind::Closure(_)
                     | TypeKind::Callable(_),
                 ) => return true,
                 Some(

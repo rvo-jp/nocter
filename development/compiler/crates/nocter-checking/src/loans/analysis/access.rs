@@ -254,7 +254,9 @@ impl Analyzer<'_, '_> {
                 "conflicting loan is created here",
                 self.node_origin(loan)?,
             )],
-            LoanId::Parameter(_) => Vec::new(),
+            LoanId::Parameter(_)
+            | LoanId::ClosureParameter { .. }
+            | LoanId::ClosureCapture { .. } => Vec::new(),
         };
         Ok(BodyCheckError::from_rule(
             rule,

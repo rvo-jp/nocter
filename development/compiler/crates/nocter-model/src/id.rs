@@ -58,6 +58,7 @@ semantic_ids! {
     BodyScopeId,
     LocalBindingId,
     CaptureId,
+    ClosureId,
     OpaqueTypeId,
     TypeId,
 }

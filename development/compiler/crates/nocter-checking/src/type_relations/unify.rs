@@ -181,6 +181,7 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
         (TypeKind::Builtin(left), TypeKind::Builtin(right)) => left == right,
         (TypeKind::GenericParameter(left), TypeKind::GenericParameter(right)) => left == right,
         (TypeKind::InterfaceSelf(left), TypeKind::InterfaceSelf(right)) => left == right,
+        (TypeKind::Closure(left), TypeKind::Closure(right)) => left == right,
         (
             TypeKind::Nominal {
                 definition: left_definition,
@@ -283,7 +284,10 @@ fn append_paired(left: &[TypeId], right: &[TypeId], pending: &mut Vec<(TypeId, T
 
 fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
     match kind {
-        TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+        TypeKind::Builtin(_)
+        | TypeKind::GenericParameter(_)
+        | TypeKind::InterfaceSelf(_)
+        | TypeKind::Closure(_) => {}
         TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. } => {
             output.extend(arguments.iter().copied());
         }

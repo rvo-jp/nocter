@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use nocter_declarations::{ProvenanceOrigin, RequirementKind, StructuralCapability};
-use nocter_model::{BodyNodeId, BorrowCapability, CallableId};
+use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
 use crate::loans::state::LoanState;
@@ -72,26 +72,84 @@ impl Analyzer<'_, '_> {
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {
-        let _callable_value = match call.target() {
-            CallTarget::CallableValue { value, .. } => {
-                let (loans, reaches) = self.evaluate(*value, state, extra)?;
-                if !reaches {
-                    return Ok((LoanValue::independent(), false));
-                }
-                Some(loans)
+        let (callable_value, callable_environment) = match call.target() {
+            CallTarget::CallableValue {
+                value, capability, ..
             }
-            CallTarget::Static(_) => None,
+            | CallTarget::ClosureValue {
+                value, capability, ..
+            } => {
+                let place = self.place_node(*value)?;
+                self.evaluate_place_indices(place, state, extra)?;
+                let carried = self.read_place(place, state)?;
+                let environment = match capability {
+                    CallableCapability::Readonly | CallableCapability::ReadWrite => {
+                        let capability = match capability {
+                            CallableCapability::Readonly => BorrowCapability::Readonly,
+                            CallableCapability::ReadWrite => BorrowCapability::ReadWrite,
+                            CallableCapability::Owned => unreachable!(),
+                        };
+                        let loan = self.issue_loan_as(
+                            LoanId::Operand { node, position: 0 },
+                            node,
+                            place,
+                            capability,
+                            state,
+                            extra,
+                        )?;
+                        state.set_node(*value, carried.clone());
+                        Some(loan)
+                    }
+                    CallableCapability::Owned => {
+                        self.check_place_access(
+                            node,
+                            place,
+                            super::AccessKind::Write,
+                            state,
+                            extra,
+                        )?;
+                        self.remove_place(place, state)?;
+                        state.set_node(*value, carried.clone());
+                        None
+                    }
+                };
+                (Some(carried), environment)
+            }
+            CallTarget::Static(_) => (None, None),
         };
-        let receiver = self.evaluate_call_receiver(node, call, state, extra)?;
+        let mut invocation_extra = extra.clone();
+        if let Some(value) = &callable_value {
+            invocation_extra.extend(value.all_loans());
+        }
+        if let Some(environment) = &callable_environment {
+            invocation_extra.extend(environment.all_loans());
+        }
+        let receiver = self.evaluate_call_receiver(node, call, state, &invocation_extra)?;
         if call.receiver().is_some() && receiver.is_none() {
             return Ok((LoanValue::independent(), false));
         }
         let Some(arguments) =
-            self.evaluate_call_arguments(call, receiver.as_ref(), state, extra)?
+            self.evaluate_call_arguments(call, receiver.as_ref(), state, &invocation_extra)?
         else {
             return Ok((LoanValue::independent(), false));
         };
-        let result = self.map_call_target(call, receiver.as_ref(), &arguments)?;
+        let mut result = self.map_call_target(
+            call,
+            callable_value.as_ref(),
+            callable_environment.as_ref(),
+            receiver.as_ref(),
+            &arguments,
+        )?;
+        let result_type = self
+            .input
+            .body
+            .nodes()
+            .get(node)
+            .ok_or(BodyCheckInternalError::MissingNode(node))?
+            .ty();
+        if !self.types.may_carry_storage(result_type) {
+            result = LoanValue::independent();
+        }
         Ok((result, true))
     }
 
@@ -166,6 +224,8 @@ impl Analyzer<'_, '_> {
     fn map_call_target(
         &self,
         call: &CheckedCall,
+        callable_value: Option<&LoanValue>,
+        callable_environment: Option<&LoanValue>,
         receiver: Option<&LoanValue>,
         arguments: &[LoanValue],
     ) -> Result<LoanValue, BodyCheckError> {
@@ -205,6 +265,38 @@ impl Analyzer<'_, '_> {
                         arguments
                             .get(origin.position())
                             .ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                    );
+                }
+                result.union_with(callable_value.ok_or(BodyCheckInternalError::LoanAnalysis)?);
+                if let Some(environment) = callable_environment {
+                    result.union_with(environment);
+                }
+                result
+            }
+            CallTarget::ClosureValue { closure, .. } => {
+                let summary = self
+                    .provenance
+                    .closures()
+                    .get(*closure)
+                    .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                let callable = callable_value.ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                let mut result = LoanValue::independent();
+                for origin in summary.parameters().origins() {
+                    result.union_with(
+                        arguments
+                            .get(origin.position())
+                            .ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                    );
+                }
+                for capture in summary.captures() {
+                    result.union_with(
+                        &callable
+                            .projected(crate::ProvenanceProjection::ClosureCaptureValue(*capture)),
+                    );
+                }
+                if summary.retains_environment() {
+                    result.union_with(
+                        callable_environment.ok_or(BodyCheckInternalError::LoanAnalysis)?,
                     );
                 }
                 result

@@ -1,4 +1,5 @@
 mod checker;
+mod closure_capability;
 mod context;
 mod diagnostic;
 mod error;
@@ -17,6 +18,8 @@ mod call_tests;
 mod callable_value_tests;
 #[cfg(test)]
 mod cleanup_tests;
+#[cfg(test)]
+mod closure_tests;
 #[cfg(test)]
 mod construction_tests;
 #[cfg(test)]

@@ -134,6 +134,7 @@ fn rebuild(
         TypeKind::Builtin(builtin) => TypeKind::Builtin(builtin),
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
         TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
+        TypeKind::Closure(closure) => TypeKind::Closure(closure),
         TypeKind::Nominal {
             definition,
             arguments,
@@ -198,7 +199,10 @@ trait TypeReferences {
 impl TypeReferences for TypeKind {
     fn references(&self, mut visit: impl FnMut(TypeId)) {
         match self {
-            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
+            Self::Builtin(_)
+            | Self::GenericParameter(_)
+            | Self::InterfaceSelf(_)
+            | Self::Closure(_) => {}
             Self::Nominal { arguments, .. } | Self::Opaque { arguments, .. } => {
                 arguments.iter().copied().for_each(&mut visit);
             }

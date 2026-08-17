@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{Arena, BodyId, BodyNodeId, BorrowCapability, FieldId, ParameterId};
+use nocter_model::{
+    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, FieldId, ParameterId,
+    ParameterOrigin,
+};
 
 use super::PlaceRoot;
 
@@ -19,6 +22,14 @@ pub enum LoanRoot {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LoanId {
     Parameter(ParameterId),
+    ClosureParameter {
+        closure: ClosureId,
+        origin: ParameterOrigin,
+    },
+    ClosureCapture {
+        closure: ClosureId,
+        capture: CaptureId,
+    },
     Node(BodyNodeId),
     /// An implicit loan created for one operand of a compound checked operation.
     Operand {

@@ -154,6 +154,31 @@ impl CopyabilityTable {
         self.families.get(&family)
     }
 
+    /// Fixes the structural copy condition of one freshly checked closure environment.
+    ///
+    /// Closure identity is concrete, but its stored captures may still mention lexical generic
+    /// parameters. Retaining the complete condition here lets later specialization answer the
+    /// same question without reconstructing the environment from checked operations.
+    pub(crate) fn register_closure(
+        &mut self,
+        graph: &DeclarationGraph,
+        types: &mut TypeStore,
+        closure: TypeId,
+        stored_captures: impl IntoIterator<Item = TypeId>,
+    ) -> Result<(), CopyabilityError> {
+        if !matches!(types.get(closure), Some(TypeKind::Closure(_)))
+            || self.conditions.contains_key(&closure)
+        {
+            return Err(CopyabilityError::InvalidClosureRegistration(closure));
+        }
+        let mut condition = CopyCondition::Always;
+        for capture in stored_captures {
+            condition = condition.conjoin(self.evaluate(graph, types, capture)?.clone());
+        }
+        self.conditions.insert(closure, condition);
+        Ok(())
+    }
+
     /// Classifies one complete type using declaration structure and normalized generic proofs.
     ///
     /// An ordinary struct stays move-only regardless of its fields. A `copy struct`
@@ -184,80 +209,7 @@ impl CopyabilityTable {
         while let Some(action) = pending.pop() {
             match action {
                 CopyabilityAction::Enter(ty) => {
-                    if self.conditions.contains_key(&ty) {
-                        continue;
-                    }
-                    if !active.insert(ty) {
-                        return Err(CopyabilityError::CyclicType(ty));
-                    }
-                    let kind = types
-                        .get(ty)
-                        .cloned()
-                        .ok_or(CopyabilityError::UnknownType(ty))?;
-                    let condition = match kind {
-                        TypeKind::Builtin(
-                            BuiltinType::Bool
-                            | BuiltinType::I8
-                            | BuiltinType::I16
-                            | BuiltinType::I32
-                            | BuiltinType::I64
-                            | BuiltinType::U8
-                            | BuiltinType::U16
-                            | BuiltinType::U32
-                            | BuiltinType::U64
-                            | BuiltinType::Usize
-                            | BuiltinType::Isize
-                            | BuiltinType::Error
-                            | BuiltinType::Void,
-                        )
-                        | TypeKind::Pointer(_)
-                        | TypeKind::Borrow {
-                            capability: BorrowCapability::Readonly,
-                            ..
-                        } => Some(CopyCondition::Always),
-                        TypeKind::Builtin(BuiltinType::Never | BuiltinType::Str)
-                        | TypeKind::Borrow {
-                            capability: BorrowCapability::ReadWrite,
-                            ..
-                        }
-                        | TypeKind::Slice(_)
-                        | TypeKind::Callable(_)
-                        | TypeKind::InterfaceSelf(_)
-                        | TypeKind::AssociatedProjection { .. }
-                        | TypeKind::Opaque { .. } => Some(CopyCondition::Impossible),
-                        TypeKind::GenericParameter(parameter) => {
-                            Some(if self.parameters.contains(&parameter) {
-                                CopyCondition::Always
-                            } else {
-                                CopyCondition::requiring(parameter)
-                            })
-                        }
-                        TypeKind::FixedArray { element, .. }
-                        | TypeKind::Optional(element)
-                        | TypeKind::Fallible(element) => {
-                            schedule_dependencies(ty, [element], &self.conditions, &mut pending);
-                            None
-                        }
-                        TypeKind::Nominal {
-                            definition,
-                            arguments,
-                        } => match nominal_dependencies(graph, types, definition, &arguments)? {
-                            Some(dependencies) => {
-                                schedule_dependencies(
-                                    ty,
-                                    dependencies,
-                                    &self.conditions,
-                                    &mut pending,
-                                );
-                                None
-                            }
-                            None => Some(CopyCondition::Impossible),
-                        },
-                    };
-                    if let Some(condition) = condition {
-                        active.remove(&ty);
-                        self.conditions.insert(ty, condition);
-                    }
+                    self.enter_type(graph, types, ty, &mut active, &mut pending)?;
                 }
                 CopyabilityAction::Finish { ty, dependencies } => {
                     let condition = dependencies.iter().try_fold(
@@ -278,6 +230,89 @@ impl CopyabilityTable {
         self.conditions
             .get(&root)
             .ok_or(CopyabilityError::InvalidTraversal(root))
+    }
+
+    fn enter_type(
+        &mut self,
+        graph: &DeclarationGraph,
+        types: &mut TypeStore,
+        ty: TypeId,
+        active: &mut HashSet<TypeId>,
+        pending: &mut Vec<CopyabilityAction>,
+    ) -> Result<(), CopyabilityError> {
+        if self.conditions.contains_key(&ty) {
+            return Ok(());
+        }
+        if !active.insert(ty) {
+            return Err(CopyabilityError::CyclicType(ty));
+        }
+        let kind = types
+            .get(ty)
+            .cloned()
+            .ok_or(CopyabilityError::UnknownType(ty))?;
+        let condition = match kind {
+            TypeKind::Builtin(
+                BuiltinType::Bool
+                | BuiltinType::I8
+                | BuiltinType::I16
+                | BuiltinType::I32
+                | BuiltinType::I64
+                | BuiltinType::U8
+                | BuiltinType::U16
+                | BuiltinType::U32
+                | BuiltinType::U64
+                | BuiltinType::Usize
+                | BuiltinType::Isize
+                | BuiltinType::Error
+                | BuiltinType::Void,
+            )
+            | TypeKind::Pointer(_)
+            | TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                ..
+            } => Some(CopyCondition::Always),
+            TypeKind::Builtin(BuiltinType::Never | BuiltinType::Str)
+            | TypeKind::Borrow {
+                capability: BorrowCapability::ReadWrite,
+                ..
+            }
+            | TypeKind::Slice(_)
+            | TypeKind::Callable(_)
+            | TypeKind::InterfaceSelf(_)
+            | TypeKind::AssociatedProjection { .. }
+            | TypeKind::Opaque { .. } => Some(CopyCondition::Impossible),
+            TypeKind::Closure(_) => {
+                return Err(CopyabilityError::MissingClosureCondition(ty));
+            }
+            TypeKind::GenericParameter(parameter) => {
+                Some(if self.parameters.contains(&parameter) {
+                    CopyCondition::Always
+                } else {
+                    CopyCondition::requiring(parameter)
+                })
+            }
+            TypeKind::FixedArray { element, .. }
+            | TypeKind::Optional(element)
+            | TypeKind::Fallible(element) => {
+                schedule_dependencies(ty, [element], &self.conditions, pending);
+                None
+            }
+            TypeKind::Nominal {
+                definition,
+                arguments,
+            } => match nominal_dependencies(graph, types, definition, &arguments)? {
+                Some(dependencies) => {
+                    schedule_dependencies(ty, dependencies, &self.conditions, pending);
+                    None
+                }
+                None => Some(CopyCondition::Impossible),
+            },
+        };
+        if let Some(condition) = condition {
+            active.remove(&ty);
+            self.conditions.insert(ty, condition);
+        }
+        Ok(())
     }
 
     /// Closes the table over every type in the final store, including types interned by
@@ -404,6 +439,8 @@ pub enum CopyabilityError {
     GenericArity(NominalTypeId),
     CyclicType(TypeId),
     InvalidTraversal(TypeId),
+    InvalidClosureRegistration(TypeId),
+    MissingClosureCondition(TypeId),
     MissingSource(SemanticEntity),
     ForeignConditionParameter {
         family: NominalTypeId,

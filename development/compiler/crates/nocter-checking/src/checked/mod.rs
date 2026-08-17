@@ -1,6 +1,7 @@
 mod body;
 mod builder;
 mod cleanup;
+mod closure;
 mod loan;
 mod node;
 mod place;
@@ -15,28 +16,31 @@ pub use cleanup::{
     CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
     CleanupTiming,
 };
+pub use closure::ClosureTableBuildError;
+pub(crate) use closure::ClosureTableBuilder;
+pub use closure::{ClosureDefinition, ClosureSignature, ClosureTable};
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
     BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall,
-    CheckedCallReceiver, CheckedClosure, CheckedComparison, CheckedComparisonOperand,
-    CheckedControl, CheckedInterpolation, CheckedLoop, CheckedNode, CheckedOperation,
-    CheckedOutcome, CheckedPattern, CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot,
-    CheckedPatternSubject, CheckedReceiverCoercion, CheckedSequence, CoercedReceiverPreparation,
-    ComparisonImplementation, ComparisonOperation, ConstantValue, InterpolationPart,
-    IterationAcquisition, LogicalOperation, LoopKind, PatternSubjectPreparation, PrimitiveBinary,
-    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
-    SequenceElement, SpreadMode, TypedIteration,
+    CheckedCallReceiver, CheckedClosure, CheckedClosureCapture, CheckedComparison,
+    CheckedComparisonOperand, CheckedControl, CheckedInterpolation, CheckedLoop, CheckedNode,
+    CheckedOperation, CheckedOutcome, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
+    CheckedPatternSlot, CheckedPatternSubject, CheckedReceiverCoercion, CheckedSequence,
+    CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
+    InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PatternSubjectPreparation,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation,
+    ReceiverPreparation, SequenceElement, SpreadMode, TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;
 pub use program::{CheckedProgram, CheckedProgramOutput};
 pub use provenance::{
     AmbientStorageDependence, CallableProvenanceTable, CheckedBodyProvenance,
-    CheckedCallableProvenance, ProvenanceProjection, ProvenanceSource, ProvenanceTable,
-    ValueProvenance,
+    CheckedCallableProvenance, CheckedClosureProvenance, ClosureProvenanceTable,
+    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
 };
 pub use selection::{
     DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,

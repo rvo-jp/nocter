@@ -1,5 +1,4 @@
-use nocter_declarations::BodyOwner;
-use nocter_model::{BodyNodeId, BuiltinType, PlaceId};
+use nocter_model::{BodyNodeId, PlaceId};
 
 use super::{Analyzer, ReturnEvent};
 use crate::provenance::state::ProvenanceState;
@@ -61,7 +60,13 @@ impl Analyzer<'_, '_> {
             PlaceRoot::Parameter(parameter) => {
                 ValueProvenance::from_source(ProvenanceSource::OwnedParameter(parameter))
             }
-            PlaceRoot::Capture(_) => ValueProvenance::from_source(ProvenanceSource::Unknown),
+            PlaceRoot::Capture(capture) => self.closure.map_or_else(
+                || ValueProvenance::from_source(ProvenanceSource::Unknown),
+                |(closure, _)| {
+                    let _ = capture;
+                    ValueProvenance::from_source(ProvenanceSource::ClosureEnvironment(closure))
+                },
+            ),
         };
         for projection in place.projections() {
             match projection {
@@ -141,30 +146,10 @@ impl Analyzer<'_, '_> {
         }
     }
 
-    pub(super) fn record_return(
-        &mut self,
-        node: BodyNodeId,
-        value: ValueProvenance,
-    ) -> Result<(), BodyCheckInternalError> {
-        let ty = match self.source.owner() {
-            BodyOwner::Callable(callable) => self
-                .graph
-                .declarations()
-                .callables()
-                .get(callable)
-                .map(nocter_declarations::CallableDeclaration::result)
-                .ok_or(BodyCheckInternalError::MissingCallable(callable))?,
-            BodyOwner::Drop(_) => self.types.builtin(BuiltinType::Void),
-            BodyOwner::Test(_) => self
-                .body
-                .nodes()
-                .get(self.body.root())
-                .map(crate::CheckedNode::ty)
-                .ok_or(BodyCheckInternalError::MissingNode(node))?,
-        };
+    pub(super) fn record_return(&mut self, node: BodyNodeId, value: ValueProvenance) {
+        let ty = self.result_type;
         self.returned.union_with(&value);
         self.return_events.push(ReturnEvent { node, ty, value });
-        Ok(())
     }
 }
 

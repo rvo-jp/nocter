@@ -102,7 +102,7 @@ fn callable_calls(
                     capability,
                     dispatch,
                 } => Some((*value, *capability, dispatch)),
-                CallTarget::Static(_) => None,
+                CallTarget::Static(_) | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })

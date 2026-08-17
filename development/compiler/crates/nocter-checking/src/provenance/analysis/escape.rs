@@ -128,6 +128,9 @@ impl Analyzer<'_, '_> {
                 | ProvenanceSource::CurrentAllocation
                 | ProvenanceSource::OwnedParameter(_)
                 | ProvenanceSource::Region(_)
+                | ProvenanceSource::ClosureParameter { .. }
+                | ProvenanceSource::ClosureCaptureValue { .. }
+                | ProvenanceSource::ClosureEnvironment(_)
                 | ProvenanceSource::Unknown => true,
             },
             DestinationLifetime::External => matches!(

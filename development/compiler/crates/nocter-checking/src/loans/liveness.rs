@@ -77,6 +77,7 @@ pub(super) fn analyze(
     types: &nocter_model::TypeStore,
     drops: &DropTable,
     body: &CheckedBody,
+    root: BodyNodeId,
 ) -> Result<Liveness, crate::BodyCheckInternalError> {
     let mut analyzer = Analyzer {
         types,
@@ -85,7 +86,7 @@ pub(super) fn analyze(
         before: HashMap::new(),
         loops: Vec::new(),
     };
-    analyzer.transfer(body.root(), LiveSet::new())?;
+    analyzer.transfer(root, LiveSet::new())?;
     Ok(Liveness {
         before: analyzer.before,
     })
@@ -130,8 +131,10 @@ impl Analyzer<'_> {
             )?,
             CheckedOperation::Call(call) => {
                 let mut operands = Vec::new();
-                if let crate::CallTarget::CallableValue { value, .. } = call.target() {
-                    operands.push(*value);
+                match call.target() {
+                    crate::CallTarget::CallableValue { value, .. }
+                    | crate::CallTarget::ClosureValue { value, .. } => operands.push(*value),
+                    crate::CallTarget::Static(_) => {}
                 }
                 if let Some(receiver) = call.receiver() {
                     operands.push(receiver.value());
@@ -177,7 +180,13 @@ impl Analyzer<'_> {
                 let live = self.operands(operands, live)?;
                 self.allocation(interpolation.allocation(), live)?
             }
-            CheckedOperation::Closure(closure) => self.operand(closure.body(), live)?,
+            CheckedOperation::Closure(closure) => self.operands(
+                closure
+                    .captures()
+                    .iter()
+                    .map(|capture| capture.initializer()),
+                live,
+            )?,
         };
         self.before.entry(node).or_default().extend(live.clone());
         Ok(live)

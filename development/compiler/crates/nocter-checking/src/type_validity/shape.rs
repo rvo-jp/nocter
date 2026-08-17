@@ -92,7 +92,10 @@ pub fn validate_type(
             TypeKind::Builtin(BuiltinType::Str) if !permits_unsized(position) => {
                 return rule(TypeValidityRule::UnsizedData, ty);
             }
-            TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+            TypeKind::Builtin(_)
+            | TypeKind::GenericParameter(_)
+            | TypeKind::InterfaceSelf(_)
+            | TypeKind::Closure(_) => {}
             TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. } => {
                 pending.extend(
                     arguments

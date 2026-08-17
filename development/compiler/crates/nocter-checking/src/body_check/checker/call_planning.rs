@@ -1,5 +1,7 @@
-use nocter_declarations::{CallableDeclaration, ExportedEntity, ParameterRole};
-use nocter_model::{BodyNodeId, GenericParameterId, TypeId};
+use nocter_declarations::{
+    CallableDeclaration, ExportedEntity, ParameterRole, StructuralCapability,
+};
+use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::BodyChecker;
@@ -10,7 +12,7 @@ use crate::conformance::normalize_requirements;
 use crate::instance_operations::InstanceOperationSelector;
 use crate::syntax::direct_nodes;
 use crate::type_relations::TypeSubstitution;
-use crate::{GenericArgument, GenericArguments, NameTarget};
+use crate::{CheckedPredicate, GenericArgument, GenericArguments, NameTarget};
 
 pub(super) struct DeclaredCallPlan {
     pub(super) arguments: Vec<BodyNodeId>,
@@ -85,6 +87,13 @@ impl BodyChecker<'_, '_> {
         let result = substitution
             .apply_type(self.types, callable.result())
             .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let requirements = normalize_requirements(
+            self.graph,
+            self.types,
+            &substitution,
+            callable.requirements(),
+        )
+        .map_err(BodyCheckInternalError::CallSubstitution)?;
         let (arguments, inferred_arguments) = self.infer_positional_values(
             argument_syntax,
             PositionalValueContext {
@@ -92,6 +101,7 @@ impl BodyChecker<'_, '_> {
                 result,
                 inference_parameters: generics.inference_parameters,
                 destination_types: &parameter_types,
+                requirements: &requirements,
                 expected,
                 failure_rule: BodyRule::InvalidCall,
             },
@@ -172,6 +182,34 @@ impl BodyChecker<'_, '_> {
         let requirements =
             normalize_requirements(self.graph, self.types, substitution, requirements)
                 .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let mut ordinary = Vec::with_capacity(requirements.len());
+        for requirement in requirements {
+            let CheckedPredicate::Capability {
+                subject,
+                capability: StructuralCapability::Callable(contract),
+            } = requirement.predicate()
+            else {
+                ordinary.push(requirement);
+                continue;
+            };
+            let Some(TypeKind::Closure(closure)) = self.types.get(*subject) else {
+                ordinary.push(requirement);
+                continue;
+            };
+            let closure = *closure;
+            let signature = self
+                .closures
+                .get(closure)
+                .ok_or(BodyCheckInternalError::MissingClosure(closure))?
+                .signature()
+                .clone();
+            if !super::closures::concrete_closure_satisfies(contract, &signature) {
+                return Ok(false);
+            }
+            self.closures
+                .require_callable(closure, contract.clone())
+                .map_err(BodyCheckInternalError::from)?;
+        }
         let mut selector = InstanceOperationSelector::new(
             self.graph,
             self.types,
@@ -182,7 +220,7 @@ impl BodyChecker<'_, '_> {
             self.source.module(),
         );
         selector
-            .requirements_hold(&requirements, &TypeSubstitution::default())
+            .requirements_hold(&ordinary, &TypeSubstitution::default())
             .map_err(BodyCheckInternalError::from)
             .map_err(Into::into)
     }

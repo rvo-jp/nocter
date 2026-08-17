@@ -40,21 +40,27 @@ impl BodyChecker<'_, '_> {
         };
         let operation = match punctuation {
             Punctuation::Question => {
-                let evidence = match layer {
-                    OutcomeLayer::Optional => ExpectedEvidence::Absent,
-                    OutcomeLayer::Fallible => ExpectedEvidence::Failure,
+                let outer = if self.closure_result_inference.is_some() {
+                    Box::new([])
+                } else {
+                    let evidence = match layer {
+                        OutcomeLayer::Optional => ExpectedEvidence::Absent,
+                        OutcomeLayer::Fallible => ExpectedEvidence::Failure,
+                    };
+                    let Ok(plan) = plan_expected_type(self.types, self.result_type, evidence)
+                    else {
+                        return Err(self.rule(BodyRule::InvalidOutcomeOperation, node)?);
+                    };
+                    let (base, outer) = plan.into_parts();
+                    if !matches!(
+                        (layer, base),
+                        (OutcomeLayer::Optional, ExpectedBase::Absent(_))
+                            | (OutcomeLayer::Fallible, ExpectedBase::Failure(_))
+                    ) {
+                        return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+                    }
+                    outer
                 };
-                let Ok(plan) = plan_expected_type(self.types, self.result_type, evidence) else {
-                    return Err(self.rule(BodyRule::InvalidOutcomeOperation, node)?);
-                };
-                let (base, outer) = plan.into_parts();
-                if !matches!(
-                    (layer, base),
-                    (OutcomeLayer::Optional, ExpectedBase::Absent(_))
-                        | (OutcomeLayer::Fallible, ExpectedBase::Failure(_))
-                ) {
-                    return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-                }
                 CheckedOutcome::Propagate {
                     operand,
                     layer,
@@ -65,6 +71,9 @@ impl BodyChecker<'_, '_> {
             _ => return Err(BodyCheckInternalError::InvalidSyntax(node).into()),
         };
         let checked = self.add_node(node, payload, CheckedOperation::Outcome(operation))?;
+        if punctuation == Punctuation::Question && self.closure_result_inference.is_some() {
+            self.record_inferred_closure_propagation(node, checked, layer)?;
+        }
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })

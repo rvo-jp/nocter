@@ -8,21 +8,77 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use nocter_declarations::{
     BodyOwner, CallableProvenance, CallableProvenanceContract, DeclarationGraph, ProvenanceOrigin,
 };
-use nocter_model::{ArenaBuilder, BodyId, BodyNodeId, BuiltinType, CallableId, TypeId, TypeStore};
+use nocter_model::{
+    ArenaBuilder, BodyId, BodyNodeId, BuiltinType, CallableId, CaptureId, ClosureId,
+    ParameterOrigin, ResultProvenance, TypeId, TypeStore,
+};
 
 use super::state::ProvenanceState;
 use super::{ProvenanceBodyInput, input_for_body};
 use crate::{
     AmbientStorageDependence, BodyCheckError, BodyCheckInternalError, BodyRule,
     CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedOperation,
-    ConformanceTable, MethodSelection, PlaceRoot, PrimitiveOperation, ProvenanceSource,
-    ProvenanceTable, ValueProvenance,
+    ClosureProvenanceTable, ClosureTable, ConformanceTable, MethodSelection, PlaceRoot,
+    PrimitiveOperation, ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
 };
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct CallableSummary {
     origins: BTreeSet<ProvenanceOrigin>,
     ambient: AmbientStorageDependence,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct ClosureSummary {
+    parameters: BTreeSet<ParameterOrigin>,
+    captures: BTreeSet<CaptureId>,
+    environment: bool,
+    ambient: AmbientStorageDependence,
+}
+
+struct ProgramSummaries {
+    callables: BTreeMap<CallableId, CallableSummary>,
+    closures: BTreeMap<ClosureId, ClosureSummary>,
+}
+
+impl ClosureSummary {
+    fn from_returned(closure: ClosureId, returned: &ValueProvenance) -> Self {
+        let sources = returned.all_sources();
+        let parameters = sources
+            .iter()
+            .filter_map(|source| match source {
+                ProvenanceSource::ClosureParameter {
+                    closure: actual,
+                    origin,
+                } if *actual == closure => Some(*origin),
+                _ => None,
+            })
+            .collect();
+        let captures = sources
+            .iter()
+            .filter_map(|source| match source {
+                ProvenanceSource::ClosureCaptureValue {
+                    closure: actual,
+                    capture,
+                } if *actual == closure => Some(*capture),
+                _ => None,
+            })
+            .collect();
+        let environment = sources.contains(&ProvenanceSource::ClosureEnvironment(closure));
+        let ambient = if sources.contains(&ProvenanceSource::Unknown) {
+            AmbientStorageDependence::Unknown
+        } else if sources.contains(&ProvenanceSource::CurrentAllocation) {
+            AmbientStorageDependence::Current
+        } else {
+            AmbientStorageDependence::Independent
+        };
+        Self {
+            parameters,
+            captures,
+            environment,
+            ambient,
+        }
+    }
 }
 
 impl CallableSummary {
@@ -47,7 +103,7 @@ impl CallableSummary {
 }
 
 struct BodyAnalysis {
-    nodes: nocter_model::Arena<BodyNodeId, ValueProvenance>,
+    nodes: HashMap<BodyNodeId, ValueProvenance>,
     returned: ValueProvenance,
     return_events: Vec<ReturnEvent>,
 }
@@ -68,18 +124,53 @@ pub(super) fn analyze_program(
     graph: &DeclarationGraph,
     types: &TypeStore,
     conformances: &ConformanceTable,
+    closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
+    let summaries = infer_program_summaries(graph, types, closures, inputs)?;
+    let conformance_bounds = conformance_origin_bounds(graph, conformances, &summaries.callables)?;
+    let bodies = build_body_provenance(
+        graph,
+        types,
+        closures,
+        inputs,
+        &summaries.callables,
+        &summaries.closures,
+        &conformance_bounds,
+    )?;
+    let callables = build_callable_provenance(graph, &summaries.callables)?;
+    let checked_closures = build_closure_provenance(closures, &summaries.closures)?;
+    Ok(ProvenanceTable::new(
+        CallableProvenanceTable::new(callables),
+        ClosureProvenanceTable::new(checked_closures),
+        bodies,
+    ))
+}
+
+fn infer_program_summaries(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    closures: &ClosureTable,
+    inputs: &[ProvenanceBodyInput<'_, '_>],
+) -> Result<ProgramSummaries, BodyCheckError> {
     let mut summaries = initial_summaries(graph);
+    let mut closure_summaries = closures
+        .definitions()
+        .iter()
+        .map(|(closure, _)| (closure, ClosureSummary::default()))
+        .collect::<BTreeMap<_, _>>();
     loop {
         let previous = summaries.clone();
+        let previous_closures = closure_summaries.clone();
         for (callable, declaration) in graph.declarations().callables().iter() {
             let Some(body) = declaration.body() else {
                 continue;
             };
             let input = input_for_body(inputs, body)
                 .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-            let analysis = Analyzer::new(graph, types, &summaries, input).analyze()?;
+            let analysis =
+                Analyzer::new_declared(graph, types, &summaries, &closure_summaries, input)
+                    .analyze()?;
             let actual = CallableSummary::from_returned(&analysis.returned);
             let effective = match declaration.provenance() {
                 CallableProvenanceContract::Inferred => actual,
@@ -90,37 +181,107 @@ pub(super) fn analyze_program(
             };
             summaries.insert(callable, effective);
         }
-        if summaries == previous {
-            break;
+        for (closure, definition) in closures.definitions().iter() {
+            let input = input_for_body(inputs, definition.owner()).ok_or(
+                BodyCheckInternalError::MissingBodySource(definition.owner()),
+            )?;
+            let analysis = Analyzer::new_closure(
+                graph,
+                types,
+                &summaries,
+                &closure_summaries,
+                input,
+                closure,
+                definition,
+            )
+            .analyze()?;
+            closure_summaries.insert(
+                closure,
+                ClosureSummary::from_returned(closure, &analysis.returned),
+            );
+        }
+        if summaries == previous && closure_summaries == previous_closures {
+            return Ok(ProgramSummaries {
+                callables: summaries,
+                closures: closure_summaries,
+            });
         }
     }
+}
 
-    let conformance_bounds = conformance_origin_bounds(graph, conformances, &summaries)?;
+fn build_body_provenance(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    closures: &ClosureTable,
+    inputs: &[ProvenanceBodyInput<'_, '_>],
+    summaries: &BTreeMap<CallableId, CallableSummary>,
+    closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
+    conformance_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
+) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyCheckError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyProvenance>::new();
     for (body, declaration) in graph.declarations().bodies().iter() {
         let input =
             input_for_body(inputs, body).ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-        let analysis = Analyzer::new(graph, types, &summaries, input).analyze()?;
+        let mut analysis =
+            Analyzer::new_declared(graph, types, summaries, closure_summaries, input).analyze()?;
         if let BodyOwner::Callable(callable) = declaration.owner() {
             validate_callable_returns(
                 graph,
                 types,
                 input,
                 callable,
-                &summaries,
+                summaries,
                 conformance_bounds.get(&callable),
                 &analysis,
             )?;
         }
+        for (closure, definition) in closures
+            .definitions()
+            .iter()
+            .filter(|(_, definition)| definition.owner() == body)
+        {
+            let closure_analysis = Analyzer::new_closure(
+                graph,
+                types,
+                summaries,
+                closure_summaries,
+                input,
+                closure,
+                definition,
+            )
+            .analyze()?;
+            validate_closure_returns(types, input, closure, definition, &closure_analysis)?;
+            for (node, value) in closure_analysis.nodes {
+                if analysis.nodes.insert(node, value).is_some() {
+                    return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                }
+            }
+        }
+        let mut nodes = ArenaBuilder::new();
+        for (node, _) in input.body().nodes().iter() {
+            let actual = nodes.insert(analysis.nodes.remove(&node).unwrap_or_default());
+            if actual != node {
+                return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+            }
+        }
+        if !analysis.nodes.is_empty() {
+            return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+        }
         let actual = bodies.insert(CheckedBodyProvenance::new(
-            analysis.nodes,
+            nodes.finish(),
             analysis.returned,
         ));
         if actual != body {
             return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
         }
     }
+    Ok(bodies.finish())
+}
 
+fn build_callable_provenance(
+    graph: &DeclarationGraph,
+    summaries: &BTreeMap<CallableId, CallableSummary>,
+) -> Result<nocter_model::Arena<CallableId, crate::CheckedCallableProvenance>, BodyCheckError> {
     let mut callables = ArenaBuilder::<CallableId, crate::CheckedCallableProvenance>::new();
     for (callable, _) in graph.declarations().callables().iter() {
         let summary = summaries
@@ -136,11 +297,31 @@ pub(super) fn analyze_program(
             return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
         }
     }
+    Ok(callables.finish())
+}
 
-    Ok(ProvenanceTable::new(
-        CallableProvenanceTable::new(callables.finish()),
-        bodies.finish(),
-    ))
+fn build_closure_provenance(
+    closures: &ClosureTable,
+    closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
+) -> Result<nocter_model::Arena<ClosureId, crate::CheckedClosureProvenance>, BodyCheckError> {
+    let mut checked_closures = ArenaBuilder::<ClosureId, crate::CheckedClosureProvenance>::new();
+    for (closure, _) in closures.definitions().iter() {
+        let summary = closure_summaries
+            .get(&closure)
+            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+        let parameters = ResultProvenance::from_origins(summary.parameters.iter().copied())
+            .map_err(|_| BodyCheckInternalError::ProvenanceAnalysis)?;
+        let actual = checked_closures.insert(crate::CheckedClosureProvenance::new(
+            parameters,
+            summary.captures.iter().copied().collect::<Vec<_>>(),
+            summary.environment,
+            summary.ambient,
+        ));
+        if actual != closure {
+            return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+        }
+    }
+    Ok(checked_closures.finish())
 }
 
 fn conformance_origin_bounds(
@@ -268,6 +449,9 @@ fn validate_callable_returns(
                 | ProvenanceSource::OwnedParameter(_)
                 | ProvenanceSource::Region(_)
                 | ProvenanceSource::Temporary(_)
+                | ProvenanceSource::ClosureParameter { .. }
+                | ProvenanceSource::ClosureCaptureValue { .. }
+                | ProvenanceSource::ClosureEnvironment(_)
                 | ProvenanceSource::Unknown => true,
             });
         if invalid {
@@ -284,10 +468,62 @@ fn validate_callable_returns(
     Ok(())
 }
 
+fn validate_closure_returns(
+    types: &TypeStore,
+    input: &ProvenanceBodyInput<'_, '_>,
+    closure: ClosureId,
+    definition: &crate::ClosureDefinition,
+    analysis: &BodyAnalysis,
+) -> Result<(), BodyCheckError> {
+    for event in &analysis.return_events {
+        if !types.may_carry_storage(event.ty) {
+            continue;
+        }
+        let invalid = event
+            .value
+            .all_sources()
+            .into_iter()
+            .any(|source| match source {
+                ProvenanceSource::ClosureParameter {
+                    closure: actual,
+                    origin,
+                } => {
+                    actual != closure
+                        || definition
+                            .callable_requirements()
+                            .iter()
+                            .any(|contract| !contract.provenance().origins().contains(&origin))
+                }
+                ProvenanceSource::ClosureCaptureValue {
+                    closure: actual, ..
+                }
+                | ProvenanceSource::ClosureEnvironment(actual) => actual != closure,
+                ProvenanceSource::CurrentAllocation => false,
+                ProvenanceSource::Callable(_)
+                | ProvenanceSource::Local(_)
+                | ProvenanceSource::OwnedParameter(_)
+                | ProvenanceSource::Region(_)
+                | ProvenanceSource::Temporary(_)
+                | ProvenanceSource::Unknown => true,
+            });
+        if invalid || event.ty != definition.signature().result() {
+            let origin = input
+                .origins()
+                .get(&event.node)
+                .copied()
+                .ok_or(BodyCheckInternalError::MissingNodeOrigin(event.node))?;
+            let rule = BodyRule::InvalidResultProvenance;
+            return Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)));
+        }
+    }
+    Ok(())
+}
+
 struct Analyzer<'program, 'syntax> {
     graph: &'program DeclarationGraph,
     types: &'program TypeStore,
     summaries: &'program BTreeMap<CallableId, CallableSummary>,
+    closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
     source: crate::BodySource<'syntax>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, nocter_source_index::SourceOrigin>,
@@ -295,19 +531,33 @@ struct Analyzer<'program, 'syntax> {
     returned: ValueProvenance,
     return_events: Vec<ReturnEvent>,
     loops: Vec<LoopFlow>,
+    root: BodyNodeId,
+    result_type: TypeId,
+    closure: Option<(ClosureId, &'program crate::ClosureDefinition)>,
 }
 
 impl<'program, 'syntax> Analyzer<'program, 'syntax> {
-    fn new(
+    fn new_declared(
         graph: &'program DeclarationGraph,
         types: &'program TypeStore,
         summaries: &'program BTreeMap<CallableId, CallableSummary>,
+        closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
         input: &ProvenanceBodyInput<'program, 'syntax>,
     ) -> Self {
+        let result_type = match input.source().owner() {
+            BodyOwner::Callable(callable) => {
+                graph.declarations().callables().get(callable).map_or_else(
+                    || types.builtin(BuiltinType::Void),
+                    nocter_declarations::CallableDeclaration::result,
+                )
+            }
+            BodyOwner::Drop(_) | BodyOwner::Test(_) => types.builtin(BuiltinType::Void),
+        };
         Self {
             graph,
             types,
             summaries,
+            closure_summaries,
             source: input.source(),
             body: input.body(),
             origins: input.origins(),
@@ -315,27 +565,36 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             returned: ValueProvenance::independent(),
             return_events: Vec::new(),
             loops: Vec::new(),
+            root: input.body().root(),
+            result_type,
+            closure: None,
         }
+    }
+
+    fn new_closure(
+        graph: &'program DeclarationGraph,
+        types: &'program TypeStore,
+        summaries: &'program BTreeMap<CallableId, CallableSummary>,
+        closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
+        input: &ProvenanceBodyInput<'program, 'syntax>,
+        closure: ClosureId,
+        definition: &'program crate::ClosureDefinition,
+    ) -> Self {
+        let mut analyzer = Self::new_declared(graph, types, summaries, closure_summaries, input);
+        analyzer.root = definition.body();
+        analyzer.result_type = definition.signature().result();
+        analyzer.closure = Some((closure, definition));
+        analyzer
     }
 
     fn analyze(mut self) -> Result<BodyAnalysis, BodyCheckError> {
         let mut state = self.initial_state()?;
-        let (root_value, reaches) = self.evaluate(self.body.root(), &mut state)?;
+        let (root_value, reaches) = self.evaluate(self.root, &mut state)?;
         if reaches {
-            self.record_return(self.body.root(), root_value)?;
-        }
-        let mut nodes = ArenaBuilder::new();
-        for (node, _) in self.body.nodes().iter() {
-            let actual = nodes.insert(self.node_values.remove(&node).unwrap_or_default());
-            if actual != node {
-                return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
-            }
-        }
-        if !self.node_values.is_empty() {
-            return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+            self.record_return(self.root, root_value);
         }
         Ok(BodyAnalysis {
-            nodes: nodes.finish(),
+            nodes: self.node_values,
             returned: self.returned,
             return_events: self.return_events,
         })
@@ -343,6 +602,42 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
 
     fn initial_state(&self) -> Result<ProvenanceState, BodyCheckInternalError> {
         let mut state = ProvenanceState::default();
+        if let Some((closure, definition)) = self.closure {
+            for (position, (binding, ty)) in definition
+                .parameters()
+                .iter()
+                .copied()
+                .zip(definition.signature().parameters().iter().copied())
+                .enumerate()
+            {
+                let value = if self.types.may_carry_storage(ty) {
+                    ValueProvenance::from_source(ProvenanceSource::ClosureParameter {
+                        closure,
+                        origin: ParameterOrigin::new(position),
+                    })
+                } else {
+                    ValueProvenance::independent()
+                };
+                state.set_value(PlaceRoot::Local(binding), value);
+            }
+            for capture in definition.captures() {
+                let checked = self
+                    .body
+                    .captures()
+                    .get(*capture)
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                let value = if self.types.may_carry_storage(checked.ty()) {
+                    ValueProvenance::from_source(ProvenanceSource::ClosureCaptureValue {
+                        closure,
+                        capture: *capture,
+                    })
+                } else {
+                    ValueProvenance::independent()
+                };
+                state.set_value(PlaceRoot::Capture(*capture), value);
+            }
+            return Ok(state);
+        }
         match self.source.owner() {
             BodyOwner::Callable(callable) => {
                 let declaration = self
@@ -468,8 +763,37 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                     true,
                 )
             }
-            CheckedOperation::Closure(_) => {
-                return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+            CheckedOperation::Closure(closure) => {
+                let mut value = ValueProvenance::independent();
+                for capture in closure.captures() {
+                    let (initializer, reaches) = self.evaluate(capture.initializer(), state)?;
+                    if !reaches {
+                        return Ok(self.record_node(node, ValueProvenance::independent(), false));
+                    }
+                    let checked_initializer = self
+                        .body
+                        .nodes()
+                        .get(capture.initializer())
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    let captured = match checked_initializer.operation() {
+                        CheckedOperation::Borrow { place, .. } => self.read_place(*place, state)?,
+                        _ => initializer.clone(),
+                    };
+                    value.insert_projection(
+                        ProvenanceProjection::ClosureCaptureValue(capture.binding()),
+                        captured,
+                    );
+                    if matches!(
+                        checked_initializer.operation(),
+                        CheckedOperation::Borrow { .. }
+                    ) {
+                        value.insert_projection(
+                            ProvenanceProjection::ClosureCaptureStorage(capture.binding()),
+                            initializer,
+                        );
+                    }
+                }
+                (value, true)
             }
         };
         let reaches = result.1 && ty != self.types.builtin(BuiltinType::Never);

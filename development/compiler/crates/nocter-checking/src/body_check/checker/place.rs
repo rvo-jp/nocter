@@ -115,18 +115,66 @@ impl BodyChecker<'_, '_> {
         token: SyntaxToken,
     ) -> Result<PlaceDraft, BodyCheckError> {
         let (root, ty) = self.place_root(node, token)?;
+        self.start_place_from_root(node, root, ty)
+    }
+
+    pub(super) fn target_place(
+        &mut self,
+        node: NodeId,
+        target: NameTarget,
+    ) -> Result<ResolvedPlace, BodyCheckError> {
+        let (root, ty) = self.place_root_for_target(node, target)?;
+        let draft = self.start_place_from_root(node, root, ty)?;
+        Ok(self.finish_place(draft))
+    }
+
+    fn start_place_from_root(
+        &self,
+        node: NodeId,
+        root: PlaceRoot,
+        ty: TypeId,
+    ) -> Result<PlaceDraft, BodyCheckError> {
         let writable = match root {
             PlaceRoot::Local(local) => self
                 .names
                 .locals()
                 .get(local)
                 .is_some_and(|local| local.kind() == LocalBindingKind::Mutable),
-            PlaceRoot::Parameter(_) | PlaceRoot::Capture(_) => false,
+            PlaceRoot::Capture(capture) => self
+                .names
+                .captures()
+                .get(capture)
+                .is_some_and(|capture| capture.mode() == crate::CaptureMode::ReadWrite),
+            PlaceRoot::Parameter(_) => false,
+        };
+        let access = match root {
+            PlaceRoot::Capture(capture) => match self
+                .names
+                .captures()
+                .get(capture)
+                .map(|capture| capture.mode())
+            {
+                Some(crate::CaptureMode::Readonly) => {
+                    PlaceAccess::Borrowed(BorrowCapability::Readonly)
+                }
+                Some(crate::CaptureMode::ReadWrite) => {
+                    PlaceAccess::Borrowed(BorrowCapability::ReadWrite)
+                }
+                Some(crate::CaptureMode::Move) => PlaceAccess::Owned,
+                None => {
+                    return Err(BodyCheckInternalError::UnsupportedNameTarget(
+                        node,
+                        NameTarget::Capture(capture),
+                    )
+                    .into());
+                }
+            },
+            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) => PlaceAccess::Owned,
         };
         Ok(PlaceDraft {
             root,
             ty,
-            access: PlaceAccess::Owned,
+            access,
             writable,
             projections: Vec::new(),
             partial_parents: Vec::new(),
@@ -336,6 +384,14 @@ impl BodyChecker<'_, '_> {
             .copied()
             .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
         self.consumed_uses.insert(origin);
+        self.place_root_for_target(node, target)
+    }
+
+    pub(super) fn place_root_for_target(
+        &mut self,
+        node: NodeId,
+        target: NameTarget,
+    ) -> Result<(PlaceRoot, TypeId), BodyCheckError> {
         Ok(match target {
             NameTarget::Parameter(parameter) => {
                 let declaration = self
@@ -377,6 +433,12 @@ impl BodyChecker<'_, '_> {
                 self.builder
                     .local_type(local)
                     .ok_or(BodyCheckInternalError::MissingLocalType(local))?,
+            ),
+            NameTarget::Capture(capture) => (
+                PlaceRoot::Capture(capture),
+                self.builder
+                    .capture_type(capture)
+                    .ok_or(BodyCheckInternalError::MissingCaptureType(capture))?,
             ),
             _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
         })

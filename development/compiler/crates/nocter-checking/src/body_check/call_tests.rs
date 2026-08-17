@@ -63,7 +63,7 @@ fn generic_calls_infer_arguments_and_rank_result_contexts() {
                 CallTarget::Static(selection) => {
                     Some(selection.generic_arguments().as_slice()[0].ty())
                 }
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })
@@ -203,7 +203,7 @@ fn construction_owner_generics_may_be_inferred_only_from_the_result_context() {
                     .as_slice()
                     .first()
                     .map(|argument| argument.ty()),
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })
@@ -237,7 +237,7 @@ fn explicit_construction_owner_arguments_are_fixed_before_callable_inference() {
                 CallTarget::Static(selection) => {
                     Some(selection.generic_arguments().as_slice().to_vec())
                 }
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })

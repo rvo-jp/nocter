@@ -41,6 +41,42 @@ impl CallableInference {
         self.equations.push((left, right));
     }
 
+    /// Returns every binding determined by the evidence collected so far.
+    ///
+    /// Unlike [`Self::finish`], this operation deliberately permits unbound inference parameters.
+    /// It exists for bidirectional boundaries such as closures: ordinary arguments and the call
+    /// result first determine as much of a callable contract as possible, the closure is checked
+    /// under that partial contract, and its concrete signature then contributes the remaining
+    /// equations. Result candidates use the same ranking as final inference.
+    pub(crate) fn partial_substitution(
+        &self,
+        types: &mut TypeStore,
+    ) -> Result<TypeSubstitution, InferenceFailure> {
+        let candidates = self
+            .result_context
+            .map_or(Ok(vec![ResultCandidate::None]), |context| {
+                context.candidates(types)
+            })?;
+        let mut first_failure = None;
+        for candidate in candidates {
+            let mut equations = self.equations.clone();
+            self.append_result_equation(types, candidate, &mut equations);
+            match unify_type_pairs(types, self.parameters.iter().copied(), equations) {
+                Ok(bindings) => {
+                    let mut substitution = TypeSubstitution::default();
+                    for (parameter, ty) in bindings.iter() {
+                        substitution.bind_generic(parameter, ty);
+                    }
+                    return Ok(substitution);
+                }
+                Err(error) => {
+                    first_failure.get_or_insert(InferenceFailure::from(error));
+                }
+            }
+        }
+        Err(first_failure.unwrap_or(InferenceFailure::DuplicateResultContext))
+    }
+
     /// Adds one authoritative expected-type boundary.
     ///
     /// Known optional and fallible layers are projected before a payload equation is recorded.
@@ -215,21 +251,7 @@ impl CallableInference {
         result_candidate: ResultCandidate,
     ) -> Result<GenericArguments, InferenceFailure> {
         let mut equations = self.equations.clone();
-        if let Some(context) = self.result_context
-            && !matches!(
-                types.get(context.result),
-                Some(TypeKind::Builtin(BuiltinType::Never))
-            )
-        {
-            match result_candidate {
-                ResultCandidate::None => {}
-                ResultCandidate::Exact(candidate) => equations.push((context.result, candidate)),
-                ResultCandidate::BorrowWeakening {
-                    result_referent,
-                    expected_referent,
-                } => equations.push((result_referent, expected_referent)),
-            }
-        }
+        self.append_result_equation(types, result_candidate, &mut equations);
         let bindings = unify_type_pairs(types, self.parameters.iter().copied(), equations)?;
         let mut substitution = TypeSubstitution::default();
         for (parameter, ty) in bindings.iter() {
@@ -266,6 +288,31 @@ impl CallableInference {
             }
         }
         GenericArguments::new(arguments).map_err(|_| InferenceFailure::DuplicateParameter)
+    }
+
+    fn append_result_equation(
+        &self,
+        types: &TypeStore,
+        candidate: ResultCandidate,
+        equations: &mut Vec<(TypeId, TypeId)>,
+    ) {
+        let Some(context) = self.result_context else {
+            return;
+        };
+        if matches!(
+            types.get(context.result),
+            Some(TypeKind::Builtin(BuiltinType::Never))
+        ) {
+            return;
+        }
+        match candidate {
+            ResultCandidate::None => {}
+            ResultCandidate::Exact(candidate) => equations.push((context.result, candidate)),
+            ResultCandidate::BorrowWeakening {
+                result_referent,
+                expected_referent,
+            } => equations.push((result_referent, expected_referent)),
+        }
     }
 }
 

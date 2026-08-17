@@ -1,6 +1,7 @@
 use nocter_model::{
-    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId, DropId,
-    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId,
+    ClosureId, DropId, FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId,
+    TypeId, VariantId,
 };
 
 use crate::expected::OutcomeLayer;
@@ -26,6 +27,10 @@ impl CheckedNode {
     #[must_use]
     pub const fn operation(&self) -> &CheckedOperation {
         &self.operation
+    }
+
+    pub(super) fn replace_operation(&mut self, operation: CheckedOperation) {
+        self.operation = operation;
     }
 }
 
@@ -125,6 +130,11 @@ pub enum ConstantValue {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CallTarget {
     Static(StaticSelection),
+    ClosureValue {
+        value: BodyNodeId,
+        closure: ClosureId,
+        capability: CallableCapability,
+    },
     CallableValue {
         value: BodyNodeId,
         capability: CallableCapability,
@@ -455,31 +465,55 @@ pub enum CheckedOutcome {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedClosure {
-    capability: CallableCapability,
-    parameters: Box<[LocalBindingId]>,
-    captures: Box<[CaptureId]>,
-    body: BodyNodeId,
+    closure: ClosureId,
+    captures: Box<[CheckedClosureCapture]>,
 }
 
 impl CheckedClosure {
-    #[must_use]
-    pub const fn capability(&self) -> CallableCapability {
-        self.capability
+    pub(crate) fn new(
+        closure: ClosureId,
+        captures: impl Into<Box<[CheckedClosureCapture]>>,
+    ) -> Self {
+        Self {
+            closure,
+            captures: captures.into(),
+        }
     }
 
     #[must_use]
-    pub const fn parameters(&self) -> &[LocalBindingId] {
-        &self.parameters
+    pub const fn closure(&self) -> ClosureId {
+        self.closure
     }
 
     #[must_use]
-    pub const fn captures(&self) -> &[CaptureId] {
+    pub const fn captures(&self) -> &[CheckedClosureCapture] {
         &self.captures
     }
+}
+
+/// One source-order closure-environment initialization.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckedClosureCapture {
+    binding: CaptureId,
+    initializer: BodyNodeId,
+}
+
+impl CheckedClosureCapture {
+    pub(crate) const fn new(binding: CaptureId, initializer: BodyNodeId) -> Self {
+        Self {
+            binding,
+            initializer,
+        }
+    }
 
     #[must_use]
-    pub const fn body(&self) -> BodyNodeId {
-        self.body
+    pub const fn binding(self) -> CaptureId {
+        self.binding
+    }
+
+    #[must_use]
+    pub const fn initializer(self) -> BodyNodeId {
+        self.initializer
     }
 }
 

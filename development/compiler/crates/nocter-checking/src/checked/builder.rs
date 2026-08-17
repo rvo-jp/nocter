@@ -18,8 +18,8 @@ pub(crate) struct CheckedBodyBuilder {
     scopes: Arena<BodyScopeId, BodyScope>,
     local_declarations: Arena<LocalBindingId, LocalBinding>,
     capture_declarations: Arena<CaptureId, Capture>,
-    locals: ArenaBuilder<LocalBindingId, CheckedLocal>,
-    captures: ArenaBuilder<CaptureId, CheckedCapture>,
+    locals: ArenaBuilder<LocalBindingId, Option<CheckedLocal>>,
+    captures: ArenaBuilder<CaptureId, Option<CheckedCapture>>,
     places: ArenaBuilder<PlaceId, CheckedPlace>,
     loops: ArenaBuilder<LoopId, LoopSlot>,
     nodes: ArenaBuilder<BodyNodeId, CheckedNode>,
@@ -28,12 +28,20 @@ pub(crate) struct CheckedBodyBuilder {
 impl CheckedBodyBuilder {
     #[must_use]
     pub(crate) fn new(names: &ResolvedBodyNames) -> Self {
+        let mut locals = ArenaBuilder::new();
+        for _ in 0..names.locals().len() {
+            locals.insert(None);
+        }
+        let mut captures = ArenaBuilder::new();
+        for _ in 0..names.captures().len() {
+            captures.insert(None);
+        }
         Self {
             scopes: names.scopes().clone(),
             local_declarations: names.locals().clone(),
             capture_declarations: names.captures().clone(),
-            locals: ArenaBuilder::new(),
-            captures: ArenaBuilder::new(),
+            locals,
+            captures,
             places: ArenaBuilder::new(),
             loops: ArenaBuilder::new(),
             nodes: ArenaBuilder::new(),
@@ -50,10 +58,35 @@ impl CheckedBodyBuilder {
             .get(expected)
             .copied()
             .ok_or(BuildCheckedBodyError::UnknownLocal(expected))?;
-        let actual = self.locals.insert(CheckedLocal::new(declaration, ty));
-        if actual != expected {
-            return Err(BuildCheckedBodyError::NonCanonicalLocal { expected, actual });
+        let slot = self
+            .locals
+            .get_mut(expected)
+            .ok_or(BuildCheckedBodyError::UnknownLocal(expected))?;
+        if slot.is_some() {
+            return Err(BuildCheckedBodyError::DuplicateLocal(expected));
         }
+        *slot = Some(CheckedLocal::new(declaration, ty));
+        Ok(())
+    }
+
+    pub(crate) fn define_capture(
+        &mut self,
+        expected: CaptureId,
+        ty: TypeId,
+    ) -> Result<(), BuildCheckedBodyError> {
+        let declaration = self
+            .capture_declarations
+            .get(expected)
+            .copied()
+            .ok_or(BuildCheckedBodyError::UnknownCapture(expected))?;
+        let slot = self
+            .captures
+            .get_mut(expected)
+            .ok_or(BuildCheckedBodyError::UnknownCapture(expected))?;
+        if slot.is_some() {
+            return Err(BuildCheckedBodyError::DuplicateCapture(expected));
+        }
+        *slot = Some(CheckedCapture::new(declaration, ty));
         Ok(())
     }
 
@@ -78,11 +111,38 @@ impl CheckedBodyBuilder {
     }
 
     pub(crate) fn local_type(&self, local: LocalBindingId) -> Option<TypeId> {
-        self.locals.get(local).map(|local| local.ty())
+        self.locals
+            .get(local)
+            .and_then(|local| local.as_ref())
+            .map(|local| local.ty())
+    }
+
+    pub(crate) fn capture_type(&self, capture: CaptureId) -> Option<TypeId> {
+        self.captures
+            .get(capture)
+            .and_then(|capture| capture.as_ref())
+            .map(|capture| capture.ty())
     }
 
     pub(crate) fn node_type(&self, node: BodyNodeId) -> Option<TypeId> {
         self.nodes.get(node).map(CheckedNode::ty)
+    }
+
+    pub(crate) fn node(&self, node: BodyNodeId) -> Option<&CheckedNode> {
+        self.nodes.get(node)
+    }
+
+    pub(crate) fn replace_operation(
+        &mut self,
+        node: BodyNodeId,
+        operation: CheckedOperation,
+    ) -> Result<(), BuildCheckedBodyError> {
+        let checked = self
+            .nodes
+            .get_mut(node)
+            .ok_or(BuildCheckedBodyError::UnknownNode(node))?;
+        checked.replace_operation(operation);
+        Ok(())
     }
 
     pub(crate) fn reserve_loop(&mut self) -> LoopId {
@@ -105,19 +165,20 @@ impl CheckedBodyBuilder {
         Ok(())
     }
 
+    pub(crate) fn loop_definition(&self, loop_: LoopId) -> Option<&CheckedLoop> {
+        match self.loops.get(loop_) {
+            Some(LoopSlot::Defined(definition)) => Some(definition),
+            Some(LoopSlot::Reserved) | None => None,
+        }
+    }
+
     pub(crate) fn finish(self, root: BodyNodeId) -> Result<CheckedBody, BuildCheckedBodyError> {
-        if self.locals.len() != self.local_declarations.len() {
-            return Err(BuildCheckedBodyError::IncompleteLocals {
-                expected: self.local_declarations.len(),
-                actual: self.locals.len(),
-            });
-        }
-        if self.captures.len() != self.capture_declarations.len() {
-            return Err(BuildCheckedBodyError::IncompleteCaptures {
-                expected: self.capture_declarations.len(),
-                actual: self.captures.len(),
-            });
-        }
+        let locals = self.locals.try_finish_with(|local, slot| {
+            slot.ok_or(BuildCheckedBodyError::IncompleteLocal(local))
+        })?;
+        let captures = self.captures.try_finish_with(|capture, slot| {
+            slot.ok_or(BuildCheckedBodyError::IncompleteCapture(capture))
+        })?;
         let loops = self.loops.try_finish_with(|loop_, slot| match slot {
             LoopSlot::Reserved => Err(BuildCheckedBodyError::IncompleteLoop(loop_)),
             LoopSlot::Defined(definition) => Ok(definition),
@@ -131,8 +192,8 @@ impl CheckedBodyBuilder {
         Ok(CheckedBody::new(
             CheckedBodyDomains {
                 scopes: self.scopes,
-                locals: self.locals.finish(),
-                captures: self.captures.finish(),
+                locals,
+                captures,
                 places: self.places.finish(),
                 loops,
                 nodes,
@@ -152,25 +213,16 @@ enum LoopSlot {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildCheckedBodyError {
     UnknownLocal(LocalBindingId),
-    NonCanonicalLocal {
-        expected: LocalBindingId,
-        actual: LocalBindingId,
-    },
-    IncompleteLocals {
-        expected: usize,
-        actual: usize,
-    },
-    IncompleteCaptures {
-        expected: usize,
-        actual: usize,
-    },
+    DuplicateLocal(LocalBindingId),
+    IncompleteLocal(LocalBindingId),
+    UnknownCapture(CaptureId),
+    DuplicateCapture(CaptureId),
+    IncompleteCapture(CaptureId),
     UnknownLoop(LoopId),
     DuplicateLoop(LoopId),
     IncompleteLoop(LoopId),
-    InvalidCleanupCount {
-        expected: usize,
-        actual: usize,
-    },
+    UnknownNode(BodyNodeId),
+    InvalidCleanupCount { expected: usize, actual: usize },
 }
 
 impl fmt::Display for BuildCheckedBodyError {

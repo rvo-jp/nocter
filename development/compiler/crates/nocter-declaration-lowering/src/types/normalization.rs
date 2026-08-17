@@ -1092,7 +1092,10 @@ fn contains_associated_projection(store: &TypeStore, root: TypeId) -> bool {
                 pending.extend(callable.parameters().iter().copied());
             }
             Some(
-                TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_),
+                TypeKind::Builtin(_)
+                | TypeKind::GenericParameter(_)
+                | TypeKind::InterfaceSelf(_)
+                | TypeKind::Closure(_),
             )
             | None => {}
         }

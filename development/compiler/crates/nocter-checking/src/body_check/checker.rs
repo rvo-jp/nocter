@@ -4,8 +4,8 @@ use nocter_declaration_lowering::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
-    ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, LocalBindingId, NominalTypeId,
-    PlaceId, TypeId, TypeKind, TypeStore,
+    Arena, ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, CaptureId,
+    LocalBindingId, NominalTypeId, PlaceId, TypeId, TypeKind, TypeStore,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{
@@ -17,9 +17,10 @@ use super::context::{BodyProgramFacts, body_result_type};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
-use super::ownership::analyze_body_ownership;
+use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
 use crate::checked::{
     CheckedBodyBuilder, CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput,
+    ClosureTableBuilder,
 };
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::loans::{LoanBodyInput, analyze_program_loans};
@@ -30,8 +31,8 @@ use crate::syntax::{
     is_transparent_expression, token_text,
 };
 use crate::{
-    BodySource, CheckedBody, CheckedControl, CheckedOperation, ConstantValue, DropTable,
-    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, PreparedChecking,
+    BodySource, BodySourceCatalog, CheckedBody, CheckedControl, CheckedOperation, ConstantValue,
+    DropTable, ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, PreparedChecking,
     ResolvedBodyNames, plan_expected_type,
 };
 
@@ -41,6 +42,8 @@ mod assignment;
 mod call_planning;
 mod callable_values;
 mod calls;
+mod closure_results;
+mod closures;
 mod construction_planning;
 mod constructions;
 mod expected;
@@ -112,8 +115,7 @@ pub fn check_prepared_program<'syntax>(
         body_names,
         source_index,
     } = prepared.into_parts();
-    let mut checked_bodies = Vec::new();
-    let mut projections = Vec::new();
+    let mut closures = ClosureTableBuilder::new();
     let facts = BodyProgramFacts::new(
         &graph,
         &drops,
@@ -123,23 +125,20 @@ pub fn check_prepared_program<'syntax>(
         &source_index,
     );
 
-    for (body, _) in graph.declarations().bodies().iter() {
-        let source = body_sources
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-        let names = body_names
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodyNames(body))?;
-        if names.body() != body {
-            return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
-        }
-        let mut checked =
-            BodyChecker::new(input, facts, &mut types, &mut copyabilities, source, names)?
-                .check()?;
-        projections.append(&mut checked.projections);
-        checked_bodies.push((body, checked));
-    }
+    let CheckedBodiesOutput {
+        bodies: mut checked_bodies,
+        projections,
+    } = check_declared_bodies(
+        input,
+        facts,
+        &mut types,
+        &mut copyabilities,
+        &mut closures,
+        &body_sources,
+        &body_names,
+    )?;
 
+    let closures = closures.finish()?;
     for (body, checked) in &mut checked_bodies {
         let source = body_sources
             .get(*body)
@@ -149,9 +148,8 @@ pub fn check_prepared_program<'syntax>(
             &mut types,
             &mut copyabilities,
             &drops,
-            source,
-            &checked.body,
-            &checked.node_origins,
+            &closures,
+            OwnershipBodyInput::new(source, &checked.body, &checked.node_origins),
         )?;
         checked.body.attach_cleanups(cleanups)?;
     }
@@ -161,6 +159,7 @@ pub fn check_prepared_program<'syntax>(
         &types,
         &drops,
         &conformances,
+        &closures,
         &body_sources,
         &checked_bodies,
     )?;
@@ -194,6 +193,7 @@ pub fn check_prepared_program<'syntax>(
                 drops,
                 provenance,
                 loans,
+                closures,
             },
             bodies.finish(),
         ),
@@ -201,11 +201,83 @@ pub fn check_prepared_program<'syntax>(
     ))
 }
 
+fn check_declared_bodies<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+    facts: BodyProgramFacts<'input>,
+    types: &'input mut TypeStore,
+    copyabilities: &'input mut CopyabilityTable,
+    closures: &'input mut ClosureTableBuilder,
+    body_sources: &BodySourceCatalog<'syntax>,
+    body_names: &'input Arena<BodyId, ResolvedBodyNames>,
+) -> Result<CheckedBodiesOutput, BodyCheckError> {
+    let mut checked_bodies = Vec::new();
+    let mut projections = Vec::new();
+    for (body, _) in facts.graph().declarations().bodies().iter() {
+        let source = body_sources
+            .get(body)
+            .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
+        let names = body_names
+            .get(body)
+            .ok_or(BodyCheckInternalError::MissingBodyNames(body))?;
+        if names.body() != body {
+            return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
+        }
+        let unit = BodyUnitInput {
+            source,
+            names,
+            closure_ids: reserve_body_closures(closures, source),
+        };
+        let mut checked =
+            BodyChecker::new(input, facts, types, copyabilities, closures, unit)?.check()?;
+        projections.append(&mut checked.projections);
+        checked_bodies.push((body, checked));
+    }
+    Ok(CheckedBodiesOutput {
+        bodies: checked_bodies,
+        projections,
+    })
+}
+
+struct CheckedBodiesOutput {
+    bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    projections: Vec<NodeProjection>,
+}
+
+fn reserve_body_closures(
+    closures: &mut ClosureTableBuilder,
+    source: BodySource<'_>,
+) -> HashMap<NodeId, nocter_model::ClosureId> {
+    let mut reserved = HashMap::new();
+    let mut pending = vec![source.block()];
+    while let Some(node) = pending.pop() {
+        if source
+            .syntax()
+            .node(node)
+            .is_some_and(|syntax| syntax.kind() == NodeKind::ClosureExpression)
+        {
+            reserved.insert(node, closures.reserve(source.body()));
+        }
+        pending.extend(
+            source
+                .syntax()
+                .children(node)
+                .iter()
+                .rev()
+                .filter_map(|element| match element {
+                    SyntaxElement::Node(child) => Some(*child),
+                    SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+                }),
+        );
+    }
+    reserved
+}
+
 fn analyze_checked_body_relations(
     graph: &DeclarationGraph,
     types: &TypeStore,
     drops: &DropTable,
     conformances: &crate::ConformanceTable,
+    closures: &crate::ClosureTable,
     body_sources: &crate::BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyOutput)],
 ) -> Result<(crate::ProvenanceTable, crate::LoanTable), BodyCheckError> {
@@ -222,7 +294,8 @@ fn analyze_checked_body_relations(
             ))
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let provenance = analyze_program_provenance(graph, types, conformances, &provenance_inputs)?;
+    let provenance =
+        analyze_program_provenance(graph, types, conformances, closures, &provenance_inputs)?;
     let loan_inputs = checked_bodies
         .iter()
         .map(|(body, checked)| {
@@ -236,7 +309,7 @@ fn analyze_checked_body_relations(
             ))
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let loans = analyze_program_loans(graph, types, drops, &provenance, &loan_inputs)?;
+    let loans = analyze_program_loans(graph, types, drops, &provenance, closures, &loan_inputs)?;
     Ok((provenance, loans))
 }
 
@@ -246,11 +319,18 @@ struct CheckedBodyOutput {
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
 }
 
+struct BodyUnitInput<'input, 'syntax> {
+    source: BodySource<'syntax>,
+    names: &'input ResolvedBodyNames,
+    closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
+}
+
 struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
     types: &'input mut TypeStore,
     copyabilities: &'input mut CopyabilityTable,
+    closures: &'input mut ClosureTableBuilder,
     drops: &'input DropTable,
     conformances: &'input crate::ConformanceTable,
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
@@ -262,12 +342,15 @@ struct BodyChecker<'input, 'syntax> {
     uses: HashMap<SyntaxOrigin, NameTarget>,
     consumed_uses: HashSet<SyntaxOrigin>,
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
+    capture_declarations: HashMap<SyntaxOrigin, CaptureId>,
     result_type: TypeId,
     projections: Vec<NodeProjection>,
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
     assumptions: Vec<crate::CheckedRequirement>,
+    closure_result_inference: Option<closure_results::ClosureResultInference>,
+    closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -276,9 +359,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         facts: BodyProgramFacts<'input>,
         types: &'input mut TypeStore,
         copyabilities: &'input mut CopyabilityTable,
-        source: BodySource<'syntax>,
-        names: &'input ResolvedBodyNames,
+        closures: &'input mut ClosureTableBuilder,
+        unit: BodyUnitInput<'input, 'syntax>,
     ) -> Result<Self, BodyCheckError> {
+        let BodyUnitInput {
+            source,
+            names,
+            closure_ids,
+        } = unit;
         let graph = facts.graph();
         let drops = facts.drops();
         let conformances = facts.conformances();
@@ -304,6 +392,19 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 return Err(BodyCheckInternalError::DuplicateLocalDeclaration(origin).into());
             }
         }
+        let mut capture_declarations = HashMap::new();
+        for (capture, _) in names.captures().iter() {
+            let entity = SemanticEntity::Capture(source.body(), capture);
+            let origin = source_index
+                .bindings_for(entity)
+                .iter()
+                .find(|binding| binding.role() == SourceRole::Declaration)
+                .map(|binding| binding.origin().syntax())
+                .ok_or(BodyCheckInternalError::MissingSource(entity))?;
+            if capture_declarations.insert(origin, capture).is_some() {
+                return Err(BodyCheckInternalError::DuplicateCaptureDeclaration(origin).into());
+            }
+        }
         let result_type = body_result_type(graph, types, source)?;
         let assumptions = body_assumptions(graph, types, conformances, instance_operations, source)
             .map_err(BodyCheckInternalError::BodyAssumptions)?;
@@ -312,6 +413,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             graph,
             types,
             copyabilities,
+            closures,
             drops,
             conformances,
             construction_surfaces,
@@ -323,12 +425,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             uses,
             consumed_uses: HashSet::new(),
             local_declarations,
+            capture_declarations,
             result_type,
             projections: Vec::new(),
             node_origins: HashMap::new(),
             loops: Vec::new(),
             flow_reachable: true,
             assumptions,
+            closure_result_inference: None,
+            closure_ids,
         })
     }
 
@@ -570,6 +675,41 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn check_return(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
+        if self.closure_result_inference.is_some() {
+            let (payload, evidence) = if let Some(expression) =
+                direct_child(self.tree(), statement, NodeKind::Expression)
+            {
+                if closure_results::is_absent_expression(self, expression) {
+                    (None, ExpectedEvidence::Absent)
+                } else {
+                    let value = self.check_expression(expression, None)?;
+                    let ty = self.node_type(value)?;
+                    let evidence = if ty == self.types.builtin(BuiltinType::Error) {
+                        ExpectedEvidence::Failure
+                    } else {
+                        ExpectedEvidence::Typed(ty)
+                    };
+                    (Some(value), evidence)
+                }
+            } else {
+                let completion = self.add_node(
+                    statement,
+                    self.types.builtin(BuiltinType::Void),
+                    CheckedOperation::Complete,
+                )?;
+                (
+                    Some(completion),
+                    ExpectedEvidence::Typed(self.types.builtin(BuiltinType::Void)),
+                )
+            };
+            let control = self.add_node(
+                statement,
+                self.types.builtin(BuiltinType::Never),
+                CheckedOperation::Control(CheckedControl::Return(payload)),
+            )?;
+            self.record_inferred_closure_return(statement, control, payload, evidence)?;
+            return Ok(control);
+        }
         let value =
             if let Some(expression) = direct_child(self.tree(), statement, NodeKind::Expression) {
                 Some(self.check_expression(expression, Some(self.result_type))?)
@@ -638,6 +778,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
                 NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
                 NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
+                NodeKind::ClosureExpression => return self.check_closure(current, expected),
                 NodeKind::IfExpression => return self.check_if(current, expected),
                 NodeKind::MatchExpression => return self.check_match(current, expected),
                 NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {

@@ -2,18 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by using the completed ownership, provenance, and loan boundaries to
-close closure expressions.
+Continue v0.14.0 Phase 3 by using the completed value, temporary, ownership, provenance, and loan
+boundaries to close typed literals and interpolation.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Complete closures through the ownership, provenance, and loan authorities, including explicit
-   captures and callable capability.
-2. Complete typed literals and interpolation only through the same expected-type,
-   temporary-flow, and cleanup authorities already used by ordinary values.
+1. Complete typed literals through the existing expected-type, construction-surface, allocation,
+   temporary-flow, and cleanup authorities.
+2. Complete interpolation through the same evaluation-order, formatting-dispatch, allocation,
+   provenance, loan, and cleanup authorities used by ordinary calls and aggregate values.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -84,7 +84,7 @@ their parent, and join inherited field state without enumerating a struct eagerl
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
 branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
-closures, typed literals, and interpolation remain incomplete.
+typed literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -98,8 +98,8 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, closures, typed literals, and interpolation
-remain incomplete.
+edge. Collection iteration, executable regions, typed literals, and interpolation remain
+incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
@@ -197,7 +197,16 @@ liveness over checked places and node temporaries. It retains explicit and impli
 capability, canonical field-sensitive places, reborrow ancestry, and per-node live sets. Readonly
 and exclusive conflicts, move/drop/assignment conflicts, dynamic-index conservatism, branch and
 loop joins, receiver-derived results, lexical storage escape, temporary receiver escape, and
-type-owned drop observation order project `E0396`-`E0398`. Closure expressions remain incomplete.
+type-owned drop observation order project `E0396`-`E0398`. Closure expressions now have lexically
+reserved `ClosureId` identities, concrete closure types, and one program-owned
+signature/environment definition. Parameter and result inference may use a structural callable
+contract without depending on source argument order. Unannotated results join tail values,
+explicit returns, absence, failure propagation, and divergence at the closure boundary. Each
+capture is an explicit initialized environment field whose stored type determines copyability;
+reads, mutations, moves, and nested callable invocations independently determine invocation
+capability. Ownership, provenance, liveness, and loans analyze every closure body as a separate
+execution root while mapping parameter, capture-value, and environment-storage origins through
+direct and generic calls.
 
 `ConstructionSurfaceTable` now indexes the complete construction surface of every nominal family:
 structural field identity and declaration order, enum variants by semantic name, and any authored

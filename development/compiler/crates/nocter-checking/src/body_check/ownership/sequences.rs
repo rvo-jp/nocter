@@ -14,6 +14,9 @@ impl OwnershipAnalyzer<'_> {
         let mut staged = Vec::new();
         if let CallTarget::CallableValue {
             value, capability, ..
+        }
+        | CallTarget::ClosureValue {
+            value, capability, ..
         } = call.target()
         {
             if !self.visit(*value, state)? {

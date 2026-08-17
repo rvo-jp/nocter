@@ -1,4 +1,7 @@
-use nocter_model::{BodyNodeId, BorrowCapability, GenericParameterId, PlaceId, TypeId};
+use nocter_declarations::StructuralCapability;
+use nocter_model::{
+    BodyNodeId, BorrowCapability, CallableContract, GenericParameterId, PlaceId, TypeId,
+};
 use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
 
 use super::BodyChecker;
@@ -6,7 +9,10 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{direct_child, direct_nodes, direct_token, is_transparent_expression};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
-use crate::{CallableInference, GenericArguments, InferenceEvidence, InferenceFailure};
+use crate::{
+    CallableInference, CheckedPredicate, CheckedRequirement, GenericArguments, InferenceEvidence,
+    InferenceFailure,
+};
 
 /// A source-order value awaiting the final substitution of its destination type.
 pub(super) enum ValueDraft {
@@ -22,6 +28,11 @@ pub(super) enum ValueDraft {
     Deferred {
         syntax: NodeId,
     },
+    Closure {
+        syntax: NodeId,
+        destination: TypeId,
+        contract: Option<CallableContract>,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -30,6 +41,7 @@ pub(super) struct PositionalValueContext<'a> {
     pub(super) result: TypeId,
     pub(super) inference_parameters: &'a [GenericParameterId],
     pub(super) destination_types: &'a [TypeId],
+    pub(super) requirements: &'a [CheckedRequirement],
     pub(super) expected: Option<TypeId>,
     pub(super) failure_rule: BodyRule,
 }
@@ -49,6 +61,15 @@ impl BodyChecker<'_, '_> {
             .into_iter()
             .zip(context.destination_types.iter().copied())
         {
+            if let Some(closure_syntax) = closure_expression(self, syntax) {
+                let contract = contextual_callable_contract(context.requirements, destination)?;
+                values.push(ValueDraft::Closure {
+                    syntax: closure_syntax,
+                    destination,
+                    contract,
+                });
+                continue;
+            }
             if is_none_expression(self, syntax) {
                 inference
                     .constrain_contextual(self.types, destination, InferenceEvidence::Absent)
@@ -94,10 +115,82 @@ impl BodyChecker<'_, '_> {
                     self.inference_error(context.owner, error, context.failure_rule)
                 })?;
         }
+        self.infer_closure_drafts(&mut values, &context, &mut inference)?;
         let generic_arguments = inference
             .finish(self.types)
             .map_err(|error| self.inference_error(context.owner, error, context.failure_rule))?;
         Ok((values, generic_arguments))
+    }
+
+    fn infer_closure_drafts(
+        &mut self,
+        values: &mut [ValueDraft],
+        context: &PositionalValueContext<'_>,
+        inference: &mut CallableInference,
+    ) -> Result<(), BodyCheckError> {
+        for value in values.iter() {
+            let ValueDraft::Closure {
+                syntax,
+                contract: Some(contract),
+                ..
+            } = value
+            else {
+                continue;
+            };
+            self.constrain_closure_annotations(*syntax, contract, inference)?;
+        }
+        let mut remaining = values
+            .iter()
+            .enumerate()
+            .filter_map(|(position, value)| {
+                matches!(value, ValueDraft::Closure { .. }).then_some(position)
+            })
+            .collect::<Vec<_>>();
+        while !remaining.is_empty() {
+            let partial = inference
+                .partial_substitution(self.types)
+                .map_err(|error| {
+                    self.inference_error(context.owner, error, context.failure_rule)
+                })?;
+            let ready = remaining
+                .iter()
+                .position(|position| match &values[*position] {
+                    ValueDraft::Closure { contract, .. } => {
+                        contract.as_ref().is_none_or(|contract| {
+                            self.closure_context_is_ready(
+                                contract,
+                                context.inference_parameters,
+                                &partial,
+                            )
+                            .unwrap_or(false)
+                        })
+                    }
+                    _ => false,
+                })
+                .unwrap_or(0);
+            let position = remaining.remove(ready);
+            let ValueDraft::Closure {
+                syntax,
+                destination,
+                contract,
+            } = &values[position]
+            else {
+                unreachable!("remaining positions contain only closure drafts")
+            };
+            let syntax = *syntax;
+            let destination = *destination;
+            let contract = contract.clone();
+            let value = self.check_inferred_closure(
+                syntax,
+                contract.as_ref(),
+                context.inference_parameters,
+                inference,
+                context.failure_rule,
+            )?;
+            inference.constrain_exact(destination, self.node_type(value)?);
+            values[position] = ValueDraft::Checked { syntax, value };
+        }
+        Ok(())
     }
 
     pub(super) fn materialize_positional_values(
@@ -123,6 +216,10 @@ impl BodyChecker<'_, '_> {
                     ValueDraft::Deferred { syntax } => {
                         self.check_expression(syntax, Some(destination))
                     }
+                    ValueDraft::Closure { .. } => Err(BodyCheckInternalError::CallInference(
+                        InferenceFailure::DuplicateResultContext,
+                    )
+                    .into()),
                 }
             })
             .collect()
@@ -152,7 +249,7 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn inference_error(
+    pub(super) fn inference_error(
         &self,
         node: NodeId,
         error: InferenceFailure,
@@ -168,6 +265,41 @@ impl BodyChecker<'_, '_> {
                 .unwrap_or_else(|_| BodyCheckInternalError::CallInference(error).into()),
         }
     }
+}
+
+fn contextual_callable_contract(
+    requirements: &[CheckedRequirement],
+    destination: TypeId,
+) -> Result<Option<CallableContract>, BodyCheckError> {
+    let mut contracts = requirements.iter().filter_map(|requirement| {
+        let CheckedPredicate::Capability {
+            subject,
+            capability: StructuralCapability::Callable(contract),
+        } = requirement.predicate()
+        else {
+            return None;
+        };
+        (*subject == destination).then(|| contract.clone())
+    });
+    let selected = contracts.next();
+    if contracts.next().is_some() {
+        return Err(BodyCheckInternalError::CallContractSelection.into());
+    }
+    Ok(selected)
+}
+
+fn closure_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> Option<NodeId> {
+    while checker.kind(node).is_ok_and(is_transparent_expression) {
+        let children = direct_nodes(checker.tree(), node);
+        let [child] = children.as_slice() else {
+            return None;
+        };
+        node = *child;
+    }
+    checker
+        .kind(node)
+        .is_ok_and(|kind| kind == NodeKind::ClosureExpression)
+        .then_some(node)
 }
 
 fn is_none_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> bool {

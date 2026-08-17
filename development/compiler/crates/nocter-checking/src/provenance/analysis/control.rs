@@ -148,7 +148,7 @@ impl Analyzer<'_, '_> {
         } else {
             ValueProvenance::independent()
         };
-        self.record_return(node, returned)?;
+        self.record_return(node, returned);
         Ok((ValueProvenance::independent(), false))
     }
 

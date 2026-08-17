@@ -20,7 +20,7 @@ pub(crate) fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, 
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => return Ok(false),
-            TypeKind::Builtin(_) => {}
+            TypeKind::Builtin(_) | TypeKind::Closure(_) => {}
             TypeKind::Nominal { arguments, .. } | TypeKind::Opaque { arguments, .. } => {
                 pending.extend(arguments.iter().copied());
             }

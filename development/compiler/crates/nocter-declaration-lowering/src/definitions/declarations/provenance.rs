@@ -99,8 +99,13 @@ fn explicit(
 ) -> Result<Option<CallableProvenance>, HeaderDefinitionError> {
     let tree = projection::tree(types, declaration)?;
     let root = surface_node(types, declaration)?;
-    let clause = syntax::descendant(tree, root, NodeKind::ProvenanceClause)
-        .or_else(|| syntax::descendant(tree, root, NodeKind::CoercionProvenance));
+    // A callable type inside `where` owns its own provenance clause. Declaration provenance is
+    // selected only from the declaration's callable tail (or the direct operator/coercion surface)
+    // so a nested structural contract cannot silently become the enclosing API contract.
+    let clause = syntax::descendant(tree, root, NodeKind::CallableTail)
+        .and_then(|tail| syntax::direct_node(tree, tail, NodeKind::ProvenanceClause))
+        .or_else(|| syntax::direct_node(tree, root, NodeKind::ProvenanceClause))
+        .or_else(|| syntax::direct_node(tree, root, NodeKind::CoercionProvenance));
     let Some(clause) = clause else {
         return Ok(None);
     };

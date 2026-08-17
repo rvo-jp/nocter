@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_declarations::{CallableProvenance, ProvenanceOrigin};
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, CallableId, FieldId, LocalBindingId, ParameterId, VariantId,
+    Arena, BodyId, BodyNodeId, CallableId, CaptureId, ClosureId, FieldId, LocalBindingId,
+    ParameterId, ParameterOrigin, ResultProvenance, VariantId,
 };
 
 /// One storage authority carried by a checked value.
@@ -17,6 +18,15 @@ pub enum ProvenanceSource {
     OwnedParameter(ParameterId),
     Region(LocalBindingId),
     Temporary(BodyNodeId),
+    ClosureParameter {
+        closure: ClosureId,
+        origin: ParameterOrigin,
+    },
+    ClosureCaptureValue {
+        closure: ClosureId,
+        capture: CaptureId,
+    },
+    ClosureEnvironment(ClosureId),
     Unknown,
 }
 
@@ -31,6 +41,8 @@ pub enum ProvenanceProjection {
     Element,
     OutcomeValue,
     OutcomeFailure,
+    ClosureCaptureValue(CaptureId),
+    ClosureCaptureStorage(CaptureId),
 }
 
 /// Field-sensitive storage provenance for one checked value.
@@ -193,6 +205,73 @@ pub struct CallableProvenanceTable {
     entries: Arena<CallableId, CheckedCallableProvenance>,
 }
 
+/// The effective result-storage contract inferred for one generated closure body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedClosureProvenance {
+    parameters: ResultProvenance,
+    captures: Box<[CaptureId]>,
+    environment: bool,
+    ambient: AmbientStorageDependence,
+}
+
+impl CheckedClosureProvenance {
+    pub(crate) fn new(
+        parameters: ResultProvenance,
+        captures: impl Into<Box<[CaptureId]>>,
+        environment: bool,
+        ambient: AmbientStorageDependence,
+    ) -> Self {
+        Self {
+            parameters,
+            captures: captures.into(),
+            environment,
+            ambient,
+        }
+    }
+
+    #[must_use]
+    pub const fn parameters(&self) -> &ResultProvenance {
+        &self.parameters
+    }
+
+    #[must_use]
+    pub const fn captures(&self) -> &[CaptureId] {
+        &self.captures
+    }
+
+    #[must_use]
+    pub const fn retains_environment(&self) -> bool {
+        self.environment
+    }
+
+    #[must_use]
+    pub const fn ambient(&self) -> AmbientStorageDependence {
+        self.ambient
+    }
+}
+
+/// Program-wide generated-closure result-provenance authority.
+#[derive(Debug)]
+pub struct ClosureProvenanceTable {
+    entries: Arena<ClosureId, CheckedClosureProvenance>,
+}
+
+impl ClosureProvenanceTable {
+    pub(crate) const fn new(entries: Arena<ClosureId, CheckedClosureProvenance>) -> Self {
+        Self { entries }
+    }
+
+    #[must_use]
+    pub fn get(&self, closure: ClosureId) -> Option<&CheckedClosureProvenance> {
+        self.entries.get(closure)
+    }
+
+    #[must_use]
+    pub const fn entries(&self) -> &Arena<ClosureId, CheckedClosureProvenance> {
+        &self.entries
+    }
+}
+
 impl CallableProvenanceTable {
     pub(crate) const fn new(entries: Arena<CallableId, CheckedCallableProvenance>) -> Self {
         Self { entries }
@@ -239,20 +318,31 @@ impl CheckedBodyProvenance {
 #[derive(Debug)]
 pub struct ProvenanceTable {
     callables: CallableProvenanceTable,
+    closures: ClosureProvenanceTable,
     bodies: Arena<BodyId, CheckedBodyProvenance>,
 }
 
 impl ProvenanceTable {
     pub(crate) const fn new(
         callables: CallableProvenanceTable,
+        closures: ClosureProvenanceTable,
         bodies: Arena<BodyId, CheckedBodyProvenance>,
     ) -> Self {
-        Self { callables, bodies }
+        Self {
+            callables,
+            closures,
+            bodies,
+        }
     }
 
     #[must_use]
     pub const fn callables(&self) -> &CallableProvenanceTable {
         &self.callables
+    }
+
+    #[must_use]
+    pub const fn closures(&self) -> &ClosureProvenanceTable {
+        &self.closures
     }
 
     #[must_use]

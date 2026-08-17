@@ -9,7 +9,9 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{BodyNodeId, TypeStore};
 use nocter_source_index::SourceOrigin;
 
-use crate::{BodyCheckError, BodySource, CheckedBody, DropTable, LoanTable, ProvenanceTable};
+use crate::{
+    BodyCheckError, BodySource, CheckedBody, ClosureTable, DropTable, LoanTable, ProvenanceTable,
+};
 
 pub(crate) struct LoanBodyInput<'program, 'syntax> {
     source: BodySource<'syntax>,
@@ -36,11 +38,12 @@ pub(crate) fn analyze_program_loans(
     types: &TypeStore,
     drops: &DropTable,
     provenance: &ProvenanceTable,
+    closures: &ClosureTable,
     inputs: &[LoanBodyInput<'_, '_>],
 ) -> Result<LoanTable, BodyCheckError> {
     let inputs = inputs
         .iter()
         .map(|input| analysis::LoanBodyInput::new(input.source, input.body, input.origins))
         .collect::<Vec<_>>();
-    analysis::analyze_program(graph, types, drops, provenance, &inputs)
+    analysis::analyze_program(graph, types, drops, provenance, closures, &inputs)
 }

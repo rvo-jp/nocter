@@ -1,11 +1,13 @@
 use std::fmt;
 
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{BodyId, BodyNodeId, LocalBindingId, LoopId, PlaceId, TypeId};
+use nocter_model::{
+    BodyId, BodyNodeId, CaptureId, ClosureId, LocalBindingId, LoopId, PlaceId, TypeId,
+};
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
-use crate::checked::BuildCheckedBodyError;
+use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;
 use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget};
 
@@ -74,7 +76,11 @@ pub enum BodyCheckInternalError {
     MissingLocalDeclaration(NodeId),
     MissingBlockScope(NodeId),
     DuplicateLocalDeclaration(SyntaxOrigin),
+    DuplicateCaptureDeclaration(SyntaxOrigin),
     MissingLocalType(LocalBindingId),
+    MissingCaptureType(CaptureId),
+    MissingCaptureDeclaration(NodeId),
+    MissingClosure(ClosureId),
     InvalidLiteral(NodeId),
     UnknownType(TypeId),
     MissingNode(BodyNodeId),
@@ -88,6 +94,7 @@ pub enum BodyCheckInternalError {
     Copyability(CopyabilityError),
     ExpectedType(ExpectedTypeError),
     Construction(BuildCheckedBodyError),
+    ClosureConstruction(ClosureTableBuildError),
     DuplicateProjection(DuplicateSourceBinding),
     MissingSource(SemanticEntity),
     UnconsumedNameUses(BodyId),
@@ -124,6 +131,18 @@ impl From<BuildCheckedBodyError> for BodyCheckInternalError {
 
 impl From<BuildCheckedBodyError> for BodyCheckError {
     fn from(error: BuildCheckedBodyError) -> Self {
+        BodyCheckInternalError::from(error).into()
+    }
+}
+
+impl From<ClosureTableBuildError> for BodyCheckInternalError {
+    fn from(error: ClosureTableBuildError) -> Self {
+        Self::ClosureConstruction(error)
+    }
+}
+
+impl From<ClosureTableBuildError> for BodyCheckError {
+    fn from(error: ClosureTableBuildError) -> Self {
         BodyCheckInternalError::from(error).into()
     }
 }

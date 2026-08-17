@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, LoopId, TypeKind, TypeStore,
+    ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, ClosureId, LoopId, ParameterOrigin,
+    TypeKind, TypeStore,
 };
 use nocter_source_index::SourceOrigin;
 
@@ -17,8 +18,8 @@ use super::state::LoanState;
 use super::value::LoanValue;
 use crate::{
     BodyCheckError, BodyCheckInternalError, BodySource, CheckedBody, CheckedBodyLoans, CheckedLoan,
-    CheckedOperation, DropTable, LoanId, LoanPlace, LoanRoot, LoanTable, PlaceRoot,
-    ProvenanceTable,
+    CheckedOperation, ClosureDefinition, ClosureTable, DropTable, LoanId, LoanPlace, LoanRoot,
+    LoanTable, PlaceRoot, ProvenanceTable,
 };
 
 pub(super) struct LoanBodyInput<'program, 'syntax> {
@@ -46,6 +47,7 @@ pub(super) fn analyze_program(
     types: &TypeStore,
     drops: &DropTable,
     provenance: &ProvenanceTable,
+    closures: &ClosureTable,
     inputs: &[LoanBodyInput<'_, '_>],
 ) -> Result<LoanTable, BodyCheckError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyLoans>::new();
@@ -54,14 +56,70 @@ pub(super) fn analyze_program(
             .iter()
             .find(|input| input.source.body() == body)
             .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-        let liveness = super::liveness::analyze(types, drops, input.body)?;
-        let checked = Analyzer::new(graph, types, drops, provenance, input, &liveness).analyze()?;
+        let liveness = super::liveness::analyze(types, drops, input.body, input.body.root())?;
+        let mut checked =
+            Analyzer::new(graph, types, drops, provenance, input, &liveness, None).analyze()?;
+        for (closure, definition) in closures
+            .definitions()
+            .iter()
+            .filter(|(_, definition)| definition.owner() == body)
+        {
+            let liveness = super::liveness::analyze(types, drops, input.body, definition.body())?;
+            let closure_checked = Analyzer::new(
+                graph,
+                types,
+                drops,
+                provenance,
+                input,
+                &liveness,
+                Some((closure, definition)),
+            )
+            .analyze()?;
+            checked.merge(closure_checked)?;
+        }
+        let mut live_before = ArenaBuilder::new();
+        for (node, _) in input.body.nodes().iter() {
+            let loans = checked
+                .live_before
+                .remove(&node)
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            let actual = live_before.insert(loans);
+            if actual != node {
+                return Err(BodyCheckInternalError::LoanAnalysis.into());
+            }
+        }
+        if !checked.live_before.is_empty() {
+            return Err(BodyCheckInternalError::LoanAnalysis.into());
+        }
+        let checked = CheckedBodyLoans::new(checked.loans, live_before.finish());
         let actual = bodies.insert(checked);
         if actual != body {
             return Err(BodyCheckInternalError::LoanAnalysis.into());
         }
     }
     Ok(LoanTable::new(bodies.finish()))
+}
+
+struct RootLoanAnalysis {
+    loans: BTreeMap<LoanId, CheckedLoan>,
+    live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
+}
+
+impl RootLoanAnalysis {
+    fn merge(&mut self, another: Self) -> Result<(), BodyCheckError> {
+        for (loan, definition) in another.loans {
+            if self.loans.insert(loan, definition).is_some() {
+                return Err(BodyCheckInternalError::LoanAnalysis.into());
+            }
+        }
+        for (node, loans) in another.live_before {
+            self.live_before.entry(node).or_default().extend(loans);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -89,6 +147,7 @@ struct Analyzer<'program, 'syntax> {
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
     loops: Vec<LoopFlow>,
     scopes: Vec<nocter_model::BodyScopeId>,
+    closure: Option<(ClosureId, &'program ClosureDefinition)>,
 }
 
 impl<'program, 'syntax> Analyzer<'program, 'syntax> {
@@ -99,6 +158,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         provenance: &'program ProvenanceTable,
         input: &'program LoanBodyInput<'program, 'syntax>,
         liveness: &'program Liveness,
+        closure: Option<(ClosureId, &'program ClosureDefinition)>,
     ) -> Self {
         Self {
             graph,
@@ -111,30 +171,102 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             live_before: HashMap::new(),
             loops: Vec::new(),
             scopes: Vec::new(),
+            closure,
         }
     }
 
-    fn analyze(mut self) -> Result<CheckedBodyLoans, BodyCheckError> {
+    fn analyze(mut self) -> Result<RootLoanAnalysis, BodyCheckError> {
         let mut state = self.initial_state()?;
-        self.evaluate(self.input.body.root(), &mut state, &BTreeSet::new())?;
-        let mut live_before = ArenaBuilder::new();
-        for (node, _) in self.input.body.nodes().iter() {
-            let loans = self
-                .live_before
-                .remove(&node)
-                .unwrap_or_default()
-                .into_iter()
-                .collect::<Vec<_>>()
-                .into_boxed_slice();
-            let actual = live_before.insert(loans);
-            if actual != node {
-                return Err(BodyCheckInternalError::LoanAnalysis.into());
-            }
-        }
-        Ok(CheckedBodyLoans::new(self.loans, live_before.finish()))
+        let root = self
+            .closure
+            .map_or(self.input.body.root(), |(_, definition)| definition.body());
+        self.evaluate(root, &mut state, &BTreeSet::new())?;
+        Ok(RootLoanAnalysis {
+            loans: self.loans,
+            live_before: self.live_before,
+        })
     }
 
     fn initial_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
+        if let Some((closure, definition)) = self.closure {
+            return self.initial_closure_state(closure, definition);
+        }
+        self.initial_declared_state()
+    }
+
+    fn initial_closure_state(
+        &mut self,
+        closure: ClosureId,
+        definition: &ClosureDefinition,
+    ) -> Result<LoanState, BodyCheckInternalError> {
+        let mut state = LoanState::default();
+        for (position, (binding, ty)) in definition
+            .parameters()
+            .iter()
+            .copied()
+            .zip(definition.signature().parameters().iter().copied())
+            .enumerate()
+        {
+            let Some(TypeKind::Borrow { capability, .. }) = self.types.get(ty) else {
+                state.set_root(PlaceRoot::Local(binding), LoanValue::independent());
+                continue;
+            };
+            let loan = LoanId::ClosureParameter {
+                closure,
+                origin: ParameterOrigin::new(position),
+            };
+            self.loans.insert(
+                loan,
+                CheckedLoan::new(
+                    *capability,
+                    [LoanPlace::new(
+                        LoanRoot::External(PlaceRoot::Local(binding)),
+                        [],
+                    )],
+                    [],
+                ),
+            );
+            state.set_root(PlaceRoot::Local(binding), LoanValue::from_loan(loan));
+        }
+        for capture in definition.captures() {
+            let declaration = self
+                .input
+                .body
+                .captures()
+                .get(*capture)
+                .ok_or(BodyCheckInternalError::LoanAnalysis)?
+                .declaration();
+            let capability = match declaration.mode() {
+                crate::CaptureMode::Readonly => Some(BorrowCapability::Readonly),
+                crate::CaptureMode::ReadWrite => Some(BorrowCapability::ReadWrite),
+                crate::CaptureMode::Move => None,
+            };
+            let value = if let Some(capability) = capability {
+                let loan = LoanId::ClosureCapture {
+                    closure,
+                    capture: *capture,
+                };
+                self.loans.insert(
+                    loan,
+                    CheckedLoan::new(
+                        capability,
+                        [LoanPlace::new(
+                            LoanRoot::External(PlaceRoot::Capture(*capture)),
+                            [],
+                        )],
+                        [],
+                    ),
+                );
+                LoanValue::from_loan(loan)
+            } else {
+                LoanValue::independent()
+            };
+            state.set_root(PlaceRoot::Capture(*capture), value);
+        }
+        Ok(state)
+    }
+
+    fn initial_declared_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
         let mut state = LoanState::default();
         let BodyOwner::Callable(callable) = self.input.source.owner() else {
             return Ok(state);
@@ -243,22 +375,71 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 self.evaluate_sequence(&sequence, state, extra_active)?
             }
             CheckedOperation::Interpolation(interpolation) => {
-                for part in interpolation.parts() {
-                    if let crate::InterpolationPart::Formatted { value, .. } = part
-                        && !self.evaluate(*value, state, extra_active)?.1
-                    {
-                        return Ok((LoanValue::independent(), false));
-                    }
-                }
-                self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
-                (LoanValue::independent(), true)
+                self.evaluate_interpolation(&interpolation, state, extra_active)?
             }
-            CheckedOperation::Closure(_) => {
-                return Err(BodyCheckInternalError::LoanAnalysis.into());
+            CheckedOperation::Closure(closure) => {
+                self.evaluate_closure(&closure, state, extra_active)?
             }
         };
         state.set_node(node, result.0.clone());
         Ok(result)
+    }
+
+    fn evaluate_interpolation(
+        &mut self,
+        interpolation: &crate::CheckedInterpolation,
+        state: &mut LoanState,
+        extra_active: &BTreeSet<LoanId>,
+    ) -> Result<(LoanValue, bool), BodyCheckError> {
+        for part in interpolation.parts() {
+            if let crate::InterpolationPart::Formatted { value, .. } = part
+                && !self.evaluate(*value, state, extra_active)?.1
+            {
+                return Ok((LoanValue::independent(), false));
+            }
+        }
+        self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
+        Ok((LoanValue::independent(), true))
+    }
+
+    fn evaluate_closure(
+        &mut self,
+        closure: &crate::CheckedClosure,
+        state: &mut LoanState,
+        extra_active: &BTreeSet<LoanId>,
+    ) -> Result<(LoanValue, bool), BodyCheckError> {
+        let mut value = LoanValue::independent();
+        for capture in closure.captures() {
+            let (initializer, reaches) =
+                self.evaluate(capture.initializer(), state, extra_active)?;
+            if !reaches {
+                return Ok((LoanValue::independent(), false));
+            }
+            let checked_initializer = self
+                .input
+                .body
+                .nodes()
+                .get(capture.initializer())
+                .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+            let captured = match checked_initializer.operation() {
+                CheckedOperation::Borrow { place, .. } => self.read_place(*place, state)?,
+                _ => initializer.clone(),
+            };
+            value.insert_projection(
+                crate::ProvenanceProjection::ClosureCaptureValue(capture.binding()),
+                captured,
+            );
+            if matches!(
+                checked_initializer.operation(),
+                CheckedOperation::Borrow { .. }
+            ) {
+                value.insert_projection(
+                    crate::ProvenanceProjection::ClosureCaptureStorage(capture.binding()),
+                    initializer,
+                );
+            }
+        }
+        Ok((value, true))
     }
 
     fn active_loans(

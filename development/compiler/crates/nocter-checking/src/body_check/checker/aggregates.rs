@@ -51,6 +51,7 @@ impl BodyChecker<'_, '_> {
                 result: result_pattern,
                 inference_parameters: &plan.inference_parameters,
                 destination_types: &destination_types,
+                requirements: &[],
                 expected,
                 failure_rule: BodyRule::InvalidConstruction,
             },

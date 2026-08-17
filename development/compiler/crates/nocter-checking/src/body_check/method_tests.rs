@@ -29,7 +29,7 @@ fn receiver_dispatches(output: &crate::CheckedProgramOutput) -> Vec<(StaticDispa
                     selection.dispatch(),
                     selection.generic_arguments().as_slice().len(),
                 )),
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })
@@ -132,7 +132,7 @@ fn instance_and_method_generics_share_identity_keyed_call_arguments() {
                 CallTarget::Static(selection) => {
                     Some(selection.generic_arguments().as_slice().to_vec())
                 }
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })
@@ -174,7 +174,7 @@ fn concrete_and_bounded_generic_receivers_select_interface_dispatch() {
         .filter_map(|(_, node)| match node.operation() {
             CheckedOperation::Call(call) if call.receiver().is_some() => match call.target() {
                 CallTarget::Static(selection) => Some(selection.dispatch()),
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })
@@ -212,7 +212,7 @@ fn conformance_default_method_uses_specialized_interface_contract() {
         .find_map(|(_, node)| match node.operation() {
             CheckedOperation::Call(call) if call.receiver().is_some() => match call.target() {
                 CallTarget::Static(selection) => Some(selection),
-                CallTarget::CallableValue { .. } => None,
+                CallTarget::CallableValue { .. } | CallTarget::ClosureValue { .. } => None,
             },
             _ => None,
         })

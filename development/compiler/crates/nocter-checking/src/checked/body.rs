@@ -35,6 +35,10 @@ pub struct CheckedCapture {
 }
 
 impl CheckedCapture {
+    pub(super) const fn new(declaration: Capture, ty: TypeId) -> Self {
+        Self { declaration, ty }
+    }
+
     #[must_use]
     pub const fn declaration(self) -> Capture {
         self.declaration

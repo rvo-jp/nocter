@@ -184,7 +184,7 @@ impl BodyChecker<'_, '_> {
         })
     }
 
-    fn resolve_type_use(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
+    pub(super) fn resolve_type_use(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
         match self.kind(node)? {
             NodeKind::Type => {
                 let children = direct_nodes(self.tree(), node);

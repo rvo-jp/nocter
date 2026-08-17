@@ -10,6 +10,17 @@ use crate::{
     ReceiverPreparation, SequenceElement, StaticDispatch, ValueProvenance,
 };
 
+struct CallableValueProvenance {
+    value: ValueProvenance,
+    storage: Option<ValueProvenance>,
+}
+
+struct EvaluatedCall {
+    callable: Option<CallableValueProvenance>,
+    receiver: Option<ValueProvenance>,
+    arguments: Vec<ValueProvenance>,
+}
+
 impl Analyzer<'_, '_> {
     pub(super) fn evaluate_aggregate(
         &mut self,
@@ -94,7 +105,7 @@ impl Analyzer<'_, '_> {
                 if reaches {
                     let failure = value.projected(ProvenanceProjection::OutcomeFailure);
                     if !failure.all_sources().is_empty() {
-                        self.record_return(node, failure)?;
+                        self.record_return(node, failure);
                     }
                 }
                 Ok((value.projected(ProvenanceProjection::OutcomeValue), reaches))
@@ -139,20 +150,56 @@ impl Analyzer<'_, '_> {
         state: &mut ProvenanceState,
         result_type: TypeId,
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
-        let callable_value = match call.target() {
-            CallTarget::CallableValue { value, .. } => {
+        let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
+            return Ok((ValueProvenance::independent(), false));
+        };
+        let mut result = self.map_call_result(call, &evaluated, state)?;
+        if !self.types.may_carry_storage(result_type) {
+            result = ValueProvenance::independent();
+        }
+        Ok((result, true))
+    }
+
+    fn evaluate_call_inputs(
+        &mut self,
+        call: &CheckedCall,
+        state: &mut ProvenanceState,
+    ) -> Result<Option<EvaluatedCall>, BodyCheckError> {
+        let callable = match call.target() {
+            CallTarget::CallableValue {
+                value, capability, ..
+            }
+            | CallTarget::ClosureValue {
+                value, capability, ..
+            } => {
                 let (provenance, reaches) = self.evaluate(*value, state)?;
                 if !reaches {
-                    return Ok((ValueProvenance::independent(), false));
+                    return Ok(None);
                 }
-                Some((*value, provenance))
+                let storage = if *capability == nocter_model::CallableCapability::Owned {
+                    None
+                } else {
+                    let checked = self
+                        .body
+                        .nodes()
+                        .get(*value)
+                        .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                    let CheckedOperation::Place(place) = checked.operation() else {
+                        return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                    };
+                    Some(self.place_storage(*place, state)?)
+                };
+                Some(CallableValueProvenance {
+                    value: provenance,
+                    storage,
+                })
             }
             CallTarget::Static(_) => None,
         };
         let receiver = if let Some(receiver) = call.receiver() {
             let provenance = self.evaluate_receiver(receiver, state)?;
             let Some(provenance) = provenance else {
-                return Ok((ValueProvenance::independent(), false));
+                return Ok(None);
             };
             Some(provenance)
         } else {
@@ -162,11 +209,24 @@ impl Analyzer<'_, '_> {
         for argument in call.arguments() {
             let (value, reaches) = self.evaluate(*argument, state)?;
             if !reaches {
-                return Ok((ValueProvenance::independent(), false));
+                return Ok(None);
             }
             arguments.push(value);
         }
-        let mut result = match call.target() {
+        Ok(Some(EvaluatedCall {
+            callable,
+            receiver,
+            arguments,
+        }))
+    }
+
+    fn map_call_result(
+        &self,
+        call: &CheckedCall,
+        evaluated: &EvaluatedCall,
+        state: &ProvenanceState,
+    ) -> Result<ValueProvenance, BodyCheckError> {
+        Ok(match call.target() {
             CallTarget::Static(selection) => {
                 let callable = match selection.dispatch() {
                     StaticDispatch::Direct(callable)
@@ -179,8 +239,8 @@ impl Analyzer<'_, '_> {
                 };
                 self.map_callable_summary(
                     callable,
-                    receiver.as_ref(),
-                    &arguments,
+                    evaluated.receiver.as_ref(),
+                    &evaluated.arguments,
                     state.current_allocation(),
                 )?
             }
@@ -203,19 +263,67 @@ impl Analyzer<'_, '_> {
                 };
                 let mut mapped = ValueProvenance::independent();
                 for origin in contract.provenance().origins() {
-                    let argument = arguments
+                    let argument = evaluated
+                        .arguments
                         .get(origin.position())
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
                     mapped.union_with(argument);
                 }
-                let _ = callable_value;
+                let callable = evaluated
+                    .callable
+                    .as_ref()
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                mapped.union_with(&callable.value);
+                if let Some(environment) = &callable.storage {
+                    mapped.union_with(environment);
+                }
                 mapped
             }
-        };
-        if !self.types.may_carry_storage(result_type) {
-            result = ValueProvenance::independent();
-        }
-        Ok((result, true))
+            CallTarget::ClosureValue { closure, .. } => {
+                let summary = self
+                    .closure_summaries
+                    .get(closure)
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                let callable = evaluated
+                    .callable
+                    .as_ref()
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                let mut mapped = ValueProvenance::independent();
+                for origin in &summary.parameters {
+                    mapped.union_with(
+                        evaluated
+                            .arguments
+                            .get(origin.position())
+                            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    );
+                }
+                for capture in &summary.captures {
+                    mapped.union_with(
+                        &callable
+                            .value
+                            .projected(ProvenanceProjection::ClosureCaptureValue(*capture)),
+                    );
+                }
+                if summary.environment {
+                    mapped.union_with(
+                        callable
+                            .storage
+                            .as_ref()
+                            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    );
+                }
+                match summary.ambient {
+                    AmbientStorageDependence::Independent => {}
+                    AmbientStorageDependence::Current => {
+                        mapped.union_with(state.current_allocation());
+                    }
+                    AmbientStorageDependence::Unknown => {
+                        mapped.union_with(&ValueProvenance::from_source(ProvenanceSource::Unknown));
+                    }
+                }
+                mapped
+            }
+        })
     }
 
     fn evaluate_receiver(
