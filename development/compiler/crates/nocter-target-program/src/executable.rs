@@ -6,8 +6,8 @@ use nocter_checking::{
     ResolvedPrimitiveDispatch, StaticSelection,
 };
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, CallableContract, ClosureId, ExecutableItemId, PackageTargetId,
-    Symbol, TestId, TypeId, TypeStore,
+    Arena, BodyId, BodyNodeId, BorrowCapability, CallableContract, ClosureId, ExecutableItemId,
+    PackageTargetId, Symbol, TestId, TypeId, TypeStore,
 };
 
 use crate::{
@@ -35,6 +35,7 @@ pub enum ExecutableItemKey {
 pub struct ExecutablePrimitiveCall {
     role: PrimitiveRole,
     generic_arguments: GenericArguments,
+    signature: ExecutableSignature,
 }
 
 impl ExecutablePrimitiveCall {
@@ -47,6 +48,11 @@ impl ExecutablePrimitiveCall {
     pub const fn generic_arguments(&self) -> &GenericArguments {
         &self.generic_arguments
     }
+
+    #[must_use]
+    pub const fn signature(&self) -> &ExecutableSignature {
+        &self.signature
+    }
 }
 
 /// One executable dispatch step after all static evidence has been consumed.
@@ -58,14 +64,19 @@ pub enum ExecutableDispatchStep {
     IndirectCallable(CallableContract),
 }
 
+/// One frozen dispatch plan with every composite operand lane kept explicit.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutableDispatchPlan(Box<[ExecutableDispatchStep]>);
-
-impl ExecutableDispatchPlan {
-    #[must_use]
-    pub const fn steps(&self) -> &[ExecutableDispatchStep] {
-        &self.0
-    }
+pub enum ExecutableDispatchPlan {
+    Invocation(ExecutableDispatchStep),
+    Comparison {
+        left_coercion: Option<ExecutableDispatchStep>,
+        right_coercion: Option<ExecutableDispatchStep>,
+        operation: ExecutableDispatchStep,
+    },
+    Index {
+        receiver_coercion: Option<ExecutableDispatchStep>,
+        operation: ExecutableDispatchStep,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,6 +136,31 @@ pub struct ExecutableTypeEdge {
     concrete: TypeId,
 }
 
+/// One concrete borrow type introduced by checked operand preparation rather than a source node.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExecutableBorrowEdge {
+    source: TypeId,
+    capability: BorrowCapability,
+    concrete: TypeId,
+}
+
+impl ExecutableBorrowEdge {
+    #[must_use]
+    pub const fn source(self) -> TypeId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn capability(self) -> BorrowCapability {
+        self.capability
+    }
+
+    #[must_use]
+    pub const fn concrete(self) -> TypeId {
+        self.concrete
+    }
+}
+
 impl ExecutableTypeEdge {
     #[must_use]
     pub const fn source(self) -> TypeId {
@@ -146,6 +182,7 @@ pub struct ExecutableBody {
     closures: Box<[ExecutableClosureEdge]>,
     drops: Box<[ExecutableDropEdge]>,
     types: Box<[ExecutableTypeEdge]>,
+    prepared_borrows: Box<[ExecutableBorrowEdge]>,
     destructions: Box<[ExecutableDestructionEdge]>,
 }
 
@@ -188,6 +225,14 @@ impl ExecutableBody {
         self.types
             .iter()
             .find(|edge| edge.source == source)
+            .map(|edge| edge.concrete)
+    }
+
+    #[must_use]
+    pub fn prepared_borrow(&self, source: TypeId, capability: BorrowCapability) -> Option<TypeId> {
+        self.prepared_borrows
+            .iter()
+            .find(|edge| edge.source == source && edge.capability == capability)
             .map(|edge| edge.concrete)
     }
 

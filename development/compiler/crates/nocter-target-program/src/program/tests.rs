@@ -1,6 +1,7 @@
 use nocter_checking::{
-    ConcreteDispatchResolver, GenericArgument, GenericArguments, ResolvedDispatchStep,
-    ResolvedPrimitiveDispatch, StaticDispatch, check_prepared_program, prepare_program_checking,
+    ConcreteDispatchResolver, GenericArgument, GenericArguments, ResolvedDispatchPlan,
+    ResolvedDispatchStep, ResolvedPrimitiveDispatch, StaticDispatch, check_prepared_program,
+    prepare_program_checking,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
@@ -289,12 +290,23 @@ fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
         .resolve(structural, &equal_key.substitution(), module)
         .unwrap();
 
-    assert_eq!(
-        plan.steps(),
-        [ResolvedDispatchStep::Primitive(
-            ResolvedPrimitiveDispatch::Equality(target.checked().types().builtin(BuiltinType::I32))
-        )]
-    );
+    let ResolvedDispatchPlan::Comparison {
+        left_coercion: None,
+        right_coercion: None,
+        operation:
+            ResolvedDispatchStep::Primitive(ResolvedPrimitiveDispatch::Equality { subject, operand }),
+    } = plan
+    else {
+        panic!("integer equality must resolve to one structural primitive")
+    };
+    assert_eq!(subject, target.checked().types().builtin(BuiltinType::I32));
+    assert!(matches!(
+        resolver.types().get(operand),
+        Some(TypeKind::Borrow {
+            capability: nocter_model::BorrowCapability::Readonly,
+            referent,
+        }) if *referent == subject
+    ));
 }
 
 #[test]
@@ -341,7 +353,8 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
     let plan = dispatch_resolver
         .resolve(interface_selection, &generic_key.substitution(), module)
         .unwrap();
-    let [ResolvedDispatchStep::Direct(method_dispatch)] = plan.steps() else {
+    let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method_dispatch)) = plan
+    else {
         panic!("interface dispatch must resolve to one conformance method")
     };
 
@@ -385,7 +398,7 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
             callable_module(&target, main),
         )
         .unwrap();
-    let [ResolvedDispatchStep::Direct(method)] = plan.steps() else {
+    let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method)) = plan else {
         panic!("opaque dispatch must resolve to one conformance method")
     };
 

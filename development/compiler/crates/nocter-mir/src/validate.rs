@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::validation_call::validate_call;
 use crate::validation_graph::{place_values, successors};
 use crate::validation_place::{PlaceFacts, place_facts};
 use crate::validation_switch::validate_switch_subject;
@@ -7,8 +8,7 @@ use crate::validation_types::{is_integer, matches_nominal_member, nominal_applic
 use crate::{
     MirAggregate, MirBinaryOperation, MirBranchTarget, MirCallTarget, MirConstant, MirFunction,
     MirLocalKind, MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind,
-    MirReadMode, MirStructuralCall, MirSwitchSubject, MirTerminator, MirUnaryOperation,
-    MirValueDefinition,
+    MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
 };
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
@@ -533,7 +533,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 self.validate_aggregate(id, aggregate, result.ok_or_else(mismatch)?)?;
             }
             MirOperationKind::Call(call) => {
-                self.validate_call(
+                validate_call(
+                    self.environment,
+                    self.function,
                     id,
                     call.target(),
                     call.arguments(),
@@ -682,91 +684,6 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
                 self.value_type(*witness)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_call(
-        &self,
-        operation: MirOperationId,
-        target: &MirCallTarget,
-        arguments: &[MirValueId],
-        result: TypeId,
-    ) -> Result<(), MirValidationError> {
-        let invalid = || MirValidationError::OperationType(operation);
-        match target {
-            MirCallTarget::Direct(item) => self.require_item(*item)?,
-            MirCallTarget::StandardPrimitive { type_arguments, .. } => {
-                for ty in type_arguments {
-                    self.require_type(*ty)?;
-                }
-            }
-            MirCallTarget::Structural(structural) => match structural {
-                MirStructuralCall::Equality(ty) | MirStructuralCall::Ordering(ty) => {
-                    self.require_type(*ty)?;
-                    if arguments.len() != 2
-                        || arguments
-                            .iter()
-                            .copied()
-                            .any(|argument| self.value_type(argument) != Ok(*ty))
-                        || result != self.types.builtin(BuiltinType::Bool)
-                    {
-                        return Err(invalid());
-                    }
-                }
-                MirStructuralCall::Index {
-                    container,
-                    index,
-                    result: expected,
-                    ..
-                } => {
-                    for ty in [*container, *index, *expected] {
-                        self.require_type(ty)?;
-                    }
-                    if arguments.len() != 2
-                        || self.value_type(arguments[0])? != *container
-                        || self.value_type(arguments[1])? != *index
-                        || result != *expected
-                    {
-                        return Err(invalid());
-                    }
-                }
-                MirStructuralCall::BorrowWeakening { source, target } => {
-                    if arguments.len() != 1
-                        || self.value_type(arguments[0])? != *source
-                        || result != *target
-                        || !matches!(
-                            (self.types.get(*source), self.types.get(*target)),
-                            (
-                                Some(TypeKind::Borrow {
-                                    capability: BorrowCapability::ReadWrite,
-                                    referent: source_referent,
-                                }),
-                                Some(TypeKind::Borrow {
-                                    capability: BorrowCapability::Readonly,
-                                    referent: target_referent,
-                                })
-                            ) if source_referent == target_referent
-                        )
-                    {
-                        return Err(invalid());
-                    }
-                }
-            },
-            MirCallTarget::Indirect { callee, contract } => {
-                self.value_type(*callee)?;
-                if contract.parameters().len() != arguments.len()
-                    || contract
-                        .parameters()
-                        .iter()
-                        .copied()
-                        .zip(arguments.iter().copied())
-                        .any(|(expected, argument)| self.value_type(argument) != Ok(expected))
-                    || result != contract.result()
-                {
-                    return Err(invalid());
-                }
             }
         }
         Ok(())

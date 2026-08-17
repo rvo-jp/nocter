@@ -291,11 +291,20 @@ be introduced to make an unresolved syntax choice.
   `ExecutableProgram` then selects one process or test root and closes only reachable callable,
   closure, and drop instance keys. Every key carries its complete concrete declaration-owned
   generic domain. A key-ordered work set resolves interface, opaque, and structural dispatch once,
-  converts bodyless standard calls to typed primitive roles, opens checked destruction plans, and
-  assigns dense item IDs only after closure in semantic-key order. Each body retains exact
-  source-to-concrete type edges and cleanup-specific glue. Enum residual cleanup keeps its active
-  variant and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or
-  destroy a moved payload. No unresolved requirement or source name reaches MIR.
+  converts bodyless standard calls to typed primitive roles with concrete signatures, opens
+  checked destruction plans, and assigns dense item IDs only after closure in semantic-key order.
+  Each body retains exact source-to-concrete type edges, prepared borrow types, and cleanup-specific
+  glue. Composite comparison and index dispatch retain named coercion and operation lanes, so MIR
+  never infers operand ownership from step order. Enum residual cleanup keeps its active variant
+  and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or destroy a
+  moved payload. No unresolved requirement or source name reaches MIR.
+- `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
+  Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
+  Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
+  dominance, terminal behavior, and direct/primitive call signatures. The current checked-body
+  lowering slice handles scalar and aggregate expressions, ordinary places, branching, direct and
+  primitive calls, receiver and operand coercions, borrow conversions, and comparisons. Remaining
+  checked operations fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

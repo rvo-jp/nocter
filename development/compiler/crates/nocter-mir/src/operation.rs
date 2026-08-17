@@ -64,11 +64,18 @@ pub enum MirAggregate {
 /// A compiler-owned structural call after all interface and coercion selection is complete.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirStructuralCall {
-    Equality(TypeId),
-    Ordering(TypeId),
+    Equality {
+        subject: TypeId,
+        operand: TypeId,
+    },
+    Ordering {
+        subject: TypeId,
+        operand: TypeId,
+    },
     Index {
         capability: BorrowCapability,
         container: TypeId,
+        receiver: TypeId,
         index: TypeId,
         result: TypeId,
     },
@@ -78,6 +85,33 @@ pub enum MirStructuralCall {
     },
 }
 
+/// Concrete runtime signature retained by a call target without source binding metadata.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MirCallSignature {
+    parameters: Box<[TypeId]>,
+    result: TypeId,
+}
+
+impl MirCallSignature {
+    #[must_use]
+    pub fn new(parameters: impl Into<Box<[TypeId]>>, result: TypeId) -> Self {
+        Self {
+            parameters: parameters.into(),
+            result,
+        }
+    }
+
+    #[must_use]
+    pub const fn parameters(&self) -> &[TypeId] {
+        &self.parameters
+    }
+
+    #[must_use]
+    pub const fn result(&self) -> TypeId {
+        self.result
+    }
+}
+
 /// The exact runtime target of one call instruction.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirCallTarget {
@@ -85,6 +119,7 @@ pub enum MirCallTarget {
     StandardPrimitive {
         role: PrimitiveRole,
         type_arguments: Box<[TypeId]>,
+        signature: MirCallSignature,
     },
     Structural(MirStructuralCall),
     Indirect {

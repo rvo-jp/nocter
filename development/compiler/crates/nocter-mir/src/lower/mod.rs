@@ -7,9 +7,12 @@ use nocter_target_program::ExecutableProgram;
 
 use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
 
+mod borrow_conversion;
 mod call;
+mod comparison;
 mod control;
 mod function;
+mod operand;
 mod place;
 
 #[cfg(test)]
@@ -47,11 +50,13 @@ pub enum MirLoweringError {
     MissingConcreteType(TypeId),
     MissingInput(ParameterId),
     MissingValue(BodyNodeId),
+    UnknownValue(nocter_model::MirValueId),
     MissingCurrentBlock,
     InvalidProjectionTypes(PlaceId),
     UnsupportedOperation(BodyNodeId),
     UnsupportedCleanup(BodyNodeId),
     UnsupportedPlaceProjection(PlaceId),
+    ExpectedPlace(BodyNodeId),
     InvalidDispatch(BodyNodeId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),

@@ -39,11 +39,18 @@ impl ResolvedCallableDispatch {
 /// A compiler-owned operation that needs no source callable body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResolvedPrimitiveDispatch {
-    Equality(TypeId),
-    Ordering(TypeId),
+    Equality {
+        subject: TypeId,
+        operand: TypeId,
+    },
+    Ordering {
+        subject: TypeId,
+        operand: TypeId,
+    },
     Index {
         capability: BorrowCapability,
         container: TypeId,
+        receiver: TypeId,
         index: TypeId,
         result: TypeId,
     },
@@ -63,14 +70,22 @@ pub enum ResolvedDispatchStep {
 }
 
 /// The complete lowering plan for one checked static selection.
+///
+/// Composite operations retain their operand lanes. A flat step sequence cannot distinguish a
+/// receiver coercion from an argument coercion and therefore is not a sufficient executable
+/// contract.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ResolvedDispatchPlan(Box<[ResolvedDispatchStep]>);
-
-impl ResolvedDispatchPlan {
-    #[must_use]
-    pub const fn steps(&self) -> &[ResolvedDispatchStep] {
-        &self.0
-    }
+pub enum ResolvedDispatchPlan {
+    Invocation(ResolvedDispatchStep),
+    Comparison {
+        left_coercion: Option<ResolvedDispatchStep>,
+        right_coercion: Option<ResolvedDispatchStep>,
+        operation: ResolvedDispatchStep,
+    },
+    Index {
+        receiver_coercion: Option<ResolvedDispatchStep>,
+        operation: ResolvedDispatchStep,
+    },
 }
 
 /// Stateful specialization authority for checked dispatch edges.
@@ -127,12 +142,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let arguments = self.specialize_arguments(selection.generic_arguments(), enclosing)?;
         match selection.dispatch() {
-            StaticDispatch::Direct(callable) => Ok(ResolvedDispatchPlan(
-                vec![ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+            StaticDispatch::Direct(callable) => Ok(ResolvedDispatchPlan::Invocation(
+                ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                     callable,
                     generic_arguments: arguments,
-                })]
-                .into_boxed_slice(),
+                }),
             )),
             StaticDispatch::InterfaceMethod {
                 requirement,
@@ -270,12 +284,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
         }
         let generic_arguments = GenericArguments::new(target_arguments)
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
-        Ok(ResolvedDispatchPlan(
-            vec![ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+        Ok(ResolvedDispatchPlan::Invocation(
+            ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                 callable: target,
                 generic_arguments,
-            })]
-            .into_boxed_slice(),
+            }),
         ))
     }
 
@@ -349,12 +362,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
         }
         let generic_arguments = GenericArguments::new(target_arguments)
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
-        Ok(ResolvedDispatchPlan(
-            vec![ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+        Ok(ResolvedDispatchPlan::Invocation(
+            ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                 callable: target,
                 generic_arguments,
-            })]
-            .into_boxed_slice(),
+            }),
         ))
     }
 
@@ -423,41 +435,42 @@ impl<'program> ConcreteDispatchResolver<'program> {
         from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
-        let steps = match predicate {
+        match predicate {
             CheckedPredicate::Capability {
                 capability: StructuralCapability::Callable(contract),
                 ..
-            } => vec![ResolvedDispatchStep::IndirectCallable(contract)],
+            } => Ok(ResolvedDispatchPlan::Invocation(
+                ResolvedDispatchStep::IndirectCallable(contract),
+            )),
             CheckedPredicate::Equality(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Equal, from)?
+                self.resolve_comparison(requirement, ty, ComparisonOperation::Equal, from)
             }
             CheckedPredicate::Ordering(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Less, from)?
+                self.resolve_comparison(requirement, ty, ComparisonOperation::Less, from)
             }
             CheckedPredicate::Index {
                 capability,
                 container,
                 index,
                 result,
-            } => self.resolve_index(requirement, capability, container, index, result, from)?,
+            } => self.resolve_index(requirement, capability, container, index, result, from),
             CheckedPredicate::Coercion { source, target } => {
-                self.resolve_coercion(requirement, source, target, from)?
+                self.resolve_coercion(requirement, source, target, from)
             }
             CheckedPredicate::Expansion {
                 capability,
                 source,
                 result,
-            } => self.resolve_expansion(requirement, capability, source, result, from)?,
+            } => self.resolve_expansion(requirement, capability, source, result, from),
             CheckedPredicate::Capability {
                 capability: StructuralCapability::Interface(_),
                 ..
             }
             | CheckedPredicate::Copy(_)
             | CheckedPredicate::TypeEquality { .. } => {
-                return Err(ConcreteDispatchError::NonRuntimeRequirement(requirement));
+                Err(ConcreteDispatchError::NonRuntimeRequirement(requirement))
             }
-        };
-        Ok(ResolvedDispatchPlan(steps.into_boxed_slice()))
+        }
     }
 
     fn resolve_comparison(
@@ -466,31 +479,47 @@ impl<'program> ConcreteDispatchResolver<'program> {
         ty: TypeId,
         operation: ComparisonOperation,
         from: ModuleId,
-    ) -> Result<Vec<ResolvedDispatchStep>, ConcreteDispatchError> {
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = {
             let mut selector = self.selector(from);
             selector.select_comparison_operations(ty, ty, operation)?
         };
         let candidate = exactly_one(candidates, requirement)?;
-        let mut steps = Vec::new();
-        if let Some(selection) = candidate.receiver_coercion() {
-            steps.push(Self::direct_step(selection)?);
-        }
-        if let Some(selection) = candidate.argument_coercion() {
-            steps.push(Self::direct_step(selection)?);
-        }
-        match candidate.implementation() {
+        let left_coercion = candidate
+            .receiver_coercion()
+            .map(Self::direct_step)
+            .transpose()?;
+        let right_coercion = candidate
+            .argument_coercion()
+            .map(Self::direct_step)
+            .transpose()?;
+        let operation = match candidate.implementation() {
             ComparisonCandidateImplementation::Primitive => {
-                steps.push(ResolvedDispatchStep::Primitive(match operation {
-                    ComparisonOperation::Equal => ResolvedPrimitiveDispatch::Equality(ty),
-                    ComparisonOperation::Less => ResolvedPrimitiveDispatch::Ordering(ty),
-                }));
+                let operand = self
+                    .types
+                    .intern(TypeKind::Borrow {
+                        capability: BorrowCapability::Readonly,
+                        referent: ty,
+                    })
+                    .map_err(|_| SubstitutionError::InvalidStore)?;
+                ResolvedDispatchStep::Primitive(match operation {
+                    ComparisonOperation::Equal => ResolvedPrimitiveDispatch::Equality {
+                        subject: ty,
+                        operand,
+                    },
+                    ComparisonOperation::Less => ResolvedPrimitiveDispatch::Ordering {
+                        subject: ty,
+                        operand,
+                    },
+                })
             }
-            ComparisonCandidateImplementation::Selected(selection) => {
-                steps.push(Self::direct_step(selection)?);
-            }
-        }
-        Ok(steps)
+            ComparisonCandidateImplementation::Selected(selection) => Self::direct_step(selection)?,
+        };
+        Ok(ResolvedDispatchPlan::Comparison {
+            left_coercion,
+            right_coercion,
+            operation,
+        })
     }
 
     fn resolve_index(
@@ -501,7 +530,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         index: TypeId,
         result: TypeId,
         from: ModuleId,
-    ) -> Result<Vec<ResolvedDispatchStep>, ConcreteDispatchError> {
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((result_capability, referent)) = borrow_result(&self.types, result) else {
             return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
         };
@@ -512,14 +541,23 @@ impl<'program> ConcreteDispatchResolver<'program> {
             && index == self.types.builtin(nocter_model::BuiltinType::Usize)
             && referent == builtin
         {
-            return Ok(vec![ResolvedDispatchStep::Primitive(
-                ResolvedPrimitiveDispatch::Index {
+            let receiver = self
+                .types
+                .intern(TypeKind::Borrow {
+                    capability,
+                    referent: container,
+                })
+                .map_err(|_| SubstitutionError::InvalidStore)?;
+            return Ok(ResolvedDispatchPlan::Index {
+                receiver_coercion: None,
+                operation: ResolvedDispatchStep::Primitive(ResolvedPrimitiveDispatch::Index {
                     capability,
                     container,
+                    receiver,
                     index,
                     result,
-                },
-            )]);
+                }),
+            });
         }
         let mut candidates = {
             let mut selector = self.selector(from);
@@ -530,23 +568,32 @@ impl<'program> ConcreteDispatchResolver<'program> {
         retain_direct_candidates(&mut candidates);
         candidates.retain(|candidate| candidate.index() == index && candidate.result() == referent);
         let candidate = exactly_one(candidates, requirement)?;
-        let mut steps = Vec::new();
-        if let Some(coercion) = candidate.receiver_coercion() {
-            steps.push(Self::direct_step(coercion)?);
-        }
-        if let Some(operation) = candidate.operation() {
-            steps.push(Self::direct_step(operation)?);
+        let receiver_coercion = candidate
+            .receiver_coercion()
+            .map(Self::direct_step)
+            .transpose()?;
+        let operation = if let Some(operation) = candidate.operation() {
+            Self::direct_step(operation)?
         } else {
-            steps.push(ResolvedDispatchStep::Primitive(
-                ResolvedPrimitiveDispatch::Index {
+            let receiver = self
+                .types
+                .intern(TypeKind::Borrow {
                     capability,
-                    container,
-                    index,
-                    result,
-                },
-            ));
-        }
-        Ok(steps)
+                    referent: container,
+                })
+                .map_err(|_| SubstitutionError::InvalidStore)?;
+            ResolvedDispatchStep::Primitive(ResolvedPrimitiveDispatch::Index {
+                capability,
+                container,
+                receiver,
+                index,
+                result,
+            })
+        };
+        Ok(ResolvedDispatchPlan::Index {
+            receiver_coercion,
+            operation,
+        })
     }
 
     fn resolve_coercion(
@@ -555,7 +602,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         source: TypeId,
         target: TypeId,
         from: ModuleId,
-    ) -> Result<Vec<ResolvedDispatchStep>, ConcreteDispatchError> {
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((source_capability, source_owner)) = borrow_result(&self.types, source) else {
             return Err(ConcreteDispatchError::InvalidCoercion(requirement));
         };
@@ -566,9 +613,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
             && source_capability == BorrowCapability::ReadWrite
             && target_capability == BorrowCapability::Readonly
         {
-            return Ok(vec![ResolvedDispatchStep::Primitive(
-                ResolvedPrimitiveDispatch::BorrowWeakening { source, target },
-            )]);
+            return Ok(ResolvedDispatchPlan::Invocation(
+                ResolvedDispatchStep::Primitive(ResolvedPrimitiveDispatch::BorrowWeakening {
+                    source,
+                    target,
+                }),
+            ));
         }
         let candidates = {
             let mut selector = self.selector(from);
@@ -579,7 +629,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 .collect::<Vec<_>>()
         };
         let candidate = exactly_one(candidates, requirement)?;
-        Ok(vec![Self::direct_step(candidate.selection())?])
+        Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
+            candidate.selection(),
+        )?))
     }
 
     fn resolve_expansion(
@@ -589,7 +641,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         source: TypeId,
         result: TypeId,
         from: ModuleId,
-    ) -> Result<Vec<ResolvedDispatchStep>, ConcreteDispatchError> {
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = {
             let mut selector = self.selector(from);
             selector
@@ -599,7 +651,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 .collect::<Vec<_>>()
         };
         let candidate = exactly_one(candidates, requirement)?;
-        Ok(vec![Self::direct_step(candidate.selection())?])
+        Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
+            candidate.selection(),
+        )?))
     }
 
     fn selector(&mut self, from: ModuleId) -> InstanceOperationSelector<'_> {

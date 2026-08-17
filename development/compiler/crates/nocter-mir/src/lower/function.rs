@@ -170,13 +170,15 @@ impl<'a> FunctionLowerer<'a> {
                 )
                 .map(Some)
             }
+            CheckedOperation::BorrowConversion(conversion) => {
+                self.lower_borrow_conversion(node, conversion).map(Some)
+            }
+            CheckedOperation::Comparison(comparison) => self.lower_comparison(node, comparison),
             CheckedOperation::Primitive(primitive) => self.lower_primitive(ty, primitive).map(Some),
             CheckedOperation::Aggregate(aggregate) => self.lower_aggregate(ty, aggregate).map(Some),
             CheckedOperation::Call(call) => self.lower_call(node, ty, call).map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
-            | CheckedOperation::BorrowConversion(_)
-            | CheckedOperation::Comparison(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::Closure(_)

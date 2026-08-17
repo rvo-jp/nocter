@@ -1,6 +1,8 @@
 use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution};
+use nocter_declarations::{Parameter, ParameterRole};
 use nocter_model::{
-    BodyId, BorrowCapability, BuiltinType, ClosureId, LocalBindingId, ParameterId, TypeId, TypeKind,
+    BodyId, BorrowCapability, BuiltinType, CallableCapability, ClosureId, LocalBindingId,
+    ParameterId, TypeId, TypeKind,
 };
 
 use super::{ExecutableItemKey, ExecutableProgramError};
@@ -70,7 +72,7 @@ pub(super) fn build_signature(
     }
 }
 
-fn callable_signature(
+pub(super) fn callable_signature(
     target: &TargetProgram,
     resolver: &mut ConcreteDispatchResolver<'_>,
     key: &CallableInstanceKey,
@@ -89,14 +91,14 @@ fn callable_signature(
         .chain(callable.parameters())
         .copied()
         .map(|parameter| {
-            let ty = declarations
+            let declaration = declarations
                 .parameters()
                 .get(parameter)
-                .ok_or(ExecutableProgramError::MissingParameter(parameter))?
-                .ty();
+                .copied()
+                .ok_or(ExecutableProgramError::MissingParameter(parameter))?;
             Ok(ExecutableInput {
                 source: ExecutableInputSource::Parameter(parameter),
-                ty: resolver.specialize_type(ty, substitution)?,
+                ty: runtime_parameter_type(resolver, declaration, substitution)?,
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
@@ -181,10 +183,31 @@ fn drop_signature(
     Ok(ExecutableSignature {
         inputs: Box::new([ExecutableInput {
             source: ExecutableInputSource::Parameter(declaration.receiver()),
-            ty: resolver.specialize_type(parameter.ty(), substitution)?,
+            ty: runtime_parameter_type(resolver, *parameter, substitution)?,
         }]),
         result: resolver.types().builtin(BuiltinType::Void),
     })
+}
+
+fn runtime_parameter_type(
+    resolver: &mut ConcreteDispatchResolver<'_>,
+    parameter: Parameter,
+    substitution: &TypeSubstitution,
+) -> Result<TypeId, ExecutableProgramError> {
+    let owner = resolver.specialize_type(parameter.ty(), substitution)?;
+    let capability = match parameter.role() {
+        ParameterRole::Ordinary { .. } | ParameterRole::Receiver(CallableCapability::Owned) => {
+            return Ok(owner);
+        }
+        ParameterRole::Receiver(CallableCapability::Readonly) => BorrowCapability::Readonly,
+        ParameterRole::Receiver(CallableCapability::ReadWrite) => BorrowCapability::ReadWrite,
+    };
+    resolver
+        .intern_concrete(TypeKind::Borrow {
+            capability,
+            referent: owner,
+        })
+        .map_err(Into::into)
 }
 
 fn test_signature(

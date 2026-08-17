@@ -82,6 +82,11 @@ impl MirFunctionBuilder {
         self.locals.insert(MirLocal::new(ty, kind, mutable))
     }
 
+    #[must_use]
+    pub fn value_type(&self, value: MirValueId) -> Option<TypeId> {
+        self.values.get(value).copied().map(MirValue::ty)
+    }
+
     pub fn add_place(
         &mut self,
         root: MirPlaceRoot,

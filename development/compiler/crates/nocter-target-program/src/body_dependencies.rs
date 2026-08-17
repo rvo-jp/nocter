@@ -6,10 +6,12 @@ use nocter_checking::{
     CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedPlace,
     CheckedReadonlyOperand, CheckedReceiver, CleanupTarget, ComparisonImplementation,
     DropSelection, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
-    PrimitiveOperation, SequenceElement, StaticSelection, TypedIteration,
+    PrimitiveOperation, ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement,
+    StaticSelection, TypedIteration,
 };
 use nocter_model::{
-    BodyId, BodyNodeId, ClosureId, DropId, LoopId, ParameterId, PlaceId, TypeId, VariantId,
+    BodyId, BodyNodeId, BorrowCapability, ClosureId, DropId, LoopId, ParameterId, PlaceId, TypeId,
+    VariantId,
 };
 
 use crate::TargetProgram;
@@ -25,6 +27,7 @@ pub struct CheckedBodyDependencies {
     closures: Box<[ClosureId]>,
     drop_selections: Box<[DropSelection]>,
     types: Box<[TypeId]>,
+    prepared_borrows: Box<[PreparedBorrow]>,
     destructions: Box<[CheckedDestruction]>,
 }
 
@@ -50,10 +53,34 @@ impl CheckedBodyDependencies {
         &self.types
     }
 
+    /// Borrow types synthesized by operand preparation rather than represented by a checked node.
+    #[must_use]
+    pub const fn prepared_borrows(&self) -> &[PreparedBorrow] {
+        &self.prepared_borrows
+    }
+
     /// Exact destruction shapes required by reachable cleanup schedules.
     #[must_use]
     pub const fn destructions(&self) -> &[CheckedDestruction] {
         &self.destructions
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PreparedBorrow {
+    source: TypeId,
+    capability: BorrowCapability,
+}
+
+impl PreparedBorrow {
+    #[must_use]
+    pub const fn source(self) -> TypeId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn capability(self) -> BorrowCapability {
+        self.capability
     }
 }
 
@@ -134,11 +161,13 @@ struct DependencyCollector<'program> {
     closure_set: HashSet<ClosureId>,
     drop_set: HashSet<DropSelection>,
     type_set: HashSet<TypeId>,
+    prepared_borrow_set: HashSet<PreparedBorrow>,
     destruction_set: HashSet<CheckedDestruction>,
     selections: Vec<StaticSelection>,
     closures: Vec<ClosureId>,
     drop_selections: Vec<DropSelection>,
     types: Vec<TypeId>,
+    prepared_borrows: Vec<PreparedBorrow>,
     destructions: Vec<CheckedDestruction>,
 }
 
@@ -155,11 +184,13 @@ impl<'program> DependencyCollector<'program> {
             closure_set: HashSet::new(),
             drop_set: HashSet::new(),
             type_set: HashSet::new(),
+            prepared_borrow_set: HashSet::new(),
             destruction_set: HashSet::new(),
             selections: Vec::new(),
             closures: Vec::new(),
             drop_selections: Vec::new(),
             types: Vec::new(),
+            prepared_borrows: Vec::new(),
             destructions: Vec::new(),
         }
     }
@@ -170,6 +201,7 @@ impl<'program> DependencyCollector<'program> {
             closures: self.closures.into_boxed_slice(),
             drop_selections: self.drop_selections.into_boxed_slice(),
             types: self.types.into_boxed_slice(),
+            prepared_borrows: self.prepared_borrows.into_boxed_slice(),
             destructions: self.destructions.into_boxed_slice(),
         }
     }
@@ -350,6 +382,11 @@ impl<'program> DependencyCollector<'program> {
 
     fn visit_receiver(&mut self, receiver: &CheckedReceiver) -> Result<(), BodyDependencyError> {
         self.visit_node(receiver.value())?;
+        if let ReceiverPreparation::BorrowPlace(capability)
+        | ReceiverPreparation::BorrowTemporary(capability) = receiver.preparation()
+        {
+            self.record_prepared_borrow(receiver.value(), capability)?;
+        }
         if let Some(coercion) = receiver.coercion() {
             self.record_selection(coercion.selection());
         }
@@ -361,6 +398,28 @@ impl<'program> DependencyCollector<'program> {
         operand: &CheckedReadonlyOperand,
     ) -> Result<(), BodyDependencyError> {
         self.visit_node(operand.value())?;
+        if matches!(
+            operand.preparation(),
+            ReadonlyOperandPreparation::BorrowPlace | ReadonlyOperandPreparation::BorrowTemporary
+        ) {
+            self.record_prepared_borrow(operand.value(), BorrowCapability::Readonly)?;
+        } else if operand.preparation() == ReadonlyOperandPreparation::WeakenReadwriteBorrow {
+            let source = self
+                .body
+                .nodes()
+                .get(operand.value())
+                .map(nocter_checking::CheckedNode::ty)
+                .ok_or(BodyDependencyError::UnknownNode {
+                    body: self.body_id,
+                    node: operand.value(),
+                })?;
+            let Some(nocter_model::TypeKind::Borrow { referent, .. }) =
+                self.program.checked().types().get(source)
+            else {
+                return Err(BodyDependencyError::UnknownType(source));
+            };
+            self.record_prepared_borrow_type(*referent, BorrowCapability::Readonly)?;
+        }
         if let Some(coercion) = operand.coercion() {
             self.record_selection(coercion);
         }
@@ -631,6 +690,36 @@ impl<'program> DependencyCollector<'program> {
         }
         if self.type_set.insert(ty) {
             self.types.push(ty);
+        }
+        Ok(())
+    }
+
+    fn record_prepared_borrow(
+        &mut self,
+        node: BodyNodeId,
+        capability: BorrowCapability,
+    ) -> Result<(), BodyDependencyError> {
+        let source = self
+            .body
+            .nodes()
+            .get(node)
+            .map(nocter_checking::CheckedNode::ty)
+            .ok_or(BodyDependencyError::UnknownNode {
+                body: self.body_id,
+                node,
+            })?;
+        self.record_prepared_borrow_type(source, capability)
+    }
+
+    fn record_prepared_borrow_type(
+        &mut self,
+        source: TypeId,
+        capability: BorrowCapability,
+    ) -> Result<(), BodyDependencyError> {
+        self.record_type(source)?;
+        let borrow = PreparedBorrow { source, capability };
+        if self.prepared_borrow_set.insert(borrow) {
+            self.prepared_borrows.push(borrow);
         }
         Ok(())
     }

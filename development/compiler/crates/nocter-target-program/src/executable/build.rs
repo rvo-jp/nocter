@@ -2,17 +2,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_checking::{
     ConcreteDestructionKind, ConcreteDestructionPlan, ConcreteDispatchResolver, DropSelection,
-    GenericArgument, GenericArguments, ResolvedDispatchStep, StaticSelection, TypeSubstitution,
+    GenericArgument, GenericArguments, ResolvedDispatchPlan, ResolvedDispatchStep, StaticSelection,
+    TypeSubstitution,
 };
 use nocter_declarations::BodyOwner;
 use nocter_model::{ArenaBuilder, BodyId, BodyNodeId, ExecutableItemId, ModuleId};
 
-use super::signature::build_signature;
+use super::signature::{build_signature, callable_signature};
 use super::{
-    ExecutableBody, ExecutableClosureEdge, ExecutableDestructionEdge, ExecutableDispatchEdge,
-    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableItem,
-    ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError,
-    ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDestructionEdge,
+    ExecutableDispatchEdge, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
+    ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
+    ExecutableProgramError, ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
 };
 use crate::{
     CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
@@ -184,6 +185,8 @@ impl<'program> ExecutableClosureBuilder<'program> {
             })
             .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
 
+        let prepared_borrows = self.specialize_prepared_borrows(&dependencies, &substitution)?;
+
         let mut destructions = Vec::new();
         for source in dependencies.destructions() {
             let plan = match source {
@@ -216,65 +219,132 @@ impl<'program> ExecutableClosureBuilder<'program> {
             closures,
             drops: drops.into_iter().collect(),
             types,
+            prepared_borrows,
             destructions,
         })
     }
 
+    fn specialize_prepared_borrows(
+        &mut self,
+        dependencies: &crate::CheckedBodyDependencies,
+        substitution: &TypeSubstitution,
+    ) -> Result<Vec<ExecutableBorrowEdge>, ExecutableProgramError> {
+        dependencies
+            .prepared_borrows()
+            .iter()
+            .copied()
+            .map(|borrow| {
+                let source = borrow.source();
+                let referent = self.resolver.specialize_type(source, substitution)?;
+                let concrete = self
+                    .resolver
+                    .intern_concrete(nocter_model::TypeKind::Borrow {
+                        capability: borrow.capability(),
+                        referent,
+                    })?;
+                Ok(ExecutableBorrowEdge {
+                    source,
+                    capability: borrow.capability(),
+                    concrete,
+                })
+            })
+            .collect()
+    }
+
     fn convert_dispatch(
         &mut self,
-        plan: &nocter_checking::ResolvedDispatchPlan,
+        plan: &ResolvedDispatchPlan,
     ) -> Result<DraftDispatchPlan, ExecutableProgramError> {
-        let mut steps = Vec::new();
-        for step in plan.steps() {
-            match step {
-                ResolvedDispatchStep::Direct(dispatch) => {
-                    let callable_key = CallableInstanceKey::new_in(
-                        self.target,
-                        self.resolver.types(),
+        Ok(match plan {
+            ResolvedDispatchPlan::Invocation(step) => {
+                DraftDispatchPlan::Invocation(self.convert_dispatch_step(step)?)
+            }
+            ResolvedDispatchPlan::Comparison {
+                left_coercion,
+                right_coercion,
+                operation,
+            } => DraftDispatchPlan::Comparison {
+                left_coercion: left_coercion
+                    .as_ref()
+                    .map(|step| self.convert_dispatch_step(step))
+                    .transpose()?,
+                right_coercion: right_coercion
+                    .as_ref()
+                    .map(|step| self.convert_dispatch_step(step))
+                    .transpose()?,
+                operation: self.convert_dispatch_step(operation)?,
+            },
+            ResolvedDispatchPlan::Index {
+                receiver_coercion,
+                operation,
+            } => DraftDispatchPlan::Index {
+                receiver_coercion: receiver_coercion
+                    .as_ref()
+                    .map(|step| self.convert_dispatch_step(step))
+                    .transpose()?,
+                operation: self.convert_dispatch_step(operation)?,
+            },
+        })
+    }
+
+    fn convert_dispatch_step(
+        &mut self,
+        step: &ResolvedDispatchStep,
+    ) -> Result<DraftDispatchStep, ExecutableProgramError> {
+        match step {
+            ResolvedDispatchStep::Direct(dispatch) => {
+                let callable_key = CallableInstanceKey::new_in(
+                    self.target,
+                    self.resolver.types(),
+                    dispatch.callable(),
+                    dispatch.generic_arguments().clone(),
+                )?;
+                let declaration = self
+                    .target
+                    .checked()
+                    .graph()
+                    .declarations()
+                    .callables()
+                    .get(dispatch.callable())
+                    .ok_or(ExecutableProgramError::BodylessCallable(
                         dispatch.callable(),
-                        dispatch.generic_arguments().clone(),
+                    ))?;
+                if declaration.body().is_some() {
+                    let key = ExecutableItemKey::Callable(callable_key);
+                    self.enqueue(key.clone());
+                    Ok(DraftDispatchStep::Direct(key))
+                } else if let Some(role) = self
+                    .target
+                    .toolchain()
+                    .primitives()
+                    .role(dispatch.callable())
+                {
+                    let signature = callable_signature(
+                        self.target,
+                        &mut self.resolver,
+                        &callable_key,
+                        &callable_key.substitution(),
                     )?;
-                    let declaration = self
-                        .target
-                        .checked()
-                        .graph()
-                        .declarations()
-                        .callables()
-                        .get(dispatch.callable())
-                        .ok_or(ExecutableProgramError::BodylessCallable(
-                            dispatch.callable(),
-                        ))?;
-                    if declaration.body().is_some() {
-                        let key = ExecutableItemKey::Callable(callable_key);
-                        self.enqueue(key.clone());
-                        steps.push(DraftDispatchStep::Direct(key));
-                    } else if let Some(role) = self
-                        .target
-                        .toolchain()
-                        .primitives()
-                        .role(dispatch.callable())
-                    {
-                        steps.push(DraftDispatchStep::StandardPrimitive(
-                            ExecutablePrimitiveCall {
-                                role,
-                                generic_arguments: callable_key.generic_arguments().clone(),
-                            },
-                        ));
-                    } else {
-                        return Err(ExecutableProgramError::BodylessCallable(
-                            dispatch.callable(),
-                        ));
-                    }
-                }
-                ResolvedDispatchStep::Primitive(primitive) => {
-                    steps.push(DraftDispatchStep::StructuralPrimitive(primitive.clone()));
-                }
-                ResolvedDispatchStep::IndirectCallable(contract) => {
-                    steps.push(DraftDispatchStep::IndirectCallable(contract.clone()));
+                    Ok(DraftDispatchStep::StandardPrimitive(
+                        ExecutablePrimitiveCall {
+                            role,
+                            generic_arguments: callable_key.generic_arguments().clone(),
+                            signature,
+                        },
+                    ))
+                } else {
+                    Err(ExecutableProgramError::BodylessCallable(
+                        dispatch.callable(),
+                    ))
                 }
             }
+            ResolvedDispatchStep::Primitive(primitive) => {
+                Ok(DraftDispatchStep::StructuralPrimitive(primitive.clone()))
+            }
+            ResolvedDispatchStep::IndirectCallable(contract) => {
+                Ok(DraftDispatchStep::IndirectCallable(contract.clone()))
+            }
         }
-        Ok(DraftDispatchPlan(steps))
     }
 
     fn specialize_drop(
@@ -473,6 +543,7 @@ struct DraftItem {
     closures: Vec<(nocter_model::ClosureId, ExecutableItemKey)>,
     drops: Vec<(DropSelection, ExecutableItemKey)>,
     types: Vec<ExecutableTypeEdge>,
+    prepared_borrows: Vec<ExecutableBorrowEdge>,
     destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
 }
 
@@ -481,7 +552,18 @@ struct DraftDispatchEdge {
     plan: DraftDispatchPlan,
 }
 
-struct DraftDispatchPlan(Vec<DraftDispatchStep>);
+enum DraftDispatchPlan {
+    Invocation(DraftDispatchStep),
+    Comparison {
+        left_coercion: Option<DraftDispatchStep>,
+        right_coercion: Option<DraftDispatchStep>,
+        operation: DraftDispatchStep,
+    },
+    Index {
+        receiver_coercion: Option<DraftDispatchStep>,
+        operation: DraftDispatchStep,
+    },
+}
 
 enum DraftDispatchStep {
     Direct(ExecutableItemKey),
@@ -535,14 +617,7 @@ fn freeze_body(
         .map(|edge| {
             Ok(ExecutableDispatchEdge {
                 source: edge.source,
-                plan: ExecutableDispatchPlan(
-                    edge.plan
-                        .0
-                        .into_iter()
-                        .map(|step| freeze_dispatch_step(step, item_ids))
-                        .collect::<Result<Vec<_>, _>>()?
-                        .into_boxed_slice(),
-                ),
+                plan: freeze_dispatch_plan(edge.plan, item_ids)?,
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
@@ -575,6 +650,7 @@ fn freeze_body(
             closures: closures.into_boxed_slice(),
             drops: drops.into_boxed_slice(),
             types: draft.types.into_boxed_slice(),
+            prepared_borrows: draft.prepared_borrows.into_boxed_slice(),
             destructions: draft
                 .destructions
                 .into_iter()
@@ -600,6 +676,39 @@ fn freeze_dispatch_step(
         DraftDispatchStep::IndirectCallable(contract) => {
             ExecutableDispatchStep::IndirectCallable(contract)
         }
+    })
+}
+
+fn freeze_dispatch_plan(
+    plan: DraftDispatchPlan,
+    item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
+) -> Result<ExecutableDispatchPlan, ExecutableProgramError> {
+    Ok(match plan {
+        DraftDispatchPlan::Invocation(step) => {
+            ExecutableDispatchPlan::Invocation(freeze_dispatch_step(step, item_ids)?)
+        }
+        DraftDispatchPlan::Comparison {
+            left_coercion,
+            right_coercion,
+            operation,
+        } => ExecutableDispatchPlan::Comparison {
+            left_coercion: left_coercion
+                .map(|step| freeze_dispatch_step(step, item_ids))
+                .transpose()?,
+            right_coercion: right_coercion
+                .map(|step| freeze_dispatch_step(step, item_ids))
+                .transpose()?,
+            operation: freeze_dispatch_step(operation, item_ids)?,
+        },
+        DraftDispatchPlan::Index {
+            receiver_coercion,
+            operation,
+        } => ExecutableDispatchPlan::Index {
+            receiver_coercion: receiver_coercion
+                .map(|step| freeze_dispatch_step(step, item_ids))
+                .transpose()?,
+            operation: freeze_dispatch_step(operation, item_ids)?,
+        },
     })
 }
 

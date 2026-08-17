@@ -18,7 +18,8 @@ mod snapshot;
 mod test_entry;
 
 pub use body_dependencies::{
-    BodyDependencyError, CheckedBodyDependencies, CheckedDestruction, collect_body_dependencies,
+    BodyDependencyError, CheckedBodyDependencies, CheckedDestruction, PreparedBorrow,
+    collect_body_dependencies,
 };
 pub use capabilities::{
     ExecutableWriterIdentity, TargetAbiIdentity, TargetBackendIdentity, TargetUnavailable,
@@ -30,10 +31,11 @@ pub use entry::{
     ProcessSuccessType, select_executable_entry,
 };
 pub use executable::{
-    ExecutableBody, ExecutableClosureEdge, ExecutableDispatchPlan, ExecutableDispatchStep,
-    ExecutableDropEdge, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
-    ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
-    ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDispatchPlan,
+    ExecutableDispatchStep, ExecutableDropEdge, ExecutableInput, ExecutableInputSource,
+    ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
+    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableTestCase,
+    ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{

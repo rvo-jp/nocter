@@ -131,9 +131,11 @@ The work queue is deterministic by the complete key.
 Executable specialization forks the checked type store while preserving its existing `TypeId`
 prefix. Applying generic substitutions may intern additional concrete types only in this fork.
 One checking-owned concrete dispatch resolver consumes checked `StaticSelection` values and
-produces ordered plans of direct callable, compiler primitive, or indirect callable-value steps.
-Structural indexing and comparison may therefore retain required coercion steps instead of being
-incorrectly collapsed to one callable. Interface requirements resolve through the retained
+produces semantic-shaped plans containing direct callable, compiler primitive, or indirect
+callable-value steps. A plain invocation contains one step. A comparison retains independent
+left-operand coercion, right-operand coercion, and operation lanes. An index projection retains an
+independent receiver coercion and operation lane. This shape prevents ordered step arrays from
+losing which value a coercion consumes. Interface requirements resolve through the retained
 conformance authority, including required/default method selection. MIR never receives an
 unresolved `RequirementId`.
 
@@ -176,10 +178,12 @@ drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are
 when the selected toolchain registry assigns their callable to a primitive role.
 
 Each item separately freezes its complete concrete runtime signature even when a parameter is
-unused by the body. Callable receivers precede ordinary parameters. Closure signatures add one
-capability-correct environment input before closure parameters. Drop bodies retain their exact
-readwrite receiver, and tests have no inputs. Signature specialization belongs to executable
-construction; MIR cannot apply generic substitution or infer ABI inputs from body references.
+unused by the body. Callable receivers precede ordinary parameters and materialize their declared
+owned, readonly-borrow, or readwrite-borrow capability instead of reusing the owner type. Closure
+signatures add one capability-correct environment input before closure parameters. Drop bodies
+retain their exact readwrite receiver, and tests have no inputs. Each standard primitive call also
+freezes its concrete signature. Signature specialization belongs to executable construction; MIR
+cannot apply generic substitution or infer ABI inputs from body references.
 
 ## MIR Authority
 
@@ -203,9 +207,11 @@ and return behavior. Program validation then checks direct calls and drop invoca
 complete function arena. This split permits future per-item incremental validation without giving
 MIR access to source or package setup state.
 
-MIR validation requires closed successors, valid place projections, initialized-use discipline,
-resolved call targets, balanced region release, and complete terminal behavior. These are compiler
-integrity checks over an accepted program, not a second source diagnostic system.
+The implemented MIR validator requires closed successors, valid typed place projections, resolved
+and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive
+initialized-use and balanced region-release validation remain coupled to the pending cleanup and
+region lowering work; documentation must not claim those gates before they exist. These are
+compiler integrity checks over an accepted program, not a second source diagnostic system.
 
 ## Construction Order
 
@@ -222,13 +228,15 @@ integrity checks over an accepted program, not a second source diagnostic system
 8. Lower concrete checked bodies and cleanup schedules into MIR, then materialize compiler-owned
    process and test roots.
 
-The first end-to-end lowering slice now covers concrete signatures, constants, primitive integer
+The current end-to-end lowering slice covers concrete signatures, constants, primitive integer
 operations, aggregate construction, ordinary copy/move/borrow places, initialization and
-assignment, value-producing branches, short-circuit logic, returns, and direct static calls. It
-runs through the complete source-to-executable fixture rather than a second hand-built input
-model. Unsupported checked operations and every non-empty cleanup schedule fail explicitly until
-their dedicated lowering paths are implemented; the current slice cannot silently omit accepted
-semantics.
+assignment, value-producing branches, short-circuit logic, returns, direct and standard-primitive
+calls, receiver preparation and one-step receiver coercion, borrow conversions, and primitive or
+selected comparisons. Comparison lowering consumes source-selected operand coercions and
+specialization-selected coercions through the same lane-preserving plan. It runs through the
+complete source-to-executable fixture rather than a second hand-built input model. Unsupported
+checked operations and every non-empty cleanup schedule fail explicitly until their dedicated
+lowering paths are implemented; the current slice cannot silently omit accepted semantics.
 
 ## Prohibited Designs
 
@@ -238,4 +246,5 @@ semantics.
 - allowing checking input and declaration/checked graphs to carry different targets
 - reparsing package target paths after discovery
 - creating separate generic-instance or conformance indexes for MIR and code generation
+- representing composite dispatch as a flat step sequence that loses operand ownership
 - returning public `check` success before selected-target buildability is complete

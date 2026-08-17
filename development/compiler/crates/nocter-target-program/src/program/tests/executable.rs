@@ -4,8 +4,8 @@ use nocter_model::BuiltinType;
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
-    ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey, ExecutableProgram,
-    ExecutableRoot, PrimitiveRole,
+    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
+    ExecutableProgram, ExecutableRoot, PrimitiveRole,
 };
 
 #[test]
@@ -194,7 +194,8 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
         .body()
         .dispatch(&selection)
         .unwrap();
-    let [ExecutableDispatchStep::Direct(identity_item)] = plan.steps() else {
+    let ExecutableDispatchPlan::Invocation(ExecutableDispatchStep::Direct(identity_item)) = plan
+    else {
         panic!("generic direct call must name one dense executable item")
     };
     let ExecutableItemKey::Callable(key) = executable.items().get(*identity_item).unwrap().key()
@@ -250,6 +251,63 @@ fn executable_signature_specializes_even_unused_parameters() {
     );
     assert_eq!(item.signature().inputs()[0].ty(), i32_);
     assert_eq!(item.signature().result(), i32_);
+}
+
+#[test]
+fn executable_signatures_materialize_receiver_capabilities() {
+    let target = build_target_program(&Fixture::with_app(
+        "struct Value { field: i32 }\n\
+         drop Value(&+self) { return }\n\
+         instance Value { pub method &self.read(): i32 { self.field } }\n\
+         func main(): i32 {\n\
+             let value = Value { field: 7 }\n\
+             value.read()\n\
+         }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let mut saw_method = false;
+    let mut saw_drop = false;
+    for (_, item) in executable.items().iter() {
+        let expected = match item.key() {
+            ExecutableItemKey::Callable(key)
+                if matches!(
+                    executable
+                        .target()
+                        .checked()
+                        .graph()
+                        .declarations()
+                        .callables()
+                        .get(key.callable())
+                        .unwrap()
+                        .owner(),
+                    CallableOwner::Instance(_)
+                ) =>
+            {
+                saw_method = true;
+                Some(nocter_model::BorrowCapability::Readonly)
+            }
+            ExecutableItemKey::Drop(_) => {
+                saw_drop = true;
+                Some(nocter_model::BorrowCapability::ReadWrite)
+            }
+            _ => None,
+        };
+        if let Some(expected) = expected {
+            assert!(matches!(
+                executable.types().get(item.signature().inputs()[0].ty()),
+                Some(nocter_model::TypeKind::Borrow { capability, .. }) if *capability == expected
+            ));
+        }
+    }
+    assert!(saw_method && saw_drop);
 }
 
 #[test]
@@ -337,7 +395,7 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
     let roles = dependencies
         .selections()
         .iter()
-        .flat_map(|selection| body.dispatch(selection).unwrap().steps())
+        .flat_map(|selection| dispatch_steps(body.dispatch(selection).unwrap()))
         .filter_map(|step| match step {
             ExecutableDispatchStep::StandardPrimitive(call) => Some(call.role()),
             ExecutableDispatchStep::Direct(_)
@@ -349,6 +407,42 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
     assert!(roles.contains(&PrimitiveRole::PointerFromReference));
     assert!(roles.contains(&PrimitiveRole::PointerAddress));
     assert_eq!(executable.items().len(), 1);
+    for primitive in dependencies
+        .selections()
+        .iter()
+        .flat_map(|selection| dispatch_steps(body.dispatch(selection).unwrap()))
+        .filter_map(|step| match step {
+            ExecutableDispatchStep::StandardPrimitive(call) => Some(call),
+            _ => None,
+        })
+    {
+        assert!(!primitive.signature().inputs().is_empty());
+        assert!(
+            executable
+                .types()
+                .get(primitive.signature().result())
+                .is_some()
+        );
+    }
+}
+
+fn dispatch_steps(plan: &ExecutableDispatchPlan) -> Vec<&ExecutableDispatchStep> {
+    match plan {
+        ExecutableDispatchPlan::Invocation(step) => vec![step],
+        ExecutableDispatchPlan::Comparison {
+            left_coercion,
+            right_coercion,
+            operation,
+        } => left_coercion
+            .iter()
+            .chain(right_coercion)
+            .chain([operation])
+            .collect(),
+        ExecutableDispatchPlan::Index {
+            receiver_coercion,
+            operation,
+        } => receiver_coercion.iter().chain([operation]).collect(),
+    }
 }
 
 #[test]

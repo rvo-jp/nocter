@@ -11,9 +11,10 @@ implementation input.
 ## Immediate Work
 
 1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
-   value-producing branches, and direct static calls to frozen receiver/primitive dispatch,
-   outcomes, loops, patterns, closures, regions, and cleanup-specific destruction plans. Never
-   repeat requirement, conformance, or drop-pattern selection.
+   value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
+   conversions, and comparisons to selected index places, outcomes, loops, patterns, closures,
+   regions, and cleanup-specific destruction plans. Never repeat requirement, conformance, or
+   drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -55,9 +56,10 @@ enumerates every executable static selection, closure, explicit pattern drop, re
 cleanup type while excluding unreachable retained source. Every explicit pattern drop retains its
 declaration plus canonical generic substitution, so generic drop bodies do not lose the concrete
 subject type before executable specialization. `ConcreteDispatchResolver` forks the
-checked type store and resolves direct, interface, and structural dispatch into ordered direct,
-primitive, or indirect-callable steps. Structural comparison and indexing retain coercion steps;
-MIR will not receive an unresolved requirement or repeat conformance selection.
+checked type store and resolves direct, interface, and structural dispatch into invocation,
+comparison-lane, or index-lane plans containing direct, primitive, or indirect-callable steps.
+Composite plans never encode operand ownership through array position. MIR will not receive an
+unresolved requirement or repeat conformance selection.
 Closure types now pair their lexical `ClosureId` with the complete enclosing generic domain. A
 generic closure is no longer misclassified as globally concrete; specialization substitutes those
 arguments into one distinct environment type, and the shared copyability authority carries its
@@ -99,7 +101,10 @@ switch subject shape, direct semantic item references, and terminal result behav
 `MirValidationEnvironment` supplies only immutable type, declaration, and executable-item
 authority, leaving package and source setup outside MIR. `MirProgramBuilder` requires exactly one
 function for every executable item and validates direct-call and drop-body signatures across the
-closed function arena. Checked-body and cleanup lowering into this schema remains the current
+closed function arena. The checked-body lowering path now consumes frozen concrete item and
+primitive signatures, materializes receiver borrow capability, performs selected receiver and
+operand coercions, and lowers primitive or selected comparisons without reopening selection.
+Checked index, outcome, loop, pattern, closure, region, and cleanup lowering remains the current
 task.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
