@@ -133,6 +133,12 @@ inventing a zero-byte layout for `void` or `never`. User-drop invocation names a
 and machine address. Region creation and release name machine values and stack objects, and process
 error reporting names the exact machine error value. None retain MIR-local identities.
 
+Standard primitive calls retain only their closed `PrimitiveRole`, concrete layout-key type
+arguments, machine-value arguments, allocation context, and exact concrete signature. That
+signature is passed through the same callable ABI planner as source functions. A primitive cannot
+introduce a private register convention, and ARM64 selection never looks up a primitive by module
+or declaration spelling.
+
 ## ARM64 and Mach-O Boundaries
 
 ARM64 lowering receives only validated machine operations and completed transport plans. It owns
@@ -175,7 +181,7 @@ witness representation, register-window closure, aligned stack placement, direct
 results, the compiler-owned literal-pack lane, ordered test roots, static-text deduplication, dense
 scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access,
 outcome tag control, explicit completion values, user destruction, region lifetime operations, and
-process error reporting.
+process error reporting. Standard primitive calls also carry ordinary ABI plans and closed roles.
 
-Primitive calls, literal-pack descriptors, ARM64 instruction lowering, and Mach-O serialization are
-the remaining Phase 5 implementation areas.
+Structural operations, literal-pack descriptors, ARM64 instruction lowering, and Mach-O
+serialization are the remaining Phase 5 implementation areas.

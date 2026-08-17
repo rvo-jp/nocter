@@ -1,4 +1,5 @@
 use nocter_model::TypeId;
+use nocter_target_program::PrimitiveRole;
 
 use crate::{
     MachineAddressId, MachineDataId, MachineDropFlagId, MachineFunctionId, MachineValueId,
@@ -38,6 +39,59 @@ pub struct MachineDirectCall {
     target: MachineFunctionId,
     arguments: Box<[MachineValueId]>,
     allocation: MachineCallAllocation,
+}
+
+/// One compiler-known primitive call with a signature planned by the ordinary ABI authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MachinePrimitiveCall {
+    role: PrimitiveRole,
+    type_arguments: Box<[TypeId]>,
+    arguments: Box<[MachineValueId]>,
+    allocation: MachineCallAllocation,
+    abi: crate::MachineCallableAbi,
+}
+
+impl MachinePrimitiveCall {
+    pub(crate) fn new(
+        role: PrimitiveRole,
+        type_arguments: impl Into<Box<[TypeId]>>,
+        arguments: impl Into<Box<[MachineValueId]>>,
+        allocation: MachineCallAllocation,
+        abi: crate::MachineCallableAbi,
+    ) -> Self {
+        Self {
+            role,
+            type_arguments: type_arguments.into(),
+            arguments: arguments.into(),
+            allocation,
+            abi,
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> PrimitiveRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn type_arguments(&self) -> &[TypeId] {
+        &self.type_arguments
+    }
+
+    #[must_use]
+    pub const fn arguments(&self) -> &[MachineValueId] {
+        &self.arguments
+    }
+
+    #[must_use]
+    pub const fn allocation(&self) -> MachineCallAllocation {
+        self.allocation
+    }
+
+    #[must_use]
+    pub const fn abi(&self) -> &crate::MachineCallableAbi {
+        &self.abi
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -167,6 +221,7 @@ pub enum MachineOperationKind {
         initialized: bool,
     },
     DirectCall(MachineDirectCall),
+    PrimitiveCall(MachinePrimitiveCall),
 }
 
 /// One instruction and the optional SSA value it defines.

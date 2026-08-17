@@ -39,9 +39,10 @@ basic-block domains. Every MIR place now closes to layout-owned byte offsets, de
 checked fixed/view indexes. Loads, address formation, stores, aggregate writes, stored-tag switches,
 allocation contexts, scalar operations, block arguments, direct calls, returns, and root exits have
 closed machine nodes. Stored, completion, and diverging SSA values are separate; user destruction,
-region lifetime operations, and root error reporting consume machine identities. Next, primitive
-and pack operations must consume exact layout, callable, address, and data identities rather than
-retain semantic operands.
+region lifetime operations, and root error reporting consume machine identities. Standard
+primitives retain closed roles and use the ordinary ABI planner. Next, structural and pack
+operations must consume exact layout, callable, address, and data identities rather than retain
+semantic operands.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

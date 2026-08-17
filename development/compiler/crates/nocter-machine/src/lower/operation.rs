@@ -4,7 +4,7 @@ use nocter_mir::{
     MirBinaryOperation, MirCallAllocation, MirCallTarget, MirConstant, MirOperationKind,
     MirUnaryOperation,
 };
-use nocter_model::{ExecutableItemId, MirOperationId};
+use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
 
 use super::aggregate::lower_aggregate;
 use super::body::BodyIdentities;
@@ -12,33 +12,54 @@ use super::{MachineProgramError, MachineUnsupportedOperation, unsupported};
 use crate::{
     MachineBinaryOperation, MachineCallAllocation, MachineConstant, MachineDataTable,
     MachineDirectCall, MachineFunctionId, MachineLayoutStore, MachineOperation,
-    MachineOperationKind, MachineUnaryOperation,
+    MachineOperationKind, MachinePrimitiveCall, MachineUnaryOperation,
 };
 
 pub(super) fn lower_operations(
     body: &nocter_mir::MirBody,
+    types: &TypeStore,
     layouts: &MachineLayoutStore,
     data: &MachineDataTable,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineOperation>, MachineProgramError> {
+    let context = OperationContext {
+        body,
+        types,
+        layouts,
+        data,
+        functions,
+        ids,
+    };
     body.operations()
         .iter()
-        .map(|(operation, value)| {
-            lower_operation(operation, value, body, layouts, data, functions, ids)
-        })
+        .map(|(operation, value)| lower_operation(operation, value, context))
         .collect()
+}
+
+#[derive(Clone, Copy)]
+struct OperationContext<'a> {
+    body: &'a nocter_mir::MirBody,
+    types: &'a TypeStore,
+    layouts: &'a MachineLayoutStore,
+    data: &'a MachineDataTable,
+    functions: &'a BTreeMap<ExecutableItemId, MachineFunctionId>,
+    ids: &'a BodyIdentities,
 }
 
 fn lower_operation(
     operation: MirOperationId,
     value: &nocter_mir::MirOperation,
-    body: &nocter_mir::MirBody,
-    layouts: &MachineLayoutStore,
-    data: &MachineDataTable,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
-    ids: &BodyIdentities,
+    context: OperationContext<'_>,
 ) -> Result<MachineOperation, MachineProgramError> {
+    let OperationContext {
+        body,
+        types,
+        layouts,
+        data,
+        functions,
+        ids,
+    } = context;
     let result = value.result().map(|result| ids.value(result)).transpose()?;
     let kind = match value.kind() {
         MirOperationKind::Constant(constant) => {
@@ -113,7 +134,9 @@ fn lower_operation(
         MirOperationKind::ReleaseRegion { region } => MachineOperationKind::ReleaseRegion {
             region: ids.stack(*region)?,
         },
-        MirOperationKind::Call(call) => lower_direct_call(operation, call, functions, ids)?,
+        MirOperationKind::Call(call) => {
+            lower_call(operation, call, types, layouts, functions, ids)?
+        }
         kind => {
             return Err(unsupported(
                 ids.owner(),
@@ -125,9 +148,11 @@ fn lower_operation(
     Ok(MachineOperation::new(kind, result))
 }
 
-fn lower_direct_call(
+fn lower_call(
     operation: MirOperationId,
     call: &nocter_mir::MirCall,
+    types: &TypeStore,
+    layouts: &MachineLayoutStore,
     functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
     ids: &BodyIdentities,
 ) -> Result<MachineOperationKind, MachineProgramError> {
@@ -138,20 +163,6 @@ fn lower_direct_call(
             MachineUnsupportedOperation::PackedCall,
         ));
     }
-    let MirCallTarget::Direct(target) = call.target() else {
-        let kind = match call.target() {
-            MirCallTarget::StandardPrimitive { .. } => {
-                MachineUnsupportedOperation::StandardPrimitiveCall
-            }
-            MirCallTarget::Structural(_) => MachineUnsupportedOperation::StructuralCall,
-            MirCallTarget::Direct(_) => unreachable!(),
-        };
-        return Err(unsupported(ids.owner(), operation, kind));
-    };
-    let function = functions
-        .get(target)
-        .copied()
-        .ok_or(MachineProgramError::MissingItemFunction(*target))?;
     let arguments = call
         .arguments()
         .iter()
@@ -161,9 +172,44 @@ fn lower_direct_call(
         MirCallAllocation::Inherit => MachineCallAllocation::Inherit,
         MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
     };
-    Ok(MachineOperationKind::DirectCall(MachineDirectCall::new(
-        function, arguments, allocation,
-    )))
+    match call.target() {
+        MirCallTarget::Direct(target) => {
+            let function = functions
+                .get(target)
+                .copied()
+                .ok_or(MachineProgramError::MissingItemFunction(*target))?;
+            Ok(MachineOperationKind::DirectCall(MachineDirectCall::new(
+                function, arguments, allocation,
+            )))
+        }
+        MirCallTarget::StandardPrimitive {
+            role,
+            type_arguments,
+            signature,
+        } => {
+            let abi = crate::transport::plan_signature(
+                types,
+                layouts,
+                signature.parameters(),
+                signature.result(),
+                None,
+            )?;
+            Ok(MachineOperationKind::PrimitiveCall(
+                MachinePrimitiveCall::new(
+                    *role,
+                    type_arguments.clone(),
+                    arguments,
+                    allocation,
+                    abi,
+                ),
+            ))
+        }
+        MirCallTarget::Structural(_) => Err(unsupported(
+            ids.owner(),
+            operation,
+            MachineUnsupportedOperation::StructuralCall,
+        )),
+    }
 }
 
 fn lower_constant(

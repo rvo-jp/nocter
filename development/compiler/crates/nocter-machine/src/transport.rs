@@ -276,7 +276,7 @@ fn plan_function(
     plan_signature(types, layouts, &parameters, function.result(), pack)
 }
 
-fn plan_signature(
+pub(crate) fn plan_signature(
     types: &TypeStore,
     layouts: &MachineLayoutStore,
     parameters: &[TypeId],

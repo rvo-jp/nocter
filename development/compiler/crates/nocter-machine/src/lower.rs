@@ -173,7 +173,6 @@ pub(super) const fn unsupported(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineUnsupportedOperation {
-    StandardPrimitiveCall,
     StructuralCall,
     PackedCall,
     PackLength,

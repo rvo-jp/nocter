@@ -37,7 +37,8 @@ pub use lower::{
 pub use operation::{
     MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineCallAllocation,
     MachineConstant, MachineDirectCall, MachineOperation, MachineOperationKind,
-    MachineUnaryOperation, MachineValue, MachineValueDefinition, MachineValueRepresentation,
+    MachinePrimitiveCall, MachineUnaryOperation, MachineValue, MachineValueDefinition,
+    MachineValueRepresentation,
 };
 pub use program::{
     MachineBody, MachineFunction, MachineFunctionKind, MachineProgram, MachineProgramRoot,

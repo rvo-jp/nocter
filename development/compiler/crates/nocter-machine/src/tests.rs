@@ -850,6 +850,37 @@ fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
     assert_eq!(lifetime, ["create", "release"]);
 }
 
+#[test]
+fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/ptr.addr\n\
+         use std/ptr.from_ref\n\
+         func main(): usize {\n\
+             let value: i32 = 7\n\
+             addr(from_ref(&value))\n\
+         }\n",
+        &[&["ptr"], &["ptr"]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let calls = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter_map(|(_, operation)| {
+            let MachineOperationKind::PrimitiveCall(call) = operation.kind() else {
+                return None;
+            };
+            Some((call.role(), call.abi().arguments().len()))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls,
+        [
+            (PrimitiveRole::PointerFromReference, 1),
+            (PrimitiveRole::PointerAddress, 1),
+        ]
+    );
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();

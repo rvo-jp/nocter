@@ -41,7 +41,7 @@ pub(super) fn lower_body(
         .collect::<Vec<_>>();
     let addresses = lower_addresses(body, types, layouts, &ids)?;
     let values = lower_values(body, types, layouts, &ids)?;
-    let operations = lower_operations(body, layouts, data, functions, &ids)?;
+    let operations = lower_operations(body, types, layouts, data, functions, &ids)?;
     let blocks = lower_blocks(body, layouts, &ids)?;
 
     Ok(crate::MachineBody::new(
