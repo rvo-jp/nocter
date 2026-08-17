@@ -484,11 +484,16 @@ impl ExecutableProgram {
         closure_ty: TypeId,
         capture: nocter_model::CaptureId,
     ) -> Option<TypeId> {
+        self.closure_layout_for_type(closure_ty)
+            .and_then(|layout| layout.capture(capture))
+            .map(ExecutableClosureCapture::ty)
+    }
+
+    #[must_use]
+    pub fn closure_layout_for_type(&self, closure_ty: TypeId) -> Option<&ExecutableClosureLayout> {
         self.closure_layouts
             .get(&closure_ty)
             .and_then(|item| self.closure_layout(*item))
-            .and_then(|layout| layout.capture(capture))
-            .map(ExecutableClosureCapture::ty)
     }
 
     #[must_use]

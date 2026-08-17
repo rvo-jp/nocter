@@ -1,16 +1,10 @@
 use std::fmt;
 
-use nocter_model::{
-    Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, MirPlaceId, MirValueId,
-    TypeId, TypeKind,
-};
-use nocter_target_program::{ExecutableItemKey, ExecutableProgram};
+use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TypeId};
+use nocter_target_program::ExecutableProgram;
 
-use crate::validation_closure::has_valid_closure_environment_signature;
-use crate::{
-    MirAggregate, MirCallTarget, MirFunction, MirOperationKind, MirValidationError,
-    validate_function,
-};
+use crate::program_validation::validate_program;
+use crate::{MirFunction, MirValidationError, validate_function};
 
 /// One closed executable and exactly one validated MIR function per executable item.
 #[derive(Debug)]
@@ -92,134 +86,12 @@ impl MirProgramBuilder {
         let functions = self.functions.try_finish_with(|item, function| {
             function.ok_or(MirProgramBuildError::MissingFunction(item))
         })?;
-        validate_cross_function_calls(&functions, &self.executable)?;
+        validate_program(&functions, &self.executable)?;
         Ok(MirProgram {
             executable: self.executable,
             functions,
         })
     }
-}
-
-fn validate_cross_function_calls(
-    functions: &Arena<ExecutableItemId, MirFunction>,
-    executable: &ExecutableProgram,
-) -> Result<(), MirProgramBuildError> {
-    for (caller, function) in functions.iter() {
-        for (_, operation) in function.operations().iter() {
-            match operation.kind() {
-                MirOperationKind::Call(call) => {
-                    let MirCallTarget::Direct(callee) = call.target() else {
-                        continue;
-                    };
-                    let callee_function = functions
-                        .get(*callee)
-                        .ok_or(MirProgramBuildError::UnknownItem(*callee))?;
-                    let parameter_types = callee_function
-                        .parameters()
-                        .iter()
-                        .map(|parameter| {
-                            callee_function
-                                .locals()
-                                .get(*parameter)
-                                .copied()
-                                .map(crate::MirLocal::ty)
-                                .expect("validated MIR parameter must exist")
-                        })
-                        .collect::<Vec<_>>();
-                    if parameter_types.len() != call.arguments().len()
-                        || parameter_types
-                            .iter()
-                            .copied()
-                            .zip(call.arguments().iter().copied())
-                            .any(|(expected, argument)| {
-                                value_type(function, argument) != Some(expected)
-                            })
-                        || operation
-                            .result()
-                            .and_then(|value| value_type(function, value))
-                            != Some(callee_function.result())
-                    {
-                        return Err(MirProgramBuildError::DirectCallSignature {
-                            caller,
-                            callee: *callee,
-                        });
-                    }
-                }
-                MirOperationKind::InvokeDrop { body, place } => {
-                    let callee = functions
-                        .get(*body)
-                        .ok_or(MirProgramBuildError::UnknownItem(*body))?;
-                    let is_drop = matches!(
-                        executable
-                            .items()
-                            .get(*body)
-                            .map(nocter_target_program::ExecutableItem::key),
-                        Some(ExecutableItemKey::Drop(_))
-                    );
-                    let place_type = place_type(function, *place);
-                    let parameter_type = parameter_type(callee, 0);
-                    if callee.parameters().len() != 1
-                        || callee.result() != executable.types().builtin(BuiltinType::Void)
-                        || !is_drop
-                        || !matches!(
-                            parameter_type.and_then(|ty| executable.types().get(ty)),
-                            Some(TypeKind::Borrow {
-                                capability: BorrowCapability::ReadWrite,
-                                referent,
-                            }) if Some(*referent) == place_type
-                        )
-                    {
-                        return Err(MirProgramBuildError::DropCallSignature {
-                            caller,
-                            callee: *body,
-                            place: *place,
-                        });
-                    }
-                }
-                MirOperationKind::Aggregate(MirAggregate::Closure { body, .. }) => {
-                    let callee = functions
-                        .get(*body)
-                        .ok_or(MirProgramBuildError::UnknownItem(*body))?;
-                    let layout = executable.closure_layout(*body).ok_or(
-                        MirProgramBuildError::ClosureConstructionSignature {
-                            caller,
-                            body: *body,
-                        },
-                    )?;
-                    if !has_valid_closure_environment_signature(callee, layout, executable.types())
-                    {
-                        return Err(MirProgramBuildError::ClosureConstructionSignature {
-                            caller,
-                            body: *body,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    Ok(())
-}
-
-fn value_type(function: &MirFunction, value: MirValueId) -> Option<TypeId> {
-    function
-        .values()
-        .get(value)
-        .copied()
-        .map(crate::MirValue::ty)
-}
-
-fn place_type(function: &MirFunction, place: MirPlaceId) -> Option<TypeId> {
-    function.places().get(place).map(crate::MirPlace::ty)
-}
-
-fn parameter_type(function: &MirFunction, position: usize) -> Option<TypeId> {
-    function
-        .parameters()
-        .get(position)
-        .and_then(|parameter| function.locals().get(*parameter))
-        .copied()
-        .map(crate::MirLocal::ty)
 }
 
 #[derive(Debug)]
@@ -240,6 +112,11 @@ pub enum MirProgramBuildError {
         caller: ExecutableItemId,
         callee: ExecutableItemId,
         place: MirPlaceId,
+    },
+    DeferredDropSignature {
+        caller: ExecutableItemId,
+        callee: ExecutableItemId,
+        ty: TypeId,
     },
     ClosureConstructionSignature {
         caller: ExecutableItemId,
@@ -263,6 +140,7 @@ impl std::error::Error for MirProgramBuildError {
             | Self::MissingFunction(_)
             | Self::DirectCallSignature { .. }
             | Self::DropCallSignature { .. }
+            | Self::DeferredDropSignature { .. }
             | Self::ClosureConstructionSignature { .. } => None,
         }
     }

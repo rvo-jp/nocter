@@ -15,7 +15,7 @@ implementation input.
    coercions, borrow conversions, comparisons, selected/coerced index places, outcome CFG,
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
    assignment, all loop forms, enum patterns, lexical regions, callable-bound closure values, and
-   static/typed strings to typed sequences and interpolation. Opaque result construction and
+   static/typed strings and typed sequences to interpolation. Opaque result construction and
    capability-preserving witness access now lower through an explicit target-owned representation
    lane and exact MIR aggregates and projections. Checked HIR now
    models the sequence literal body's non-escaping element pack through dedicated length and
@@ -28,10 +28,14 @@ implementation input.
    specialized pack/result types, fixed and spread producer order, spread iteration contracts, and
    allocation selection in one `ExecutableSequencePlan`. Each fixed value and spread iterator also
    retains its concrete residual destruction plan and makes every required drop body reachable.
-   Next materialize that caller plan as dedicated MIR pack state, including cached length,
-   single-acquisition spread iteration, source-ordered transfer, and residual cleanup, then attach
-   it to the specialized literal call without an ordinary variadic ABI. Never repeat requirement,
-   conformance, layout, or drop-pattern selection.
+   Caller lowering now evaluates allocation context and every segment in specified source order,
+   obtains each exact spread length after acquisition, computes one checked total, and transfers a
+   typed `MirPackArgument` to the specialized literal call. Fixed values and spread iterators carry
+   executable-item-resolved deferred destruction recipes; spread `next` calls and copy/direct
+   contribution modes remain explicit. MIR validation closes pack operands, call targets,
+   destruction shapes, and caller/callee hidden schemas. No ordinary variadic ABI or source
+   selection reaches this lane. Next lower interpolation without duplicating the sequence pack or
+   typed-string allocation machinery.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 

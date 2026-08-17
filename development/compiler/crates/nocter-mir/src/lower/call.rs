@@ -8,7 +8,7 @@ use nocter_target_program::{
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirOperationKind,
+    MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirOperationKind, MirPackArgument,
     MirStructuralCall, MirTerminator,
 };
 
@@ -152,6 +152,20 @@ impl FunctionLowerer<'_> {
         self.emit_call_with_allocation(ty, target, arguments, MirCallAllocation::Inherit)
     }
 
+    pub(super) fn emit_pack_call(
+        &mut self,
+        ty: TypeId,
+        target: MirCallTarget,
+        pack: MirPackArgument,
+        allocation: MirCallAllocation,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let value = self.append_value(
+            ty,
+            MirOperationKind::Call(MirCall::with_pack(target, pack, allocation)),
+        )?;
+        self.finish_call(ty, value)
+    }
+
     fn emit_call_with_allocation(
         &mut self,
         ty: TypeId,
@@ -163,6 +177,14 @@ impl FunctionLowerer<'_> {
             ty,
             MirOperationKind::Call(MirCall::with_allocation(target, arguments, allocation)),
         )?;
+        self.finish_call(ty, value)
+    }
+
+    fn finish_call(
+        &mut self,
+        ty: TypeId,
+        value: MirValueId,
+    ) -> Result<MirValueId, MirLoweringError> {
         if self.executable.types().get(ty) == Some(&TypeKind::Builtin(BuiltinType::Never)) {
             let block = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
             self.builder.terminate(block, MirTerminator::Unreachable)?;
@@ -232,7 +254,7 @@ fn structural_signature(
     }
 }
 
-fn step_target(step: &ExecutableDispatchStep) -> Option<MirCallTarget> {
+pub(super) fn step_target(step: &ExecutableDispatchStep) -> Option<MirCallTarget> {
     match step {
         ExecutableDispatchStep::Direct(callee) => Some(MirCallTarget::Direct(*callee)),
         ExecutableDispatchStep::StandardPrimitive(call) => Some(primitive_target(call)),

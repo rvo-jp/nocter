@@ -163,6 +163,7 @@ pub enum MirCallAllocation {
 pub struct MirCall {
     target: MirCallTarget,
     arguments: Box<[MirValueId]>,
+    pack: Option<crate::MirPackArgument>,
     allocation: MirCallAllocation,
 }
 
@@ -172,6 +173,7 @@ impl MirCall {
         Self {
             target,
             arguments: arguments.into(),
+            pack: None,
             allocation: MirCallAllocation::Inherit,
         }
     }
@@ -185,6 +187,23 @@ impl MirCall {
         Self {
             target,
             arguments: arguments.into(),
+            pack: None,
+            allocation,
+        }
+    }
+
+    /// Creates a direct literal call carrying one compiler-owned pack outside its ordinary ABI
+    /// argument list.
+    #[must_use]
+    pub fn with_pack(
+        target: MirCallTarget,
+        pack: crate::MirPackArgument,
+        allocation: MirCallAllocation,
+    ) -> Self {
+        Self {
+            target,
+            arguments: Box::new([]),
+            pack: Some(pack),
             allocation,
         }
     }
@@ -197,6 +216,11 @@ impl MirCall {
     #[must_use]
     pub const fn arguments(&self) -> &[MirValueId] {
         &self.arguments
+    }
+
+    #[must_use]
+    pub const fn pack(&self) -> Option<&crate::MirPackArgument> {
+        self.pack.as_ref()
     }
 
     #[must_use]

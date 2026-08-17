@@ -11,9 +11,9 @@ use nocter_model::{
 
 use crate::{
     MirBinaryOperation, MirBranchTarget, MirCall, MirCallAllocation, MirCallTarget, MirConstant,
-    MirFunctionBuildError, MirFunctionBuilder, MirLocalKind, MirOperationKind, MirPlaceRoot,
-    MirProjection, MirProjectionKind, MirReadMode, MirTerminator, MirValidationEnvironment,
-    MirValidationError,
+    MirDestructionKind, MirDestructionPlan, MirFunctionBuildError, MirFunctionBuilder,
+    MirLocalKind, MirOperationKind, MirPackArgument, MirPackSegment, MirPlaceRoot, MirProjection,
+    MirProjectionKind, MirReadMode, MirTerminator, MirValidationEnvironment, MirValidationError,
 };
 
 struct TestEnvironment {
@@ -306,6 +306,103 @@ fn pack_inputs_require_exact_types_and_destruction_on_every_return() {
             MirValidationError::InvalidPackInput(_)
         ))
     ));
+}
+
+#[test]
+fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
+    let mut types = TypeStore::new();
+    let i32_ = types.builtin(BuiltinType::I32);
+    let next = types.intern(TypeKind::Optional(i32_)).unwrap();
+    let mut items = ArenaBuilder::new();
+    let caller = items.insert(());
+    let literal = items.insert(());
+    let environment = TestEnvironment {
+        types,
+        items: items.finish(),
+        allocation_items: BTreeSet::new(),
+        standard_nominals: BTreeMap::new(),
+        pack_inputs: BTreeMap::from([(literal, (i32_, next))]),
+    };
+
+    assert!(build_pack_call(&environment, caller, literal, i32_, next, true, None).is_ok());
+
+    assert!(matches!(
+        build_pack_call(&environment, caller, literal, i32_, next, false, None),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::OperationType(_)
+        ))
+    ));
+
+    let invalid_plan = MirDestructionPlan::new(
+        i32_,
+        MirDestructionKind::Optional(Box::new(MirDestructionPlan::new(
+            i32_,
+            MirDestructionKind::Closure(Box::new([])),
+        ))),
+    );
+    assert!(matches!(
+        build_pack_call(
+            &environment,
+            caller,
+            literal,
+            i32_,
+            next,
+            true,
+            Some(invalid_plan),
+        ),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::InvalidDestruction(ty)
+        )) if ty == i32_
+    ));
+}
+
+fn build_pack_call(
+    environment: &TestEnvironment,
+    caller: ExecutableItemId,
+    literal: ExecutableItemId,
+    element: TypeId,
+    next: TypeId,
+    include_pack: bool,
+    destruction: Option<MirDestructionPlan>,
+) -> Result<crate::MirFunction, MirFunctionBuildError> {
+    let mut builder = MirFunctionBuilder::new(caller, element);
+    let (entry, _) = builder.create_block([]);
+    let call = if include_pack {
+        let length = builder
+            .append_value(
+                entry,
+                environment.types.builtin(BuiltinType::Usize),
+                MirOperationKind::Constant(MirConstant::Integer(1)),
+            )
+            .unwrap();
+        let value = builder
+            .append_value(
+                entry,
+                element,
+                MirOperationKind::Constant(MirConstant::Integer(7)),
+            )
+            .unwrap();
+        let pack = MirPackArgument::new(
+            element,
+            next,
+            length,
+            [MirPackSegment::Value { value, destruction }],
+        );
+        MirCall::with_pack(
+            MirCallTarget::Direct(literal),
+            pack,
+            MirCallAllocation::Inherit,
+        )
+    } else {
+        MirCall::new(MirCallTarget::Direct(literal), [])
+    };
+    let result = builder
+        .append_value(entry, element, MirOperationKind::Call(call))
+        .unwrap();
+    builder
+        .terminate(entry, MirTerminator::Return(Some(result)))
+        .unwrap();
+    builder.finish(entry, environment)
 }
 
 #[test]

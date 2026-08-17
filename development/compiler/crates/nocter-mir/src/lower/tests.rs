@@ -230,6 +230,218 @@ fn lowers_literal_pack_body_through_its_dedicated_input_lane() {
 }
 
 #[test]
+fn lowers_sequence_calls_through_the_hidden_pack_lane() {
+    let program = lower_fixture(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let _ = Vec [1, 2]\n\
+             0\n\
+         }\n",
+    )
+    .unwrap();
+    let (constructor, input) = program
+        .functions()
+        .iter()
+        .find_map(|(item, function)| function.pack().map(|input| (item, input)))
+        .unwrap();
+    let (main_function, pack) = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function.operations().iter().find_map(|(_, operation)| {
+                let MirOperationKind::Call(call) = operation.kind() else {
+                    return None;
+                };
+                matches!(call.target(), crate::MirCallTarget::Direct(item) if *item == constructor)
+                    .then_some(())
+                    .and_then(|()| call.pack().map(|pack| (function, pack)))
+            })
+        })
+        .unwrap();
+
+    assert!(pack.segments().iter().all(|segment| {
+        matches!(
+            segment,
+            crate::MirPackSegment::Value {
+                destruction: None,
+                ..
+            }
+        )
+    }));
+    assert_eq!(pack.segments().len(), 2);
+    assert_eq!(
+        (pack.element(), pack.next()),
+        (input.element(), input.next())
+    );
+    assert!(
+        main_function
+            .values()
+            .get(pack.length())
+            .is_some_and(|value| {
+                matches!(
+                    value.definition(),
+                    crate::MirValueDefinition::Operation(operation)
+                        if matches!(
+                            main_function
+                                .operations()
+                                .get(operation)
+                                .map(crate::MirOperation::kind),
+                            Some(MirOperationKind::Constant(crate::MirConstant::Integer(2)))
+                        )
+                )
+            })
+    );
+}
+
+#[test]
+fn lowers_exact_size_spreads_with_deferred_residual_destruction() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let _ = items.len()\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         struct Leaf {}\n\
+         drop Leaf(&+self) { return }\n\
+         struct Item { leaf: Leaf }\n\
+         struct Iter {}\n\
+         conform Iterator for Iter {\n\
+             type Item = Item\n\
+             method &+self.next(): Item? { return none }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return 0 }\n\
+         }\n\
+         drop Iter(&+self) { return }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {}\n\
+             let _ = Vec [Item { leaf: Leaf {} }, ...move iterator, Item { leaf: Leaf {} }]\n\
+             0\n\
+         }\n",
+        &[&[], &[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+    let (caller, pack) = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function.operations().iter().find_map(|(_, operation)| {
+                let MirOperationKind::Call(call) = operation.kind() else {
+                    return None;
+                };
+                call.pack().map(|pack| (function, pack))
+            })
+        })
+        .unwrap();
+    let [
+        crate::MirPackSegment::Value {
+            destruction: Some(first),
+            ..
+        },
+        crate::MirPackSegment::Spread(spread),
+        crate::MirPackSegment::Value {
+            destruction: Some(last),
+            ..
+        },
+    ] = pack.segments()
+    else {
+        panic!("expected fixed, spread, fixed pack order")
+    };
+
+    assert_eq!(first.ty(), pack.element());
+    assert_eq!(last.ty(), pack.element());
+    assert!(matches!(
+        first.kind(),
+        crate::MirDestructionKind::Struct { fields, .. }
+            if matches!(fields.as_ref(), [field]
+                if matches!(
+                    field.plan().kind(),
+                    crate::MirDestructionKind::Struct { drop: Some(_), .. }
+                ))
+    ));
+    assert!(spread.destruction().is_some());
+    assert_eq!(spread.contribution(), crate::MirPackContribution::Direct);
+    assert!(matches!(
+        caller
+            .values()
+            .get(spread.remaining())
+            .copied()
+            .map(crate::MirValue::definition),
+        Some(crate::MirValueDefinition::Operation(operation))
+            if matches!(
+                caller.operations().get(operation).map(crate::MirOperation::kind),
+                Some(MirOperationKind::Call(call)) if call.pack().is_none()
+            )
+    ));
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        matches!(
+            operation.kind(),
+            MirOperationKind::Binary {
+                operation: crate::MirBinaryOperation::Add,
+                ..
+            }
+        )
+    }));
+}
+
+#[test]
+fn sequence_using_retains_the_same_call_scoped_allocation_lane() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let allocator = Allocator {}\n\
+             let _ = Vec [1] using allocator\n\
+             0\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            let MirOperationKind::Call(call) = operation.kind() else {
+                return false;
+            };
+            let crate::MirCallAllocation::Explicit(place) = call.allocation() else {
+                return false;
+            };
+            call.pack().is_some()
+                && function.places().get(place).is_some_and(|place| {
+                    matches!(
+                        program.executable().types().get(place.ty()),
+                        Some(nocter_model::TypeKind::Nominal { definition, .. })
+                            if Some(*definition)
+                                == program
+                                    .executable()
+                                    .target()
+                                    .checked()
+                                    .standard_semantics()
+                                    .nominal(nocter_declarations::StandardDeclarationRole::AbortingAllocator)
+                    )
+                })
+        })
+    }));
+}
+
+#[test]
 fn lowers_opaque_results_with_their_specialized_witness() {
     let program = lower_fixture(
         "pub interface Show { pub method &self.show(): i32 }\n\

@@ -1,6 +1,7 @@
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, TypeId, TypeKind};
 
+use crate::validation_pack::validate_call_pack;
 use crate::{
     MirCall, MirCallAllocation, MirCallTarget, MirFunction, MirStructuralCall,
     MirValidationEnvironment, MirValidationError,
@@ -67,6 +68,7 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 self.validate_structural(structural, arguments)?;
             }
         }
+        validate_call_pack(self.environment, self.function, self.operation, call)?;
         Ok(())
     }
 

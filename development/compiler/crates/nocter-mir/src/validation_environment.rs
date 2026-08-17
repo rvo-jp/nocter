@@ -33,6 +33,9 @@ pub trait MirValidationEnvironment {
     fn parameter(&self, id: ParameterId) -> Option<&Parameter>;
     fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId>;
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout>;
+    fn closure_layout_for_type(&self, _ty: TypeId) -> Option<&ExecutableClosureLayout> {
+        None
+    }
     fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId>;
 }
 
@@ -124,6 +127,10 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
         self.closure_layout(item)
+    }
+
+    fn closure_layout_for_type(&self, ty: TypeId) -> Option<&ExecutableClosureLayout> {
+        self.closure_layout_for_type(ty)
     }
 
     fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId> {

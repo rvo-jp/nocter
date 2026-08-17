@@ -19,6 +19,7 @@ mod closure;
 mod collection_loop;
 mod comparison;
 mod control;
+mod destruction_plan;
 mod function;
 mod index_place;
 mod iteration;
@@ -30,6 +31,7 @@ mod outcome;
 mod pattern;
 mod place;
 mod region;
+mod sequence;
 mod string;
 mod value_storage;
 

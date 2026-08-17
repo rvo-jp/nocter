@@ -209,9 +209,8 @@ impl<'a> FunctionLowerer<'a> {
                 .lower_iterator_acquisition(node, ty, acquisition)
                 .map(Some),
             CheckedOperation::Control(control) => self.lower_control(node, control),
-            CheckedOperation::Place(_)
-            | CheckedOperation::Sequence(_)
-            | CheckedOperation::Interpolation(_) => {
+            CheckedOperation::Sequence(_) => self.lower_sequence(node, ty).map(Some),
+            CheckedOperation::Place(_) | CheckedOperation::Interpolation(_) => {
                 Err(MirLoweringError::UnsupportedOperation(node))
             }
         }?;

@@ -348,9 +348,12 @@ be introduced to make an unresolved syntax choice.
   advertised-interface evidence path.
   Sequence literal bodies use one dedicated `MirPackInput`, separate from ABI parameters.
   `PackLength` and consuming `PackNext` expose only the checked pack operations, and every returning
-  path ends in validator-required `DestroyPack` cleanup. Caller-side construction from the frozen
-  executable sequence plan remains unsupported until MIR can preserve source order, one-time spread
-  acquisition, and per-segment residual destruction without reconstructing semantic selection.
+  path ends in validator-required `DestroyPack` cleanup. Caller-side `MirPackArgument` construction
+  preserves allocation-before-elements evaluation, source order, one-time spread acquisition,
+  checked exact total length, selected `next` calls, and copy/direct contribution modes. Deferred
+  `MirDestructionPlan` recipes carry dense user drop items for unconsumed fixed values and iterator
+  suffixes. Per-function and cross-function validation close the pack operands, nested calls,
+  cleanup shapes, drop signatures, and hidden caller/callee schema.
   Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and

@@ -25,6 +25,7 @@ pub enum MirValidationError {
     },
     OrphanParameter(MirLocalId),
     InvalidPackInput(ExecutableItemId),
+    InvalidDestruction(TypeId),
     InvalidPlaceRoot {
         place: MirPlaceId,
     },

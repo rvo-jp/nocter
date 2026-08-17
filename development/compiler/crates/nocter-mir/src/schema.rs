@@ -3,31 +3,7 @@ use nocter_model::{
     MirValueId, TypeId, VariantId,
 };
 
-use crate::{MirLocal, MirOperation, MirPlace};
-
-/// The sole compiler-owned element pack accepted by a sequence-literal body.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MirPackInput {
-    element: TypeId,
-    next: TypeId,
-}
-
-impl MirPackInput {
-    #[must_use]
-    pub const fn new(element: TypeId, next: TypeId) -> Self {
-        Self { element, next }
-    }
-
-    #[must_use]
-    pub const fn element(self) -> TypeId {
-        self.element
-    }
-
-    #[must_use]
-    pub const fn next(self) -> TypeId {
-        self.next
-    }
-}
+use crate::{MirLocal, MirOperation, MirPackInput, MirPlace};
 
 /// One conditional-initialization bit associated with exact storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

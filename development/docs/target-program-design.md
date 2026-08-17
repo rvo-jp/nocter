@@ -225,9 +225,8 @@ parameter cannot become one ordinary element-typed input, a slice, a `Vec`, or a
 ABI. Executable construction must freeze the element type and the source-ordered fixed/spread
 producers as one compiler-owned pack plan. MIR must then materialize checked total length,
 single-acquisition spread state, per-element transfer, remaining-element cleanup, and the pack
-body's length and consuming-loop operations explicitly. A sequence call remains an honest MIR
-unsupported boundary until its caller-side pack state is materialized; it never lowers to a
-misleading ordinary call.
+body's length and consuming-loop operations explicitly. This entire lane is now represented
+without lowering to a misleading ordinary call.
 
 `ExecutableSignature` now separates its ordinary input list from one optional
 `ExecutablePackInput`. That pack input freezes the source `ParameterId`, specialized element type,
@@ -248,9 +247,25 @@ normal value operand. `DestroyPack` is effect-only and must be the final operati
 return. MIR validation compares the complete pack schema with the executable item, validates the
 optional payload, rejects pack operations in ordinary functions, and rejects any returning pack
 body that does not destroy its remaining state exactly once. Fallthrough, explicit return, and
-outcome propagation all use the same exit operation. Caller-side sequence materialization remains
-the next boundary: it must instantiate `ExecutableSequencePlan` without reconstructing dispatch or
-destruction from types.
+outcome propagation all use the same exit operation.
+
+Caller lowering instantiates each `ExecutableSequencePlan` as one `MirPackArgument`. It first
+resolves the call-scoped allocation place, then evaluates and acquires fixed and spread segments in
+source order. Only after every segment is prepared does it invoke each frozen readonly exact-size
+operation and combine the fixed count and dynamic counts with ordinary checked `usize` addition.
+Each spread then retains one readwrite receiver and exact `next` target; direct items and copied
+readonly items are separate contribution modes. The literal call has no ordinary pack arguments.
+It transfers the total, the source-ordered segment owners, and their consuming operations through
+the hidden pack lane.
+
+Cleanup which must run inside that transferred state uses `MirDestructionPlan`. This recursive
+schema replaces every user drop selection with its dense executable item before MIR and retains
+exact concrete fields, variants, array elements, optional/fallible payloads, closure captures, and
+opaque witnesses. The MIR validator checks the complete destruction shape and every nested item;
+the program validator checks each deferred user drop signature. It also validates nested spread
+calls and requires the caller's pack element/next pair to equal the callee's `MirPackInput`. Thus a
+missing pack, ordinary call masquerading as a literal call, or unresolved cleanup recipe cannot
+cross the MIR boundary.
 
 ## MIR Authority
 
@@ -301,9 +316,9 @@ diagnostic system.
    checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
    deterministic reachable item graph. **Complete.**
 7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
-8. Lower concrete checked bodies and cleanup schedules into MIR. Literal pack body input and
-   consumption are complete; caller-side pack materialization remains. Then materialize
-   compiler-owned process and test roots.
+8. Lower concrete checked bodies and cleanup schedules into MIR. Sequence pack construction,
+   transfer, body consumption, and residual destruction are complete. Interpolation remains; then
+   materialize compiler-owned process and test roots.
 
 The current end-to-end lowering slice covers concrete signatures, constants, primitive integer
 operations, aggregate construction, ordinary copy/move/borrow places, initialization and
