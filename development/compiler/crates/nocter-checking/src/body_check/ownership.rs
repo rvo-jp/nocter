@@ -6,6 +6,7 @@ use nocter_source_index::SourceOrigin;
 
 mod cleanup;
 mod outcomes;
+mod patterns;
 mod sequences;
 mod temporaries;
 
@@ -266,7 +267,13 @@ impl OwnershipAnalyzer<'_> {
                 self.visit_compound_assignment(node, *target, *value, state)
             }
             CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
-            CheckedControl::Match { .. } | CheckedControl::Region { .. } => {
+            CheckedControl::Pattern {
+                subject,
+                arms,
+                fallback,
+                unmatched,
+            } => self.visit_pattern(node, *subject, arms, *fallback, *unmatched, state),
+            CheckedControl::Region { .. } => {
                 Err(BodyCheckInternalError::UnsupportedOwnershipOperation(node).into())
             }
         }

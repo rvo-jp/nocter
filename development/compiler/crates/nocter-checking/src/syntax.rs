@@ -45,6 +45,23 @@ pub(crate) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
         .collect()
 }
 
+pub(crate) fn descendants(tree: &SyntaxTree, root: NodeId, expected: NodeKind) -> Vec<NodeId> {
+    let mut found = Vec::new();
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        if node != root && tree.node(node).is_some_and(|node| node.kind() == expected) {
+            found.push(node);
+            continue;
+        }
+        for child in tree.children(node).iter().rev() {
+            if let SyntaxElement::Node(child) = child {
+                pending.push(*child);
+            }
+        }
+    }
+    found
+}
+
 pub(crate) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()

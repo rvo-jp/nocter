@@ -18,7 +18,7 @@ use super::model::{
 use super::{NameResolutionError, NameResolutionInternalError, Projection};
 use crate::BodySource;
 use crate::syntax::{
-    direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
+    descendants, direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
     token_symbol, token_text,
 };
 
@@ -723,6 +723,14 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         for slot in descendants(self.tree(), pattern, NodeKind::PayloadSlot) {
             let token = direct_identifier(self.tree(), slot)
                 .ok_or(NameResolutionInternalError::InvalidSyntaxNode(slot))?;
+            if self.spelling(token_symbol(
+                self.input.sources(),
+                self.graph.symbols(),
+                token,
+            )?)? == "_"
+            {
+                continue;
+            }
             result.push(Introduction {
                 token,
                 kind: LocalBindingKind::PatternPayload,
@@ -891,23 +899,6 @@ fn descendant(
     expected: NodeKind,
 ) -> Option<NodeId> {
     descendants(tree, root, expected).into_iter().next()
-}
-
-fn descendants(tree: &nocter_syntax::SyntaxTree, root: NodeId, expected: NodeKind) -> Vec<NodeId> {
-    let mut found = Vec::new();
-    let mut pending = vec![root];
-    while let Some(node) = pending.pop() {
-        if node != root && tree.node(node).is_some_and(|node| node.kind() == expected) {
-            found.push(node);
-            continue;
-        }
-        for child in tree.children(node).iter().rev() {
-            if let SyntaxElement::Node(child) = child {
-                pending.push(*child);
-            }
-        }
-    }
-    found
 }
 
 const fn node_for_error(source: BodySource<'_>) -> NodeId {

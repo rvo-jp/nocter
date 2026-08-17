@@ -410,7 +410,9 @@ and control-transfer events; later lowering never derives timing from an operati
 actions retain only an owned
 root, exact field identities, type, and unconditional-or-conditional state; borrowed replacement
 actions retain an already evaluated place; discarded owned temporaries name their checked value
-node. MIR expands those semantic targets into control-flow cleanup blocks and structural drop glue
+node. An enum-pattern residual action identifies the evaluated subject, selected `VariantId`,
+specialized enum type, and exact still-initialized payload parameters. MIR expands those semantic
+targets into control-flow cleanup blocks and structural drop glue
 without inferring execution order from a control-operation variant.
 Explicit source `drop` is a checked control operation over the same owned root path. It attaches an
 unconditional action to that statement's outgoing edge and consumes the path state; it does not
@@ -440,6 +442,29 @@ commit consumes them into the callee or aggregate. Borrowed receiver and compari
 remain live to the statement boundary. A value created on only one reachable branch joins as
 conditionally initialized, so the statement-end event emits one conditional action rather than
 duplicating branch-specific lifetime logic.
+
+`if is` and `match` share one enum-pattern control operation. The subject records whether it is a
+retained place, an explicitly consumed place, a newly produced owned temporary, or a readonly or
+readwrite borrow. Each explicit arm records one exact `VariantId` and one positional slot for every
+payload `ParameterId`; a slot either names its branch-local `LocalBindingId` or retains `_` as no
+binding. The checker specializes payload types from the subject's canonical nominal arguments.
+Retained places may bind only copyable payloads. Borrowed subjects bind every name as a borrow with
+the subject capability. The control node separately records an explicit fallback and the implicit
+non-match edge of `if is` without `else`, so MIR never reconstructs coverage from arm count.
+
+Owned pattern subjects enter arm-specific residual storage. Named payloads transfer their drop
+obligations to branch locals, while unnamed move-only payloads stay in an `EnumResidual` cleanup
+target. Fallback and implicit non-match edges retain the complete active enum. Residual identity is
+separate from value-temporary identity, allowing mutually exclusive arms to join as independent
+conditional cleanups. Early `return` and postfix propagation see the same residual state as normal
+statement completion. A source fallback after exhaustive explicit arms is fully checked but is
+excluded from runtime state and enclosing-loop joins.
+
+When a selected enum family owns a drop body, a pattern that transfers a move-only payload stores
+that exact `DropId` as a before-transfer operation. The drop body therefore observes complete
+`Self` once, before the payload leaves, and residual cleanup cannot call it again on partial
+storage. If every named payload is copyable, the pattern copies those bindings and retains the
+complete enum for ordinary value cleanup instead.
 
 Generic inference may project a statically known expected outcome shape to collect payload
 constraints. It completes the unique substitution before checked injection nodes are built.

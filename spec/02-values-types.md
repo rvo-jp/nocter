@@ -1060,6 +1060,14 @@ Rules:
   fields are dropped by the ordinary statement-temporary rules after the selected arm is evaluated,
   or by early-exit cleanup if the arm exits the statement. No field of a consumed enum is dropped
   twice.
+- If an owned enum has a type-owned drop declaration and an explicit arm transfers any named
+  move-only payload, the drop body observes the complete enum exactly once after tag selection and
+  before any payload leaves pattern-operation storage. The residual cleanup later drops only
+  unnamed initialized payload fields and does not call the type-owned drop body again.
+- If such an arm binds only copyable payloads, those bindings copy their values and the complete
+  enum remains in pattern-operation storage. Its ordinary residual cleanup invokes the type-owned
+  drop body and then drops the active payload. Fallback and implicit non-match paths likewise keep
+  the complete enum until ordinary cleanup.
 - Enum cleanup reads the active tag and drops only initialized fields of that variant. Fields drop
   in reverse payload declaration order and recursively use the same struct, enum, fixed-array, and
   outcome cleanup rules. Fixed-array elements drop in reverse index order.

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
-use nocter_model::BodyNodeId;
-
 use crate::body_check::error::BodyCheckInternalError;
-use crate::ownership::{InitializationState, OwnershipState};
+use crate::ownership::{InitializationState, OwnershipState, TemporaryIdentity};
 use crate::{CleanupAction, CleanupCondition};
 
 /// Owns the identity, creation order, and flow-dependent liveness of evaluated temporaries.
@@ -13,30 +11,30 @@ use crate::{CleanupAction, CleanupCondition};
 /// a parallel control-flow analysis.
 #[derive(Default)]
 pub(super) struct TemporaryPlanner {
-    actions: HashMap<BodyNodeId, CleanupAction>,
-    order: Vec<BodyNodeId>,
+    actions: HashMap<TemporaryIdentity, CleanupAction>,
+    order: Vec<TemporaryIdentity>,
 }
 
 impl TemporaryPlanner {
     pub(super) fn activate(
         &mut self,
-        node: BodyNodeId,
+        identity: TemporaryIdentity,
         action: Option<CleanupAction>,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckInternalError> {
         let Some(action) = action else {
             return Ok(false);
         };
-        if let Some(existing) = self.actions.get(&node) {
+        if let Some(existing) = self.actions.get(&identity) {
             if existing != &action {
                 return Err(BodyCheckInternalError::CleanupPlanning);
             }
         } else {
-            self.actions.insert(node, action);
-            self.order.push(node);
+            self.actions.insert(identity, action);
+            self.order.push(identity);
         }
         state
-            .declare_temporary(node)
+            .declare_temporary(identity)
             .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         Ok(true)
     }
@@ -44,7 +42,7 @@ impl TemporaryPlanner {
     pub(super) fn cleanup_actions(
         &self,
         state: &OwnershipState,
-        retained: &[BodyNodeId],
+        retained: &[TemporaryIdentity],
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
         self.order
             .iter()

@@ -25,6 +25,8 @@ pub enum BodyRule {
     InvalidCall,
     InvalidConstruction,
     InvalidOutcomeOperation,
+    InvalidPatternOperation,
+    InvalidMatchCoverage,
 }
 
 impl BodyRule {
@@ -51,6 +53,8 @@ impl BodyRule {
         Self::InvalidCall,
         Self::InvalidConstruction,
         Self::InvalidOutcomeOperation,
+        Self::InvalidPatternOperation,
+        Self::InvalidMatchCoverage,
     ];
 
     #[must_use]
@@ -78,6 +82,8 @@ impl BodyRule {
             Self::InvalidCall => "E0390",
             Self::InvalidConstruction => "E0391",
             Self::InvalidOutcomeOperation => "E0392",
+            Self::InvalidPatternOperation => "E0393",
+            Self::InvalidMatchCoverage => "E0394",
         }
     }
 
@@ -178,6 +184,14 @@ impl BodyRule {
             Self::InvalidOutcomeOperation => (
                 "this outcome operation is incompatible with its operand or enclosing callable",
                 "use `?`, `!`, `catch`, or `otherwise` with the matching optional or fallible layer",
+            ),
+            Self::InvalidPatternOperation => (
+                "this enum pattern is incompatible with its target or payload bindings",
+                "use the target enum's exact qualifier and variant with one slot per payload field",
+            ),
+            Self::InvalidMatchCoverage => (
+                "match arms do not form one complete, unambiguous enum partition",
+                "cover every variant exactly once or end the match with one `_` fallback arm",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))

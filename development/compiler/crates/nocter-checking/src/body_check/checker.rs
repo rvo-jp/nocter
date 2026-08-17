@@ -46,6 +46,7 @@ mod loops;
 mod methods;
 mod operators;
 mod outcomes;
+mod patterns;
 mod place;
 mod type_uses;
 mod value_planning;
@@ -67,6 +68,12 @@ struct CheckedExecutable {
     node: BodyNodeId,
     result: bool,
     reaches_next: bool,
+}
+
+struct CheckedIfBranches {
+    then_branch: BodyNodeId,
+    else_branch: Option<BodyNodeId>,
+    ty: TypeId,
 }
 
 #[derive(Clone, Copy)]
@@ -567,6 +574,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
                 NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
                 NodeKind::IfExpression => return self.check_if(current, expected),
+                NodeKind::MatchExpression => return self.check_match(current, expected),
                 NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
                     return self.check_arithmetic(current, expected);
                 }
@@ -619,17 +627,33 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     ) -> Result<BodyNodeId, BodyCheckError> {
         let condition = self.required_child(node, NodeKind::IfCondition)?;
         if direct_child(self.tree(), condition, NodeKind::EnumPattern).is_some() {
-            return Err(BodyCheckInternalError::UnsupportedSyntax(
-                condition,
-                NodeKind::EnumPattern,
-            )
-            .into());
+            return self.check_pattern_if(node, condition, expected);
         }
         let condition_expression = self.required_child(condition, NodeKind::Expression)?;
         let condition = self.check_expression(
             condition_expression,
             Some(self.types.builtin(BuiltinType::Bool)),
         )?;
+        let branches = self.check_if_branches(node, expected)?;
+        let checked = self.add_node(
+            node,
+            branches.ty,
+            CheckedOperation::Control(CheckedControl::If {
+                condition,
+                then_branch: branches.then_branch,
+                else_branch: branches.else_branch,
+            }),
+        )?;
+        expected.map_or(Ok(checked), |expected| {
+            self.apply_expected(node, checked, expected)
+        })
+    }
+
+    fn check_if_branches(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<CheckedIfBranches, BodyCheckError> {
         let then_syntax = self.required_child(node, NodeKind::Block)?;
         let else_syntax = direct_child(self.tree(), node, NodeKind::ElseClause);
         let then_expectation = if else_syntax.is_some() {
@@ -663,17 +687,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             Some(else_type) if then_type == never => else_type,
             Some(_) => then_type,
         };
-        let checked = self.add_node(
-            node,
+        Ok(CheckedIfBranches {
+            then_branch,
+            else_branch,
             ty,
-            CheckedOperation::Control(CheckedControl::If {
-                condition,
-                then_branch,
-                else_branch,
-            }),
-        )?;
-        expected.map_or(Ok(checked), |expected| {
-            self.apply_expected(node, checked, expected)
         })
     }
 

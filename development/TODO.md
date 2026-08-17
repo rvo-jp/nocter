@@ -2,19 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 with enum pattern control (`if is` and `match`) on the closed checked body
-model, then add the common loan/provenance authority needed by closures and temporary-borrow escape.
+Continue v0.14.0 Phase 3 with the common loan/provenance authority needed by closures, borrowed
+enum payloads, and temporary-borrow escape, then use it to close closure expressions.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Add one pattern plan shared by `if is` and `match`, including target preparation, variant
-   identity, payload bindings/discards, exhaustiveness, and branch-local ownership.
-2. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
+1. Infer callable result provenance and reject receiver-derived borrows that outlive temporary
    receivers through the common loan/provenance authority.
-3. Complete typed literals, interpolation, and closures only through the same expected-type,
+2. Complete closures through that authority, including explicit captures and callable capability.
+3. Complete typed literals and interpolation only through the same expected-type,
    temporary-flow, and cleanup authorities already used by ordinary values.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
@@ -55,8 +54,8 @@ for the current vertical body slice: scalar literals, inferred locals, parameter
 places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
 injection and elimination, `catch`/`otherwise` recovery, ordinary conditionals,
 while/infinite/integer-range loops, calls and receiver methods, named construction functions,
-named-field struct/enum construction, and fixed arrays. Every typed node receives
-an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
+named-field struct/enum construction, fixed arrays, and enum pattern control. Every typed node
+receives an exact `BodyNodeId` source projection, and no partial program escapes an unsupported construct or
 failed rule. `CopyabilityTable` collects normalized `copy`
 proof identities once, memoizes structural outcome/array/borrow/enum and substituted `copy struct`
 facts by canonical `TypeId`, closes over the final type store, and remains owned by
@@ -68,8 +67,16 @@ index for `construct` declarations and remains in the final checked program for 
 queries. Construction calls resolve unqualified or qualified semantic owners, enforce member
 visibility, project the exact member identity, infer omitted owner arguments, accept only complete
 explicit owner arguments, combine owner and callable generics by identity, and validate both the
-callable and specialized nominal requirements through the common proof authority. Whole-binding
-state now tracks parameter and local move
+callable and specialized nominal requirements through the common proof authority. One enum-only
+pattern plan serves both `if is` and `match`. It freezes the target's retained-place,
+consumed-place, owned-temporary, or borrowed preparation; exact nominal and variant identity;
+positional parameter-to-local binding map; fallback reachability; and unmatched `if is` path.
+Coverage rejects duplicate variants, missing variants, and non-final fallbacks. Payload binding
+types are specialized from the subject's nominal arguments. Retained places may name only copyable
+payloads, while borrowed subjects bind every named payload with the subject borrow capability.
+When a type-owned drop body must run before a move-only payload leaves, the pattern freezes its
+exact `DropId`; copy-only bindings retain the complete enum for ordinary value cleanup instead.
+Whole-binding state now tracks parameter and local move
 paths, emits exact `Move` nodes, rejects moves of copy values and borrow bindings, and reports
 later uses through `E0376`-`E0378`. Statically named fields now resolve through one visibility-aware
 selector that substitutes the nominal owner's generic arguments and projects the exact field
@@ -77,27 +84,34 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Typed binding annotations, expansion operators, pattern conditionals, `match`,
-collection iteration, regions, closures, typed literals, and interpolation remain incomplete.
+branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
+closures, typed literals, and interpolation remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
-that immutable graph. Ordinary `if` and `else if` join only reachable branch exits. While,
-infinite, and integer-range loops use exact `LoopId` targets and a conservative header fixed point;
+that immutable graph. Ordinary `if`, `if is`, `match`, and `else if` join only reachable branch
+exits. While, infinite, and integer-range loops use exact `LoopId` targets and a conservative
+header fixed point;
 zero-iteration exits, `break`, `continue`, and body backedges cannot leak loop-local paths. Range
 endpoints are evaluated once before iteration and the typed loop binding is initialized per
 iteration. A repeated move is therefore rejected without rebuilding HIR or allocating different
 semantic identities on an analysis pass. Unreachable source after a terminal remains under an
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
-checked but creates no flow-dependent initialization continuation. Pattern conditionals,
-`match`, collection iteration, regions, closures, typed literals, interpolation, loans, and
+checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
+explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
+edge. Collection iteration, regions, closures, typed literals, interpolation, loans, and
 provenance remain incomplete.
 
 Every checked block now retains its exact `BodyScopeId`; name resolution passes that identity
 directly into HIR instead of requiring a later syntax or source-index reverse lookup. Ownership
 analysis materializes one dense `CleanupTable` keyed by the checked node that owns each scheduled
 event. A node may own independent pre-store, statement-end, control-header, propagation, and
-control-transfer events; no node kind is asked to imply timing. Normal block exits, `return`,
+control-transfer events; no node kind is asked to imply timing. Pattern residual storage has an
+identity distinct from its subject value and from every other arm. Named owned payloads transfer
+their obligations to branch locals; only unnamed move-only payload fields remain in the residual
+action. A fallback retains the complete active enum. Branch joins make mutually exclusive
+residuals conditional, and normal statement, `return`, and postfix-propagation edges consume the
+same temporary authority without double drop. Normal block exits, `return`,
 `break`, and `continue` all derive cleanup from the same
 field-sensitive initialization state. Actions preserve reverse declaration order, distinguish
 unconditional from maybe-initialized destruction, omit moved roots and non-owning borrows, expand a

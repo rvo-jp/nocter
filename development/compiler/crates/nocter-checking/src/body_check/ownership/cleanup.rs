@@ -1,13 +1,13 @@
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{BodyScopeId, PlaceId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BodyNodeId, BodyScopeId, ParameterId, PlaceId, TypeId, TypeKind, TypeStore};
 
 use super::super::error::BodyCheckInternalError;
 use crate::copyability::{Copyability, CopyabilityTable};
 use crate::ownership::{InitializationState, MovePath, OwnershipState, initialized_body_roots};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    BodySource, CheckedBody, CleanupAction, CleanupCondition, CleanupPath, CleanupTarget,
-    DropTable, PlaceRoot,
+    BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition, CleanupPath,
+    CleanupTarget, DropTable, PlaceRoot,
 };
 
 pub(super) struct CleanupPlanner<'program> {
@@ -85,6 +85,91 @@ impl<'program> CleanupPlanner<'program> {
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
         Ok(self.needs_cleanup(ty)?.then(|| {
             CleanupAction::new(CleanupTarget::Value { node, ty }, CleanupCondition::Always)
+        }))
+    }
+
+    pub(super) fn enum_residual_action(
+        &mut self,
+        subject: BodyNodeId,
+        ty: TypeId,
+        pattern: &CheckedPattern,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        let (definition, arguments) = match self.types.get(ty).cloned() {
+            Some(TypeKind::Nominal {
+                definition,
+                arguments,
+            }) => (definition, arguments),
+            Some(_) => return Err(BodyCheckInternalError::CleanupPlanning),
+            None => return Err(BodyCheckInternalError::UnknownType(ty)),
+        };
+        let variant = self
+            .graph
+            .declarations()
+            .variants()
+            .get(pattern.variant())
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        if variant.owner() != definition {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        let owner_drop = self.drops.get(definition);
+        if let Some(drop) = pattern.before_transfer_drop() {
+            if owner_drop != Some(drop) {
+                return Err(BodyCheckInternalError::CleanupPlanning);
+            }
+        } else if owner_drop.is_some() {
+            return self.value_action(subject, ty);
+        }
+        let nominal = self
+            .graph
+            .declarations()
+            .nominal_types()
+            .get(definition)
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        if nominal.generic_parameters().len() != arguments.len()
+            || variant.payload().len() != pattern.slots().len()
+        {
+            return Err(BodyCheckInternalError::CleanupPlanning);
+        }
+        let mut substitution = TypeSubstitution::default();
+        for (parameter, argument) in nominal
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+        {
+            substitution.bind_generic(parameter, argument);
+        }
+        let mut payload = Vec::<ParameterId>::new();
+        for (declared, slot) in variant.payload().iter().copied().zip(pattern.slots()) {
+            if declared != slot.parameter() {
+                return Err(BodyCheckInternalError::CleanupPlanning);
+            }
+            if slot.binding().is_some() {
+                continue;
+            }
+            let parameter = self
+                .graph
+                .declarations()
+                .parameters()
+                .get(declared)
+                .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+            let field_ty = substitution
+                .apply_type(self.types, parameter.ty())
+                .map_err(|_| BodyCheckInternalError::CleanupPlanning)?;
+            if self.needs_cleanup(field_ty)? {
+                payload.push(declared);
+            }
+        }
+        Ok((!payload.is_empty()).then(|| {
+            CleanupAction::new(
+                CleanupTarget::EnumResidual {
+                    subject,
+                    variant: pattern.variant(),
+                    payload: payload.into_boxed_slice(),
+                    ty,
+                },
+                CleanupCondition::Always,
+            )
         }))
     }
 

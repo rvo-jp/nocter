@@ -297,6 +297,10 @@ Rules:
   fields in reverse declaration order. Payload-bearing enum drop glue invokes the enum's own drop
   declaration first when present, then drops only the active variant payload in reverse payload
   declaration order. Field and payload drop glue follows the same rule recursively.
+- Consuming enum patterns preserve this ordering through their dedicated rule in
+  [Enums and Variant Construction](02-values-types.md#enums-and-variant-construction): a drop body
+  that would otherwise receive partial storage runs once before a named move-only payload leaves,
+  while later residual cleanup drops only the still-initialized payload fields.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
 - `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.

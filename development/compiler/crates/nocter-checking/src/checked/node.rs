@@ -1,6 +1,6 @@
 use nocter_model::{
-    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId, FieldId,
-    LocalBindingId, LoopId, NominalTypeId, PlaceId, TypeId, VariantId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CallableId, CaptureId, DropId,
+    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
 };
 
 use crate::expected::OutcomeLayer;
@@ -593,26 +593,121 @@ impl CheckedInterpolation {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CheckedPattern {
-    Variant {
-        variant: VariantId,
-        payload: Box<[LocalBindingId]>,
-    },
-    OptionalPresent(LocalBindingId),
-    OptionalAbsent,
-    FallibleSuccess(LocalBindingId),
-    FallibleFailure(LocalBindingId),
-    Wildcard,
+/// How one checked enum value supplies tag inspection and payload bindings.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PatternSubjectPreparation {
+    OwnedTemporary,
+    RetainedPlace,
+    ConsumedPlace,
+    Borrowed(BorrowCapability),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckedPatternSubject {
+    value: BodyNodeId,
+    nominal: NominalTypeId,
+    preparation: PatternSubjectPreparation,
+}
+
+impl CheckedPatternSubject {
+    pub(crate) const fn new(
+        value: BodyNodeId,
+        nominal: NominalTypeId,
+        preparation: PatternSubjectPreparation,
+    ) -> Self {
+        Self {
+            value,
+            nominal,
+            preparation,
+        }
+    }
+
+    #[must_use]
+    pub const fn value(self) -> BodyNodeId {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn nominal(self) -> NominalTypeId {
+        self.nominal
+    }
+
+    #[must_use]
+    pub const fn preparation(self) -> PatternSubjectPreparation {
+        self.preparation
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckedPatternSlot {
+    parameter: ParameterId,
+    binding: Option<LocalBindingId>,
+}
+
+impl CheckedPatternSlot {
+    pub(crate) const fn new(parameter: ParameterId, binding: Option<LocalBindingId>) -> Self {
+        Self { parameter, binding }
+    }
+
+    #[must_use]
+    pub const fn parameter(self) -> ParameterId {
+        self.parameter
+    }
+
+    #[must_use]
+    pub const fn binding(self) -> Option<LocalBindingId> {
+        self.binding
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedMatchArm {
+pub struct CheckedPattern {
+    variant: VariantId,
+    slots: Box<[CheckedPatternSlot]>,
+    before_transfer_drop: Option<DropId>,
+}
+
+impl CheckedPattern {
+    pub(crate) fn new(
+        variant: VariantId,
+        slots: impl Into<Box<[CheckedPatternSlot]>>,
+        before_transfer_drop: Option<DropId>,
+    ) -> Self {
+        Self {
+            variant,
+            slots: slots.into(),
+            before_transfer_drop,
+        }
+    }
+
+    #[must_use]
+    pub const fn variant(&self) -> VariantId {
+        self.variant
+    }
+
+    #[must_use]
+    pub const fn slots(&self) -> &[CheckedPatternSlot] {
+        &self.slots
+    }
+
+    /// The type-owned drop body that observes complete `Self` before move-only payload transfer.
+    #[must_use]
+    pub const fn before_transfer_drop(&self) -> Option<DropId> {
+        self.before_transfer_drop
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedPatternArm {
     pattern: CheckedPattern,
     body: BodyNodeId,
 }
 
-impl CheckedMatchArm {
+impl CheckedPatternArm {
+    pub(crate) const fn new(pattern: CheckedPattern, body: BodyNodeId) -> Self {
+        Self { pattern, body }
+    }
+
     #[must_use]
     pub const fn pattern(&self) -> &CheckedPattern {
         &self.pattern
@@ -621,6 +716,28 @@ impl CheckedMatchArm {
     #[must_use]
     pub const fn body(&self) -> BodyNodeId {
         self.body
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckedPatternFallback {
+    body: BodyNodeId,
+    reachable: bool,
+}
+
+impl CheckedPatternFallback {
+    pub(crate) const fn new(body: BodyNodeId, reachable: bool) -> Self {
+        Self { body, reachable }
+    }
+
+    #[must_use]
+    pub const fn body(self) -> BodyNodeId {
+        self.body
+    }
+
+    #[must_use]
+    pub const fn reachable(self) -> bool {
+        self.reachable
     }
 }
 
@@ -700,9 +817,12 @@ pub enum CheckedControl {
         left: BodyNodeId,
         right: BodyNodeId,
     },
-    Match {
-        subject: BodyNodeId,
-        arms: Box<[CheckedMatchArm]>,
+    Pattern {
+        subject: CheckedPatternSubject,
+        arms: Box<[CheckedPatternArm]>,
+        fallback: Option<CheckedPatternFallback>,
+        /// A source-level non-match path exists without an explicit body (`if is` without else).
+        unmatched: bool,
     },
     Loop(LoopId),
     Region {

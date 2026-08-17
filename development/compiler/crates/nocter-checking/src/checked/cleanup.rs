@@ -1,4 +1,4 @@
-use nocter_model::{Arena, BodyNodeId, FieldId, PlaceId, TypeId};
+use nocter_model::{Arena, BodyNodeId, FieldId, ParameterId, PlaceId, TypeId, VariantId};
 
 use super::PlaceRoot;
 
@@ -44,8 +44,21 @@ impl CleanupPath {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CleanupTarget {
     Path(CleanupPath),
-    Place { place: PlaceId, ty: TypeId },
-    Value { node: BodyNodeId, ty: TypeId },
+    Place {
+        place: PlaceId,
+        ty: TypeId,
+    },
+    Value {
+        node: BodyNodeId,
+        ty: TypeId,
+    },
+    /// The still-initialized payload fields left after an owned enum pattern transfers bindings.
+    EnumResidual {
+        subject: BodyNodeId,
+        variant: VariantId,
+        payload: Box<[ParameterId]>,
+        ty: TypeId,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

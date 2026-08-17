@@ -273,8 +273,22 @@ header state stabilizes. It then joins only reachable `break` exits plus the fal
 for `while` and integer ranges. Entry-relative joining filters the per-iteration binding. Range
 endpoints execute once, left-to-right, before the preheader; their typed immutable binding becomes
 initialized only on the body edge. A nonbreaking infinite loop has no continuation, while an
-unreachable `break` does not change its `never` result. Collection iteration, pattern
-conditionals, and `match` remain subsequent increments.
+unreachable `break` does not change its `never` result. Collection iteration remains a subsequent
+increment.
+
+Enum pattern control has one checked representation for `if is` and `match`. A subject freezes its
+exact enum family and retained-place, consumed-place, owned-temporary, or borrowed preparation.
+Each arm stores one `VariantId`, the declared `ParameterId` of every positional payload slot, an
+optional branch-local binding for that slot, and its checked body. Fallback reachability and an
+implicit unmatched edge are explicit facts. Coverage, exact qualifier and variant selection,
+payload arity, generic specialization, and branch result compatibility are therefore complete
+before ownership analysis begins.
+
+An owned pattern that transfers a move-only payload from an enum with a type-owned drop body also
+freezes that exact `DropId` as a pre-transfer operation. MIR must call it while `Self` is complete.
+The later residual action contains only unnamed initialized payload fields and cannot invoke the
+drop body twice. When all named payloads are copyable, the complete enum instead remains a normal
+value cleanup target.
 
 The same ownership walk materializes cleanup after each operation reaches its final abstract
 state. Normal block fallthrough removes that block's locals. `return` removes active scopes from
@@ -289,7 +303,8 @@ the consumed value node itself, so cleanup does not invent a hidden local or los
 value.
 
 Temporary liveness is part of `OwnershipState`, not a second expression walker. The body-wide
-temporary catalog retains one checked value identity, cleanup action, and creation order; branch
+temporary catalog retains one semantic temporary identity, cleanup action, and creation order;
+ordinary values and arm-specific enum residuals occupy distinct identity variants. Branch
 joins combine only its initialized state. Callables, owned receivers, arguments, and aggregate
 children are activated while their enclosing sequence is incomplete and consumed when it commits.
 Borrowed temporary receivers and comparison operands remain active until the enclosing statement
@@ -297,6 +312,12 @@ or boolean control header ends. Statement and control-header boundaries clean on
 created below their entry snapshot, preserving temporaries owned by an enclosing expression.
 Branch-only values therefore become `IfInitialized` actions, and reverse catalog order implements
 reverse runtime creation order without adding hidden locals.
+
+For an owned enum subject, pattern selection transfers every named payload obligation to its local
+and leaves each unnamed move-only payload in an arm-specific `EnumResidual`. A fallback or implicit
+non-match path retains the complete active enum. The ordinary flow join makes mutually exclusive
+residuals conditional. Statement completion, return, and postfix propagation then use the common
+temporary cleanup query; no pattern-only early-exit walker or whole-value double drop exists.
 
 Simple assignment owns one destination place and one RHS node. Construction accepts a complete
 `var` binding, a statically named field below it, a built-in fixed-array index below writable owned
@@ -447,7 +468,8 @@ place-borrow, temporary-borrow, preserved-borrow, or weakened-borrow preparation
 checked receiver coercion retains its static selection and whether its result borrow is preserved
 or weakened for the selected method. Owned methods freeze a copy or move node immediately;
 lowering and ownership analysis never reconstruct receiver semantics from syntax or callable
-spelling. Closure-expression, temporary-loan escape, and result-provenance passes remain
+spelling. Closure-expression, borrowed-pattern escape, temporary-loan escape, and
+result-provenance passes remain
 subsequent increments rather than alternate paths inside call checking.
 
 Explicit `drop name` reuses the root-place constructor and the cleanup planner. Construction

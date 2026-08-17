@@ -40,6 +40,8 @@ mod operator_tests;
 #[cfg(test)]
 mod outcome_tests;
 #[cfg(test)]
+mod pattern_tests;
+#[cfg(test)]
 mod place_tests;
 
 pub use diagnostic::BodyRule;

@@ -4,6 +4,13 @@ use nocter_model::{BodyNodeId, FieldId};
 
 use crate::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) enum TemporaryIdentity {
+    Value(BodyNodeId),
+    PatternResidual(BodyNodeId),
+    PatternUnmatched(BodyNodeId),
+}
+
 /// Canonical storage path used by ownership transfer and dataflow.
 ///
 /// Only named fields may extend a root. Indexes and dereferences never enter this identity.
@@ -105,7 +112,7 @@ impl InitializationState {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct OwnershipState {
     paths: BTreeMap<MovePath, InitializationState>,
-    temporaries: BTreeMap<BodyNodeId, InitializationState>,
+    temporaries: BTreeMap<TemporaryIdentity, InitializationState>,
 }
 
 impl OwnershipState {
@@ -245,7 +252,7 @@ impl OwnershipState {
 
     pub(crate) fn declare_temporary(
         &mut self,
-        temporary: BodyNodeId,
+        temporary: TemporaryIdentity,
     ) -> Result<(), OwnershipStateError> {
         if self
             .temporaries
@@ -259,7 +266,7 @@ impl OwnershipState {
 
     pub(crate) fn consume_temporary(
         &mut self,
-        temporary: BodyNodeId,
+        temporary: TemporaryIdentity,
     ) -> Result<(), OwnershipStateError> {
         match self.temporaries.remove(&temporary) {
             Some(InitializationState::Initialized) => Ok(()),
@@ -268,18 +275,21 @@ impl OwnershipState {
         }
     }
 
-    pub(crate) fn temporary_initialization(&self, temporary: BodyNodeId) -> InitializationState {
+    pub(crate) fn temporary_initialization(
+        &self,
+        temporary: TemporaryIdentity,
+    ) -> InitializationState {
         self.temporaries
             .get(&temporary)
             .copied()
             .unwrap_or(InitializationState::Uninitialized)
     }
 
-    pub(crate) fn temporary_identities(&self) -> Vec<BodyNodeId> {
+    pub(crate) fn temporary_identities(&self) -> Vec<TemporaryIdentity> {
         self.temporaries.keys().copied().collect()
     }
 
-    pub(crate) fn forget_temporaries_except(&mut self, retained: &[BodyNodeId]) {
+    pub(crate) fn forget_temporaries_except(&mut self, retained: &[TemporaryIdentity]) {
         self.temporaries
             .retain(|temporary, _| retained.binary_search(temporary).is_ok());
     }
@@ -318,15 +328,17 @@ pub(crate) enum OwnershipStateError {
         path: MovePath,
         state: InitializationState,
     },
-    DuplicateTemporary(BodyNodeId),
-    UnavailableTemporary(BodyNodeId),
+    DuplicateTemporary(TemporaryIdentity),
+    UnavailableTemporary(TemporaryIdentity),
 }
 
 #[cfg(test)]
 mod tests {
     use nocter_model::{ArenaBuilder, BodyNodeId, FieldId, LocalBindingId};
 
-    use super::{InitializationState, MovePath, OwnershipState, OwnershipStateError};
+    use super::{
+        InitializationState, MovePath, OwnershipState, OwnershipStateError, TemporaryIdentity,
+    };
     use crate::PlaceRoot;
 
     fn local_path() -> MovePath {
@@ -379,6 +391,7 @@ mod tests {
         let _ = nodes.finish();
         let entry = OwnershipState::default();
         let mut branch = entry.clone();
+        let temporary = TemporaryIdentity::Value(temporary);
         branch.declare_temporary(temporary).unwrap();
         let joined = entry.join_reachable(&[entry.clone(), branch]).unwrap();
 

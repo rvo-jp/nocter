@@ -713,7 +713,7 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))
     }
 
-    fn project_exported(
+    pub(super) fn project_exported(
         &mut self,
         token: SyntaxToken,
         entity: ExportedEntity,

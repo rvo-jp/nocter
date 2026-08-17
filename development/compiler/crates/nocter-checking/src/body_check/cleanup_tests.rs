@@ -40,7 +40,9 @@ fn return_cleanup_reverses_locals_then_owned_parameters() {
         .iter()
         .map(|action| match action.target() {
             CleanupTarget::Path(path) => path.root(),
-            CleanupTarget::Place { .. } | CleanupTarget::Value { .. } => {
+            CleanupTarget::Place { .. }
+            | CleanupTarget::Value { .. }
+            | CleanupTarget::EnumResidual { .. } => {
                 panic!("scope cleanup must target an owned path")
             }
         })

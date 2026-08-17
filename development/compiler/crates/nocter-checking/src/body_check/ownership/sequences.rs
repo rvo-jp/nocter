@@ -2,7 +2,7 @@ use nocter_model::{BodyNodeId, CallableCapability};
 
 use super::OwnershipAnalyzer;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::ownership::OwnershipState;
+use crate::ownership::{OwnershipState, TemporaryIdentity};
 use crate::{CallTarget, CheckedCall, CheckedOperation, CleanupAction, ReceiverPreparation};
 
 impl OwnershipAnalyzer<'_> {
@@ -68,7 +68,7 @@ impl OwnershipAnalyzer<'_> {
         }
         for temporary in staged {
             state
-                .consume_temporary(temporary)
+                .consume_temporary(TemporaryIdentity::Value(temporary))
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         }
         Ok(true)
@@ -90,7 +90,7 @@ impl OwnershipAnalyzer<'_> {
         }
         for temporary in staged {
             state
-                .consume_temporary(temporary)
+                .consume_temporary(TemporaryIdentity::Value(temporary))
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         }
         Ok(true)
@@ -128,13 +128,14 @@ impl OwnershipAnalyzer<'_> {
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?;
         let action = self.value_cleanup(node, checked.ty())?;
-        self.temporaries.activate(node, action, state)
+        self.temporaries
+            .activate(TemporaryIdentity::Value(node), action, state)
     }
 
     pub(super) fn temporary_cleanup_actions(
         &self,
         state: &OwnershipState,
-        retained: &[BodyNodeId],
+        retained: &[TemporaryIdentity],
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
         self.temporaries.cleanup_actions(state, retained)
     }
