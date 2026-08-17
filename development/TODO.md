@@ -14,8 +14,8 @@ implementation input.
    value-producing branches, concrete closures, direct/primitive calls, receiver and operand
    coercions, borrow conversions, comparisons, selected/coerced index places, outcome CFG,
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, all loop forms, enum patterns, and lexical regions to indirect callable values,
-   typed sequences, strings, interpolation, and opaque witnesses. Never repeat requirement,
+   assignment, all loop forms, enum patterns, lexical regions, and callable-bound closure values
+   to typed sequences, strings, interpolation, and opaque witnesses. Never repeat requirement,
    conformance, layout, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
@@ -81,9 +81,10 @@ matching.
 `ExecutableProgram` now owns the deterministic reachable closure. Callable, closure, drop, and test
 keys enter one key-ordered work set; dense `ExecutableItemId` values are assigned only after the
 set closes. Each concrete body freezes direct item IDs, typed standard/structural primitives,
-indirect callable contracts, nested closure and exact drop edges, source-to-concrete type mappings,
-and representation-specific cleanup glue. Bodyless callables are accepted only through the closed
-toolchain primitive registry. Process and test roots remain compiler metadata, while test cases
+statically specialized callable-value invocations, nested closure and exact drop edges,
+source-to-concrete type mappings, and representation-specific cleanup glue. Bodyless callables are
+accepted only through the closed toolchain primitive registry. Process and test roots remain
+compiler metadata, while test cases
 retain declaration order. Enum residual cleanup is not collapsed to its nominal type: it excludes
 the already-run owner drop and every transferred payload.
 Every executable item also freezes its complete concrete runtime signature independently of body
@@ -127,6 +128,13 @@ body places reify the hidden environment borrow, capture field, and stored captu
 projections; owned capture moves and recursive destruction use those same projections and cleanup
 flags. Each executable body also freezes its deterministic reachable node domain, preventing an
 outer function from preparing cleanup state for nested closure nodes that share its `CheckedBody`.
+Callable bounds remain compile-time structural evidence rather than an erased runtime ABI.
+Executable construction resolves each concrete bound subject to its exact closure item and freezes
+the contract plus any caller-owned post-call destruction. MIR evaluates and prepares the callable
+place first. An owned environment enters canonical temporary storage until every later argument
+has succeeded, so propagation cleans it before transfer. MIR then calls the generated body directly
+and performs explicit environment destruction when an owned contract invokes a readonly or
+readwrite body. No indirect callable object reaches MIR.
 Block fallthrough now consumes the same checked
 `BeforeTransfer` event as explicit return and loop transfer. Explicit `drop`, compound integer
 assignment, `break`, `continue`, while loops, breakable/nonbreaking infinite loops, and integer

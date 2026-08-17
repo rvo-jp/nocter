@@ -328,8 +328,12 @@ be introduced to make an unresolved syntax choice.
   Lexical regions use paired typed creation and release operations; the existing cleanup schedule
   orders body destruction before release on fallthrough and early transfer. Closure construction,
   concrete invocation, capture access, owned capture moves, and recursive closure destruction use
-  the executable-owned layout and binding-preserving MIR projections. Remaining checked operations
-  still fail explicitly instead of being omitted.
+  the executable-owned layout and binding-preserving MIR projections. Callable bounds specialize
+  to direct generated-body calls; owned contracts retain explicit post-call destruction when the
+  intrinsic closure body only borrows its environment. Owned callable operands are staged before
+  later arguments and transferred only after those arguments succeed, preserving checked cleanup
+  on propagation. No erased callable ABI reaches MIR.
+  Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

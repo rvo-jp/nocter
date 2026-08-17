@@ -166,7 +166,7 @@ impl FunctionLowerer<'_> {
         Ok(())
     }
 
-    fn lower_destruction(
+    pub(super) fn lower_destruction(
         &mut self,
         owner: BodyNodeId,
         place: MirPlaceId,

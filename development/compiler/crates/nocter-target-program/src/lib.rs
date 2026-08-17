@@ -31,9 +31,9 @@ pub use entry::{
     ProcessSuccessType, select_executable_entry,
 };
 pub use executable::{
-    ExecutableBody, ExecutableBorrowEdge, ExecutableClosureCapture, ExecutableClosureEdge,
-    ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
-    ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
+    ExecutableBody, ExecutableBorrowEdge, ExecutableCallableInvocation, ExecutableClosureCapture,
+    ExecutableClosureEdge, ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep,
+    ExecutableDropEdge, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
     ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
     ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
 };

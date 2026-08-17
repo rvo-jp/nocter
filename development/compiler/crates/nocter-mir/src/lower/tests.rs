@@ -1191,6 +1191,258 @@ fn conditionally_consumed_capture_starts_initialized_and_drops_only_on_the_resid
     }));
 }
 
+#[test]
+fn specializes_callable_bounds_to_direct_closure_calls() {
+    let program = lower_fixture(
+        "func apply<F>(callback: F, value: i32): i32 where F: &func(value: i32): i32 {\n\
+             callback(value)\n\
+         }\n\
+         func main(): i32 { apply((value) { value * 2 }, 7) }\n",
+    )
+    .unwrap();
+    let closure_item = program
+        .executable()
+        .items()
+        .iter()
+        .find_map(|(item, definition)| {
+            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
+        })
+        .unwrap();
+
+    assert!(program.functions().iter().any(|(item, function)| {
+        item != closure_item
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Call(call)
+                        if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+                            && call.arguments().len() == 2
+                )
+            })
+    }));
+}
+
+#[test]
+fn specializes_readwrite_callable_bounds_without_erasing_environment_access() {
+    let program = lower_fixture(
+        "func apply<F>(callback: F): i32 where F: &+func(): i32 {\n\
+             var callable = move callback\n\
+             callable()\n\
+         }\n\
+         func main(): i32 {\n\
+             var total = 0\n\
+             apply((&+total;): i32 {\n\
+                 total += 1\n\
+                 total\n\
+             })\n\
+         }\n",
+    )
+    .unwrap();
+    let closure_item = program
+        .executable()
+        .items()
+        .iter()
+        .find_map(|(item, definition)| {
+            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
+        })
+        .unwrap();
+
+    assert!(program.functions().iter().any(|(item, function)| {
+        item != closure_item
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Borrow {
+                        capability: nocter_model::BorrowCapability::ReadWrite,
+                        ..
+                    }
+                )
+            })
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Call(call)
+                        if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+                )
+            })
+    }));
+}
+
+#[test]
+fn owned_callable_contract_destroys_a_readonly_body_environment_after_return() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func finish<F>(callback: F): i32 where F: func(): i32 { callback() }\n\
+         func main(): i32 {\n\
+             let value = Owned { value: 7 }\n\
+             finish((move value;): i32 { value.value })\n\
+         }\n",
+    )
+    .unwrap();
+    let closure_item = program
+        .executable()
+        .items()
+        .iter()
+        .find_map(|(item, definition)| {
+            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
+        })
+        .unwrap();
+    let generic_caller = program.functions().iter().find_map(|(_, function)| {
+        function
+            .operations()
+            .iter()
+            .any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Call(call)
+                        if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+                )
+            })
+            .then_some(function)
+    });
+    let generic_caller = generic_caller.unwrap();
+    let operations = generic_caller
+        .operations()
+        .iter()
+        .map(|(_, operation)| operation.kind())
+        .collect::<Vec<_>>();
+    let call = operations.iter().position(|operation| {
+        matches!(
+            operation,
+            MirOperationKind::Call(call)
+                if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+        )
+    });
+    let drop = operations.iter().position(|operation| {
+        let MirOperationKind::InvokeDrop { place, .. } = operation else {
+            return false;
+        };
+        generic_caller
+            .places()
+            .get(*place)
+            .is_some_and(place_has_capture_projection)
+    });
+
+    assert!(call.zip(drop).is_some_and(|(call, drop)| call < drop));
+}
+
+#[test]
+fn owned_closure_operand_is_staged_until_propagating_arguments_succeed() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func invoke(input: Owned?): Owned? {\n\
+             let captured = Owned { value: 7 }\n\
+             let callback = (move captured; item: Owned): Owned {\n\
+                 let _ = item.value\n\
+                 move captured\n\
+             }\n\
+             callback(move input?)\n\
+         }\n\
+         func main(): void {\n\
+             let _ = invoke(none)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let closure_item = program
+        .executable()
+        .items()
+        .iter()
+        .find_map(|(item, definition)| {
+            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
+        })
+        .unwrap();
+    let caller = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .operations()
+                .iter()
+                .any(|(_, operation)| {
+                    matches!(
+                        operation.kind(),
+                        MirOperationKind::Call(call)
+                            if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+                    )
+                })
+                .then_some(function)
+        })
+        .unwrap();
+
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        let MirOperationKind::InvokeDrop { place, .. } = operation.kind() else {
+            return false;
+        };
+        caller
+            .places()
+            .get(*place)
+            .is_some_and(place_has_capture_projection)
+    }));
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        matches!(operation.kind(), MirOperationKind::Initialize { destination, .. }
+            if caller.places().get(*destination).is_some_and(|place| place.projections().is_empty()))
+    }));
+}
+
+#[test]
+fn owned_callable_bound_preserves_the_same_argument_failure_cleanup() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func invoke<F>(callback: F, input: Owned?): Owned? where F: func(value: Owned): Owned {\n\
+             callback(move input?)\n\
+         }\n\
+         func main(): void {\n\
+             let captured = Owned { value: 7 }\n\
+             let _ = invoke((move captured; item) {\n\
+                 let _ = item.value\n\
+                 move captured\n\
+             }, none)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let closure_item = program
+        .executable()
+        .items()
+        .iter()
+        .find_map(|(item, definition)| {
+            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
+        })
+        .unwrap();
+    let caller = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            let invokes_closure = function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Call(call)
+                        if matches!(call.target(), crate::MirCallTarget::Direct(body) if *body == closure_item)
+                )
+            });
+            let cleans_staged_capture = function.operations().iter().any(|(_, operation)| {
+                let MirOperationKind::InvokeDrop { place, .. } = operation.kind() else {
+                    return false;
+                };
+                function
+                    .places()
+                    .get(*place)
+                    .is_some_and(place_has_capture_projection)
+            });
+            (invokes_closure && cleans_staged_capture).then_some(function)
+        })
+        .unwrap();
+
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        matches!(operation.kind(), MirOperationKind::Initialize { destination, .. }
+            if caller.places().get(*destination).is_some_and(|place| place.projections().is_empty()))
+    }));
+}
+
 fn only_closure_function(program: &crate::MirProgram) -> &crate::MirFunction {
     program
         .functions()

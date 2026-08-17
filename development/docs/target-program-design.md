@@ -173,9 +173,9 @@ This closure is implemented with `CallableInstanceKey`, `ClosureInstanceKey`, an
 `BTreeSet` work queue closes semantic keys; dense `ExecutableItemId` values are assigned only after
 closure, in full key order. Discovery order and first-use queue order therefore cannot affect item
 identity. Each executable body freezes source-to-concrete type edges, direct item IDs, typed
-standard and structural primitive calls, indirect callable contracts, nested closure IDs, exact
-drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are accepted only
-when the selected toolchain registry assigns their callable to a primitive role.
+standard and structural primitive calls, statically specialized callable-value plans, nested
+closure IDs, exact drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are
+accepted only when the selected toolchain registry assigns their callable to a primitive role.
 
 Each item separately freezes its complete concrete runtime signature even when a parameter is
 unused by the body. Callable receivers precede ordinary parameters and materialize their declared
@@ -192,6 +192,17 @@ referent. The enclosing executable body points to that exact item, so MIR constr
 projection, invocation, and destruction all consume one layout authority. Each executable body
 also freezes the deterministic first-use node domain reached from its root. Preparation passes may
 not scan sibling closure roots merely because those nodes occupy the same checked-body arena.
+
+Structural callable contracts remain generic bounds and never become sized runtime values.
+Executable construction specializes the bound subject, requires its concrete closure type, and
+resolves the generated closure body into the reachable item graph. The frozen invocation retains
+that body, the concrete subject and contract, and optional post-call destruction. When an owned
+contract invokes a closure whose intrinsic body capability is readonly or readwrite, MIR moves the
+environment into temporary storage, calls the body through the capability-correct borrow, then
+runs the frozen destruction plan after a returning call. An intrinsically owned body receives the
+environment after all explicit arguments succeed. Both cases stage an owned callable operand in
+the canonical expression-temporary slot before argument evaluation; checked propagation cleanup
+uses that same slot. There is no erased callable object, vtable, or indirect callable ABI in MIR.
 
 ## MIR Authority
 
@@ -279,8 +290,11 @@ both operations. Concrete closures lower through a binding-preserving aggregate 
 executable closure item. Direct closure calls borrow or consume that same environment according to
 its frozen capability. Inside the closure body, hidden environment and stored-borrow dereferences
 remain explicit typed place projections; move captures participate in the ordinary cleanup-flag
-and recursive-destruction machinery. Other unsupported checked operations still fail; the current
-slice cannot silently omit accepted semantics.
+and recursive-destruction machinery. Generic callable-bound invocations resolve to those same
+closure items and direct calls. Contract-owned invocation of a non-owned body retains explicit
+post-call environment destruction rather than hiding ownership in call ABI behavior. Other
+unsupported checked operations still fail; the current slice cannot silently omit accepted
+semantics.
 
 ## Prohibited Designs
 

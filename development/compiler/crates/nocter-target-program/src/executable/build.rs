@@ -6,7 +6,10 @@ use nocter_checking::{
     TypeSubstitution,
 };
 use nocter_declarations::BodyOwner;
-use nocter_model::{ArenaBuilder, BodyId, BodyNodeId, ExecutableItemId, ModuleId};
+use nocter_model::{
+    ArenaBuilder, BodyId, BodyNodeId, CallableCapability, ExecutableItemId, ModuleId, TypeId,
+    TypeKind,
+};
 
 use super::signature::{build_signature, callable_signature};
 use super::{
@@ -147,6 +150,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         )?;
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
         let substitution = item_substitution(key);
+        let mut drops = BTreeMap::new();
         let mut dispatches = Vec::new();
         for selection in dependencies.selections() {
             let plan = self
@@ -154,7 +158,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 .resolve(selection, &substitution, context.module)?;
             dispatches.push(DraftDispatchEdge {
                 source: selection.clone(),
-                plan: self.convert_dispatch(&plan)?,
+                plan: self.convert_dispatch(&plan, &mut drops)?,
             });
         }
 
@@ -170,7 +174,6 @@ impl<'program> ExecutableClosureBuilder<'program> {
             closures.push((closure, key));
         }
 
-        let mut drops = BTreeMap::new();
         for selection in dependencies.drop_selections() {
             let selection = self.specialize_drop(selection, &substitution)?;
             self.record_drop(selection, &mut drops)?;
@@ -298,10 +301,11 @@ impl<'program> ExecutableClosureBuilder<'program> {
     fn convert_dispatch(
         &mut self,
         plan: &ResolvedDispatchPlan,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
     ) -> Result<DraftDispatchPlan, ExecutableProgramError> {
         Ok(match plan {
             ResolvedDispatchPlan::Invocation(step) => {
-                DraftDispatchPlan::Invocation(self.convert_dispatch_step(step)?)
+                DraftDispatchPlan::Invocation(self.convert_dispatch_step(step, drops)?)
             }
             ResolvedDispatchPlan::Comparison {
                 left_coercion,
@@ -310,13 +314,13 @@ impl<'program> ExecutableClosureBuilder<'program> {
             } => DraftDispatchPlan::Comparison {
                 left_coercion: left_coercion
                     .as_ref()
-                    .map(|step| self.convert_dispatch_step(step))
+                    .map(|step| self.convert_dispatch_step(step, drops))
                     .transpose()?,
                 right_coercion: right_coercion
                     .as_ref()
-                    .map(|step| self.convert_dispatch_step(step))
+                    .map(|step| self.convert_dispatch_step(step, drops))
                     .transpose()?,
-                operation: self.convert_dispatch_step(operation)?,
+                operation: self.convert_dispatch_step(operation, drops)?,
             },
             ResolvedDispatchPlan::Index {
                 receiver_coercion,
@@ -324,9 +328,9 @@ impl<'program> ExecutableClosureBuilder<'program> {
             } => DraftDispatchPlan::Index {
                 receiver_coercion: receiver_coercion
                     .as_ref()
-                    .map(|step| self.convert_dispatch_step(step))
+                    .map(|step| self.convert_dispatch_step(step, drops))
                     .transpose()?,
-                operation: self.convert_dispatch_step(operation)?,
+                operation: self.convert_dispatch_step(operation, drops)?,
             },
         })
     }
@@ -334,6 +338,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
     fn convert_dispatch_step(
         &mut self,
         step: &ResolvedDispatchStep,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
     ) -> Result<DraftDispatchStep, ExecutableProgramError> {
         match step {
             ResolvedDispatchStep::Direct(dispatch) => {
@@ -385,10 +390,100 @@ impl<'program> ExecutableClosureBuilder<'program> {
             ResolvedDispatchStep::Primitive(primitive) => {
                 Ok(DraftDispatchStep::StructuralPrimitive(primitive.clone()))
             }
-            ResolvedDispatchStep::IndirectCallable(contract) => {
-                Ok(DraftDispatchStep::IndirectCallable(contract.clone()))
+            ResolvedDispatchStep::CallableValue { subject, contract } => {
+                self.convert_callable_value(*subject, contract, drops)
             }
         }
+    }
+
+    fn convert_callable_value(
+        &mut self,
+        subject: TypeId,
+        contract: &nocter_model::CallableContract,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<DraftDispatchStep, ExecutableProgramError> {
+        let (closure, arguments) = match self.resolver.types().get(subject) {
+            Some(TypeKind::Closure {
+                definition,
+                arguments,
+            }) => (*definition, arguments.clone()),
+            Some(_) | None => {
+                return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
+            }
+        };
+        let definition = self
+            .target
+            .checked()
+            .closures()
+            .get(closure)
+            .cloned()
+            .ok_or(ExecutableProgramError::InvalidCallableInvocation(subject))?;
+        let domain = self
+            .target
+            .checked()
+            .graph()
+            .declarations()
+            .body_generic_domain(definition.owner())
+            .ok_or(ExecutableProgramError::InvalidCallableInvocation(subject))?;
+        if domain.len() != arguments.len() {
+            return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
+        }
+        let generic_arguments = GenericArguments::new(
+            domain
+                .iter()
+                .copied()
+                .zip(arguments.iter().copied())
+                .map(|(parameter, ty)| GenericArgument::new(parameter, ty)),
+        )
+        .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
+        let key = ClosureInstanceKey::new_in(
+            self.target,
+            self.resolver.types(),
+            closure,
+            generic_arguments,
+        )?;
+        let substitution = key.substitution();
+        let parameters = definition
+            .signature()
+            .parameters()
+            .iter()
+            .copied()
+            .map(|ty| self.resolver.specialize_type(ty, &substitution))
+            .collect::<Result<Vec<_>, _>>()?;
+        let result = self
+            .resolver
+            .specialize_type(definition.signature().result(), &substitution)?;
+        if !contract
+            .capability()
+            .permits(definition.signature().capability())
+            || parameters != contract.parameters()
+            || result != contract.result()
+        {
+            return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
+        }
+        let post_call_destruction = if contract.capability() == CallableCapability::Owned
+            && definition.signature().capability() != CallableCapability::Owned
+        {
+            self.resolver
+                .resolve_destruction(subject, &TypeSubstitution::default())?
+        } else {
+            None
+        };
+        if let Some(plan) = &post_call_destruction {
+            let mut selections = BTreeSet::new();
+            collect_drops(plan, &mut selections);
+            for selection in selections {
+                self.record_drop(selection, drops)?;
+            }
+        }
+        let body = ExecutableItemKey::Closure(key);
+        self.enqueue(body.clone());
+        Ok(DraftDispatchStep::CallableValue(DraftCallableInvocation {
+            subject,
+            contract: contract.clone(),
+            body,
+            post_call_destruction,
+        }))
     }
 
     fn specialize_drop(
@@ -615,7 +710,14 @@ enum DraftDispatchStep {
     Direct(ExecutableItemKey),
     StandardPrimitive(ExecutablePrimitiveCall),
     StructuralPrimitive(nocter_checking::ResolvedPrimitiveDispatch),
-    IndirectCallable(nocter_model::CallableContract),
+    CallableValue(DraftCallableInvocation),
+}
+
+struct DraftCallableInvocation {
+    subject: TypeId,
+    contract: nocter_model::CallableContract,
+    body: ExecutableItemKey,
+    post_call_destruction: Option<ConcreteDestructionPlan>,
 }
 
 fn freeze_items(
@@ -738,8 +840,13 @@ fn freeze_dispatch_step(
         DraftDispatchStep::StructuralPrimitive(primitive) => {
             ExecutableDispatchStep::StructuralPrimitive(primitive)
         }
-        DraftDispatchStep::IndirectCallable(contract) => {
-            ExecutableDispatchStep::IndirectCallable(contract)
+        DraftDispatchStep::CallableValue(call) => {
+            ExecutableDispatchStep::CallableValue(super::ExecutableCallableInvocation::new(
+                call.subject,
+                call.contract,
+                item_id(item_ids, &call.body)?,
+                call.post_call_destruction,
+            ))
         }
     })
 }

@@ -6,8 +6,8 @@ use nocter_checking::{
     ResolvedPrimitiveDispatch, StaticSelection,
 };
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, CallableContract, ClosureId, ExecutableItemId,
-    PackageTargetId, Symbol, TestId, TypeId, TypeStore,
+    Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, PackageTargetId,
+    Symbol, TestId, TypeId, TypeStore,
 };
 
 use crate::{
@@ -17,9 +17,11 @@ use crate::{
 };
 
 mod build;
+mod callable_invocation;
 mod closure_layout;
 mod signature;
 
+pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
 pub use signature::{ExecutableInput, ExecutableInputSource, ExecutableSignature};
 
@@ -63,7 +65,7 @@ pub enum ExecutableDispatchStep {
     Direct(ExecutableItemId),
     StandardPrimitive(ExecutablePrimitiveCall),
     StructuralPrimitive(ResolvedPrimitiveDispatch),
-    IndirectCallable(CallableContract),
+    CallableValue(ExecutableCallableInvocation),
 }
 
 /// One frozen dispatch plan with every composite operand lane kept explicit.
@@ -455,6 +457,7 @@ pub enum ExecutableProgramError {
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
+    InvalidCallableInvocation(TypeId),
     DuplicateClosureLayout(TypeId),
     DuplicateItem(ExecutableItemKey),
 }
@@ -487,6 +490,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)
+            | Self::InvalidCallableInvocation(_)
             | Self::DuplicateClosureLayout(_)
             | Self::DuplicateItem(_) => None,
         }

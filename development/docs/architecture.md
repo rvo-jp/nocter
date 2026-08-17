@@ -398,6 +398,14 @@ any stored borrow; construction, body access, and recursive destruction therefor
 about capture order or reinterpret a borrow as owned storage. Executable bodies freeze the node
 domain reachable from their own root, so preparation never crosses into a nested closure root that
 happens to share the checked-body arena.
+Callable-bound generic calls use the concrete closure type to select that same generated body.
+Readonly and readwrite contracts borrow the source place with the body's intrinsic capability. An
+owned contract moves the environment; when the intrinsic body only borrows it, MIR keeps the moved
+environment in temporary storage, invokes the body directly, and applies target-frozen destruction
+after a returning call. Owned environments enter that canonical storage before argument evaluation
+and leave it only after every argument succeeds. An argument propagation edge therefore addresses
+the same storage through the checked cleanup schedule. Destruction is not hidden inside a call
+convention.
 Unannotated result inference joins tail values, explicit returns, outcome propagation, and
 divergence at that root. Ownership, provenance, liveness, and loan passes enter each closure root
 with its parameters and capture fields initialized, then summarize result dependence on invocation
@@ -559,9 +567,11 @@ in the key. Missing, extra, duplicate, or symbolic arguments are integrity failu
 The checked-program layer owns concrete dispatch resolution because it already owns conformance,
 instance-operation, and recursive requirement-proof authorities. Specialization supplies one
 concrete enclosing substitution and receives an ordered plan containing direct callable steps,
-compiler primitives, or an indirect callable-value contract. Composite structural evidence such
-as coercion followed by built-in indexing remains composite. The executable-program layer only
-enqueues direct steps; MIR cannot repeat requirement proof or conformance selection.
+compiler primitives, or a concrete callable-value subject and contract. Composite structural
+evidence such as coercion followed by built-in indexing remains composite. The executable-program
+layer resolves a callable-value subject to its generated closure body and enqueues that body; MIR
+cannot repeat requirement proof or conformance selection. Callable contracts are not erased
+runtime types, so no indirect callable ABI or vtable enters MIR.
 
 MIR construction and linkage consume this graph. They cannot build parallel callable indexes.
 Runtime symbol spelling is generated after item selection and cannot be used to find a semantic

@@ -1,14 +1,13 @@
-use nocter_checking::{CallTarget, CaptureMode, CheckedCall, CheckedClosure, CheckedOperation};
-use nocter_model::{
-    BodyNodeId, BorrowCapability, CallableCapability, CaptureId, MirValueId, TypeId, TypeKind,
-};
+use nocter_checking::{CallTarget, CaptureMode, CheckedCall, CheckedClosure};
+use nocter_model::{BodyNodeId, CaptureId, MirValueId, TypeId, TypeKind};
 
 use super::MirLoweringError;
+use super::callable_environment::CallableEnvironmentPlan;
 use super::function::FunctionLowerer;
 use super::place::LoweredPlacePath;
 use crate::{
     MirAggregate, MirCallTarget, MirClosureCapture, MirOperationKind, MirPlaceRoot,
-    MirProjectionKind, MirReadMode,
+    MirProjectionKind,
 };
 
 impl FunctionLowerer<'_> {
@@ -98,43 +97,28 @@ impl FunctionLowerer<'_> {
         {
             return Err(MirLoweringError::InvalidClosure(node));
         }
-        let place = self.lower_place_node(*value)?;
-        let environment = match capability {
-            CallableCapability::Readonly => {
-                self.borrow_place(place, BorrowCapability::Readonly, environment_ty)?
-            }
-            CallableCapability::ReadWrite => {
-                self.borrow_place(place, BorrowCapability::ReadWrite, environment_ty)?
-            }
-            CallableCapability::Owned => {
-                let checked_value = *value;
-                let environment = self.append_value(
-                    layout.ty(),
-                    MirOperationKind::Read {
-                        place,
-                        mode: MirReadMode::Move,
-                    },
-                )?;
-                let checked = self
-                    .body
-                    .nodes()
-                    .get(checked_value)
-                    .ok_or(MirLoweringError::UnknownNode(checked_value))?;
-                let CheckedOperation::Place(place) = checked.operation() else {
-                    return Err(MirLoweringError::InvalidClosure(node));
-                };
-                self.mark_place_initialized(*place, false)?;
-                environment
-            }
-        };
+        let environment = self.prepare_callable_environment(
+            node,
+            *value,
+            CallableEnvironmentPlan {
+                source: *capability,
+                body: layout.capability(),
+                closure_ty: layout.ty(),
+                environment_ty,
+            },
+        )?;
+        let explicit_arguments = call
+            .arguments()
+            .iter()
+            .map(|argument| self.require_value(*argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        let (environment, retained) = self.finalize_callable_environment(environment)?;
+        if retained.is_some() {
+            return Err(MirLoweringError::InvalidClosure(node));
+        }
         let mut arguments = Vec::with_capacity(signature.inputs().len());
         arguments.push(environment);
-        arguments.extend(
-            call.arguments()
-                .iter()
-                .map(|argument| self.require_value(*argument))
-                .collect::<Result<Vec<_>, _>>()?,
-        );
+        arguments.extend(explicit_arguments);
         self.emit_call(ty, MirCallTarget::Direct(body), arguments)
     }
 

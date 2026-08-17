@@ -469,7 +469,7 @@ fn closure_contract_accepts(
     actual_parameters: &[TypeId],
     actual_result: TypeId,
 ) -> bool {
-    capability_rank(actual_capability) <= capability_rank(expected.capability)
+    expected.capability.permits(actual_capability)
         && expected.parameters.as_ref() == actual_parameters
         && expected
             .result
@@ -480,15 +480,7 @@ pub(super) fn concrete_closure_satisfies(
     expected: &CallableContract,
     actual: &ClosureSignature,
 ) -> bool {
-    capability_rank(actual.capability()) <= capability_rank(expected.capability())
+    expected.capability().permits(actual.capability())
         && actual.parameters() == expected.parameters()
         && actual.result() == expected.result()
-}
-
-const fn capability_rank(capability: CallableCapability) -> u8 {
-    match capability {
-        CallableCapability::Readonly => 0,
-        CallableCapability::ReadWrite => 1,
-        CallableCapability::Owned => 2,
-    }
 }

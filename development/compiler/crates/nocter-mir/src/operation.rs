@@ -1,6 +1,6 @@
 use nocter_model::{
-    BorrowCapability, CallableContract, CaptureId, ExecutableItemId, FieldId, MirDropFlagId,
-    MirLocalId, MirPlaceId, MirValueId, NominalTypeId, TypeId, VariantId,
+    BorrowCapability, CaptureId, ExecutableItemId, FieldId, MirDropFlagId, MirLocalId, MirPlaceId,
+    MirValueId, NominalTypeId, TypeId, VariantId,
 };
 use nocter_target_program::PrimitiveRole;
 
@@ -146,10 +146,6 @@ pub enum MirCallTarget {
         signature: MirCallSignature,
     },
     Structural(MirStructuralCall),
-    Indirect {
-        callee: MirValueId,
-        contract: CallableContract,
-    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

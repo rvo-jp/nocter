@@ -180,6 +180,19 @@ impl FunctionLowerer<'_> {
         )
     }
 
+    pub(super) fn mark_value_storage_uninitialized(
+        &mut self,
+        node: BodyNodeId,
+    ) -> Result<(), MirLoweringError> {
+        self.set_flag(
+            &CleanupIdentity::Value {
+                node,
+                remainder: ValueRemainder::Complete,
+            },
+            false,
+        )
+    }
+
     /// Selects the one branch-specific destruction obligation after an owned enum tag matches.
     ///
     /// The subject remains in one storage slot. Only its cleanup identity changes from the whole
@@ -234,13 +247,7 @@ impl FunctionLowerer<'_> {
     ) -> Result<(), MirLoweringError> {
         match target {
             CleanupTarget::Path(path) => self.set_path_flags(path.root(), path.fields(), false),
-            CleanupTarget::Value { node, .. } => self.set_flag(
-                &CleanupIdentity::Value {
-                    node: *node,
-                    remainder: ValueRemainder::Complete,
-                },
-                false,
-            ),
+            CleanupTarget::Value { node, .. } => self.mark_value_storage_uninitialized(*node),
             CleanupTarget::EnumResidual {
                 subject,
                 variant,

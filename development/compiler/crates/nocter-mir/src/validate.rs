@@ -8,9 +8,9 @@ use crate::validation_region::{validate_region_creation, validate_region_release
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{is_integer, matches_nominal_member, nominal_application};
 use crate::{
-    MirAggregate, MirBinaryOperation, MirBranchTarget, MirCallTarget, MirConstant, MirFunction,
-    MirLocalKind, MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind,
-    MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
+    MirAggregate, MirBinaryOperation, MirBranchTarget, MirConstant, MirFunction, MirLocalKind,
+    MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind, MirReadMode,
+    MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
 };
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
@@ -834,9 +834,6 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 | MirAggregate::Opaque { witness: value } => values.push(*value),
             },
             MirOperationKind::Call(call) => {
-                if let MirCallTarget::Indirect { callee, .. } = call.target() {
-                    values.push(*callee);
-                }
                 values.extend(call.arguments().iter().copied());
             }
         }

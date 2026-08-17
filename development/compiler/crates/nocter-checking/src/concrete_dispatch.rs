@@ -65,8 +65,11 @@ pub enum ResolvedPrimitiveDispatch {
 pub enum ResolvedDispatchStep {
     Direct(ResolvedCallableDispatch),
     Primitive(ResolvedPrimitiveDispatch),
-    /// Invocation through a runtime callable value with this exact structural contract.
-    IndirectCallable(CallableContract),
+    /// Invocation through a concrete value selected by one structural callable contract.
+    CallableValue {
+        subject: TypeId,
+        contract: CallableContract,
+    },
 }
 
 /// The complete lowering plan for one checked static selection.
@@ -437,10 +440,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
         match predicate {
             CheckedPredicate::Capability {
+                subject,
                 capability: StructuralCapability::Callable(contract),
-                ..
             } => Ok(ResolvedDispatchPlan::Invocation(
-                ResolvedDispatchStep::IndirectCallable(contract),
+                ResolvedDispatchStep::CallableValue { subject, contract },
             )),
             CheckedPredicate::Equality(ty) => {
                 self.resolve_comparison(requirement, ty, ComparisonOperation::Equal, from)

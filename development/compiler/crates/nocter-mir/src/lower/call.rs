@@ -36,9 +36,7 @@ impl FunctionLowerer<'_> {
         let CallTarget::Static(selection) = call.target() else {
             return match call.target() {
                 CallTarget::ClosureValue { .. } => self.lower_closure_call(node, ty, call),
-                CallTarget::CallableValue { .. } => {
-                    Err(MirLoweringError::UnsupportedOperation(node))
-                }
+                CallTarget::CallableValue { .. } => self.lower_callable_value_call(node, ty, call),
                 CallTarget::Static(_) => unreachable!("matched above"),
             };
         };
@@ -137,7 +135,8 @@ impl FunctionLowerer<'_> {
             ExecutableDispatchStep::StructuralPrimitive(primitive) => {
                 structural_signature(self.executable, primitive)
             }
-            ExecutableDispatchStep::IndirectCallable(contract) => {
+            ExecutableDispatchStep::CallableValue(invocation) => {
+                let contract = invocation.contract();
                 MirCallSignature::new(contract.parameters().to_vec(), contract.result())
             }
         })
@@ -184,7 +183,7 @@ fn step_target(step: &ExecutableDispatchStep) -> Option<MirCallTarget> {
         ExecutableDispatchStep::StructuralPrimitive(primitive) => {
             Some(MirCallTarget::Structural(structural_target(primitive)))
         }
-        ExecutableDispatchStep::IndirectCallable(_) => None,
+        ExecutableDispatchStep::CallableValue(_) => None,
     }
 }
 

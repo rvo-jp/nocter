@@ -10,6 +10,8 @@ use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramB
 mod assignment;
 mod borrow_conversion;
 mod call;
+mod callable_environment;
+mod callable_value;
 mod cleanup;
 mod cleanup_flags;
 mod closure;
@@ -76,6 +78,7 @@ pub enum MirLoweringError {
     InvalidPattern(BodyNodeId),
     InvalidRegion(BodyNodeId),
     InvalidClosure(BodyNodeId),
+    InvalidCallable(BodyNodeId),
     InvalidCapture(nocter_model::CaptureId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),

@@ -63,6 +63,22 @@ pub enum CallableCapability {
     Owned,
 }
 
+impl CallableCapability {
+    /// Whether this caller-side access can invoke a body with `required` environment access.
+    #[must_use]
+    pub const fn permits(self, required: Self) -> bool {
+        callable_capability_rank(required) <= callable_capability_rank(self)
+    }
+}
+
+const fn callable_capability_rank(capability: CallableCapability) -> u8 {
+    match capability {
+        CallableCapability::Readonly => 0,
+        CallableCapability::ReadWrite => 1,
+        CallableCapability::Owned => 2,
+    }
+}
+
 /// A structural callable contract after parameter names have been resolved to positions.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableContract {
@@ -444,6 +460,18 @@ mod tests {
         let second = types.intern(TypeKind::Callable(contract)).unwrap();
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn stronger_callable_access_permits_every_weaker_body() {
+        assert!(CallableCapability::Readonly.permits(CallableCapability::Readonly));
+        assert!(!CallableCapability::Readonly.permits(CallableCapability::ReadWrite));
+        assert!(CallableCapability::ReadWrite.permits(CallableCapability::Readonly));
+        assert!(CallableCapability::ReadWrite.permits(CallableCapability::ReadWrite));
+        assert!(!CallableCapability::ReadWrite.permits(CallableCapability::Owned));
+        assert!(CallableCapability::Owned.permits(CallableCapability::Readonly));
+        assert!(CallableCapability::Owned.permits(CallableCapability::ReadWrite));
+        assert!(CallableCapability::Owned.permits(CallableCapability::Owned));
     }
 
     #[test]

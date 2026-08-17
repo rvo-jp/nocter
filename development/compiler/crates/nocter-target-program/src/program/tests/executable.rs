@@ -211,6 +211,57 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
 }
 
 #[test]
+fn callable_bound_dispatch_freezes_the_concrete_closure_body_and_cleanup() {
+    let target = build_target_program(&Fixture::with_app(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func finish<F>(callback: F): i32 where F: func(): i32 { callback() }\n\
+         func main(): i32 {\n\
+             let value = Owned { value: 7 }\n\
+             finish((move value;): i32 { value.value })\n\
+         }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let finish = named_callable(&target, "finish");
+    let selection = callable_dependencies(&target, finish).selections()[0].clone();
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let finish_item = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.key() {
+            ExecutableItemKey::Callable(key) if key.callable() == finish => Some(item),
+            _ => None,
+        })
+        .unwrap();
+    let ExecutableDispatchPlan::Invocation(ExecutableDispatchStep::CallableValue(invocation)) =
+        finish_item.body().dispatch(&selection).unwrap()
+    else {
+        panic!("callable bound must freeze one concrete invocation")
+    };
+    let body = executable.items().get(invocation.body()).unwrap();
+    let layout = body.closure_layout().unwrap();
+
+    assert_eq!(invocation.subject(), layout.ty());
+    assert_eq!(
+        invocation.contract().capability(),
+        nocter_model::CallableCapability::Owned
+    );
+    assert_eq!(
+        layout.capability(),
+        nocter_model::CallableCapability::Readonly
+    );
+    assert!(invocation.post_call_destruction().is_some());
+    assert!(matches!(body.key(), ExecutableItemKey::Closure(_)));
+}
+
+#[test]
 fn executable_signature_specializes_even_unused_parameters() {
     let target = build_target_program(&Fixture::with_app(
         "func constant<T>(unused: T): i32 { 7 }\n\
@@ -400,7 +451,7 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
             ExecutableDispatchStep::StandardPrimitive(call) => Some(call.role()),
             ExecutableDispatchStep::Direct(_)
             | ExecutableDispatchStep::StructuralPrimitive(_)
-            | ExecutableDispatchStep::IndirectCallable(_) => None,
+            | ExecutableDispatchStep::CallableValue(_) => None,
         })
         .collect::<Vec<_>>();
 

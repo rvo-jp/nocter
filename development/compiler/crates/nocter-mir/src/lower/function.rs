@@ -74,7 +74,7 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) values: BTreeMap<BodyNodeId, MirValueId>,
     pub(super) places: BTreeMap<nocter_model::PlaceId, MirPlaceId>,
     pub(super) value_storage: BTreeMap<BodyNodeId, MirPlaceId>,
-    pub(super) initialized_value_storage: BTreeSet<BodyNodeId>,
+    pub(super) materialized_value_storage: BTreeSet<BodyNodeId>,
     pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
     pub(super) loops: BTreeMap<LoopId, LoopTargets>,
 }
@@ -118,7 +118,7 @@ impl<'a> FunctionLowerer<'a> {
             values: BTreeMap::new(),
             places: BTreeMap::new(),
             value_storage: BTreeMap::new(),
-            initialized_value_storage: BTreeSet::new(),
+            materialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
             loops: BTreeMap::new(),
         }

@@ -10,8 +10,8 @@ use nocter_checking::{
     StaticSelection, TypedIteration,
 };
 use nocter_model::{
-    BodyId, BodyNodeId, BorrowCapability, ClosureId, DropId, LocalBindingId, LoopId, ParameterId,
-    PlaceId, TypeId, VariantId,
+    BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
+    ParameterId, PlaceId, TypeId, VariantId,
 };
 
 use crate::TargetProgram;
@@ -616,6 +616,27 @@ impl<'program> DependencyCollector<'program> {
                     place: id,
                 })?;
         self.record_type(place.ty())?;
+        match place.root() {
+            nocter_checking::PlaceRoot::Local(local) => {
+                let ty = self.body.locals().get(local).copied().ok_or(
+                    BodyDependencyError::UnknownLocal {
+                        body: self.body_id,
+                        local,
+                    },
+                )?;
+                self.record_type(ty.ty())?;
+            }
+            nocter_checking::PlaceRoot::Capture(capture) => {
+                let ty = self.body.captures().get(capture).copied().ok_or(
+                    BodyDependencyError::UnknownCapture {
+                        body: self.body_id,
+                        capture,
+                    },
+                )?;
+                self.record_type(ty.ty())?;
+            }
+            nocter_checking::PlaceRoot::Parameter(_) => {}
+        }
         for ty in place.projection_types() {
             self.record_type(*ty)?;
         }
@@ -802,6 +823,10 @@ pub enum BodyDependencyError {
     UnknownLocal {
         body: BodyId,
         local: LocalBindingId,
+    },
+    UnknownCapture {
+        body: BodyId,
+        capture: CaptureId,
     },
     UnknownClosure(ClosureId),
     ClosureOwnerMismatch {

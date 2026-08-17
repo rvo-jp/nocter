@@ -66,20 +66,6 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
             }
-            MirCallTarget::Indirect { callee, contract } => {
-                self.value_type(*callee)?;
-                if contract.parameters().len() != arguments.len()
-                    || contract
-                        .parameters()
-                        .iter()
-                        .copied()
-                        .zip(arguments.iter().copied())
-                        .any(|(expected, argument)| self.value_type(argument) != Ok(expected))
-                    || self.result != contract.result()
-                {
-                    return Err(self.invalid());
-                }
-            }
         }
         Ok(())
     }
