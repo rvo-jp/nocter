@@ -1,18 +1,15 @@
 use std::collections::BTreeMap;
 
-use nocter_mir::{
-    MirBinaryOperation, MirCallAllocation, MirCallTarget, MirConstant, MirOperationKind,
-    MirUnaryOperation,
-};
+use nocter_mir::{MirBinaryOperation, MirConstant, MirOperationKind, MirUnaryOperation};
 use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
 
+use super::MachineProgramError;
 use super::aggregate::lower_aggregate;
 use super::body::BodyIdentities;
-use super::{MachineProgramError, MachineUnsupportedOperation, unsupported};
+use super::call::lower_call;
 use crate::{
-    MachineBinaryOperation, MachineCallAllocation, MachineConstant, MachineDataTable,
-    MachineDirectCall, MachineFunctionId, MachineLayoutStore, MachineOperation,
-    MachineOperationKind, MachinePrimitiveCall, MachineUnaryOperation,
+    MachineBinaryOperation, MachineConstant, MachineDataTable, MachineFunctionId,
+    MachineLayoutStore, MachineOperation, MachineOperationKind, MachineUnaryOperation,
 };
 
 pub(super) fn lower_operations(
@@ -135,81 +132,13 @@ fn lower_operation(
             region: ids.stack(*region)?,
         },
         MirOperationKind::Call(call) => {
-            lower_call(operation, call, types, layouts, functions, ids)?
+            MachineOperationKind::Call(lower_call(operation, call, types, layouts, functions, ids)?)
         }
-        kind => {
-            return Err(unsupported(
-                ids.owner(),
-                operation,
-                MachineUnsupportedOperation::from(kind),
-            ));
-        }
+        MirOperationKind::PackLength => MachineOperationKind::PackLength,
+        MirOperationKind::PackNext => MachineOperationKind::PackNext,
+        MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,
     };
     Ok(MachineOperation::new(kind, result))
-}
-
-fn lower_call(
-    operation: MirOperationId,
-    call: &nocter_mir::MirCall,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
-    ids: &BodyIdentities,
-) -> Result<MachineOperationKind, MachineProgramError> {
-    if call.pack().is_some() {
-        return Err(unsupported(
-            ids.owner(),
-            operation,
-            MachineUnsupportedOperation::PackedCall,
-        ));
-    }
-    let arguments = call
-        .arguments()
-        .iter()
-        .map(|argument| ids.value(*argument))
-        .collect::<Result<Vec<_>, _>>()?;
-    let allocation = match call.allocation() {
-        MirCallAllocation::Inherit => MachineCallAllocation::Inherit,
-        MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
-    };
-    match call.target() {
-        MirCallTarget::Direct(target) => {
-            let function = functions
-                .get(target)
-                .copied()
-                .ok_or(MachineProgramError::MissingItemFunction(*target))?;
-            Ok(MachineOperationKind::DirectCall(MachineDirectCall::new(
-                function, arguments, allocation,
-            )))
-        }
-        MirCallTarget::StandardPrimitive {
-            role,
-            type_arguments,
-            signature,
-        } => {
-            let abi = crate::transport::plan_signature(
-                types,
-                layouts,
-                signature.parameters(),
-                signature.result(),
-                None,
-            )?;
-            Ok(MachineOperationKind::PrimitiveCall(
-                MachinePrimitiveCall::new(
-                    *role,
-                    type_arguments.clone(),
-                    arguments,
-                    allocation,
-                    abi,
-                ),
-            ))
-        }
-        MirCallTarget::Structural(_) => Err(unsupported(
-            ids.owner(),
-            operation,
-            MachineUnsupportedOperation::StructuralCall,
-        )),
-    }
 }
 
 fn lower_constant(

@@ -1,8 +1,8 @@
 use nocter_model::TypeId;
-use nocter_target_program::PrimitiveRole;
 
 use crate::{
-    MachineAddressId, MachineDataId, MachineDropFlagId, MachineFunctionId, MachineValueId,
+    MachineAddressId, MachineCall, MachineDataId, MachineDropFlagId, MachineFunctionId,
+    MachineValueId,
 };
 
 /// A fully materialized constant. Text refers to the program's canonical static-data table.
@@ -31,73 +31,6 @@ pub enum MachineBinaryOperation {
     ShiftRightUnsigned,
     Equal,
     Less,
-}
-
-/// One direct call after semantic target selection and machine-function assignment.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MachineDirectCall {
-    target: MachineFunctionId,
-    arguments: Box<[MachineValueId]>,
-    allocation: MachineCallAllocation,
-}
-
-/// One compiler-known primitive call with a signature planned by the ordinary ABI authority.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MachinePrimitiveCall {
-    role: PrimitiveRole,
-    type_arguments: Box<[TypeId]>,
-    arguments: Box<[MachineValueId]>,
-    allocation: MachineCallAllocation,
-    abi: crate::MachineCallableAbi,
-}
-
-impl MachinePrimitiveCall {
-    pub(crate) fn new(
-        role: PrimitiveRole,
-        type_arguments: impl Into<Box<[TypeId]>>,
-        arguments: impl Into<Box<[MachineValueId]>>,
-        allocation: MachineCallAllocation,
-        abi: crate::MachineCallableAbi,
-    ) -> Self {
-        Self {
-            role,
-            type_arguments: type_arguments.into(),
-            arguments: arguments.into(),
-            allocation,
-            abi,
-        }
-    }
-
-    #[must_use]
-    pub const fn role(&self) -> PrimitiveRole {
-        self.role
-    }
-
-    #[must_use]
-    pub const fn type_arguments(&self) -> &[TypeId] {
-        &self.type_arguments
-    }
-
-    #[must_use]
-    pub const fn arguments(&self) -> &[MachineValueId] {
-        &self.arguments
-    }
-
-    #[must_use]
-    pub const fn allocation(&self) -> MachineCallAllocation {
-        self.allocation
-    }
-
-    #[must_use]
-    pub const fn abi(&self) -> &crate::MachineCallableAbi {
-        &self.abi
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MachineCallAllocation {
-    Inherit,
-    Explicit(MachineAddressId),
 }
 
 /// One initialized byte-range contribution to an aggregate value.
@@ -141,35 +74,6 @@ impl MachineAggregate {
     #[must_use]
     pub const fn writes(&self) -> &[MachineAggregateWrite] {
         &self.writes
-    }
-}
-
-impl MachineDirectCall {
-    pub(crate) fn new(
-        target: MachineFunctionId,
-        arguments: impl Into<Box<[MachineValueId]>>,
-        allocation: MachineCallAllocation,
-    ) -> Self {
-        Self {
-            target,
-            arguments: arguments.into(),
-            allocation,
-        }
-    }
-
-    #[must_use]
-    pub const fn target(&self) -> MachineFunctionId {
-        self.target
-    }
-
-    #[must_use]
-    pub const fn arguments(&self) -> &[MachineValueId] {
-        &self.arguments
-    }
-
-    #[must_use]
-    pub const fn allocation(&self) -> MachineCallAllocation {
-        self.allocation
     }
 }
 
@@ -220,8 +124,13 @@ pub enum MachineOperationKind {
         flag: MachineDropFlagId,
         initialized: bool,
     },
-    DirectCall(MachineDirectCall),
-    PrimitiveCall(MachinePrimitiveCall),
+    Call(MachineCall),
+    /// Reads the immutable total element count from the current function's hidden pack input.
+    PackLength,
+    /// Consumes the next element from the current function's hidden pack input.
+    PackNext,
+    /// Destroys every element and iterator still owned by the hidden pack input.
+    DestroyPack,
 }
 
 /// One instruction and the optional SSA value it defines.

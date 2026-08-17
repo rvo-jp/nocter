@@ -21,6 +21,18 @@ pub enum MachineOutcomeKind {
     Fallible,
 }
 
+impl MachineOutcomeKind {
+    #[must_use]
+    pub const fn primary_tag(self) -> u8 {
+        0
+    }
+
+    #[must_use]
+    pub const fn alternate_tag(self) -> u8 {
+        1
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineFieldLayout {
     field: FieldId,

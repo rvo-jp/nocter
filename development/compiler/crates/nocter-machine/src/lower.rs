@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_mir::{MirBody, MirOperationKind, MirProgram, MirRoot};
+use nocter_mir::{MirBody, MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId};
 
 use crate::identity::{MachineId, MachineTable};
@@ -15,8 +15,11 @@ use crate::{
 mod address;
 mod aggregate;
 mod body;
+mod call;
 mod control;
+mod destruction;
 mod operation;
+mod pack;
 
 use body::lower_body;
 
@@ -174,10 +177,6 @@ pub(super) const fn unsupported(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineUnsupportedOperation {
     StructuralCall,
-    PackedCall,
-    PackLength,
-    PackNext,
-    DestroyPack,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -192,33 +191,6 @@ pub enum MachineAggregateError {
     InvalidLayout,
     MemberMismatch,
     OffsetOverflow,
-}
-
-impl From<&MirOperationKind> for MachineUnsupportedOperation {
-    fn from(kind: &MirOperationKind) -> Self {
-        match kind {
-            MirOperationKind::PackLength => Self::PackLength,
-            MirOperationKind::PackNext => Self::PackNext,
-            MirOperationKind::DestroyPack => Self::DestroyPack,
-            MirOperationKind::Constant(_)
-            | MirOperationKind::Read { .. }
-            | MirOperationKind::Borrow { .. }
-            | MirOperationKind::Store { .. }
-            | MirOperationKind::Initialize { .. }
-            | MirOperationKind::Aggregate(_)
-            | MirOperationKind::InvokeDrop { .. }
-            | MirOperationKind::ReportError { .. }
-            | MirOperationKind::CreateRegion { .. }
-            | MirOperationKind::ReleaseRegion { .. }
-            | MirOperationKind::SetDropFlag { .. }
-            | MirOperationKind::Unary { .. }
-            | MirOperationKind::Binary { .. }
-            | MirOperationKind::IntegerConversion { .. }
-            | MirOperationKind::Call(_) => {
-                unreachable!("supported operation must be handled before classification")
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -249,6 +221,11 @@ pub enum MachineProgramError {
         owner: MachineLinkageId,
         operation: MirOperationId,
         error: MachineAggregateError,
+    },
+    Destruction {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+        error: crate::MachineDestructionError,
     },
     MissingOperationResult {
         owner: MachineLinkageId,
@@ -289,6 +266,7 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingBodyIdentity { .. }
             | Self::Address { .. }
             | Self::Aggregate { .. }
+            | Self::Destruction { .. }
             | Self::MissingOperationResult { .. }
             | Self::UnsupportedOperation { .. }
             | Self::UnsupportedPlaceSwitch(_)

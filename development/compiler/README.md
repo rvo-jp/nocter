@@ -381,13 +381,16 @@ be introduced to make an unresolved syntax choice.
   display name participates. Test roots retain declaration order outside that key table. Static
   text receives content-sorted, deduplicated `MachineDataId` values rather than first-use IDs.
   `MachineProgram` now owns distinct dense function, stack-object, drop-flag, address, SSA-value,
-  operation, block, linkage, and data identities. Layout-owned byte offsets, checked fixed/view
-  indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
+  operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
+  fixed/view indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
   explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
   Stored, completion, and diverging SSA representations are distinct. User-drop calls, process
   error reporting, and region creation/release now use machine identities as well. Standard
-  primitives retain closed roles and use the same concrete ABI planner as direct calls. Structural
-  operations, packs, ARM64 selection, and Mach-O serialization remain the next Phase 5 boundaries.
+  primitives retain closed roles and use the same concrete ABI planner as direct calls. Direct and
+  primitive targets share one call representation. Literal descriptors retain ordered fixed and
+  spread segments through a dedicated body-local identity, while residual cleanup is frozen into
+  machine-function targets, tags, strides, and byte offsets. Structural operations, ARM64
+  selection, and Mach-O serialization remain the next Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

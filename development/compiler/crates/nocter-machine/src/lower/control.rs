@@ -155,9 +155,13 @@ fn lower_tag_case(
 const fn outcome_tag(kind: MachineOutcomeKind, value: MirSwitchValue) -> Option<u8> {
     match (kind, value) {
         (MachineOutcomeKind::Optional, MirSwitchValue::OptionalPresent)
-        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleSuccess) => Some(0),
+        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleSuccess) => {
+            Some(kind.primary_tag())
+        }
         (MachineOutcomeKind::Optional, MirSwitchValue::OptionalAbsent)
-        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleFailure) => Some(1),
+        | (MachineOutcomeKind::Fallible, MirSwitchValue::FallibleFailure) => {
+            Some(kind.alternate_tag())
+        }
         _ => None,
     }
 }

@@ -34,15 +34,16 @@ identity. Machine-operation lowering must reference these tables rather than all
 data on demand.
 
 `MachineProgram` now translates each semantic linkage entry into a distinct dense machine function
-and gives each body independent stack-object, drop-flag, address, SSA-value, operation, and
-basic-block domains. Every MIR place now closes to layout-owned byte offsets, dereference steps, and
-checked fixed/view indexes. Loads, address formation, stores, aggregate writes, stored-tag switches,
+and gives each body independent stack-object, drop-flag, address, SSA-value, operation,
+literal-pack, and basic-block domains. Every MIR place now closes to layout-owned byte offsets,
+dereference steps, and checked fixed/view indexes. Loads, address formation, stores, aggregate writes, stored-tag switches,
 allocation contexts, scalar operations, block arguments, direct calls, returns, and root exits have
 closed machine nodes. Stored, completion, and diverging SSA values are separate; user destruction,
 region lifetime operations, and root error reporting consume machine identities. Standard
-primitives retain closed roles and use the ordinary ABI planner. Next, structural and pack
-operations must consume exact layout, callable, address, and data identities rather than retain
-semantic operands.
+primitives retain closed roles and use the ordinary ABI planner through one common call-target
+domain. Literal packs now consume exact value/address identities, and their residual destruction
+uses only machine-function targets plus layout-owned tags, strides, and byte offsets. Next,
+structural operations must close without retaining semantic dispatch operands.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

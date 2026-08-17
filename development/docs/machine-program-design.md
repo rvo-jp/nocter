@@ -94,8 +94,16 @@ result registers, and caller-owned indirect storage.
 Sequence-literal bodies remain outside the ordinary argument list. Because executable validation
 already forbids ordinary parameters on those bodies, their machine signature reserves one
 compiler-owned pack-descriptor pointer lane without inventing a source type or variadic ABI. The
-future machine-program pack representation must implement length, consuming next, and residual
-destruction through that pointer while retaining the MIR-owned element and optional-result types.
+machine program assigns every caller-owned descriptor a body-local `MachinePackId`. Each descriptor
+retains its exact element and optional-next types, total-length value, and ordered fixed or spread
+segments. A spread contains only a machine address, remaining-count value, closed call target,
+contribution mode, and residual destruction plan. The literal body exposes only explicit length,
+consuming-next, and destroy operations over its hidden pointer.
+
+Residual destruction is lowered independently from normal address operations because a partially
+consumed pack owns storage whose active member is selected at runtime. Its closed recipe contains
+machine-function drop targets, layout-owned byte offsets, strides, tags, sizes, and alignments. It
+does not retain MIR places, source fields, variants, captures, parameters, or executable-item IDs.
 
 Linkage identities derive from dense executable item and compiler-owned root identities, not
 source spellings. Human-readable names may be retained as presentation metadata only after a
@@ -110,15 +118,19 @@ in byte order, so function traversal and first-use order cannot alter data ident
 layout.
 
 `MachineProgram` now owns a separate dense function domain and body-local stack-object, drop-flag,
-address, SSA-value, operation, and basic-block domains. MIR identities are translated once while the
-program is built and are absent from the immutable result. Every address starts from an abstract
-stack object, pointer value, or two-word view and then uses only byte offsets, dereferences, and
-checked index steps. Fixed arrays retain their declared bound and layout-owned stride. Slice and
-string indexes retain the length from the current view. Field, capture, variant-payload, outcome,
-and opaque-witness identities are consumed while those steps are constructed.
+address, SSA-value, operation, literal-pack, and basic-block domains. MIR identities are translated
+once while the program is built and are absent from the immutable result. Every address starts from
+an abstract stack object, pointer value, or two-word view and then uses only byte offsets,
+dereferences, and checked index steps. Fixed arrays retain their declared bound and layout-owned
+stride. Slice and string indexes retain the length from the current view. Field, capture,
+variant-payload, outcome, and opaque-witness identities are consumed while those steps are
+constructed.
 
-Function entries carry the single callable ABI object owned by `MachineAbiPlan`; direct-call
-operations name the target machine function and therefore cannot invent a second call contract.
+Function entries carry the single callable ABI object owned by `MachineAbiPlan`. One
+`MachineCallTarget` domain distinguishes direct machine functions from compiler-known primitives;
+arguments, allocation context, and the optional hidden pack identity use one call representation.
+Direct targets therefore cannot invent a second call contract, and new target kinds cannot create
+a parallel argument-transport path.
 Constants, loads, address formation, stores, aggregate writes, scalar operations, integer
 conversion, drop-flag control, block arguments, scalar and stored-tag switches, returns, process
 exits, and direct calls have closed machine forms. Aggregate writes and tag switches use the same
@@ -133,11 +145,11 @@ inventing a zero-byte layout for `void` or `never`. User-drop invocation names a
 and machine address. Region creation and release name machine values and stack objects, and process
 error reporting names the exact machine error value. None retain MIR-local identities.
 
-Standard primitive calls retain only their closed `PrimitiveRole`, concrete layout-key type
-arguments, machine-value arguments, allocation context, and exact concrete signature. That
-signature is passed through the same callable ABI planner as source functions. A primitive cannot
-introduce a private register convention, and ARM64 selection never looks up a primitive by module
-or declaration spelling.
+Standard primitive targets retain only their closed `PrimitiveRole`, concrete layout-key type
+arguments, and exact concrete signature. The surrounding common call retains machine-value
+arguments and allocation context. That signature is passed through the same callable ABI planner
+as source functions. A primitive cannot introduce a private register convention, and ARM64
+selection never looks up a primitive by module or declaration spelling.
 
 ## ARM64 and Mach-O Boundaries
 
@@ -182,6 +194,8 @@ results, the compiler-owned literal-pack lane, ordered test roots, static-text d
 scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access,
 outcome tag control, explicit completion values, user destruction, region lifetime operations, and
 process error reporting. Standard primitive calls also carry ordinary ABI plans and closed roles.
+Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
+operations, and layout-owned residual destruction recipes.
 
-Structural operations, literal-pack descriptors, ARM64 instruction lowering, and Mach-O
-serialization are the remaining Phase 5 implementation areas.
+Structural operations, ARM64 instruction lowering, and Mach-O serialization are the remaining
+Phase 5 implementation areas.

@@ -6,8 +6,8 @@ use crate::identity::MachineTable;
 use crate::{
     MachineAbiPlan, MachineAddress, MachineAddressId, MachineBlock, MachineBlockId,
     MachineDataTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore,
-    MachineLinkageId, MachineLinkageTable, MachineOperation, MachineOperationId, MachineStackId,
-    MachineStackObject, MachineValue, MachineValueId,
+    MachineLinkageId, MachineLinkageTable, MachineOperation, MachineOperationId, MachinePack,
+    MachinePackId, MachineStackId, MachineStackObject, MachineValue, MachineValueId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,6 +26,7 @@ pub struct MachineBody {
     addresses: MachineTable<MachineAddressId, MachineAddress>,
     values: MachineTable<MachineValueId, MachineValue>,
     operations: MachineTable<MachineOperationId, MachineOperation>,
+    packs: MachineTable<MachinePackId, MachinePack>,
     blocks: MachineTable<MachineBlockId, MachineBlock>,
     entry: MachineBlockId,
 }
@@ -36,6 +37,7 @@ pub(crate) struct MachineBodyDomains {
     pub(crate) addresses: MachineTable<MachineAddressId, MachineAddress>,
     pub(crate) values: MachineTable<MachineValueId, MachineValue>,
     pub(crate) operations: MachineTable<MachineOperationId, MachineOperation>,
+    pub(crate) packs: MachineTable<MachinePackId, MachinePack>,
     pub(crate) blocks: MachineTable<MachineBlockId, MachineBlock>,
 }
 
@@ -52,6 +54,7 @@ impl MachineBody {
             addresses: domains.addresses,
             values: domains.values,
             operations: domains.operations,
+            packs: domains.packs,
             blocks: domains.blocks,
             entry,
         }
@@ -116,6 +119,16 @@ impl MachineBody {
         &self,
     ) -> impl ExactSizeIterator<Item = (MachineOperationId, &MachineOperation)> {
         self.operations.iter()
+    }
+
+    #[must_use]
+    pub fn pack(&self, id: MachinePackId) -> Option<&MachinePack> {
+        self.packs.get(id)
+    }
+
+    #[must_use]
+    pub fn packs(&self) -> impl ExactSizeIterator<Item = (MachinePackId, &MachinePack)> {
+        self.packs.iter()
     }
 
     #[must_use]

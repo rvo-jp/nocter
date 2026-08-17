@@ -11,12 +11,13 @@ use super::MachineProgramError;
 use super::address::lower_addresses;
 use super::control::lower_blocks;
 use super::operation::lower_operations;
+use super::pack::lower_packs;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
     MachineAddressId, MachineBlockId, MachineDataTable, MachineDropFlag, MachineDropFlagId,
-    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineOperationId, MachineStackId,
-    MachineStackObject, MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
-    MachineValueRepresentation,
+    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineOperationId, MachinePackId,
+    MachineStackId, MachineStackObject, MachineStackPurpose, MachineValue, MachineValueDefinition,
+    MachineValueId, MachineValueRepresentation,
 };
 
 pub(super) fn lower_body(
@@ -41,6 +42,7 @@ pub(super) fn lower_body(
         .collect::<Vec<_>>();
     let addresses = lower_addresses(body, types, layouts, &ids)?;
     let values = lower_values(body, types, layouts, &ids)?;
+    let packs = lower_packs(body, types, layouts, functions, &ids)?;
     let operations = lower_operations(body, types, layouts, data, functions, &ids)?;
     let blocks = lower_blocks(body, layouts, &ids)?;
 
@@ -52,6 +54,7 @@ pub(super) fn lower_body(
             addresses: MachineTable::from_values(addresses),
             values: MachineTable::from_values(values),
             operations: MachineTable::from_values(operations),
+            packs: MachineTable::from_values(packs),
             blocks: MachineTable::from_values(blocks),
         },
         ids.block(body.entry())?,
@@ -134,6 +137,7 @@ pub(super) struct BodyIdentities {
     addresses: BTreeMap<MirPlaceId, MachineAddressId>,
     values: BTreeMap<MirValueId, MachineValueId>,
     operations: BTreeMap<MirOperationId, MachineOperationId>,
+    packs: BTreeMap<MirOperationId, MachinePackId>,
     blocks: BTreeMap<MirBlockId, MachineBlockId>,
 }
 
@@ -147,6 +151,11 @@ impl BodyIdentities {
             values: assign_ids::<MirValueId, MachineValueId, _>(body.values().iter()),
             operations: assign_ids::<MirOperationId, MachineOperationId, _>(
                 body.operations().iter(),
+            ),
+            packs: assign_ids::<MirOperationId, MachinePackId, _>(
+                body.operations().iter().filter(|(_, operation)| {
+                    matches!(operation.kind(), nocter_mir::MirOperationKind::Call(call) if call.pack().is_some())
+                }),
             ),
             blocks: assign_ids::<MirBlockId, MachineBlockId, _>(body.blocks().iter()),
         }
@@ -185,6 +194,13 @@ impl BodyIdentities {
         self.require(&self.operations, source)
     }
 
+    pub(super) fn pack(
+        &self,
+        source: MirOperationId,
+    ) -> Result<MachinePackId, MachineProgramError> {
+        self.require(&self.packs, source)
+    }
+
     pub(super) fn block(&self, source: MirBlockId) -> Result<MachineBlockId, MachineProgramError> {
         self.require(&self.blocks, source)
     }
@@ -204,7 +220,7 @@ impl BodyIdentities {
 }
 
 fn assign_ids<K: Copy + Ord, I: MachineId, V>(
-    values: impl ExactSizeIterator<Item = (K, V)>,
+    values: impl Iterator<Item = (K, V)>,
 ) -> BTreeMap<K, I> {
     values
         .enumerate()

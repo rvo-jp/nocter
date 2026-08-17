@@ -3,23 +3,32 @@
 //! This crate consumes only validated MIR and the closed toolchain identities retained by that
 //! program. It never receives syntax, name resolution, generic requirements, or rendered types.
 
+mod call;
 mod control;
+mod destruction;
 mod identity;
 mod layout;
 mod linkage;
 mod lower;
 mod operation;
+mod pack;
 mod program;
 mod storage;
 mod target;
 mod transport;
 
+pub use call::{MachineCall, MachineCallAllocation, MachineCallTarget, MachinePrimitiveTarget};
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
+pub use destruction::{
+    MachineDestructionCapture, MachineDestructionError, MachineDestructionField,
+    MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
+    MachineDestructionVariant,
+};
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDropFlagId, MachineFunctionId,
-    MachineLinkageId, MachineOperationId, MachineStackId, MachineValueId,
+    MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId, MachineValueId,
 };
 
 pub use layout::{
@@ -35,10 +44,12 @@ pub use lower::{
     MachineAddressError, MachineAggregateError, MachineProgramError, MachineUnsupportedOperation,
 };
 pub use operation::{
-    MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineCallAllocation,
-    MachineConstant, MachineDirectCall, MachineOperation, MachineOperationKind,
-    MachinePrimitiveCall, MachineUnaryOperation, MachineValue, MachineValueDefinition,
-    MachineValueRepresentation,
+    MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineConstant,
+    MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
+    MachineValueDefinition, MachineValueRepresentation,
+};
+pub use pack::{
+    MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment, MachinePackSpread,
 };
 pub use program::{
     MachineBody, MachineFunction, MachineFunctionKind, MachineProgram, MachineProgramRoot,

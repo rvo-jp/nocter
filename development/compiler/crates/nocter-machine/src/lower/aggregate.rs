@@ -47,8 +47,8 @@ pub(super) fn lower_aggregate(
             *tag_offset,
             *payload_offset,
             payload.as_ref().copied(),
-            0,
-            1,
+            MachineOutcomeKind::Optional.primary_tag(),
+            MachineOutcomeKind::Optional.alternate_tag(),
             context,
         )?,
         (
@@ -63,8 +63,8 @@ pub(super) fn lower_aggregate(
             *tag_offset,
             *payload_offset,
             payload.as_ref().copied(),
-            0,
-            0,
+            MachineOutcomeKind::Fallible.primary_tag(),
+            MachineOutcomeKind::Fallible.primary_tag(),
             context,
         )?,
         (
@@ -75,7 +75,14 @@ pub(super) fn lower_aggregate(
                 payload_offset,
                 ..
             },
-        ) => outcome_writes(*tag_offset, *payload_offset, Some(*error), 1, 1, context)?,
+        ) => outcome_writes(
+            *tag_offset,
+            *payload_offset,
+            Some(*error),
+            MachineOutcomeKind::Fallible.alternate_tag(),
+            MachineOutcomeKind::Fallible.alternate_tag(),
+            context,
+        )?,
         (
             MirAggregate::Closure { captures, .. },
             MachineLayoutKind::Closure { captures: layout },

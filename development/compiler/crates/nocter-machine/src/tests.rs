@@ -652,7 +652,10 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
     let direct_target = root_body
         .operations()
         .find_map(|(_, operation)| match operation.kind() {
-            MachineOperationKind::DirectCall(call) => Some(call.target()),
+            MachineOperationKind::Call(call) => match call.target() {
+                crate::MachineCallTarget::Direct(target) => Some(*target),
+                crate::MachineCallTarget::Primitive(_) => None,
+            },
             _ => None,
         });
     assert_eq!(direct_target, Some(entry));
@@ -866,10 +869,13 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
         .functions()
         .flat_map(|(_, function)| function.body().operations())
         .filter_map(|(_, operation)| {
-            let MachineOperationKind::PrimitiveCall(call) = operation.kind() else {
+            let MachineOperationKind::Call(call) = operation.kind() else {
                 return None;
             };
-            Some((call.role(), call.abi().arguments().len()))
+            let crate::MachineCallTarget::Primitive(target) = call.target() else {
+                return None;
+            };
+            Some((target.role(), target.abi().arguments().len()))
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -879,6 +885,141 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
             (PrimitiveRole::PointerAddress, 1),
         ]
     );
+}
+
+#[test]
+fn literal_pack_is_a_dense_body_domain_and_uses_explicit_consumer_operations() {
+    let mir = lower_fixture(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let length = items.len()\n\
+                 for item in items {}\n\
+                 let _ = length\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let values = Vec [1, 2]\n\
+             drop values\n\
+             0\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let (caller, pack_id) = program
+        .functions()
+        .find_map(|(_, function)| {
+            function
+                .body()
+                .operations()
+                .find_map(|(_, operation)| match operation.kind() {
+                    MachineOperationKind::Call(call) => {
+                        call.pack().map(|pack| (function.body(), pack))
+                    }
+                    _ => None,
+                })
+        })
+        .expect("literal call must retain one pack identity");
+    let pack = caller.pack(pack_id).unwrap();
+
+    assert_eq!(caller.packs().len(), 1);
+    assert_eq!(pack.segments().len(), 2);
+    assert!(pack.segments().iter().all(|segment| {
+        matches!(
+            segment,
+            crate::MachinePackSegment::Value {
+                destruction: None,
+                ..
+            }
+        )
+    }));
+    assert!(program.functions().any(|(_, function)| {
+        let operations = function
+            .body()
+            .operations()
+            .map(|(_, operation)| operation.kind())
+            .collect::<Vec<_>>();
+        operations
+            .iter()
+            .any(|kind| matches!(kind, MachineOperationKind::PackLength))
+            && operations
+                .iter()
+                .any(|kind| matches!(kind, MachineOperationKind::PackNext))
+            && operations
+                .iter()
+                .any(|kind| matches!(kind, MachineOperationKind::DestroyPack))
+    }));
+}
+
+#[test]
+fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let _ = items.len()\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         struct Leaf {}\n\
+         drop Leaf(&+self) { return }\n\
+         struct Item { leaf: Leaf }\n\
+         struct Iter {}\n\
+         conform Iterator for Iter {\n\
+             type Item = Item\n\
+             method &+self.next(): Item? { return none }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return 0 }\n\
+         }\n\
+         drop Iter(&+self) { return }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {}\n\
+             let _ = Vec [Item { leaf: Leaf {} }, ...move iterator, Item { leaf: Leaf {} }]\n\
+             0\n\
+         }\n",
+        &[&[], &[]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let pack = program
+        .functions()
+        .find_map(|(_, function)| function.body().packs().next().map(|(_, pack)| pack))
+        .expect("spread literal must retain a machine pack");
+    let [first, crate::MachinePackSegment::Spread(spread), last] = pack.segments() else {
+        panic!("expected fixed, spread, fixed pack order")
+    };
+
+    for segment in [first, last] {
+        let crate::MachinePackSegment::Value {
+            destruction: Some(plan),
+            ..
+        } = segment
+        else {
+            panic!("owned fixed values must retain destruction")
+        };
+        assert!(matches!(
+            plan.kind(),
+            crate::MachineDestructionKind::Struct { fields, .. }
+                if matches!(fields.as_ref(), [field]
+                    if field.offset() == 0
+                        && matches!(
+                            field.plan().kind(),
+                            crate::MachineDestructionKind::Struct { drop: Some(_), .. }
+                        ))
+        ));
+    }
+    assert_eq!(
+        spread.contribution(),
+        crate::MachinePackContribution::Direct
+    );
+    assert!(spread.destruction().is_some());
+    assert!(matches!(
+        spread.next().target(),
+        crate::MachineCallTarget::Direct(_)
+    ));
 }
 
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
