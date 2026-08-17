@@ -12,9 +12,9 @@ implementation input.
 
 1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
-   conversions, and comparisons to selected index places, outcomes, loops, patterns, closures,
-   regions, and cleanup-specific destruction plans. Never repeat requirement, conformance, or
-   drop-pattern selection.
+   conversions, comparisons, and selected/coerced index places to outcomes, loops, patterns,
+   closures, regions, and cleanup-specific destruction plans. Never repeat requirement,
+   conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -104,8 +104,9 @@ function for every executable item and validates direct-call and drop-body signa
 closed function arena. The checked-body lowering path now consumes frozen concrete item and
 primitive signatures, materializes receiver borrow capability, performs selected receiver and
 operand coercions, and lowers primitive or selected comparisons without reopening selection.
-Checked index, outcome, loop, pattern, closure, region, and cleanup lowering remains the current
-task.
+Selected and coerced index projections now lower by borrowing the current place prefix, executing
+their frozen receiver lane, and continuing from the returned borrow as a new MIR place root.
+Outcome, loop, pattern, closure, region, and cleanup lowering remains the current task.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

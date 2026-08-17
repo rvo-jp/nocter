@@ -1,9 +1,22 @@
 use nocter_checking::{PlaceProjection, PlaceRoot};
-use nocter_model::{MirPlaceId, PlaceId};
+use nocter_model::{MirPlaceId, PlaceId, TypeId};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{MirPlaceRoot, MirProjection, MirProjectionKind};
+
+pub(super) struct LoweredPlacePath {
+    pub(super) root: MirPlaceRoot,
+    pub(super) projections: Vec<MirProjection>,
+    pub(super) ty: TypeId,
+}
+
+impl LoweredPlacePath {
+    pub(super) fn push(&mut self, kind: MirProjectionKind, ty: TypeId) {
+        self.projections.push(MirProjection::new(kind, ty));
+        self.ty = ty;
+    }
+}
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_place(&mut self, place: PlaceId) -> Result<MirPlaceId, MirLoweringError> {
@@ -28,26 +41,62 @@ impl FunctionLowerer<'_> {
                 return Err(MirLoweringError::UnsupportedPlaceProjection(place));
             }
         };
-        let mut projections = Vec::with_capacity(checked.projections().len());
+        let root_ty = match root {
+            MirPlaceRoot::Local(local) => self
+                .builder
+                .local_type(local)
+                .ok_or(MirLoweringError::UnknownPlace(place))?,
+            MirPlaceRoot::Dereference { .. } => unreachable!("checked roots start from locals"),
+        };
+        let mut path = LoweredPlacePath {
+            root,
+            projections: Vec::with_capacity(checked.projections().len()),
+            ty: root_ty,
+        };
         for (projection, source_ty) in checked.projections().iter().zip(checked.projection_types())
         {
             let ty = self.concrete_type(*source_ty)?;
-            let kind = match projection {
-                PlaceProjection::Field(field) => MirProjectionKind::Field(*field),
+            match projection {
+                PlaceProjection::Field(field) => {
+                    path.push(MirProjectionKind::Field(*field), ty);
+                }
                 PlaceProjection::BorrowDeref { capability } => {
-                    MirProjectionKind::BorrowDereference(*capability)
+                    path.push(MirProjectionKind::BorrowDereference(*capability), ty);
                 }
                 PlaceProjection::BuiltinIndex { index } => {
-                    MirProjectionKind::DynamicIndex(self.require_value(*index)?)
+                    let index = self.require_value(*index)?;
+                    path.push(MirProjectionKind::DynamicIndex(index), ty);
                 }
-                PlaceProjection::CoercedBuiltinIndex { .. }
-                | PlaceProjection::SelectedIndex { .. } => {
-                    return Err(MirLoweringError::UnsupportedPlaceProjection(place));
+                PlaceProjection::CoercedBuiltinIndex {
+                    index,
+                    receiver_coercion,
+                } => {
+                    self.lower_coerced_builtin_index(
+                        place,
+                        &mut path,
+                        *index,
+                        receiver_coercion,
+                        ty,
+                    )?;
                 }
-            };
-            projections.push(MirProjection::new(kind, ty));
+                PlaceProjection::SelectedIndex {
+                    index,
+                    operation,
+                    receiver_coercion,
+                } => self.lower_selected_index(
+                    place,
+                    &mut path,
+                    *index,
+                    operation,
+                    receiver_coercion.as_ref(),
+                    ty,
+                )?,
+            }
         }
         let ty = self.concrete_type(checked.ty())?;
-        Ok(self.builder.add_place(root, projections, ty))
+        if path.ty != ty {
+            return Err(MirLoweringError::InvalidProjectionTypes(place));
+        }
+        Ok(self.builder.add_place(path.root, path.projections, ty))
     }
 }

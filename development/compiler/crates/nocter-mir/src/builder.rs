@@ -83,6 +83,11 @@ impl MirFunctionBuilder {
     }
 
     #[must_use]
+    pub fn local_type(&self, local: MirLocalId) -> Option<TypeId> {
+        self.locals.get(local).copied().map(MirLocal::ty)
+    }
+
+    #[must_use]
     pub fn value_type(&self, value: MirValueId) -> Option<TypeId> {
         self.values.get(value).copied().map(MirValue::ty)
     }

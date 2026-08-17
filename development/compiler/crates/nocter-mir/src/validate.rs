@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::validation_call::validate_call;
 use crate::validation_graph::{place_values, successors};
-use crate::validation_place::{PlaceFacts, place_facts};
+use crate::validation_place::place_facts;
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{is_integer, matches_nominal_member, nominal_application};
 use crate::{
@@ -92,16 +92,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
 
     fn validate_place(&self, id: MirPlaceId, place: &MirPlace) -> Result<(), MirValidationError> {
         self.require_type(place.ty())?;
-        let (mut current, mut facts) = match place.root() {
+        let mut current = match place.root() {
             MirPlaceRoot::Local(local) => {
                 let local = self.require_local(local)?;
-                (
-                    local.ty(),
-                    PlaceFacts {
-                        writable: local.is_mutable(),
-                        movable: true,
-                    },
-                )
+                local.ty()
             }
             MirPlaceRoot::Dereference { value, capability } => {
                 let source = self.value_type(value)?;
@@ -109,13 +103,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     Some(TypeKind::Borrow {
                         capability: actual,
                         referent,
-                    }) if *actual == capability => (
-                        *referent,
-                        PlaceFacts {
-                            writable: capability == BorrowCapability::ReadWrite,
-                            movable: false,
-                        },
-                    ),
+                    }) if *actual == capability => *referent,
                     _ => return Err(MirValidationError::InvalidPlaceRoot { place: id }),
                 }
             }
@@ -123,23 +111,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         for projection in place.projections().iter().copied() {
             self.require_type(projection.ty())?;
             self.validate_projection(id, current, projection.kind(), projection.ty())?;
-            if matches!(
-                projection.kind(),
-                MirProjectionKind::BorrowDereference(_)
-                    | MirProjectionKind::FixedIndex(_)
-                    | MirProjectionKind::DynamicIndex(_)
-            ) {
-                facts.movable = false;
-            }
-            if let MirProjectionKind::BorrowDereference(capability) = projection.kind() {
-                facts.writable &= capability == BorrowCapability::ReadWrite;
-            }
             current = projection.ty();
         }
         if current != place.ty() {
             return Err(MirValidationError::PlaceTypeMismatch { place: id });
         }
-        let _ = facts;
         Ok(())
     }
 

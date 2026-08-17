@@ -12,6 +12,7 @@ mod call;
 mod comparison;
 mod control;
 mod function;
+mod index_place;
 mod operand;
 mod place;
 
@@ -58,6 +59,7 @@ pub enum MirLoweringError {
     UnsupportedPlaceProjection(PlaceId),
     ExpectedPlace(BodyNodeId),
     InvalidDispatch(BodyNodeId),
+    InvalidPlaceDispatch(PlaceId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
     Program(MirProgramBuildError),

@@ -1,5 +1,5 @@
 use nocter_checking::{CallTarget, CheckedCall, ResolvedPrimitiveDispatch};
-use nocter_model::{BodyNodeId, BuiltinType, MirValueId, TypeId, TypeKind};
+use nocter_model::{BodyNodeId, BuiltinType, MirValueId, PlaceId, TypeId, TypeKind};
 use nocter_target_program::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutablePrimitiveCall, ExecutableSignature,
 };
@@ -65,6 +65,17 @@ impl FunctionLowerer<'_> {
         arguments: impl Into<Box<[MirValueId]>>,
     ) -> Result<MirValueId, MirLoweringError> {
         let target = step_target(step).ok_or(MirLoweringError::InvalidDispatch(node))?;
+        self.emit_call(ty, target, arguments)
+    }
+
+    pub(super) fn emit_place_dispatch_step(
+        &mut self,
+        place: PlaceId,
+        ty: TypeId,
+        step: &ExecutableDispatchStep,
+        arguments: impl Into<Box<[MirValueId]>>,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let target = step_target(step).ok_or(MirLoweringError::InvalidPlaceDispatch(place))?;
         self.emit_call(ty, target, arguments)
     }
 

@@ -303,8 +303,10 @@ be introduced to make an unresolved syntax choice.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body
   lowering slice handles scalar and aggregate expressions, ordinary places, branching, direct and
-  primitive calls, receiver and operand coercions, borrow conversions, and comparisons. Remaining
-  checked operations fail explicitly instead of being omitted.
+  primitive calls, receiver and operand coercions, borrow conversions, comparisons, and
+  selected/coerced index places. Call-backed indexing continues from the returned borrow as a
+  normal place root, including nested fields and readwrite storage. Remaining checked operations
+  fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

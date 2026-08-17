@@ -281,6 +281,114 @@ fn lowers_method_receiver_coercion_before_the_selected_method() {
 }
 
 #[test]
+fn lowers_selected_index_results_as_borrow_rooted_places() {
+    let program = lower_fixture(
+        "copy struct Buffer { values: [i32; 2] }\n\
+         instance Buffer {\n\
+             pub operator (&self[index: usize]): &i32 {\n\
+                 &self.values[index]\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let buffer = Buffer { values: [1, 2] }\n\
+             buffer[1]\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Dereference { .. }))
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(operation.kind(), MirOperationKind::Call(call) if matches!(call.target(), crate::MirCallTarget::Direct(_)))
+        })
+    }));
+}
+
+#[test]
+fn continues_field_projection_after_a_readwrite_index_call() {
+    let program = lower_fixture(
+        "copy struct Element { value: i32 }\n\
+         copy struct Buffer { values: [Element; 1] }\n\
+         instance Buffer {\n\
+             pub operator (&self[index: usize]): &Element {\n\
+                 &self.values[index]\n\
+             }\n\
+             pub operator (&+self[index: usize]): &+Element {\n\
+                 &+self.values[index]\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             var buffer = Buffer { values: [Element { value: 1 }] }\n\
+             buffer[0].value = 7\n\
+             buffer[0].value\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(operation.kind(), MirOperationKind::Store { destination, .. }
+                if matches!(function.places().get(*destination).unwrap().root(), crate::MirPlaceRoot::Dereference { .. })
+                    && !function.places().get(*destination).unwrap().projections().is_empty())
+        })
+    }));
+}
+
+#[test]
+fn lowers_coerced_builtin_index_without_reopening_index_selection() {
+    let program = lower_fixture(
+        "copy struct Wrapper { values: [i32; 2] }\n\
+         instance Wrapper {\n\
+             pub coerce &self as &[i32; 2] { &self.values }\n\
+         }\n\
+         func main(): i32 {\n\
+             let wrapper = Wrapper { values: [1, 2] }\n\
+             wrapper[1]\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Dereference { .. }))
+    }));
+}
+
+#[test]
+fn lowers_specialized_structural_index_with_its_receiver_lane() {
+    let program = lower_fixture(
+        "copy struct Buffer { values: [i32; 2] }\n\
+         instance Buffer {\n\
+             pub operator (&self[index: usize]): &i32 {\n\
+                 &self.values[index]\n\
+             }\n\
+         }\n\
+         func read<C, V>(source: &C, index: usize): V where copy V, (&C[usize]): &V {\n\
+             source[index]\n\
+         }\n\
+         func main(): i32 {\n\
+             let buffer = Buffer { values: [1, 2] }\n\
+             read(&buffer, 1)\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Dereference { .. }))
+    }));
+}
+
+#[test]
 fn refuses_to_silently_drop_checked_cleanup() {
     let error = lower_fixture(
         "struct Owned { value: i32 }\n\

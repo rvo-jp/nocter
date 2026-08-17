@@ -233,10 +233,14 @@ operations, aggregate construction, ordinary copy/move/borrow places, initializa
 assignment, value-producing branches, short-circuit logic, returns, direct and standard-primitive
 calls, receiver preparation and one-step receiver coercion, borrow conversions, and primitive or
 selected comparisons. Comparison lowering consumes source-selected operand coercions and
-specialization-selected coercions through the same lane-preserving plan. It runs through the
-complete source-to-executable fixture rather than a second hand-built input model. Unsupported
-checked operations and every non-empty cleanup schedule fail explicitly until their dedicated
-lowering paths are implemented; the current slice cannot silently omit accepted semantics.
+specialization-selected coercions through the same lane-preserving plan. Selected and coerced
+indexing lowers a place prefix, borrows it with the frozen receiver capability, invokes its exact
+coercion/operator lane, and continues projection from the returned borrow. Nested field projection
+and readwrite storage therefore use the same MIR place model as ordinary storage. The slice runs
+through the complete source-to-executable fixture rather than a second hand-built input model.
+Unsupported checked operations and every non-empty cleanup schedule fail explicitly until their
+dedicated lowering paths are implemented; the current slice cannot silently omit accepted
+semantics.
 
 ## Prohibited Designs
 

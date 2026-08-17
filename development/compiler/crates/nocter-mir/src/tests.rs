@@ -2,14 +2,14 @@ use nocter_declarations::{
     FieldDeclaration, NominalTypeDeclaration, Parameter, VariantDeclaration,
 };
 use nocter_model::{
-    Arena, ArenaBuilder, BuiltinType, ExecutableItemId, FieldId, NominalTypeId, ParameterId,
-    TypeStore, VariantId,
+    Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, FieldId, NominalTypeId,
+    ParameterId, TypeKind, TypeStore, VariantId,
 };
 
 use crate::{
     MirBinaryOperation, MirBranchTarget, MirConstant, MirFunctionBuildError, MirFunctionBuilder,
-    MirLocalKind, MirOperationKind, MirPlaceRoot, MirTerminator, MirValidationEnvironment,
-    MirValidationError,
+    MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind, MirTerminator,
+    MirValidationEnvironment, MirValidationError,
 };
 
 struct TestEnvironment {
@@ -19,16 +19,129 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     fn new() -> (Self, ExecutableItemId) {
+        Self::with_types(TypeStore::new())
+    }
+
+    fn with_types(types: TypeStore) -> (Self, ExecutableItemId) {
         let mut items = ArenaBuilder::new();
         let item = items.insert(());
         (
             Self {
-                types: TypeStore::new(),
+                types,
                 items: items.finish(),
             },
             item,
         )
     }
+}
+
+#[test]
+fn immutable_slots_preserve_the_write_authority_of_stored_borrows() {
+    let mut types = TypeStore::new();
+    let void = types.builtin(BuiltinType::Void);
+    let i32_ = types.builtin(BuiltinType::I32);
+    let borrow = types
+        .intern(TypeKind::Borrow {
+            capability: BorrowCapability::ReadWrite,
+            referent: i32_,
+        })
+        .unwrap();
+    let (environment, item) = TestEnvironment::with_types(types);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let parameter = builder.add_parameter(borrow, false);
+    let place = builder.add_place(
+        MirPlaceRoot::Local(parameter),
+        [MirProjection::new(
+            MirProjectionKind::BorrowDereference(BorrowCapability::ReadWrite),
+            i32_,
+        )],
+        i32_,
+    );
+    let (entry, _) = builder.create_block([]);
+    let value = builder
+        .append_value(
+            entry,
+            i32_,
+            MirOperationKind::Constant(MirConstant::Integer(1)),
+        )
+        .unwrap();
+    builder
+        .append_effect(
+            entry,
+            MirOperationKind::Store {
+                destination: place,
+                value,
+            },
+        )
+        .unwrap();
+    builder
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+
+    builder.finish(entry, &environment).unwrap();
+}
+
+#[test]
+fn an_outer_readonly_borrow_remains_a_write_authority_ceiling() {
+    let mut types = TypeStore::new();
+    let void = types.builtin(BuiltinType::Void);
+    let i32_ = types.builtin(BuiltinType::I32);
+    let readwrite = types
+        .intern(TypeKind::Borrow {
+            capability: BorrowCapability::ReadWrite,
+            referent: i32_,
+        })
+        .unwrap();
+    let readonly = types
+        .intern(TypeKind::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent: readwrite,
+        })
+        .unwrap();
+    let (environment, item) = TestEnvironment::with_types(types);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let parameter = builder.add_parameter(readonly, false);
+    let place = builder.add_place(
+        MirPlaceRoot::Local(parameter),
+        [
+            MirProjection::new(
+                MirProjectionKind::BorrowDereference(BorrowCapability::Readonly),
+                readwrite,
+            ),
+            MirProjection::new(
+                MirProjectionKind::BorrowDereference(BorrowCapability::ReadWrite),
+                i32_,
+            ),
+        ],
+        i32_,
+    );
+    let (entry, _) = builder.create_block([]);
+    let value = builder
+        .append_value(
+            entry,
+            i32_,
+            MirOperationKind::Constant(MirConstant::Integer(1)),
+        )
+        .unwrap();
+    builder
+        .append_effect(
+            entry,
+            MirOperationKind::Store {
+                destination: place,
+                value,
+            },
+        )
+        .unwrap();
+    builder
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+
+    assert!(matches!(
+        builder.finish(entry, &environment),
+        Err(MirFunctionBuildError::Validation(
+            MirValidationError::OperationType(_)
+        ))
+    ));
 }
 
 impl MirValidationEnvironment for TestEnvironment {
