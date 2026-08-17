@@ -9,12 +9,16 @@ use nocter_syntax::{NodeId, NodeKind};
 
 use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;
-use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget};
+use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget, TypeValidityRule};
 
 #[derive(Debug)]
 pub enum BodyCheckError {
     Rule {
         rule: BodyRule,
+        diagnostic: SourceDiagnostic,
+    },
+    TypeValidity {
+        rule: TypeValidityRule,
         diagnostic: SourceDiagnostic,
     },
     Internal(BodyCheckInternalError),
@@ -24,7 +28,9 @@ impl BodyCheckError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
-            Self::Rule { diagnostic, .. } => Some(diagnostic),
+            Self::Rule { diagnostic, .. } | Self::TypeValidity { diagnostic, .. } => {
+                Some(diagnostic)
+            }
             Self::Internal(_) => None,
         }
     }
@@ -33,19 +39,34 @@ impl BodyCheckError {
     pub const fn rule(&self) -> Option<BodyRule> {
         match self {
             Self::Rule { rule, .. } => Some(*rule),
-            Self::Internal(_) => None,
+            Self::TypeValidity { .. } | Self::Internal(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn type_validity_rule(&self) -> Option<TypeValidityRule> {
+        match self {
+            Self::TypeValidity { rule, .. } => Some(*rule),
+            Self::Rule { .. } | Self::Internal(_) => None,
         }
     }
 
     pub(crate) const fn from_rule(rule: BodyRule, diagnostic: SourceDiagnostic) -> Self {
         Self::Rule { rule, diagnostic }
     }
+
+    pub(crate) const fn from_type_validity(
+        rule: TypeValidityRule,
+        diagnostic: SourceDiagnostic,
+    ) -> Self {
+        Self::TypeValidity { rule, diagnostic }
+    }
 }
 
 impl fmt::Display for BodyCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Rule { diagnostic, .. } => {
+            Self::Rule { diagnostic, .. } | Self::TypeValidity { diagnostic, .. } => {
                 write!(formatter, "{}: {}", diagnostic.code(), diagnostic.message())
             }
             Self::Internal(error) => error.fmt(formatter),

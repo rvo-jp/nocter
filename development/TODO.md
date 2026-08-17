@@ -2,20 +2,20 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by giving authored binding annotations one normalized type-checking and
-expected-type boundary before implementing executable regions.
+Continue v0.14.0 Phase 3 by completing executable region construction and ownership over the
+already modeled provenance and loan boundaries.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Resolve every authored binding annotation through the existing body type-use authority and
-   check its initializer through the ordinary expected-type path.
-2. Define the exact inference and diagnostic rules for annotations without duplicating callable,
-   construction, or literal specialization.
-3. Close executable region semantics only after binding types no longer depend on inference-only
-   locals.
+1. Construct one checked `Region` from its exact allocator place, lexical region binding, and body
+   scope without interpreting the region name as ordinary storage.
+2. Add region lifetime and destruction to ownership cleanup, including body completion, return,
+   propagation, and nested-region order.
+3. Verify allocation selection, provenance escape, source loans, and early transfers against the
+   same checked region identity.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -51,8 +51,8 @@ program-wide rules,
 while `CheckedProgram` and `CheckedBody` define the syntax-independent output schema. Places and
 static dispatch retain exact decisions, and generic arguments are identity-keyed and canonical.
 `check_prepared_program` now consumes the preparation state and produces a closed `CheckedProgram`
-for the current vertical body slice: scalar literals, inferred locals, parameter/local/named-field
-places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
+for the current vertical body slice: scalar literals, inferred and annotated locals,
+parameter/local/named-field places, readonly borrows, binding/discard, return/body-result checking, recursive outcome
 injection and elimination, `catch`/`otherwise` recovery, ordinary conditionals,
 while/infinite/integer-range loops, calls and receiver methods, named construction functions,
 named-field struct/enum construction, fixed arrays, and enum pattern control. Every typed node
@@ -85,7 +85,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Typed binding annotations and regions remain incomplete.
+branch-local paths. Executable regions remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -106,8 +106,13 @@ sources admit direct Iterator evidence only. The checked loop owns one retained 
 initializes the Item binding per iteration, preserves the iterator across `continue`, and cleans
 the current item before the iterator on exhaustion or outward transfer. Provenance and loans map
 the binding through the selected `next` contract, while liveness keeps borrowed sources active
-through the body. Authored acquisition and Iterator failures project `E0404`-`E0405`. Executable
-regions remain incomplete.
+through the body. Authored acquisition and Iterator failures project `E0404`-`E0405`. Authored
+local and closure annotations now resolve through one body
+type-use authority, validate normalized data or callable-result position, and pass their resolved
+type into the ordinary expected-type conversion boundary. The checked local therefore retains the
+declared destination type rather than an initializer-side approximation. Invalid body type uses
+and invalid discard forms project `E0406`-`E0407`; normalized shape violations continue to use
+`E0360`-`E0365`. Executable regions remain incomplete.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one

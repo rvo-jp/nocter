@@ -531,6 +531,15 @@ loops interleave those lifetimes by body scope. Provenance and loans map the per
 through the selected `next` result, and liveness keeps a borrowed acquisition's source loan active
 through every body execution.
 
+Authored local and closure annotations enter one body type-use authority. It resolves lexical
+generics, `Self`, imports, aliases, nominal arguments, callable types, and requirements into the
+shared normalized `TypeStore`, then validates the exact data or callable-result position through
+the same type-validity rules used for declarations and concrete substitutions. Local initializers
+receive that resolved type through the ordinary expected-type planner, so literals, outcome
+injection, borrow weakening, and one selected coercion do not acquire annotation-specific paths.
+Type-use resolution, normalized type-shape validity, and initializer compatibility retain distinct
+diagnostic families. Discard binding restrictions are checked before initializer construction.
+
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, instance-operation
 table, checked-body arena, and source projection only after every body succeeds. Unsupported valid syntax remains an internal

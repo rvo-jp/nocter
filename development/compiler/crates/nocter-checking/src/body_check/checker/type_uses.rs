@@ -7,13 +7,13 @@ use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind};
 
 use super::BodyChecker;
-use crate::NameTarget;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{
     direct_child, direct_children, direct_identifier, direct_nodes, direct_token, identifier_tokens,
 };
 use crate::type_relations::TypeSubstitution;
+use crate::{NameTarget, TypePosition, TypeValidityFailure, validate_type};
 
 pub(super) struct ExplicitConstructionOwner {
     pub(super) definition: NominalTypeId,
@@ -42,6 +42,45 @@ struct NamedSegment {
 }
 
 impl BodyChecker<'_, '_> {
+    /// Resolves one authored body annotation and validates it as stored value data.
+    ///
+    /// Name binding, normalized type construction, generic requirements, and data-position shape
+    /// remain separate rules, but every local and closure-parameter annotation enters through this
+    /// boundary.
+    pub(super) fn resolve_data_type_use(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
+        self.resolve_type_use_in_position(node, TypePosition::Data)
+    }
+
+    pub(super) fn resolve_callable_result_type_use(
+        &mut self,
+        node: NodeId,
+    ) -> Result<TypeId, BodyCheckError> {
+        self.resolve_type_use_in_position(node, TypePosition::CallableResult)
+    }
+
+    fn resolve_type_use_in_position(
+        &mut self,
+        node: NodeId,
+        position: TypePosition,
+    ) -> Result<TypeId, BodyCheckError> {
+        let ty = self.resolve_type_use(node)?;
+        match validate_type(self.types, ty, position) {
+            Ok(()) => Ok(ty),
+            Err(TypeValidityFailure::Rule(violation)) => {
+                let origin = SourceOrigin::from_node(self.tree(), node)
+                    .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+                let rule = violation.rule();
+                Err(BodyCheckError::from_type_validity(
+                    rule,
+                    rule.diagnostic(origin),
+                ))
+            }
+            Err(TypeValidityFailure::UnknownType(unknown)) => {
+                Err(BodyCheckInternalError::UnknownType(unknown).into())
+            }
+        }
+    }
+
     pub(super) fn inferred_nominal_construction_type(
         &self,
         definition: NominalTypeId,
@@ -214,7 +253,7 @@ impl BodyChecker<'_, '_> {
                 let token = direct_token(self.tree(), node)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                 let Some(builtin) = builtin_type(self.token_text(token)?) else {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 };
                 Ok(self.types.builtin(builtin))
             }
@@ -228,7 +267,7 @@ impl BodyChecker<'_, '_> {
             | NodeKind::FixedArrayType
             | NodeKind::GroupedType => self.resolve_type_wrapper(node),
             NodeKind::CallableType => self.resolve_callable_type(node),
-            _ => Err(self.rule(BodyRule::InvalidCall, node)?),
+            _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
     }
 
@@ -267,7 +306,7 @@ impl BodyChecker<'_, '_> {
                     .and_then(|token| self.token_text(token).ok())
                     .and_then(super::super::literal::parse_integer);
                 let Some(length) = length else {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 };
                 TypeKind::FixedArray {
                     element: inner,
@@ -307,13 +346,13 @@ impl BodyChecker<'_, '_> {
                 let Some(position) = names.iter().position(|candidate| {
                     candidate.is_some_and(|candidate| self.token_text(candidate).ok() == Some(name))
                 }) else {
-                    return Err(self.rule(BodyRule::InvalidCall, clause)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?);
                 };
                 origins.push(ParameterOrigin::new(position));
             }
             match ResultProvenance::from_origins(origins) {
                 Ok(provenance) => provenance,
-                Err(_) => return Err(self.rule(BodyRule::InvalidCall, clause)?),
+                Err(_) => return Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?),
             }
         } else {
             self.infer_callable_type_provenance(node, &parameters, &names, result)?
@@ -362,9 +401,9 @@ impl BodyChecker<'_, '_> {
             ([], false) => Ok(ResultProvenance::empty()),
             ([origin], false) => match ResultProvenance::from_origins([*origin]) {
                 Ok(provenance) => Ok(provenance),
-                Err(_) => Err(self.rule(BodyRule::InvalidCall, node)?),
+                Err(_) => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
             },
-            _ => Err(self.rule(BodyRule::InvalidCall, node)?),
+            _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
     }
 
@@ -441,12 +480,12 @@ impl BodyChecker<'_, '_> {
         let first = segments.remove(0);
         let first_name = self.segment_symbol(first.token)?;
         let Some(mut entity) = self.graph.lookup_local(self.source.module(), first_name) else {
-            return Err(self.rule(BodyRule::InvalidCall, node)?);
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         self.project_exported(first.token, entity)?;
         if !first.arguments.is_empty() {
             if !segments.is_empty() {
-                return Err(self.rule(BodyRule::InvalidCall, node)?);
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             }
             return self.resolve_type_entity(node, entity, first.arguments);
         }
@@ -455,24 +494,24 @@ impl BodyChecker<'_, '_> {
                 unreachable!()
             };
             let Some(segment) = (!segments.is_empty()).then(|| segments.remove(0)) else {
-                return Err(self.rule(BodyRule::InvalidCall, node)?);
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             let name = self.segment_symbol(segment.token)?;
             let selected = self.graph.lookup_export(self.source.module(), module, name);
             let Some(selected) = selected else {
-                return Err(self.rule(BodyRule::InvalidCall, node)?);
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             entity = selected;
             self.project_exported(segment.token, entity)?;
             if !segment.arguments.is_empty() {
                 if !segments.is_empty() {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
                 return self.resolve_type_entity(node, entity, segment.arguments);
             }
         }
         if !segments.is_empty() {
-            return Err(self.rule(BodyRule::InvalidCall, node)?);
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         }
         self.resolve_type_entity(node, entity, Vec::new())
     }
@@ -490,24 +529,24 @@ impl BodyChecker<'_, '_> {
         }
         let first_name = self.segment_symbol(first.token)?;
         let Some(mut entity) = self.graph.lookup_local(self.source.module(), first_name) else {
-            return Err(self.rule(BodyRule::InvalidCall, node)?);
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         self.project_exported(first.token, entity)?;
         for segment in &segments[1..] {
             let ExportedEntity::Module(module) = entity else {
-                return Err(self.rule(BodyRule::InvalidCall, node)?);
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             let name = self.segment_symbol(segment.token)?;
             let Some(selected) = self.graph.lookup_export(self.source.module(), module, name)
             else {
-                return Err(self.rule(BodyRule::InvalidCall, node)?);
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             entity = selected;
             self.project_exported(segment.token, entity)?;
         }
         match entity {
             ExportedEntity::NominalType(definition) => Ok(definition),
-            _ => Err(self.rule(BodyRule::InvalidCall, node)?),
+            _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
     }
 
@@ -530,7 +569,7 @@ impl BodyChecker<'_, '_> {
                     .get(definition)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                 if nominal.generic_parameters().len() != arguments.len() {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
                 let parameters = nominal.generic_parameters().to_vec();
                 let requirements = nominal.requirements().to_vec();
@@ -541,7 +580,7 @@ impl BodyChecker<'_, '_> {
                     substitution.bind_generic(parameter, argument);
                 }
                 if !self.requirements_hold(&requirements, &substitution)? {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
                 self.types
                     .intern(TypeKind::Nominal {
@@ -558,7 +597,7 @@ impl BodyChecker<'_, '_> {
                     .get(alias)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                 if alias.generic_parameters().len() != arguments.len() {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
                 let parameters = alias.generic_parameters().to_vec();
                 let requirements = alias.requirements().to_vec();
@@ -568,14 +607,14 @@ impl BodyChecker<'_, '_> {
                     substitution.bind_generic(parameter, argument);
                 }
                 if !self.requirements_hold(&requirements, &substitution)? {
-                    return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
                 substitution
                     .apply_type(self.types, target)
                     .map_err(BodyCheckInternalError::CallSubstitution)
                     .map_err(Into::into)
             }
-            _ => Err(self.rule(BodyRule::InvalidCall, node)?),
+            _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
     }
 
@@ -695,7 +734,7 @@ impl BodyChecker<'_, '_> {
             BodyOwner::Test(_) => (None, None),
         };
         let Some(ty) = ty else {
-            return Err(self.rule(BodyRule::InvalidCall, node)?);
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         if let Some(entity) = entity {
             self.project_type_entity(token, entity)?;

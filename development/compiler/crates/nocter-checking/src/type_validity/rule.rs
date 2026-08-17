@@ -33,7 +33,7 @@ impl TypeValidityRule {
         }
     }
 
-    pub(super) fn diagnostic(self, primary: SourceOrigin) -> SourceDiagnostic {
+    pub(crate) fn diagnostic(self, primary: SourceOrigin) -> SourceDiagnostic {
         let (message, help) = match self {
             Self::InvalidOutcomeShape => (
                 "outcome type repeats a layer or contains more than two layers",

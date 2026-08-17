@@ -268,6 +268,10 @@ Source-backed checked-body diagnostics:
   bare direct-iterator form.
 - `E0405`: the type acquired by a collection loop does not provide one exact trusted `Iterator`
   contract.
+- `E0406`: a type annotation in a body does not resolve to one visible semantic type with complete
+  arguments and satisfied requirements.
+- `E0407`: a discard binding uses `var` or carries a type annotation instead of the exact
+  `let _ = expression` form.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

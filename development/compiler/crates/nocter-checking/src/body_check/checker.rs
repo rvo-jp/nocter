@@ -95,10 +95,10 @@ enum BlockExpectation {
 ///
 /// The current construction slice accepts blocks, scalar literals, named places and field moves,
 /// readonly/readwrite borrows, built-in and selected index places, primitive and selected
-/// comparisons, primitive operators, direct static calls, bindings, conditionals, short-circuit
-/// logic, while/infinite/integer-range loops, loop control, expression statements, body results,
-/// and returns. Other valid syntax is reported as an internal incomplete-implementation boundary;
-/// no partial checked program escapes.
+/// comparisons, primitive operators, direct static calls, inferred and annotated bindings,
+/// conditionals, short-circuit logic, while/infinite/range/collection loops, loop control,
+/// expression statements, body results, and returns. Other valid syntax is reported as an internal
+/// incomplete-implementation boundary; no partial checked program escapes.
 ///
 /// # Errors
 ///
@@ -648,20 +648,31 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn check_binding(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
-        if direct_child(self.tree(), statement, NodeKind::TypeAnnotation).is_some() {
-            return Err(BodyCheckInternalError::UnsupportedSyntax(
-                statement,
-                NodeKind::TypeAnnotation,
-            )
-            .into());
-        }
         let target = self.required_child(statement, NodeKind::BindingTarget)?;
         let token = direct_identifier(self.tree(), target)
             .ok_or(BodyCheckInternalError::InvalidSyntax(target))?;
+        let annotation = direct_child(self.tree(), statement, NodeKind::TypeAnnotation);
+        let discard = self.token_text(token)? == "_";
+        let mutable = self.tree().children(statement).iter().any(|element| {
+            matches!(
+                element,
+                SyntaxElement::Token(token)
+                    if token.kind() == TokenKind::Keyword(Keyword::Var)
+            )
+        });
+        if discard && (mutable || annotation.is_some()) {
+            return Err(self.rule(BodyRule::InvalidDiscardBinding, target)?);
+        }
+        let expected = annotation
+            .map(|annotation| {
+                let ty = self.required_child(annotation, NodeKind::Type)?;
+                self.resolve_data_type_use(ty)
+            })
+            .transpose()?;
         let initializer = self.required_child(statement, NodeKind::Expression)?;
-        let value = self.check_expression(initializer, None)?;
+        let value = self.check_expression(initializer, expected)?;
         let ty = self.node_type(value)?;
-        if self.token_text(token)? == "_" {
+        if discard {
             return self.add_node(
                 statement,
                 self.types.builtin(BuiltinType::Void),

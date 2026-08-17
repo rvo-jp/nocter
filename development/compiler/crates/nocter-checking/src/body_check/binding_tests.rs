@@ -1,0 +1,193 @@
+use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_model::{BuiltinType, TypeKind};
+
+use super::check_prepared_program;
+use crate::test_support::Fixture;
+use crate::{
+    BodyRule, CheckedControl, CheckedOperation, TypeValidityRule, prepare_program_checking,
+};
+
+fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
+    check_fixture(&Fixture::new(source), false)
+}
+
+fn check_fixture(
+    fixture: &Fixture,
+    reverse: bool,
+) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
+    let (input, prelude) = fixture.input(reverse);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    check_prepared_program(&input, prepared)
+}
+
+#[test]
+fn annotation_contextualizes_initializer_and_defines_the_declared_local_type() {
+    let output = check("func value(): u8 {\n    let number: u8 = 42\n    number\n}\n").unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| !body.locals().is_empty())
+        .unwrap();
+    let (_, local) = body.locals().iter().next().unwrap();
+
+    assert_eq!(
+        local.ty(),
+        output.program().types().builtin(BuiltinType::U8)
+    );
+}
+
+#[test]
+fn annotations_supply_context_for_absence_and_empty_aggregate_literals() {
+    let output = check(
+        "func values(): [i32; 0] {\n    let maybe: i32? = none\n    let empty: [i32; 0] = []\n    let _ = maybe\n    empty\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| !body.locals().is_empty())
+        .unwrap();
+    let local_types = body
+        .locals()
+        .iter()
+        .map(|(_, local)| local.ty())
+        .collect::<Vec<_>>();
+
+    assert!(local_types.iter().any(|ty| matches!(
+        output.program().types().get(*ty),
+        Some(TypeKind::Optional(payload))
+            if *payload == output.program().types().builtin(BuiltinType::I32)
+    )));
+    assert!(local_types.iter().any(|ty| matches!(
+        output.program().types().get(*ty),
+        Some(TypeKind::FixedArray { element, length: 0 })
+            if *element == output.program().types().builtin(BuiltinType::I32)
+    )));
+}
+
+#[test]
+fn annotation_uses_the_common_one_step_expected_conversion_boundary() {
+    let output = check(
+        "struct Box<T> { value: T }\n\
+         instance Box<T> {\n\
+             pub coerce &self as &T { &self.value }\n\
+         }\n\
+         func view(source: &Box<i32>): &i32 {\n\
+             let result: &i32 = source\n\
+             result\n\
+         }\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| !body.locals().is_empty())
+        .unwrap();
+
+    assert!(body.nodes().iter().any(|(_, node)| matches!(
+        node.operation(),
+        CheckedOperation::Control(CheckedControl::Bind { .. })
+    )));
+}
+
+#[test]
+fn generic_and_imported_annotation_names_use_semantic_identity() {
+    let generic = check(
+        "func retain<T>(value: &T): &T from value {\n    let result: &T = value\n    result\n}\n",
+    )
+    .unwrap();
+    let (_, body) = generic.program().bodies().iter().next().unwrap();
+    assert!(matches!(
+        generic.program().types().get(body.locals().iter().next().unwrap().1.ty()),
+        Some(TypeKind::Borrow { referent, .. })
+            if matches!(generic.program().types().get(*referent), Some(TypeKind::GenericParameter(_)))
+    ));
+
+    let fixture = Fixture::with_child(
+        "pub use ./child.Item\nfunc make(): Item {\n    let item: Item = Item { value: 1 }\n    move item\n}\n",
+        "pub struct Item { pub value: i32 }\n",
+    );
+    let forward = check_fixture(&fixture, false).unwrap();
+    let reverse = check_fixture(&fixture, true).unwrap();
+    let forward_ty = forward
+        .program()
+        .bodies()
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .locals()
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .ty();
+    let reverse_ty = reverse
+        .program()
+        .bodies()
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .locals()
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .ty();
+    assert_eq!(
+        forward.program().types().get(forward_ty),
+        reverse.program().types().get(reverse_ty)
+    );
+}
+
+#[test]
+fn incompatible_initializer_remains_the_common_expected_type_error() {
+    let error =
+        check("func invalid(): void {\n    let value: u8 = true\n    return\n}\n").unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::TypeMismatch));
+}
+
+#[test]
+fn unresolved_annotation_has_its_own_body_type_use_rule() {
+    let error = check("func invalid(): void {\n    let value: Missing<i32> = 1\n    return\n}\n")
+        .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidBodyTypeUse));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0406");
+}
+
+#[test]
+fn annotation_reuses_normalized_data_position_validity() {
+    for (annotation, rule) in [
+        ("str", TypeValidityRule::UnsizedData),
+        ("[i32]", TypeValidityRule::UnsizedData),
+        ("void", TypeValidityRule::VoidData),
+        ("never", TypeValidityRule::NeverData),
+    ] {
+        let error = check(&format!(
+            "func invalid(): void {{\n    let value: {annotation} = 1\n    return\n}}\n"
+        ))
+        .unwrap_err();
+        assert_eq!(error.type_validity_rule(), Some(rule));
+        assert_eq!(error.source_diagnostic().unwrap().code(), rule.code());
+    }
+}
+
+#[test]
+fn discard_binding_rejects_mutability_and_annotations_before_value_checking() {
+    for source in [
+        "func invalid(): void {\n    var _ = 1\n    return\n}\n",
+        "func invalid(): void {\n    let _: i32 = 1\n    return\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.rule(), Some(BodyRule::InvalidDiscardBinding));
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0407");
+    }
+}

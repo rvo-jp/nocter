@@ -38,6 +38,8 @@ pub enum BodyRule {
     InvalidSpreadElement,
     InvalidCollectionAcquisition,
     InvalidCollectionIterator,
+    InvalidBodyTypeUse,
+    InvalidDiscardBinding,
 }
 
 impl BodyRule {
@@ -77,6 +79,8 @@ impl BodyRule {
         Self::InvalidSpreadElement,
         Self::InvalidCollectionAcquisition,
         Self::InvalidCollectionIterator,
+        Self::InvalidBodyTypeUse,
+        Self::InvalidDiscardBinding,
     ];
 
     #[must_use]
@@ -117,6 +121,8 @@ impl BodyRule {
             Self::InvalidSpreadElement => "E0403",
             Self::InvalidCollectionAcquisition => "E0404",
             Self::InvalidCollectionIterator => "E0405",
+            Self::InvalidBodyTypeUse => "E0406",
+            Self::InvalidDiscardBinding => "E0407",
         }
     }
 
@@ -146,6 +152,12 @@ impl BodyRule {
             | Self::UnknownField
             | Self::InaccessibleField
             | Self::PartialMoveThroughDrop => self.value_message(),
+            Self::InvalidSpreadAcquisition
+            | Self::InvalidSpreadIterator
+            | Self::InvalidSpreadElement
+            | Self::InvalidCollectionAcquisition
+            | Self::InvalidCollectionIterator => self.iteration_message(),
+            Self::InvalidBodyTypeUse | Self::InvalidDiscardBinding => self.binding_message(),
             _ => self.operation_message(),
         }
     }
@@ -278,6 +290,12 @@ impl BodyRule {
                 "interpolation value does not conform to the selected standard Format contract",
                 "add an explicit conformance to the active standard Format interface or interpolate a supported value",
             ),
+            _ => unreachable!("non-operation body rule"),
+        }
+    }
+
+    fn iteration_message(self) -> (&'static str, &'static str) {
+        match self {
             Self::InvalidSpreadAcquisition => (
                 "spread source has no unique expansion operation for the requested ownership mode",
                 "provide one matching readonly or owned expansion, or move a value that directly conforms to Iterator",
@@ -298,7 +316,21 @@ impl BodyRule {
                 "collection acquisition does not provide one trusted iterator contract",
                 "make the acquired type conform uniquely to the active standard Iterator interface",
             ),
-            _ => unreachable!("value body rule"),
+            _ => unreachable!("non-iteration body rule"),
+        }
+    }
+
+    fn binding_message(self) -> (&'static str, &'static str) {
+        match self {
+            Self::InvalidBodyTypeUse => (
+                "body type annotation does not resolve to one valid semantic type",
+                "use a visible type with complete generic arguments and satisfied requirements",
+            ),
+            Self::InvalidDiscardBinding => (
+                "discard binding cannot be mutable or carry a type annotation",
+                "write `let _ = expression` without `var` or an annotation",
+            ),
+            _ => unreachable!("non-binding body rule"),
         }
     }
 }

@@ -72,7 +72,7 @@ impl BodyChecker<'_, '_> {
             else {
                 continue;
             };
-            inference.constrain_exact(expected, self.resolve_type_use(annotation)?);
+            inference.constrain_exact(expected, self.resolve_data_type_use(annotation)?);
         }
         Ok(())
     }
@@ -330,13 +330,13 @@ impl BodyChecker<'_, '_> {
             let expected_type = expected.map(|expected| expected[position]);
             let ty = match (annotation, expected_type) {
                 (Some(annotation), Some(expected)) => {
-                    let declared = self.resolve_type_use(annotation)?;
+                    let declared = self.resolve_data_type_use(annotation)?;
                     if declared != expected {
                         return Err(self.rule(BodyRule::TypeMismatch, parameter_node)?);
                     }
                     declared
                 }
-                (Some(annotation), None) => self.resolve_type_use(annotation)?,
+                (Some(annotation), None) => self.resolve_data_type_use(annotation)?,
                 (None, Some(expected)) => expected,
                 (None, None) => return Err(self.rule(BodyRule::TypeMismatch, parameter_node)?),
             };
@@ -416,7 +416,7 @@ impl BodyChecker<'_, '_> {
         };
         let ty = direct_child(self.tree(), result, NodeKind::Type)
             .ok_or(BodyCheckInternalError::InvalidSyntax(result))?;
-        self.resolve_type_use(ty).map(Some)
+        self.resolve_callable_result_type_use(ty).map(Some)
     }
 
     fn check_nested_callable_block(
