@@ -83,6 +83,20 @@ share the same plan object or derive identical plans through one planner. Compil
 and test roots use the same call boundary as ordinary direct calls; they remain roots rather than
 synthetic functions.
 
+`MachineAbiPlan` now freezes that contract once for every dense executable item. Stored values are
+classified as zero-word, one/two-word direct, or indirect. Arguments are placed left to right. The
+first transport that does not fit completely in the remaining argument registers closes the
+register window; later non-zero transports use ordered aligned stack slots even if a smaller value
+would fit an abandoned register. The planner records final call-boundary stack padding separately
+from each slot. Results distinguish completion, divergence, omitted zero-sized values, direct
+result registers, and caller-owned indirect storage.
+
+Sequence-literal bodies remain outside the ordinary argument list. Because executable validation
+already forbids ordinary parameters on those bodies, their machine signature reserves one
+compiler-owned pack-descriptor pointer lane without inventing a source type or variadic ABI. The
+future machine-program pack representation must implement length, consuming next, and residual
+destruction through that pointer while retaining the MIR-owned element and optional-result types.
+
 Linkage identities derive from dense executable item and compiler-owned root identities, not
 source spellings. Human-readable names may be retained as presentation metadata only after a
 collision-free semantic linkage key exists. Primitive lowering dispatches on the closed
@@ -121,10 +135,12 @@ order, section order, or final bytes.
 
 ## Current Implementation State
 
-The executable concrete-representation closure and immutable ARM64-Darwin stored-layout authority
-are implemented. Conformance tests cover specialized generic struct and enum members, scalar and
-pointer sizes, view and built-in error offsets, enum and recursive outcome layout, `void!`, ordinary
-and zero-sized fixed arrays, closure capture order, and exact opaque-witness representation.
+The executable concrete-representation closure, immutable ARM64-Darwin stored-layout authority,
+and callable ABI planner are implemented. Conformance tests cover specialized generic struct and
+enum members, scalar and pointer sizes, view and built-in error offsets, enum and recursive outcome
+layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque-witness
+representation, register-window closure, aligned stack placement, direct and indirect results, and
+the compiler-owned literal-pack lane.
 
-Machine operations, ABI transport plans, ARM64 instruction lowering, and Mach-O serialization are
-the remaining Phase 5 implementation areas.
+Machine operations, literal-pack descriptor lowering, ARM64 instruction lowering, and Mach-O
+serialization are the remaining Phase 5 implementation areas.

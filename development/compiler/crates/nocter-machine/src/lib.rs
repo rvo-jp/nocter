@@ -5,6 +5,7 @@
 
 mod layout;
 mod target;
+mod transport;
 
 pub use layout::{
     MachineCaptureLayout, MachineEnumVariantLayout, MachineFieldLayout, MachineLayout,
@@ -12,6 +13,11 @@ pub use layout::{
     MachinePayloadLayout, MachineScalar,
 };
 pub use target::{MachineEndianness, MachineTarget};
+pub use transport::{
+    MachineAbiError, MachineAbiPlan, MachineArgumentAbi, MachineArgumentLocation,
+    MachineCallableAbi, MachinePackAbi, MachineRegisterSpan, MachineResultAbi,
+    MachineResultLocation, MachineReturnedValue, MachineStackSlot, MachineValueClass,
+};
 
 #[cfg(test)]
 mod tests;

@@ -373,8 +373,11 @@ be introduced to make an unresolved syntax choice.
   tag, payload, field, and capture offset required by later lowering. Stored layout remains
   separate from callable transport. Symbolic or unsized values, incomplete representations,
   recursive by-value storage, invalid alignment, and arithmetic overflow are typed integrity
-  failures. Machine operations, ABI transport planning, ARM64 selection, and Mach-O serialization
-  remain the next Phase 5 boundaries.
+  failures. One immutable `MachineAbiPlan` classifies zero/direct/indirect values and freezes every
+  dense function's argument registers, ordered stack slots, final stack padding, direct or
+  caller-owned result transport, and separate literal-pack pointer lane. A spill closes the
+  argument-register window, so later smaller values cannot reuse an abandoned register. Machine
+  operations, ARM64 selection, and Mach-O serialization remain the next Phase 5 boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -101,8 +101,18 @@ Rules:
 - Values of 16 bytes or less are passed directly.
 - Direct values use `x0-x7` when enough consecutive argument registers remain.
 - A two-word direct value must fit entirely in registers; otherwise the whole argument is passed on the stack.
-- Values larger than 16 bytes are passed indirectly by pointer.
-- Stack arguments are placed in ABI-sized slots and keep their natural alignment, with the stack 16-byte aligned at the call boundary.
+- Values larger than 16 bytes are passed indirectly by pointer. That pointer is one ABI word and
+  participates in the same left-to-right register-or-stack assignment as a direct word.
+- The first non-zero-word argument whose complete transport does not fit in the remaining argument
+  registers closes the register window. That argument and every later non-zero-word argument are
+  passed on the stack; an otherwise unused register is not reused by a later smaller argument.
+- Zero-word arguments neither consume a location nor close an open register window. After the
+  register window has closed, they still consume no stack slot.
+- Stack arguments are placed in left-to-right order. A direct argument reserves its one- or
+  two-word transport size. An indirect argument reserves one pointer word. Each slot starts at the
+  next offset aligned to at least one ABI word and to the stored value's natural alignment; padding
+  belongs to neither adjacent argument. The complete outgoing argument area is rounded up so that
+  the stack remains 16-byte aligned at the call boundary.
 - For indirect arguments, ownership and borrowing rules are still source-level Nocter rules. The pointer passing mechanism does not by itself transfer ownership.
 
 Small integer arguments are extended to one ABI word. Unsigned integers are zero-extended. Signed integers are sign-extended. `bool` uses `0` for false and `1` for true; other bit patterns are invalid for a live `bool` value.

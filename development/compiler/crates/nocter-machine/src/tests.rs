@@ -10,7 +10,9 @@ use nocter_target_program::{
 use nocter_test_support::CompilerFixture;
 
 use crate::{
-    MachineEndianness, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind, MachineScalar,
+    MachineAbiPlan, MachineArgumentLocation, MachineEndianness, MachineLayoutKind,
+    MachineLayoutStore, MachineOutcomeKind, MachineResultAbi, MachineResultLocation, MachineScalar,
+    MachineValueClass,
 };
 
 #[test]
@@ -340,6 +342,190 @@ fn opaque_layout_is_exactly_its_specialized_witness_layout() {
         (witness.size(), witness.alignment())
     );
     assert_eq!((layout.size(), layout.alignment()), (16, 8));
+}
+
+#[test]
+fn abi_argument_spill_closes_the_register_window_without_reusing_x7() {
+    let program = abi_fixture();
+    let layouts = MachineLayoutStore::build(&program).unwrap();
+    let abi = MachineAbiPlan::build(&program, &layouts).unwrap();
+    let placement = abi
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| callable.arguments().len() == 10)
+        .unwrap();
+
+    for (register, argument) in placement.arguments()[..7].iter().enumerate() {
+        assert!(matches!(
+            argument.location(),
+            Some(MachineArgumentLocation::Registers(span))
+                if usize::from(span.first()) == register && span.words() == 1
+        ));
+    }
+    assert!(matches!(
+        placement.arguments()[7].location(),
+        Some(MachineArgumentLocation::Stack(slot))
+            if slot.offset() == 0 && slot.size() == 16 && slot.alignment() == 8
+    ));
+    assert_eq!(placement.arguments()[8].class(), MachineValueClass::Zero);
+    assert_eq!(placement.arguments()[8].location(), None);
+    assert!(matches!(
+        placement.arguments()[9].location(),
+        Some(MachineArgumentLocation::Stack(slot))
+            if slot.offset() == 16 && slot.size() == 8 && slot.alignment() == 8
+    ));
+    assert_eq!(placement.stack_argument_size(), 32);
+}
+
+#[test]
+fn abi_classifies_indirect_arguments_and_all_return_forms_from_stored_layouts() {
+    let program = abi_fixture();
+    let layouts = MachineLayoutStore::build(&program).unwrap();
+    let abi = MachineAbiPlan::build(&program, &layouts).unwrap();
+    let empty = named_nominal(&program, "Empty");
+    let pair = named_nominal(&program, "Pair");
+    let large = named_nominal(&program, "Large");
+
+    let indirect = abi
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| {
+            callable.arguments().len() == 2
+                && callable.arguments()[0].class() == MachineValueClass::Indirect
+        })
+        .unwrap();
+    assert!(matches!(
+        indirect.arguments()[0].location(),
+        Some(MachineArgumentLocation::Registers(span))
+            if span.first() == 0 && span.words() == 1
+    ));
+    assert!(matches!(
+        indirect.arguments()[1].location(),
+        Some(MachineArgumentLocation::Registers(span))
+            if span.first() == 1 && span.words() == 1
+    ));
+
+    assert_return(&abi, empty, MachineValueClass::Zero, |location| {
+        location == MachineResultLocation::Omitted
+    });
+    assert_return(
+        &abi,
+        pair,
+        MachineValueClass::Direct { words: 2 },
+        |location| {
+            matches!(
+                location,
+                MachineResultLocation::Registers(span) if span.first() == 0 && span.words() == 2
+            )
+        },
+    );
+    assert_return(&abi, large, MachineValueClass::Indirect, |location| {
+        matches!(
+            location,
+            MachineResultLocation::CallerStorage {
+                pointer_register: 8
+            }
+        )
+    });
+    assert!(
+        abi.iter()
+            .any(|(_, callable)| callable.result() == MachineResultAbi::Diverging)
+    );
+    assert!(
+        abi.iter()
+            .any(|(_, callable)| callable.result() == MachineResultAbi::Completion)
+    );
+}
+
+fn assert_return(
+    abi: &MachineAbiPlan,
+    ty: TypeId,
+    class: MachineValueClass,
+    location_matches: impl Fn(MachineResultLocation) -> bool,
+) {
+    assert!(abi.iter().any(|(_, callable)| {
+        matches!(
+            callable.result(),
+            MachineResultAbi::Value(value)
+                if value.ty() == ty && value.class() == class && location_matches(value.location())
+        )
+    }));
+}
+
+fn abi_fixture() -> nocter_mir::MirProgram {
+    lower_fixture(
+        "struct Empty {}\n\
+         struct Pair {\n\
+             small: u8\n\
+             wide: u64\n\
+         }\n\
+         struct Large {\n\
+             first: u64\n\
+             second: u64\n\
+             third: u64\n\
+         }\n\
+         func place(\n\
+             a0: u64,\n\
+             a1: u64,\n\
+             a2: u64,\n\
+             a3: u64,\n\
+             a4: u64,\n\
+             a5: u64,\n\
+             a6: u64,\n\
+             pair: &str,\n\
+             marker: Empty,\n\
+             tail: u64,\n\
+         ): void { return }\n\
+         func accept_large(value: Large, tail: u64): void { return }\n\
+         func make_empty(): Empty { Empty {} }\n\
+         func make_pair(): Pair { Pair { small: 1, wide: 2 } }\n\
+         func make_large(): Large { Large { first: 1, second: 2, third: 3 } }\n\
+         func halt(): never { loop {} }\n\
+         func main(): void {\n\
+             place(0, 1, 2, 3, 4, 5, 6, \"two words\", Empty {}, 9)\n\
+             let argument = Large { first: 1, second: 2, third: 3 }\n\
+             accept_large(move argument, 10)\n\
+             let empty = make_empty()\n\
+             let pair = make_pair()\n\
+             let large = make_large()\n\
+             drop empty\n\
+             drop pair\n\
+             drop large\n\
+             if false { halt() }\n\
+             return\n\
+         }\n",
+    )
+}
+
+#[test]
+fn literal_pack_uses_one_compiler_owned_pointer_lane_outside_ordinary_arguments() {
+    let program = lower_fixture(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): void {\n\
+             let values = Vec [1, 2]\n\
+             drop values\n\
+             return\n\
+         }\n",
+    );
+    let layouts = MachineLayoutStore::build(&program).unwrap();
+    let abi = MachineAbiPlan::build(&program, &layouts).unwrap();
+    let literal = abi
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| callable.pack().is_some())
+        .unwrap();
+    let pack = literal.pack().unwrap();
+
+    assert!(literal.arguments().is_empty());
+    assert_eq!(pack.pointer().first(), 0);
+    assert_eq!(pack.pointer().words(), 1);
+    assert_eq!(literal.stack_argument_size(), 0);
 }
 
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
