@@ -102,6 +102,13 @@ source spellings. Human-readable names may be retained as presentation metadata 
 collision-free semantic linkage key exists. Primitive lowering dispatches on the closed
 `PrimitiveRole` carried by MIR and never searches a standard-library symbol name.
 
+`MachineLinkageTable` now closes one code identity for every executable item, process root, and
+isolated test root from typed semantic owner keys. Test presentation names remain metadata, while
+the separate root table preserves declaration order independently of key order. Static UTF-8 data
+uses a distinct `MachineDataId` domain. Its table deduplicates complete byte strings and assigns IDs
+in byte order, so function traversal and first-use order cannot alter data identity or later image
+layout.
+
 ## ARM64 and Mach-O Boundaries
 
 ARM64 lowering receives only validated machine operations and completed transport plans. It owns
@@ -136,11 +143,12 @@ order, section order, or final bytes.
 ## Current Implementation State
 
 The executable concrete-representation closure, immutable ARM64-Darwin stored-layout authority,
-and callable ABI planner are implemented. Conformance tests cover specialized generic struct and
-enum members, scalar and pointer sizes, view and built-in error offsets, enum and recursive outcome
-layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque-witness
-representation, register-window closure, aligned stack placement, direct and indirect results, and
-the compiler-owned literal-pack lane.
+callable ABI planner, semantic linkage table, and content-addressed static-data inventory are
+implemented. Conformance tests cover specialized generic struct and enum members, scalar and
+pointer sizes, view and built-in error offsets, enum and recursive outcome layout, `void!`, ordinary
+and zero-sized fixed arrays, closure capture order, exact opaque-witness representation,
+register-window closure, aligned stack placement, direct and indirect results, the compiler-owned
+literal-pack lane, ordered test roots, and static-text deduplication independent of first use.
 
 Machine operations, literal-pack descriptor lowering, ARM64 instruction lowering, and Mach-O
 serialization are the remaining Phase 5 implementation areas.

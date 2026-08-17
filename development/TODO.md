@@ -27,6 +27,12 @@ registers, non-reopening spill boundary, aligned stack slots, final call-boundar
 transport, and dedicated literal-pack pointer lane. Call lowering must consume these exact plans;
 it may not place direct items independently at each call site.
 
+`MachineLinkageTable` now assigns code linkage from exact executable-item, process-target, and
+test-declaration keys without source names. It retains test execution order separately. Static text
+uses a content-sorted deduplicated `MachineDataTable`, so MIR traversal order cannot affect data
+identity. Machine-operation lowering must reference these tables rather than allocate labels or
+data on demand.
+
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in
 compile-unit input and retained by `DeclarationGraph` through `CheckedProgram`. One shared

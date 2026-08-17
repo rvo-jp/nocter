@@ -72,6 +72,7 @@ impl MachinePayloadLayout {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineEnumVariantLayout {
     variant: VariantId,
+    tag: u8,
     payload: Box<[MachinePayloadLayout]>,
 }
 
@@ -79,6 +80,11 @@ impl MachineEnumVariantLayout {
     #[must_use]
     pub const fn variant(&self) -> VariantId {
         self.variant
+    }
+
+    #[must_use]
+    pub const fn tag(&self) -> u8 {
+        self.tag
     }
 
     #[must_use]
@@ -468,8 +474,9 @@ impl LayoutBuilder<'_> {
                 )?;
                 let variants = variants
                     .iter()
+                    .enumerate()
                     .zip(relative)
-                    .map(|(variant, offsets)| {
+                    .map(|((tag, variant), offsets)| {
                         let payload = variant
                             .payload()
                             .iter()
@@ -487,6 +494,8 @@ impl LayoutBuilder<'_> {
                             .into_boxed_slice();
                         Ok(MachineEnumVariantLayout {
                             variant: variant.variant(),
+                            tag: u8::try_from(tag)
+                                .map_err(|_| MachineLayoutError::InvalidRepresentation(ty))?,
                             payload,
                         })
                     })

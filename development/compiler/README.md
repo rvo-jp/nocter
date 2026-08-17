@@ -377,7 +377,11 @@ be introduced to make an unresolved syntax choice.
   dense function's argument registers, ordered stack slots, final stack padding, direct or
   caller-owned result transport, and separate literal-pack pointer lane. A spill closes the
   argument-register window, so later smaller values cannot reuse an abandoned register. Machine
-  operations, ARM64 selection, and Mach-O serialization remain the next Phase 5 boundaries.
+  linkage is separately keyed by exact executable item, process target, or test declaration; no
+  display name participates. Test roots retain declaration order outside that key table. Static
+  text receives content-sorted, deduplicated `MachineDataId` values rather than first-use IDs.
+  Machine operations, ARM64 selection, and Mach-O serialization remain the next Phase 5
+  boundaries.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

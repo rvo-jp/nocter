@@ -10,9 +10,10 @@ use nocter_target_program::{
 use nocter_test_support::CompilerFixture;
 
 use crate::{
-    MachineAbiPlan, MachineArgumentLocation, MachineEndianness, MachineLayoutKind,
-    MachineLayoutStore, MachineOutcomeKind, MachineResultAbi, MachineResultLocation, MachineScalar,
-    MachineValueClass,
+    MachineAbiPlan, MachineArgumentLocation, MachineDataTable, MachineEndianness,
+    MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore, MachineLinkageKey,
+    MachineLinkageTable, MachineOutcomeKind, MachineResultAbi, MachineResultLocation,
+    MachineRootLinkage, MachineScalar, MachineValueClass,
 };
 
 #[test]
@@ -93,6 +94,13 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
     assert_eq!(*tag_offset, 0);
     assert_eq!(*payload_offset, 8);
     assert_eq!(variants.len(), 3);
+    assert_eq!(
+        variants
+            .iter()
+            .map(MachineEnumVariantLayout::tag)
+            .collect::<Vec<_>>(),
+        [0, 1, 2]
+    );
     assert!(variants[0].payload().is_empty());
     assert_eq!(variants[1].payload()[0].offset(), 8);
     assert_eq!(
@@ -528,6 +536,93 @@ fn literal_pack_uses_one_compiler_owned_pointer_lane_outside_ordinary_arguments(
     assert_eq!(literal.stack_argument_size(), 0);
 }
 
+#[test]
+fn linkage_uses_semantic_owners_and_static_text_uses_sorted_byte_identity() {
+    let program = lower_fixture(
+        "func main(): void {\n\
+             let last: &str = \"z\"\n\
+             let first: &str = \"a\"\n\
+             let repeated: &str = \"z\"\n\
+             return\n\
+         }\n",
+    );
+    let data = MachineDataTable::build(&program);
+    assert_eq!(data.len(), 2);
+    assert_eq!(
+        data.iter()
+            .map(|(_, entry)| entry.bytes())
+            .collect::<Vec<_>>(),
+        [b"a".as_slice(), b"z".as_slice()]
+    );
+    assert!(data.text("a").is_some());
+    assert!(data.text("z").is_some());
+    assert_ne!(data.text("a"), data.text("z"));
+
+    let linkage = MachineLinkageTable::build(&program).unwrap();
+    let item_count = linkage
+        .iter()
+        .filter(|(_, entry)| matches!(entry.key(), MachineLinkageKey::Item(_)))
+        .count();
+    assert_eq!(item_count, program.functions().len());
+    let nocter_mir::MirRoot::Process(root) = program.root() else {
+        panic!("fixture must have one process root")
+    };
+    let MachineRootLinkage::Process {
+        target,
+        process,
+        entry,
+    } = linkage.root()
+    else {
+        panic!("linkage must retain the process root")
+    };
+    assert_eq!(*target, root.target());
+    assert_eq!(
+        Some(*process),
+        linkage.id(MachineLinkageKey::ProcessRoot(root.target()))
+    );
+    assert_eq!(
+        Some(*entry),
+        linkage.id(MachineLinkageKey::Item(root.entry()))
+    );
+}
+
+#[test]
+fn test_root_linkage_retains_declaration_order_separately_from_key_order() {
+    let program = lower_test_fixture(
+        "test first { return }\n\
+         test second { return }\n",
+    );
+    let linkage = MachineLinkageTable::build(&program).unwrap();
+    let nocter_mir::MirRoot::Tests {
+        target,
+        cases: mir_cases,
+    } = program.root()
+    else {
+        panic!("fixture must have test roots")
+    };
+    let MachineRootLinkage::Tests {
+        target: linked_target,
+        cases,
+    } = linkage.root()
+    else {
+        panic!("linkage must retain test roots")
+    };
+    assert_eq!(linked_target, target);
+    assert_eq!(cases.len(), 2);
+    for (linked, source) in cases.iter().zip(mir_cases) {
+        assert_eq!(linked.declaration(), source.declaration());
+        assert_eq!(linked.name(), source.name());
+        assert_eq!(
+            Some(linked.test()),
+            linkage.id(MachineLinkageKey::TestRoot(source.declaration()))
+        );
+        assert_eq!(
+            Some(linked.body()),
+            linkage.id(MachineLinkageKey::Item(source.item()))
+        );
+    }
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();
@@ -567,7 +662,14 @@ fn borrow_type(types: &nocter_model::TypeStore, referent: BuiltinType) -> TypeId
 }
 
 fn lower_fixture(source: &str) -> nocter_mir::MirProgram {
-    let fixture = CompilerFixture::with_app(source);
+    lower_selected_fixture(&CompilerFixture::with_app(source), false)
+}
+
+fn lower_test_fixture(source: &str) -> nocter_mir::MirProgram {
+    lower_selected_fixture(&CompilerFixture::with_tests(source), true)
+}
+
+fn lower_selected_fixture(fixture: &CompilerFixture, tests: bool) -> nocter_mir::MirProgram {
     let (input, prelude) = fixture.input();
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (declarations, source_index) = lowered.into_parts();
@@ -590,7 +692,11 @@ fn lower_fixture(source: &str) -> nocter_mir::MirProgram {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = if tests {
+        ExecutableProgram::for_tests(target, selected).unwrap()
+    } else {
+        ExecutableProgram::for_executable(target, selected).unwrap()
+    };
     lower_executable(executable).unwrap()
 }
 
