@@ -1,16 +1,17 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_checking::{
     AggregateConstruction, CheckedBody, CheckedOperation, ConstantValue, LocalBindingKind,
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
 use nocter_model::{
-    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, MirBlockId, MirLocalId, MirPlaceId,
-    MirValueId, ParameterId, TypeId, TypeKind,
+    BodyNodeId, BuiltinType, ExecutableItemId, LocalBindingId, MirBlockId, MirDropFlagId,
+    MirLocalId, MirPlaceId, MirValueId, ParameterId, TypeId, TypeKind,
 };
 use nocter_target_program::{ExecutableInputSource, ExecutableItem, ExecutableProgram};
 
 use super::MirLoweringError;
+use super::cleanup_flags::CleanupIdentity;
 use crate::{
     MirAggregate, MirBinaryOperation, MirConstant, MirFunction, MirFunctionBuilder, MirLocalKind,
     MirOperationKind, MirTerminator, MirUnaryOperation,
@@ -28,6 +29,7 @@ pub(super) fn lower_function(
         .get(item.body().body())
         .ok_or(MirLoweringError::UnknownBody(item.body().body()))?;
     let mut lowerer = FunctionLowerer::new(executable, item_id, item, checked);
+    lowerer.prepare_cleanup_flags()?;
     let result = lowerer.lower_node(item.body().root())?;
     if let Some(block) = lowerer.current {
         match executable.types().get(item.signature().result()) {
@@ -69,7 +71,9 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) locals: BTreeMap<LocalBindingId, MirLocalId>,
     pub(super) values: BTreeMap<BodyNodeId, MirValueId>,
     pub(super) places: BTreeMap<nocter_model::PlaceId, MirPlaceId>,
-    pub(super) cleanup_values: BTreeMap<BodyNodeId, MirPlaceId>,
+    pub(super) value_storage: BTreeMap<BodyNodeId, MirPlaceId>,
+    pub(super) initialized_value_storage: BTreeSet<BodyNodeId>,
+    pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
 }
 
 impl<'a> FunctionLowerer<'a> {
@@ -106,7 +110,9 @@ impl<'a> FunctionLowerer<'a> {
             locals,
             values: BTreeMap::new(),
             places: BTreeMap::new(),
-            cleanup_values: BTreeMap::new(),
+            value_storage: BTreeMap::new(),
+            initialized_value_storage: BTreeSet::new(),
+            cleanup_flags: BTreeMap::new(),
         }
     }
 
@@ -150,15 +156,17 @@ impl<'a> FunctionLowerer<'a> {
                 .map(Some)
             }
             CheckedOperation::Move(place) => {
-                let place = self.lower_place(*place)?;
-                self.append_value(
+                let checked_place = *place;
+                let place = self.lower_place(checked_place)?;
+                let value = self.append_value(
                     ty,
                     MirOperationKind::Read {
                         place,
                         mode: crate::MirReadMode::Move,
                     },
-                )
-                .map(Some)
+                )?;
+                self.mark_place_initialized(checked_place, false)?;
+                Ok(Some(value))
             }
             CheckedOperation::Borrow { capability, place } => {
                 let place = self.lower_place(*place)?;

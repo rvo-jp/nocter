@@ -43,6 +43,7 @@ impl FunctionLowerer<'_> {
                     destination: place,
                     value,
                 })?;
+                self.mark_binding_initialized(*binding)?;
                 Ok(None)
             }
             CheckedControl::Assign { target, value } => {
@@ -50,6 +51,7 @@ impl FunctionLowerer<'_> {
                 let destination = self.lower_place(*target)?;
                 self.lower_cleanup(node, nocter_checking::CleanupTiming::BeforeStore)?;
                 self.append_effect(MirOperationKind::Store { destination, value })?;
+                self.mark_place_initialized(*target, true)?;
                 Ok(None)
             }
             CheckedControl::Discard(value) => {

@@ -497,6 +497,121 @@ fn lowers_checked_user_destruction_once_without_recursing_on_its_receiver() {
     assert_eq!(invocations, 1);
 }
 
+#[test]
+fn conditional_path_cleanup_uses_one_flag_across_move_and_reinitialization() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func restore(condition: bool, first: Owned, second: Owned): void {\n\
+             var value = move first\n\
+             if condition { let _ = move value }\n\
+             value = move second\n\
+             return\n\
+         }\n\
+         func main(): void {\n\
+             restore(true, Owned { value: 1 }, Owned { value: 2 })\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.drop_flags().len() == 1
+            && function.blocks().iter().any(|(_, block)| {
+                matches!(
+                    block.terminator(),
+                    crate::MirTerminator::BranchDropFlag { .. }
+                )
+            })
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::SetDropFlag {
+                        initialized: false,
+                        ..
+                    }
+                )
+            })
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::SetDropFlag {
+                        initialized: true,
+                        ..
+                    }
+                )
+            })
+    }));
+}
+
+#[test]
+fn branch_only_owned_temporaries_use_entry_initialized_drop_flags() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         instance Owned {\n\
+             pub operator (&self == other: &Self): bool { self.value == other.value }\n\
+         }\n\
+         func main(): void {\n\
+             let _ = if true {\n\
+                 Owned { value: 1 } == Owned { value: 2 }\n\
+             } else {\n\
+                 true\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.drop_flags().len() == 2
+            && function
+                .drop_flags()
+                .iter()
+                .all(|(_, flag)| !flag.initially_initialized())
+            && function.blocks().iter().any(|(_, block)| {
+                matches!(
+                    block.terminator(),
+                    crate::MirTerminator::BranchDropFlag { .. }
+                )
+            })
+    }));
+}
+
+#[test]
+fn borrowed_temporary_and_cleanup_share_one_storage_slot() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         instance Owned {\n\
+             pub operator (&self == other: &Self): bool { self.value == other.value }\n\
+         }\n\
+         func main(): void {\n\
+             let _ = Owned { value: 1 } == Owned { value: 2 }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        let initialized = function
+            .operations()
+            .iter()
+            .filter(|(_, operation)| {
+                matches!(operation.kind(), MirOperationKind::Initialize { .. })
+            })
+            .count();
+        let dropped = function
+            .operations()
+            .iter()
+            .filter(|(_, operation)| {
+                matches!(operation.kind(), MirOperationKind::InvokeDrop { .. })
+            })
+            .count();
+        initialized == 2 && dropped == 2
+    }));
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }

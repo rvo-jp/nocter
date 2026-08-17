@@ -7,7 +7,7 @@ use nocter_target_program::ExecutableDispatchPlan;
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
-use crate::{MirLocalKind, MirOperationKind, MirPlaceRoot, MirReadMode, MirStructuralCall};
+use crate::{MirOperationKind, MirReadMode, MirStructuralCall};
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_receiver(
@@ -59,7 +59,7 @@ impl FunctionLowerer<'_> {
             }
             ReceiverPreparation::BorrowTemporary(capability) => {
                 let value = self.require_value(receiver.value())?;
-                let place = self.materialize_temporary(value, capability)?;
+                let place = self.materialize_value_storage(receiver.value(), value)?;
                 self.borrow_place(place, capability, expected)
             }
             ReceiverPreparation::PreserveBorrow(_) => {
@@ -86,8 +86,9 @@ impl FunctionLowerer<'_> {
                 self.borrow_place(place, BorrowCapability::Readonly, expected)
             }
             ReadonlyOperandPreparation::BorrowTemporary => {
-                let value = self.require_value(value)?;
-                let place = self.materialize_temporary(value, BorrowCapability::Readonly)?;
+                let node = value;
+                let value = self.require_value(node)?;
+                let place = self.materialize_value_storage(node, value)?;
                 self.borrow_place(place, BorrowCapability::Readonly, expected)
             }
             ReadonlyOperandPreparation::UseReadonlyBorrow => {
@@ -135,28 +136,6 @@ impl FunctionLowerer<'_> {
             );
         }
         self.require_value(node)
-    }
-
-    fn materialize_temporary(
-        &mut self,
-        value: MirValueId,
-        capability: BorrowCapability,
-    ) -> Result<MirPlaceId, MirLoweringError> {
-        let ty = self
-            .builder
-            .value_type(value)
-            .ok_or(MirLoweringError::UnknownValue(value))?;
-        let local = self.builder.add_local(
-            ty,
-            MirLocalKind::Temporary,
-            capability == BorrowCapability::ReadWrite,
-        );
-        let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
-        self.append_effect(MirOperationKind::Initialize {
-            destination: place,
-            value,
-        })?;
-        Ok(place)
     }
 
     fn borrow_place(

@@ -247,8 +247,12 @@ cleanup schedules lower at their checked event timing and consume only executabl
 plans. They cover owned paths and staged values, assignment replacement, propagation failure,
 user drop calls, reverse struct/array payloads, active enum/outcome payload switches, opaque
 witnesses, and region release. Borrowed receiver roots remain initialized inputs but never become
-callee-owned cleanup. Conditional schedules still fail until their drop-flag transitions are
-lowered; the current slice cannot silently omit accepted semantics.
+callee-owned cleanup. One canonical value-storage slot is shared by borrow preparation, outcome
+inspection, future pattern projection, and cleanup. Conditional path and value schedules use
+explicit entry-visible drop flags updated on initialization, move, replacement, and destruction.
+Exact typed place interning makes the flag and ordinary storage operations share one identity.
+Unsupported checked operations still fail; the current slice cannot silently omit accepted
+semantics.
 
 ## Prohibited Designs
 

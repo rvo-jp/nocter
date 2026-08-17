@@ -7,8 +7,8 @@ use nocter_model::{BodyNodeId, MirBlockId, MirPlaceId, TypeId};
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirBranchTarget, MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection,
-    MirProjectionKind, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
+    MirBranchTarget, MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind,
+    MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
 };
 
 impl FunctionLowerer<'_> {
@@ -24,10 +24,29 @@ impl FunctionLowerer<'_> {
             .unwrap_or_default()
             .to_vec();
         for action in actions {
-            if action.condition() == CleanupCondition::IfInitialized {
-                return Err(MirLoweringError::UnsupportedCleanup(owner));
+            if action.condition() == CleanupCondition::Always {
+                self.lower_cleanup_target(owner, action.target())?;
+                continue;
             }
+            let flag = self.cleanup_flag(owner, action.target())?;
+            let source = self
+                .current
+                .take()
+                .ok_or(MirLoweringError::MissingCurrentBlock)?;
+            let (initialized, _) = self.builder.create_block([]);
+            let (join, _) = self.builder.create_block([]);
+            self.builder.terminate(
+                source,
+                MirTerminator::BranchDropFlag {
+                    flag,
+                    initialized: MirBranchTarget::new(initialized, []),
+                    uninitialized: MirBranchTarget::new(join, []),
+                },
+            )?;
+            self.current = Some(initialized);
             self.lower_cleanup_target(owner, action.target())?;
+            self.finish_cleanup_branch(join)?;
+            self.current = Some(join);
         }
         Ok(())
     }
@@ -61,10 +80,11 @@ impl FunctionLowerer<'_> {
         if let Some(plan) = plan {
             self.lower_destruction(owner, place, &plan)?;
         }
+        self.mark_cleanup_complete(target)?;
         Ok(())
     }
 
-    fn lower_cleanup_path(
+    pub(super) fn lower_cleanup_path(
         &mut self,
         owner: BodyNodeId,
         path: &CleanupPath,
@@ -102,26 +122,8 @@ impl FunctionLowerer<'_> {
         node: BodyNodeId,
         source_ty: TypeId,
     ) -> Result<MirPlaceId, MirLoweringError> {
-        if let Some(place) = self.cleanup_values.get(&node).copied() {
-            self.require_cleanup_place_type(owner, place, source_ty)?;
-            return Ok(place);
-        }
-        let value = self
-            .values
-            .get(&node)
-            .copied()
-            .ok_or(MirLoweringError::InvalidCleanup(owner))?;
-        let ty = self.concrete_type(source_ty)?;
-        if self.builder.value_type(value) != Some(ty) {
-            return Err(MirLoweringError::InvalidCleanup(owner));
-        }
-        let local = self.builder.add_local(ty, MirLocalKind::Temporary, true);
-        let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
-        self.append_effect(MirOperationKind::Initialize {
-            destination: place,
-            value,
-        })?;
-        self.cleanup_values.insert(node, place);
+        let place = self.materialize_checked_value(node, source_ty)?;
+        self.require_cleanup_place_type(owner, place, source_ty)?;
         Ok(place)
     }
 

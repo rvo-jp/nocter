@@ -13,8 +13,8 @@ implementation input.
 1. Extend the established checked-HIR-to-MIR lowering from scalar expressions, ordinary places,
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
    conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
-   cleanup destruction to conditional cleanup flags, loops, patterns, closures, and regions.
-   Never repeat requirement, conformance, or drop-pattern selection.
+   cleanup destruction and conditional drop flags to loops, patterns, closures, and regions. Never
+   repeat requirement, conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
 
@@ -113,8 +113,12 @@ runs its exact checked cleanup schedule. Unconditional cleanup now lowers owned 
 assignment replacement, user drop calls, reverse structural destruction, active outcome/enum
 payload switches, opaque witnesses, and lexical region release from frozen executable plans.
 Borrowed receiver roots remain initialized for flow checking but are excluded from callee-owned
-destruction. Conditional drop flags plus loop, pattern, closure, and region construction remain the
-current task.
+destruction. One canonical value-storage authority now prevents borrow preparation, outcome
+inspection, and cleanup from duplicating ownership. Conditional path and value cleanup reserves
+entry-visible drop flags, updates them on initialization, move, replacement, and destruction, and
+branches without reconstructing source control history. MIR places are interned by exact typed
+shape, so flags and ordinary operations share storage identity. Loop, pattern, closure, and region
+construction remain the current task.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

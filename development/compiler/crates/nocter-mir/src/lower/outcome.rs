@@ -6,7 +6,7 @@ use nocter_model::{
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirAggregate, MirBranchTarget, MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection,
+    MirAggregate, MirBranchTarget, MirOperationKind, MirPlaceRoot, MirProjection,
     MirProjectionKind, MirReadMode, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
 };
 
@@ -154,12 +154,11 @@ impl FunctionLowerer<'_> {
             .builder
             .value_type(value)
             .ok_or(MirLoweringError::UnknownValue(value))?;
-        let local = self.builder.add_local(ty, MirLocalKind::Temporary, false);
-        let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
-        self.append_effect(MirOperationKind::Initialize {
-            destination: place,
-            value,
-        })?;
+        let place = self.materialize_value_storage(operand, value)?;
+        let Some(MirPlaceRoot::Local(local)) = self.builder.place(place).map(crate::MirPlace::root)
+        else {
+            return Err(MirLoweringError::InvalidCleanup(operand));
+        };
         Ok(OutcomeStorage { local, place, ty })
     }
 

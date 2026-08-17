@@ -368,6 +368,20 @@ fn drop_flags_are_explicit_cfg_conditions() {
 }
 
 #[test]
+fn identical_typed_places_share_one_identity() {
+    let (environment, item) = TestEnvironment::new();
+    let void = environment.types.builtin(BuiltinType::Void);
+    let i32_ = environment.types.builtin(BuiltinType::I32);
+    let mut builder = MirFunctionBuilder::new(item, void);
+    let local = builder.add_local(i32_, MirLocalKind::User, true);
+
+    let first = builder.add_place(MirPlaceRoot::Local(local), [], i32_);
+    let second = builder.add_place(MirPlaceRoot::Local(local), [], i32_);
+
+    assert_eq!(first, second);
+}
+
+#[test]
 fn rejecting_a_second_terminator_preserves_the_first() {
     let (environment, item) = TestEnvironment::new();
     let void = environment.types.builtin(BuiltinType::Void);

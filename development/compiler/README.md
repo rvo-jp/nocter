@@ -311,8 +311,11 @@ be introduced to make an unresolved syntax choice.
   consumes the checked timing table and frozen destruction plans for owned paths and values,
   assignment replacement, propagation edges, user drop calls, reverse structural payloads, opaque
   witnesses, and region release. Borrowed receivers remain initialized flow inputs without
-  acquiring callee destruction responsibility. Conditional cleanup and remaining checked
-  operations still fail explicitly instead of being omitted.
+  acquiring callee destruction responsibility. Borrow preparation, outcome inspection, patterns,
+  and cleanup share one canonical value-storage slot. Conditional path and value cleanup uses
+  explicit entry-visible drop flags updated by initialization, move, replacement, and destruction;
+  typed place interning keeps those flags on the same identity used by ordinary operations.
+  Remaining checked operations still fail explicitly instead of being omitted.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

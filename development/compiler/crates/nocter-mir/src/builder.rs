@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_model::{
@@ -46,6 +47,7 @@ pub struct MirFunctionBuilder {
     locals: ArenaBuilder<MirLocalId, MirLocal>,
     drop_flags: ArenaBuilder<MirDropFlagId, MirDropFlag>,
     places: ArenaBuilder<MirPlaceId, MirPlace>,
+    places_by_shape: BTreeMap<MirPlace, MirPlaceId>,
     values: ArenaBuilder<MirValueId, MirValue>,
     operations: ArenaBuilder<MirOperationId, MirOperation>,
     blocks: ArenaBuilder<MirBlockId, MirBlockBuilder>,
@@ -61,6 +63,7 @@ impl MirFunctionBuilder {
             locals: ArenaBuilder::new(),
             drop_flags: ArenaBuilder::new(),
             places: ArenaBuilder::new(),
+            places_by_shape: BTreeMap::new(),
             values: ArenaBuilder::new(),
             operations: ArenaBuilder::new(),
             blocks: ArenaBuilder::new(),
@@ -98,7 +101,13 @@ impl MirFunctionBuilder {
         projections: impl Into<Box<[crate::MirProjection]>>,
         ty: TypeId,
     ) -> MirPlaceId {
-        self.places.insert(MirPlace::new(root, projections, ty))
+        let place = MirPlace::new(root, projections, ty);
+        if let Some(existing) = self.places_by_shape.get(&place).copied() {
+            return existing;
+        }
+        let id = self.places.insert(place.clone());
+        self.places_by_shape.insert(place, id);
+        id
     }
 
     #[must_use]

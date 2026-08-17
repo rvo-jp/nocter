@@ -42,7 +42,7 @@ impl MirLocal {
 }
 
 /// The storage authority from which a place starts.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirPlaceRoot {
     Local(MirLocalId),
     Dereference {
@@ -52,7 +52,7 @@ pub enum MirPlaceRoot {
 }
 
 /// One typed storage projection. `ty` is the type after applying `kind`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MirProjection {
     kind: MirProjectionKind,
     ty: TypeId,
@@ -76,7 +76,7 @@ impl MirProjection {
 }
 
 /// A backend-independent projection with no source-expression behavior left to recover.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirProjectionKind {
     Field(FieldId),
     VariantPayload {
@@ -93,7 +93,7 @@ pub enum MirProjectionKind {
 }
 
 /// One interned typed path to storage.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MirPlace {
     root: MirPlaceRoot,
     projections: Box<[MirProjection]>,

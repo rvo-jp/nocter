@@ -10,6 +10,7 @@ use crate::{MirFunctionBuildError, MirProgram, MirProgramBuildError, MirProgramB
 mod borrow_conversion;
 mod call;
 mod cleanup;
+mod cleanup_flags;
 mod comparison;
 mod control;
 mod function;
@@ -17,6 +18,7 @@ mod index_place;
 mod operand;
 mod outcome;
 mod place;
+mod value_storage;
 
 #[cfg(test)]
 mod tests;
