@@ -102,9 +102,13 @@ impl FunctionLowerer<'_> {
                 self.lower_loop(node, *loop_)?;
                 Ok(None)
             }
-            CheckedControl::Pattern { .. } | CheckedControl::Region { .. } => {
-                Err(MirLoweringError::UnsupportedOperation(node))
-            }
+            CheckedControl::Pattern {
+                subject,
+                arms,
+                fallback,
+                unmatched,
+            } => self.lower_pattern(node, *subject, arms, *fallback, *unmatched),
+            CheckedControl::Region { .. } => Err(MirLoweringError::UnsupportedOperation(node)),
         }
     }
 
@@ -156,11 +160,11 @@ impl FunctionLowerer<'_> {
         Ok(self.current.map(|block| (block, value)))
     }
 
-    fn join_branches(
+    pub(super) fn join_branches(
         &mut self,
         ty: nocter_model::TypeId,
         carries_value: bool,
-        exits: [Option<(MirBlockId, Option<MirValueId>)>; 2],
+        exits: impl IntoIterator<Item = Option<(MirBlockId, Option<MirValueId>)>>,
     ) -> Result<Option<MirValueId>, MirLoweringError> {
         let live = exits.into_iter().flatten().collect::<Vec<_>>();
         if live.is_empty() {

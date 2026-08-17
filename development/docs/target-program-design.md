@@ -209,9 +209,10 @@ MIR access to source or package setup state.
 
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
 and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive
-initialized-use and balanced region-release validation remain coupled to the pending cleanup and
-region lowering work; documentation must not claim those gates before they exist. These are
-compiler integrity checks over an accepted program, not a second source diagnostic system.
+initialized-use and balanced region-release validation remain coupled to pending region
+construction and whole-function storage validation; documentation must not claim those gates
+before they exist. These are compiler integrity checks over an accepted program, not a second
+source diagnostic system.
 
 ## Construction Order
 
@@ -241,14 +242,13 @@ through the complete source-to-executable fixture rather than a second hand-buil
 Outcome injection and tags lower to typed aggregates. Propagation, force, and recovery materialize
 their operand exactly once, switch on storage, and move a typed payload projection only on the
 selected branch. Propagation reconstructs its failure with retained inner-to-outer result layers;
-recovery initializes an authored catch binding before lowering its fallback. Unsupported checked
-operations fail explicitly until their dedicated lowering paths are implemented. Unconditional
+recovery initializes an authored catch binding before lowering its fallback. Unconditional
 cleanup schedules lower at their checked event timing and consume only executable destruction
 plans. They cover owned paths and staged values, assignment replacement, propagation failure,
 user drop calls, reverse struct/array payloads, active enum/outcome payload switches, opaque
 witnesses, and region release. Borrowed receiver roots remain initialized inputs but never become
 callee-owned cleanup. One canonical value-storage slot is shared by borrow preparation, outcome
-inspection, future pattern projection, and cleanup. Conditional path and value schedules use
+inspection, pattern projection, and cleanup. Conditional path and value schedules use
 explicit entry-visible drop flags updated on initialization, move, replacement, and destruction.
 Exact typed place interning makes the flag and ordinary storage operations share one identity.
 Block fallthrough and explicit control transfer consume the same checked `BeforeTransfer` cleanup
@@ -257,8 +257,13 @@ and integer ranges lower into closed CFG; a checked nonbreaking loop has no synt
 range uses a dedicated increment latch. Collection loops consume frozen source-expansion and
 `next` dispatch, retain one canonical iterator slot, borrow it at the loop header, switch on the
 returned optional place, and move only a present payload into the loop binding. Exhaustion, break,
-and return cleanup share the iterator drop flag. Other unsupported checked operations still fail;
-the current slice cannot silently omit accepted semantics.
+and return cleanup share the iterator drop flag. Enum patterns switch directly on retained,
+consumed, temporary, or borrow-dereferenced subject storage. Checked binding modes select payload
+copy, move, or borrow without repeating copyability proof, while one checked remainder plan
+selects complete or variant-residual destruction. Mutually exclusive remainders use independent
+drop flags on the shared subject slot, and value-producing arms join through typed block
+parameters. Other unsupported checked operations still fail; the current slice cannot silently
+omit accepted semantics.
 
 ## Prohibited Designs
 

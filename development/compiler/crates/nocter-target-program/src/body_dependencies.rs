@@ -526,6 +526,17 @@ impl<'program> DependencyCollector<'program> {
             } => {
                 self.visit_node(subject.value())?;
                 for arm in arms {
+                    for slot in arm.pattern().slots() {
+                        if let Some(binding) = slot.binding() {
+                            let local = self.body.locals().get(binding).copied().ok_or(
+                                BodyDependencyError::UnknownLocal {
+                                    body: self.body_id,
+                                    local: binding,
+                                },
+                            )?;
+                            self.record_type(local.ty())?;
+                        }
+                    }
                     if let Some(drop) = arm.pattern().before_transfer_drop() {
                         self.record_drop(drop)?;
                     }

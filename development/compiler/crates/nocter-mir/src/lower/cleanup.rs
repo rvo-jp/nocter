@@ -152,7 +152,7 @@ impl FunctionLowerer<'_> {
         match plan.kind() {
             ConcreteDestructionKind::Struct { drop, fields } => {
                 if let Some(drop) = drop {
-                    self.invoke_drop(owner, place, drop)?;
+                    self.invoke_selected_drop(owner, place, drop)?;
                 }
                 for field in fields {
                     let child = self.project_cleanup_place(
@@ -166,7 +166,7 @@ impl FunctionLowerer<'_> {
             }
             ConcreteDestructionKind::Enum { drop, variants } => {
                 if let Some(drop) = drop {
-                    self.invoke_drop(owner, place, drop)?;
+                    self.invoke_selected_drop(owner, place, drop)?;
                 }
                 self.lower_enum_destruction(owner, place, variants)?;
             }
@@ -217,7 +217,7 @@ impl FunctionLowerer<'_> {
         Ok(())
     }
 
-    fn invoke_drop(
+    pub(super) fn invoke_selected_drop(
         &mut self,
         owner: BodyNodeId,
         place: MirPlaceId,

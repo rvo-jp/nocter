@@ -14,7 +14,7 @@ implementation input.
    value-producing branches, direct/primitive calls, receiver and operand coercions, borrow
    conversions, comparisons, selected/coerced index places, outcome CFG, and unconditional
    cleanup destruction, conditional drop flags, block fallthrough, explicit drop, compound
-   assignment, and all loop forms to patterns, closures, and regions. Never repeat requirement,
+   assignment, all loop forms, and enum patterns to closures and regions. Never repeat requirement,
    conformance, or drop-pattern selection.
 2. Materialize process and ordered test runner control flow from `ExecutableRoot` metadata without
    synthetic source declarations or backend-name lookup, then validate the complete MIR graph.
@@ -118,8 +118,8 @@ destruction. One canonical value-storage authority now prevents borrow preparati
 inspection, and cleanup from duplicating ownership. Conditional path and value cleanup reserves
 entry-visible drop flags, updates them on initialization, move, replacement, and destruction, and
 branches without reconstructing source control history. MIR places are interned by exact typed
-shape, so flags and ordinary operations share storage identity. Collection-loop, pattern, closure,
-and region construction remain the current task. Block fallthrough now consumes the same checked
+shape, so flags and ordinary operations share storage identity. Closure and region construction
+remain the current task. Block fallthrough now consumes the same checked
 `BeforeTransfer` event as explicit return and loop transfer. Explicit `drop`, compound integer
 assignment, `break`, `continue`, while loops, breakable/nonbreaking infinite loops, and integer
 ranges lower to closed CFG directly. A checked `never` loop has no invented exit block, and range
@@ -128,6 +128,12 @@ expansion and `next` dispatch, retains the iterator in canonical value storage, 
 header, switches on the returned optional place, moves only the present payload into the loop
 binding, and shares one iterator drop flag across exhaustion, break, and return cleanup. The common
 compiler fixture can opt into exact iterator semantic roles without changing unrelated fixtures.
+Enum pattern lowering now consumes checked binding modes and owned-remainder plans rather than
+repeating copyability or cleanup selection. It switches on canonical subject storage, projects
+specialized payload places, invokes a frozen type-owned drop before the first move, and joins any
+number of value-producing arms through typed block parameters. Complete and variant-residual
+cleanup obligations have distinct flags even when they share one subject slot, so explicit arms,
+fallbacks, and implicit `if is` nonmatches cannot destroy one another's storage.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade

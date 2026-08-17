@@ -19,7 +19,8 @@ use crate::syntax::{
 use crate::type_relations::{TypeSubstitution, match_type_pattern};
 use crate::{
     CheckedControl, CheckedOperation, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
-    CheckedPatternSlot, CheckedPatternSubject, DropSelection, PatternSubjectPreparation,
+    CheckedPatternSlot, CheckedPatternSubject, DropSelection, PatternBindingMode, PatternRemainder,
+    PatternSubjectPreparation,
 };
 
 struct PatternSubjectPlan {
@@ -286,6 +287,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<CheckedPattern, BodyCheckError> {
         let mut slots = Vec::with_capacity(resolved.parameters.len());
         let mut transfers_move_only = false;
+        let mut residual_payload = Vec::new();
         for (position, (parameter, slot)) in
             resolved.parameters.into_iter().zip(slot_nodes).enumerate()
         {
@@ -307,7 +309,23 @@ impl BodyChecker<'_, '_> {
             }
             let token = direct_identifier(self.tree(), slot)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(slot))?;
+            let payload = resolved
+                .substitution
+                .apply_type(self.types, declaration.ty())
+                .map_err(BodyCheckInternalError::CallSubstitution)?;
             let binding = if self.token_text(token)? == "_" {
+                if matches!(
+                    subject.checked.preparation(),
+                    PatternSubjectPreparation::OwnedTemporary
+                        | PatternSubjectPreparation::ConsumedPlace
+                ) && self
+                    .copyabilities
+                    .classify(self.graph, self.types, payload)
+                    .map_err(BodyCheckInternalError::Copyability)?
+                    == Copyability::MoveOnly
+                {
+                    residual_payload.push(parameter);
+                }
                 None
             } else {
                 let local = self
@@ -315,35 +333,42 @@ impl BodyChecker<'_, '_> {
                     .get(&SyntaxOrigin::Token(token))
                     .copied()
                     .ok_or(BodyCheckInternalError::MissingLocalDeclaration(slot))?;
-                let payload = resolved
-                    .substitution
-                    .apply_type(self.types, declaration.ty())
-                    .map_err(BodyCheckInternalError::CallSubstitution)?;
-                let ty = self.pattern_binding_type(
-                    slot,
-                    payload,
-                    subject.checked.preparation(),
-                    &mut transfers_move_only,
-                )?;
+                let (ty, mode) =
+                    self.pattern_binding_type(slot, payload, subject.checked.preparation())?;
+                transfers_move_only |= mode == PatternBindingMode::Move;
                 self.builder.define_local(local, ty)?;
-                Some(local)
+                Some((local, mode))
             };
             slots.push(CheckedPatternSlot::new(parameter, binding));
         }
+        let owner_drop = self.drops.get(resolved.nominal);
         let before_transfer_drop = (transfers_move_only
             && matches!(
                 subject.checked.preparation(),
                 PatternSubjectPreparation::OwnedTemporary
                     | PatternSubjectPreparation::ConsumedPlace
             ))
-        .then(|| self.drops.get(resolved.nominal))
+        .then_some(owner_drop)
         .flatten()
         .map(|drop| self.select_pattern_drop(drop, subject.ty))
         .transpose()?;
+        let remainder = if !matches!(
+            subject.checked.preparation(),
+            PatternSubjectPreparation::OwnedTemporary | PatternSubjectPreparation::ConsumedPlace
+        ) {
+            PatternRemainder::NoCleanup
+        } else if owner_drop.is_some() && before_transfer_drop.is_none() {
+            PatternRemainder::Complete
+        } else if residual_payload.is_empty() {
+            PatternRemainder::NoCleanup
+        } else {
+            PatternRemainder::Residual(residual_payload.into_boxed_slice())
+        };
         Ok(CheckedPattern::new(
             resolved.variant,
             slots,
             before_transfer_drop,
+            remainder,
         ))
     }
 
@@ -377,8 +402,7 @@ impl BodyChecker<'_, '_> {
         slot: NodeId,
         payload: TypeId,
         preparation: PatternSubjectPreparation,
-        transfers_move_only: &mut bool,
-    ) -> Result<TypeId, BodyCheckError> {
+    ) -> Result<(TypeId, PatternBindingMode), BodyCheckError> {
         match preparation {
             PatternSubjectPreparation::RetainedPlace => {
                 if self
@@ -389,23 +413,31 @@ impl BodyChecker<'_, '_> {
                 {
                     return Err(self.rule(BodyRule::InvalidPatternOperation, slot)?);
                 }
-                Ok(payload)
+                Ok((payload, PatternBindingMode::Copy))
             }
-            PatternSubjectPreparation::Borrowed(capability) => self
-                .types
-                .intern(TypeKind::Borrow {
-                    capability,
-                    referent: payload,
-                })
-                .map_err(|_| BodyCheckInternalError::UnknownType(payload).into()),
+            PatternSubjectPreparation::Borrowed(capability) => {
+                let ty = self
+                    .types
+                    .intern(TypeKind::Borrow {
+                        capability,
+                        referent: payload,
+                    })
+                    .map_err(|_| BodyCheckInternalError::UnknownType(payload))?;
+                Ok((ty, PatternBindingMode::Borrow(capability)))
+            }
             PatternSubjectPreparation::OwnedTemporary
             | PatternSubjectPreparation::ConsumedPlace => {
-                *transfers_move_only |= self
+                let mode = if self
                     .copyabilities
                     .classify(self.graph, self.types, payload)
                     .map_err(BodyCheckInternalError::Copyability)?
-                    == Copyability::MoveOnly;
-                Ok(payload)
+                    == Copyability::Copy
+                {
+                    PatternBindingMode::Copy
+                } else {
+                    PatternBindingMode::Move
+                };
+                Ok((payload, mode))
             }
         }
     }

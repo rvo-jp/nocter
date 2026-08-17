@@ -1,5 +1,9 @@
-use nocter_checking::{CleanupCondition, CleanupTarget, PlaceProjection, PlaceRoot};
-use nocter_model::{BodyNodeId, FieldId, LocalBindingId, MirDropFlagId, PlaceId};
+use nocter_checking::{
+    CleanupCondition, CleanupTarget, PatternRemainder, PlaceProjection, PlaceRoot,
+};
+use nocter_model::{
+    BodyNodeId, FieldId, LocalBindingId, MirDropFlagId, ParameterId, PlaceId, VariantId,
+};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
@@ -11,7 +15,19 @@ pub(super) enum CleanupIdentity {
         root: PlaceRoot,
         fields: Box<[FieldId]>,
     },
-    Value(BodyNodeId),
+    Value {
+        node: BodyNodeId,
+        remainder: ValueRemainder,
+    },
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum ValueRemainder {
+    Complete,
+    Enum {
+        variant: VariantId,
+        payload: Box<[ParameterId]>,
+    },
 }
 
 impl CleanupIdentity {
@@ -21,8 +37,22 @@ impl CleanupIdentity {
                 root: path.root(),
                 fields: path.fields().into(),
             }),
-            CleanupTarget::Value { node, .. } => Some(Self::Value(*node)),
-            CleanupTarget::EnumResidual { subject, .. } => Some(Self::Value(*subject)),
+            CleanupTarget::Value { node, .. } => Some(Self::Value {
+                node: *node,
+                remainder: ValueRemainder::Complete,
+            }),
+            CleanupTarget::EnumResidual {
+                subject,
+                variant,
+                payload,
+                ..
+            } => Some(Self::Value {
+                node: *subject,
+                remainder: ValueRemainder::Enum {
+                    variant: *variant,
+                    payload: payload.clone(),
+                },
+            }),
             CleanupTarget::Place { .. } | CleanupTarget::Region { .. } => None,
         }
     }
@@ -139,7 +169,61 @@ impl FunctionLowerer<'_> {
         &mut self,
         node: BodyNodeId,
     ) -> Result<(), MirLoweringError> {
-        self.set_flag(&CleanupIdentity::Value(node), true)
+        self.set_flag(
+            &CleanupIdentity::Value {
+                node,
+                remainder: ValueRemainder::Complete,
+            },
+            true,
+        )
+    }
+
+    /// Selects the one branch-specific destruction obligation after an owned enum tag matches.
+    ///
+    /// The subject remains in one storage slot. Only its cleanup identity changes from the whole
+    /// value to the checked remainder; separate flags prevent mutually exclusive arms from
+    /// destroying each other's payloads after they join.
+    pub(super) fn select_pattern_remainder(
+        &mut self,
+        node: BodyNodeId,
+        variant: Option<VariantId>,
+        remainder: &PatternRemainder,
+    ) -> Result<(), MirLoweringError> {
+        let transitions = self
+            .cleanup_flags
+            .iter()
+            .filter_map(|(identity, flag)| match identity {
+                CleanupIdentity::Value {
+                    node: candidate, ..
+                } if *candidate == node => Some((identity.clone(), *flag)),
+                CleanupIdentity::Path { .. } | CleanupIdentity::Value { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        for (identity, flag) in transitions {
+            let initialized = match (&identity, remainder) {
+                (
+                    CleanupIdentity::Value {
+                        remainder: ValueRemainder::Complete,
+                        ..
+                    },
+                    PatternRemainder::Complete,
+                ) => true,
+                (
+                    CleanupIdentity::Value {
+                        remainder:
+                            ValueRemainder::Enum {
+                                variant: candidate,
+                                payload: candidate_payload,
+                            },
+                        ..
+                    },
+                    PatternRemainder::Residual(payload),
+                ) => Some(*candidate) == variant && candidate_payload == payload,
+                _ => false,
+            };
+            self.append_effect(MirOperationKind::SetDropFlag { flag, initialized })?;
+        }
+        Ok(())
     }
 
     pub(super) fn mark_cleanup_complete(
@@ -148,10 +232,28 @@ impl FunctionLowerer<'_> {
     ) -> Result<(), MirLoweringError> {
         match target {
             CleanupTarget::Path(path) => self.set_path_flags(path.root(), path.fields(), false),
-            CleanupTarget::Value { node, .. }
-            | CleanupTarget::EnumResidual { subject: node, .. } => {
-                self.set_flag(&CleanupIdentity::Value(*node), false)
-            }
+            CleanupTarget::Value { node, .. } => self.set_flag(
+                &CleanupIdentity::Value {
+                    node: *node,
+                    remainder: ValueRemainder::Complete,
+                },
+                false,
+            ),
+            CleanupTarget::EnumResidual {
+                subject,
+                variant,
+                payload,
+                ..
+            } => self.set_flag(
+                &CleanupIdentity::Value {
+                    node: *subject,
+                    remainder: ValueRemainder::Enum {
+                        variant: *variant,
+                        payload: payload.clone(),
+                    },
+                },
+                false,
+            ),
             CleanupTarget::Place { .. } | CleanupTarget::Region { .. } => Ok(()),
         }
     }
@@ -172,7 +274,7 @@ impl FunctionLowerer<'_> {
                 } if *candidate == root && fields_are_prefix(fields, candidate_fields) => {
                     Some(*flag)
                 }
-                CleanupIdentity::Path { .. } | CleanupIdentity::Value(_) => None,
+                CleanupIdentity::Path { .. } | CleanupIdentity::Value { .. } => None,
             })
             .collect::<Vec<_>>();
         for flag in flags {

@@ -21,6 +21,7 @@ mod iteration;
 mod loop_control;
 mod operand;
 mod outcome;
+mod pattern;
 mod place;
 mod value_storage;
 
@@ -70,6 +71,7 @@ pub enum MirLoweringError {
     InvalidDispatch(BodyNodeId),
     InvalidPlaceDispatch(PlaceId),
     InvalidCleanup(BodyNodeId),
+    InvalidPattern(BodyNodeId),
     InvalidTerminalResult(ExecutableItemId),
     Function(MirFunctionBuildError),
     Program(MirProgramBuildError),

@@ -54,11 +54,11 @@ pub use checked::{
     ComparisonImplementation, ComparisonOperation, ConstantValue, DropSelection,
     DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
     IterationAcquisition, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable, LogicalOperation,
-    LoopKind, OpaqueWitnessTable, OpaqueWitnessTableBuildError, PatternSubjectPreparation,
-    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
-    ReceiverPreparation, SequenceElement, SpreadMode, StaticDispatch, StaticSelection,
-    TypedIteration, ValueProvenance,
+    LoopKind, OpaqueWitnessTable, OpaqueWitnessTableBuildError, PatternBindingMode,
+    PatternRemainder, PatternSubjectPreparation, PlaceAccess, PlaceProjection, PlaceRoot,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource,
+    ProvenanceTable, ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode,
+    StaticDispatch, StaticSelection, TypedIteration, ValueProvenance,
 };
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,

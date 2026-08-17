@@ -102,7 +102,10 @@ impl FunctionLowerer<'_> {
         }
     }
 
-    fn lower_place_node(&mut self, node: BodyNodeId) -> Result<MirPlaceId, MirLoweringError> {
+    pub(super) fn lower_place_node(
+        &mut self,
+        node: BodyNodeId,
+    ) -> Result<MirPlaceId, MirLoweringError> {
         let checked = self
             .body
             .nodes()

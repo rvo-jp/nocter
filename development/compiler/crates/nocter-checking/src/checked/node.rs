@@ -728,6 +728,28 @@ pub enum PatternSubjectPreparation {
     Borrowed(BorrowCapability),
 }
 
+/// The already-proved storage operation that initializes one named pattern payload.
+///
+/// This decision belongs to body checking: later lowering must not repeat copyability proof or
+/// infer ownership from the presence of a type-owned drop body.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PatternBindingMode {
+    Copy,
+    Move,
+    Borrow(BorrowCapability),
+}
+
+/// The exact owned storage left behind after one pattern arm initializes its bindings.
+///
+/// Ownership analysis decides only when this remainder is live. Its structural shape is frozen by
+/// body checking so cleanup planning and MIR lowering never reconstruct payload transfer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PatternRemainder {
+    NoCleanup,
+    Complete,
+    Residual(Box<[ParameterId]>),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CheckedPatternSubject {
     value: BodyNodeId,
@@ -767,12 +789,27 @@ impl CheckedPatternSubject {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CheckedPatternSlot {
     parameter: ParameterId,
-    binding: Option<LocalBindingId>,
+    binding: Option<PatternBinding>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PatternBinding {
+    local: LocalBindingId,
+    mode: PatternBindingMode,
 }
 
 impl CheckedPatternSlot {
-    pub(crate) const fn new(parameter: ParameterId, binding: Option<LocalBindingId>) -> Self {
-        Self { parameter, binding }
+    pub(crate) const fn new(
+        parameter: ParameterId,
+        binding: Option<(LocalBindingId, PatternBindingMode)>,
+    ) -> Self {
+        Self {
+            parameter,
+            binding: match binding {
+                Some((local, mode)) => Some(PatternBinding { local, mode }),
+                None => None,
+            },
+        }
     }
 
     #[must_use]
@@ -782,7 +819,18 @@ impl CheckedPatternSlot {
 
     #[must_use]
     pub const fn binding(self) -> Option<LocalBindingId> {
-        self.binding
+        match self.binding {
+            Some(binding) => Some(binding.local),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn binding_mode(self) -> Option<PatternBindingMode> {
+        match self.binding {
+            Some(binding) => Some(binding.mode),
+            None => None,
+        }
     }
 }
 
@@ -791,6 +839,7 @@ pub struct CheckedPattern {
     variant: VariantId,
     slots: Box<[CheckedPatternSlot]>,
     before_transfer_drop: Option<DropSelection>,
+    remainder: PatternRemainder,
 }
 
 impl CheckedPattern {
@@ -798,11 +847,13 @@ impl CheckedPattern {
         variant: VariantId,
         slots: impl Into<Box<[CheckedPatternSlot]>>,
         before_transfer_drop: Option<DropSelection>,
+        remainder: PatternRemainder,
     ) -> Self {
         Self {
             variant,
             slots: slots.into(),
             before_transfer_drop,
+            remainder,
         }
     }
 
@@ -820,6 +871,11 @@ impl CheckedPattern {
     #[must_use]
     pub const fn before_transfer_drop(&self) -> Option<&DropSelection> {
         self.before_transfer_drop.as_ref()
+    }
+
+    #[must_use]
+    pub const fn remainder(&self) -> &PatternRemainder {
+        &self.remainder
     }
 }
 

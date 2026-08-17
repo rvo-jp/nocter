@@ -32,8 +32,9 @@ pub use node::{
     CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion,
     CheckedSequence, CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation,
     ConstantValue, InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind,
-    PatternSubjectPreparation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode, TypedIteration,
+    PatternBindingMode, PatternRemainder, PatternSubjectPreparation, PrimitiveBinary,
+    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
+    SequenceElement, SpreadMode, TypedIteration,
 };
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};

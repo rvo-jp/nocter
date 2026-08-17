@@ -6,7 +6,8 @@ use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
     CheckedControl, CheckedOperation, CheckedOutcome, CleanupCondition, CleanupTarget,
-    CleanupTiming, PatternSubjectPreparation, prepare_program_checking,
+    CleanupTiming, PatternBindingMode, PatternRemainder, PatternSubjectPreparation,
+    prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -162,6 +163,28 @@ fn owned_pattern_residual_records_only_unnamed_move_only_payloads() {
         })
         .collect::<Vec<_>>();
     assert_eq!(residuals, vec![1]);
+    let pattern = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes()
+                .iter()
+                .find_map(|(_, checked)| match checked.operation() {
+                    CheckedOperation::Control(CheckedControl::Pattern { arms, .. }) => {
+                        Some(arms[0].pattern())
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    assert_eq!(
+        pattern.slots()[0].binding_mode(),
+        Some(PatternBindingMode::Move)
+    );
+    assert!(
+        matches!(pattern.remainder(), PatternRemainder::Residual(payload) if payload.len() == 1)
+    );
 }
 
 #[test]
@@ -441,6 +464,7 @@ fn type_owned_drop_is_frozen_before_move_only_payload_transfer() {
         })
         .unwrap();
     assert!(pattern.before_transfer_drop().is_some());
+    assert_eq!(pattern.remainder(), &PatternRemainder::NoCleanup);
     assert!(
         !moved_body
             .nodes()
@@ -485,6 +509,11 @@ fn type_owned_drop_is_frozen_before_move_only_payload_transfer() {
         })
         .unwrap();
     assert!(copied_pattern.before_transfer_drop().is_none());
+    assert_eq!(copied_pattern.remainder(), &PatternRemainder::Complete);
+    assert_eq!(
+        copied_pattern.slots()[0].binding_mode(),
+        Some(PatternBindingMode::Copy)
+    );
     assert!(
         copied_body
             .nodes()

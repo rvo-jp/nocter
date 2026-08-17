@@ -744,6 +744,151 @@ fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
     }));
 }
 
+#[test]
+fn lowers_generic_enum_patterns_with_specialized_payload_types() {
+    let program = lower_fixture(
+        "enum Choice<T> {\n    some(value: T)\n    empty\n}\n\
+         func select(value: Choice<i32>): i32 {\n\
+             match value {\n\
+                 Choice.some(item) { item }\n\
+                 Choice.empty { 0 }\n\
+             }\n\
+         }\n\
+         func main(): i32 { select(Choice.some(7)) }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.blocks().iter().any(|(_, block)| {
+            matches!(
+                block.terminator(),
+                MirTerminator::Switch { cases, .. } if cases.len() == 2
+            )
+        }) && function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Read {
+                    mode: crate::MirReadMode::Copy,
+                    ..
+                }
+            )
+        }) && function
+            .blocks()
+            .iter()
+            .any(|(_, block)| !block.parameters().is_empty())
+    }));
+}
+
+#[test]
+fn lowers_borrowed_pattern_payloads_without_owning_the_enum() {
+    let program = lower_fixture(
+        "enum Slot { value(item: i32) }\n\
+         func inspect(input: &+Slot): void {\n\
+             match input {\n\
+                 Slot.value(item) {}\n\
+             }\n\
+             return\n\
+         }\n\
+         func main(): void {\n\
+             var slot = Slot.value(7)\n\
+             inspect(&+slot)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Dereference { .. }))
+            && function.operations().iter().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MirOperationKind::Borrow {
+                        capability: nocter_model::BorrowCapability::ReadWrite,
+                        ..
+                    }
+                )
+            })
+            && function.drop_flags().is_empty()
+    }));
+}
+
+#[test]
+fn invokes_enum_drop_before_moving_payload_and_cleans_only_the_residual() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         enum Resource { active(item: Owned, retained: Owned) }\n\
+         drop Resource(&+self) { return }\n\
+         func main(): void {\n\
+             match Resource.active(Owned { value: 1 }, Owned { value: 2 }) {\n\
+                 Resource.active(item, _) { let _ = move item }\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        let operations = function
+            .operations()
+            .iter()
+            .map(|(_, operation)| operation.kind())
+            .collect::<Vec<_>>();
+        let owner_drop = operations
+            .iter()
+            .position(|operation| matches!(operation, MirOperationKind::InvokeDrop { .. }));
+        let payload_move = operations.iter().position(|operation| {
+            matches!(
+                operation,
+                MirOperationKind::Read {
+                    mode: crate::MirReadMode::Move,
+                    ..
+                }
+            )
+        });
+        owner_drop
+            .zip(payload_move)
+            .is_some_and(|(drop, move_)| drop < move_)
+            && operations
+                .iter()
+                .filter(|operation| matches!(operation, MirOperationKind::InvokeDrop { .. }))
+                .count()
+                == 3
+    }));
+}
+
+#[test]
+fn pattern_match_and_unmatched_cleanup_use_distinct_flags_on_shared_storage() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         enum Pair { values(first: Owned, second: Owned) }\n\
+         func main(): void {\n\
+             if Pair.values(Owned { value: 1 }, Owned { value: 2 }) is Pair.values(item, _) {\n\
+                 let _ = move item\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        let flagged_places = function
+            .drop_flags()
+            .iter()
+            .map(|(_, flag)| flag.place())
+            .collect::<Vec<_>>();
+        flagged_places.len() == 2
+            && flagged_places[0] == flagged_places[1]
+            && function.blocks().iter().any(|(_, block)| {
+                matches!(block.terminator(), MirTerminator::BranchDropFlag { .. })
+            })
+    }));
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }
