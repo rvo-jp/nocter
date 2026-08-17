@@ -470,7 +470,7 @@ generic call retains the exact interface `RequirementId` and method identity.
 Only when exact lookup has no candidate may method selection traverse one borrow coercion.
 Readonly coercion receivers form the minimum-authority tier; a readwrite receiver tier is tried
 only when the first tier has no route. An exact method shadows every coercion route, and multiple
-routes in one tier are ambiguous. `CheckedCallReceiver` separates the source value from its owned,
+routes in one tier are ambiguous. `CheckedReceiver` separates the source value from its owned,
 place-borrow, temporary-borrow, preserved-borrow, or weakened-borrow preparation. An optional
 checked receiver coercion retains its static selection and whether its result borrow is preserved
 or weakened for the selected method. Owned methods freeze a copy or move node immediately;
@@ -507,6 +507,19 @@ executable cleanup schedule. The loan authority consumes executable cleanup sche
 storage-end order rather than reconstructing destruction from syntax. Result contracts remain
 owned by provenance; lexical, region, temporary-statement, and destination escape use the same
 provenance value tree before the program is frozen.
+
+Typed-sequence spread uses the same identity-based operation authorities. Standard `Iterator`, its
+`Item` declaration and `next` method, plus `ExactSizeIterator.remaining_len`, enter checking as
+exact semantic roles rather than spellings. A dedicated `IteratorAcquisition` node separates the source receiver
+from the resulting iterator temporary. Readonly spread selects one readonly expansion; consuming
+spread gives a direct iterator fixed priority and consults owned expansion only when no direct
+Iterator evidence exists. Direct selection never falls back because exact-size evidence is absent.
+`TypedIteration` freezes the acquisition node, specialized `next`, yielded item type, and exact-size
+selection. Fixed elements and spreads contribute constraints to one construction inference session
+in source order. Ownership transfers each acquired iterator into the literal pack and schedules it
+on partial propagation, while provenance and loans derive contributed element storage through the
+selected `next` contract. The common `SpreadMode::contribution_type` projection prevents those
+analyses from retaining a source loan for a copied scalar or losing it for a retained borrow.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
 facade owns the declaration graph, extended type store, conformance table, instance-operation

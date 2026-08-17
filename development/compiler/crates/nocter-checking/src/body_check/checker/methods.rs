@@ -10,7 +10,7 @@ use crate::copyability::Copyability;
 use crate::instance_operations::{InstanceOperationSelector, MethodCandidate};
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
 use crate::{
-    CallTarget, CheckedCall, CheckedCallReceiver, CheckedOperation, CheckedReceiverCoercion,
+    CallTarget, CheckedCall, CheckedOperation, CheckedReceiver, CheckedReceiverCoercion,
     PlaceAccess, ReceiverPreparation, StaticSelection,
 };
 
@@ -210,7 +210,7 @@ impl BodyChecker<'_, '_> {
         receiver: ReceiverDraft,
         capability: CallableCapability,
         coercion: Option<CheckedReceiverCoercion>,
-    ) -> Result<CheckedCallReceiver, BodyCheckError> {
+    ) -> Result<CheckedReceiver, BodyCheckError> {
         match receiver {
             ReceiverDraft::Place { syntax, place } => {
                 self.materialize_place_receiver(syntax, &place, capability, coercion)
@@ -253,7 +253,7 @@ impl BodyChecker<'_, '_> {
                     }
                     (_, None) => return Err(BodyCheckInternalError::UnknownType(ty).into()),
                 };
-                Ok(CheckedCallReceiver::new(value, preparation, coercion))
+                Ok(CheckedReceiver::new(value, preparation, coercion))
             }
         }
     }
@@ -264,7 +264,7 @@ impl BodyChecker<'_, '_> {
         place: &ResolvedPlace,
         capability: CallableCapability,
         coercion: Option<CheckedReceiverCoercion>,
-    ) -> Result<CheckedCallReceiver, BodyCheckError> {
+    ) -> Result<CheckedReceiver, BodyCheckError> {
         let borrowed = match self.types.get(place.ty) {
             Some(TypeKind::Borrow {
                 capability,
@@ -326,7 +326,7 @@ impl BodyChecker<'_, '_> {
             }
         };
         let value = self.add_node(syntax, place.ty, operation)?;
-        Ok(CheckedCallReceiver::new(value, preparation, coercion))
+        Ok(CheckedReceiver::new(value, preparation, coercion))
     }
 
     fn receiver_borrow_capability(

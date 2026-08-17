@@ -7,8 +7,8 @@ use nocter_declarations::{
     Visibility,
 };
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, CallableId, DeclarationSiteId, InterfaceId,
-    NominalTypeId, TypeKind, TypeStore,
+    AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
+    DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin};
 
@@ -73,27 +73,86 @@ impl StandardSemanticTable {
         }
     }
 
+    #[must_use]
+    pub fn associated_type(&self, role: StandardDeclarationRole) -> Option<AssociatedTypeId> {
+        match self.entries.get(&role) {
+            Some(SemanticEntity::AssociatedType(id)) => Some(*id),
+            _ => None,
+        }
+    }
+
     fn validate_relationships(
         &self,
         graph: &DeclarationGraph,
         types: &TypeStore,
     ) -> Result<(), StandardSemanticError> {
-        let Some(method) = self.callable(StandardDeclarationRole::FormatMethod) else {
+        if let Some(method) = self.callable(StandardDeclarationRole::FormatMethod) {
+            let interface = self
+                .interface(StandardDeclarationRole::FormatInterface)
+                .ok_or(StandardSemanticError::MissingDependency {
+                    role: StandardDeclarationRole::FormatMethod,
+                    dependency: StandardDeclarationRole::FormatInterface,
+                })?;
+            let string = self.nominal(StandardDeclarationRole::OwnedString).ok_or(
+                StandardSemanticError::MissingDependency {
+                    role: StandardDeclarationRole::FormatMethod,
+                    dependency: StandardDeclarationRole::OwnedString,
+                },
+            )?;
+            validate_format_method(graph, types, interface, string, method)?;
+        }
+        self.validate_iteration_relationships(graph, types)?;
+        self.validate_exact_size_relationships(graph, types)
+    }
+
+    fn validate_iteration_relationships(
+        &self,
+        graph: &DeclarationGraph,
+        types: &TypeStore,
+    ) -> Result<(), StandardSemanticError> {
+        let item = self.associated_type(StandardDeclarationRole::IteratorItem);
+        let next = self.callable(StandardDeclarationRole::IteratorNextMethod);
+        if item.is_none() && next.is_none() {
+            return Ok(());
+        }
+        let interface = self
+            .interface(StandardDeclarationRole::IteratorInterface)
+            .ok_or(StandardSemanticError::MissingDependency {
+                role: if item.is_some() {
+                    StandardDeclarationRole::IteratorItem
+                } else {
+                    StandardDeclarationRole::IteratorNextMethod
+                },
+                dependency: StandardDeclarationRole::IteratorInterface,
+            })?;
+        let item = item.ok_or(StandardSemanticError::MissingDependency {
+            role: StandardDeclarationRole::IteratorNextMethod,
+            dependency: StandardDeclarationRole::IteratorItem,
+        })?;
+        validate_iterator_item(graph, interface, item)?;
+        if let Some(next) = next {
+            validate_iterator_next(graph, types, interface, item, next)?;
+        }
+        Ok(())
+    }
+
+    fn validate_exact_size_relationships(
+        &self,
+        graph: &DeclarationGraph,
+        types: &TypeStore,
+    ) -> Result<(), StandardSemanticError> {
+        let Some(method) =
+            self.callable(StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod)
+        else {
             return Ok(());
         };
         let interface = self
-            .interface(StandardDeclarationRole::FormatInterface)
+            .interface(StandardDeclarationRole::ExactSizeIteratorInterface)
             .ok_or(StandardSemanticError::MissingDependency {
-                role: StandardDeclarationRole::FormatMethod,
-                dependency: StandardDeclarationRole::FormatInterface,
+                role: StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
+                dependency: StandardDeclarationRole::ExactSizeIteratorInterface,
             })?;
-        let string = self.nominal(StandardDeclarationRole::OwnedString).ok_or(
-            StandardSemanticError::MissingDependency {
-                role: StandardDeclarationRole::FormatMethod,
-                dependency: StandardDeclarationRole::OwnedString,
-            },
-        )?;
-        validate_format_method(graph, types, interface, string, method)
+        validate_exact_size_method(graph, types, interface, method)
     }
 
     fn validate_nominal_roles(
@@ -108,11 +167,10 @@ impl StandardSemanticTable {
             let Some(nominal) = self.nominal(role) else {
                 continue;
             };
-            if !graph
-                .declarations()
-                .nominal_types()
-                .get(nominal)
-                .is_some_and(|declaration| declaration.generic_parameters().is_empty())
+            let Some(declaration) = graph.declarations().nominal_types().get(nominal) else {
+                return Err(StandardSemanticError::InvalidNominalContract(role));
+            };
+            if !declaration.generic_parameters().is_empty() || !is_public(graph, declaration.site())
             {
                 return Err(StandardSemanticError::InvalidNominalContract(role));
             }
@@ -150,8 +208,19 @@ fn validate_role_domain(
         StandardDeclarationRole::AbortingAllocator
         | StandardDeclarationRole::AllocationContext
         | StandardDeclarationRole::OwnedString => matches!(entity, SemanticEntity::NominalType(_)),
-        StandardDeclarationRole::FormatInterface => matches!(entity, SemanticEntity::Interface(_)),
-        StandardDeclarationRole::FormatMethod => matches!(entity, SemanticEntity::Callable(_)),
+        StandardDeclarationRole::FormatInterface
+        | StandardDeclarationRole::IteratorInterface
+        | StandardDeclarationRole::ExactSizeIteratorInterface => {
+            matches!(entity, SemanticEntity::Interface(_))
+        }
+        StandardDeclarationRole::IteratorItem => {
+            matches!(entity, SemanticEntity::AssociatedType(_))
+        }
+        StandardDeclarationRole::FormatMethod
+        | StandardDeclarationRole::IteratorNextMethod
+        | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod => {
+            matches!(entity, SemanticEntity::Callable(_))
+        }
     };
     if valid {
         Ok(())
@@ -192,6 +261,11 @@ fn entity_site(graph: &DeclarationGraph, entity: SemanticEntity) -> Option<Decla
             .interfaces()
             .get(id)
             .map(nocter_declarations::InterfaceDeclaration::site),
+        SemanticEntity::AssociatedType(id) => graph
+            .declarations()
+            .associated_types()
+            .get(id)
+            .map(nocter_declarations::AssociatedTypeDeclaration::site),
         SemanticEntity::Callable(id) => graph
             .declarations()
             .callables()
@@ -223,12 +297,6 @@ fn validate_format_method(
         .callables()
         .get(method)
         .ok_or(StandardSemanticError::InvalidFormatContract)?;
-    let public = |site| {
-        graph
-            .declaration_sites()
-            .get(site)
-            .is_some_and(|site| site.visibility() == Visibility::Public)
-    };
     let Some(receiver) = callable
         .receiver()
         .and_then(|id| graph.declarations().parameters().get(id))
@@ -244,13 +312,17 @@ fn validate_format_method(
         .get(*output)
         .ok_or(StandardSemanticError::InvalidFormatContract)?;
     if !interface_declaration.generic_parameters().is_empty()
+        || !interface_declaration.associated_types().is_empty()
         || !string_declaration.generic_parameters().is_empty()
         || callable.kind() != CallableKind::Method
         || callable.owner() != CallableOwner::Interface(interface)
         || !interface_declaration.methods().contains(&method)
-        || !public(string_declaration.site())
-        || !public(interface_declaration.site())
-        || !public(callable.site())
+        || !callable.generic_parameters().is_empty()
+        || !callable.requirements().is_empty()
+        || callable.body().is_some()
+        || !is_public(graph, string_declaration.site())
+        || !is_public(graph, interface_declaration.site())
+        || !is_public(graph, callable.site())
         || receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
         || output.role()
             != (ParameterRole::Ordinary {
@@ -284,6 +356,127 @@ fn validate_format_method(
     Ok(())
 }
 
+fn validate_iterator_item(
+    graph: &DeclarationGraph,
+    interface: InterfaceId,
+    item: AssociatedTypeId,
+) -> Result<(), StandardSemanticError> {
+    let interface_declaration = graph
+        .declarations()
+        .interfaces()
+        .get(interface)
+        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+    let item_declaration = graph
+        .declarations()
+        .associated_types()
+        .get(item)
+        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+    if !interface_declaration.generic_parameters().is_empty()
+        || !interface_declaration.associated_types().contains(&item)
+        || item_declaration.interface() != interface
+        || !item_declaration.bounds().is_empty()
+        || !is_public(graph, interface_declaration.site())
+        || !is_public(graph, item_declaration.site())
+    {
+        return Err(StandardSemanticError::InvalidIteratorContract);
+    }
+    Ok(())
+}
+
+fn validate_iterator_next(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    interface: InterfaceId,
+    item: AssociatedTypeId,
+    method: CallableId,
+) -> Result<(), StandardSemanticError> {
+    let interface_declaration = graph
+        .declarations()
+        .interfaces()
+        .get(interface)
+        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(method)
+        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+    let Some(receiver) = callable
+        .receiver()
+        .and_then(|id| graph.declarations().parameters().get(id))
+    else {
+        return Err(StandardSemanticError::InvalidIteratorContract);
+    };
+    let Some(TypeKind::Optional(result)) = types.get(callable.result()) else {
+        return Err(StandardSemanticError::InvalidIteratorContract);
+    };
+    let Some(TypeKind::AssociatedProjection { base, associated }) = types.get(*result) else {
+        return Err(StandardSemanticError::InvalidIteratorContract);
+    };
+    if callable.kind() != CallableKind::Method
+        || callable.owner() != CallableOwner::Interface(interface)
+        || !interface_declaration.methods().contains(&method)
+        || receiver.role() != ParameterRole::Receiver(CallableCapability::ReadWrite)
+        || !callable.parameters().is_empty()
+        || !callable.generic_parameters().is_empty()
+        || !callable.requirements().is_empty()
+        || callable.body().is_some()
+        || !matches!(types.get(*base), Some(TypeKind::InterfaceSelf(id)) if *id == interface)
+        || *associated != item
+        || !is_public(graph, callable.site())
+    {
+        return Err(StandardSemanticError::InvalidIteratorContract);
+    }
+    Ok(())
+}
+
+fn validate_exact_size_method(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    interface: InterfaceId,
+    method: CallableId,
+) -> Result<(), StandardSemanticError> {
+    let interface_declaration = graph
+        .declarations()
+        .interfaces()
+        .get(interface)
+        .ok_or(StandardSemanticError::InvalidExactSizeIteratorContract)?;
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(method)
+        .ok_or(StandardSemanticError::InvalidExactSizeIteratorContract)?;
+    let Some(receiver) = callable
+        .receiver()
+        .and_then(|id| graph.declarations().parameters().get(id))
+    else {
+        return Err(StandardSemanticError::InvalidExactSizeIteratorContract);
+    };
+    if !interface_declaration.generic_parameters().is_empty()
+        || !interface_declaration.associated_types().is_empty()
+        || callable.kind() != CallableKind::Method
+        || callable.owner() != CallableOwner::Interface(interface)
+        || !interface_declaration.methods().contains(&method)
+        || receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
+        || !callable.parameters().is_empty()
+        || !callable.generic_parameters().is_empty()
+        || !callable.requirements().is_empty()
+        || callable.result() != types.builtin(BuiltinType::Usize)
+        || callable.body().is_some()
+        || !is_public(graph, interface_declaration.site())
+        || !is_public(graph, callable.site())
+    {
+        return Err(StandardSemanticError::InvalidExactSizeIteratorContract);
+    }
+    Ok(())
+}
+
+fn is_public(graph: &DeclarationGraph, site: DeclarationSiteId) -> bool {
+    graph
+        .declaration_sites()
+        .get(site)
+        .is_some_and(|site| site.visibility() == Visibility::Public)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StandardSemanticError {
     DuplicateRole(StandardDeclarationRole),
@@ -298,6 +491,8 @@ pub enum StandardSemanticError {
         dependency: StandardDeclarationRole,
     },
     InvalidFormatContract,
+    InvalidIteratorContract,
+    InvalidExactSizeIteratorContract,
     InvalidNominalContract(StandardDeclarationRole),
 }
 

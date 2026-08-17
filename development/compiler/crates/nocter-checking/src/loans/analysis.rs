@@ -371,6 +371,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 self.evaluate_allocation(allocation, state, extra_active)?;
                 (LoanValue::independent(), true)
             }
+            CheckedOperation::IteratorAcquisition(acquisition) => {
+                self.evaluate_iterator_acquisition(node, &acquisition, state, extra_active)?
+            }
             CheckedOperation::Sequence(sequence) => {
                 self.evaluate_sequence(&sequence, state, extra_active)?
             }
@@ -415,6 +418,44 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             }
         }
         Ok((LoanValue::independent(), true))
+    }
+
+    fn evaluate_iterator_acquisition(
+        &mut self,
+        node: BodyNodeId,
+        acquisition: &crate::CheckedIteratorAcquisition,
+        state: &mut LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<(LoanValue, bool), BodyCheckError> {
+        let Some(source) = self.evaluate_receiver(node, 0, acquisition.source(), state, extra)?
+        else {
+            return Ok((LoanValue::independent(), false));
+        };
+        let result = match acquisition.acquisition() {
+            crate::IterationAcquisition::Direct => source,
+            crate::IterationAcquisition::Expansion(selection) => match selection.dispatch() {
+                crate::StaticDispatch::Direct(callable) => {
+                    self.map_callable_result(callable, Some(&source), &[])?
+                }
+                crate::StaticDispatch::StructuralRequirement(requirement) => {
+                    if !matches!(
+                        self.graph
+                            .declarations()
+                            .requirements()
+                            .get(requirement)
+                            .map(nocter_declarations::Requirement::kind),
+                        Some(nocter_declarations::RequirementKind::Expansion { .. })
+                    ) {
+                        return Err(BodyCheckInternalError::LoanAnalysis.into());
+                    }
+                    source
+                }
+                crate::StaticDispatch::InterfaceMethod { .. } => {
+                    return Err(BodyCheckInternalError::LoanAnalysis.into());
+                }
+            },
+        };
+        Ok((result, true))
     }
 
     fn evaluate_closure(

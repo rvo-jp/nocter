@@ -163,12 +163,23 @@ impl Analyzer<'_, '_> {
         let Some(receiver) = call.receiver() else {
             return Ok(None);
         };
+        self.evaluate_receiver(node, 0, receiver, state, extra)
+    }
+
+    pub(super) fn evaluate_receiver(
+        &mut self,
+        node: BodyNodeId,
+        position: u16,
+        receiver: &crate::CheckedReceiver,
+        state: &mut LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<Option<LoanValue>, BodyCheckError> {
         let value = match receiver.preparation() {
             ReceiverPreparation::BorrowPlace(capability) => {
                 let place = self.place_node(receiver.value())?;
                 self.evaluate_place_indices(place, state, extra)?;
                 let loans = self.issue_loan_as(
-                    LoanId::Operand { node, position: 0 },
+                    LoanId::Operand { node, position },
                     node,
                     place,
                     capability,

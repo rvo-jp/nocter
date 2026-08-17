@@ -1,6 +1,7 @@
 use nocter_model::{
     BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, DropId,
-    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
+    FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, TypeKind,
+    VariantId,
 };
 
 use crate::expected::OutcomeLayer;
@@ -51,6 +52,7 @@ pub enum CheckedOperation {
     Aggregate(AggregateConstruction),
     Outcome(CheckedOutcome),
     Closure(CheckedClosure),
+    IteratorAcquisition(CheckedIteratorAcquisition),
     Sequence(CheckedSequence),
     StringLiteral {
         constructor: StaticSelection,
@@ -191,15 +193,15 @@ impl CheckedReceiverCoercion {
     }
 }
 
-/// One completely selected method receiver, including an optional one-step borrow coercion.
+/// One completely selected receiver, including an optional one-step borrow coercion.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedCallReceiver {
+pub struct CheckedReceiver {
     value: BodyNodeId,
     preparation: ReceiverPreparation,
     coercion: Option<CheckedReceiverCoercion>,
 }
 
-impl CheckedCallReceiver {
+impl CheckedReceiver {
     pub(crate) const fn new(
         value: BodyNodeId,
         preparation: ReceiverPreparation,
@@ -231,14 +233,14 @@ impl CheckedCallReceiver {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedCall {
     target: CallTarget,
-    receiver: Option<CheckedCallReceiver>,
+    receiver: Option<CheckedReceiver>,
     arguments: Box<[BodyNodeId]>,
 }
 
 impl CheckedCall {
     pub(crate) fn new(
         target: CallTarget,
-        receiver: Option<CheckedCallReceiver>,
+        receiver: Option<CheckedReceiver>,
         arguments: impl Into<Box<[BodyNodeId]>>,
     ) -> Self {
         Self {
@@ -254,7 +256,7 @@ impl CheckedCall {
     }
 
     #[must_use]
-    pub const fn receiver(&self) -> Option<&CheckedCallReceiver> {
+    pub const fn receiver(&self) -> Option<&CheckedReceiver> {
         self.receiver.as_ref()
     }
 
@@ -523,22 +525,49 @@ pub enum AllocationSelection {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TypedIteration {
-    source: BodyNodeId,
+pub struct CheckedIteratorAcquisition {
+    source: CheckedReceiver,
     acquisition: IterationAcquisition,
-    next: StaticSelection,
-    item: TypeId,
 }
 
-impl TypedIteration {
+impl CheckedIteratorAcquisition {
+    pub(crate) const fn new(source: CheckedReceiver, acquisition: IterationAcquisition) -> Self {
+        Self {
+            source,
+            acquisition,
+        }
+    }
+
     #[must_use]
-    pub const fn source(&self) -> BodyNodeId {
-        self.source
+    pub const fn source(&self) -> &CheckedReceiver {
+        &self.source
     }
 
     #[must_use]
     pub const fn acquisition(&self) -> &IterationAcquisition {
         &self.acquisition
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypedIteration {
+    iterator: BodyNodeId,
+    next: StaticSelection,
+    item: TypeId,
+}
+
+impl TypedIteration {
+    pub(crate) const fn new(iterator: BodyNodeId, next: StaticSelection, item: TypeId) -> Self {
+        Self {
+            iterator,
+            next,
+            item,
+        }
+    }
+
+    #[must_use]
+    pub const fn iterator(&self) -> BodyNodeId {
+        self.iterator
     }
 
     #[must_use]
@@ -563,6 +592,39 @@ pub enum SpreadMode {
     Copy,
     Borrow,
     Move,
+}
+
+impl SpreadMode {
+    /// Returns the value type contributed to the literal pack by one yielded iterator item.
+    ///
+    /// The checker establishes the readonly-borrow shape required by copy and borrow spreads;
+    /// downstream provenance and loan analyses use this same projection instead of rediscovering
+    /// spread semantics independently.
+    #[must_use]
+    pub fn contribution_type(
+        self,
+        types: &nocter_model::TypeStore,
+        item: TypeId,
+    ) -> Option<TypeId> {
+        match self {
+            Self::Copy => match types.get(item) {
+                Some(TypeKind::Borrow {
+                    capability: BorrowCapability::Readonly,
+                    referent,
+                }) => Some(*referent),
+                _ => None,
+            },
+            Self::Borrow => matches!(
+                types.get(item),
+                Some(TypeKind::Borrow {
+                    capability: BorrowCapability::Readonly,
+                    ..
+                })
+            )
+            .then_some(item),
+            Self::Move => Some(item),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

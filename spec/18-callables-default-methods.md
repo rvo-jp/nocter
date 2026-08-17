@@ -33,6 +33,19 @@ pub interface Iterator {
 }
 ```
 
+The standard exact-size refinement is a separate contract:
+
+```nct
+pub interface ExactSizeIterator {
+    pub method &self.remaining_len(): usize
+}
+```
+
+`remaining_len` returns the exact number of values that subsequent successful `next` calls will
+yield from the current iterator state. Advancing the iterator decreases that number by one. It is
+not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
+pack's length is fixed before its constructor body starts.
+
 Only methods without bodies are conformance requirements. A default body is checked once in the
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
 the interface's required methods, other unambiguous default methods, and ordinary visible APIs.

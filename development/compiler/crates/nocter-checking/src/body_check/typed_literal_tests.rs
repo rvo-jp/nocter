@@ -6,8 +6,8 @@ use nocter_syntax::NodeKind;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    AllocationSelection, BodyRule, CheckedOperation, SequenceElement, StaticDispatch,
-    prepare_program_checking,
+    AllocationSelection, BodyRule, CheckedOperation, CheckedOutcome, CleanupTarget, CleanupTiming,
+    IterationAcquisition, SequenceElement, SpreadMode, StaticDispatch, prepare_program_checking,
 };
 
 fn checked(source: &str) -> crate::CheckedProgramOutput {
@@ -17,6 +17,59 @@ fn checked(source: &str) -> crate::CheckedProgramOutput {
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap()
+}
+
+fn checked_with_iteration_standard(
+    source: &str,
+) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
+    let fixture = Fixture::with_standard("", source);
+    let roles = vec![
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "Iterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorItem,
+            fixture.standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "Item"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::ExactSizeIteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "ExactSizeIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "remaining_len"),
+        ),
+    ];
+    let (input, prelude) = fixture.input(false);
+    let input = input.with_standard_roles(roles);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    check_prepared_program(&input, prepared)
+}
+
+fn iteration_standard(extra: &str) -> String {
+    format!(
+        r"
+pub interface Iterator {{
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}}
+pub interface ExactSizeIterator {{
+    pub method &self.remaining_len(): usize
+}}
+struct Vec<T> {{}}
+construct Vec<T> {{
+    pub literal [](...items: T): Self {{ return Self {{}} }}
+}}
+{extra}
+",
+    )
 }
 
 #[test]
@@ -110,6 +163,329 @@ func rendered(): Text { Text "line\nvalue" }
 }
 
 #[test]
+fn sequence_spreads_freeze_source_order_acquisition_and_iteration_contracts() {
+    let output = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct Source {}
+struct RefIter {}
+struct OwnedIter {}
+instance Source {
+    pub operator (...&self): RefIter { return RefIter {} }
+    pub operator (...self): OwnedIter { return OwnedIter {} }
+}
+conform Iterator for RefIter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+conform ExactSizeIterator for RefIter {
+    method &self.remaining_len(): usize { 0 }
+}
+conform Iterator for OwnedIter {
+    type Item = i32
+    method &+self.next(): i32? { return none }
+}
+conform ExactSizeIterator for OwnedIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func copy_spread(source: Source): Vec<i32> { Vec [0, ...source, 4] }
+func borrow_spread(source: Source): void {
+    let values = Vec<&i32> [...&source]
+    drop values
+    return
+}
+func move_spread(source: Source): Vec<i32> { Vec [...move source] }
+",
+    ))
+    .unwrap();
+    let program = output.program();
+    let sequences = program
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter().map(move |(_, node)| (body, node)))
+        .filter_map(|(body, node)| match node.operation() {
+            CheckedOperation::Sequence(sequence) => Some((body, sequence)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sequences.len(), 3);
+    assert!(matches!(
+        sequences[0].1.elements(),
+        [
+            SequenceElement::Value(_),
+            SequenceElement::Spread {
+                mode: SpreadMode::Copy,
+                ..
+            },
+            SequenceElement::Value(_)
+        ]
+    ));
+    assert!(matches!(
+        sequences[1].1.elements(),
+        [SequenceElement::Spread {
+            mode: SpreadMode::Borrow,
+            ..
+        }]
+    ));
+    assert!(matches!(
+        sequences[2].1.elements(),
+        [SequenceElement::Spread {
+            mode: SpreadMode::Move,
+            ..
+        }]
+    ));
+    for (body, sequence) in sequences {
+        let SequenceElement::Spread {
+            iteration,
+            exact_size,
+            ..
+        } = sequence
+            .elements()
+            .iter()
+            .find(|element| matches!(element, SequenceElement::Spread { .. }))
+            .unwrap()
+        else {
+            unreachable!()
+        };
+        let acquisition = body.nodes().get(iteration.iterator()).unwrap();
+        assert!(matches!(
+            acquisition.operation(),
+            CheckedOperation::IteratorAcquisition(acquisition)
+                if matches!(acquisition.acquisition(), IterationAcquisition::Expansion(_))
+        ));
+        assert!(matches!(
+            iteration.next().dispatch(),
+            StaticDispatch::Direct(_)
+        ));
+        assert!(matches!(exact_size.dispatch(), StaticDispatch::Direct(_)));
+    }
+}
+
+#[test]
+fn generic_spread_uses_only_lexical_expansion_and_iterator_evidence() {
+    let output = checked_with_iteration_standard(&iteration_standard(
+        r"
+func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I: Iterator, I: ExactSizeIterator, I.Item = &T, copy T {
+    Vec [...source]
+}
+",
+    ))
+    .unwrap();
+    let (body, sequence) = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes()
+                .iter()
+                .find_map(|(_, node)| match node.operation() {
+                    CheckedOperation::Sequence(sequence) => Some((body, sequence)),
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let [
+        SequenceElement::Spread {
+            mode: SpreadMode::Copy,
+            iteration,
+            exact_size,
+        },
+    ] = sequence.elements()
+    else {
+        panic!("generic sequence must retain its one spread")
+    };
+    let acquisition = body.nodes().get(iteration.iterator()).unwrap();
+    assert!(matches!(
+        acquisition.operation(),
+        CheckedOperation::IteratorAcquisition(acquisition)
+            if matches!(
+                acquisition.acquisition(),
+                IterationAcquisition::Expansion(selection)
+                    if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement(_))
+            )
+    ));
+    assert!(matches!(
+        iteration.next().dispatch(),
+        StaticDispatch::InterfaceMethod { .. }
+    ));
+    assert!(matches!(
+        exact_size.dispatch(),
+        StaticDispatch::InterfaceMethod { .. }
+    ));
+}
+
+#[test]
+fn direct_owned_iterator_never_falls_back_to_expansion_for_exact_size() {
+    let error = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct DirectIter {}
+struct FallbackIter {}
+instance DirectIter {
+    pub operator (...self): FallbackIter { return FallbackIter {} }
+}
+conform Iterator for DirectIter {
+    type Item = i32
+    method &+self.next(): i32? { return none }
+}
+conform Iterator for FallbackIter {
+    type Item = i32
+    method &+self.next(): i32? { return none }
+}
+conform ExactSizeIterator for FallbackIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func invalid(source: DirectIter): Vec<i32> { Vec [...move source] }
+",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidSpreadIterator));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0402");
+}
+
+#[test]
+fn copy_spread_rejects_a_move_only_yielded_referent() {
+    let error = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct Value {}
+struct Source {}
+struct RefIter {}
+instance Source {
+    pub operator (...&self): RefIter { return RefIter {} }
+}
+conform Iterator for RefIter {
+    type Item = &Value
+    method &+self.next(): &Value? { return none }
+}
+conform ExactSizeIterator for RefIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func invalid(source: Source): Vec<Value> { Vec [...source] }
+",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidSpreadElement));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0403");
+}
+
+#[test]
+fn direct_iterator_cannot_export_a_borrow_into_its_consumed_temporary() {
+    let error = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct DirectIter {}
+conform Iterator for DirectIter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+conform ExactSizeIterator for DirectIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func invalid(source: DirectIter): Vec<&i32> { Vec [...move source] }
+",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidResultProvenance));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0395");
+}
+
+#[test]
+fn borrowed_spread_keeps_the_source_loan_live_through_the_result() {
+    let error = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct Source {}
+struct RefIter {}
+instance Source {
+    pub operator (...&self): RefIter from self { return RefIter {} }
+    pub method &+self.clear(): void { return }
+}
+conform Iterator for RefIter {
+    type Item = &i32
+    method &+self.next(): &i32? from self { return none }
+}
+conform ExactSizeIterator for RefIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func invalid(source: Source): void {
+    var owned = move source
+    let values = Vec<&i32> [...&owned]
+    owned.clear()
+    drop values
+    return
+}
+",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::ConflictingLoan));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0396");
+}
+
+#[test]
+fn spread_iterator_is_cleaned_when_a_later_element_propagates() {
+    let output = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct Source {}
+struct RefIter {}
+instance Source {
+    pub operator (...&self): RefIter { return RefIter {} }
+}
+conform Iterator for RefIter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+conform ExactSizeIterator for RefIter {
+    method &self.remaining_len(): usize { 0 }
+}
+drop RefIter(&+self) { return }
+func build(source: Source, input: i32!): Vec<i32>! {
+    Vec [0, ...source, input?]
+}
+",
+    ))
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| {
+            body.nodes()
+                .iter()
+                .any(|(_, node)| matches!(node.operation(), CheckedOperation::Sequence(_)))
+        })
+        .unwrap();
+    let iterator = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| {
+            matches!(
+                checked.operation(),
+                CheckedOperation::IteratorAcquisition(_)
+            )
+            .then_some(node)
+        })
+        .unwrap();
+    let propagation = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| {
+            matches!(
+                checked.operation(),
+                CheckedOperation::Outcome(CheckedOutcome::Propagate { .. })
+            )
+            .then_some(node)
+        })
+        .unwrap();
+    let actions = body
+        .cleanups()
+        .actions(propagation, CleanupTiming::OnOutcomePropagation)
+        .unwrap();
+    assert!(actions.iter().any(|action| {
+        matches!(action.target(), CleanupTarget::Value { node, .. } if *node == iterator)
+    }));
+}
+
+#[test]
 fn bare_string_expression_is_a_static_readonly_str() {
     let output = checked("func text(): &str { \"plain\\ntext\" }\n");
     let program = output.program();
@@ -135,7 +511,7 @@ fn explicit_literal_allocation_uses_a_validated_standard_role_place() {
     let fixture = Fixture::with_standard(
         "",
         r"
-struct Allocator {}
+pub struct Allocator {}
 struct Vec<T> {}
 construct Vec<T> {
     pub literal [](...items: T): Self { return Self {} }
@@ -186,7 +562,7 @@ fn explicit_literal_allocation_rejects_an_untrusted_nominal() {
     let fixture = Fixture::with_standard(
         "",
         r"
-struct Allocator {}
+pub struct Allocator {}
 struct Untrusted {}
 struct Vec<T> {}
 construct Vec<T> {

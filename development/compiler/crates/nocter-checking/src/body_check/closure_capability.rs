@@ -95,6 +95,7 @@ pub(super) fn infer(
             | CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::Closure(_)
+            | CheckedOperation::IteratorAcquisition(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
             | CheckedOperation::Interpolation(_)
@@ -221,12 +222,15 @@ fn append_operands(
                 .rev()
                 .map(|capture| capture.initializer()),
         ),
+        CheckedOperation::IteratorAcquisition(acquisition) => {
+            pending.push(acquisition.source().value());
+        }
         CheckedOperation::Sequence(sequence) => {
             for element in sequence.elements().iter().rev() {
                 match element {
                     SequenceElement::Value(value) => pending.push(*value),
                     SequenceElement::Spread { iteration, .. } => {
-                        pending.push(iteration.source());
+                        pending.push(iteration.iterator());
                     }
                 }
             }
@@ -318,7 +322,7 @@ fn append_control_operands(
             match loop_.kind() {
                 LoopKind::Infinite => {}
                 LoopKind::While { condition } => pending.push(*condition),
-                LoopKind::For { iteration, .. } => pending.push(iteration.source()),
+                LoopKind::For { iteration, .. } => pending.push(iteration.iterator()),
                 LoopKind::Range { start, end, .. } => pending.extend([*end, *start]),
             }
         }

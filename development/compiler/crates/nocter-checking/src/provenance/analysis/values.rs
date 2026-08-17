@@ -5,9 +5,10 @@ use super::Analyzer;
 use crate::provenance::state::ProvenanceState;
 use crate::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, BodyCheckError,
-    BodyCheckInternalError, CallTarget, CheckedCall, CheckedCallReceiver, CheckedOperation,
-    CheckedOutcome, CheckedSequence, PlaceRoot, ProvenanceProjection, ProvenanceSource,
-    ReceiverPreparation, SequenceElement, StaticDispatch, ValueProvenance,
+    BodyCheckInternalError, CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation,
+    CheckedOutcome, CheckedReceiver, CheckedSequence, IterationAcquisition, PlaceRoot,
+    ProvenanceProjection, ProvenanceSource, ReceiverPreparation, SequenceElement, SpreadMode,
+    StaticDispatch, ValueProvenance,
 };
 
 struct CallableValueProvenance {
@@ -22,6 +23,44 @@ struct EvaluatedCall {
 }
 
 impl Analyzer<'_, '_> {
+    pub(super) fn evaluate_iterator_acquisition(
+        &mut self,
+        acquisition: &CheckedIteratorAcquisition,
+        state: &mut ProvenanceState,
+    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+        let Some(source) = self.evaluate_receiver(acquisition.source(), state)? else {
+            return Ok((ValueProvenance::independent(), false));
+        };
+        let result = match acquisition.acquisition() {
+            IterationAcquisition::Direct => source,
+            IterationAcquisition::Expansion(selection) => match selection.dispatch() {
+                StaticDispatch::Direct(callable) => self.map_callable_summary(
+                    callable,
+                    Some(&source),
+                    &[],
+                    state.current_allocation(),
+                )?,
+                StaticDispatch::StructuralRequirement(requirement) => {
+                    if !matches!(
+                        self.graph
+                            .declarations()
+                            .requirements()
+                            .get(requirement)
+                            .map(nocter_declarations::Requirement::kind),
+                        Some(RequirementKind::Expansion { .. })
+                    ) {
+                        return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                    }
+                    source
+                }
+                StaticDispatch::InterfaceMethod { .. } => {
+                    return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                }
+            },
+        };
+        Ok((result, true))
+    }
+
     pub(super) fn evaluate_aggregate(
         &mut self,
         aggregate: &AggregateConstruction,
@@ -328,7 +367,7 @@ impl Analyzer<'_, '_> {
 
     fn evaluate_receiver(
         &mut self,
-        receiver: &CheckedCallReceiver,
+        receiver: &CheckedReceiver,
         state: &mut ProvenanceState,
     ) -> Result<Option<ValueProvenance>, BodyCheckError> {
         let (value, reaches) = self.evaluate(receiver.value(), state)?;
@@ -422,11 +461,45 @@ impl Analyzer<'_, '_> {
                     }
                     elements.union_with(&value);
                 }
-                SequenceElement::Spread { iteration, .. } => {
-                    let (value, reaches) = self.evaluate(iteration.source(), state)?;
+                SequenceElement::Spread {
+                    mode, iteration, ..
+                } => {
+                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
                     if !reaches {
                         return Ok((ValueProvenance::independent(), false));
                     }
+                    let contribution = mode
+                        .contribution_type(self.types, iteration.item())
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    if !self.types.may_carry_storage(contribution) {
+                        continue;
+                    }
+                    let value = if *mode == SpreadMode::Move
+                        && matches!(
+                            self.types.get(iteration.item()),
+                            Some(nocter_model::TypeKind::Borrow { .. })
+                        ) {
+                        ValueProvenance::from_source(ProvenanceSource::Temporary(
+                            iteration.iterator(),
+                        ))
+                    } else {
+                        let callable = match iteration.next().dispatch() {
+                            StaticDispatch::Direct(callable)
+                            | StaticDispatch::InterfaceMethod {
+                                method: callable, ..
+                            } => callable,
+                            StaticDispatch::StructuralRequirement(_) => {
+                                return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                            }
+                        };
+                        self.map_callable_summary(
+                            callable,
+                            Some(&iterator),
+                            &[],
+                            state.current_allocation(),
+                        )?
+                        .projected(ProvenanceProjection::OutcomeValue)
+                    };
                     elements.union_with(&value);
                 }
             }

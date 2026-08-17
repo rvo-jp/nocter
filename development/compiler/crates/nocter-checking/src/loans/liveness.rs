@@ -159,13 +159,16 @@ impl Analyzer<'_> {
             CheckedOperation::StringLiteral { allocation, .. } => {
                 self.allocation(allocation, live)?
             }
+            CheckedOperation::IteratorAcquisition(acquisition) => {
+                self.operand(acquisition.source().value(), live)?
+            }
             CheckedOperation::Sequence(sequence) => {
                 let mut operands = Vec::new();
                 for element in sequence.elements() {
                     match element {
                         crate::SequenceElement::Value(value) => operands.push(*value),
                         crate::SequenceElement::Spread { iteration, .. } => {
-                            operands.push(iteration.source());
+                            operands.push(iteration.iterator());
                         }
                     }
                 }
@@ -494,7 +497,7 @@ impl Analyzer<'_> {
                 if let LoopKind::Range { start, end, .. } = definition.kind() {
                     next = self.operands([*start, *end], next)?;
                 } else if let LoopKind::For { iteration, .. } = definition.kind() {
-                    next = self.operand(iteration.source(), next)?;
+                    next = self.operand(iteration.iterator(), next)?;
                 }
                 return Ok(next);
             }

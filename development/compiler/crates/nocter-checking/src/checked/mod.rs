@@ -24,15 +24,15 @@ pub use loan::{
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
-    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall,
-    CheckedCallReceiver, CheckedClosure, CheckedClosureCapture, CheckedComparison, CheckedControl,
-    CheckedInterpolation, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome,
+    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall, CheckedClosure,
+    CheckedClosureCapture, CheckedComparison, CheckedControl, CheckedInterpolation,
+    CheckedIteratorAcquisition, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome,
     CheckedPattern, CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot,
-    CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiverCoercion, CheckedSequence,
-    CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
-    InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind, PatternSubjectPreparation,
-    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation,
-    ReceiverPreparation, SequenceElement, SpreadMode, TypedIteration,
+    CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion,
+    CheckedSequence, CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation,
+    ConstantValue, InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind,
+    PatternSubjectPreparation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement, SpreadMode, TypedIteration,
 };
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;

@@ -2,18 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 3 by using the completed value, temporary, ownership, provenance, and loan
-boundaries to close exact-size spread in typed sequence literals.
+Continue v0.14.0 Phase 3 by reusing the completed iterator-acquisition, ownership, provenance, and
+loan boundaries to close collection `for` iteration.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Extend the checked typed-literal path from fixed sequence elements, decoded string construction,
-   explicit allocation-context selection, and interpolation to exact-size spread.
-2. Re-run the unsupported-syntax inventory after spread closes and select the next complete
-   vertical slice rather than adding a partial checked operation.
+1. Give collection `for` one checked iteration plan over readonly, readwrite, owned-expansion, and
+   direct-iterator sources without rebuilding spread selection.
+2. Close per-iteration binding, backedge ownership, item-loan end, early transfer cleanup, and
+   provenance before selecting executable regions.
 
 Phase 2 is complete. `lower_compile_unit_declarations` is the sole production declaration facade
 and returns one immutable `DeclarationProgram` plus an independent `SourceIndex`. Every facade
@@ -83,8 +83,7 @@ identity back to source. Move paths retain field identity, preserve disjoint sib
 their parent, and join inherited field state without enumerating a struct eagerly. `DropTable` is
 the sole nominal-family-to-drop authority; partial moves inspect nearest enclosing families and
 project `E0381` with the owning drop declaration. The entry-relative branch join cannot leak
-branch-local paths. Typed binding annotations, expansion operators, collection iteration, regions,
-typed sequence spread remains incomplete.
+branch-local paths. Typed binding annotations, collection iteration, and regions remain incomplete.
 
 Typed HIR construction is now independent of flow-dependent ownership. It freezes each body and
 its stable node/place/loop identities exactly once; a repeatable ownership analysis then evaluates
@@ -98,7 +97,7 @@ semantic identities on an analysis pass. Unreachable source after a terminal rem
 explicit `Unreachable` edge. It is still name-, type-, visibility-, requirement-, and structurally
 checked but creates no flow-dependent initialization continuation. A fallback after exhaustive
 explicit pattern arms is still ownership-checked but cannot create a runtime continuation or loop
-edge. Collection iteration, executable regions, and typed sequence spread remain incomplete.
+edge. Collection iteration and executable regions remain incomplete.
 
 The construction surface now indexes named functions and both literal shapes once. Literal
 selection uses exact construction and callable identities, and a checked literal retains one
@@ -108,6 +107,19 @@ decoded typed strings, and ordinary static `&str` expressions pass expected-type
 ownership, provenance, and loan analysis. The sequence delimiter or string opener is the exact
 callable source projection. Declaration validation rejects a string literal parameter other than
 readonly `&str` and rejects outcome-wrapped literal results before body checking.
+
+Exact-size typed-sequence spread is now closed over the same semantic authorities. Standard
+`Iterator`, `Iterator.Item`, `Iterator.next`, `ExactSizeIterator`, and its `remaining_len` method are
+exact validated roles rather than source spellings. Readonly and owned expansion use
+`InstanceOperationSelector`; consuming direct iterators have fixed priority and cannot fall back
+when exact-size evidence is absent. One `IteratorAcquisition` node gives iterator storage an
+identity distinct from its source, while `TypedIteration` freezes `next`, `Item`, and exact-size
+dispatch. Fixed and spread elements share one source-order construction inference session.
+Ownership transfers acquired iterators into the element pack and cleans partial acquisition on
+propagation. Provenance and loans map yielded values through `next` and the shared spread
+contribution-type projection, preserving retained borrows without extending loans for copied
+storage-independent values. Authored acquisition, iterator, and element failures project
+`E0401`-`E0403`.
 
 Compilation input can now attach compiler-owned standard semantic roles to exact declaration-name
 tokens. One program-wide `StandardSemanticTable` resolves those tokens through `SourceIndex`,
@@ -212,7 +224,7 @@ generic-interface candidates without overload ranking. Interface `Self`, interfa
 associated types, instance arguments, and callable generics enter the shared declared-call planner
 as one substitution. Only an empty exact set permits one receiver coercion; minimum-authority
 coercion tiers, ambiguity, and direct-method priority match other instance operations.
-`CheckedCallReceiver` freezes owned copy/move, place or temporary borrowing, existing-borrow
+`CheckedReceiver` freezes owned copy/move, place or temporary borrowing, existing-borrow
 preservation/weakening, selected coercion dispatch, and post-coercion weakening. Concrete calls
 freeze their implementation/default callable; generic calls retain the exact interface
 requirement. A program-wide provenance fixed point now derives exact caller-visible origins and

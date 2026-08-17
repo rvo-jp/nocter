@@ -8,6 +8,7 @@ use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, T
 
 use super::BodyChecker;
 use super::construction_planning::bind_inferred_arguments;
+use super::iterations::CheckedSpreadDraft;
 use super::type_uses::NominalOwnerArguments;
 use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
@@ -33,6 +34,11 @@ struct LiteralPlan {
     requirements: Box<[nocter_model::RequirementId]>,
 }
 
+enum SequenceElementDraft {
+    Value(usize),
+    Spread(CheckedSpreadDraft),
+}
+
 impl BodyChecker<'_, '_> {
     pub(super) fn check_typed_sequence_literal(
         &mut self,
@@ -51,27 +57,12 @@ impl BodyChecker<'_, '_> {
         }
         let body = direct_child(self.tree(), node, NodeKind::SequenceBody)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let mut element_syntax = Vec::new();
-        for element in direct_children(self.tree(), body, NodeKind::SequenceElement) {
-            if direct_child(self.tree(), element, NodeKind::SpreadExpression).is_some() {
-                return Err(BodyCheckInternalError::UnsupportedSyntax(
-                    element,
-                    NodeKind::SpreadExpression,
-                )
-                .into());
-            }
-            element_syntax.push(
-                direct_child(self.tree(), element, NodeKind::Expression)
-                    .ok_or(BodyCheckInternalError::InvalidSyntax(element))?,
-            );
-        }
         let allocation = self.literal_allocation(node)?;
 
         let element_pattern = plan
             .substitution
             .apply_type(self.types, plan.parameter_type)
             .map_err(BodyCheckInternalError::CallSubstitution)?;
-        let destination_types = vec![element_pattern; element_syntax.len()];
         let result_pattern = plan
             .substitution
             .apply_type(self.types, plan.result_pattern)
@@ -83,21 +74,56 @@ impl BodyChecker<'_, '_> {
             &plan.requirements,
         )
         .map_err(BodyCheckInternalError::CallSubstitution)?;
-        let (drafts, inferred) = self.infer_positional_values(
-            element_syntax,
-            PositionalValueContext {
-                owner: node,
-                result: result_pattern,
-                inference_parameters: &plan.inference_parameters,
-                destination_types: &destination_types,
-                requirements: &requirements,
-                expected,
-                failure_rule: BodyRule::InvalidConstruction,
-            },
-        )?;
+        let mut inference = CallableInference::new(plan.inference_parameters.clone());
+        let mut values = Vec::new();
+        let mut destinations = Vec::new();
+        let mut elements = Vec::new();
+        for element in direct_children(self.tree(), body, NodeKind::SequenceElement) {
+            if let Some(spread) = direct_child(self.tree(), element, NodeKind::SpreadExpression) {
+                let spread = self.check_sequence_spread(element, spread)?;
+                inference.constrain_exact(element_pattern, spread.contribution);
+                elements.push(SequenceElementDraft::Spread(spread));
+                continue;
+            }
+            let syntax = direct_child(self.tree(), element, NodeKind::Expression)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(element))?;
+            let draft = self.draft_positional_value(
+                syntax,
+                element_pattern,
+                &plan.inference_parameters,
+                &requirements,
+                &mut inference,
+                BodyRule::InvalidConstruction,
+            )?;
+            let position = values.len();
+            values.push(draft);
+            destinations.push(element_pattern);
+            elements.push(SequenceElementDraft::Value(position));
+        }
+        let context = PositionalValueContext {
+            owner: node,
+            result: result_pattern,
+            inference_parameters: &plan.inference_parameters,
+            destination_types: &destinations,
+            requirements: &requirements,
+            expected,
+            failure_rule: BodyRule::InvalidConstruction,
+        };
+        let inferred = self.finish_positional_inference(&mut values, &context, inference)?;
         bind_inferred_arguments(&mut plan.substitution, &inferred);
         let values =
-            self.materialize_positional_values(drafts, destination_types, &plan.substitution)?;
+            self.materialize_positional_values(values, destinations, &plan.substitution)?;
+        let elements = elements
+            .into_iter()
+            .map(|element| match element {
+                SequenceElementDraft::Value(position) => SequenceElement::Value(values[position]),
+                SequenceElementDraft::Spread(spread) => SequenceElement::Spread {
+                    mode: spread.mode,
+                    iteration: spread.iteration,
+                    exact_size: spread.exact_size,
+                },
+            })
+            .collect::<Vec<_>>();
         let result = plan
             .substitution
             .apply_type(self.types, plan.result_pattern)
@@ -107,14 +133,7 @@ impl BodyChecker<'_, '_> {
         let checked = self.add_node(
             node,
             result,
-            CheckedOperation::Sequence(CheckedSequence::new(
-                selection,
-                values
-                    .into_iter()
-                    .map(SequenceElement::Value)
-                    .collect::<Vec<_>>(),
-                allocation,
-            )),
+            CheckedOperation::Sequence(CheckedSequence::new(selection, elements, allocation)),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)

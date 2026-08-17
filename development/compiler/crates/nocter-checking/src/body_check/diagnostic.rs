@@ -33,6 +33,9 @@ pub enum BodyRule {
     InvalidStorageEscape,
     InvalidAllocationContext,
     InvalidInterpolation,
+    InvalidSpreadAcquisition,
+    InvalidSpreadIterator,
+    InvalidSpreadElement,
 }
 
 impl BodyRule {
@@ -67,6 +70,9 @@ impl BodyRule {
         Self::InvalidStorageEscape,
         Self::InvalidAllocationContext,
         Self::InvalidInterpolation,
+        Self::InvalidSpreadAcquisition,
+        Self::InvalidSpreadIterator,
+        Self::InvalidSpreadElement,
     ];
 
     #[must_use]
@@ -102,6 +108,9 @@ impl BodyRule {
             Self::InvalidStorageEscape => "E0398",
             Self::InvalidAllocationContext => "E0399",
             Self::InvalidInterpolation => "E0400",
+            Self::InvalidSpreadAcquisition => "E0401",
+            Self::InvalidSpreadIterator => "E0402",
+            Self::InvalidSpreadElement => "E0403",
         }
     }
 
@@ -262,6 +271,18 @@ impl BodyRule {
             Self::InvalidInterpolation => (
                 "interpolation value does not conform to the selected standard Format contract",
                 "add an explicit conformance to the active standard Format interface or interpolate a supported value",
+            ),
+            Self::InvalidSpreadAcquisition => (
+                "spread source has no unique expansion operation for the requested ownership mode",
+                "provide one matching readonly or owned expansion, or move a value that directly conforms to Iterator",
+            ),
+            Self::InvalidSpreadIterator => (
+                "spread source does not provide one exact-size iterator contract",
+                "make the selected iterator conform uniquely to both Iterator and ExactSizeIterator",
+            ),
+            Self::InvalidSpreadElement => (
+                "spread iterator item is incompatible with this spread mode or literal element type",
+                "yield readonly references for copy and borrow spreads, and make copied referents copyable",
             ),
             _ => unreachable!("value body rule"),
         }

@@ -3,9 +3,56 @@ use nocter_model::{BodyNodeId, CallableCapability};
 use super::OwnershipAnalyzer;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::ownership::{OwnershipState, TemporaryIdentity};
-use crate::{CallTarget, CheckedCall, CheckedOperation, CleanupAction, ReceiverPreparation};
+use crate::{
+    CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation, CheckedSequence,
+    CleanupAction, ReceiverPreparation,
+};
 
 impl OwnershipAnalyzer<'_> {
+    pub(super) fn visit_sequence(
+        &mut self,
+        sequence: &CheckedSequence,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit_allocation(sequence.allocation(), state)? {
+            return Ok(false);
+        }
+        self.visit_value_sequence(
+            sequence.elements().iter().map(|element| match element {
+                crate::SequenceElement::Value(value) => *value,
+                crate::SequenceElement::Spread { iteration, .. } => iteration.iterator(),
+            }),
+            state,
+        )
+    }
+
+    pub(super) fn visit_iterator_acquisition(
+        &mut self,
+        acquisition: &CheckedIteratorAcquisition,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        let source = acquisition.source();
+        if !self.visit(source.value(), state)? {
+            return Ok(false);
+        }
+        match source.preparation() {
+            ReceiverPreparation::Owned => {
+                if self.activate_expression_temporary(source.value(), state)? {
+                    state
+                        .consume_temporary(TemporaryIdentity::Value(source.value()))
+                        .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+                }
+            }
+            ReceiverPreparation::BorrowTemporary(_) => {
+                self.activate_owned_temporary(source.value(), state)?;
+            }
+            ReceiverPreparation::BorrowPlace(_)
+            | ReceiverPreparation::PreserveBorrow(_)
+            | ReceiverPreparation::WeakenReadwriteBorrow => {}
+        }
+        Ok(true)
+    }
+
     pub(super) fn visit_call(
         &mut self,
         call: &CheckedCall,

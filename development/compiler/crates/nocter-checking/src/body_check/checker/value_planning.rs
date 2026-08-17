@@ -61,53 +61,76 @@ impl BodyChecker<'_, '_> {
             .into_iter()
             .zip(context.destination_types.iter().copied())
         {
-            if let Some(closure_syntax) = closure_expression(self, syntax) {
-                let contract = contextual_callable_contract(context.requirements, destination)?;
-                values.push(ValueDraft::Closure {
-                    syntax: closure_syntax,
-                    destination,
-                    contract,
-                });
-                continue;
-            }
-            if is_none_expression(self, syntax) {
-                inference
-                    .constrain_contextual(self.types, destination, InferenceEvidence::Absent)
-                    .map_err(|error| self.inference_error(syntax, error, context.failure_rule))?;
-                values.push(ValueDraft::Deferred { syntax });
-                continue;
-            }
-            let generics = collect_generic_parameters(self.types, [destination])
-                .map_err(InferenceFailure::from)
-                .map_err(|error| self.inference_error(syntax, error, context.failure_rule))?;
-            let known = !generics
-                .iter()
-                .any(|parameter| context.inference_parameters.contains(parameter));
-            if !known && let Some(place) = self.positional_value_place(syntax)? {
-                inference
-                    .constrain_contextual(
-                        self.types,
-                        destination,
-                        InferenceEvidence::Typed(place.ty),
-                    )
-                    .map_err(|error| self.inference_error(syntax, error, context.failure_rule))?;
-                values.push(ValueDraft::Place {
-                    syntax,
-                    place: place.id,
-                    ty: place.ty,
-                });
-                continue;
-            }
-            let value = self.check_expression(syntax, known.then_some(destination))?;
-            inference
-                .constrain_contextual(
-                    self.types,
-                    destination,
-                    InferenceEvidence::Typed(self.node_type(value)?),
-                )
-                .map_err(|error| self.inference_error(syntax, error, context.failure_rule))?;
-            values.push(ValueDraft::Checked { syntax, value });
+            values.push(self.draft_positional_value(
+                syntax,
+                destination,
+                context.inference_parameters,
+                context.requirements,
+                &mut inference,
+                context.failure_rule,
+            )?);
         }
+        let generic_arguments =
+            self.finish_positional_inference(&mut values, &context, inference)?;
+        Ok((values, generic_arguments))
+    }
+
+    pub(super) fn draft_positional_value(
+        &mut self,
+        syntax: NodeId,
+        destination: TypeId,
+        inference_parameters: &[GenericParameterId],
+        requirements: &[CheckedRequirement],
+        inference: &mut CallableInference,
+        failure_rule: BodyRule,
+    ) -> Result<ValueDraft, BodyCheckError> {
+        if let Some(closure_syntax) = closure_expression(self, syntax) {
+            let contract = contextual_callable_contract(requirements, destination)?;
+            return Ok(ValueDraft::Closure {
+                syntax: closure_syntax,
+                destination,
+                contract,
+            });
+        }
+        if is_none_expression(self, syntax) {
+            inference
+                .constrain_contextual(self.types, destination, InferenceEvidence::Absent)
+                .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
+            return Ok(ValueDraft::Deferred { syntax });
+        }
+        let generics = collect_generic_parameters(self.types, [destination])
+            .map_err(InferenceFailure::from)
+            .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
+        let known = !generics
+            .iter()
+            .any(|parameter| inference_parameters.contains(parameter));
+        if !known && let Some(place) = self.positional_value_place(syntax)? {
+            inference
+                .constrain_contextual(self.types, destination, InferenceEvidence::Typed(place.ty))
+                .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
+            return Ok(ValueDraft::Place {
+                syntax,
+                place: place.id,
+                ty: place.ty,
+            });
+        }
+        let value = self.check_expression(syntax, known.then_some(destination))?;
+        inference
+            .constrain_contextual(
+                self.types,
+                destination,
+                InferenceEvidence::Typed(self.node_type(value)?),
+            )
+            .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
+        Ok(ValueDraft::Checked { syntax, value })
+    }
+
+    pub(super) fn finish_positional_inference(
+        &mut self,
+        values: &mut [ValueDraft],
+        context: &PositionalValueContext<'_>,
+        mut inference: CallableInference,
+    ) -> Result<GenericArguments, BodyCheckError> {
         if let Some(expected) = context.expected {
             inference
                 .constrain_result_contextual(self.types, context.result, expected)
@@ -115,11 +138,10 @@ impl BodyChecker<'_, '_> {
                     self.inference_error(context.owner, error, context.failure_rule)
                 })?;
         }
-        self.infer_closure_drafts(&mut values, &context, &mut inference)?;
-        let generic_arguments = inference
+        self.infer_closure_drafts(values, context, &mut inference)?;
+        inference
             .finish(self.types)
-            .map_err(|error| self.inference_error(context.owner, error, context.failure_rule))?;
-        Ok((values, generic_arguments))
+            .map_err(|error| self.inference_error(context.owner, error, context.failure_rule))
     }
 
     fn infer_closure_drafts(

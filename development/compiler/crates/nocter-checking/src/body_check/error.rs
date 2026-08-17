@@ -111,6 +111,7 @@ pub enum BodyCheckInternalError {
     ConstructionSurfaceSelection(crate::ConstructionSurfaceSelectionError),
     MissingAllocationSemanticRoles,
     MissingInterpolationSemanticRoles,
+    MissingIterationSemanticRoles,
     ExpectedConversion,
     CleanupPlanning,
     ProvenanceAnalysis,

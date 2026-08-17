@@ -89,6 +89,7 @@ pub enum InstanceSelectionError {
     InvalidIndexSignature(nocter_model::CallableId),
     InvalidCoercionSignature(nocter_model::CallableId),
     InvalidComparisonSignature(nocter_model::CallableId),
+    InvalidExpansionSignature(nocter_model::CallableId),
     InvalidMethodSignature(nocter_model::CallableId),
     InvalidInterfaceMethod(nocter_model::InterfaceId),
     InvalidStructuralIndex(nocter_model::RequirementId),
@@ -124,6 +125,9 @@ impl fmt::Display for InstanceSelectionError {
             }
             Self::InvalidComparisonSignature(callable) => {
                 write!(formatter, "invalid comparison signature {callable:?}")
+            }
+            Self::InvalidExpansionSignature(callable) => {
+                write!(formatter, "invalid expansion signature {callable:?}")
             }
             Self::InvalidMethodSignature(callable) => {
                 write!(formatter, "invalid method signature {callable:?}")

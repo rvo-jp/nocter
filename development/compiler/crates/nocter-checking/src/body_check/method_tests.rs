@@ -270,7 +270,7 @@ fn newly_created_temporary_can_supply_a_readwrite_receiver() {
         .flat_map(|(_, body)| body.nodes().iter())
         .find_map(|(_, node)| match node.operation() {
             CheckedOperation::Call(call) => {
-                call.receiver().map(crate::CheckedCallReceiver::preparation)
+                call.receiver().map(crate::CheckedReceiver::preparation)
             }
             _ => None,
         })

@@ -12,6 +12,11 @@ pub enum StandardDeclarationRole {
     OwnedString,
     FormatInterface,
     FormatMethod,
+    IteratorInterface,
+    IteratorItem,
+    IteratorNextMethod,
+    ExactSizeIteratorInterface,
+    ExactSizeIteratorRemainingLenMethod,
 }
 
 /// One compiler-owned built-in surface that source declarations may extend.

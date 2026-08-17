@@ -107,7 +107,7 @@ pub interface Format {
 }
 
 #[test]
-fn format_contract_requires_a_public_owned_string_surface() {
+fn standard_nominal_roles_require_a_public_surface() {
     let fixture = Fixture::with_standard(
         "",
         r"
@@ -139,7 +139,97 @@ pub interface Format {
 
     assert!(matches!(
         error,
-        PreparationError::StandardSemantics(StandardSemanticError::InvalidFormatContract)
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidNominalContract(
+            StandardDeclarationRole::OwnedString
+        ))
+    ));
+}
+
+#[test]
+fn exact_standard_iteration_contracts_are_accepted() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+pub interface ExactSizeIterator {
+    pub method &self.remaining_len(): usize
+}
+",
+    );
+    with_prepared_roles(&fixture, iteration_roles(&fixture), |prepared| {
+        let semantics = prepared.standard_semantics();
+        assert!(
+            semantics
+                .interface(StandardDeclarationRole::IteratorInterface)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .associated_type(StandardDeclarationRole::IteratorItem)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .callable(StandardDeclarationRole::IteratorNextMethod)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .interface(StandardDeclarationRole::ExactSizeIteratorInterface)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .callable(StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod)
+                .is_some()
+        );
+    })
+    .unwrap();
+}
+
+#[test]
+fn near_miss_iteration_contracts_are_rejected_during_preparation() {
+    let invalid_next = Fixture::with_standard(
+        "",
+        r"
+pub interface Iterator {
+    pub type Item
+    pub method &self.next(): Self.Item?
+}
+pub interface ExactSizeIterator {
+    pub method &self.remaining_len(): usize
+}
+",
+    );
+    let error =
+        with_prepared_roles(&invalid_next, iteration_roles(&invalid_next), |_| ()).unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidIteratorContract)
+    ));
+
+    let invalid_len = Fixture::with_standard(
+        "",
+        r"
+pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+pub interface ExactSizeIterator {
+    pub method &self.remaining_len(): u32
+}
+",
+    );
+    let error =
+        with_prepared_roles(&invalid_len, iteration_roles(&invalid_len), |_| ()).unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(
+            StandardSemanticError::InvalidExactSizeIteratorContract
+        )
     ));
 }
 
@@ -184,4 +274,29 @@ fn one_declaration_role_cannot_be_supplied_twice() {
             StandardDeclarationRole::AbortingAllocator
         ))
     ));
+}
+
+fn iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
+    vec![
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "Iterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorItem,
+            fixture.standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "Item"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::IteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::ExactSizeIteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "ExactSizeIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "remaining_len"),
+        ),
+    ]
 }

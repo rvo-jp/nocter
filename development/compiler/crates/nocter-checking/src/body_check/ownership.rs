@@ -250,18 +250,10 @@ impl OwnershipAnalyzer<'_> {
                     .map(|capture| capture.initializer()),
                 state,
             ),
-            CheckedOperation::Sequence(sequence) => {
-                if !self.visit_allocation(sequence.allocation(), state)? {
-                    return Ok(false);
-                }
-                self.visit_value_sequence(
-                    sequence.elements().iter().map(|element| match element {
-                        crate::SequenceElement::Value(value) => *value,
-                        crate::SequenceElement::Spread { iteration, .. } => iteration.source(),
-                    }),
-                    state,
-                )
+            CheckedOperation::IteratorAcquisition(acquisition) => {
+                self.visit_iterator_acquisition(acquisition, state)
             }
+            CheckedOperation::Sequence(sequence) => self.visit_sequence(sequence, state),
             CheckedOperation::StringLiteral { allocation, .. } => {
                 self.visit_allocation(*allocation, state)
             }

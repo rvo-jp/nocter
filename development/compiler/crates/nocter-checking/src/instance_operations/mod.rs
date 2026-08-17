@@ -1,6 +1,7 @@
 mod build;
 mod comparison;
 mod diagnostic;
+mod expansion;
 mod methods;
 mod model;
 mod requirements;

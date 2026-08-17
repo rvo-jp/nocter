@@ -167,15 +167,48 @@ impl Analyzer<'_, '_> {
         self.evaluate_allocation(sequence.allocation(), state, extra)?;
         let mut elements = LoanValue::independent();
         for element in sequence.elements() {
-            let node = match element {
-                crate::SequenceElement::Value(value) => *value,
-                crate::SequenceElement::Spread { iteration, .. } => iteration.source(),
-            };
-            let (value, reaches) = self.evaluate(node, state, extra)?;
-            if !reaches {
-                return Ok((LoanValue::independent(), false));
+            match element {
+                crate::SequenceElement::Value(value) => {
+                    let (value, reaches) = self.evaluate(*value, state, extra)?;
+                    if !reaches {
+                        return Ok((LoanValue::independent(), false));
+                    }
+                    elements.union_with(&value);
+                }
+                crate::SequenceElement::Spread {
+                    mode, iteration, ..
+                } => {
+                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state, extra)?;
+                    if !reaches {
+                        return Ok((LoanValue::independent(), false));
+                    }
+                    let contribution = mode
+                        .contribution_type(self.types, iteration.item())
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    if !self.types.may_carry_storage(contribution)
+                        || (*mode == crate::SpreadMode::Move
+                            && matches!(
+                                self.types.get(iteration.item()),
+                                Some(nocter_model::TypeKind::Borrow { .. })
+                            ))
+                    {
+                        continue;
+                    }
+                    let callable = match iteration.next().dispatch() {
+                        crate::StaticDispatch::Direct(callable)
+                        | crate::StaticDispatch::InterfaceMethod {
+                            method: callable, ..
+                        } => callable,
+                        crate::StaticDispatch::StructuralRequirement(_) => {
+                            return Err(BodyCheckInternalError::LoanAnalysis.into());
+                        }
+                    };
+                    let value = self
+                        .map_callable_result(callable, Some(&iterator), &[])?
+                        .projected(ProvenanceProjection::OutcomeValue);
+                    elements.union_with(&value);
+                }
             }
-            elements.union_with(&value);
         }
         Ok((
             LoanValue::from_projection(ProvenanceProjection::Element, elements),
