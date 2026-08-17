@@ -46,7 +46,8 @@ impl BodyChecker<'_, '_> {
             LoopKind::Infinite
             | LoopKind::While { .. }
             | LoopKind::Range { .. }
-            | LoopKind::For { .. } => self.types.builtin(BuiltinType::Void),
+            | LoopKind::For { .. }
+            | LoopKind::LiteralPack { .. } => self.types.builtin(BuiltinType::Void),
         };
         self.builder
             .define_loop(loop_, CheckedLoop::new(kind, body))?;
@@ -72,6 +73,15 @@ impl BodyChecker<'_, '_> {
         statement: NodeId,
         source: NodeId,
     ) -> Result<LoopKind, BodyCheckError> {
+        if let Some((parameter, item)) = self.literal_pack_parameter(source)? {
+            let binding = self.loop_binding(statement)?;
+            self.builder.define_local(binding, item)?;
+            return Ok(LoopKind::LiteralPack {
+                binding,
+                parameter,
+                item,
+            });
+        }
         let iteration = self.check_collection_iteration(statement, source)?;
         let binding = self.loop_binding(statement)?;
         self.builder.define_local(binding, iteration.item())?;

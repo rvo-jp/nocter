@@ -116,7 +116,9 @@ impl Analyzer<'_> {
         live.extend(cleanup_live.iter().cloned());
         let operation = checked.operation().clone();
         live = match operation {
-            CheckedOperation::Complete | CheckedOperation::Constant(_) => live,
+            CheckedOperation::Complete
+            | CheckedOperation::Constant(_)
+            | CheckedOperation::LiteralPackLength(_) => live,
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
@@ -481,8 +483,9 @@ impl Analyzer<'_> {
                 body_after.insert(LiveSlot::Node(iteration.iterator()));
             }
             let mut body_live = self.transfer(definition.body(), body_after)?;
-            if let LoopKind::Range { binding, .. } | LoopKind::For { binding, .. } =
-                definition.kind()
+            if let LoopKind::Range { binding, .. }
+            | LoopKind::For { binding, .. }
+            | LoopKind::LiteralPack { binding, .. } = definition.kind()
             {
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
             }
@@ -491,7 +494,10 @@ impl Analyzer<'_> {
                     body_live.extend(after.iter().cloned());
                     self.operand(*condition, body_live)?
                 }
-                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => body_live,
+                LoopKind::Infinite
+                | LoopKind::Range { .. }
+                | LoopKind::For { .. }
+                | LoopKind::LiteralPack { .. } => body_live,
             };
             let frame = self
                 .loops

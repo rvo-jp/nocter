@@ -325,9 +325,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             .ok_or(BodyCheckInternalError::MissingNode(node))?;
         let operation = checked.operation().clone();
         let result = match operation {
-            CheckedOperation::Complete | CheckedOperation::Constant(_) => {
-                (LoanValue::independent(), true)
-            }
+            CheckedOperation::Complete
+            | CheckedOperation::Constant(_)
+            | CheckedOperation::LiteralPackLength(_) => (LoanValue::independent(), true),
             CheckedOperation::Place(place) => {
                 self.evaluate_place_indices(place, state, extra_active)?;
                 (self.read_place(place, state)?, true)

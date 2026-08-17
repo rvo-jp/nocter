@@ -1,5 +1,5 @@
 use nocter_declaration_lowering::{StandardRoleInput, lower_compile_unit_declarations};
-use nocter_declarations::{CallableKind, LiteralShape, StandardDeclarationRole};
+use nocter_declarations::{CallableKind, LiteralShape, ParameterRole, StandardDeclarationRole};
 use nocter_model::{BuiltinType, TypeKind};
 use nocter_syntax::NodeKind;
 
@@ -7,7 +7,8 @@ use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
     AllocationSelection, BodyRule, CheckedOperation, CheckedOutcome, CleanupTarget, CleanupTiming,
-    IterationAcquisition, SequenceElement, SpreadMode, StaticDispatch, prepare_program_checking,
+    IterationAcquisition, LoopKind, PlaceRoot, SequenceElement, SpreadMode, StaticDispatch,
+    prepare_program_checking,
 };
 
 fn checked(source: &str) -> crate::CheckedProgramOutput {
@@ -160,6 +161,104 @@ func rendered(): Text { Text "line\nvalue" }
         StaticDispatch::Direct(string_constructor)
     );
     assert_eq!(string.1.as_ref(), "line\nvalue");
+}
+
+#[test]
+fn sequence_literal_body_uses_a_non_escaping_element_pack() {
+    let output = checked(
+        r"
+struct Vec<T> {}
+construct Vec<T> {
+    pub literal [](...items: T): Self {
+        let count: usize = items.len()
+        for item in items {
+            drop item
+        }
+        return Self {}
+    }
+}
+func values(): Vec<i32> { Vec [1, 2, 3] }
+",
+    );
+    let program = output.program();
+    let (_, constructor) = program
+        .graph()
+        .declarations()
+        .callables()
+        .iter()
+        .find(|(_, callable)| callable.kind() == CallableKind::Literal(LiteralShape::Sequence))
+        .unwrap();
+    let parameter = *constructor.parameters().first().unwrap();
+    assert!(matches!(
+        program
+            .graph()
+            .declarations()
+            .parameters()
+            .get(parameter)
+            .unwrap()
+            .role(),
+        ParameterRole::Ordinary {
+            position: 0,
+            variadic: true
+        }
+    ));
+    let body = program.bodies().get(constructor.body().unwrap()).unwrap();
+    assert!(body.nodes().iter().any(|(_, node)| {
+        matches!(
+            node.operation(),
+            CheckedOperation::LiteralPackLength(found) if *found == parameter
+        )
+    }));
+    let literal_loop = body
+        .loops()
+        .iter()
+        .find_map(|(_, loop_)| match loop_.kind() {
+            LoopKind::LiteralPack {
+                binding,
+                parameter: found,
+                item,
+            } if *found == parameter => Some((*binding, *item)),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        body.locals().get(literal_loop.0).unwrap().ty(),
+        literal_loop.1
+    );
+    assert!(
+        body.cleanups()
+            .actions(body.root(), CleanupTiming::BeforeTransfer)
+            .is_none_or(|actions| actions.iter().all(|action| {
+                !matches!(
+                    action.target(),
+                    CleanupTarget::Path(path)
+                        if path.root() == PlaceRoot::Parameter(parameter)
+                )
+            }))
+    );
+}
+
+#[test]
+fn sequence_literal_pack_rejects_ordinary_value_use() {
+    let fixture = Fixture::new(
+        r"
+struct Vec<T> {}
+construct Vec<T> {
+    pub literal [](...items: T): Self {
+        drop items
+        return Self {}
+    }
+}
+",
+    );
+    let (input, prelude) = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidLiteralPackUse));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0409");
 }
 
 #[test]

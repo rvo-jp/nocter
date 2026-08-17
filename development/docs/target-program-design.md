@@ -212,6 +212,15 @@ place must resolve to the compiler-selected aborting allocator or allocation-con
 keeps allocation context out of ordinary source ABI parameters and makes restoration a call-boundary
 obligation rather than an inferred backend convention.
 
+Sequence literal packs require a dedicated executable input schema. The checked variadic
+parameter cannot become one ordinary element-typed input, a slice, a `Vec`, or an erased variadic
+ABI. Executable construction must freeze the element type and the source-ordered fixed/spread
+producers as one compiler-owned pack plan. MIR must then materialize checked total length,
+single-acquisition spread state, per-element transfer, remaining-element cleanup, and the pack
+body's length and consuming-loop operations explicitly. Until that schema is complete, sequence
+nodes and pack-body operations remain an honest MIR unsupported boundary rather than lowering to
+a misleading ordinary call.
+
 ## MIR Authority
 
 Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact

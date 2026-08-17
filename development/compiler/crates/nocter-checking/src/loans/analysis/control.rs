@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use nocter_model::{BodyNodeId, LoopId};
 
 use super::{AccessKind, Analyzer, LoopFlow};
-use crate::loans::liveness::LivePlace;
+use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
@@ -334,12 +334,18 @@ impl Analyzer<'_, '_> {
                 LoopKind::While { condition } => {
                     self.evaluate(*condition, &mut iteration, extra)?.1
                 }
-                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
+                LoopKind::Infinite
+                | LoopKind::Range { .. }
+                | LoopKind::For { .. }
+                | LoopKind::LiteralPack { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
+                    LoopKind::While { .. }
+                        | LoopKind::Range { .. }
+                        | LoopKind::For { .. }
+                        | LoopKind::LiteralPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
@@ -357,6 +363,17 @@ impl Analyzer<'_, '_> {
                         .as_ref()
                         .ok_or(BodyCheckInternalError::LoanAnalysis)?,
                 )?;
+                iteration.set_root(PlaceRoot::Local(*binding), value);
+            }
+            if condition_reaches
+                && let LoopKind::LiteralPack {
+                    binding, parameter, ..
+                } = definition.kind()
+            {
+                let value = iteration.value(&LiveSlot::Place(LivePlace::from_parts(
+                    PlaceRoot::Parameter(*parameter),
+                    Box::new([]),
+                )));
                 iteration.set_root(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =

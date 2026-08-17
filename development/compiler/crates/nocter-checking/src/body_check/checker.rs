@@ -50,6 +50,7 @@ mod constructions;
 mod expected;
 mod interpolation;
 mod iterations;
+mod literal_pack;
 mod loops;
 mod methods;
 mod opaque_witness;

@@ -193,6 +193,7 @@ impl OwnershipAnalyzer<'_> {
         match checked.operation() {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
+            | CheckedOperation::LiteralPackLength(_)
             | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {
                 self.visit_place_use(node, *place, state)
@@ -723,7 +724,10 @@ impl OwnershipAnalyzer<'_> {
             let retained_condition_temporaries = iteration.temporary_identities();
             let condition_reaches = match definition.kind() {
                 LoopKind::While { condition } => self.visit(*condition, &mut iteration)?,
-                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
+                LoopKind::Infinite
+                | LoopKind::Range { .. }
+                | LoopKind::For { .. }
+                | LoopKind::LiteralPack { .. } => true,
             };
             if condition_reaches && let LoopKind::While { condition } = definition.kind() {
                 let actions =
@@ -734,12 +738,16 @@ impl OwnershipAnalyzer<'_> {
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
+                    LoopKind::While { .. }
+                        | LoopKind::Range { .. }
+                        | LoopKind::For { .. }
+                        | LoopKind::LiteralPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches
-                && let LoopKind::Range { binding, .. } | LoopKind::For { binding, .. } =
-                    definition.kind()
+                && let LoopKind::Range { binding, .. }
+                | LoopKind::For { binding, .. }
+                | LoopKind::LiteralPack { binding, .. } = definition.kind()
             {
                 iteration
                     .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))

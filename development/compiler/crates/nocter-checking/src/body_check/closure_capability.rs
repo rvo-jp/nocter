@@ -96,6 +96,7 @@ pub(super) fn infer(
             | CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::Closure(_)
+            | CheckedOperation::LiteralPackLength(_)
             | CheckedOperation::IteratorAcquisition(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
@@ -171,6 +172,7 @@ fn append_operands(
         | CheckedOperation::Copy(_)
         | CheckedOperation::Move(_)
         | CheckedOperation::Borrow { .. }
+        | CheckedOperation::LiteralPackLength(_)
         | CheckedOperation::Outcome(CheckedOutcome::Absent) => {}
         CheckedOperation::BorrowConversion(conversion) => pending.push(conversion.value()),
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
@@ -322,7 +324,7 @@ fn append_control_operands(
                 .ok_or(BodyCheckInternalError::UnknownLoop(*loop_))?;
             pending.push(loop_.body());
             match loop_.kind() {
-                LoopKind::Infinite => {}
+                LoopKind::Infinite | LoopKind::LiteralPack { .. } => {}
                 LoopKind::While { condition } => pending.push(*condition),
                 LoopKind::For { iteration, .. } => pending.push(iteration.iterator()),
                 LoopKind::Range { start, end, .. } => pending.extend([*end, *start]),

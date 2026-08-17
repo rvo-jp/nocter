@@ -343,12 +343,18 @@ impl Analyzer<'_, '_> {
             let mut iteration = header.clone();
             let condition_reaches = match definition.kind() {
                 LoopKind::While { condition } => self.evaluate(*condition, &mut iteration)?.1,
-                LoopKind::Infinite | LoopKind::Range { .. } | LoopKind::For { .. } => true,
+                LoopKind::Infinite
+                | LoopKind::Range { .. }
+                | LoopKind::For { .. }
+                | LoopKind::LiteralPack { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
                     definition.kind(),
-                    LoopKind::While { .. } | LoopKind::Range { .. } | LoopKind::For { .. }
+                    LoopKind::While { .. }
+                        | LoopKind::Range { .. }
+                        | LoopKind::For { .. }
+                        | LoopKind::LiteralPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
@@ -367,6 +373,14 @@ impl Analyzer<'_, '_> {
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
                     iteration.current_allocation(),
                 )?;
+                iteration.set_value(PlaceRoot::Local(*binding), value);
+            }
+            if condition_reaches
+                && let LoopKind::LiteralPack {
+                    binding, parameter, ..
+                } = definition.kind()
+            {
+                let value = iteration.value(PlaceRoot::Parameter(*parameter));
                 iteration.set_value(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =

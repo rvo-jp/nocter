@@ -251,7 +251,9 @@ impl<'program> DependencyCollector<'program> {
     #[allow(clippy::too_many_lines)]
     fn visit_operation(&mut self, operation: &CheckedOperation) -> Result<(), BodyDependencyError> {
         match operation {
-            CheckedOperation::Complete | CheckedOperation::Constant(_) => {}
+            CheckedOperation::Complete
+            | CheckedOperation::Constant(_)
+            | CheckedOperation::LiteralPackLength(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
@@ -594,6 +596,7 @@ impl<'program> DependencyCollector<'program> {
             LoopKind::Infinite => {}
             LoopKind::While { condition } => self.visit_node(*condition)?,
             LoopKind::For { iteration, .. } => self.visit_iteration(iteration)?,
+            LoopKind::LiteralPack { item, .. } => self.record_type(*item)?,
             LoopKind::Range { start, end, .. } => {
                 self.visit_node(*start)?;
                 self.visit_node(*end)?;

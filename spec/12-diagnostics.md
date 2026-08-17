@@ -277,6 +277,9 @@ Source-backed checked-body diagnostics:
 - `E0408`: an opaque callable result has no reachable concrete witness, selects different witness
   types on reachable success paths, selects a type that does not conform to the advertised
   interface, or disagrees with an advertised associated-type binding.
+- `E0409`: a sequence-literal element pack is used as an ordinary value. A pack is compiler-owned,
+  non-escaping input and supports only `items.len()` and consuming `for item in items` inside its
+  literal body.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

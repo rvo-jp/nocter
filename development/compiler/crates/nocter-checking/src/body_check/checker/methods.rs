@@ -51,6 +51,9 @@ impl BodyChecker<'_, '_> {
         call_suffix: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
+            return self.check_literal_pack_method(node, parameter, member, call_suffix, expected);
+        }
         let receiver = self.method_receiver_draft(owner)?;
         let receiver_owner = receiver_owner(self.types, receiver.ty())?;
         let member_token = direct_identifier(self.tree(), member)

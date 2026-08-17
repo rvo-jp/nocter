@@ -708,9 +708,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         let ty = checked.ty();
         let operation = checked.operation().clone();
         let result = match operation {
-            CheckedOperation::Complete | CheckedOperation::Constant(_) => {
-                (ValueProvenance::independent(), true)
-            }
+            CheckedOperation::Complete
+            | CheckedOperation::Constant(_)
+            | CheckedOperation::LiteralPackLength(_) => (ValueProvenance::independent(), true),
             CheckedOperation::Place(place) | CheckedOperation::Copy(place) => {
                 self.evaluate_place_indices(place, state)?;
                 (self.read_place(place, state)?, true)

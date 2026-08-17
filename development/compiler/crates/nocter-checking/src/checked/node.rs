@@ -52,6 +52,7 @@ pub enum CheckedOperation {
     Outcome(CheckedOutcome),
     OpaqueWitness(super::CheckedOpaqueWitness),
     Closure(CheckedClosure),
+    LiteralPackLength(ParameterId),
     IteratorAcquisition(CheckedIteratorAcquisition),
     Sequence(CheckedSequence),
     StringLiteral {
@@ -932,6 +933,11 @@ pub enum LoopKind {
     For {
         binding: LocalBindingId,
         iteration: TypedIteration,
+    },
+    LiteralPack {
+        binding: LocalBindingId,
+        parameter: ParameterId,
+        item: TypeId,
     },
     Range {
         binding: LocalBindingId,

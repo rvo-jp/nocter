@@ -534,6 +534,14 @@ on partial propagation, while provenance and loans derive contributed element st
 selected `next` contract. The common `SpreadMode::contribution_type` projection prevents those
 analyses from retaining a source loan for a copied scalar or losing it for a retained borrow.
 
+The sequence literal body's variadic parameter is not an ordinary value of its element type and
+does not enter ordinary parameter ownership or cleanup. Checked HIR represents its two legal
+operations directly: `LiteralPackLength(ParameterId)` and a consuming `LiteralPack` loop whose
+binding has the element type. Any other value use projects `E0409`. Provenance and loan flow map
+the per-iteration binding from the pack parameter origin, while the pack itself cannot escape,
+move, borrow, or acquire an ordinary callable ABI. This boundary lets executable construction
+choose a concrete heterogeneous-source pack representation without changing source semantics.
+
 Collection `for` consumes the same acquisition and `TypedIteration` facts without reopening
 selection or requiring exact-size evidence. Explicit readonly/readwrite modes select only their
 matching expansion, moved sources use direct Iterator evidence before owned expansion, and bare

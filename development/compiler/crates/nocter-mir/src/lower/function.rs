@@ -209,6 +209,7 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::Place(_)
             | CheckedOperation::OpaqueWitness(_)
+            | CheckedOperation::LiteralPackLength(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::Interpolation(_) => {
                 Err(MirLoweringError::UnsupportedOperation(node))

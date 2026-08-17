@@ -41,6 +41,7 @@ pub enum BodyRule {
     InvalidBodyTypeUse,
     InvalidDiscardBinding,
     InvalidOpaqueWitness,
+    InvalidLiteralPackUse,
 }
 
 impl BodyRule {
@@ -83,6 +84,7 @@ impl BodyRule {
         Self::InvalidBodyTypeUse,
         Self::InvalidDiscardBinding,
         Self::InvalidOpaqueWitness,
+        Self::InvalidLiteralPackUse,
     ];
 
     #[must_use]
@@ -126,6 +128,7 @@ impl BodyRule {
             Self::InvalidBodyTypeUse => "E0406",
             Self::InvalidDiscardBinding => "E0407",
             Self::InvalidOpaqueWitness => "E0408",
+            Self::InvalidLiteralPackUse => "E0409",
         }
     }
 
@@ -296,6 +299,10 @@ impl BodyRule {
             Self::InvalidInterpolation => (
                 "interpolation value does not conform to the selected standard Format contract",
                 "add an explicit conformance to the active standard Format interface or interpolate a supported value",
+            ),
+            Self::InvalidLiteralPackUse => (
+                "literal element pack is used outside its non-escaping surface",
+                "use only `items.len()` or consuming `for item in items` inside the sequence literal body",
             ),
             _ => unreachable!("non-operation body rule"),
         }
