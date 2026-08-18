@@ -2,18 +2,21 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 5 from the completed validated `MirProgram` boundary and project its types,
-functions, process roots, and ordered test roots through the specified ABI into a
-target-independent machine program.
+Continue v0.14.0 Phase 5 from the completed target-independent `MachineProgram` boundary and lower
+its closed operations, ABI transports, allocation-context requirements, functions, and data into
+a complete `Arm64Program`.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Define the machine-program typed operation schema, deterministic linkage identities, and
-   MIR-to-machine validation boundary from the completed layout and callable ABI plans before
-   implementing ARM64 encoding or Mach-O output.
+1. Define the ARM64 selection schema and virtual-register domain, then lower every closed machine
+   operation without consulting MIR or semantic types.
+2. Allocate physical registers and spills through the existing ABI register partition and fixed
+   frame planner, including the compiler-owned pack and allocation-context lanes.
+3. Feed selected functions and static data through the existing checked program-fixup and Mach-O
+   image boundaries, then qualify native process and test-root execution.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive
@@ -56,6 +59,13 @@ checked relocation method.
 The independent Mach-O writer owns section/VM layout, native and dynamic-loader commands,
 content-derived UUIDs, SHA-256 ad-hoc signing, and final bytes; its ARM64 macOS test executes the
 generated image without external tools.
+
+`MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
+direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual
+destruction callbacks. Each dense function is classified as a program root, incoming-context
+consumer, or context-independent. Explicit `using` selections provide a target context without
+making the caller dependent on an incoming one. ARM64 selection must consume this table directly;
+it may not rescan call graphs or infer hidden lanes from primitive names.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

@@ -131,6 +131,15 @@ Function entries carry the single callable ABI object owned by `MachineAbiPlan`.
 arguments, allocation context, and the optional hidden pack identity use one call representation.
 Direct targets therefore cannot invent a second call contract, and new target kinds cannot create
 a parallel argument-transport path.
+
+`MachineAllocationPlan` is the single whole-program authority for the compiler-propagated current
+allocation context. Roots establish the program-lifetime default. Callable requirements are the
+least fixed point over current-context primitives, inherited direct calls, user-drop calls, spread
+iterator callbacks, and every recursively nested residual-destruction plan. An explicit `using`
+selection supplies the callee without making its caller context-dependent. The plan is complete
+before ARM64 selection, so the target layer neither scans operations nor guesses whether to emit
+the hidden context lane.
+
 Constants, loads, address formation, stores, aggregate writes, scalar operations, integer
 conversion, drop-flag control, block arguments, scalar and stored-tag switches, returns, process
 exits, and direct calls have closed machine forms. Aggregate writes and tag switches use the same
@@ -221,6 +230,7 @@ structural and source-independent:
 - all referenced types have one completed stored layout
 - every projection offset belongs to the referenced layout entry
 - every call uses the callee's exact transport plan
+- every context-consuming call has one fixed inherited or explicit allocation-context source
 - every CFG edge supplies the destination's typed inputs
 - every stack object has checked size, alignment, and lifetime
 - every linkage key is unique and every referenced function or datum exists
@@ -245,6 +255,10 @@ outcome tag control, explicit completion values, user destruction, region lifeti
 process error reporting. Standard primitive calls also carry ordinary ABI plans and closed roles.
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and layout-owned residual destruction recipes.
+The completed allocation-context fixed point marks roots, context-independent callables, and
+incoming-context callables in a dense function table. It follows inherited calls and hidden pack
+callbacks or destruction, while explicit allocation selections terminate propagation into the
+caller.
 
 The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
 register-role, fixed-frame placement, whole-program text/data ownership, and typed fixup foundations

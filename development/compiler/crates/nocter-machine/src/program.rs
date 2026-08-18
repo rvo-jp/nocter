@@ -241,6 +241,7 @@ pub enum MachineProgramRoot {
 pub struct MachineProgram {
     layouts: MachineLayoutStore,
     abi: MachineAbiPlan,
+    allocation: crate::MachineAllocationPlan,
     linkage: MachineLinkageTable,
     data: MachineDataTable,
     functions: MachineTable<MachineFunctionId, MachineFunction>,
@@ -248,24 +249,28 @@ pub struct MachineProgram {
     root: MachineProgramRoot,
 }
 
+pub(crate) struct MachineProgramParts {
+    pub(crate) layouts: MachineLayoutStore,
+    pub(crate) abi: MachineAbiPlan,
+    pub(crate) allocation: crate::MachineAllocationPlan,
+    pub(crate) linkage: MachineLinkageTable,
+    pub(crate) data: MachineDataTable,
+    pub(crate) functions: MachineTable<MachineFunctionId, MachineFunction>,
+    pub(crate) functions_by_linkage: BTreeMap<MachineLinkageId, MachineFunctionId>,
+    pub(crate) root: MachineProgramRoot,
+}
+
 impl MachineProgram {
-    pub(crate) fn new(
-        layouts: MachineLayoutStore,
-        abi: MachineAbiPlan,
-        linkage: MachineLinkageTable,
-        data: MachineDataTable,
-        functions: MachineTable<MachineFunctionId, MachineFunction>,
-        functions_by_linkage: BTreeMap<MachineLinkageId, MachineFunctionId>,
-        root: MachineProgramRoot,
-    ) -> Self {
+    pub(crate) fn new(parts: MachineProgramParts) -> Self {
         Self {
-            layouts,
-            abi,
-            linkage,
-            data,
-            functions,
-            functions_by_linkage,
-            root,
+            layouts: parts.layouts,
+            abi: parts.abi,
+            allocation: parts.allocation,
+            linkage: parts.linkage,
+            data: parts.data,
+            functions: parts.functions,
+            functions_by_linkage: parts.functions_by_linkage,
+            root: parts.root,
         }
     }
 
@@ -277,6 +282,11 @@ impl MachineProgram {
     #[must_use]
     pub const fn abi(&self) -> &MachineAbiPlan {
         &self.abi
+    }
+
+    #[must_use]
+    pub const fn allocation(&self) -> &crate::MachineAllocationPlan {
+        &self.allocation
     }
 
     #[must_use]

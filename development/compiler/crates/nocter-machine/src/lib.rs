@@ -3,6 +3,7 @@
 //! This crate consumes only validated MIR and the closed toolchain identities retained by that
 //! program. It never receives syntax, name resolution, generic requirements, or rendered types.
 
+mod allocation;
 mod call;
 mod control;
 mod destruction;
@@ -18,6 +19,7 @@ mod structural;
 mod target;
 mod transport;
 
+pub use allocation::{MachineAllocationError, MachineAllocationPlan, MachineAllocationRequirement};
 pub use call::{MachineCall, MachineCallAllocation, MachineCallTarget, MachinePrimitiveTarget};
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,

@@ -6,10 +6,10 @@ use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId}
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineAbiError, MachineAbiPlan, MachineDataTable, MachineFunction, MachineFunctionId,
-    MachineFunctionKind, MachineLayoutError, MachineLayoutStore, MachineLinkageError,
-    MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgram, MachineProgramRoot,
-    MachineTestProgram,
+    MachineAbiError, MachineAbiPlan, MachineAllocationError, MachineAllocationPlan,
+    MachineDataTable, MachineFunction, MachineFunctionId, MachineFunctionKind, MachineLayoutError,
+    MachineLayoutStore, MachineLinkageError, MachineLinkageId, MachineLinkageKey,
+    MachineLinkageTable, MachineProgram, MachineProgramRoot, MachineTestProgram,
 };
 
 mod address;
@@ -68,16 +68,19 @@ impl MachineProgram {
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
         let root = lower_root(linkage.root(), &functions_by_linkage)?;
+        let functions = MachineTable::from_values(functions);
+        let allocation = MachineAllocationPlan::build(&functions)?;
 
-        Ok(Self::new(
+        Ok(Self::new(crate::program::MachineProgramParts {
             layouts,
             abi,
+            allocation,
             linkage,
             data,
-            MachineTable::from_values(functions),
+            functions,
             functions_by_linkage,
             root,
-        ))
+        }))
     }
 }
 
@@ -181,6 +184,7 @@ pub enum MachineProgramError {
     Layout(MachineLayoutError),
     Abi(MachineAbiError),
     Linkage(MachineLinkageError),
+    Allocation(MachineAllocationError),
     DuplicateFunctionLinkage(MachineLinkageId),
     DuplicateItemFunction(ExecutableItemId),
     MissingFunctionLinkage(MachineLinkageId),
@@ -240,6 +244,7 @@ impl std::error::Error for MachineProgramError {
             Self::Layout(error) => Some(error),
             Self::Abi(error) => Some(error),
             Self::Linkage(error) => Some(error),
+            Self::Allocation(error) => Some(error),
             Self::DuplicateFunctionLinkage(_)
             | Self::DuplicateItemFunction(_)
             | Self::MissingFunctionLinkage(_)
@@ -279,5 +284,11 @@ impl From<MachineAbiError> for MachineProgramError {
 impl From<MachineLinkageError> for MachineProgramError {
     fn from(error: MachineLinkageError) -> Self {
         Self::Linkage(error)
+    }
+}
+
+impl From<MachineAllocationError> for MachineProgramError {
+    fn from(error: MachineAllocationError) -> Self {
+        Self::Allocation(error)
     }
 }

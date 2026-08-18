@@ -605,6 +605,13 @@ Target code generation consumes only the machine program, target description, an
 table. Optimizations may replace ordinary operations with constants but cannot define source
 semantics. In particular, built-in `error` values use ordinary value and call paths.
 
+The machine program also closes the compiler-propagated allocation-context graph before target
+selection. Process and test roots establish the default program context. A least-fixed-point table
+marks only functions that consume an incoming context through a primitive, inherited call, user
+drop, or hidden literal-pack callback or destructor. Explicit `using` selections satisfy a callee
+without propagating that requirement to the caller. ARM64 lowering consumes this table and cannot
+rediscover context requirements from operation shapes.
+
 One interned machine-layout store is the authority for field offsets, outcome payload offsets,
 aggregate size and alignment, argument and return classification, active-payload validation, and
 drop-glue addressing. Optional and fallible layers receive distinct semantic type identities but

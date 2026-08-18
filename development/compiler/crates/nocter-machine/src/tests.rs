@@ -10,11 +10,11 @@ use nocter_target_program::{
 use nocter_test_support::CompilerFixture;
 
 use crate::{
-    MachineAbiPlan, MachineArgumentLocation, MachineDataTable, MachineEndianness,
-    MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore, MachineLinkageKey,
-    MachineLinkageTable, MachineOperationKind, MachineOutcomeKind, MachineProgram,
-    MachineProgramRoot, MachineResultAbi, MachineResultLocation, MachineRootLinkage, MachineScalar,
-    MachineTerminator, MachineValueClass,
+    MachineAbiPlan, MachineAllocationRequirement, MachineArgumentLocation, MachineDataTable,
+    MachineEndianness, MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore,
+    MachineLinkageKey, MachineLinkageTable, MachineOperationKind, MachineOutcomeKind,
+    MachineProgram, MachineProgramRoot, MachineResultAbi, MachineResultLocation,
+    MachineRootLinkage, MachineScalar, MachineTerminator, MachineValueClass,
 };
 
 #[test]
@@ -1117,6 +1117,173 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
     );
 }
 
+#[test]
+fn allocation_context_requirement_propagates_only_through_inherited_calls() {
+    let plain = MachineProgram::lower(&lower_fixture("func main(): i32 { 0 }\n")).unwrap();
+    let MachineProgramRoot::Process {
+        root: plain_root,
+        entry: plain_entry,
+    } = *plain.root()
+    else {
+        panic!("fixture must produce a process root")
+    };
+    assert_eq!(
+        plain.allocation().get(plain_root),
+        Some(MachineAllocationRequirement::ProgramRoot)
+    );
+    assert_eq!(
+        plain.allocation().get(plain_entry),
+        Some(MachineAllocationRequirement::None)
+    );
+
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/mem.allocation_context_state_for_test\n\
+         func helper(): usize { allocation_context_state_for_test() }\n\
+         func main(): i32 {\n\
+             let _ = helper()\n\
+             0\n\
+         }\n",
+        &[&["mem"]],
+    );
+    let allocating = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let MachineProgramRoot::Process { root, entry } = *allocating.root() else {
+        panic!("fixture must produce a process root")
+    };
+    assert_eq!(
+        allocating.allocation().get(root),
+        Some(MachineAllocationRequirement::ProgramRoot)
+    );
+    assert_eq!(
+        allocating.allocation().get(entry),
+        Some(MachineAllocationRequirement::Incoming)
+    );
+    assert!(allocating.functions().any(|(function, body)| {
+        allocating.allocation().get(function) == Some(MachineAllocationRequirement::Incoming)
+            && body.body().operations().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MachineOperationKind::Call(call)
+                        if matches!(
+                            call.target(),
+                            crate::MachineCallTarget::Primitive(primitive)
+                                if matches!(
+                                    primitive.role(),
+                                    PrimitiveRole::CurrentAllocatorState
+                                        | PrimitiveRole::CurrentAllocatorKind
+                                )
+                        )
+                )
+            })
+    }));
+}
+
+#[test]
+fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         use std/mem.allocation_context_state_for_test\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         struct Iter {}\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? { return none }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return 0 }\n\
+         }\n\
+         drop Iter(&+self) {\n\
+             let _ = allocation_context_state_for_test()\n\
+             return\n\
+         }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {}\n\
+             let _ = Vec [...move iterator]\n\
+             0\n\
+         }\n",
+        &[&[], &[], &["mem"]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let (caller, literal, spread) = literal_spread(&program);
+
+    assert!(
+        !program
+            .allocation()
+            .target_requires_context(spread.next().target())
+            .unwrap()
+    );
+    let crate::MachineDestructionKind::Struct {
+        drop: Some(drop), ..
+    } = spread.destruction().unwrap().kind()
+    else {
+        panic!("iterator destruction must retain its user drop")
+    };
+    for function in [*drop, literal, caller] {
+        assert_eq!(
+            program.allocation().get(function),
+            Some(MachineAllocationRequirement::Incoming)
+        );
+    }
+}
+
+#[test]
+fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         use std/mem.allocation_context_state_for_test\n\
+         struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let _ = allocation_context_state_for_test()\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let allocator = Allocator {}\n\
+             let values = Vec [1] using allocator\n\
+             drop values\n\
+             0\n\
+         }\n",
+        &[&[], &["mem"]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+
+    assert_eq!(
+        program.allocation().get(entry),
+        Some(MachineAllocationRequirement::None)
+    );
+    let literal_call = program
+        .function(entry)
+        .unwrap()
+        .body()
+        .operations()
+        .find_map(|(_, operation)| match operation.kind() {
+            MachineOperationKind::Call(call) if call.pack().is_some() => Some(call),
+            _ => None,
+        })
+        .expect("fixture must contain a literal call");
+    assert!(matches!(
+        literal_call.allocation(),
+        crate::MachineCallAllocation::Explicit(_)
+    ));
+    assert!(
+        program
+            .allocation()
+            .call_requires_context(literal_call)
+            .unwrap()
+    );
+}
+
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
     let executable = program.executable();
     let graph = executable.target().checked().graph();
@@ -1157,6 +1324,35 @@ fn borrow_type(types: &nocter_model::TypeStore, referent: BuiltinType) -> TypeId
 
 fn lower_fixture(source: &str) -> nocter_mir::MirProgram {
     lower_selected_fixture(&CompilerFixture::with_app(source), false)
+}
+
+fn literal_spread(
+    program: &MachineProgram,
+) -> (
+    crate::MachineFunctionId,
+    crate::MachineFunctionId,
+    &crate::MachinePackSpread,
+) {
+    for (caller, function) in program.functions() {
+        for (_, operation) in function.body().operations() {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                continue;
+            };
+            let (Some(pack), crate::MachineCallTarget::Direct(literal)) =
+                (call.pack(), call.target())
+            else {
+                continue;
+            };
+            let pack = function.body().pack(pack).unwrap();
+            if let Some(spread) = pack.segments().iter().find_map(|segment| match segment {
+                crate::MachinePackSegment::Spread(spread) => Some(spread),
+                crate::MachinePackSegment::Value { .. } => None,
+            }) {
+                return (caller, *literal, spread);
+            }
+        }
+    }
+    panic!("fixture must contain one spread literal call")
 }
 
 fn lower_test_fixture(source: &str) -> nocter_mir::MirProgram {

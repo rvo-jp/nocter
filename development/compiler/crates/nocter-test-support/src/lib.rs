@@ -41,6 +41,9 @@ const MEM_SOURCE: &str = "\
 pub(/) primitive current_allocator_state(): usize
 pub(/) primitive current_allocator_kind(): usize
 pub(/) primitive allocation_abort_raw(): never
+pub func allocation_context_state_for_test(): usize {
+    return current_allocator_state()
+}
 ";
 const PTR_SOURCE: &str = "\
 pub primitive addr<T>(pointer: *T): usize

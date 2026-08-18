@@ -72,4 +72,8 @@ impl<I: MachineId, T> MachineTable<I, T> {
     pub(crate) const fn len(&self) -> usize {
         self.values.len()
     }
+
+    pub(crate) const fn values(&self) -> &[T] {
+        &self.values
+    }
 }
