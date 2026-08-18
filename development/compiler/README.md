@@ -402,11 +402,14 @@ be introduced to make an unresolved syntax choice.
   before little-endian encoding. Dense local labels are resolved only after monotonic conditional
   branch relaxation; duplicate, unbound, misaligned, and out-of-range targets are typed failures.
   One ABI register-role authority excludes compiler scratch and reserved registers from general
-  allocation. Fixed frames reserve the maximum outgoing argument area, lay out objects and
+  allocation. The hidden allocation-context pointer has the fixed `x9` lane, while general virtual
+  values use only `x10`-`x15` and `x19`-`x28`. The deterministic linear-scan allocator restricts
+  call-crossing ranges to callee-saved registers or spills and reports the exact preservation set.
+  Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. Machine instruction selection and virtual-register allocation
+  accidental immediate-width limit. Machine instruction selection and spill materialization
   remain separate later responsibilities in this crate. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve

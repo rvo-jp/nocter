@@ -521,8 +521,9 @@ fn abi_register_roles_form_one_closed_partition() {
             .all(|role| *role == Arm64AbiRegisterRole::ArgumentAndResult)
     );
     assert_eq!(roles[8], Arm64AbiRegisterRole::IndirectResult);
+    assert_eq!(roles[9], Arm64AbiRegisterRole::AllocationContext);
     assert!(
-        roles[9..16]
+        roles[10..16]
             .iter()
             .all(|role| *role == Arm64AbiRegisterRole::CallerSaved)
     );
@@ -542,9 +543,93 @@ fn abi_register_roles_form_one_closed_partition() {
     assert_eq!(crate::Arm64NocterAbi::argument_register(7), Some(x(7)));
     assert_eq!(crate::Arm64NocterAbi::argument_register(8), None);
     assert_eq!(crate::Arm64NocterAbi::indirect_result_register(), x(8));
+    assert_eq!(crate::Arm64NocterAbi::allocation_context_register(), x(9));
     assert!(crate::Arm64NocterAbi::is_allocatable(x(19)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(0)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(8)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(9)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(16)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(18)));
+}
+
+#[test]
+fn register_allocation_reuses_expired_caller_saved_registers() {
+    let mut builder = crate::Arm64RegisterAllocationBuilder::new();
+    let first = builder.define(0);
+    builder.use_at(first, 1).unwrap();
+    let second = builder.define(2);
+    builder.use_at(second, 3).unwrap();
+    let allocation = builder.finish();
+
+    assert_eq!(
+        allocation.location(first),
+        Some(crate::Arm64AllocatedLocation::Register(x(10)))
+    );
+    assert_eq!(allocation.location(second), allocation.location(first));
+    assert!(allocation.preserved_registers().is_empty());
+    assert_eq!(allocation.spill_count(), 0);
+}
+
+#[test]
+fn register_allocation_keeps_call_crossing_ranges_in_preserved_registers() {
+    let mut builder = crate::Arm64RegisterAllocationBuilder::new();
+    let local = builder.define(0);
+    builder.use_at(local, 1).unwrap();
+    let crossing = builder.define(0);
+    builder.record_call(2);
+    builder.use_at(crossing, 3).unwrap();
+    let allocation = builder.finish();
+
+    assert_eq!(
+        allocation.location(local),
+        Some(crate::Arm64AllocatedLocation::Register(x(10)))
+    );
+    assert_eq!(
+        allocation.location(crossing),
+        Some(crate::Arm64AllocatedLocation::Register(x(19)))
+    );
+    assert_eq!(allocation.preserved_registers(), [x(19)]);
+}
+
+#[test]
+fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
+    let mut builder = crate::Arm64RegisterAllocationBuilder::new();
+    let registers = (0..17)
+        .map(|_| {
+            let register = builder.define(0);
+            builder.use_at(register, 10).unwrap();
+            register
+        })
+        .collect::<Vec<_>>();
+    let allocation = builder.finish();
+
+    assert_eq!(allocation.spill_count(), 1);
+    assert!(matches!(
+        allocation.location(registers[16]),
+        Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 0
+    ));
+    assert!(registers[..16].iter().all(|register| matches!(
+        allocation.location(*register),
+        Some(crate::Arm64AllocatedLocation::Register(physical))
+            if physical != x(9) && physical != x(16) && physical != x(17)
+    )));
+}
+
+#[test]
+fn register_allocation_rejects_unknown_and_predefinition_uses() {
+    let mut builder = crate::Arm64RegisterAllocationBuilder::new();
+    let register = builder.define(4);
+    assert!(matches!(
+        builder.use_at(register, 3),
+        Err(crate::Arm64RegisterAllocationError::UseBeforeDefinition { .. })
+    ));
+    let mut empty = crate::Arm64RegisterAllocationBuilder::new();
+    assert!(matches!(
+        empty.use_at(register, 5),
+        Err(crate::Arm64RegisterAllocationError::UnknownVirtualRegister(
+            _
+        ))
+    ));
 }
 
 #[test]

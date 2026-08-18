@@ -35,7 +35,8 @@ The Nocter ABI uses the following ARM64 register roles:
 ```text
 x0-x7    argument registers and direct return registers
 x8       indirect return pointer
-x9-x15   caller-saved scratch registers
+x9       compiler-propagated allocation-context pointer
+x10-x15  caller-saved registers available to virtual-register allocation
 x16-x17  compiler / primitive scratch registers
 x18      reserved
 x19-x28  callee-saved registers
@@ -44,7 +45,19 @@ x30      link register
 sp       stack pointer, 16-byte aligned at call boundaries
 ```
 
-The caller must assume `x0-x17` may be clobbered by a call, except for return values. The callee must preserve `x19-x28`, `x29`, and stack alignment according to this ABI.
+The caller must assume `x0-x17` may be clobbered by a call, except for return values. The callee
+must preserve `x19-x28`, `x29`, and stack alignment according to this ABI. General virtual-register
+allocation uses `x10-x15` and `x19-x28`; fixed argument, result, context, compiler-scratch, and
+platform-reserved lanes do not compete with virtual values.
+
+`x9` is not an authored parameter. For a callable whose compiler-owned execution requirement needs
+the current allocation context, it points to an opaque context header whose first word is allocator
+state and whose second word is allocator kind. The ordinary argument window remains `x0-x7` and is
+unchanged by this hidden lane. A root supplies the program-lifetime context. An inherited call
+passes the caller's current pointer, while an explicit `using` call supplies the selected allocator
+or region-context address for that call. The caller must retain or rematerialize its own current
+pointer across a call because `x9` is caller-saved. A callable without the execution requirement
+cannot read the lane.
 
 ### ABI Values
 

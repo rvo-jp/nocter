@@ -12,6 +12,7 @@ mod identity;
 mod instruction;
 mod program;
 mod register;
+mod register_allocation;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
@@ -32,6 +33,10 @@ pub use program::{
 };
 pub use register::{
     Arm64AddSubtractDestination, Arm64BaseRegister, Arm64DataRegister, Arm64Register,
+};
+pub use register_allocation::{
+    Arm64AllocatedLocation, Arm64RegisterAllocation, Arm64RegisterAllocationBuilder,
+    Arm64RegisterAllocationError, Arm64SpillSlotId, Arm64VirtualRegister,
 };
 
 #[cfg(test)]

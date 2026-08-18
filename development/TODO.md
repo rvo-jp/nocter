@@ -51,7 +51,10 @@ view-layout facts without retaining semantic dispatch operands. The independent 
 crate now types physical register-31 roles and rejects truncating instruction encodings. ARM64
 local labels bind exactly once and resolve after monotonic conditional-branch relaxation. ARM64
 ABI register roles and deterministic fixed-frame placement are also closed. ARM64 selection and
-virtual-register allocation are the next closed boundaries. Frame prologue and
+spill-aware instruction materialization are the next closed boundaries. The deterministic
+linear-scan allocator already assigns non-crossing ranges across `x10`-`x15` and `x19`-`x28`,
+restricts call-crossing ranges to the callee-saved partition, and records dense spills plus the
+exact preservation set. Frame prologue and
 epilogue materialization handles both immediate and full-width scratch-register offsets. Dense
 ARM64 function/data domains already validate every typed fixup, resolve
 function branches after text layout, and defer only section-address-dependent data pairs to one

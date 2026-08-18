@@ -189,6 +189,9 @@ is expanded to an inverted short condition over one signed 26-bit unconditional 
 is monotonic and recomputes every affected label; it never patches a truncated displacement.
 
 The target ABI register partition is one closed authority shared by allocation and frame planning.
+The fixed `x9` lane carries the compiler-propagated allocation-context pointer and never enters
+general allocation. Fixed argument/result lanes are likewise boundary-only. Virtual values use
+`x10`-`x15` or `x19`-`x28`; a range live across a call may use only the latter or a spill slot.
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
 `x19`-`x28` registers in numeric order, and ends with the canonical saved `x29`/`x30` frame record.
@@ -265,5 +268,7 @@ register-role, fixed-frame placement, whole-program text/data ownership, and typ
 are implemented. Fixed-frame prologue and epilogue materialization is also complete for both direct
 and distant offsets. Deterministic Mach-O section placement, load commands, relocation, UUID,
 ad-hoc signing, and executable serialization are implemented and pass a native execution test.
-Machine instruction selection and virtual-register allocation are the remaining Phase 5
-implementation areas.
+A deterministic virtual-register live-range builder and linear-scan allocator now reuse expired
+caller-saved registers, restrict call-crossing ranges to callee-saved registers, record required
+preservation, and assign dense spills under pressure. Machine instruction selection and spill
+materialization remain Phase 5 implementation areas.

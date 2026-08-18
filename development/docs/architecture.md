@@ -612,6 +612,12 @@ drop, or hidden literal-pack callback or destructor. Explicit `using` selections
 without propagating that requirement to the caller. ARM64 lowering consumes this table and cannot
 rediscover context requirements from operation shapes.
 
+On ARM64-Darwin, `x9` is the fixed pointer lane for that context and is excluded from general
+allocation together with argument, result, compiler-scratch, and platform-reserved registers.
+Virtual values use the disjoint `x10`-`x15` and `x19`-`x28` pools. The allocator derives
+call-crossing ranges from recorded call positions, confines them to callee-saved registers or
+spills, and reports the exact preservation set to fixed-frame planning.
+
 One interned machine-layout store is the authority for field offsets, outcome payload offsets,
 aggregate size and alignment, argument and return classification, active-payload validation, and
 drop-glue addressing. Optional and fallible layers receive distinct semantic type identities but

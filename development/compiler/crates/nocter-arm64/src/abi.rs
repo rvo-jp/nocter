@@ -5,6 +5,7 @@ use crate::Arm64Register;
 pub enum Arm64AbiRegisterRole {
     ArgumentAndResult,
     IndirectResult,
+    AllocationContext,
     CallerSaved,
     CompilerScratch,
     Reserved,
@@ -33,6 +34,15 @@ impl Arm64NocterAbi {
     #[must_use]
     pub const fn indirect_result_register() -> Arm64Register {
         match Arm64Register::new(8) {
+            Some(register) => register,
+            None => unreachable!(),
+        }
+    }
+
+    /// Compiler-propagated pointer to the active two-word allocation context.
+    #[must_use]
+    pub const fn allocation_context_register() -> Arm64Register {
+        match Arm64Register::new(9) {
             Some(register) => register,
             None => unreachable!(),
         }
@@ -68,7 +78,8 @@ impl Arm64NocterAbi {
         match register.number() {
             0..=7 => Arm64AbiRegisterRole::ArgumentAndResult,
             8 => Arm64AbiRegisterRole::IndirectResult,
-            9..=15 => Arm64AbiRegisterRole::CallerSaved,
+            9 => Arm64AbiRegisterRole::AllocationContext,
+            10..=15 => Arm64AbiRegisterRole::CallerSaved,
             16..=17 => Arm64AbiRegisterRole::CompilerScratch,
             18 => Arm64AbiRegisterRole::Reserved,
             19..=28 => Arm64AbiRegisterRole::CalleeSaved,
@@ -80,14 +91,13 @@ impl Arm64NocterAbi {
 
     /// Registers available to general virtual-register allocation. Compiler scratch registers are
     /// deliberately excluded so late address and fixup materialization always has reserved space.
+    /// Fixed argument, result, and allocation-context lanes are likewise staged only at their ABI
+    /// boundaries and never compete with virtual values.
     #[must_use]
     pub const fn is_allocatable(register: Arm64Register) -> bool {
         matches!(
             Self::role(register),
-            Arm64AbiRegisterRole::ArgumentAndResult
-                | Arm64AbiRegisterRole::IndirectResult
-                | Arm64AbiRegisterRole::CallerSaved
-                | Arm64AbiRegisterRole::CalleeSaved
+            Arm64AbiRegisterRole::CallerSaved | Arm64AbiRegisterRole::CalleeSaved
         )
     }
 
