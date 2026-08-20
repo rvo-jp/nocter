@@ -2,19 +2,18 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 5 from the completed target-independent `MachineProgram` boundary. Process
-entry state is complete; the remaining native area is the I/O boundary and its standard-library
-adaptation.
+Begin v0.14.0 Phase 6 from the completed machine and native target. Phase 5 now closes process
+entry state and I/O through the generic syscall boundary without operation-specific backend roles.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Decide and implement the minimum target I/O boundary. Prefer the existing generic syscall
-   result ABI plus ordinary `std/io` policy when it can express complete reads, writes, retries,
-   errno conversion, and close semantics; do not preserve redundant per-operation primitives only
-   because they already have registry roles.
+1. Build canonical package and source discovery so the newly authored `development/std` and public
+   example packages become production compiler inputs rather than hand-assembled test fixtures.
+   Discovery must resolve package/module/source identities and authored `use` edges once; semantic
+   crates must not reopen paths or filesystem structure.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

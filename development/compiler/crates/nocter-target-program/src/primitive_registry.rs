@@ -42,13 +42,6 @@ pub enum PrimitiveRole {
     ProcessEnvironmentCount,
     ProcessEnvironmentName,
     ProcessEnvironmentValue,
-    OpenRead,
-    CreateFile,
-    AppendFile,
-    WriteText,
-    WriteBytes,
-    ReadBytes,
-    CloseFileDescriptor,
     Syscall0,
     Syscall1,
     Syscall2,
@@ -95,13 +88,6 @@ impl PrimitiveRole {
         Self::ProcessEnvironmentCount,
         Self::ProcessEnvironmentName,
         Self::ProcessEnvironmentValue,
-        Self::OpenRead,
-        Self::CreateFile,
-        Self::AppendFile,
-        Self::WriteText,
-        Self::WriteBytes,
-        Self::ReadBytes,
-        Self::CloseFileDescriptor,
         Self::Syscall0,
         Self::Syscall1,
         Self::Syscall2,
@@ -123,13 +109,6 @@ impl PrimitiveRole {
             | Self::ProcessEnvironmentCount
             | Self::ProcessEnvironmentName
             | Self::ProcessEnvironmentValue
-            | Self::OpenRead
-            | Self::CreateFile
-            | Self::AppendFile
-            | Self::WriteText
-            | Self::WriteBytes
-            | Self::ReadBytes
-            | Self::CloseFileDescriptor
             | Self::Syscall0
             | Self::Syscall1
             | Self::Syscall2

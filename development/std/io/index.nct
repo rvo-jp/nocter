@@ -7,7 +7,13 @@
 use ./core
 use std/mem.alloc_pages
 use std/mem.free_pages
-use std/internal/os.{OSError, OSErrorKind}
+use std/internal/os.{OSError, OSErrorKind, SyscallResult, darwin_create_mode}
+use std/internal/os.{darwin_errno_interrupted, darwin_open_create_append}
+use std/internal/os.{darwin_open_create_truncate, darwin_open_read_only}
+use std/internal/os.{darwin_sys_close, darwin_sys_open, darwin_sys_read, darwin_sys_write}
+use std/internal/os.{errno, error_from_errno, syscall1, syscall3}
+use std/path.validate as validate_path
+use std/ptr.addr
 use std/ptr.copy_str_to_ptr
 use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
@@ -46,101 +52,119 @@ pub interface Writer {
 pub func invalid_read_count(): error
 
 #target: "arm64-darwin"
-pub(/) primitive open_read_raw(path: *u8): i32!
-
-#target: "arm64-darwin"
-pub(/) primitive create_raw(path: *u8): i32!
-
-#target: "arm64-darwin"
-pub(/) primitive append_raw(path: *u8): i32!
-
-#target: "arm64-darwin"
-pub(/) primitive write_text_raw(fd: i32, text: &str): void!
-
-#target: "arm64-darwin"
-pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
-
-#target: "arm64-darwin"
-pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
-
-#target: "arm64-darwin"
-pub(/) primitive close_fd_raw(fd: i32): void
-
-#target: "arm64-darwin"
-pub(/) func stdout_fd(): i32 {
+pub(/) func stdout_fd(): usize {
     return 1
 }
 
 #target: "arm64-darwin"
-pub(/) func stderr_fd(): i32 {
+pub(/) func stderr_fd(): usize {
     return 2
 }
 
 #target: "arm64-darwin"
-pub(/) func open_read_fd(path: &str): i32! {
+pub(/) func open_read_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_read_only())?
+}
+
+#target: "arm64-darwin"
+pub(/) func create_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_create_truncate())?
+}
+
+#target: "arm64-darwin"
+pub(/) func append_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_create_append())?
+}
+
+#target: "arm64-darwin"
+func open_fd(path: &str, flags: usize): usize! {
+    validate_path(path)?
     let allocation_size: usize = path.len() + 1
     let address: usize = alloc_pages(allocation_size)?
     copy_str_to_ptr(from_addr(address), 0, path)
     store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
 
-    let fd = open_read_raw(from_addr(address)) catch error {
-        free_pages(address, allocation_size)
-        return error
+    var result: SyscallResult = syscall3(
+        darwin_sys_open(),
+        address,
+        flags,
+        darwin_create_mode(),
+    )
+    while result.errno == darwin_errno_interrupted() {
+        result = syscall3(darwin_sys_open(), address, flags, darwin_create_mode())
     }
     free_pages(address, allocation_size)
-    return fd
-}
-
-#target: "arm64-darwin"
-pub(/) func create_fd(path: &str): i32! {
-    let allocation_size: usize = path.len() + 1
-    let address: usize = alloc_pages(allocation_size)?
-    copy_str_to_ptr(from_addr(address), 0, path)
-    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
-
-    let fd = create_raw(from_addr(address)) catch error {
-        free_pages(address, allocation_size)
-        return error
+    if result.errno != 0 {
+        return from_os_error(error_from_errno(errno(result.errno)))
     }
-    free_pages(address, allocation_size)
-    return fd
+    return result.value
 }
 
 #target: "arm64-darwin"
-pub(/) func append_fd(path: &str): i32! {
-    let allocation_size: usize = path.len() + 1
-    let address: usize = alloc_pages(allocation_size)?
-    copy_str_to_ptr(from_addr(address), 0, path)
-    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
-
-    let fd = append_raw(from_addr(address)) catch error {
-        free_pages(address, allocation_size)
-        return error
+pub(/) func read_fd(fd: usize, buffer: &+[u8]): usize! {
+    var result: SyscallResult = syscall3(
+        darwin_sys_read(),
+        fd,
+        addr(buffer.ptr()),
+        buffer.len(),
+    )
+    while result.errno == darwin_errno_interrupted() {
+        result = syscall3(darwin_sys_read(), fd, addr(buffer.ptr()), buffer.len())
     }
-    free_pages(address, allocation_size)
-    return fd
+    if result.errno != 0 {
+        return from_os_error(error_from_errno(errno(result.errno)))
+    }
+    if result.value > buffer.len() {
+        return invalid_read_count()
+    }
+    return result.value
 }
 
 #target: "arm64-darwin"
-pub(/) func read_fd(fd: i32, buffer: &+[u8]): usize! {
-    return read_bytes_raw(fd, buffer)?
-}
-
-#target: "arm64-darwin"
-pub(/) func write_fd(fd: i32, bytes: &[u8]): void! {
-    write_bytes_raw(fd, bytes)?
+pub(/) func write_fd(fd: usize, bytes: &[u8]): void! {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        let remaining: usize = bytes.len() - offset
+        var result: SyscallResult = syscall3(
+            darwin_sys_write(),
+            fd,
+            addr(bytes.ptr()) + offset,
+            remaining,
+        )
+        while result.errno == darwin_errno_interrupted() {
+            result = syscall3(
+                darwin_sys_write(),
+                fd,
+                addr(bytes.ptr()) + offset,
+                remaining,
+            )
+        }
+        if result.errno != 0 {
+            return from_os_error(error_from_errno(errno(result.errno)))
+        }
+        if result.value == 0 {
+            return write_zero()
+        }
+        if result.value > remaining {
+            return invalid_write_count()
+        }
+        offset = offset + result.value
+    }
     return
 }
 
 #target: "arm64-darwin"
-pub(/) func write_text_fd(fd: i32, text: &str): void! {
-    write_text_raw(fd, text)?
+pub(/) func write_text_fd(fd: usize, text: &str): void! {
+    write_fd(fd, string_bytes(text))?
     return
 }
 
 #target: "arm64-darwin"
-pub(/) func close_fd(fd: i32): void {
-    close_fd_raw(fd)
+pub(/) func close_fd(fd: usize): void {
+    // A failed close is deliberately not retried: Darwin may have consumed the
+    // descriptor even when reporting an interruption, and retrying could close
+    // an unrelated descriptor that another operation has reused.
+    let _ = syscall1(darwin_sys_close(), fd)
     return
 }
 
@@ -160,7 +184,7 @@ pub(/) enum IOError {
 }
 
 pub struct File {
-    fd: i32
+    fd: usize
     close_on_drop: bool
 }
 
@@ -270,4 +294,15 @@ pub func print(text: &str): void! {
 
 func unsupported(): error {
     return error.new("std.io.unsupported", "unsupported I/O operation")
+}
+
+func write_zero(): error {
+    return error.new("std.io.write_zero", "writer made no progress")
+}
+
+func invalid_write_count(): error {
+    return error.new(
+        "std.io.invalid_write_count",
+        "writer reported more bytes than the supplied input contains",
+    )
 }

@@ -83,7 +83,6 @@ pub(crate) fn select(
         | PrimitiveRole::Unreachable => {
             super::system_primitive_selection::select(operation, target, selected)
         }
-        _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
 }
 

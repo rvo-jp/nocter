@@ -508,6 +508,10 @@ plan requires it. Argument and environment indexes trap before an out-of-bounds 
 queries produce program-lifetime pointer/length views. Native conformance supplies an argument and
 a controlled environment across a nested ordinary call.
 
-The remaining Phase 5 implementation area is I/O. Its target boundary must be reduced to the
-minimum operation set needed by ordinary standard-library retry, partial-transfer, errno, and
-resource-lifetime policy; redundant target roles must not survive merely as compatibility shims.
+The native I/O boundary is complete without operation-specific backend roles. The closed primitive
+inventory exposes the existing generic syscall result only; the seven redundant open, read, write,
+and close roles were removed rather than implemented as compatibility shims. `std/io` now owns
+Darwin constants, interrupted-operation retry, partial and zero-progress writes, count validation,
+errno mapping, NUL-path validation, and close-once policy in ordinary source. Native conformance
+uses the generic boundary to write an exact byte sequence and to open, read, validate, and close a
+temporary file.

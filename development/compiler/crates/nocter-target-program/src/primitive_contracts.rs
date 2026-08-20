@@ -17,7 +17,6 @@ use crate::{PrimitiveRole, ToolchainSnapshot};
 
 const ERROR_MODULE: &[&str] = &["error"];
 const INTERNAL_OS_MODULE: &[&str] = &["internal", "os"];
-const IO_MODULE: &[&str] = &["io"];
 const MEM_MODULE: &[&str] = &["mem"];
 const PROCESS_MODULE: &[&str] = &["process"];
 const PTR_MODULE: &[&str] = &["ptr"];
@@ -39,7 +38,6 @@ enum TypeContract {
         referent: Box<Self>,
     },
     Slice(Box<Self>),
-    Fallible(Box<Self>),
 }
 
 impl TypeContract {
@@ -64,10 +62,6 @@ impl TypeContract {
 
     fn slice(element: Self) -> Self {
         Self::Slice(Box::new(element))
-    }
-
-    fn fallible(payload: Self) -> Self {
-        Self::Fallible(Box::new(payload))
     }
 }
 
@@ -402,8 +396,7 @@ fn type_matches(
                 && nominal_matches(graph, types, *definition, module, name, standard_package)
         }
         (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
-        | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
-        | (Some(TypeKind::Fallible(actual)), TypeContract::Fallible(expected)) => {
+        | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected)) => {
             type_matches(graph, types, callable, *actual, expected, standard_package)
         }
         (
@@ -842,61 +835,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             package,
             arm64_darwin,
             Some(vec![]),
-        ),
-        PrimitiveRole::OpenRead | PrimitiveRole::CreateFile | PrimitiveRole::AppendFile => make(
-            IO_MODULE,
-            match role {
-                PrimitiveRole::OpenRead => "open_read_raw",
-                PrimitiveRole::CreateFile => "create_raw",
-                PrimitiveRole::AppendFile => "append_raw",
-                _ => unreachable!(),
-            },
-            0,
-            vec![byte_pointer()],
-            TypeContract::fallible(i32()),
-            package,
-            arm64_darwin,
-            None,
-        ),
-        PrimitiveRole::WriteText => make(
-            IO_MODULE,
-            "write_text_raw",
-            0,
-            vec![i32(), str_ref()],
-            TypeContract::fallible(void()),
-            package,
-            arm64_darwin,
-            None,
-        ),
-        PrimitiveRole::WriteBytes => make(
-            IO_MODULE,
-            "write_bytes_raw",
-            0,
-            vec![i32(), readonly_bytes()],
-            TypeContract::fallible(void()),
-            package,
-            arm64_darwin,
-            None,
-        ),
-        PrimitiveRole::ReadBytes => make(
-            IO_MODULE,
-            "read_bytes_raw",
-            0,
-            vec![i32(), TypeContract::readwrite(TypeContract::slice(u8()))],
-            TypeContract::fallible(usize()),
-            package,
-            arm64_darwin,
-            None,
-        ),
-        PrimitiveRole::CloseFileDescriptor => make(
-            IO_MODULE,
-            "close_fd_raw",
-            0,
-            vec![i32()],
-            void(),
-            package,
-            arm64_darwin,
-            None,
         ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1

@@ -37,7 +37,7 @@ fn complete_closed_registry_constructs_a_target_program() {
         target.checked().graph().target(),
         CompilationTarget::Arm64Darwin
     );
-    assert_eq!(target.toolchain().primitives().bindings().len(), 49);
+    assert_eq!(target.toolchain().primitives().bindings().len(), 42);
 }
 
 #[test]

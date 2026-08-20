@@ -229,8 +229,10 @@ separate capability and distribution design rather than overloading visibility.
 ## Process and I/O Boundaries
 
 Target primitives expose only the minimum facts needed by ordinary wrappers: process entry state,
-file-descriptor operations, process termination, and generic syscall results. `std/process` and
-`std/io` own validation, UTF-8 policy, ownership, retry policy, error mapping, and public types.
+process termination, and generic syscall results. File-descriptor operations are ordinary
+`std/io` functions over that syscall result boundary, not parallel compiler primitives.
+`std/process` and `std/io` own validation, UTF-8 policy, ownership, retry policy, partial-transfer
+handling, error mapping, and public types.
 
 Consequences:
 

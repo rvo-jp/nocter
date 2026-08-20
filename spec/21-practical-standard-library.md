@@ -76,6 +76,12 @@ reading, create or truncate a file for writing, and open a file for append. `Utf
 `&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
 handles close once when explicitly closed or dropped.
 
+The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
+read, and write operations, completes partial writes before reporting success, rejects a
+zero-progress write, and maps other errno values into the public built-in `error`. Close is issued
+once and is not retried because an interrupted close may already have consumed the descriptor.
+Borrowed string paths are checked for NUL before a target call.
+
 `Reader` and `Writer` define the shared byte-I/O contracts. `Reader.read` initializes no more than
 the supplied buffer length and returns zero at end of stream. The `read_to_end` default method
 collects bytes into independently owned `Vec<u8>` storage. A reader that reports an impossible byte

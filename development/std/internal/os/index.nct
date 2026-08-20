@@ -102,8 +102,18 @@ pub(/) func kind_from_errno(error: Errno): OSErrorKind {
     return OSErrorKind.unknown
 }
 
-// Darwin syscall number constants belong in this module. The exact constant
-// list is filled in as each wrapper is implemented.
+// Darwin syscall and flag constants belong in this target-gated module rather
+// than in public I/O types or the compiler backend.
+
+#target: "arm64-darwin"
+pub(/) func darwin_sys_read(): usize {
+    return 0x02000003
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_sys_write(): usize {
+    return 0x02000004
+}
 
 #target: "arm64-darwin"
 pub(/) func darwin_sys_open(): usize {
@@ -113,6 +123,34 @@ pub(/) func darwin_sys_open(): usize {
 #target: "arm64-darwin"
 pub(/) func darwin_sys_close(): usize {
     return 0x02000006
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_open_read_only(): usize {
+    return 0
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_open_create_truncate(): usize {
+    // O_WRONLY | O_CREAT | O_TRUNC
+    return 0x0601
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_open_create_append(): usize {
+    // O_WRONLY | O_CREAT | O_APPEND
+    return 0x0209
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_create_mode(): usize {
+    // 0666, filtered by the process umask.
+    return 438
+}
+
+#target: "arm64-darwin"
+pub(/) func darwin_errno_interrupted(): i32 {
+    return 4
 }
 
 #target: "arm64-darwin"

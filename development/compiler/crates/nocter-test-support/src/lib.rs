@@ -149,22 +149,7 @@ pub func env_count_for_test(): usize { return env_count_raw() }
 pub func env_name_for_test(index: usize): &str { return env_name_raw(index) }
 pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 ";
-const IO_SOURCE: &str = "\
-#target: \"arm64-darwin\"
-pub(/) primitive open_read_raw(path: *u8): i32!
-#target: \"arm64-darwin\"
-pub(/) primitive create_raw(path: *u8): i32!
-#target: \"arm64-darwin\"
-pub(/) primitive append_raw(path: *u8): i32!
-#target: \"arm64-darwin\"
-pub(/) primitive write_text_raw(fd: i32, text: &str): void!
-#target: \"arm64-darwin\"
-pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
-#target: \"arm64-darwin\"
-pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
-#target: \"arm64-darwin\"
-pub(/) primitive close_fd_raw(fd: i32): void
-";
+const IO_SOURCE: &str = "";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 pub(/) copy struct SyscallResult {
@@ -196,6 +181,16 @@ pub func syscall0_succeeds_for_test(number: usize): bool {
 pub func syscall1_fails_for_test(number: usize, argument: usize): bool {
     let result = syscall1(number, argument)
     return result.errno != 0
+}
+pub func syscall3_value_for_test(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+): usize {
+    let result = syscall3(number, a0, a1, a2)
+    if result.errno != 0 { return 18446744073709551615 }
+    return result.value
 }
 pub func terminate_for_test(use_unreachable: bool): never {
     if use_unreachable { unreachable() }

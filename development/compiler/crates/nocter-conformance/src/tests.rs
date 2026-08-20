@@ -696,6 +696,75 @@ fn darwin_syscall_primitives_cross_the_native_pipeline() {
 }
 
 #[test]
+fn generic_syscall_write_is_the_native_io_boundary() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/os.syscall3_value_for_test\n\
+         use std/str.str_ptr_addr_for_test\n\
+         func main(): i32 {\n\
+             let text: &str = \"hello\"\n\
+             let written = syscall3_value_for_test(\n\
+                 0x02000004,\n\
+                 2,\n\
+                 str_ptr_addr_for_test(text),\n\
+                 5,\n\
+             )\n\
+             if written == 5 { return 42 }\n\
+             return 1\n\
+         }\n",
+        &[&["internal", "os"], &["str"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_output(&image, 42, b"hello");
+}
+
+#[test]
+fn generic_syscalls_open_read_and_close_a_native_file() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/os.{syscall1_fails_for_test, syscall3_value_for_test}\n\
+         use std/process.{arg_count_for_test, arg_for_test}\n\
+         use std/ptr.{addr, from_ref_mut}\n\
+         use std/str.str_ptr_addr_for_test\n\
+         func inspect_file(): i32 {\n\
+             if !(arg_count_for_test() == 2) { return 2 }\n\
+             let fd = syscall3_value_for_test(\n\
+                 0x02000005,\n\
+                 str_ptr_addr_for_test(arg_for_test(1)),\n\
+                 0,\n\
+                 0,\n\
+             )\n\
+             if fd == 18446744073709551615 { return 3 }\n\
+             var bytes: [u8; 5] = [0, 0, 0, 0, 0]\n\
+             let received = syscall3_value_for_test(\n\
+                 0x02000003,\n\
+                 fd,\n\
+                 addr(from_ref_mut(&+bytes)),\n\
+                 5,\n\
+             )\n\
+             let close_failed = syscall1_fails_for_test(0x02000006, fd)\n\
+             if received == 18446744073709551615 { return 4 }\n\
+             if !(received == 5) { return 5 }\n\
+             if close_failed { return 6 }\n\
+             if !(bytes[0] == 104) { return 7 }\n\
+             if !(bytes[1] == 101) { return 8 }\n\
+             if !(bytes[2] == 108) { return 9 }\n\
+             if !(bytes[3] == 108) { return 10 }\n\
+             if !(bytes[4] == 111) { return 11 }\n\
+             return 42\n\
+         }\n\
+         func main(): i32 { inspect_file() }\n",
+        &[&["internal", "os"], &["process"], &["ptr"], &["str"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_file_read(&image, 42);
+}
+
+#[test]
 fn process_exit_primitive_crosses_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
@@ -1016,6 +1085,29 @@ fn execute_and_assert_process_state(image: &nocter_macho::MachOImage, expected: 
     assert_eq!(status.code(), Some(expected));
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_and_assert_file_read(image: &nocter_macho::MachOImage, expected: i32) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let base =
+        std::env::temp_dir().join(format!("nocter-file-io-{}-{artifact}", std::process::id()));
+    let executable = base.with_extension("image");
+    let input = base.with_extension("input");
+    std::fs::write(&executable, image.bytes()).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(&input, b"hello").unwrap();
+    let status = std::process::Command::new(&executable)
+        .arg(&input)
+        .status()
+        .unwrap();
+    std::fs::remove_file(&input).unwrap();
+    std::fs::remove_file(&executable).unwrap();
+    assert_eq!(status.code(), Some(expected));
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
@@ -1024,6 +1116,9 @@ fn execute_and_assert_output(_image: &nocter_macho::MachOImage, _expected: i32, 
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_process_state(_image: &nocter_macho::MachOImage, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_and_assert_file_read(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);
