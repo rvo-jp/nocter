@@ -547,7 +547,12 @@
   Darwin system roles use another closed selector and materializer. Syscall arguments are shifted
   from the ordinary Nocter call lanes to Darwin's syscall lanes, and the carry flag is normalized
   into the declared value/errno result. Primitive and root process exit share one emitter. Trap,
-  unreachable, and allocation abort terminate through distinct compiler-owned break reasons.</li><li><code>nocter-macho</code> consumes only a completed <code>Arm64Program</code>. It assigns the <code>__TEXT</code>, <code>__const</code>, and
+  unreachable, and allocation abort terminate through distinct compiler-owned break reasons.
+  Direct user destruction uses the same function fixup and inherited allocation-context boundary
+  as an ordinary call after validating its frozen one-borrow/void ABI. Machine operations expose
+  call-boundary behavior directly, so live-range allocation preserves values across user drops and
+  pack callbacks without enumerating target-selected call instructions. Dense drop flags occupy
+  exact one-byte frame objects initialized at entry and shared by writes and conditional branches.</li><li><code>nocter-macho</code> consumes only a completed <code>Arm64Program</code>. It assigns the <code>__TEXT</code>, <code>__const</code>, and
   <code>__LINKEDIT</code> file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
   SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
@@ -556,7 +561,7 @@
   comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
   direct and memory-backed aggregates, dynamic fixed-array places, fixed/view index borrows, and
   pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls, and
-  primitive process exit
+  primitive process exit, user destruction, and conditional drop flags
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 is complete. Checked-body construction covers the closed body grammar, including collection iteration, authored binding annotations, and executable lexical regions. Region handles are typed compiler-managed resources; one cleanup authority orders body destruction before region release on every reachable exit, retains the parent allocator loan for the complete child lifetime, and emits no fictional unwinding for <code>never</code> termination.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>

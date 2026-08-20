@@ -110,6 +110,24 @@ fn select_inherited(
     }
 }
 
+/// Materializes the inherited context for a compiler-generated direct call boundary.
+pub(crate) fn select_inherited_target(
+    program: &nocter_machine::MachineProgram,
+    operation: nocter_machine::MachineOperationId,
+    target: MachineFunctionId,
+    frame: &Arm64FunctionFrame,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let requires_context = program
+        .allocation()
+        .target_requires_context(&nocter_machine::MachineCallTarget::Direct(target))?;
+    if requires_context {
+        select_inherited(operation, frame, selected)
+    } else {
+        Ok(())
+    }
+}
+
 const fn context_size() -> u64 {
     2 * Arm64NocterAbi::WORD_SIZE
 }

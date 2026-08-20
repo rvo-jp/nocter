@@ -1,8 +1,8 @@
 use std::fmt;
 
 use nocter_machine::{
-    MachineBlockId, MachineFunction, MachineOperationId, MachineOperationKind,
-    MachineValueDefinition, MachineValueId, MachineValueRepresentation,
+    MachineBlockId, MachineFunction, MachineOperationId, MachineValueDefinition, MachineValueId,
+    MachineValueRepresentation,
 };
 
 use crate::{
@@ -243,7 +243,7 @@ fn apply_liveness(
                 operation_point.after,
                 registers,
             )?;
-            if matches!(operation.kind(), MachineOperationKind::Call(_)) {
+            if operation.kind().has_call_boundary() {
                 for value in operation_flow
                     .live_after()
                     .iter()

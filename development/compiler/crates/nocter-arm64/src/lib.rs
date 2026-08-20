@@ -10,6 +10,7 @@ mod aggregate_selection;
 mod allocation_selection;
 mod call_selection;
 mod code;
+mod destruction_selection;
 mod encode;
 mod frame;
 mod frame_access;

@@ -338,6 +338,15 @@ root termination and the process-exit primitive. Trap, unreachable, and allocati
 distinct break immediates, preserving a stable compiler-owned termination reason without a runtime
 symbol or primitive-specific call convention.
 
+Machine operations themselves state whether their target lowering may cross an ordinary callable
+boundary. Value allocation consumes that fact for calls, direct user destruction, and pack
+callbacks, preserving every live direct lane in a callee-saved register or spill. User-drop
+selection validates the target's one-register readwrite-borrow input, completion result, and absent
+pack/stack transport, then forms the checked place address in `x0`, materializes an inherited
+allocation context only when required, and emits the common direct-call instruction. Conditional
+ownership has one dense frame-byte representation: entry initialization, state updates, and
+drop-flag branches all address the same `MachineDropFlagId` projection.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -359,6 +368,8 @@ generic takes likewise cross source, machine ABI, native selection, and Mach-O e
 Generic syscall success and failure plus primitive process exit also execute across this complete
 pipeline. Trap, unreachable, and allocation abort cross materialization but are not executed by the
 test runner.
+User drop calls and conditional drop flags execute natively; the case proves both skipped cleanup
+for branch-local uninitialized storage and reverse cleanup for initialized temporaries.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -431,7 +442,7 @@ index borrows share one selected address evaluator. Direct and indirect callable
 complete, including caller-owned large results, callee-owned large parameters, nested calls, and
 stack arguments after the register window closes. Root/incoming/explicit allocation-context
 transport, current-context reads, pure pointer/view primitives, byte/value transfer primitives,
-Darwin syscalls, process exit, trap, unreachable, and allocation abort are complete. Memory-valued
-block parameters, concrete pointer destruction, process-entry state, I/O and error primitives,
-lexical region representation and cleanup, pack callbacks, and test roots remain Phase 5
-implementation areas.
+Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user destruction, and
+conditional drop flags are complete. Memory-valued block parameters, recursive concrete pointer
+destruction, process-entry state, I/O and error primitives, lexical region representation and
+cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.

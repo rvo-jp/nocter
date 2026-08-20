@@ -383,6 +383,55 @@ fn allocation_abort_primitive_materializes_without_a_runtime_dependency() {
 }
 
 #[test]
+fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         instance ExitOnDrop {\n\
+             pub operator (&self == other: &Self): bool { true }\n\
+         }\n\
+         func main(): i32 {\n\
+             let _ = if false {\n\
+                 ExitOnDrop { status: 43 } == ExitOnDrop { status: 44 }\n\
+             } else {\n\
+                 true\n\
+             }\n\
+             return 42\n\
+         }\n",
+        &[&["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         instance ExitOnDrop {\n\
+             pub operator (&self == other: &Self): bool { true }\n\
+         }\n\
+         func main(): i32 {\n\
+             let _ = if true {\n\
+                 ExitOnDrop { status: 43 } == ExitOnDrop { status: 44 }\n\
+             } else {\n\
+                 true\n\
+             }\n\
+             return 1\n\
+         }\n",
+        &[&["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 44);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

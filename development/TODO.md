@@ -12,9 +12,9 @@ implementation input.
 ## Immediate Work
 
 1. Expand closed primitive-role lowering from the completed allocation-context, pure pointer/view,
-   byte/value transfer, syscall, process-exit, trap, and abort operations to concrete destruction,
-   process-entry state, I/O, and error construction without name-based dispatch or private call
-   conventions.
+   byte/value transfer, syscall, process-exit, trap, abort, and direct user-drop operations to
+   recursive concrete destruction, process-entry state, I/O, and error construction without
+   name-based dispatch or private call conventions.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release, drop operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -142,6 +142,15 @@ shares the root terminator's exact syscall emitter. Trap, unreachable, and alloc
 distinct compiler-owned break reasons and cannot fall through. Native conformance executes both
 syscall result paths and primitive process exit; termination-only roles are materialized without a
 runtime-library dependency.
+
+Direct user destruction and conditional ownership flags now cross the ARM64 boundary. Machine
+operations declare whether they may cross a callable boundary, so register allocation preserves
+values across ordinary calls, user drop bodies, and future pack callbacks through one fact rather
+than a `Call`-variant exception. Drop selection validates the frozen one-borrow/void ABI, forms the
+checked place address in `x0`, inherits allocation context only when the target requires it, and
+uses the ordinary direct call relocation. Every drop flag is initialized in the function entry and
+read or written as one exact frame byte. Native conformance proves both an uninitialized skipped
+cleanup and initialized reverse temporary destruction.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

@@ -704,6 +704,51 @@ fn machine_value_plan_uses_exact_call_crossing_facts() {
 }
 
 #[test]
+fn machine_value_plan_treats_user_destruction_as_a_call_boundary() {
+    let program = crate::test_support::lower_machine(
+        "struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func main(): i32 {\n\
+             let status = 42\n\
+             let resource = Resource {}\n\
+             return status\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let function = program.function(entry).unwrap();
+    let drop = function
+        .body()
+        .operations()
+        .find_map(|(operation_id, operation)| {
+            matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::InvokeDrop { .. }
+            )
+            .then_some(operation_id)
+        })
+        .unwrap();
+    let live_after = function.dataflow().operation(drop).unwrap().live_after();
+    assert!(!live_after.is_empty());
+
+    let plan = crate::Arm64ValuePlan::build(function).unwrap();
+    for value in live_after {
+        for register in plan
+            .value(*value)
+            .and_then(crate::Arm64ValueStorage::direct_registers)
+            .unwrap_or(&[])
+        {
+            assert!(matches!(
+                plan.registers().location(*register),
+                Some(crate::Arm64AllocatedLocation::Register(register))
+                    if crate::Arm64NocterAbi::is_callee_saved(register)
+            ));
+        }
+    }
+}
+
+#[test]
 fn machine_value_plan_separates_multiword_and_memory_values() {
     let program = crate::test_support::lower_machine(
         "copy struct Pair { first: u64\n    second: u64 }\n\

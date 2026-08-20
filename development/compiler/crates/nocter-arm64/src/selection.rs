@@ -266,8 +266,9 @@ impl Arm64SelectedFunction {
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
         let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
-        let entry_instructions =
-            crate::call_selection::select_parameters(program, owner, function, &frame)?;
+        let mut entry_instructions =
+            crate::call_selection::select_parameters(program, owner, function, &frame)?.into_vec();
+        crate::destruction_selection::select_entry(function, &frame, &mut entry_instructions)?;
         let mut blocks = Vec::with_capacity(function.body().blocks().len());
         for (block_id, block) in function.body().blocks() {
             if block_id.index() != blocks.len() {
@@ -306,7 +307,7 @@ impl Arm64SelectedFunction {
             values,
             frame,
             addresses,
-            entry_instructions,
+            entry_instructions: entry_instructions.into_boxed_slice(),
             blocks: blocks.into_boxed_slice(),
             entry: function.body().entry(),
         })
@@ -433,6 +434,20 @@ fn select_operation(
             frame,
             selected,
         ),
+        MachineOperationKind::InvokeDrop { target, place } => {
+            crate::destruction_selection::select_drop(
+                program,
+                operation_id,
+                *target,
+                *place,
+                frame,
+                addresses,
+                selected,
+            )
+        }
+        MachineOperationKind::SetDropFlag { flag, initialized } => {
+            crate::destruction_selection::select_flag_write(*flag, *initialized, frame, selected)
+        }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             crate::call_selection::CallSelectionContext::new(program, values, frame, addresses),
             operation_id,
@@ -616,6 +631,18 @@ fn select_terminator(
             then_edge: select_edge(function, then_target, values)?,
             else_edge: select_edge(function, else_target, values)?,
         }),
+        MachineTerminator::BranchDropFlag {
+            flag,
+            initialized,
+            uninitialized,
+        } => {
+            let condition = crate::destruction_selection::select_flag_read(*flag, frame, selected)?;
+            Ok(Arm64SelectedTerminator::Branch {
+                condition,
+                then_edge: select_edge(function, initialized, values)?,
+                else_edge: select_edge(function, uninitialized, values)?,
+            })
+        }
         MachineTerminator::Return(value) => {
             crate::call_selection::select_return(function, block, *value, values, frame, selected)?;
             Ok(Arm64SelectedTerminator::Return)

@@ -460,6 +460,11 @@ be introduced to make an unresolved syntax choice.
   from the ordinary Nocter call lanes to Darwin's syscall lanes, and the carry flag is normalized
   into the declared value/errno result. Primitive and root process exit share one emitter. Trap,
   unreachable, and allocation abort terminate through distinct compiler-owned break reasons.
+  Direct user destruction uses the same function fixup and inherited allocation-context boundary
+  as an ordinary call after validating its frozen one-borrow/void ABI. Machine operations expose
+  call-boundary behavior directly, so live-range allocation preserves values across user drops and
+  pack callbacks without enumerating target-selected call instructions. Dense drop flags occupy
+  exact one-byte frame objects initialized at entry and shared by writes and conditional branches.
 - `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
   `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
@@ -470,7 +475,7 @@ be introduced to make an unresolved syntax choice.
   comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
   direct and memory-backed aggregates, dynamic fixed-array places, fixed/view index borrows, and
   pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls, and
-  primitive process exit
+  primitive process exit, user destruction, and conditional drop flags
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.

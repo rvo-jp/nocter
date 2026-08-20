@@ -138,6 +138,18 @@ pub enum MachineOperationKind {
     DestroyPack,
 }
 
+impl MachineOperationKind {
+    /// Whether target lowering may cross an ordinary callable boundary before this operation
+    /// completes. Register allocation must preserve every value live after such an operation.
+    #[must_use]
+    pub const fn has_call_boundary(&self) -> bool {
+        matches!(
+            self,
+            Self::Call(_) | Self::InvokeDrop { .. } | Self::PackNext | Self::DestroyPack
+        )
+    }
+}
+
 /// One instruction and the optional SSA value it defines.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineOperation {
