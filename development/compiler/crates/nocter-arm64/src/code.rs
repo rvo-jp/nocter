@@ -24,6 +24,10 @@ enum CodeItem {
         target: Arm64FunctionId,
         link: bool,
     },
+    FunctionAddress {
+        target: Arm64FunctionId,
+        destination: Arm64Register,
+    },
     DataAddress {
         target: Arm64DataId,
         destination: Arm64Register,
@@ -36,6 +40,11 @@ pub(crate) enum Arm64CodeFixup {
         offset: u64,
         target: Arm64FunctionId,
         link: bool,
+    },
+    FunctionAddress {
+        offset: u64,
+        target: Arm64FunctionId,
+        destination: Arm64Register,
     },
     DataAddress {
         offset: u64,
@@ -104,6 +113,14 @@ impl Arm64CodeBuilder {
     /// Emits a linked whole-program function call.
     pub fn call(&mut self, target: Arm64FunctionId) {
         self.branch_function(target, true);
+    }
+
+    /// Materializes one whole-program function address through a page and page-offset fixup pair.
+    pub fn load_function_address(&mut self, target: Arm64FunctionId, destination: Arm64Register) {
+        self.items.push(CodeItem::FunctionAddress {
+            target,
+            destination,
+        });
     }
 
     /// Materializes one read-only-data address through a page and page-offset fixup pair.
@@ -193,7 +210,7 @@ fn item_offsets(items: &[CodeItem], expanded: &[bool]) -> Result<Vec<u64>, Arm64
         offsets.push(offset);
         let size = match item {
             CodeItem::ConditionalBranch { .. } if expanded[index] => 8,
-            CodeItem::DataAddress { .. } => 8,
+            CodeItem::FunctionAddress { .. } | CodeItem::DataAddress { .. } => 8,
             _ => 4,
         };
         offset = offset
@@ -284,29 +301,22 @@ fn encode_items(
                     link,
                 });
             }
+            CodeItem::FunctionAddress {
+                target,
+                destination,
+            } => {
+                append_address_placeholder(&mut bytes, destination)?;
+                fixups.push(Arm64CodeFixup::FunctionAddress {
+                    offset: offsets[index],
+                    target,
+                    destination,
+                });
+            }
             CodeItem::DataAddress {
                 target,
                 destination,
             } => {
-                append(
-                    &mut bytes,
-                    Arm64Instruction::AddressPage {
-                        destination,
-                        displacement: 0,
-                    },
-                )?;
-                append(
-                    &mut bytes,
-                    Arm64Instruction::AddSubtractImmediate {
-                        size: Arm64DataSize::Bits64,
-                        operation: Arm64AddSubtract::Add,
-                        set_flags: false,
-                        destination: Arm64AddSubtractDestination::General(destination),
-                        source: Arm64BaseRegister::General(destination),
-                        immediate: 0,
-                        shift_12: false,
-                    },
-                )?;
+                append_address_placeholder(&mut bytes, destination)?;
                 fixups.push(Arm64CodeFixup::DataAddress {
                     offset: offsets[index],
                     target,
@@ -322,6 +332,31 @@ fn encode_items(
         fixups: fixups.into_boxed_slice(),
         instruction_count,
     })
+}
+
+fn append_address_placeholder(
+    bytes: &mut Vec<u8>,
+    destination: Arm64Register,
+) -> Result<(), Arm64CodeError> {
+    append(
+        bytes,
+        Arm64Instruction::AddressPage {
+            destination,
+            displacement: 0,
+        },
+    )?;
+    append(
+        bytes,
+        Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::General(destination),
+            source: Arm64BaseRegister::General(destination),
+            immediate: 0,
+            shift_12: false,
+        },
+    )
 }
 
 fn label_offset(labels: &[u64], label: Arm64LabelId) -> Result<u64, Arm64CodeError> {

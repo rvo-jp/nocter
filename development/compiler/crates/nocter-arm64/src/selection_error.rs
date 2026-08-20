@@ -42,6 +42,7 @@ pub enum Arm64SelectionError {
     Parameters(nocter_machine::MachineLinkageId),
     ParameterTransport(nocter_machine::MachineLinkageId),
     ResultAbi(nocter_machine::MachineLinkageId),
+    PackAbi(nocter_machine::MachineLinkageId),
     AllocationEntry(MachineFunctionId),
     MissingResult(MachineOperationId),
     UnsupportedOperation {

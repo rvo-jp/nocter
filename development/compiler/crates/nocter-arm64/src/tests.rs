@@ -1043,6 +1043,7 @@ fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     let mut caller_code = crate::Arm64CodeBuilder::new();
     caller_code.append(Arm64Instruction::NoOperation);
     caller_code.call(target);
+    caller_code.load_function_address(target, x(4));
     caller_code.load_data_address(text, x(3));
     caller_code.append(Arm64Instruction::Return { target: x(30) });
     builder
@@ -1062,6 +1063,8 @@ fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
             0xd65f_03c0,
             0xd503_201f,
             0x97ff_fffe,
+            0x9000_0004,
+            0x9100_0084,
             0x9000_0003,
             0x9100_0063,
             0xd65f_03c0,
@@ -1073,21 +1076,48 @@ fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     assert_eq!(program.read_only_data(), [1, 2, 3, 0, 0, 0, 0, 0, 9]);
     assert_eq!(program.data(text).unwrap().offset(), 8);
     assert_eq!(program.data_fixups().len(), 1);
-    assert_eq!(program.data_fixups()[0].instruction_offset(), 12);
+    assert_eq!(program.data_fixups()[0].instruction_offset(), 20);
     assert_eq!(program.data_fixups()[0].target_offset(), 8);
     assert_eq!(program.data_fixups()[0].destination(), x(3));
 
     let relocated = program
-        .relocate_data_addresses(0x1_0000_0000, 0x1_0000_2000)
+        .relocate_addresses(0x1_0000_0250, 0x1_0000_2000)
         .unwrap();
     let relocated_words = relocated
         .chunks_exact(4)
         .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
         .collect::<Vec<_>>();
-    assert_eq!(relocated_words[3], 0xd000_0003);
-    assert_eq!(relocated_words[4], 0x9100_2063);
     assert_eq!(
-        program.relocate_data_addresses(0, 1_u64 << 32),
+        relocated_words[3],
+        u32::from_le_bytes(
+            Arm64Instruction::AddressPage {
+                destination: x(4),
+                displacement: 0,
+            }
+            .encode()
+            .unwrap(),
+        )
+    );
+    assert_eq!(
+        relocated_words[4],
+        u32::from_le_bytes(
+            Arm64Instruction::AddSubtractImmediate {
+                size: Arm64DataSize::Bits64,
+                operation: crate::Arm64AddSubtract::Add,
+                set_flags: false,
+                destination: crate::Arm64AddSubtractDestination::General(x(4)),
+                source: crate::Arm64BaseRegister::General(x(4)),
+                immediate: 0x250,
+                shift_12: false,
+            }
+            .encode()
+            .unwrap(),
+        )
+    );
+    assert_eq!(relocated_words[5], 0xd000_0003);
+    assert_eq!(relocated_words[6], 0x9100_2063);
+    assert_eq!(
+        program.relocate_addresses(0, 1_u64 << 32),
         Err(crate::Arm64ProgramError::Encoding(
             Arm64EncodingError::PageAddressOutOfRange
         ))
@@ -1120,6 +1150,19 @@ fn program_layout_rejects_incomplete_and_foreign_identities() {
     branches.set_entry(entry).unwrap();
     assert_eq!(
         branches.finish(),
+        Err(crate::Arm64ProgramError::UnknownFunction(foreign))
+    );
+
+    let mut addresses = crate::Arm64ProgramBuilder::new();
+    let entry = addresses.declare_function();
+    let mut code = crate::Arm64CodeBuilder::new();
+    code.load_function_address(foreign, x(0));
+    addresses
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    addresses.set_entry(entry).unwrap();
+    assert_eq!(
+        addresses.finish(),
         Err(crate::Arm64ProgramError::UnknownFunction(foreign))
     );
 

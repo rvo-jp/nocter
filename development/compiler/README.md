@@ -426,8 +426,12 @@ be introduced to make an unresolved syntax choice.
   memory values, one reusable direct-aggregate construction object, one maximum-size
   memory-edge cycle temporary, literal descriptor/state pairs, spill lanes, hidden
   result/pack/context pointers, and preserved registers through that one planner. Pack descriptors
-  have one uniform four-word
-  callback ABI, while each call site's source-ordered state has its own checked layout.
+  have one uniform four-word callback ABI, while each call site's source-ordered state has its own
+  checked layout. Call selection initializes the descriptor and state, and target lowering emits
+  stable next/destroy function identities for every body-local pack. Fixed segments execute the
+  complete callback path: next returns the planned direct or caller-owned `Optional<T>` result,
+  advances the state cursor, and residual cleanup destroys every unconsumed owner in reverse order
+  through ordinary generated functions. Spread-segment callback execution remains open.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
@@ -453,8 +457,8 @@ be introduced to make an unresolved syntax choice.
   same parallel-assignment contract to frame objects and breaks a cycle through its planned frame
   temporary. Both run only after their conditional or switch edge is selected. Dense function
   and data identities already feed typed fixups:
-  function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
-  only after the writer supplies final section virtual addresses. Static text selection now
+  function branches resolve only after stable text layout, while function- and data-address
+  `adrp`/`add` pairs resolve only after the writer supplies final section virtual addresses. Static text selection now
   populates layout-owned pointer/length lanes through that data mapping. One- and two-word direct
   values use the same lane projection across parameter registers, outgoing stack arguments, local
   storage, and result registers; views have no private transport path. Memory selection and memory
@@ -478,7 +482,7 @@ be introduced to make an unresolved syntax choice.
   pack callbacks without enumerating target-selected call instructions. Dense drop flags occupy
   exact one-byte frame objects initialized at entry and shared by writes and conditional branches.
 - `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
-  `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
+  `__LINKEDIT` file and virtual ranges, resolves section-address-dependent function/data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
   SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
   macOS without invoking an assembler, linker, or signing tool.

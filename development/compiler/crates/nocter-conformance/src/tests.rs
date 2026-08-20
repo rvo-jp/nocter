@@ -36,6 +36,52 @@ fn scalar_call_and_arithmetic_cross_the_complete_native_pipeline() {
 }
 
 #[test]
+fn fixed_literal_pack_callbacks_cross_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "struct Sum { value: i32 }\n\
+         construct Sum {\n\
+             pub literal [](...items: i32): Self {\n\
+                 var total = 0\n\
+                 for item in items { total += item }\n\
+                 return Self { value: total }\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let result = Sum [10, 20, 12]\n\
+             return result.value\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn fixed_literal_pack_residual_cleanup_uses_generated_destruction() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         struct Sink {}\n\
+         construct Sink {\n\
+             pub literal [](...items: ExitOnDrop): Self { return Self {} }\n\
+         }\n\
+         func main(): i32 {\n\
+             let value = Sink [ExitOnDrop { status: 42 }]\n\
+             drop value\n\
+             return 1\n\
+         }\n",
+        &[&["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn scalar_comparison_and_branch_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\
@@ -634,7 +680,11 @@ fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     let status = std::process::Command::new(&path).status().unwrap();
     std::fs::remove_file(&path).unwrap();
-    assert_eq!(status.code(), Some(expected));
+    assert_eq!(
+        status.code(),
+        Some(expected),
+        "native image terminated with {status:?}"
+    );
 }
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]

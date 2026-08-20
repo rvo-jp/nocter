@@ -55,6 +55,13 @@ pub struct Arm64DataAddressFixup {
     destination: Arm64Register,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Arm64FunctionAddressFixup {
+    instruction_offset: u64,
+    target_offset: u64,
+    destination: Arm64Register,
+}
+
 impl Arm64DataAddressFixup {
     #[must_use]
     pub const fn instruction_offset(self) -> u64 {
@@ -81,6 +88,7 @@ pub struct Arm64Program {
     functions: Box<[Arm64FunctionRange]>,
     data: Box<[Arm64DataRange]>,
     data_alignment: u64,
+    function_address_fixups: Box<[Arm64FunctionAddressFixup]>,
     data_fixups: Box<[Arm64DataAddressFixup]>,
     entry: Arm64FunctionId,
 }
@@ -121,18 +129,33 @@ impl Arm64Program {
         self.entry
     }
 
-    /// Resolves every data-address pair for final section virtual addresses.
+    /// Resolves every function- and data-address pair for final section virtual addresses.
     ///
     /// # Errors
     ///
     /// Rejects virtual-address arithmetic overflow, a malformed fixup offset, or a page
     /// displacement outside ARM64's signed 21-bit page range.
-    pub fn relocate_data_addresses(
+    pub fn relocate_addresses(
         &self,
         text_virtual_address: u64,
         data_virtual_address: u64,
     ) -> Result<Box<[u8]>, Arm64ProgramError> {
         let mut text = self.text.to_vec();
+        for fixup in &self.function_address_fixups {
+            let instruction_address = text_virtual_address
+                .checked_add(fixup.instruction_offset)
+                .ok_or(Arm64ProgramError::AddressOverflow)?;
+            let target_address = text_virtual_address
+                .checked_add(fixup.target_offset)
+                .ok_or(Arm64ProgramError::AddressOverflow)?;
+            patch_address_pair(
+                &mut text,
+                fixup.instruction_offset,
+                instruction_address,
+                target_address,
+                fixup.destination,
+            )?;
+        }
         for fixup in &self.data_fixups {
             let instruction_address = text_virtual_address
                 .checked_add(fixup.instruction_offset)
@@ -140,37 +163,12 @@ impl Arm64Program {
             let target_address = data_virtual_address
                 .checked_add(fixup.target_offset)
                 .ok_or(Arm64ProgramError::AddressOverflow)?;
-            let instruction_page = instruction_address & !0x0fff;
-            let target_page = target_address & !0x0fff;
-            let page_displacement = i128::from(target_page) - i128::from(instruction_page);
-            let page_displacement =
-                i64::try_from(page_displacement).map_err(|_| Arm64ProgramError::AddressOverflow)?;
-            let page_offset = u16::try_from(target_address & 0x0fff)
-                .map_err(|_| Arm64ProgramError::AddressOverflow)?;
-            patch_word(
+            patch_address_pair(
                 &mut text,
                 fixup.instruction_offset,
-                Arm64Instruction::AddressPage {
-                    destination: fixup.destination,
-                    displacement: page_displacement,
-                },
-            )?;
-            let add_offset = fixup
-                .instruction_offset
-                .checked_add(4)
-                .ok_or(Arm64ProgramError::OffsetOverflow)?;
-            patch_word(
-                &mut text,
-                add_offset,
-                Arm64Instruction::AddSubtractImmediate {
-                    size: crate::Arm64DataSize::Bits64,
-                    operation: crate::Arm64AddSubtract::Add,
-                    set_flags: false,
-                    destination: crate::Arm64AddSubtractDestination::General(fixup.destination),
-                    source: crate::Arm64BaseRegister::General(fixup.destination),
-                    immediate: page_offset,
-                    shift_12: false,
-                },
+                instruction_address,
+                target_address,
+                fixup.destination,
             )?;
         }
         Ok(text.into_boxed_slice())
@@ -263,8 +261,8 @@ impl Arm64ProgramBuilder {
         Ok(())
     }
 
-    /// Finalizes section-local layout, resolves every function branch, and validates all data
-    /// references before exposing an immutable program.
+    /// Finalizes section-local layout, resolves every function branch, and validates all function
+    /// and data address references before exposing an immutable program.
     ///
     /// # Errors
     ///
@@ -297,6 +295,7 @@ impl Arm64ProgramBuilder {
         let read_only_data = laid_out_data.bytes;
         let data = laid_out_data.ranges;
         let data_alignment = laid_out_data.alignment;
+        let mut function_address_fixups = Vec::new();
         let mut data_fixups = Vec::new();
         for fixup in code_fixups {
             match fixup {
@@ -309,6 +308,20 @@ impl Arm64ProgramBuilder {
                         .get(target.0)
                         .ok_or(Arm64ProgramError::UnknownFunction(target))?;
                     patch_function_branch(&mut text, offset, target.offset, link)?;
+                }
+                Arm64CodeFixup::FunctionAddress {
+                    offset,
+                    target,
+                    destination,
+                } => {
+                    let target = functions
+                        .get(target.0)
+                        .ok_or(Arm64ProgramError::UnknownFunction(target))?;
+                    function_address_fixups.push(Arm64FunctionAddressFixup {
+                        instruction_offset: offset,
+                        target_offset: target.offset,
+                        destination,
+                    });
                 }
                 Arm64CodeFixup::DataAddress {
                     offset,
@@ -333,6 +346,7 @@ impl Arm64ProgramBuilder {
             functions: functions.into_boxed_slice(),
             data,
             data_alignment,
+            function_address_fixups: function_address_fixups.into_boxed_slice(),
             data_fixups: data_fixups.into_boxed_slice(),
             entry,
         })
@@ -355,6 +369,17 @@ fn offset_fixup(
             target,
             link,
         }),
+        Arm64CodeFixup::FunctionAddress {
+            offset,
+            target,
+            destination,
+        } => Ok(Arm64CodeFixup::FunctionAddress {
+            offset: function_offset
+                .checked_add(offset)
+                .ok_or(Arm64ProgramError::OffsetOverflow)?,
+            target,
+            destination,
+        }),
         Arm64CodeFixup::DataAddress {
             offset,
             target,
@@ -367,6 +392,44 @@ fn offset_fixup(
             destination,
         }),
     }
+}
+
+fn patch_address_pair(
+    text: &mut [u8],
+    instruction_offset: u64,
+    instruction_address: u64,
+    target_address: u64,
+    destination: Arm64Register,
+) -> Result<(), Arm64ProgramError> {
+    let instruction_page = instruction_address & !0x0fff;
+    let target_page = target_address & !0x0fff;
+    let displacement = i128::from(target_page) - i128::from(instruction_page);
+    let displacement =
+        i64::try_from(displacement).map_err(|_| Arm64ProgramError::AddressOverflow)?;
+    patch_word(
+        text,
+        instruction_offset,
+        Arm64Instruction::AddressPage {
+            destination,
+            displacement,
+        },
+    )?;
+    patch_word(
+        text,
+        instruction_offset
+            .checked_add(4)
+            .ok_or(Arm64ProgramError::OffsetOverflow)?,
+        Arm64Instruction::AddSubtractImmediate {
+            size: crate::Arm64DataSize::Bits64,
+            operation: crate::Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: crate::Arm64AddSubtractDestination::General(destination),
+            source: crate::Arm64BaseRegister::General(destination),
+            immediate: u16::try_from(target_address & 0x0fff)
+                .map_err(|_| Arm64ProgramError::AddressOverflow)?,
+            shift_12: false,
+        },
+    )
 }
 
 fn patch_function_branch(

@@ -79,6 +79,7 @@ fn lower_pack(
     Ok(MachinePack::new(
         pack.element(),
         pack.next(),
+        crate::transport::plan_result(context.types, context.layouts, pack.next())?,
         ids.value(pack.length())?,
         segments,
     ))

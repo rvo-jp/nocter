@@ -33,6 +33,24 @@ impl Arm64Program {
             }
             functions.push((function.owner(), builder.declare_function()));
         }
+        let mut pack_callbacks = Vec::new();
+        for function in &selected {
+            let body = machine
+                .function(function.owner())
+                .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?
+                .body();
+            for (pack, _) in body.packs() {
+                for kind in [
+                    crate::Arm64PackCallbackKind::Next,
+                    crate::Arm64PackCallbackKind::Destroy,
+                ] {
+                    pack_callbacks.push((
+                        crate::Arm64PackCallbackKey::new(function.owner(), pack, kind),
+                        builder.declare_function(),
+                    ));
+                }
+            }
+        }
         let mut data = Vec::with_capacity(machine.data().len());
         for (source, definition) in machine.data().iter() {
             if source.index() != data.len() {
@@ -45,7 +63,20 @@ impl Arm64Program {
                 .get(function.owner().index())
                 .and_then(|(owner, target)| (*owner == function.owner()).then_some(*target))
                 .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
-            builder.define_function(target, function.materialize(&functions, &data)?)?;
+            builder.define_function(
+                target,
+                function.materialize(&functions, &data, &pack_callbacks)?,
+            )?;
+        }
+        for (key, target) in &pack_callbacks {
+            let function = selected
+                .get(key.owner().index())
+                .filter(|function| function.owner() == key.owner())
+                .ok_or(Arm64LoweringError::UnknownFunction(key.owner()))?;
+            builder.define_function(
+                *target,
+                crate::pack_callback::materialize(machine, function, *key, &functions)?,
+            )?;
         }
         let entry = functions
             .get(root.index())

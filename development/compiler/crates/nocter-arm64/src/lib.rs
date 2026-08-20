@@ -22,7 +22,9 @@ mod lower;
 mod memory_code;
 mod memory_parallel_copy;
 mod memory_selection;
+mod pack_callback;
 mod pack_layout;
+mod pack_selection;
 mod parallel_copy;
 mod primitive_memory_code;
 mod primitive_memory_selection;
@@ -61,6 +63,7 @@ pub use instruction::{
     Arm64Logical, Arm64MoveWide, Arm64Shift,
 };
 pub use lower::Arm64LoweringError;
+pub use pack_callback::{Arm64PackCallbackKey, Arm64PackCallbackKind};
 pub use pack_layout::{
     Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,
 };
@@ -76,6 +79,7 @@ pub use register_allocation::{
     Arm64RegisterAllocationError, Arm64SpillSlotId, Arm64VirtualRegister,
 };
 pub use selected_code::Arm64MaterializationError;
+pub(crate) use selection::Arm64SelectionContext;
 pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
     Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedIndexAddressDomain,

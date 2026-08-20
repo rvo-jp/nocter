@@ -51,7 +51,7 @@ impl MachOImage {
     /// relocation failure, and file layouts that exceed 32-bit Mach-O command offsets.
     pub fn build(program: &Arm64Program) -> Result<Self, MachOError> {
         let layout = ImageLayout::new(program)?;
-        let relocated_text = program.relocate_data_addresses(
+        let relocated_text = program.relocate_addresses(
             checked_add(VM_BASE, layout.text_offset)?,
             checked_add(VM_BASE, layout.data_offset)?,
         )?;

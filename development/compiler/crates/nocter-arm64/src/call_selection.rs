@@ -7,32 +7,9 @@ use nocter_machine::{
 use crate::{
     Arm64DataSize, Arm64FunctionFrame, Arm64NocterAbi, Arm64SelectedInstruction,
     Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
-    Arm64SelectedStackAddress, Arm64SelectionError, Arm64ValuePlan, Arm64ValueStorage,
+    Arm64SelectedStackAddress, Arm64SelectionContext, Arm64SelectionError, Arm64ValuePlan,
+    Arm64ValueStorage,
 };
-
-#[derive(Clone, Copy)]
-pub(crate) struct CallSelectionContext<'selection> {
-    program: &'selection nocter_machine::MachineProgram,
-    values: &'selection Arm64ValuePlan,
-    frame: &'selection Arm64FunctionFrame,
-    addresses: &'selection crate::Arm64SelectedAddressPlan,
-}
-
-impl<'selection> CallSelectionContext<'selection> {
-    pub(crate) const fn new(
-        program: &'selection nocter_machine::MachineProgram,
-        values: &'selection Arm64ValuePlan,
-        frame: &'selection Arm64FunctionFrame,
-        addresses: &'selection crate::Arm64SelectedAddressPlan,
-    ) -> Self {
-        Self {
-            program,
-            values,
-            frame,
-            addresses,
-        }
-    }
-}
 
 pub(crate) fn select_parameters(
     program: &nocter_machine::MachineProgram,
@@ -53,6 +30,7 @@ pub(crate) fn select_parameters(
         return Err(Arm64SelectionError::Parameters(function.linkage()));
     }
     select_incoming_result_pointer(function.linkage(), abi, frame, &mut selected)?;
+    select_incoming_pack_pointer(function.linkage(), abi, frame, &mut selected)?;
     // Persist every register-carried input before materializing any indirect value. Large address
     // calculations may use argument registers as late scratch lanes, but never before all incoming
     // register values have crossed into callee-owned frame objects.
@@ -142,19 +120,16 @@ fn select_register_parameter(
 }
 
 pub(crate) fn select_call(
-    context: CallSelectionContext<'_>,
+    context: Arm64SelectionContext<'_>,
     operation: MachineOperationId,
     call: &MachineCall,
     result: Option<MachineValueId>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    if call.pack().is_some() {
-        return Err(Arm64SelectionError::CallPack(operation));
-    }
     let abi = match call.target() {
         MachineCallTarget::Direct(target) => {
             let target_function = context
-                .program
+                .program()
                 .function(*target)
                 .ok_or(Arm64SelectionError::UnknownFunction(*target))?;
             let MachineFunctionKind::Callable(abi) = target_function.kind() else {
@@ -164,28 +139,29 @@ pub(crate) fn select_call(
         }
         MachineCallTarget::Primitive(target) => target.abi(),
     };
+    crate::pack_selection::select_call_pack(context, operation, call, abi, selected)?;
     crate::allocation_selection::select_call(
-        context.program,
+        context.program(),
         operation,
         call,
-        context.frame,
-        context.addresses,
+        context.frame(),
+        context.addresses(),
         selected,
     )?;
     select_call_arguments(
         operation,
         call,
         abi,
-        context.values,
-        context.frame,
+        context.values(),
+        context.frame(),
         selected,
     )?;
     select_call_result_storage(
         operation,
         abi.result(),
         result,
-        context.values,
-        context.frame,
+        context.values(),
+        context.frame(),
         selected,
     )?;
     match call.target() {
@@ -193,10 +169,10 @@ pub(crate) fn select_call(
             selected.push(Arm64SelectedInstruction::Call(*target));
         }
         MachineCallTarget::Primitive(target) => {
-            crate::primitive_selection::select(context.program, operation, target, selected)?;
+            crate::primitive_selection::select(context.program(), operation, target, selected)?;
         }
     }
-    select_call_result(operation, abi.result(), result, context.values, selected)
+    select_call_result(operation, abi.result(), result, context.values(), selected)
 }
 
 pub(crate) fn select_return(
@@ -490,7 +466,7 @@ fn select_indirect_argument(
     Ok(())
 }
 
-fn select_call_result_storage(
+pub(crate) fn select_call_result_storage(
     operation: MachineOperationId,
     abi: MachineResultAbi,
     result: Option<MachineValueId>,
@@ -524,7 +500,7 @@ fn select_call_result_storage(
     Ok(())
 }
 
-fn select_call_result(
+pub(crate) fn select_call_result(
     operation: MachineOperationId,
     abi: MachineResultAbi,
     result: Option<MachineValueId>,
@@ -555,6 +531,36 @@ fn select_call_result(
         },
         (MachineResultAbi::Value(_), None) => Err(Arm64SelectionError::MissingResult(operation)),
     }
+}
+
+fn select_incoming_pack_pointer(
+    owner: nocter_machine::MachineLinkageId,
+    abi: &nocter_machine::MachineCallableAbi,
+    frame: &Arm64FunctionFrame,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let Some(pack) = abi.pack() else {
+        return if frame.pack_input_pointer().is_none() {
+            Ok(())
+        } else {
+            Err(Arm64SelectionError::PackAbi(owner))
+        };
+    };
+    if pack.pointer().words() != 1 {
+        return Err(Arm64SelectionError::PackAbi(owner));
+    }
+    let object = frame
+        .pack_input_pointer()
+        .ok_or(Arm64SelectionError::PackAbi(owner))?;
+    selected.push(Arm64SelectedInstruction::StoreMemory {
+        bytes: word_bytes(),
+        destination: Arm64SelectedMemoryAddress::Stack(Arm64SelectedStackAddress::FrameObject {
+            object,
+            offset: 0,
+        }),
+        source: Arm64SelectedRegister::Fixed(abi_register(pack.pointer().first())?),
+    });
+    Ok(())
 }
 
 fn select_indirect_return(

@@ -231,7 +231,7 @@ pub(crate) fn emit_memory_address(
     }
 }
 
-fn emit_fragmented_load(
+pub(crate) fn emit_fragmented_load(
     code: &mut Arm64CodeBuilder,
     bytes: u8,
     destination: Arm64Register,

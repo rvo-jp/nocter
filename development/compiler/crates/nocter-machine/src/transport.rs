@@ -114,6 +114,7 @@ impl MachineArgumentAbi {
 pub struct MachinePackAbi {
     element: TypeId,
     next: TypeId,
+    next_result: MachineResultAbi,
     pointer: MachineRegisterSpan,
 }
 
@@ -126,6 +127,11 @@ impl MachinePackAbi {
     #[must_use]
     pub const fn next(self) -> TypeId {
         self.next
+    }
+
+    #[must_use]
+    pub const fn next_result(self) -> MachineResultAbi {
+        self.next_result
     }
 
     #[must_use]
@@ -282,14 +288,19 @@ fn plan_function(
         require_layout(types, layouts, pack.element())?;
         require_layout(types, layouts, pack.next())?;
     }
-    let pack = pack.map(|pack| MachinePackAbi {
-        element: pack.element(),
-        next: pack.next(),
-        pointer: MachineRegisterSpan {
-            first: layouts.target().pack_pointer_register(),
-            words: 1,
-        },
-    });
+    let pack = pack
+        .map(|pack| {
+            Ok(MachinePackAbi {
+                element: pack.element(),
+                next: pack.next(),
+                next_result: plan_result(types, layouts, pack.next())?,
+                pointer: MachineRegisterSpan {
+                    first: layouts.target().pack_pointer_register(),
+                    words: 1,
+                },
+            })
+        })
+        .transpose()?;
     plan_signature(types, layouts, &parameters, function.result(), pack)
 }
 
@@ -359,7 +370,7 @@ pub(crate) fn plan_signature(
     })
 }
 
-fn plan_result(
+pub(crate) fn plan_result(
     types: &TypeStore,
     layouts: &MachineLayoutStore,
     ty: TypeId,

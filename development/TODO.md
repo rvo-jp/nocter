@@ -11,10 +11,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Generate and execute literal-pack descriptor initialization, consuming-next callbacks, and
-   residual-destruction callbacks. Pointer and pack plans now share deterministic generated
-   linkage and one `(byte_pointer, byte_offset)` function ABI; callback code must invoke those
-   functions rather than interpret a recursive cleanup recipe.
+1. Complete literal-pack callbacks for spread segments. Fixed-segment descriptors now initialize
+   their caller-owned state, length, and target function pointers; consuming-next returns the
+   exact `Optional<T>` ABI, and residual cleanup invokes the shared generated
+   `(byte_pointer, byte_offset)` destruction functions in reverse order. Spread callbacks must
+   call their frozen iterator target and preserve the same descriptor and cleanup authorities.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release through that representation without deriving runtime state from the
    current standard-library implementation.
@@ -62,8 +63,8 @@ restricts call-crossing ranges to the callee-saved partition, and records dense 
 exact preservation set. Frame prologue and
 epilogue materialization handles both immediate and full-width scratch-register offsets. Dense
 ARM64 function/data domains already validate every typed fixup, resolve
-function branches after text layout, and defer only section-address-dependent data pairs to one
-checked relocation method.
+function branches after text layout, and defer page-relative function/data address pairs to one
+checked relocation method after the writer supplies both section virtual addresses.
 The independent Mach-O writer owns section/VM layout, native and dynamic-loader commands,
 content-derived UUIDs, SHA-256 ad-hoc signing, and final bytes; its ARM64 macOS test executes the
 generated image without external tools.

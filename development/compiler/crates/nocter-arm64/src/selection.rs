@@ -10,6 +10,54 @@ use crate::{
     Arm64ValuePlan, Arm64ValueStorage, Arm64VirtualRegister,
 };
 
+/// Shared immutable inputs for selecting one operation in a machine function.
+#[derive(Clone, Copy)]
+pub(crate) struct Arm64SelectionContext<'selection> {
+    program: &'selection nocter_machine::MachineProgram,
+    owner: MachineFunctionId,
+    values: &'selection Arm64ValuePlan,
+    frame: &'selection Arm64FunctionFrame,
+    addresses: &'selection crate::Arm64SelectedAddressPlan,
+}
+
+impl<'selection> Arm64SelectionContext<'selection> {
+    const fn new(
+        program: &'selection nocter_machine::MachineProgram,
+        owner: MachineFunctionId,
+        values: &'selection Arm64ValuePlan,
+        frame: &'selection Arm64FunctionFrame,
+        addresses: &'selection crate::Arm64SelectedAddressPlan,
+    ) -> Self {
+        Self {
+            program,
+            owner,
+            values,
+            frame,
+            addresses,
+        }
+    }
+
+    pub(crate) const fn program(self) -> &'selection nocter_machine::MachineProgram {
+        self.program
+    }
+
+    pub(crate) const fn owner(self) -> MachineFunctionId {
+        self.owner
+    }
+
+    pub(crate) const fn values(self) -> &'selection Arm64ValuePlan {
+        self.values
+    }
+
+    pub(crate) const fn frame(self) -> &'selection Arm64FunctionFrame {
+        self.frame
+    }
+
+    pub(crate) const fn addresses(self) -> &'selection crate::Arm64SelectedAddressPlan {
+        self.addresses
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedRegister {
     Virtual(Arm64VirtualRegister),
@@ -45,6 +93,11 @@ pub enum Arm64SelectedInstruction {
     LoadDataAddress {
         destination: Arm64SelectedRegister,
         source: MachineDataId,
+    },
+    LoadPackCallbackAddress {
+        destination: Arm64SelectedRegister,
+        pack: nocter_machine::MachinePackId,
+        kind: crate::Arm64PackCallbackKind,
     },
     Move {
         size: Arm64DataSize,
@@ -120,6 +173,7 @@ pub enum Arm64SelectedInstruction {
         right: Arm64SelectedRegister,
     },
     Call(MachineFunctionId),
+    CallRegister(Arm64SelectedRegister),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -328,6 +382,7 @@ impl Arm64SelectedFunction {
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
         let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
+        let context = Arm64SelectionContext::new(program, owner, &values, &frame, &addresses);
         let mut entry_instructions =
             crate::call_selection::select_parameters(program, owner, function, &frame)?.into_vec();
         crate::destruction_selection::select_entry(function, &frame, &mut entry_instructions)?;
@@ -338,15 +393,13 @@ impl Arm64SelectedFunction {
             }
             let mut instructions = Vec::new();
             for operation_id in block.operations() {
-                select_operation(
-                    program,
-                    owner,
-                    *operation_id,
-                    &values,
-                    &frame,
-                    &addresses,
-                    &mut instructions,
+                let operation = function.body().operation(*operation_id).ok_or(
+                    Arm64SelectionError::UnknownOperation {
+                        function: owner,
+                        operation: *operation_id,
+                    },
                 )?;
+                select_operation(context, *operation_id, operation, &mut instructions)?;
             }
             let terminator = select_terminator(
                 function,
@@ -420,21 +473,16 @@ impl Arm64SelectedFunction {
 }
 
 fn select_operation(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
+    context: Arm64SelectionContext<'_>,
     operation_id: MachineOperationId,
-    values: &Arm64ValuePlan,
-    frame: &Arm64FunctionFrame,
-    addresses: &crate::Arm64SelectedAddressPlan,
+    operation: &nocter_machine::MachineOperation,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let operation = program
-        .function(owner)
-        .and_then(|function| function.body().operation(operation_id))
-        .ok_or(Arm64SelectionError::UnknownOperation {
-            function: owner,
-            operation: operation_id,
-        })?;
+    let program = context.program();
+    let owner = context.owner();
+    let values = context.values();
+    let frame = context.frame();
+    let addresses = context.addresses();
     match operation.kind() {
         MachineOperationKind::Constant(constant) => {
             let result = operation
@@ -512,17 +560,33 @@ fn select_operation(
             crate::destruction_selection::select_flag_write(*flag, *initialized, frame, selected)
         }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
-            crate::call_selection::CallSelectionContext::new(program, values, frame, addresses),
+            context,
             operation_id,
             call,
             operation.result(),
             selected,
         ),
-        unsupported => Err(Arm64SelectionError::UnsupportedOperation {
-            operation: operation_id,
-            kind: crate::selection_error::operation_name(unsupported),
-        }),
+        MachineOperationKind::PackLength
+        | MachineOperationKind::PackNext
+        | MachineOperationKind::DestroyPack => crate::pack_selection::select_pack_operation(
+            context,
+            operation_id,
+            operation.kind(),
+            operation.result(),
+            selected,
+        ),
+        unsupported => unsupported_operation(operation_id, unsupported),
     }
+}
+
+fn unsupported_operation(
+    operation: MachineOperationId,
+    kind: &MachineOperationKind,
+) -> Result<(), Arm64SelectionError> {
+    Err(Arm64SelectionError::UnsupportedOperation {
+        operation,
+        kind: crate::selection_error::operation_name(kind),
+    })
 }
 
 fn select_aggregate_operation(

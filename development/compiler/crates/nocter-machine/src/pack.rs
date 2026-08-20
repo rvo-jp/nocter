@@ -1,6 +1,8 @@
 use nocter_model::TypeId;
 
-use crate::{MachineAddressId, MachineCallTarget, MachineFunctionId, MachineValueId};
+use crate::{
+    MachineAddressId, MachineCallTarget, MachineFunctionId, MachineResultAbi, MachineValueId,
+};
 
 /// How a successful spread item becomes one pack element.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,6 +126,7 @@ pub enum MachinePackSegment {
 pub struct MachinePack {
     element: TypeId,
     next: TypeId,
+    next_result: MachineResultAbi,
     length: MachineValueId,
     segments: Box<[MachinePackSegment]>,
 }
@@ -132,12 +135,14 @@ impl MachinePack {
     pub(crate) fn new(
         element: TypeId,
         next: TypeId,
+        next_result: MachineResultAbi,
         length: MachineValueId,
         segments: impl Into<Box<[MachinePackSegment]>>,
     ) -> Self {
         Self {
             element,
             next,
+            next_result,
             length,
             segments: segments.into(),
         }
@@ -151,6 +156,11 @@ impl MachinePack {
     #[must_use]
     pub const fn next(&self) -> TypeId {
         self.next
+    }
+
+    #[must_use]
+    pub const fn next_result(&self) -> MachineResultAbi {
+        self.next_result
     }
 
     #[must_use]

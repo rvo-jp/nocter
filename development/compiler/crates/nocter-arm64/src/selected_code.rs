@@ -23,6 +23,7 @@ impl Arm64SelectedFunction {
         &self,
         functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
         data: &[(MachineDataId, crate::Arm64DataId)],
+        pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
     ) -> Result<Arm64Code, Arm64MaterializationError> {
         let mut code = Arm64CodeBuilder::new();
         let labels = self
@@ -30,14 +31,20 @@ impl Arm64SelectedFunction {
             .map(|(block, _)| (block, code.create_label()))
             .collect::<Vec<_>>();
         Arm64FrameCode::emit_prologue(self.frame().layout(), &mut code);
+        let context = InstructionMaterialization {
+            function: self,
+            functions,
+            data,
+            pack_callbacks,
+        };
         for instruction in self.entry_instructions() {
-            emit_instruction(self, instruction, functions, data, &mut code)?;
+            emit_instruction(context, instruction, &mut code)?;
         }
         code.branch(block_label(&labels, self.entry())?, false);
         for (block_id, block) in self.blocks() {
             code.bind(block_label(&labels, block_id)?)?;
             for instruction in block.instructions() {
-                emit_instruction(self, instruction, functions, data, &mut code)?;
+                emit_instruction(context, instruction, &mut code)?;
             }
             emit_terminator(self, block.terminator(), &labels, &mut code)?;
         }
@@ -45,13 +52,20 @@ impl Arm64SelectedFunction {
     }
 }
 
+#[derive(Clone, Copy)]
+struct InstructionMaterialization<'selected> {
+    function: &'selected Arm64SelectedFunction,
+    functions: &'selected [(MachineFunctionId, crate::Arm64FunctionId)],
+    data: &'selected [(MachineDataId, crate::Arm64DataId)],
+    pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+}
+
 fn emit_instruction(
-    function: &Arm64SelectedFunction,
+    context: InstructionMaterialization<'_>,
     instruction: &Arm64SelectedInstruction,
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
-    data: &[(MachineDataId, crate::Arm64DataId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
+    let function = context.function;
     match *instruction {
         Arm64SelectedInstruction::LoadImmediate {
             size,
@@ -64,9 +78,14 @@ fn emit_instruction(
         } => crate::memory_code::emit_data_address(
             function,
             destination,
-            data_target(data, source)?,
+            data_target(context.data, source)?,
             code,
         ),
+        Arm64SelectedInstruction::LoadPackCallbackAddress {
+            destination,
+            pack,
+            kind,
+        } => emit_pack_callback_address(context, destination, pack, kind, code),
         Arm64SelectedInstruction::Move {
             size,
             destination,
@@ -127,31 +146,77 @@ fn emit_instruction(
         | Arm64SelectedInstruction::Break { .. } => {
             crate::system_primitive_code::emit_selected(function, instruction, code)
         }
-        Arm64SelectedInstruction::CompareBorrowed {
-            size,
+        Arm64SelectedInstruction::CompareBorrowed { .. } => {
+            emit_selected_borrowed_comparison(function, instruction, code)
+        }
+        Arm64SelectedInstruction::Call(target) => {
+            function_target(context.functions, target).map(|target| code.call(target))
+        }
+        Arm64SelectedInstruction::CallRegister(target) => {
+            emit_indirect_call(function, target, code)
+        }
+    }
+}
+
+fn emit_selected_borrowed_comparison(
+    function: &Arm64SelectedFunction,
+    instruction: &Arm64SelectedInstruction,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let Arm64SelectedInstruction::CompareBorrowed {
+        size,
+        extension,
+        operation,
+        offset,
+        destination,
+        left,
+        right,
+    } = *instruction
+    else {
+        unreachable!("borrowed comparison emitter receives a borrowed comparison")
+    };
+    emit_borrowed_comparison(
+        function,
+        BorrowedComparisonMaterialization {
+            load_size: size,
             extension,
             operation,
             offset,
             destination,
-            left,
-            right,
-        } => emit_borrowed_comparison(
-            function,
-            BorrowedComparisonMaterialization {
-                load_size: size,
-                extension,
-                operation,
-                offset,
-                destination,
-                left_address: left,
-                right_address: right,
-            },
-            code,
-        ),
-        Arm64SelectedInstruction::Call(target) => {
-            function_target(functions, target).map(|target| code.call(target))
-        }
-    }
+            left_address: left,
+            right_address: right,
+        },
+        code,
+    )
+}
+
+fn emit_pack_callback_address(
+    context: InstructionMaterialization<'_>,
+    destination: Arm64SelectedRegister,
+    pack: nocter_machine::MachinePackId,
+    kind: crate::Arm64PackCallbackKind,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let destination = write_target(context.function, destination)?;
+    code.load_function_address(
+        pack_callback_target(
+            context.pack_callbacks,
+            crate::Arm64PackCallbackKey::new(context.function.owner(), pack, kind),
+        )?,
+        destination.register,
+    );
+    finish_write(destination, code);
+    Ok(())
+}
+
+fn emit_indirect_call(
+    function: &Arm64SelectedFunction,
+    target: Arm64SelectedRegister,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let target = read_register(function, target, 0, code)?;
+    code.append(Arm64Instruction::BranchRegister { target, link: true });
+    Ok(())
 }
 
 fn emit_resolved_address(
@@ -711,6 +776,17 @@ fn function_target(
         .ok_or(Arm64MaterializationError::UnknownFunction(target))
 }
 
+fn pack_callback_target(
+    callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+    source: crate::Arm64PackCallbackKey,
+) -> Result<crate::Arm64FunctionId, Arm64MaterializationError> {
+    callbacks
+        .binary_search_by_key(&source, |(key, _)| *key)
+        .ok()
+        .and_then(|index| callbacks.get(index).map(|(_, target)| *target))
+        .ok_or(Arm64MaterializationError::UnknownPackCallback(source))
+}
+
 fn data_target(
     data: &[(MachineDataId, crate::Arm64DataId)],
     source: MachineDataId,
@@ -732,6 +808,9 @@ const fn load_store_bytes(size: Arm64LoadStoreSize) -> u64 {
 #[derive(Debug)]
 pub enum Arm64MaterializationError {
     UnknownFunction(MachineFunctionId),
+    UnknownPackCallback(crate::Arm64PackCallbackKey),
+    InvalidPackCallback(crate::Arm64PackCallbackKey),
+    UnsupportedPackSpread(crate::Arm64PackCallbackKey),
     UnknownData(MachineDataId),
     UnknownBlock(MachineBlockId),
     UnknownSelectedAddress(nocter_machine::MachineAddressId),
@@ -747,6 +826,7 @@ pub enum Arm64MaterializationError {
     MissingMemoryEdgeStaging,
     InvalidSystemCallArity(u8),
     InvalidSwitchWidth(usize),
+    PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }
 
@@ -760,8 +840,15 @@ impl std::error::Error for Arm64MaterializationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Code(error) => Some(error),
+            Self::PackCallbackFrame(error) => Some(error),
             _ => None,
         }
+    }
+}
+
+impl From<crate::Arm64FrameLayoutError> for Arm64MaterializationError {
+    fn from(error: crate::Arm64FrameLayoutError) -> Self {
+        Self::PackCallbackFrame(error)
     }
 }
 

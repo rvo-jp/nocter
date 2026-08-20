@@ -234,9 +234,13 @@ context or hidden ABI pointer receives its own saved pointer word.
 Every literal call site owns a four-word descriptor containing its state pointer, immutable total
 length, next callback, and residual-destruction callback. Its separate state object starts with a
 segment cursor and stores fixed values or spread remaining-count/iterator pairs in source order
-under their checked machine size and alignment. The target later generates callbacks specialized
-to that state layout; a literal body therefore consumes one stable descriptor ABI without erasing
-the ownership layout of each caller's pack.
+under their checked machine size and alignment. The target declares two stable functions for every
+body-local pack and stores their relocated addresses in the descriptor. Fixed-segment next
+callbacks construct the planned direct or caller-owned `Optional<T>` result and advance the cursor;
+fixed residual callbacks first make the state consumed, then call ordinary generated destruction
+functions for unconsumed values in reverse order. A literal body therefore consumes one stable
+descriptor ABI without erasing the ownership layout of each caller's pack. Spread segments retain
+the same layout and function identities, but their iterator-call execution is not implemented yet.
 
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
@@ -468,5 +472,7 @@ conditional drop flags, value and stored-tag switches, and cycle-safe direct/mem
 transport are complete. Concrete destruction now interns exact pointer and pack plans as ordinary
 generated machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty
 pointer plans, and hidden allocation-context propagation execute natively through pointer calls.
+Fixed literal packs now initialize and transfer their four-word descriptors, execute consuming-next
+through the exact result ABI, and destroy unconsumed elements through those generated functions.
 Process-entry state, I/O and error primitives, lexical region representation and cleanup, pack
-descriptor/callback execution, and test roots remain Phase 5 implementation areas.
+spread-callback execution, and test roots remain Phase 5 implementation areas.

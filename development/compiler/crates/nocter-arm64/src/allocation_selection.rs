@@ -110,6 +110,23 @@ fn select_inherited(
     }
 }
 
+/// Reloads the current context before an indirect compiler-generated callback. A callback exists
+/// outside the machine function domain, so its need was already propagated into the containing
+/// literal function by `MachineAllocationPlan`.
+pub(crate) fn select_current(
+    operation: nocter_machine::MachineOperationId,
+    frame: &Arm64FunctionFrame,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    match frame.allocation_context() {
+        Arm64AllocationContextFrame::None => Ok(()),
+        Arm64AllocationContextFrame::ProgramRoot(_)
+        | Arm64AllocationContextFrame::IncomingPointer(_) => {
+            select_inherited(operation, frame, selected)
+        }
+    }
+}
+
 /// Materializes the inherited context for a compiler-generated direct call boundary.
 pub(crate) fn select_inherited_target(
     program: &nocter_machine::MachineProgram,
