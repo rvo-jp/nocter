@@ -3,7 +3,7 @@ use nocter_model::TypeId;
 use crate::MachineFunctionId;
 
 /// One field cleanup at its frozen byte offset.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionField {
     offset: u64,
     plan: MachineDestructionPlan,
@@ -26,7 +26,7 @@ impl MachineDestructionField {
 }
 
 /// One enum payload cleanup at its frozen byte offset.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionPayload {
     offset: u64,
     plan: MachineDestructionPlan,
@@ -49,7 +49,7 @@ impl MachineDestructionPayload {
 }
 
 /// Destruction for one active enum tag.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionVariant {
     tag: u8,
     payload: Box<[MachineDestructionPayload]>,
@@ -75,7 +75,7 @@ impl MachineDestructionVariant {
 }
 
 /// One closure-capture cleanup at its frozen byte offset.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionCapture {
     offset: u64,
     plan: MachineDestructionPlan,
@@ -98,7 +98,7 @@ impl MachineDestructionCapture {
 }
 
 /// A destruction recipe expressed only in machine functions, tags, strides, and byte offsets.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MachineDestructionKind {
     Struct {
         drop: Option<MachineFunctionId>,
@@ -125,7 +125,7 @@ pub enum MachineDestructionKind {
 }
 
 /// One exact cleanup plan for bytes with a frozen stored layout.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionPlan {
     ty: TypeId,
     size: u64,

@@ -8,6 +8,8 @@ mod call;
 mod control;
 mod dataflow;
 mod destruction;
+mod destruction_table;
+mod generated_destruction;
 mod identity;
 mod layout;
 mod linkage;
@@ -34,9 +36,11 @@ pub use destruction::{
     MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
     MachineDestructionVariant,
 };
+pub use destruction_table::{MachineDestruction, MachineDestructionTable};
 pub use identity::{
-    MachineAddressId, MachineBlockId, MachineDataId, MachineDropFlagId, MachineFunctionId,
-    MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId, MachineValueId,
+    MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
+    MachineFunctionId, MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId,
+    MachineValueId,
 };
 
 pub use layout::{

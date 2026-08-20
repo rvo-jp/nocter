@@ -380,8 +380,8 @@ be introduced to make an unresolved syntax choice.
   linkage is separately keyed by exact executable item, process target, or test declaration; no
   display name participates. Test roots retain declaration order outside that key table. Static
   text receives content-sorted, deduplicated `MachineDataId` values rather than first-use IDs.
-  `MachineProgram` now owns distinct dense function, stack-object, drop-flag, address, SSA-value,
-  operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
+  `MachineProgram` now owns distinct dense function, generated-destruction, stack-object, drop-flag,
+  address, SSA-value, operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
   fixed/view indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
   explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
   Stored, completion, and diverging SSA representations are distinct. User-drop calls, process
@@ -399,6 +399,13 @@ be introduced to make an unresolved syntax choice.
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   `live_in`/`live_out` sets, and records exact inputs and `live_after` values for every operation.
   ARM64 selection consumes those facts instead of rebuilding machine semantics.
+  A content-ordered `MachineDestructionTable` now interns every nonempty pointer-destruction plan.
+  Generated linkage is appended after the stable source domain, and each plan becomes an ordinary
+  machine function with the primitive's exact `(pointer, byte_offset)` ABI. Structs, active
+  enum/outcome payloads, closure captures, and opaque witnesses use layout-owned address steps;
+  fixed arrays use one reverse CFG loop rather than unrolled code. Authored drops remain normal
+  direct calls, so allocation-context propagation and call liveness require no generated-function
+  exception. Empty plans remain an explicitly validated native no-op.
 - `nocter-arm64` owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as `sp` or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
@@ -478,8 +485,9 @@ be introduced to make an unresolved syntax choice.
   comparisons, narrow signed values, direct- and memory-valued block joins, optional tag switches,
   static text, two-word view calls, direct and memory-backed aggregates, dynamic fixed-array places,
   fixed/view index borrows, and
-  pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls, and
-  primitive process exit, user destruction, and conditional drop flags
+  pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls,
+  primitive process exit, user destruction, conditional drop flags, and generated recursive
+  pointer destruction
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.

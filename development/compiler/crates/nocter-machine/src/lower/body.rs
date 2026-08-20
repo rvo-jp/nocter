@@ -3,33 +3,31 @@ use std::fmt;
 
 use nocter_mir::{MirBody, MirLocalKind, MirValueDefinition};
 use nocter_model::{
-    BuiltinType, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId,
-    MirPlaceId, MirValueId, TypeKind, TypeStore,
+    BuiltinType, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId,
+    TypeKind, TypeStore,
 };
 
 use super::MachineProgramError;
 use super::address::lower_addresses;
+use super::context::ProgramLoweringContext;
 use super::control::lower_blocks;
 use super::operation::lower_operations;
 use super::pack::lower_packs;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineAddressId, MachineBlockId, MachineDataTable, MachineDropFlag, MachineDropFlagId,
-    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineOperationId, MachinePackId,
-    MachineStackId, MachineStackObject, MachineStackPurpose, MachineValue, MachineValueDefinition,
-    MachineValueId, MachineValueRepresentation,
+    MachineAddressId, MachineBlockId, MachineDropFlag, MachineDropFlagId, MachineLayoutStore,
+    MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId, MachineStackObject,
+    MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
+    MachineValueRepresentation,
 };
 
 pub(super) fn lower_body(
     owner: MachineLinkageId,
     body: &MirBody,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    data: &MachineDataTable,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    context: ProgramLoweringContext<'_>,
 ) -> Result<crate::MachineBody, MachineProgramError> {
     let ids = BodyIdentities::new(owner, body);
-    let stack = lower_stack(body, layouts)?;
+    let stack = lower_stack(body, context.layouts)?;
     let parameters = body
         .parameters()
         .iter()
@@ -40,11 +38,11 @@ pub(super) fn lower_body(
         .iter()
         .map(|(_, flag)| MachineDropFlag::new(flag.initially_initialized()))
         .collect::<Vec<_>>();
-    let addresses = lower_addresses(body, types, layouts, &ids)?;
-    let values = lower_values(body, types, layouts, &ids)?;
-    let packs = lower_packs(body, types, layouts, functions, &ids)?;
-    let operations = lower_operations(body, types, layouts, data, functions, &ids)?;
-    let blocks = lower_blocks(body, layouts, &ids)?;
+    let addresses = lower_addresses(body, context.types, context.layouts, &ids)?;
+    let values = lower_values(body, context.types, context.layouts, &ids)?;
+    let packs = lower_packs(body, context, &ids)?;
+    let operations = lower_operations(body, context, &ids)?;
+    let blocks = lower_blocks(body, context.layouts, &ids)?;
 
     Ok(crate::MachineBody::new(
         parameters,

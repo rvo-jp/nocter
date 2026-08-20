@@ -34,6 +34,7 @@ pub enum Arm64SelectedIndexBound {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedAddressStep {
     Offset(u64),
+    OffsetRegister(Arm64SelectedRegister),
     Dereference,
     ViewDereference {
         pointer_offset: u64,
@@ -141,6 +142,9 @@ fn select_address(
     for step in address.steps() {
         let selected = match *step {
             MachineAddressStep::Offset(offset) => Arm64SelectedAddressStep::Offset(offset),
+            MachineAddressStep::OffsetValue(value) => {
+                Arm64SelectedAddressStep::OffsetRegister(one_word(values, value)?)
+            }
             MachineAddressStep::Dereference => {
                 current_view = false;
                 Arm64SelectedAddressStep::Dereference

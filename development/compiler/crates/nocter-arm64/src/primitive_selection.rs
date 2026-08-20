@@ -37,6 +37,7 @@ pub(crate) fn select(
         | PrimitiveRole::TakeValueAtPointer => {
             super::primitive_memory_selection::select(program, operation, target, selected)
         }
+        PrimitiveRole::DropValueAtPointer => select_noop_destruction(operation, target),
         PrimitiveRole::StringFromRawParts
         | PrimitiveRole::ByteSliceFromRawParts
         | PrimitiveRole::MutableByteSliceFromRawParts => {
@@ -74,6 +75,42 @@ pub(crate) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_noop_destruction(
+    operation: MachineOperationId,
+    target: &MachinePrimitiveTarget,
+) -> Result<(), Arm64SelectionError> {
+    validate_type_arguments(operation, target, 1)?;
+    let nocter_machine::MachinePrimitiveDependency::Destruction {
+        subject,
+        plan: None,
+    } = target.dependency()
+    else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    if target.type_arguments() != [*subject]
+        || target.abi().arguments().len() != 2
+        || target.abi().pack().is_some()
+        || target.abi().stack_argument_size() != 0
+        || target.abi().result() != MachineResultAbi::Completion
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    for (first, argument) in target.abi().arguments().iter().enumerate() {
+        let first =
+            u8::try_from(first).map_err(|_| Arm64SelectionError::PrimitiveCall(operation))?;
+        let Some(MachineArgumentLocation::Registers(registers)) = argument.location() else {
+            return Err(Arm64SelectionError::PrimitiveCall(operation));
+        };
+        if argument.class() != (MachineValueClass::Direct { words: 1 })
+            || registers.first() != first
+            || registers.words() != 1
+        {
+            return Err(Arm64SelectionError::PrimitiveCall(operation));
+        }
+    }
+    Ok(())
 }
 
 fn select_context_reader(

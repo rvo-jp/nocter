@@ -1,33 +1,22 @@
-use std::collections::BTreeMap;
-
 use nocter_mir::{MirBinaryOperation, MirConstant, MirOperationKind, MirUnaryOperation};
-use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
+use nocter_model::MirOperationId;
 
 use super::MachineProgramError;
 use super::aggregate::lower_aggregate;
 use super::body::BodyIdentities;
 use super::call::lower_call;
+use super::context::ProgramLoweringContext;
 use crate::{
-    MachineBinaryOperation, MachineConstant, MachineDataTable, MachineFunctionId,
-    MachineLayoutStore, MachineOperation, MachineOperationKind, MachineUnaryOperation,
+    MachineBinaryOperation, MachineConstant, MachineDataTable, MachineOperation,
+    MachineOperationKind, MachineUnaryOperation,
 };
 
 pub(super) fn lower_operations(
     body: &nocter_mir::MirBody,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    data: &MachineDataTable,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    program: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineOperation>, MachineProgramError> {
-    let context = OperationContext {
-        body,
-        types,
-        layouts,
-        data,
-        functions,
-        ids,
-    };
+    let context = OperationContext { body, program, ids };
     body.operations()
         .iter()
         .map(|(operation, value)| lower_operation(operation, value, context))
@@ -37,10 +26,7 @@ pub(super) fn lower_operations(
 #[derive(Clone, Copy)]
 struct OperationContext<'a> {
     body: &'a nocter_mir::MirBody,
-    types: &'a TypeStore,
-    layouts: &'a MachineLayoutStore,
-    data: &'a MachineDataTable,
-    functions: &'a BTreeMap<ExecutableItemId, MachineFunctionId>,
+    program: ProgramLoweringContext<'a>,
     ids: &'a BodyIdentities,
 }
 
@@ -49,18 +35,11 @@ fn lower_operation(
     value: &nocter_mir::MirOperation,
     context: OperationContext<'_>,
 ) -> Result<MachineOperation, MachineProgramError> {
-    let OperationContext {
-        body,
-        types,
-        layouts,
-        data,
-        functions,
-        ids,
-    } = context;
+    let OperationContext { body, program, ids } = context;
     let result = value.result().map(|result| ids.value(result)).transpose()?;
     let kind = match value.kind() {
         MirOperationKind::Constant(constant) => {
-            MachineOperationKind::Constant(lower_constant(data, constant)?)
+            MachineOperationKind::Constant(lower_constant(program.data, constant)?)
         }
         MirOperationKind::Read { place, .. } => MachineOperationKind::Load {
             source: ids.address(*place)?,
@@ -112,11 +91,16 @@ fn lower_operation(
                 })?
                 .ty();
             MachineOperationKind::Aggregate(lower_aggregate(
-                operation, aggregate, ty, layouts, ids,
+                operation,
+                aggregate,
+                ty,
+                program.layouts,
+                ids,
             )?)
         }
         MirOperationKind::InvokeDrop { body, place } => MachineOperationKind::InvokeDrop {
-            target: functions
+            target: program
+                .functions
                 .get(body)
                 .copied()
                 .ok_or(MachineProgramError::MissingItemFunction(*body))?,
@@ -131,9 +115,7 @@ fn lower_operation(
         MirOperationKind::ReleaseRegion { region } => MachineOperationKind::ReleaseRegion {
             region: ids.stack(*region)?,
         },
-        MirOperationKind::Call(call) => {
-            lower_call(operation, call, types, layouts, functions, ids)?
-        }
+        MirOperationKind::Call(call) => lower_call(operation, call, program, ids)?,
         MirOperationKind::PackLength => MachineOperationKind::PackLength,
         MirOperationKind::PackNext => MachineOperationKind::PackNext,
         MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,

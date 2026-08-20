@@ -49,6 +49,7 @@ machine_ids! {
     MachineDropFlagId,
     MachineLinkageId,
     MachineDataId,
+    MachineDestructionId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

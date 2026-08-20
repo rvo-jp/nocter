@@ -30,6 +30,17 @@ pub(crate) fn emit_resolve(
     for step in calculation.steps() {
         match *step {
             Arm64SelectedAddressStep::Offset(offset) => add_offset(code, address, offset),
+            Arm64SelectedAddressStep::OffsetRegister(offset) => {
+                let offset = crate::selected_code::read_register(function, offset, 0, code)?;
+                code.append(Arm64Instruction::AddSubtractRegister {
+                    size: Arm64DataSize::Bits64,
+                    operation: Arm64AddSubtract::Add,
+                    set_flags: false,
+                    destination: Arm64DataRegister::General(address),
+                    left: Arm64DataRegister::General(address),
+                    right: Arm64DataRegister::General(offset),
+                });
+            }
             Arm64SelectedAddressStep::Dereference => {
                 load_native(code, Arm64LoadStoreSize::Double, None, address, address, 0);
             }

@@ -5,9 +5,10 @@ use nocter_model::{Symbol, TestId};
 use crate::identity::MachineTable;
 use crate::{
     MachineAbiPlan, MachineAddress, MachineAddressId, MachineBlock, MachineBlockId,
-    MachineDataTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore,
-    MachineLinkageId, MachineLinkageTable, MachineOperation, MachineOperationId, MachinePack,
-    MachinePackId, MachineStackId, MachineStackObject, MachineValue, MachineValueId,
+    MachineDataTable, MachineDestructionTable, MachineDropFlag, MachineDropFlagId,
+    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineLinkageTable, MachineOperation,
+    MachineOperationId, MachinePack, MachinePackId, MachineStackId, MachineStackObject,
+    MachineValue, MachineValueId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -250,6 +251,7 @@ pub struct MachineProgram {
     layouts: MachineLayoutStore,
     abi: MachineAbiPlan,
     allocation: crate::MachineAllocationPlan,
+    destructions: MachineDestructionTable,
     linkage: MachineLinkageTable,
     data: MachineDataTable,
     functions: MachineTable<MachineFunctionId, MachineFunction>,
@@ -261,6 +263,7 @@ pub(crate) struct MachineProgramParts {
     pub(crate) layouts: MachineLayoutStore,
     pub(crate) abi: MachineAbiPlan,
     pub(crate) allocation: crate::MachineAllocationPlan,
+    pub(crate) destructions: MachineDestructionTable,
     pub(crate) linkage: MachineLinkageTable,
     pub(crate) data: MachineDataTable,
     pub(crate) functions: MachineTable<MachineFunctionId, MachineFunction>,
@@ -274,6 +277,7 @@ impl MachineProgram {
             layouts: parts.layouts,
             abi: parts.abi,
             allocation: parts.allocation,
+            destructions: parts.destructions,
             linkage: parts.linkage,
             data: parts.data,
             functions: parts.functions,
@@ -295,6 +299,11 @@ impl MachineProgram {
     #[must_use]
     pub const fn allocation(&self) -> &crate::MachineAllocationPlan {
         &self.allocation
+    }
+
+    #[must_use]
+    pub const fn destructions(&self) -> &MachineDestructionTable {
+        &self.destructions
     }
 
     #[must_use]

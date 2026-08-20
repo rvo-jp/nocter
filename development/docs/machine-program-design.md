@@ -159,10 +159,14 @@ arguments, exact concrete signature, and an explicit specialized semantic depend
 primitives carry no dependency. Pointer destruction carries its concrete subject plus an optional
 `MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
 not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
-item once, and the allocation-context fixed point follows user drops inside the dependency. The
-surrounding common call retains machine-value arguments and allocation context. Its signature uses
-the same callable ABI planner as source functions. A primitive cannot introduce a private register
-convention, and ARM64 selection never looks up a primitive by module or declaration spelling.
+item once. Plans with work enter a content-ordered `MachineDestructionTable`, receive generated
+linkage only after the source-function domain, and become ordinary direct calls with the
+primitive's exact ABI. The generated function expands struct, active enum/outcome payload,
+closure, and opaque traversal into machine CFG. Fixed arrays use one reverse loop with a
+compiler-validated dynamic byte-offset step, so code size is independent of array length. Only
+authored drop bodies remain direct nested calls. The allocation-context fixed point follows those
+calls through the generated function. A known-empty plan remains a validated no-op primitive. No
+ARM64 component receives or recursively interprets a destruction plan.
 
 Compiler-provided structural behavior does not cross a call boundary. Machine lowering replaces
 primitive equality and ordering with comparisons that name exact scalar signedness or an enum tag
@@ -458,8 +462,8 @@ stack arguments after the register window closes. Root/incoming/explicit allocat
 transport, current-context reads, pure pointer/view primitives, byte/value transfer primitives,
 Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user destruction, and
 conditional drop flags, value and stored-tag switches, and cycle-safe direct/memory block-parameter
-transport are complete. Recursive concrete pointer destruction, process-entry state, I/O and error
-primitives, lexical region representation and cleanup, pack callbacks, and test roots remain Phase
-5 implementation areas. Pointer destruction already carries its validated concrete plan through
-the executable, MIR, and machine layers; only generated function materialization and native
-execution remain.
+transport are complete. Concrete pointer destruction now interns exact plans as ordinary generated
+machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty plans, and
+hidden allocation-context propagation execute natively. Process-entry state, I/O and error
+primitives, lexical region representation and cleanup, pack callbacks and residual destruction,
+and test roots remain Phase 5 implementation areas.

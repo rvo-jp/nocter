@@ -433,12 +433,19 @@ fn add_address_inputs(
         }
     }
     for step in address.steps() {
-        if let MachineAddressStep::Index {
-            index: MachineIndex::Value(value),
-            ..
-        } = step
-        {
-            insert_value(body, *value, inputs)?;
+        match step {
+            MachineAddressStep::OffsetValue(value)
+            | MachineAddressStep::Index {
+                index: MachineIndex::Value(value),
+                ..
+            } => insert_value(body, *value, inputs)?,
+            MachineAddressStep::Offset(_)
+            | MachineAddressStep::Dereference
+            | MachineAddressStep::ViewDereference { .. }
+            | MachineAddressStep::Index {
+                index: MachineIndex::Constant(_),
+                ..
+            } => {}
         }
     }
     Ok(())

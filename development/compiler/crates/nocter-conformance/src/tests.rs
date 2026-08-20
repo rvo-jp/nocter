@@ -470,6 +470,122 @@ fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
 }
 
 #[test]
+fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         struct Container { values: [ExitOnDrop; 2] }\n\
+         func main(): i32 {\n\
+             var value = Container {\n\
+                 values: [ExitOnDrop { status: 41 }, ExitOnDrop { status: 42 }],\n\
+             }\n\
+             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             return 1\n\
+         }\n",
+        &[&["process"], &["ptr"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn copy_pointer_destruction_is_an_explicit_native_noop() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         func main(): i32 {\n\
+             var value: i32 = 41\n\
+             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             return value + 1\n\
+         }\n",
+        &[&["ptr"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    assert_eq!(machine.destructions().iter().len(), 0);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         enum Choice {\n\
+             first(value: ExitOnDrop)\n\
+             second(value: ExitOnDrop)\n\
+         }\n\
+         func main(): i32 {\n\
+             var value = Choice.second(ExitOnDrop { status: 42 })\n\
+             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             return 1\n\
+         }\n",
+        &[&["process"], &["ptr"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn generated_optional_pointer_destruction_selects_present_payload() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         func main(): i32 {\n\
+             var value: ExitOnDrop? = ExitOnDrop { status: 42 }\n\
+             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             return 1\n\
+         }\n",
+        &[&["process"], &["ptr"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn generated_closure_pointer_destruction_visits_owned_captures() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct ExitOnDrop { status: i32 }\n\
+         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         func main(): i32 {\n\
+             let resource = ExitOnDrop { status: 42 }\n\
+             var callback = (move resource;): void { return }\n\
+             drop_value_at_ptr_for_test(from_ref_mut(&+callback), 0)\n\
+             return 1\n\
+         }\n",
+        &[&["process"], &["ptr"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

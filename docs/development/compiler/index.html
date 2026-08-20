@@ -469,8 +469,8 @@
   linkage is separately keyed by exact executable item, process target, or test declaration; no
   display name participates. Test roots retain declaration order outside that key table. Static
   text receives content-sorted, deduplicated <code>MachineDataId</code> values rather than first-use IDs.
-  <code>MachineProgram</code> now owns distinct dense function, stack-object, drop-flag, address, SSA-value,
-  operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
+  <code>MachineProgram</code> now owns distinct dense function, generated-destruction, stack-object, drop-flag,
+  address, SSA-value, operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
   fixed/view indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
   explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
   Stored, completion, and diverging SSA representations are distinct. User-drop calls, process
@@ -487,7 +487,14 @@
   one immutable dataflow table. It expands values hidden inside addresses and literal packs once,
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   <code>live_in</code>/<code>live_out</code> sets, and records exact inputs and <code>live_after</code> values for every operation.
-  ARM64 selection consumes those facts instead of rebuilding machine semantics.</li><li><code>nocter-arm64</code> owns physical ARM64 register roles and instruction encoding without depending on
+  ARM64 selection consumes those facts instead of rebuilding machine semantics.
+  A content-ordered <code>MachineDestructionTable</code> now interns every nonempty pointer-destruction plan.
+  Generated linkage is appended after the stable source domain, and each plan becomes an ordinary
+  machine function with the primitive's exact <code>(pointer, byte_offset)</code> ABI. Structs, active
+  enum/outcome payloads, closure captures, and opaque witnesses use layout-owned address steps;
+  fixed arrays use one reverse CFG loop rather than unrolled code. Authored drops remain normal
+  direct calls, so allocation-context propagation and call liveness require no generated-function
+  exception. Empty plans remain an explicitly validated native no-op.</li><li><code>nocter-arm64</code> owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as <code>sp</code> or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
   before little-endian encoding. Dense local labels are resolved only after monotonic conditional
@@ -564,8 +571,9 @@
   comparisons, narrow signed values, direct- and memory-valued block joins, optional tag switches,
   static text, two-word view calls, direct and memory-backed aggregates, dynamic fixed-array places,
   fixed/view index borrows, and
-  pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls, and
-  primitive process exit, user destruction, and conditional drop flags
+  pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls,
+  primitive process exit, user destruction, conditional drop flags, and generated recursive
+  pointer destruction
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 is complete. Checked-body construction covers the closed body grammar, including collection iteration, authored binding annotations, and executable lexical regions. Region handles are typed compiler-managed resources; one cleanup authority orders body destruction before region release on every reachable exit, retains the parent allocator loan for the complete child lifetime, and emits no fictional unwinding for <code>never</code> termination.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>

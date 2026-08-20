@@ -29,7 +29,7 @@ impl DestructionContext<'_> {
     }
 }
 
-pub(super) fn lower_destruction(
+pub(crate) fn lower_destruction(
     plan: &MirDestructionPlan,
     owner: MachineLinkageId,
     operation: MirOperationId,

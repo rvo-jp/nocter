@@ -11,10 +11,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Introduce one compiler-generated concrete-destruction function authority shared by
-   `drop_value_at_ptr<T>`, recursive aggregate cleanup, and literal-pack residual cleanup. It must
-   use ordinary machine linkage and ABI plans rather than target-private callbacks or role-specific
-   recursive selection.
+1. Extend the completed `MachineDestructionTable` and generated-function path from
+   `drop_value_at_ptr<T>` to literal-pack residual cleanup. Pointer plans already use deterministic
+   generated linkage, ordinary ABI/direct calls, reverse array loops, and native execution; pack
+   cleanup must reuse that authority rather than retain an independent recursive recipe at runtime.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release through that representation without deriving runtime state from the
    current standard-library implementation.
@@ -134,8 +134,11 @@ plan. Runtime-sized pointer copies use one zero-safe forward loop; byte stores a
 `store/take<T>` compose dynamic base formation with existing exact lane loads/stores or indirect
 memory copies. No primitive duplicates the target's direct/indirect size boundary. Native
 conformance crosses string and pointer copies, indexed byte stores, a 24-byte indirect store, and
-both direct and indirect generic takes. `drop_value_at_ptr<T>` remains coupled to the pending
-concrete destruction authority rather than being misimplemented as a byte operation.
+both direct and indirect generic takes. `drop_value_at_ptr<T>` now freezes its exact concrete
+dependency before MIR, interns every nonempty machine plan by content, and becomes an ordinary
+direct call to generated machine CFG. Empty plans remain an explicitly validated no-op. Recursive
+struct, active enum/outcome, closure, opaque, and reverse fixed-array traversal never enters ARM64
+as a plan or byte-operation special case.
 
 Darwin system primitives now have one target-owned selection and materialization boundary. Generic
 syscalls translate the ordinary Nocter argument registers to Darwin's number and argument lanes,

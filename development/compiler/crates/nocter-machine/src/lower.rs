@@ -7,22 +7,25 @@ use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId}
 use crate::identity::{MachineId, MachineTable};
 use crate::{
     MachineAbiError, MachineAbiPlan, MachineAllocationError, MachineAllocationPlan,
-    MachineDataTable, MachineFunction, MachineFunctionId, MachineFunctionKind, MachineLayoutError,
-    MachineLayoutStore, MachineLinkageError, MachineLinkageId, MachineLinkageKey,
-    MachineLinkageTable, MachineProgram, MachineProgramRoot, MachineTestProgram,
+    MachineDataTable, MachineDestructionId, MachineDestructionTable, MachineFunction,
+    MachineFunctionId, MachineFunctionKind, MachineLayoutError, MachineLayoutStore,
+    MachineLinkageError, MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgram,
+    MachineProgramRoot, MachineTestProgram,
 };
 
 mod address;
 mod aggregate;
 mod body;
 mod call;
+mod context;
 mod control;
-mod destruction;
+pub(crate) mod destruction;
 mod operation;
 mod pack;
 mod structural;
 
 use body::lower_body;
+use context::ProgramLoweringContext;
 
 impl MachineProgram {
     /// Lowers one validated MIR program into an independent target-machine program.
@@ -36,43 +39,52 @@ impl MachineProgram {
         let abi = MachineAbiPlan::build(program, &layouts)?;
         let linkage = MachineLinkageTable::build(program)?;
         let data = MachineDataTable::build(program);
-
-        let mut functions_by_linkage = BTreeMap::new();
-        let mut functions_by_item = BTreeMap::new();
+        let source_domains = assign_function_domains(&linkage)?;
+        let destructions =
+            MachineDestructionTable::build(program, &layouts, &linkage, &source_domains.items)?;
+        let linkage = linkage.with_destructions(&destructions)?;
+        let domains = assign_function_domains(&linkage)?;
         let linkage_entries = linkage.iter().collect::<Vec<_>>();
-        for (index, (linkage_id, entry)) in linkage_entries.iter().copied().enumerate() {
-            let function = MachineFunctionId::new(index);
-            if functions_by_linkage.insert(linkage_id, function).is_some() {
-                return Err(MachineProgramError::DuplicateFunctionLinkage(linkage_id));
-            }
-            if let MachineLinkageKey::Item(item) = entry.key()
-                && functions_by_item.insert(item, function).is_some()
-            {
-                return Err(MachineProgramError::DuplicateItemFunction(item));
-            }
-        }
 
         let functions = linkage_entries
             .into_iter()
-            .map(|(linkage_id, entry)| {
-                let (kind, body) = function_source(program, &abi, entry.key())?;
-                let body = lower_body(
-                    linkage_id,
-                    body,
-                    program.executable().types(),
-                    &layouts,
-                    &data,
-                    &functions_by_item,
-                )?;
-                MachineFunction::new(linkage_id, kind, body).map_err(|error| {
-                    MachineProgramError::Dataflow {
-                        owner: linkage_id,
-                        error,
-                    }
-                })
+            .map(|(linkage_id, entry)| match entry.key() {
+                MachineLinkageKey::Destruction(destruction) => {
+                    let destruction = destructions
+                        .get(destruction)
+                        .ok_or(MachineProgramError::MissingDestruction(destruction))?;
+                    crate::generated_destruction::generate_destruction_function(
+                        linkage_id,
+                        destruction.plan(),
+                        destruction.abi(),
+                        program.executable().types(),
+                        &layouts,
+                    )
+                }
+                key => {
+                    let (kind, body) = function_source(program, &abi, key)?;
+                    let body = lower_body(
+                        linkage_id,
+                        body,
+                        ProgramLoweringContext {
+                            types: program.executable().types(),
+                            layouts: &layouts,
+                            data: &data,
+                            functions: &domains.items,
+                            destructions: &destructions,
+                            destruction_functions: &domains.destructions,
+                        },
+                    )?;
+                    MachineFunction::new(linkage_id, kind, body).map_err(|error| {
+                        MachineProgramError::Dataflow {
+                            owner: linkage_id,
+                            error,
+                        }
+                    })
+                }
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
-        let root = lower_root(linkage.root(), &functions_by_linkage)?;
+        let root = lower_root(linkage.root(), &domains.linkages)?;
         let functions = MachineTable::from_values(functions);
         let allocation = MachineAllocationPlan::build(&functions)?;
 
@@ -80,10 +92,11 @@ impl MachineProgram {
             layouts,
             abi,
             allocation,
+            destructions,
             linkage,
             data,
             functions,
-            functions_by_linkage,
+            functions_by_linkage: domains.linkages,
             root,
         }))
     }
@@ -131,7 +144,50 @@ fn function_source<'program>(
                 root.body(),
             ))
         }
+        MachineLinkageKey::Destruction(destruction) => {
+            Err(MachineProgramError::MissingDestruction(destruction))
+        }
     }
+}
+
+struct FunctionDomains {
+    linkages: BTreeMap<MachineLinkageId, MachineFunctionId>,
+    items: BTreeMap<ExecutableItemId, MachineFunctionId>,
+    destructions: BTreeMap<MachineDestructionId, MachineFunctionId>,
+}
+
+fn assign_function_domains(
+    linkage: &MachineLinkageTable,
+) -> Result<FunctionDomains, MachineProgramError> {
+    let mut by_linkage = BTreeMap::new();
+    let mut by_item = BTreeMap::new();
+    let mut by_destruction = BTreeMap::new();
+    for (index, (linkage_id, entry)) in linkage.iter().enumerate() {
+        let function = MachineFunctionId::new(index);
+        if by_linkage.insert(linkage_id, function).is_some() {
+            return Err(MachineProgramError::DuplicateFunctionLinkage(linkage_id));
+        }
+        match entry.key() {
+            MachineLinkageKey::Item(item) => {
+                if by_item.insert(item, function).is_some() {
+                    return Err(MachineProgramError::DuplicateItemFunction(item));
+                }
+            }
+            MachineLinkageKey::Destruction(destruction) => {
+                if by_destruction.insert(destruction, function).is_some() {
+                    return Err(MachineProgramError::DuplicateDestructionFunction(
+                        destruction,
+                    ));
+                }
+            }
+            MachineLinkageKey::ProcessRoot(_) | MachineLinkageKey::TestRoot(_) => {}
+        }
+    }
+    Ok(FunctionDomains {
+        linkages: by_linkage,
+        items: by_item,
+        destructions: by_destruction,
+    })
 }
 
 fn lower_root(
@@ -196,12 +252,20 @@ pub enum MachineProgramError {
     },
     DuplicateFunctionLinkage(MachineLinkageId),
     DuplicateItemFunction(ExecutableItemId),
+    DuplicateDestructionFunction(MachineDestructionId),
+    DuplicateDestructionCall(MachineLinkageId, MirOperationId),
     MissingFunctionLinkage(MachineLinkageId),
     MissingItemFunction(ExecutableItemId),
     MissingItem(ExecutableItemId),
     MissingCallableAbi(ExecutableItemId),
     MissingProcessRoot(nocter_model::PackageTargetId),
     MissingTestRoot(TestId),
+    MissingLinkageKey(MachineLinkageKey),
+    MissingDestruction(crate::MachineDestructionId),
+    ConflictingDestructionAbi(TypeId),
+    InvalidDestructionAbi(MachineLinkageId),
+    InvalidGeneratedDestruction(MachineLinkageId, crate::MachineBlockId),
+    MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
     MissingStoredLayout(TypeId),
     MissingStaticText(Box<str>),
     MissingBodyIdentity {
@@ -257,12 +321,20 @@ impl std::error::Error for MachineProgramError {
             Self::Dataflow { error, .. } => Some(error),
             Self::DuplicateFunctionLinkage(_)
             | Self::DuplicateItemFunction(_)
+            | Self::DuplicateDestructionFunction(_)
+            | Self::DuplicateDestructionCall(_, _)
             | Self::MissingFunctionLinkage(_)
             | Self::MissingItemFunction(_)
             | Self::MissingItem(_)
             | Self::MissingCallableAbi(_)
             | Self::MissingProcessRoot(_)
             | Self::MissingTestRoot(_)
+            | Self::MissingLinkageKey(_)
+            | Self::MissingDestruction(_)
+            | Self::ConflictingDestructionAbi(_)
+            | Self::InvalidDestructionAbi(_)
+            | Self::InvalidGeneratedDestruction(_, _)
+            | Self::MissingGeneratedDestruction(_, _)
             | Self::MissingStoredLayout(_)
             | Self::MissingStaticText(_)
             | Self::MissingBodyIdentity { .. }

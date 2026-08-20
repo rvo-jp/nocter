@@ -17,6 +17,8 @@ use crate::{
     MachineRootLinkage, MachineScalar, MachineTerminator, MachineValueClass,
 };
 
+mod destruction;
+
 #[test]
 fn computes_the_complete_arm64_stored_layout_closure() {
     let program = stored_layout_fixture();
@@ -753,6 +755,7 @@ fn machine_dataflow_expands_address_dependencies_once() {
                     ..
                 } => Some((address_id, *index)),
                 crate::MachineAddressStep::Offset(_)
+                | crate::MachineAddressStep::OffsetValue(_)
                 | crate::MachineAddressStep::Dereference
                 | crate::MachineAddressStep::ViewDereference { .. }
                 | crate::MachineAddressStep::Index {
@@ -1264,55 +1267,6 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
             .iter()
             .any(|operation| matches!(operation, MachineOperationKind::BorrowWeakening { .. }))
     );
-}
-
-#[test]
-fn primitive_destruction_dependency_reaches_the_machine_program() {
-    let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
-         struct Resource {}\n\
-         drop Resource(&+self) { return }\n\
-         func main(): i32 {\n\
-             var value = Resource {}\n\
-             let pointer = from_ref_mut(&+value)\n\
-             drop_value_at_ptr_for_test(pointer, 0)\n\
-             return 0\n\
-         }\n",
-        &[&["ptr"], &["ptr"]],
-    );
-    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
-    let dependency = program
-        .functions()
-        .flat_map(|(_, function)| function.body().operations())
-        .find_map(|(_, operation)| match operation.kind() {
-            MachineOperationKind::Call(call) => match call.target() {
-                crate::MachineCallTarget::Primitive(primitive)
-                    if primitive.role() == PrimitiveRole::DropValueAtPointer =>
-                {
-                    Some(primitive.dependency())
-                }
-                _ => None,
-            },
-            _ => None,
-        })
-        .expect("drop-value primitive");
-    let crate::MachinePrimitiveDependency::Destruction {
-        subject,
-        plan: Some(plan),
-    } = dependency
-    else {
-        panic!("drop-value primitive must retain machine destruction")
-    };
-
-    assert_eq!(plan.ty(), *subject);
-    assert!(matches!(
-        plan.kind(),
-        crate::MachineDestructionKind::Struct {
-            drop: Some(_),
-            fields,
-        } if fields.is_empty()
-    ));
 }
 
 #[test]

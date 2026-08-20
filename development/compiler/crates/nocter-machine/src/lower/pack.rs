@@ -1,22 +1,18 @@
-use std::collections::BTreeMap;
-
 use nocter_mir::{MirOperationKind, MirPackContribution, MirPackSegment};
-use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
+use nocter_model::MirOperationId;
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
 use super::call::lower_call_target;
+use super::context::ProgramLoweringContext;
 use super::destruction::lower_destruction;
 use crate::{
-    MachineFunctionId, MachineLayoutStore, MachinePack, MachinePackContribution, MachinePackNext,
-    MachinePackSegment, MachinePackSpread,
+    MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment, MachinePackSpread,
 };
 
 pub(super) fn lower_packs(
     body: &nocter_mir::MirBody,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachinePack>, MachineProgramError> {
     body.operations()
@@ -26,7 +22,7 @@ pub(super) fn lower_packs(
                 return None;
             };
             call.pack()
-                .map(|pack| lower_pack(operation, pack, types, layouts, functions, ids))
+                .map(|pack| lower_pack(operation, pack, context, ids))
         })
         .collect()
 }
@@ -34,9 +30,7 @@ pub(super) fn lower_packs(
 fn lower_pack(
     operation: MirOperationId,
     pack: &nocter_mir::MirPackArgument,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<MachinePack, MachineProgramError> {
     let segments = pack
@@ -47,25 +41,34 @@ fn lower_pack(
                 value: ids.value(*value)?,
                 destruction: destruction
                     .as_ref()
-                    .map(|plan| lower_destruction(plan, ids.owner(), operation, layouts, functions))
+                    .map(|plan| {
+                        lower_destruction(
+                            plan,
+                            ids.owner(),
+                            operation,
+                            context.layouts,
+                            context.functions,
+                        )
+                    })
                     .transpose()?,
             }),
             MirPackSegment::Spread(spread) => {
-                let target = lower_call_target(
-                    operation,
-                    spread.next_target(),
-                    types,
-                    layouts,
-                    functions,
-                    ids,
-                )?;
+                let target = lower_call_target(operation, spread.next_target(), context, ids)?;
                 let contribution = match spread.contribution() {
                     MirPackContribution::Direct => MachinePackContribution::Direct,
                     MirPackContribution::CopyBorrowed => MachinePackContribution::CopyBorrowed,
                 };
                 let destruction = spread
                     .destruction()
-                    .map(|plan| lower_destruction(plan, ids.owner(), operation, layouts, functions))
+                    .map(|plan| {
+                        lower_destruction(
+                            plan,
+                            ids.owner(),
+                            operation,
+                            context.layouts,
+                            context.functions,
+                        )
+                    })
                     .transpose()?;
                 Ok(MachinePackSegment::Spread(MachinePackSpread::new(
                     ids.address(spread.iterator())?,

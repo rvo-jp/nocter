@@ -1,29 +1,32 @@
-use std::collections::BTreeMap;
-
 use nocter_mir::{MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency};
-use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
+use nocter_model::MirOperationId;
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
-use super::destruction::lower_destruction;
+use super::context::ProgramLoweringContext;
 use super::structural::lower_structural;
 use crate::{
-    MachineCall, MachineCallAllocation, MachineCallTarget, MachineFunctionId, MachineLayoutStore,
-    MachineOperationKind, MachinePrimitiveDependency, MachinePrimitiveTarget,
+    MachineCall, MachineCallAllocation, MachineCallTarget, MachineOperationKind,
+    MachinePrimitiveDependency, MachinePrimitiveTarget,
 };
 
 pub(super) fn lower_call(
     operation: MirOperationId,
     call: &MirCall,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<MachineOperationKind, MachineProgramError> {
     if let MirCallTarget::Structural(target) = call.target() {
-        return lower_structural(operation, target, call.arguments(), types, layouts, ids);
+        return lower_structural(
+            operation,
+            target,
+            call.arguments(),
+            context.types,
+            context.layouts,
+            ids,
+        );
     }
-    let target = lower_call_target(operation, call.target(), types, layouts, functions, ids)?;
+    let target = lower_call_target(operation, call.target(), context, ids)?;
     let arguments = call
         .arguments()
         .iter()
@@ -42,13 +45,12 @@ pub(super) fn lower_call(
 pub(super) fn lower_call_target(
     operation: MirOperationId,
     target: &MirCallTarget,
-    types: &TypeStore,
-    layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<MachineCallTarget, MachineProgramError> {
     match target {
-        MirCallTarget::Direct(target) => functions
+        MirCallTarget::Direct(target) => context
+            .functions
             .get(target)
             .copied()
             .map(MachineCallTarget::Direct)
@@ -59,9 +61,25 @@ pub(super) fn lower_call_target(
             signature,
             dependency,
         } => {
+            if *role == nocter_target_program::PrimitiveRole::DropValueAtPointer
+                && matches!(
+                    dependency,
+                    MirPrimitiveDependency::Destruction { plan: Some(_), .. }
+                )
+            {
+                let destruction = context.destructions.call(ids.owner(), operation).ok_or(
+                    MachineProgramError::MissingGeneratedDestruction(ids.owner(), operation),
+                )?;
+                let function = context
+                    .destruction_functions
+                    .get(&destruction)
+                    .copied()
+                    .ok_or(MachineProgramError::MissingDestruction(destruction))?;
+                return Ok(MachineCallTarget::Direct(function));
+            }
             let abi = crate::transport::plan_signature(
-                types,
-                layouts,
+                context.types,
+                context.layouts,
                 signature.parameters(),
                 signature.result(),
                 None,
@@ -69,15 +87,15 @@ pub(super) fn lower_call_target(
             let dependency = match dependency {
                 MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
                 MirPrimitiveDependency::Destruction { subject, plan } => {
+                    if plan.is_some() {
+                        return Err(MachineProgramError::MissingGeneratedDestruction(
+                            ids.owner(),
+                            operation,
+                        ));
+                    }
                     MachinePrimitiveDependency::Destruction {
                         subject: *subject,
-                        plan: plan
-                            .as_deref()
-                            .map(|plan| {
-                                lower_destruction(plan, ids.owner(), operation, layouts, functions)
-                            })
-                            .transpose()?
-                            .map(Box::new),
+                        plan: None,
                     }
                 }
             };

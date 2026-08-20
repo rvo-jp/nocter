@@ -4,7 +4,9 @@ use std::fmt;
 use nocter_mir::{MirBody, MirConstant, MirOperationKind, MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, PackageTargetId, Symbol, TestId};
 
-use crate::identity::{MachineDataId, MachineId, MachineLinkageId, MachineTable};
+use crate::identity::{
+    MachineDataId, MachineDestructionId, MachineId, MachineLinkageId, MachineTable,
+};
 
 /// Semantic owner of one emitted code symbol. Display spellings are not linkage identity.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -12,6 +14,7 @@ pub enum MachineLinkageKey {
     Item(ExecutableItemId),
     ProcessRoot(PackageTargetId),
     TestRoot(TestId),
+    Destruction(MachineDestructionId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,6 +127,23 @@ impl MachineLinkageTable {
             ids,
             root,
         })
+    }
+
+    pub(crate) fn with_destructions(
+        mut self,
+        destructions: &crate::MachineDestructionTable,
+    ) -> Result<Self, MachineLinkageError> {
+        let mut entries = self.entries.values().to_vec();
+        for (destruction, _) in destructions.iter() {
+            let key = MachineLinkageKey::Destruction(destruction);
+            let id = MachineLinkageId::new(entries.len());
+            if self.ids.insert(key, id).is_some() {
+                return Err(MachineLinkageError::DuplicateKey(key));
+            }
+            entries.push(MachineLinkageEntry { key });
+        }
+        self.entries = MachineTable::from_values(entries);
+        Ok(self)
     }
 
     #[must_use]

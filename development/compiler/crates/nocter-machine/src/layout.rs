@@ -216,6 +216,12 @@ impl MachineLayoutStore {
             active: BTreeSet::new(),
         };
         let mut roots = BTreeSet::new();
+        // Machine-generated CFGs use these canonical control and offset carriers independently of
+        // whether source MIR happens to mention them.
+        roots.extend([
+            program.executable().types().builtin(BuiltinType::Bool),
+            program.executable().types().builtin(BuiltinType::Usize),
+        ]);
         for (_, function) in program.functions().iter() {
             roots.insert(function.result());
             collect_body_types(function.body(), &mut roots);
