@@ -217,6 +217,16 @@ fn encodes_scaled_memory_and_control_instructions() {
         0xb900_0c83
     );
     assert_eq!(
+        word(Arm64Instruction::LoadSigned {
+            size: Arm64LoadStoreSize::Half,
+            destination_size: Arm64DataSize::Bits32,
+            destination: data(5),
+            base: base(6),
+            offset: 10,
+        }),
+        0x79c0_14c5
+    );
+    assert_eq!(
         word(Arm64Instruction::ConditionalSet {
             size: Arm64DataSize::Bits32,
             destination: x(0),
@@ -305,6 +315,17 @@ fn rejects_values_that_would_be_truncated_or_change_register_meaning() {
         }
         .encode(),
         Err(Arm64EncodingError::OffsetOutOfRange)
+    );
+    assert_eq!(
+        Arm64Instruction::LoadSigned {
+            size: Arm64LoadStoreSize::Double,
+            destination_size: Arm64DataSize::Bits64,
+            destination: data(0),
+            base: base(1),
+            offset: 0,
+        }
+        .encode(),
+        Err(Arm64EncodingError::InvalidLoadExtension)
     );
     assert_eq!(
         Arm64Instruction::Branch {

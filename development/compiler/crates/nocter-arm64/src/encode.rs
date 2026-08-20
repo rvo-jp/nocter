@@ -14,6 +14,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::Divide { .. }
         | Arm64Instruction::VariableShift { .. }) => encode_arithmetic(instruction),
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
+        | Arm64Instruction::LoadSigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
         instruction @ (Arm64Instruction::NoOperation
         | Arm64Instruction::AddressPage { .. }
@@ -155,6 +156,19 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
             base,
             offset,
         } => encode_load_store(size, true, destination.encoding(), base.encoding(), offset),
+        Arm64Instruction::LoadSigned {
+            size,
+            destination_size,
+            destination,
+            base,
+            offset,
+        } => encode_signed_load(
+            size,
+            destination_size,
+            destination.encoding(),
+            base.encoding(),
+            offset,
+        ),
         Arm64Instruction::StoreUnsigned {
             size,
             source,
@@ -448,6 +462,29 @@ fn encode_load_store(
     Ok(instruction | (offset / bytes) << 10 | base << 5 | data)
 }
 
+fn encode_signed_load(
+    size: Arm64LoadStoreSize,
+    destination_size: Arm64DataSize,
+    data: u32,
+    base: u32,
+    offset: u32,
+) -> Result<u32, Arm64EncodingError> {
+    let (bytes, instruction) = match (size, destination_size) {
+        (Arm64LoadStoreSize::Byte, Arm64DataSize::Bits32) => (1, 0x39c0_0000),
+        (Arm64LoadStoreSize::Byte, Arm64DataSize::Bits64) => (1, 0x3980_0000),
+        (Arm64LoadStoreSize::Half, Arm64DataSize::Bits32) => (2, 0x79c0_0000),
+        (Arm64LoadStoreSize::Half, Arm64DataSize::Bits64) => (2, 0x7980_0000),
+        (Arm64LoadStoreSize::Word, Arm64DataSize::Bits64) => (4, 0xb980_0000),
+        (Arm64LoadStoreSize::Word, Arm64DataSize::Bits32) | (Arm64LoadStoreSize::Double, _) => {
+            return Err(Arm64EncodingError::InvalidLoadExtension);
+        }
+    };
+    if !offset.is_multiple_of(bytes) || offset / bytes > 0x0fff {
+        return Err(Arm64EncodingError::OffsetOutOfRange);
+    }
+    Ok(instruction | (offset / bytes) << 10 | base << 5 | data)
+}
+
 fn signed_scaled(displacement: i64, bits: u8) -> Result<u32, Arm64EncodingError> {
     signed_scaled_by(
         displacement,
@@ -488,6 +525,7 @@ pub enum Arm64EncodingError {
     InvalidRegisterRole,
     ImmediateOutOfRange,
     InvalidShift,
+    InvalidLoadExtension,
     OffsetOutOfRange,
     MisalignedBranch,
     BranchOutOfRange,

@@ -11,9 +11,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the closed selected-instruction schema from constants, no-argument direct calls, branch,
-   return, and process exit to scalar arithmetic, comparisons, machine addresses, loads/stores,
-   aggregates, and complete callable parameter/result transport.
+1. Extend the closed selected-instruction schema from scalar operations, simple stack addresses,
+   scalar memory access, scalar direct-call transport, branch, return, and process exit to
+   projected/dynamic addresses, aggregate operations, block-parameter transport, and complete
+   callable parameter/result transport.
 2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
 3. Expand the native conformance crate from the deterministic constant-process case to control,
@@ -64,13 +65,17 @@ The independent Mach-O writer owns section/VM layout, native and dynamic-loader 
 content-derived UUIDs, SHA-256 ad-hoc signing, and final bytes; its ARM64 macOS test executes the
 generated image without external tools.
 
-The first selected ARM64 execution slice is now closed. `Arm64SelectedFunction` owns virtual/fixed
-register transfers, stack-address forms, local CFG terminators, and direct function references;
-unsupported machine nodes are typed selection failures. The spill-aware materializer consumes only
-the selected function, `Arm64ValuePlan`, and `Arm64FunctionFrame`. `Arm64Program::lower_machine`
-then resolves dense functions and static data through the existing program builder. The separate
-`nocter-conformance` crate crosses source, checking, specialization, MIR, machine lowering, ARM64,
-Mach-O, and native execution for `func main(): i32 { 42 }`, including deterministic image equality.
+The selected ARM64 scalar execution slice is now closed. `Arm64SelectedFunction` owns
+virtual/fixed register transfers, simple stack-address forms, extension-aware scalar loads,
+stores, arithmetic, raw-value and readonly-borrow comparisons, direct scalar argument/result
+transport, local CFG terminators, and direct function references; unsupported machine nodes are
+typed selection failures. The spill-aware materializer consumes only the selected function,
+`Arm64ValuePlan`, and `Arm64FunctionFrame`. Narrow signed loads have an explicit target instruction
+and cannot silently become zero-extended values. `Arm64Program::lower_machine` then resolves dense
+functions and static data through the existing program builder. The separate `nocter-conformance`
+crate crosses source, checking, specialization, MIR, machine lowering, ARM64, Mach-O, and native
+execution for deterministic constants, scalar calls/arithmetic, control, structural comparison,
+and narrow signed values.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

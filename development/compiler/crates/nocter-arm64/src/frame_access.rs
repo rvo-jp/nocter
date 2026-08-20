@@ -93,6 +93,23 @@ pub(crate) fn load_at_stack_offset(
     });
 }
 
+pub(crate) fn load_signed_at_stack_offset(
+    code: &mut Arm64CodeBuilder,
+    size: Arm64LoadStoreSize,
+    destination_size: Arm64DataSize,
+    destination: Arm64Register,
+    offset: u64,
+) {
+    let (base, offset) = memory_base(code, size, offset, destination);
+    code.append(Arm64Instruction::LoadSigned {
+        size,
+        destination_size,
+        destination: Arm64DataRegister::General(destination),
+        base,
+        offset,
+    });
+}
+
 fn memory_base(
     code: &mut Arm64CodeBuilder,
     size: Arm64LoadStoreSize,

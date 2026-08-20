@@ -4,10 +4,12 @@ use nocter_machine::{MachineBlockId, MachineFunctionId};
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AllocatedLocation, Arm64BaseRegister,
-    Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64DataSize,
-    Arm64FrameCode, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi, Arm64Register,
-    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedRegister,
-    Arm64SelectedStackAddress, Arm64SelectedTerminator,
+    Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64DataRegister,
+    Arm64DataSize, Arm64FrameCode, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
+    Arm64Register, Arm64SelectedBinaryOperation, Arm64SelectedComparisonOperation,
+    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
+    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
+    Arm64SelectedUnaryOperation, Arm64Shift,
 };
 
 impl Arm64SelectedFunction {
@@ -61,12 +63,29 @@ fn emit_instruction(
         } => emit_move(function, destination, source, size, code),
         Arm64SelectedInstruction::LoadStack {
             size,
+            extension,
             destination,
             source,
         } => {
             let offset = stack_offset(function, source, load_store_bytes(size))?;
             let destination = write_target(function, destination)?;
-            crate::frame_access::load_at_stack_offset(code, size, destination.register, offset);
+            match extension {
+                Arm64SelectedLoadExtension::Zero => crate::frame_access::load_at_stack_offset(
+                    code,
+                    size,
+                    destination.register,
+                    offset,
+                ),
+                Arm64SelectedLoadExtension::Sign(destination_size) => {
+                    crate::frame_access::load_signed_at_stack_offset(
+                        code,
+                        size,
+                        destination_size,
+                        destination.register,
+                        offset,
+                    );
+                }
+            }
             finish_write(destination, code);
             Ok(())
         }
@@ -90,11 +109,328 @@ fn emit_instruction(
             finish_write(destination, code);
             Ok(())
         }
+        Arm64SelectedInstruction::Unary {
+            size,
+            operation,
+            destination,
+            operand,
+        } => emit_unary(function, operation, destination, operand, size, code),
+        Arm64SelectedInstruction::Binary {
+            size,
+            operation,
+            destination,
+            left,
+            right,
+        } => emit_binary(function, operation, destination, left, right, size, code),
+        Arm64SelectedInstruction::CompareBorrowed {
+            size,
+            extension,
+            operation,
+            offset,
+            destination,
+            left,
+            right,
+        } => emit_borrowed_comparison(
+            function,
+            BorrowedComparisonMaterialization {
+                load_size: size,
+                extension,
+                operation,
+                offset,
+                destination,
+                left_address: left,
+                right_address: right,
+            },
+            code,
+        ),
         Arm64SelectedInstruction::Call(target) => {
             code.call(function_target(functions, target)?);
             Ok(())
         }
     }
+}
+
+fn emit_unary(
+    function: &Arm64SelectedFunction,
+    operation: Arm64SelectedUnaryOperation,
+    destination: Arm64SelectedRegister,
+    operand: Arm64SelectedRegister,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let operand = read_register(function, operand, 0, code)?;
+    let destination = write_target(function, destination)?;
+    match operation {
+        Arm64SelectedUnaryOperation::LogicalNot => {
+            code.append(Arm64Instruction::AddSubtractImmediate {
+                size,
+                operation: Arm64AddSubtract::Subtract,
+                set_flags: true,
+                destination: Arm64AddSubtractDestination::Zero,
+                source: Arm64BaseRegister::General(operand),
+                immediate: 0,
+                shift_12: false,
+            });
+            code.append(Arm64Instruction::ConditionalSet {
+                size: Arm64DataSize::Bits32,
+                destination: destination.register,
+                condition: Arm64BranchCondition::Equal,
+            });
+        }
+        Arm64SelectedUnaryOperation::Negate => {
+            code.append(Arm64Instruction::AddSubtractRegister {
+                size,
+                operation: Arm64AddSubtract::Subtract,
+                set_flags: false,
+                destination: Arm64DataRegister::General(destination.register),
+                left: Arm64DataRegister::Zero,
+                right: Arm64DataRegister::General(operand),
+            });
+        }
+    }
+    finish_write(destination, code);
+    Ok(())
+}
+
+fn emit_binary(
+    function: &Arm64SelectedFunction,
+    operation: Arm64SelectedBinaryOperation,
+    destination: Arm64SelectedRegister,
+    left: Arm64SelectedRegister,
+    right: Arm64SelectedRegister,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let left = read_register(function, left, 0, code)?;
+    let right = read_register(function, right, 1, code)?;
+    let destination = write_target(function, destination)?;
+    match operation {
+        Arm64SelectedBinaryOperation::Add | Arm64SelectedBinaryOperation::Subtract => {
+            code.append(Arm64Instruction::AddSubtractRegister {
+                size,
+                operation: if operation == Arm64SelectedBinaryOperation::Add {
+                    Arm64AddSubtract::Add
+                } else {
+                    Arm64AddSubtract::Subtract
+                },
+                set_flags: false,
+                destination: Arm64DataRegister::General(destination.register),
+                left: Arm64DataRegister::General(left),
+                right: Arm64DataRegister::General(right),
+            });
+        }
+        Arm64SelectedBinaryOperation::Multiply => {
+            code.append(Arm64Instruction::MultiplyAdd {
+                size,
+                destination: destination.register,
+                left,
+                right,
+                addend: Arm64DataRegister::Zero,
+                subtract_product: false,
+            });
+        }
+        Arm64SelectedBinaryOperation::Divide { signed } => {
+            code.append(Arm64Instruction::Divide {
+                size,
+                destination: destination.register,
+                left,
+                right,
+                signed,
+            });
+        }
+        Arm64SelectedBinaryOperation::Remainder { signed } => {
+            emit_remainder(code, size, destination.register, left, right, signed);
+        }
+        Arm64SelectedBinaryOperation::ShiftLeft
+        | Arm64SelectedBinaryOperation::ShiftRight { .. } => {
+            let operation = match operation {
+                Arm64SelectedBinaryOperation::ShiftLeft => Arm64Shift::Left,
+                Arm64SelectedBinaryOperation::ShiftRight { signed: true } => {
+                    Arm64Shift::RightArithmetic
+                }
+                Arm64SelectedBinaryOperation::ShiftRight { signed: false } => {
+                    Arm64Shift::RightLogical
+                }
+                _ => unreachable!(),
+            };
+            code.append(Arm64Instruction::VariableShift {
+                size,
+                operation,
+                destination: destination.register,
+                value: left,
+                amount: right,
+            });
+        }
+        Arm64SelectedBinaryOperation::Equal | Arm64SelectedBinaryOperation::Less { .. } => {
+            emit_comparison(code, size, destination.register, left, right, operation);
+        }
+    }
+    finish_write(destination, code);
+    Ok(())
+}
+
+fn emit_remainder(
+    code: &mut Arm64CodeBuilder,
+    size: Arm64DataSize,
+    destination: Arm64Register,
+    left: Arm64Register,
+    right: Arm64Register,
+    signed: bool,
+) {
+    let quotient = Arm64NocterAbi::argument_register(0)
+        .expect("the boundary-only x0 register is available between calls");
+    code.append(Arm64Instruction::Divide {
+        size,
+        destination: quotient,
+        left,
+        right,
+        signed,
+    });
+    code.append(Arm64Instruction::MultiplyAdd {
+        size,
+        destination,
+        left: quotient,
+        right,
+        addend: Arm64DataRegister::General(left),
+        subtract_product: true,
+    });
+}
+
+fn emit_comparison(
+    code: &mut Arm64CodeBuilder,
+    size: Arm64DataSize,
+    destination: Arm64Register,
+    left: Arm64Register,
+    right: Arm64Register,
+    operation: Arm64SelectedBinaryOperation,
+) {
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64DataRegister::Zero,
+        left: Arm64DataRegister::General(left),
+        right: Arm64DataRegister::General(right),
+    });
+    let condition = match operation {
+        Arm64SelectedBinaryOperation::Equal => Arm64BranchCondition::Equal,
+        Arm64SelectedBinaryOperation::Less { signed: true } => Arm64BranchCondition::SignedLess,
+        Arm64SelectedBinaryOperation::Less { signed: false } => Arm64BranchCondition::CarryClear,
+        _ => unreachable!(),
+    };
+    code.append(Arm64Instruction::ConditionalSet {
+        size: Arm64DataSize::Bits32,
+        destination,
+        condition,
+    });
+}
+
+#[derive(Clone, Copy)]
+struct BorrowedComparisonMaterialization {
+    load_size: Arm64LoadStoreSize,
+    extension: Arm64SelectedLoadExtension,
+    operation: Arm64SelectedComparisonOperation,
+    offset: u64,
+    destination: Arm64SelectedRegister,
+    left_address: Arm64SelectedRegister,
+    right_address: Arm64SelectedRegister,
+}
+
+fn emit_borrowed_comparison(
+    function: &Arm64SelectedFunction,
+    comparison: BorrowedComparisonMaterialization,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let left_address = read_register(function, comparison.left_address, 0, code)?;
+    let right_address = read_register(function, comparison.right_address, 1, code)?;
+    let left = Arm64NocterAbi::argument_register(0)
+        .expect("the boundary-only x0 register is available between calls");
+    let right = Arm64NocterAbi::argument_register(1)
+        .expect("the boundary-only x1 register is available between calls");
+    load_from_address(
+        code,
+        comparison.load_size,
+        comparison.extension,
+        left,
+        left_address,
+        comparison.offset,
+    );
+    load_from_address(
+        code,
+        comparison.load_size,
+        comparison.extension,
+        right,
+        right_address,
+        comparison.offset,
+    );
+    let data_size = match comparison.extension {
+        Arm64SelectedLoadExtension::Sign(size) => size,
+        Arm64SelectedLoadExtension::Zero => match comparison.load_size {
+            Arm64LoadStoreSize::Double => Arm64DataSize::Bits64,
+            Arm64LoadStoreSize::Byte | Arm64LoadStoreSize::Half | Arm64LoadStoreSize::Word => {
+                Arm64DataSize::Bits32
+            }
+        },
+    };
+    let destination = write_target(function, comparison.destination)?;
+    emit_comparison(
+        code,
+        data_size,
+        destination.register,
+        left,
+        right,
+        match comparison.operation {
+            Arm64SelectedComparisonOperation::Equal => Arm64SelectedBinaryOperation::Equal,
+            Arm64SelectedComparisonOperation::Less { signed } => {
+                Arm64SelectedBinaryOperation::Less { signed }
+            }
+        },
+    );
+    finish_write(destination, code);
+    Ok(())
+}
+
+fn load_from_address(
+    code: &mut Arm64CodeBuilder,
+    size: Arm64LoadStoreSize,
+    extension: Arm64SelectedLoadExtension,
+    destination: Arm64Register,
+    base: Arm64Register,
+    offset: u64,
+) {
+    let bytes = load_store_bytes(size);
+    let (base, offset) = if offset <= 0x0fff * bytes && offset.is_multiple_of(bytes) {
+        (
+            Arm64BaseRegister::General(base),
+            u32::try_from(offset).expect("scaled address offset is bounded"),
+        )
+    } else {
+        crate::frame_access::load_immediate(code, destination, offset, Arm64DataSize::Bits64);
+        code.append(Arm64Instruction::AddSubtractRegister {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: Arm64DataRegister::General(destination),
+            left: Arm64DataRegister::General(base),
+            right: Arm64DataRegister::General(destination),
+        });
+        (Arm64BaseRegister::General(destination), 0)
+    };
+    code.append(match extension {
+        Arm64SelectedLoadExtension::Zero => Arm64Instruction::LoadUnsigned {
+            size,
+            destination: Arm64DataRegister::General(destination),
+            base,
+            offset,
+        },
+        Arm64SelectedLoadExtension::Sign(destination_size) => Arm64Instruction::LoadSigned {
+            size,
+            destination_size,
+            destination: Arm64DataRegister::General(destination),
+            base,
+            offset,
+        },
+    });
 }
 
 fn emit_terminator(

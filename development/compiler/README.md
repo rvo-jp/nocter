@@ -421,10 +421,13 @@ be introduced to make an unresolved syntax choice.
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. The first `Arm64SelectedFunction` slice now lowers constants,
-  no-argument direct calls, local branches, returns, and process exits into virtual/fixed register
-  transfers. A separate materializer resolves physical registers, injects spill loads/stores, and
-  emits frame-safe code. Unsupported machine nodes fail selection explicitly. Dense function
+  accidental immediate-width limit. `Arm64SelectedFunction` now lowers constants, extension-aware
+  scalar stack loads, stores, stack-address formation, integer and boolean operations, raw-value
+  and readonly-borrow comparisons, direct scalar arguments/results, local branches, returns, and
+  process exits into virtual/fixed register transfers. Signed byte and halfword loads retain their
+  meaning through explicit sign-extending target instructions. A separate materializer resolves
+  physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
+  nodes fail selection explicitly. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses.
@@ -434,8 +437,9 @@ be introduced to make an unresolved syntax choice.
   SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
   macOS without invoking an assembler, linker, or signing tool.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
-  image boundary. Its first deterministic case compiles `func main(): i32 { 42 }` from source,
-  emits a signed Mach-O image twice, compares the bytes, and executes it on ARM64 macOS.
+  image boundary. It compiles constants, scalar calls and arithmetic, control, structural
+  comparisons, and narrow signed values from source, emits signed Mach-O images, and executes them
+  on ARM64 macOS. The constant case also proves byte-for-byte output determinism.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

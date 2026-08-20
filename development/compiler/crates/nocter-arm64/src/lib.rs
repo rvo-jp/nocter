@@ -54,8 +54,10 @@ pub use register_allocation::{
 };
 pub use selected_code::Arm64MaterializationError;
 pub use selection::{
-    Arm64SelectedBlock, Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedRegister,
-    Arm64SelectedStackAddress, Arm64SelectedTerminator, Arm64SelectionError,
+    Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
+    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
+    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
+    Arm64SelectedUnaryOperation, Arm64SelectionError,
 };
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
 

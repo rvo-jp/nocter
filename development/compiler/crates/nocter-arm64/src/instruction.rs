@@ -181,6 +181,14 @@ pub enum Arm64Instruction {
         base: Arm64BaseRegister,
         offset: u32,
     },
+    /// Loads a signed byte, halfword, or word and sign-extends it to the selected register width.
+    LoadSigned {
+        size: Arm64LoadStoreSize,
+        destination_size: Arm64DataSize,
+        destination: Arm64DataRegister,
+        base: Arm64BaseRegister,
+        offset: u32,
+    },
     StoreUnsigned {
         size: Arm64LoadStoreSize,
         source: Arm64DataRegister,
