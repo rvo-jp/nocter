@@ -97,13 +97,14 @@ compiler-owned pack-descriptor pointer lane without inventing a source type or v
 machine program assigns every caller-owned descriptor a body-local `MachinePackId`. Each descriptor
 retains its exact element and optional-next types, total-length value, and ordered fixed or spread
 segments. A spread contains only a machine address, remaining-count value, closed call target,
-contribution mode, and residual destruction plan. The literal body exposes only explicit length,
-consuming-next, and destroy operations over its hidden pointer.
+contribution mode, and optional generated cleanup-function target. Fixed segments use the same
+cleanup-function domain. The literal body exposes only explicit length, consuming-next, and
+destroy operations over its hidden pointer.
 
-Residual destruction is lowered independently from normal address operations because a partially
-consumed pack owns storage whose active member is selected at runtime. Its closed recipe contains
-machine-function drop targets, layout-owned byte offsets, strides, tags, sizes, and alignments. It
-does not retain MIR places, source fields, variants, captures, parameters, or executable-item IDs.
+Concrete destruction plans are interned once across pointer primitives and pack segments. Their
+generated functions use one compiler-owned `(byte_pointer, byte_offset)` ABI. A partially consumed
+pack therefore retains only an ordinary function identity for each residual owner; it does not
+carry a recursive recipe into callback or target lowering.
 
 Linkage identities derive from dense executable item and compiler-owned root identities, not
 source spellings. Human-readable names may be retained as presentation metadata only after a
@@ -135,10 +136,10 @@ a parallel argument-transport path.
 `MachineAllocationPlan` is the single whole-program authority for the compiler-propagated current
 allocation context. Roots establish the program-lifetime default. Callable requirements are the
 least fixed point over current-context primitives, inherited direct calls, user-drop calls, spread
-iterator callbacks, and every recursively nested residual-destruction plan. An explicit `using`
-selection supplies the callee without making its caller context-dependent. The plan is complete
-before ARM64 selection, so the target layer neither scans operations nor guesses whether to emit
-the hidden context lane.
+iterator callbacks, and generated residual-destruction functions. An explicit `using` selection
+supplies the callee without making its caller context-dependent. The plan is complete before ARM64
+selection, so the target layer neither scans operations nor guesses whether to emit the hidden
+context lane.
 
 Constants, loads, address formation, stores, aggregate writes, scalar operations, integer
 conversion, drop-flag control, block arguments, scalar and stored-tag switches, returns, process
@@ -159,9 +160,11 @@ arguments, exact concrete signature, and an explicit specialized semantic depend
 primitives carry no dependency. Pointer destruction carries its concrete subject plus an optional
 `MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
 not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
-item once. Plans with work enter a content-ordered `MachineDestructionTable`, receive generated
-linkage only after the source-function domain, and become ordinary direct calls with the
-primitive's exact ABI. The generated function expands struct, active enum/outcome payload,
+item once. Plans with work from either pointer calls or literal-pack segments enter a
+content-ordered `MachineDestructionTable`, receive generated linkage only after the source-function
+domain, and use the common compiler-owned `(byte_pointer, byte_offset)` ABI. Pointer calls become
+ordinary direct calls; pack segments retain only that generated function identity. The generated
+function expands struct, active enum/outcome payload,
 closure, and opaque traversal into machine CFG. Fixed arrays use one reverse loop with a
 compiler-validated dynamic byte-offset step, so code size is independent of array length. Only
 authored drop bodies remain direct nested calls. The allocation-context fixed point follows those
@@ -431,7 +434,7 @@ scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared
 outcome tag control, explicit completion values, user destruction, region lifetime operations, and
 process error reporting. Standard primitive calls also carry ordinary ABI plans and closed roles.
 Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
-operations, and layout-owned residual destruction recipes.
+operations, and generated residual-cleanup function targets.
 The completed allocation-context fixed point marks roots, context-independent callables, and
 incoming-context callables in a dense function table. It follows inherited calls and hidden pack
 callbacks or destruction, while explicit allocation selections terminate propagation into the
@@ -462,8 +465,8 @@ stack arguments after the register window closes. Root/incoming/explicit allocat
 transport, current-context reads, pure pointer/view primitives, byte/value transfer primitives,
 Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user destruction, and
 conditional drop flags, value and stored-tag switches, and cycle-safe direct/memory block-parameter
-transport are complete. Concrete pointer destruction now interns exact plans as ordinary generated
-machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty plans, and
-hidden allocation-context propagation execute natively. Process-entry state, I/O and error
-primitives, lexical region representation and cleanup, pack callbacks and residual destruction,
-and test roots remain Phase 5 implementation areas.
+transport are complete. Concrete destruction now interns exact pointer and pack plans as ordinary
+generated machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty
+pointer plans, and hidden allocation-context propagation execute natively through pointer calls.
+Process-entry state, I/O and error primitives, lexical region representation and cleanup, pack
+descriptor/callback execution, and test roots remain Phase 5 implementation areas.

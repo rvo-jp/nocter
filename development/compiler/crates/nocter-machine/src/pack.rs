@@ -1,6 +1,6 @@
 use nocter_model::TypeId;
 
-use crate::{MachineAddressId, MachineCallTarget, MachineDestructionPlan, MachineValueId};
+use crate::{MachineAddressId, MachineCallTarget, MachineFunctionId, MachineValueId};
 
 /// How a successful spread item becomes one pack element.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,14 +54,15 @@ impl MachinePackNext {
     }
 }
 
-/// One acquired exact-size iterator retained by a transferred pack.
+/// One acquired exact-size iterator retained by a transferred pack. Residual cleanup is already
+/// closed to an ordinary compiler-generated function; no recursive destruction recipe survives.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachinePackSpread {
     iterator: MachineAddressId,
     remaining: MachineValueId,
     next: MachinePackNext,
     contribution: MachinePackContribution,
-    destruction: Option<MachineDestructionPlan>,
+    destruction: Option<MachineFunctionId>,
 }
 
 impl MachinePackSpread {
@@ -70,7 +71,7 @@ impl MachinePackSpread {
         remaining: MachineValueId,
         next: MachinePackNext,
         contribution: MachinePackContribution,
-        destruction: Option<MachineDestructionPlan>,
+        destruction: Option<MachineFunctionId>,
     ) -> Self {
         Self {
             iterator,
@@ -102,17 +103,18 @@ impl MachinePackSpread {
     }
 
     #[must_use]
-    pub const fn destruction(&self) -> Option<&MachineDestructionPlan> {
-        self.destruction.as_ref()
+    pub const fn destruction(&self) -> Option<MachineFunctionId> {
+        self.destruction
     }
 }
 
-/// One source-ordered owner inside a pack descriptor.
+/// One source-ordered owner inside a pack descriptor. A cleanup target, when present, is an
+/// ordinary generated machine function using the common byte-address destruction ABI.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachinePackSegment {
     Value {
         value: MachineValueId,
-        destruction: Option<MachineDestructionPlan>,
+        destruction: Option<MachineFunctionId>,
     },
     Spread(MachinePackSpread),
 }

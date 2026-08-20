@@ -1144,14 +1144,17 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
         panic!("expected fixed, spread, fixed pack order")
     };
 
+    let mut fixed_destructions = Vec::new();
     for segment in [first, last] {
         let crate::MachinePackSegment::Value {
-            destruction: Some(plan),
+            destruction: Some(destruction),
             ..
         } = segment
         else {
             panic!("owned fixed values must retain destruction")
         };
+        fixed_destructions.push(*destruction);
+        let plan = destruction_for_function(&program, *destruction).plan();
         assert!(matches!(
             plan.kind(),
             crate::MachineDestructionKind::Struct { fields, .. }
@@ -1163,6 +1166,10 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
                         ))
         ));
     }
+    assert_eq!(
+        fixed_destructions[0], fixed_destructions[1],
+        "equal residual plans must share one generated function"
+    );
     assert_eq!(
         spread.contribution(),
         crate::MachinePackContribution::Direct
@@ -1370,13 +1377,16 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
             .target_requires_context(spread.next().target())
             .unwrap()
     );
+    let destruction = spread.destruction().expect("iterator destruction function");
     let crate::MachineDestructionKind::Struct {
         drop: Some(drop), ..
-    } = spread.destruction().unwrap().kind()
+    } = destruction_for_function(&program, destruction)
+        .plan()
+        .kind()
     else {
         panic!("iterator destruction must retain its user drop")
     };
-    for function in [*drop, literal, caller] {
+    for function in [*drop, destruction, literal, caller] {
         assert_eq!(
             program.allocation().get(function),
             Some(MachineAllocationRequirement::Incoming)
@@ -1505,6 +1515,28 @@ fn literal_spread(
         }
     }
     panic!("fixture must contain one spread literal call")
+}
+
+fn destruction_for_function(
+    program: &MachineProgram,
+    function: crate::MachineFunctionId,
+) -> &crate::MachineDestruction {
+    let linkage = program
+        .function(function)
+        .expect("generated destruction function")
+        .linkage();
+    let crate::MachineLinkageKey::Destruction(destruction) = program
+        .linkage()
+        .get(linkage)
+        .expect("generated destruction linkage")
+        .key()
+    else {
+        panic!("pack cleanup must target generated destruction linkage")
+    };
+    program
+        .destructions()
+        .get(destruction)
+        .expect("generated destruction metadata")
 }
 
 fn lower_test_fixture(source: &str) -> nocter_mir::MirProgram {

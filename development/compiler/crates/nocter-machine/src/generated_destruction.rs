@@ -12,8 +12,8 @@ use crate::{
 };
 
 /// Materializes one concrete recursive destruction plan as an ordinary machine CFG. The generated
-/// function preserves the primitive's two-argument `(pointer, byte_offset)` ABI and delegates only
-/// authored `drop` bodies through normal direct calls.
+/// function uses the compiler-owned `(byte_pointer, byte_offset)` ABI shared by pointer primitives
+/// and pack callbacks, and delegates authored `drop` bodies through normal direct calls.
 pub(crate) fn generate_destruction_function(
     linkage: MachineLinkageId,
     plan: &MachineDestructionPlan,

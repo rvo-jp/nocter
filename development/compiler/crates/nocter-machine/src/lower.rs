@@ -254,6 +254,11 @@ pub enum MachineProgramError {
     DuplicateItemFunction(ExecutableItemId),
     DuplicateDestructionFunction(MachineDestructionId),
     DuplicateDestructionCall(MachineLinkageId, MirOperationId),
+    DuplicatePackDestruction {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+        segment: usize,
+    },
     MissingFunctionLinkage(MachineLinkageId),
     MissingItemFunction(ExecutableItemId),
     MissingItem(ExecutableItemId),
@@ -262,7 +267,12 @@ pub enum MachineProgramError {
     MissingTestRoot(TestId),
     MissingLinkageKey(MachineLinkageKey),
     MissingDestruction(crate::MachineDestructionId),
-    ConflictingDestructionAbi(TypeId),
+    MissingBytePointerType,
+    MissingPackDestruction {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+        segment: usize,
+    },
     InvalidDestructionAbi(MachineLinkageId),
     InvalidGeneratedDestruction(MachineLinkageId, crate::MachineBlockId),
     MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
@@ -323,6 +333,7 @@ impl std::error::Error for MachineProgramError {
             | Self::DuplicateItemFunction(_)
             | Self::DuplicateDestructionFunction(_)
             | Self::DuplicateDestructionCall(_, _)
+            | Self::DuplicatePackDestruction { .. }
             | Self::MissingFunctionLinkage(_)
             | Self::MissingItemFunction(_)
             | Self::MissingItem(_)
@@ -331,7 +342,8 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingTestRoot(_)
             | Self::MissingLinkageKey(_)
             | Self::MissingDestruction(_)
-            | Self::ConflictingDestructionAbi(_)
+            | Self::MissingBytePointerType
+            | Self::MissingPackDestruction { .. }
             | Self::InvalidDestructionAbi(_)
             | Self::InvalidGeneratedDestruction(_, _)
             | Self::MissingGeneratedDestruction(_, _)

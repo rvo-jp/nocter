@@ -5,9 +5,9 @@ use super::MachineProgramError;
 use super::body::BodyIdentities;
 use super::call::lower_call_target;
 use super::context::ProgramLoweringContext;
-use super::destruction::lower_destruction;
 use crate::{
-    MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment, MachinePackSpread,
+    MachineFunctionId, MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment,
+    MachinePackSpread,
 };
 
 pub(super) fn lower_packs(
@@ -36,21 +36,17 @@ fn lower_pack(
     let segments = pack
         .segments()
         .iter()
-        .map(|segment| match segment {
+        .enumerate()
+        .map(|(segment_index, segment)| match segment {
             MirPackSegment::Value { value, destruction } => Ok(MachinePackSegment::Value {
                 value: ids.value(*value)?,
-                destruction: destruction
-                    .as_ref()
-                    .map(|plan| {
-                        lower_destruction(
-                            plan,
-                            ids.owner(),
-                            operation,
-                            context.layouts,
-                            context.functions,
-                        )
-                    })
-                    .transpose()?,
+                destruction: pack_destruction(
+                    destruction.is_some(),
+                    segment_index,
+                    operation,
+                    context,
+                    ids,
+                )?,
             }),
             MirPackSegment::Spread(spread) => {
                 let target = lower_call_target(operation, spread.next_target(), context, ids)?;
@@ -58,18 +54,13 @@ fn lower_pack(
                     MirPackContribution::Direct => MachinePackContribution::Direct,
                     MirPackContribution::CopyBorrowed => MachinePackContribution::CopyBorrowed,
                 };
-                let destruction = spread
-                    .destruction()
-                    .map(|plan| {
-                        lower_destruction(
-                            plan,
-                            ids.owner(),
-                            operation,
-                            context.layouts,
-                            context.functions,
-                        )
-                    })
-                    .transpose()?;
+                let destruction = pack_destruction(
+                    spread.destruction().is_some(),
+                    segment_index,
+                    operation,
+                    context,
+                    ids,
+                )?;
                 Ok(MachinePackSegment::Spread(MachinePackSpread::new(
                     ids.address(spread.iterator())?,
                     ids.value(spread.remaining())?,
@@ -91,4 +82,30 @@ fn lower_pack(
         ids.value(pack.length())?,
         segments,
     ))
+}
+
+fn pack_destruction(
+    required: bool,
+    segment: usize,
+    operation: MirOperationId,
+    context: ProgramLoweringContext<'_>,
+    ids: &BodyIdentities,
+) -> Result<Option<MachineFunctionId>, MachineProgramError> {
+    if !required {
+        return Ok(None);
+    }
+    let destruction = context
+        .destructions
+        .pack_segment(ids.owner(), operation, segment)
+        .ok_or(MachineProgramError::MissingPackDestruction {
+            owner: ids.owner(),
+            operation,
+            segment,
+        })?;
+    context
+        .destruction_functions
+        .get(&destruction)
+        .copied()
+        .map(Some)
+        .ok_or(MachineProgramError::MissingDestruction(destruction))
 }

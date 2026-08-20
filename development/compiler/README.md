@@ -399,9 +399,11 @@ be introduced to make an unresolved syntax choice.
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   `live_in`/`live_out` sets, and records exact inputs and `live_after` values for every operation.
   ARM64 selection consumes those facts instead of rebuilding machine semantics.
-  A content-ordered `MachineDestructionTable` now interns every nonempty pointer-destruction plan.
-  Generated linkage is appended after the stable source domain, and each plan becomes an ordinary
-  machine function with the primitive's exact `(pointer, byte_offset)` ABI. Structs, active
+  A content-ordered `MachineDestructionTable` now interns every nonempty pointer and literal-pack
+  residual-destruction plan. Generated linkage is appended after the stable source domain, and
+  each plan becomes an ordinary machine function with the compiler-owned
+  `(byte_pointer, byte_offset)` ABI. Pointer calls and pack cleanup identities share that function
+  authority. Structs, active
   enum/outcome payloads, closure captures, and opaque witnesses use layout-owned address steps;
   fixed arrays use one reverse CFG loop rather than unrolled code. Authored drops remain normal
   direct calls, so allocation-context propagation and call liveness require no generated-function

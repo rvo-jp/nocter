@@ -222,6 +222,15 @@ impl MachineLayoutStore {
             program.executable().types().builtin(BuiltinType::Bool),
             program.executable().types().builtin(BuiltinType::Usize),
         ]);
+        let byte = program.executable().types().builtin(BuiltinType::U8);
+        if let Some(pointer) = program
+            .executable()
+            .types()
+            .iter()
+            .find_map(|(ty, kind)| (kind == &TypeKind::Pointer(byte)).then_some(ty))
+        {
+            roots.insert(pointer);
+        }
         for (_, function) in program.functions().iter() {
             roots.insert(function.result());
             collect_body_types(function.body(), &mut roots);

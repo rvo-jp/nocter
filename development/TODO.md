@@ -11,15 +11,15 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the completed `MachineDestructionTable` and generated-function path from
-   `drop_value_at_ptr<T>` to literal-pack residual cleanup. Pointer plans already use deterministic
-   generated linkage, ordinary ABI/direct calls, reverse array loops, and native execution; pack
-   cleanup must reuse that authority rather than retain an independent recursive recipe at runtime.
+1. Generate and execute literal-pack descriptor initialization, consuming-next callbacks, and
+   residual-destruction callbacks. Pointer and pack plans now share deterministic generated
+   linkage and one `(byte_pointer, byte_offset)` function ABI; callback code must invoke those
+   functions rather than interpret a recursive cleanup recipe.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release through that representation without deriving runtime state from the
    current standard-library implementation.
-3. Generate and execute literal-pack next/residual-destruction callbacks, then close independent
-   test roots through the same function, allocation-context, and process-image authorities.
+3. Close independent test roots through the same function, allocation-context, and process-image
+   authorities.
 4. Complete process-entry state, I/O, and error-construction primitive roles without name-based
    dispatch or private call conventions.
 
@@ -50,7 +50,7 @@ closed machine nodes. Stored, completion, and diverging SSA values are separate;
 region lifetime operations, and root error reporting consume machine identities. Standard
 primitives retain closed roles and use the ordinary ABI planner through one common call-target
 domain. Literal packs now consume exact value/address identities, and their residual destruction
-uses only machine-function targets plus layout-owned tags, strides, and byte offsets. Structural
+uses only generated machine-function targets. Structural
 comparison, checked index, and borrow weakening now consume exact scalar, tag, bound, stride, and
 view-layout facts without retaining semantic dispatch operands. The independent `nocter-arm64`
 crate now types physical register-31 roles and rejects truncating instruction encodings. ARM64

@@ -1,12 +1,11 @@
 use std::fmt;
 
+use nocter_model::TypeId;
 use nocter_target_program::PrimitiveRole;
 
 use crate::identity::MachineTable;
 use crate::{
-    MachineCall, MachineCallAllocation, MachineCallTarget, MachineDestructionCapture,
-    MachineDestructionField, MachineDestructionKind, MachineDestructionPayload,
-    MachineDestructionPlan, MachineDestructionVariant, MachineFunction, MachineFunctionId,
+    MachineCall, MachineCallAllocation, MachineCallTarget, MachineFunction, MachineFunctionId,
     MachineFunctionKind, MachineOperationKind, MachinePack, MachinePackId, MachinePackSegment,
     MachinePrimitiveDependency,
 };
@@ -158,8 +157,8 @@ fn pack_requires_context(
     for segment in pack.segments() {
         match segment {
             MachinePackSegment::Value { destruction, .. } => {
-                if let Some(plan) = destruction
-                    && destruction_requires_context(plan, requirements)?
+                if let Some(function) = destruction
+                    && function_requires_incoming(requirements, *function)?
                 {
                     return Ok(true);
                 }
@@ -168,8 +167,8 @@ fn pack_requires_context(
                 if target_requires_context(spread.next().target(), requirements)? {
                     return Ok(true);
                 }
-                if let Some(plan) = spread.destruction()
-                    && destruction_requires_context(plan, requirements)?
+                if let Some(function) = spread.destruction()
+                    && function_requires_incoming(requirements, function)?
                 {
                     return Ok(true);
                 }
@@ -177,68 +176,6 @@ fn pack_requires_context(
         }
     }
     Ok(false)
-}
-
-fn destruction_requires_context(
-    plan: &MachineDestructionPlan,
-    requirements: &[MachineAllocationRequirement],
-) -> Result<bool, MachineAllocationError> {
-    match plan.kind() {
-        MachineDestructionKind::Struct { drop, fields } => {
-            Ok(optional_function_requires(drop.as_ref(), requirements)?
-                || any_plan(
-                    fields.iter().map(MachineDestructionField::plan),
-                    requirements,
-                )?)
-        }
-        MachineDestructionKind::Enum { drop, variants, .. } => {
-            if optional_function_requires(drop.as_ref(), requirements)? {
-                return Ok(true);
-            }
-            for plan in variants
-                .iter()
-                .flat_map(MachineDestructionVariant::payload)
-                .map(MachineDestructionPayload::plan)
-            {
-                if destruction_requires_context(plan, requirements)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        MachineDestructionKind::FixedArray { element, .. }
-        | MachineDestructionKind::Outcome {
-            payload: element, ..
-        }
-        | MachineDestructionKind::Opaque(element) => {
-            destruction_requires_context(element, requirements)
-        }
-        MachineDestructionKind::Closure(captures) => any_plan(
-            captures.iter().map(MachineDestructionCapture::plan),
-            requirements,
-        ),
-    }
-}
-
-fn any_plan<'plan>(
-    plans: impl Iterator<Item = &'plan MachineDestructionPlan>,
-    requirements: &[MachineAllocationRequirement],
-) -> Result<bool, MachineAllocationError> {
-    for plan in plans {
-        if destruction_requires_context(plan, requirements)? {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-fn optional_function_requires(
-    function: Option<&MachineFunctionId>,
-    requirements: &[MachineAllocationRequirement],
-) -> Result<bool, MachineAllocationError> {
-    function.map_or(Ok(false), |function| {
-        function_requires_incoming(requirements, *function)
-    })
 }
 
 fn target_requires_context(
@@ -251,9 +188,8 @@ fn target_requires_context(
             if let MachinePrimitiveDependency::Destruction {
                 plan: Some(plan), ..
             } = primitive.dependency()
-                && destruction_requires_context(plan, requirements)?
             {
-                return Ok(true);
+                return Err(MachineAllocationError::UnloweredDestructionPlan(plan.ty()));
             }
             Ok(matches!(
                 primitive.role(),
@@ -290,6 +226,7 @@ fn mark_incoming(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAllocationError {
     UnknownFunction(MachineFunctionId),
+    UnloweredDestructionPlan(TypeId),
     UnknownPack {
         function: MachineFunctionId,
         pack: MachinePackId,
