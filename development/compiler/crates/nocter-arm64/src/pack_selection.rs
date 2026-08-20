@@ -375,6 +375,7 @@ fn select_callback(
         )?;
     }
     crate::allocation_selection::select_current(operation, frame, selected)?;
+    crate::process_selection::select_callback_current(operation, frame, selected)?;
     selected.push(Arm64SelectedInstruction::CallRegister(callback));
     if let Some((abi, result)) = result {
         crate::call_selection::select_call_result(operation, abi, result, values, selected)?;

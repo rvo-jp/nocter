@@ -2,17 +2,19 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 5 from the completed target-independent `MachineProgram` boundary and lower
-its closed operations, ABI transports, allocation-context requirements, functions, and data into
-a complete `Arm64Program`.
+Continue v0.14.0 Phase 5 from the completed target-independent `MachineProgram` boundary. Process
+entry state is complete; the remaining native area is the I/O boundary and its standard-library
+adaptation.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Complete process-entry state and I/O primitive roles without name-based
-   dispatch or private call conventions.
+1. Decide and implement the minimum target I/O boundary. Prefer the existing generic syscall
+   result ABI plus ordinary `std/io` policy when it can express complete reads, writes, retries,
+   errno conversion, and close semantics; do not preserve redundant per-operation primitives only
+   because they already have registry roles.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive
@@ -48,7 +50,7 @@ crate now types physical register-31 roles and rejects truncating instruction en
 local labels bind exactly once and resolve after monotonic conditional-branch relaxation. ARM64
 ABI register roles and deterministic fixed-frame placement are also closed. ARM64 selection and
 spill-aware instruction materialization are the next closed boundaries. The deterministic
-linear-scan allocator already assigns non-crossing ranges across `x10`-`x15` and `x19`-`x28`,
+linear-scan allocator already assigns non-crossing ranges across `x11`-`x15` and `x19`-`x28`,
 restricts call-crossing ranges to the callee-saved partition, and records dense spills plus the
 exact preservation set. Frame prologue and
 epilogue materialization handles both immediate and full-width scratch-register offsets. Dense
@@ -156,12 +158,15 @@ parameters use a separate cycle-safe parallel-copy scheduler and one maximum-siz
 object only when a cycle must be broken. Identity copies disappear, acyclic chains preserve source
 bytes, and both selected and fallback 24-byte joins plus an optional-tag switch execute natively.
 
-`MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
-direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual
-destruction callbacks. Each dense function is classified as a program root, incoming-context
-consumer, or context-independent. Explicit `using` selections provide a target context without
-making the caller dependent on an incoming one. ARM64 selection must consume this table directly;
-it may not rescan call graphs or infer hidden lanes from primitive names.
+`MachineContextPlans` now computes separate allocation and process capability tables through one
+least-fixed-point engine over ordinary calls, user drops, and literal-pack iterator or residual
+destruction callbacks. Explicit `using` selections stop only allocation propagation; process state
+remains ambient. ARM64 reserves `x9` for allocation and `x10` for process state. A root captures
+`argc`, `argv`, and `envp` before another initializer can clobber the platform argument registers,
+counts the environment once, and propagates the immutable context only through transitive
+consumers. Indexed queries are bounds checked and return program-lifetime views. Native
+conformance runs a generated image with a controlled argument and environment across a nested
+ordinary call. Target selection consumes these tables directly and does not rescan the graph.
 
 The Phase 4 responsibility map is recorded in
 `development/docs/target-program-design.md`. A closed `CompilationTarget` is now explicit in

@@ -20,6 +20,13 @@ pub(crate) fn select(
         PrimitiveRole::NewError => {
             crate::error_selection::select_new_error(operation, target, selected)
         }
+        PrimitiveRole::ProcessArgumentCount
+        | PrimitiveRole::ProcessArgument
+        | PrimitiveRole::ProcessEnvironmentCount
+        | PrimitiveRole::ProcessEnvironmentName
+        | PrimitiveRole::ProcessEnvironmentValue => {
+            crate::process_selection::select_primitive(operation, target, selected)
+        }
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
             select_context_reader(operation, target, selected)
         }

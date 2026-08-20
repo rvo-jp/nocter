@@ -104,6 +104,13 @@ pub(crate) fn select_drop(
         addresses,
         selected,
     )?;
+    crate::process_selection::select_target(
+        program,
+        operation,
+        &nocter_machine::MachineCallTarget::Direct(target),
+        frame,
+        selected,
+    )?;
     let place = addresses.use_address(place, selected)?;
     selected.push(Arm64SelectedInstruction::MemoryAddress {
         destination: Arm64SelectedRegister::Fixed(argument_register()?),

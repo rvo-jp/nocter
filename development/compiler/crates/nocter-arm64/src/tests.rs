@@ -543,8 +543,9 @@ fn abi_register_roles_form_one_closed_partition() {
     );
     assert_eq!(roles[8], Arm64AbiRegisterRole::IndirectResult);
     assert_eq!(roles[9], Arm64AbiRegisterRole::AllocationContext);
+    assert_eq!(roles[10], Arm64AbiRegisterRole::ProcessContext);
     assert!(
-        roles[10..16]
+        roles[11..16]
             .iter()
             .all(|role| *role == Arm64AbiRegisterRole::CallerSaved)
     );
@@ -565,10 +566,12 @@ fn abi_register_roles_form_one_closed_partition() {
     assert_eq!(crate::Arm64NocterAbi::argument_register(8), None);
     assert_eq!(crate::Arm64NocterAbi::indirect_result_register(), x(8));
     assert_eq!(crate::Arm64NocterAbi::allocation_context_register(), x(9));
+    assert_eq!(crate::Arm64NocterAbi::process_context_register(), x(10));
     assert!(crate::Arm64NocterAbi::is_allocatable(x(19)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(0)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(8)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(9)));
+    assert!(!crate::Arm64NocterAbi::is_allocatable(x(10)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(16)));
     assert!(!crate::Arm64NocterAbi::is_allocatable(x(18)));
 }
@@ -584,7 +587,7 @@ fn register_allocation_reuses_expired_caller_saved_registers() {
 
     assert_eq!(
         allocation.location(first),
-        Some(crate::Arm64AllocatedLocation::Register(x(10)))
+        Some(crate::Arm64AllocatedLocation::Register(x(11)))
     );
     assert_eq!(allocation.location(second), allocation.location(first));
     assert!(allocation.preserved_registers().is_empty());
@@ -603,7 +606,7 @@ fn register_allocation_keeps_call_crossing_ranges_in_preserved_registers() {
 
     assert_eq!(
         allocation.location(local),
-        Some(crate::Arm64AllocatedLocation::Register(x(10)))
+        Some(crate::Arm64AllocatedLocation::Register(x(11)))
     );
     assert_eq!(
         allocation.location(crossing),
@@ -624,15 +627,19 @@ fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
         .collect::<Vec<_>>();
     let allocation = builder.finish();
 
-    assert_eq!(allocation.spill_count(), 1);
+    assert_eq!(allocation.spill_count(), 2);
     assert!(matches!(
-        allocation.location(registers[16]),
+        allocation.location(registers[15]),
         Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 0
     ));
-    assert!(registers[..16].iter().all(|register| matches!(
+    assert!(matches!(
+        allocation.location(registers[16]),
+        Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 1
+    ));
+    assert!(registers[..15].iter().all(|register| matches!(
         allocation.location(*register),
         Some(crate::Arm64AllocatedLocation::Register(physical))
-            if physical != x(9) && physical != x(16) && physical != x(17)
+            if physical != x(9) && physical != x(10) && physical != x(16) && physical != x(17)
     )));
 }
 

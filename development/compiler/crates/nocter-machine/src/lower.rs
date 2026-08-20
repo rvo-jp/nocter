@@ -6,11 +6,11 @@ use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId}
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineAbiError, MachineAbiPlan, MachineAllocationError, MachineAllocationPlan,
-    MachineDataTable, MachineDestructionId, MachineDestructionTable, MachineFunction,
-    MachineFunctionId, MachineFunctionKind, MachineLayoutError, MachineLayoutStore,
-    MachineLinkageError, MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgram,
-    MachineProgramRoot, MachineTestProgram,
+    MachineAbiError, MachineAbiPlan, MachineContextError, MachineContextPlans, MachineDataTable,
+    MachineDestructionId, MachineDestructionTable, MachineFunction, MachineFunctionId,
+    MachineFunctionKind, MachineLayoutError, MachineLayoutStore, MachineLinkageError,
+    MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgram, MachineProgramRoot,
+    MachineTestProgram,
 };
 
 mod address;
@@ -87,12 +87,12 @@ impl MachineProgram {
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
         let root = lower_root(program, linkage.root(), &domains.linkages)?;
         let functions = MachineTable::from_values(functions);
-        let allocation = MachineAllocationPlan::build(&functions)?;
+        let contexts = MachineContextPlans::build(&functions)?;
 
         Ok(Self::new(crate::program::MachineProgramParts {
             layouts,
             abi,
-            allocation,
+            contexts,
             destructions,
             linkage,
             data,
@@ -256,7 +256,7 @@ pub enum MachineProgramError {
     Layout(MachineLayoutError),
     Abi(MachineAbiError),
     Linkage(MachineLinkageError),
-    Allocation(MachineAllocationError),
+    Context(MachineContextError),
     Dataflow {
         owner: MachineLinkageId,
         error: crate::MachineDataflowError,
@@ -343,7 +343,7 @@ impl std::error::Error for MachineProgramError {
             Self::Layout(error) => Some(error),
             Self::Abi(error) => Some(error),
             Self::Linkage(error) => Some(error),
-            Self::Allocation(error) => Some(error),
+            Self::Context(error) => Some(error),
             Self::Dataflow { error, .. } => Some(error),
             Self::DuplicateFunctionLinkage(_)
             | Self::DuplicateItemFunction(_)
@@ -399,8 +399,8 @@ impl From<MachineLinkageError> for MachineProgramError {
     }
 }
 
-impl From<MachineAllocationError> for MachineProgramError {
-    fn from(error: MachineAllocationError) -> Self {
-        Self::Allocation(error)
+impl From<MachineContextError> for MachineProgramError {
+    fn from(error: MachineContextError) -> Self {
+        Self::Context(error)
     }
 }

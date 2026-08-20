@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_machine::{
-    MachineAllocationRequirement, MachineCallTarget, MachineFunctionId, MachineFunctionKind,
+    MachineCallTarget, MachineContextRequirement, MachineFunctionId, MachineFunctionKind,
     MachineOperationKind, MachinePackId, MachineResultAbi, MachineResultLocation, MachineStackId,
     MachineValueId,
 };
@@ -19,6 +19,16 @@ pub enum Arm64AllocationContextFrame {
     /// The root owns the two-word context whose address is passed in `x9`.
     ProgramRoot(Arm64FrameObjectId),
     /// A non-root saves its incoming `x9` pointer across ordinary calls.
+    IncomingPointer(Arm64FrameObjectId),
+}
+
+/// Frame storage for compiler-propagated process entry state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64ProcessContextFrame {
+    None,
+    /// The root captures the platform entry registers in this immutable context.
+    ProgramRoot(Arm64FrameObjectId),
+    /// A non-root saves its incoming process-context pointer across ordinary calls.
     IncomingPointer(Arm64FrameObjectId),
 }
 
@@ -61,6 +71,7 @@ pub struct Arm64FunctionFrame {
     indirect_result_pointer: Option<Arm64FrameObjectId>,
     pack_input_pointer: Option<Arm64FrameObjectId>,
     allocation_context: Arm64AllocationContextFrame,
+    process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
 }
 
@@ -106,6 +117,7 @@ impl Arm64FunctionFrame {
             indirect_result_pointer: hidden.indirect_result_pointer,
             pack_input_pointer: hidden.pack_input_pointer,
             allocation_context: hidden.allocation_context,
+            process_context: hidden.process_context,
             error_report_buffer: hidden.error_report_buffer,
         })
     }
@@ -168,6 +180,11 @@ impl Arm64FunctionFrame {
     }
 
     #[must_use]
+    pub const fn process_context(&self) -> Arm64ProcessContextFrame {
+        self.process_context
+    }
+
+    #[must_use]
     pub const fn error_report_buffer(&self) -> Option<Arm64FrameObjectId> {
         self.error_report_buffer
     }
@@ -187,6 +204,7 @@ struct HiddenObjects {
     indirect_result_pointer: Option<Arm64FrameObjectId>,
     pack_input_pointer: Option<Arm64FrameObjectId>,
     allocation_context: Arm64AllocationContextFrame,
+    process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
 }
 
@@ -391,15 +409,33 @@ fn place_hidden_objects(
         .then(|| builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE))
         .transpose()?;
     let allocation_context = match program
+        .contexts()
         .allocation()
         .get(function_id)
         .ok_or(Arm64FunctionFrameError::MissingAllocation(function_id))?
     {
-        MachineAllocationRequirement::None => Arm64AllocationContextFrame::None,
-        MachineAllocationRequirement::ProgramRoot => Arm64AllocationContextFrame::ProgramRoot(
+        MachineContextRequirement::None => Arm64AllocationContextFrame::None,
+        MachineContextRequirement::ProgramRoot => Arm64AllocationContextFrame::ProgramRoot(
             builder.add_object(2 * Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
         ),
-        MachineAllocationRequirement::Incoming => Arm64AllocationContextFrame::IncomingPointer(
+        MachineContextRequirement::Incoming => Arm64AllocationContextFrame::IncomingPointer(
+            builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
+        ),
+    };
+    let process_context = match program
+        .contexts()
+        .process()
+        .get(function_id)
+        .ok_or(Arm64FunctionFrameError::MissingProcessContext(function_id))?
+    {
+        MachineContextRequirement::None => Arm64ProcessContextFrame::None,
+        MachineContextRequirement::ProgramRoot => {
+            Arm64ProcessContextFrame::ProgramRoot(builder.add_object(
+                crate::process_layout::Arm64ProcessContextLayout::SIZE,
+                crate::process_layout::Arm64ProcessContextLayout::ALIGNMENT,
+            )?)
+        }
+        MachineContextRequirement::Incoming => Arm64ProcessContextFrame::IncomingPointer(
             builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
         ),
     };
@@ -421,6 +457,7 @@ fn place_hidden_objects(
         indirect_result_pointer,
         pack_input_pointer,
         allocation_context,
+        process_context,
         error_report_buffer,
     })
 }
@@ -459,6 +496,7 @@ pub enum Arm64FunctionFrameError {
         actual: nocter_machine::MachineLinkageId,
     },
     MissingAllocation(MachineFunctionId),
+    MissingProcessContext(MachineFunctionId),
     NonDenseStack(MachineStackId),
     NonDenseDropFlag(nocter_machine::MachineDropFlagId),
     NonDenseValue(MachineValueId),
@@ -487,6 +525,7 @@ impl std::error::Error for Arm64FunctionFrameError {
             | Self::NonCallableTarget(_)
             | Self::ForeignValuePlan { .. }
             | Self::MissingAllocation(_)
+            | Self::MissingProcessContext(_)
             | Self::NonDenseStack(_)
             | Self::NonDenseDropFlag(_)
             | Self::NonDenseValue(_)

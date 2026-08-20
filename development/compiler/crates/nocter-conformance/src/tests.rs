@@ -710,6 +710,29 @@ fn process_exit_primitive_crosses_the_native_pipeline() {
 }
 
 #[test]
+fn process_entry_state_crosses_calls_and_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.{arg_count_for_test, arg_for_test, env_count_for_test, env_name_for_test, env_value_for_test}\n\
+         use std/str.str_len_for_test\n\
+         func inspect_process(): i32 {\n\
+             if !(arg_count_for_test() == 2) { return 2 }\n\
+             if !(str_len_for_test(arg_for_test(1)) == 6) { return 3 }\n\
+             if !(env_count_for_test() == 1) { return 4 }\n\
+             if !(str_len_for_test(env_name_for_test(0)) == 1) { return 5 }\n\
+             if !(str_len_for_test(env_value_for_test(0)) == 5) { return 6 }\n\
+             return 42\n\
+         }\n\
+         func main(): i32 { inspect_process() }\n",
+        &[&["process"], &["str"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_process_state(&image, 42);
+}
+
+#[test]
 fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/os.terminate_for_test\n\
@@ -970,11 +993,37 @@ fn execute_and_assert_output(image: &nocter_macho::MachOImage, expected: i32, st
     assert_eq!(output.stderr, stderr);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_and_assert_process_state(image: &nocter_macho::MachOImage, expected: i32) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "nocter-process-context-{}-{artifact}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let status = std::process::Command::new(&path)
+        .arg("needle")
+        .env_clear()
+        .env("N", "value")
+        .status()
+        .unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(status.code(), Some(expected));
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_output(_image: &nocter_macho::MachOImage, _expected: i32, _stderr: &[u8]) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_and_assert_process_state(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);

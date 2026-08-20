@@ -60,12 +60,19 @@ struct InstructionMaterialization<'selected> {
     pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the closed selected-instruction domain is routed exhaustively in one place"
+)]
 fn emit_instruction(
     context: InstructionMaterialization<'_>,
     instruction: &Arm64SelectedInstruction,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let function = context.function;
+    if let Some(result) = emit_target_instruction(function, instruction, code) {
+        return result;
+    }
     match *instruction {
         Arm64SelectedInstruction::LoadImmediate {
             size,
@@ -141,18 +148,6 @@ fn emit_instruction(
             left,
             right,
         } => emit_binary(function, operation, destination, left, right, size, code),
-        Arm64SelectedInstruction::DarwinSystemCall { .. }
-        | Arm64SelectedInstruction::ExitProcess { .. }
-        | Arm64SelectedInstruction::Break { .. } => {
-            crate::system_primitive_code::emit_selected(function, instruction, code)
-        }
-        Arm64SelectedInstruction::CreateRegion { .. }
-        | Arm64SelectedInstruction::ReleaseRegion { .. } => {
-            crate::region_code::emit_selected(function, instruction, code)
-        }
-        Arm64SelectedInstruction::ReportError { .. } => {
-            crate::error_code::emit_selected(function, instruction, code)
-        }
         Arm64SelectedInstruction::CompareBorrowed { .. } => {
             emit_selected_borrowed_comparison(function, instruction, code)
         }
@@ -162,6 +157,52 @@ fn emit_instruction(
         Arm64SelectedInstruction::CallRegister(target) => {
             emit_indirect_call(function, target, code)
         }
+        Arm64SelectedInstruction::DarwinSystemCall { .. }
+        | Arm64SelectedInstruction::ExitProcess { .. }
+        | Arm64SelectedInstruction::Break { .. }
+        | Arm64SelectedInstruction::CreateRegion { .. }
+        | Arm64SelectedInstruction::ReleaseRegion { .. }
+        | Arm64SelectedInstruction::ReportError { .. }
+        | Arm64SelectedInstruction::InitializeProcessContext { .. }
+        | Arm64SelectedInstruction::ReadProcessArgumentCount
+        | Arm64SelectedInstruction::ReadProcessArgument
+        | Arm64SelectedInstruction::ReadProcessEnvironmentCount
+        | Arm64SelectedInstruction::ReadProcessEnvironmentName
+        | Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
+            unreachable!("target-owned instructions are routed before common materialization")
+        }
+    }
+}
+
+fn emit_target_instruction(
+    function: &Arm64SelectedFunction,
+    instruction: &Arm64SelectedInstruction,
+    code: &mut Arm64CodeBuilder,
+) -> Option<Result<(), Arm64MaterializationError>> {
+    match instruction {
+        Arm64SelectedInstruction::DarwinSystemCall { .. }
+        | Arm64SelectedInstruction::ExitProcess { .. }
+        | Arm64SelectedInstruction::Break { .. } => Some(
+            crate::system_primitive_code::emit_selected(function, instruction, code),
+        ),
+        Arm64SelectedInstruction::CreateRegion { .. }
+        | Arm64SelectedInstruction::ReleaseRegion { .. } => Some(
+            crate::region_code::emit_selected(function, instruction, code),
+        ),
+        Arm64SelectedInstruction::ReportError { .. } => Some(crate::error_code::emit_selected(
+            function,
+            instruction,
+            code,
+        )),
+        Arm64SelectedInstruction::InitializeProcessContext { .. }
+        | Arm64SelectedInstruction::ReadProcessArgumentCount
+        | Arm64SelectedInstruction::ReadProcessArgument
+        | Arm64SelectedInstruction::ReadProcessEnvironmentCount
+        | Arm64SelectedInstruction::ReadProcessEnvironmentName
+        | Arm64SelectedInstruction::ReadProcessEnvironmentValue => Some(
+            crate::process_code::emit_selected(function, instruction, code),
+        ),
+        _ => None,
     }
 }
 
@@ -829,6 +870,7 @@ pub enum Arm64MaterializationError {
     UnknownFrameObject(crate::Arm64FrameObjectId),
     InvalidRegionFrame(crate::Arm64FrameObjectId),
     InvalidErrorFrame(crate::Arm64FrameObjectId),
+    InvalidProcessContextFrame(crate::Arm64FrameObjectId),
     FrameObjectBounds(crate::Arm64FrameObjectId),
     OutgoingBounds(u64),
     OffsetOverflow,

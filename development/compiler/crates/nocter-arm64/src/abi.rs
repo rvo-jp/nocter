@@ -6,6 +6,7 @@ pub enum Arm64AbiRegisterRole {
     ArgumentAndResult,
     IndirectResult,
     AllocationContext,
+    ProcessContext,
     CallerSaved,
     CompilerScratch,
     Reserved,
@@ -49,6 +50,15 @@ impl Arm64NocterAbi {
         }
     }
 
+    /// Compiler-propagated pointer to immutable process-lifetime entry state.
+    #[must_use]
+    pub const fn process_context_register() -> Arm64Register {
+        match Arm64Register::new(10) {
+            Some(register) => register,
+            None => unreachable!(),
+        }
+    }
+
     #[must_use]
     pub const fn compiler_scratch_register(index: u8) -> Option<Arm64Register> {
         if index < 2 {
@@ -80,7 +90,8 @@ impl Arm64NocterAbi {
             0..=7 => Arm64AbiRegisterRole::ArgumentAndResult,
             8 => Arm64AbiRegisterRole::IndirectResult,
             9 => Arm64AbiRegisterRole::AllocationContext,
-            10..=15 => Arm64AbiRegisterRole::CallerSaved,
+            10 => Arm64AbiRegisterRole::ProcessContext,
+            11..=15 => Arm64AbiRegisterRole::CallerSaved,
             16..=17 => Arm64AbiRegisterRole::CompilerScratch,
             18 => Arm64AbiRegisterRole::Reserved,
             19..=28 => Arm64AbiRegisterRole::CalleeSaved,
@@ -92,8 +103,8 @@ impl Arm64NocterAbi {
 
     /// Registers available to general virtual-register allocation. Compiler scratch registers are
     /// deliberately excluded so late address and fixup materialization always has reserved space.
-    /// Fixed argument, result, and allocation-context lanes are likewise staged only at their ABI
-    /// boundaries and never compete with virtual values.
+    /// Fixed argument, result, allocation-context, and process-context lanes are likewise staged
+    /// only at their ABI boundaries and never compete with virtual values.
     #[must_use]
     pub const fn is_allocatable(register: Arm64Register) -> bool {
         matches!(

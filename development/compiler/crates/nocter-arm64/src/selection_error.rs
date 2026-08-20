@@ -44,6 +44,7 @@ pub enum Arm64SelectionError {
     ResultAbi(nocter_machine::MachineLinkageId),
     PackAbi(nocter_machine::MachineLinkageId),
     AllocationEntry(MachineFunctionId),
+    ProcessEntry(MachineFunctionId),
     MissingResult(MachineOperationId),
     UnsupportedOperation {
         operation: MachineOperationId,
@@ -55,6 +56,7 @@ pub enum Arm64SelectionError {
     CallArguments(MachineOperationId),
     CallPack(MachineOperationId),
     CallAllocation(MachineOperationId),
+    ProcessCall(MachineOperationId),
     RegionOperation(MachineOperationId),
     ErrorReport(MachineOperationId),
     PrimitiveCall(MachineOperationId),
@@ -64,7 +66,7 @@ pub enum Arm64SelectionError {
     RootReturn(MachineBlockId),
     ReturnTransport(MachineBlockId),
     RegisterOverflow,
-    Allocation(nocter_machine::MachineAllocationError),
+    Context(nocter_machine::MachineContextError),
     ValuePlan(Arm64ValuePlanError),
     Frame(Arm64FunctionFrameError),
 }
@@ -78,7 +80,7 @@ impl fmt::Display for Arm64SelectionError {
 impl std::error::Error for Arm64SelectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Allocation(error) => Some(error),
+            Self::Context(error) => Some(error),
             Self::ValuePlan(error) => Some(error),
             Self::Frame(error) => Some(error),
             _ => None,
@@ -86,9 +88,9 @@ impl std::error::Error for Arm64SelectionError {
     }
 }
 
-impl From<nocter_machine::MachineAllocationError> for Arm64SelectionError {
-    fn from(error: nocter_machine::MachineAllocationError) -> Self {
-        Self::Allocation(error)
+impl From<nocter_machine::MachineContextError> for Arm64SelectionError {
+    fn from(error: nocter_machine::MachineContextError) -> Self {
+        Self::Context(error)
     }
 }
 

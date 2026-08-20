@@ -18,6 +18,10 @@ pub(crate) fn select_parameters(
     frame: &Arm64FunctionFrame,
 ) -> Result<Box<[Arm64SelectedInstruction]>, Arm64SelectionError> {
     let mut selected = Vec::new();
+    // The platform entry registers are ordinary argument registers. Capture them before root
+    // allocation initialization or any future hidden-context initializer can use those registers
+    // as materialization scratch.
+    crate::process_selection::select_entry(program, owner, frame, &mut selected)?;
     crate::allocation_selection::select_entry(program, owner, frame, &mut selected)?;
     let MachineFunctionKind::Callable(abi) = function.kind() else {
         return if function.body().parameters().is_empty() {
@@ -146,6 +150,13 @@ pub(crate) fn select_call(
         call,
         context.frame(),
         context.addresses(),
+        selected,
+    )?;
+    crate::process_selection::select_target(
+        context.program(),
+        operation,
+        call.target(),
+        context.frame(),
         selected,
     )?;
     select_call_arguments(

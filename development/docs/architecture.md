@@ -617,16 +617,17 @@ Target code generation consumes only the machine program, target description, an
 table. Optimizations may replace ordinary operations with constants but cannot define source
 semantics. In particular, built-in `error` values use ordinary value and call paths.
 
-The machine program also closes the compiler-propagated allocation-context graph before target
-selection. Process and test roots establish the default program context. A least-fixed-point table
-marks only functions that consume an incoming context through a primitive, inherited call, user
-drop, or hidden literal-pack callback or destructor. Explicit `using` selections satisfy a callee
-without propagating that requirement to the caller. ARM64 lowering consumes this table and cannot
-rediscover context requirements from operation shapes.
+The machine program closes compiler-propagated ambient capabilities before target selection. One
+fixed-point algorithm produces separate allocation and process tables across primitives, ordinary
+calls, user drop, and hidden literal-pack callbacks or destructors. Explicit `using` selections
+satisfy an allocation-dependent callee without propagating that allocation requirement; process
+state remains ambient. ARM64 lowering consumes both tables and cannot rediscover context
+requirements from operation shapes.
 
-On ARM64-Darwin, `x9` is the fixed pointer lane for that context and is excluded from general
-allocation together with argument, result, compiler-scratch, and platform-reserved registers.
-Virtual values use the disjoint `x10`-`x15` and `x19`-`x28` pools. The allocator derives
+On ARM64-Darwin, `x9` is the fixed allocation-context lane and `x10` is the fixed immutable
+process-context lane. Both are excluded from general allocation together with argument, result,
+compiler-scratch, and platform-reserved registers. Virtual values use the disjoint `x11`-`x15`
+and `x19`-`x28` pools. The allocator derives
 call-crossing ranges from recorded call positions, confines them to callee-saved registers or
 spills, and reports the exact preservation set to fixed-frame planning.
 

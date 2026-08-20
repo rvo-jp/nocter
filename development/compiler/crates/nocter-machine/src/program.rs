@@ -250,7 +250,7 @@ pub enum MachineProgramRoot {
 pub struct MachineProgram {
     layouts: MachineLayoutStore,
     abi: MachineAbiPlan,
-    allocation: crate::MachineAllocationPlan,
+    contexts: crate::MachineContextPlans,
     destructions: MachineDestructionTable,
     linkage: MachineLinkageTable,
     data: MachineDataTable,
@@ -262,7 +262,7 @@ pub struct MachineProgram {
 pub(crate) struct MachineProgramParts {
     pub(crate) layouts: MachineLayoutStore,
     pub(crate) abi: MachineAbiPlan,
-    pub(crate) allocation: crate::MachineAllocationPlan,
+    pub(crate) contexts: crate::MachineContextPlans,
     pub(crate) destructions: MachineDestructionTable,
     pub(crate) linkage: MachineLinkageTable,
     pub(crate) data: MachineDataTable,
@@ -276,7 +276,7 @@ impl MachineProgram {
         Self {
             layouts: parts.layouts,
             abi: parts.abi,
-            allocation: parts.allocation,
+            contexts: parts.contexts,
             destructions: parts.destructions,
             linkage: parts.linkage,
             data: parts.data,
@@ -297,8 +297,8 @@ impl MachineProgram {
     }
 
     #[must_use]
-    pub const fn allocation(&self) -> &crate::MachineAllocationPlan {
-        &self.allocation
+    pub const fn contexts(&self) -> &crate::MachineContextPlans {
+        &self.contexts
     }
 
     #[must_use]

@@ -10,7 +10,7 @@ use nocter_target_program::{
 use nocter_test_support::CompilerFixture;
 
 use crate::{
-    MachineAbiPlan, MachineAllocationRequirement, MachineArgumentLocation, MachineDataTable,
+    MachineAbiPlan, MachineArgumentLocation, MachineContextRequirement, MachineDataTable,
     MachineEndianness, MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore,
     MachineLinkageKey, MachineLinkageTable, MachineOperationKind, MachineOutcomeKind,
     MachineProgram, MachineProgramRoot, MachineResultAbi, MachineResultLocation,
@@ -1019,8 +1019,8 @@ fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
         panic!("fixture must produce a process root")
     };
     assert_eq!(
-        program.allocation().get(entry),
-        Some(MachineAllocationRequirement::None)
+        program.contexts().allocation().get(entry),
+        Some(MachineContextRequirement::None)
     );
     let lifetime = program
         .functions()
@@ -1328,12 +1328,12 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
         panic!("fixture must produce a process root")
     };
     assert_eq!(
-        plain.allocation().get(plain_root),
-        Some(MachineAllocationRequirement::ProgramRoot)
+        plain.contexts().allocation().get(plain_root),
+        Some(MachineContextRequirement::ProgramRoot)
     );
     assert_eq!(
-        plain.allocation().get(plain_entry),
-        Some(MachineAllocationRequirement::None)
+        plain.contexts().allocation().get(plain_entry),
+        Some(MachineContextRequirement::None)
     );
 
     let fixture = CompilerFixture::with_app_standard_uses(
@@ -1350,15 +1350,16 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
         panic!("fixture must produce a process root")
     };
     assert_eq!(
-        allocating.allocation().get(root),
-        Some(MachineAllocationRequirement::ProgramRoot)
+        allocating.contexts().allocation().get(root),
+        Some(MachineContextRequirement::ProgramRoot)
     );
     assert_eq!(
-        allocating.allocation().get(entry),
-        Some(MachineAllocationRequirement::Incoming)
+        allocating.contexts().allocation().get(entry),
+        Some(MachineContextRequirement::Incoming)
     );
     assert!(allocating.functions().any(|(function, body)| {
-        allocating.allocation().get(function) == Some(MachineAllocationRequirement::Incoming)
+        allocating.contexts().allocation().get(function)
+            == Some(MachineContextRequirement::Incoming)
             && body.body().operations().any(|(_, operation)| {
                 matches!(
                     operation.kind(),
@@ -1375,6 +1376,60 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
                 )
             })
     }));
+}
+
+#[test]
+fn ambient_context_plans_separate_process_state_from_allocation_selection() {
+    let mir = lower_selected_fixture(
+        &CompilerFixture::with_app_standard_uses(
+            "use std/process.arg_count_for_test\n\
+             func read_count(): usize { return arg_count_for_test() }\n\
+             func main(): usize { return read_count() }\n",
+            &[&["process"]],
+        ),
+        false,
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { root, entry } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let process_reader = program
+        .functions()
+        .find_map(|(function, definition)| {
+            definition
+                .body()
+                .operations()
+                .any(|(_, operation)| {
+                    matches!(
+                        operation.kind(),
+                        MachineOperationKind::Call(call)
+                            if matches!(
+                                call.target(),
+                                crate::MachineCallTarget::Primitive(target)
+                                    if target.role() == PrimitiveRole::ProcessArgumentCount
+                            )
+                    )
+                })
+                .then_some(function)
+        })
+        .expect("fixture must retain the process primitive caller");
+
+    assert_eq!(
+        program.contexts().process().get(root),
+        Some(MachineContextRequirement::ProgramRoot)
+    );
+    assert_eq!(
+        program.contexts().process().get(entry),
+        Some(MachineContextRequirement::Incoming)
+    );
+    assert_eq!(
+        program.contexts().process().get(process_reader),
+        Some(MachineContextRequirement::Incoming)
+    );
+    assert_eq!(
+        program.contexts().allocation().get(entry),
+        Some(MachineContextRequirement::None)
+    );
 }
 
 #[test]
@@ -1413,8 +1468,8 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
     let (caller, literal, spread) = literal_spread(&program);
 
     assert_eq!(
-        program.allocation().get(spread.next().target()),
-        Some(MachineAllocationRequirement::None)
+        program.contexts().allocation().get(spread.next().target()),
+        Some(MachineContextRequirement::None)
     );
     let destruction = spread.destruction().expect("iterator destruction function");
     let crate::MachineDestructionKind::Struct {
@@ -1427,8 +1482,8 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
     };
     for function in [*drop, destruction, literal, caller] {
         assert_eq!(
-            program.allocation().get(function),
-            Some(MachineAllocationRequirement::Incoming)
+            program.contexts().allocation().get(function),
+            Some(MachineContextRequirement::Incoming)
         );
     }
 }
@@ -1460,8 +1515,8 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
     };
 
     assert_eq!(
-        program.allocation().get(entry),
-        Some(MachineAllocationRequirement::None)
+        program.contexts().allocation().get(entry),
+        Some(MachineContextRequirement::None)
     );
     let literal_call = program
         .function(entry)
@@ -1478,9 +1533,17 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
         crate::MachineCallAllocation::Explicit(_)
     ));
     assert!(
-        program
+        !program
+            .contexts()
             .allocation()
-            .call_requires_context(literal_call)
+            .call_requires_incoming(literal_call)
+            .unwrap()
+    );
+    assert!(
+        program
+            .contexts()
+            .allocation()
+            .target_requires_context(literal_call.target())
             .unwrap()
     );
 }

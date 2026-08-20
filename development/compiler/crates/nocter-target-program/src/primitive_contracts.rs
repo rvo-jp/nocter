@@ -841,7 +841,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             str_ref(),
             package,
             arm64_darwin,
-            None,
+            Some(vec![]),
         ),
         PrimitiveRole::OpenRead | PrimitiveRole::CreateFile | PrimitiveRole::AppendFile => make(
             IO_MODULE,

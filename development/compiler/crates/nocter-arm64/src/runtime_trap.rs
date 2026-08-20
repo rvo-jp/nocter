@@ -12,6 +12,7 @@ pub(crate) enum Arm64RuntimeTrap {
     AllocationFailure,
     ExactSizeIteratorViolation,
     RegionReleaseFailure,
+    ProcessIndexOutOfBounds,
 }
 
 impl Arm64RuntimeTrap {
@@ -25,6 +26,7 @@ impl Arm64RuntimeTrap {
             Self::AllocationFailure => 6,
             Self::ExactSizeIteratorViolation => 7,
             Self::RegionReleaseFailure => 8,
+            Self::ProcessIndexOutOfBounds => 9,
         }
     }
 }

@@ -32,6 +32,9 @@ mod parallel_copy;
 mod primitive_memory_code;
 mod primitive_memory_selection;
 mod primitive_selection;
+mod process_code;
+mod process_layout;
+mod process_selection;
 mod program;
 mod region_code;
 mod region_layout;
@@ -63,6 +66,7 @@ pub use frame::{
 pub use frame_code::Arm64FrameCode;
 pub use function_frame::{
     Arm64AllocationContextFrame, Arm64FunctionFrame, Arm64FunctionFrameError, Arm64PackFrame,
+    Arm64ProcessContextFrame,
 };
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{

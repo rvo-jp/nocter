@@ -137,13 +137,15 @@ arguments, allocation context, and the optional hidden pack identity use one cal
 Direct targets therefore cannot invent a second call contract, and new target kinds cannot create
 a parallel argument-transport path.
 
-`MachineAllocationPlan` is the single whole-program authority for the compiler-propagated current
-allocation context. Roots establish the program-lifetime default. Callable requirements are the
-least fixed point over current-context primitives, inherited direct calls, user-drop calls, spread
-iterator callbacks, and generated residual-destruction functions. An explicit `using` selection
-supplies the callee without making its caller context-dependent. The plan is complete before ARM64
-selection, so the target layer neither scans operations nor guesses whether to emit the hidden
-context lane.
+`MachineContextPlans` is the single whole-program authority for compiler-propagated ambient
+capabilities. Its shared fixed-point engine builds independent allocation and process plans over
+ordinary calls, user-drop calls, spread iterator callbacks, and generated residual-destruction
+functions. Roots establish the program-lifetime allocation default. An explicit `using` selection
+supplies an allocation-dependent callee without making its caller allocation-dependent; it does
+not interrupt process-state propagation. Process roots and independently launched test roots own a
+process context only when their reachable graph queries entry state. The plans are complete before
+ARM64 selection, so the target layer neither scans operations nor guesses whether to emit either
+hidden context lane.
 
 Constants, loads, address formation, stores, aggregate writes, scalar operations, integer
 conversion, drop-flag control, block arguments, scalar and stored-tag switches, returns, process
@@ -224,7 +226,7 @@ is monotonic and recomputes every affected label; it never patches a truncated d
 The target ABI register partition is one closed authority shared by allocation and frame planning.
 The fixed `x9` lane carries the compiler-propagated allocation-context pointer and never enters
 general allocation. Fixed argument/result lanes are likewise boundary-only. Virtual values use
-`x10`-`x15` or `x19`-`x28`; a range live across a call may use only the latter or a spill slot.
+`x11`-`x15` or `x19`-`x28`; a range live across a call may use only the latter or a spill slot.
 `Arm64ValuePlan` first partitions machine values into omitted storage, one or two virtual word
 lanes, or memory storage for values larger than the direct ABI limit. It uses machine operation
 inputs and block liveness to extend deterministic intervals. Call crossing is marked directly from
@@ -499,4 +501,13 @@ the fixed punctuation without allocation, and failed stderr writes do not alter 
 status. `new_error` constructs the same four words through its ordinary indirect-result ABI and
 retains both declared input origins.
 
-Process-entry state and the remaining I/O primitives remain Phase 5 implementation areas.
+Process-entry state is complete. The root captures `argc`, `argv`, and `envp` before allocation
+initialization can use platform argument registers, counts the null-terminated environment vector
+once, and passes the four-word immutable context through fixed `x10` only when the machine process
+plan requires it. Argument and environment indexes trap before an out-of-bounds load; successful
+queries produce program-lifetime pointer/length views. Native conformance supplies an argument and
+a controlled environment across a nested ordinary call.
+
+The remaining Phase 5 implementation area is I/O. Its target boundary must be reduced to the
+minimum operation set needed by ordinary standard-library retry, partial-transfer, errno, and
+resource-lifetime policy; redundant target roles must not survive merely as compatibility shims.

@@ -177,6 +177,15 @@ pub enum Arm64SelectedInstruction {
         error: crate::Arm64FrameObjectId,
         buffer: crate::Arm64FrameObjectId,
     },
+    /// Captures `argc`, `argv`, and `envp` from the platform entry ABI and counts `envp` once.
+    InitializeProcessContext {
+        context: crate::Arm64FrameObjectId,
+    },
+    ReadProcessArgumentCount,
+    ReadProcessArgument,
+    ReadProcessEnvironmentCount,
+    ReadProcessEnvironmentName,
+    ReadProcessEnvironmentValue,
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

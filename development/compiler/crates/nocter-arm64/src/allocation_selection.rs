@@ -1,5 +1,5 @@
 use nocter_machine::{
-    MachineAllocationRequirement, MachineCall, MachineCallAllocation, MachineFunctionId,
+    MachineCall, MachineCallAllocation, MachineContextRequirement, MachineFunctionId,
 };
 
 use crate::{
@@ -16,13 +16,14 @@ pub(crate) fn select_entry(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let requirement = program
+        .contexts()
         .allocation()
         .get(function)
         .ok_or(Arm64SelectionError::AllocationEntry(function))?;
     match (requirement, frame.allocation_context()) {
-        (MachineAllocationRequirement::None, Arm64AllocationContextFrame::None) => Ok(()),
+        (MachineContextRequirement::None, Arm64AllocationContextFrame::None) => Ok(()),
         (
-            MachineAllocationRequirement::ProgramRoot,
+            MachineContextRequirement::ProgramRoot,
             Arm64AllocationContextFrame::ProgramRoot(object),
         ) => {
             selected.push(Arm64SelectedInstruction::ZeroStack {
@@ -32,7 +33,7 @@ pub(crate) fn select_entry(
             Ok(())
         }
         (
-            MachineAllocationRequirement::Incoming,
+            MachineContextRequirement::Incoming,
             Arm64AllocationContextFrame::IncomingPointer(object),
         ) => {
             selected.push(Arm64SelectedInstruction::StoreMemory {
@@ -78,7 +79,10 @@ pub(crate) fn select_target(
     addresses: &Arm64SelectedAddressPlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let requires_context = program.allocation().target_requires_context(target)?;
+    let requires_context = program
+        .contexts()
+        .allocation()
+        .target_requires_context(target)?;
     match (requires_context, allocation) {
         (false, _) => Ok(()),
         (true, MachineCallAllocation::Inherit) => select_inherited(operation, frame, selected),
@@ -145,7 +149,7 @@ fn select_inherited(
 
 /// Reloads the current context before an indirect compiler-generated callback. A callback exists
 /// outside the machine function domain, so its need was already propagated into the containing
-/// literal function by `MachineAllocationPlan`.
+/// literal function by the allocation capability in `MachineContextPlans`.
 pub(crate) fn select_current(
     operation: nocter_machine::MachineOperationId,
     frame: &Arm64FunctionFrame,

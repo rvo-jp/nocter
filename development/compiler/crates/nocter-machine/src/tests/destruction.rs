@@ -3,7 +3,7 @@ use nocter_test_support::CompilerFixture;
 
 use super::lower_selected_fixture;
 use crate::{
-    MachineAllocationRequirement, MachineLinkageKey, MachineOperationKind, MachineProgram,
+    MachineContextRequirement, MachineLinkageKey, MachineOperationKind, MachineProgram,
     MachineTerminator,
 };
 
@@ -156,7 +156,7 @@ fn generated_destruction_propagates_user_drop_allocation_context() {
         .unwrap();
 
     assert_eq!(
-        program.allocation().get(function),
-        Some(MachineAllocationRequirement::Incoming)
+        program.contexts().allocation().get(function),
+        Some(MachineContextRequirement::Incoming)
     );
 }
