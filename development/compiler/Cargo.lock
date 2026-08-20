@@ -30,6 +30,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-compile-input"
+version = "0.0.0"
+dependencies = [
+ "nocter-declarations",
+ "nocter-model",
+ "nocter-source",
+ "nocter-syntax",
+]
+
+[[package]]
 name = "nocter-conformance"
 version = "0.0.0"
 dependencies = [
@@ -49,12 +59,14 @@ dependencies = [
 name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [
+ "nocter-compile-input",
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-model",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
+ "nocter-target-selection",
 ]
 
 [[package]]
@@ -139,6 +151,15 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-test-support",
+]
+
+[[package]]
+name = "nocter-target-selection"
+version = "0.0.0"
+dependencies = [
+ "nocter-model",
+ "nocter-source",
+ "nocter-syntax",
 ]
 
 [[package]]

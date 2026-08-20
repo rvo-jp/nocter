@@ -14,7 +14,6 @@ mod generics;
 mod headers;
 mod import_diagnostic;
 mod imports;
-mod input;
 mod namespace;
 mod namespace_diagnostic;
 mod package_targets;
@@ -22,7 +21,6 @@ mod pipeline;
 mod reservation;
 mod surface;
 mod surface_diagnostic;
-mod target_selection;
 mod topology;
 mod topology_diagnostic;
 mod topology_violation;
@@ -51,13 +49,13 @@ pub use imports::{
     ImportError, ImportRule, ImportViolation, PreludeError, PreparedImports, PreparedNamespaces,
     apply_standard_prelude, prepare_authored_imports,
 };
-pub use input::{
+pub use namespace::{NamespaceRule, NamespaceViolation};
+pub use namespace_diagnostic::NamespaceDiagnostic;
+pub use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
     PackageTargetResolutionInput, StandardRoleInput, UseResolutionInput, UseTargetInput,
 };
-pub use namespace::{NamespaceRule, NamespaceViolation};
-pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};
 pub use reservation::{

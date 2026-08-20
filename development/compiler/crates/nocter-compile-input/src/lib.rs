@@ -1,3 +1,9 @@
+//! Discovery-owned, syntax-borrowing input for one Nocter compile unit.
+//!
+//! This crate defines the complete handoff from source discovery to semantic lowering. It owns no
+//! filesystem policy and performs no semantic work; producers resolve physical topology once and
+//! consumers treat every identity and edge as immutable input.
+
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
@@ -25,9 +31,6 @@ pub enum PackageMode {
 }
 
 /// The authored package declaration and its canonical physical identity.
-///
-/// The path is supplied by package discovery. Lowering treats it as an opaque, already
-/// canonicalized key and never probes the filesystem.
 #[derive(Clone, Debug)]
 pub struct PackageDeclarationInput<'syntax> {
     canonical_path: Box<str>,
@@ -140,17 +143,12 @@ pub enum ModuleSourceKind {
 }
 
 /// The exact graph edge selected by package/source discovery for one authored `use`.
-///
-/// Lowering never reconstructs this distinction from a canonical path. Source targets compose a
-/// physical implementation source into the importing module; module targets enter semantic name
-/// resolution.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum UseTargetInput {
     Source(Box<str>),
     Module(ModuleIdentity),
 }
 
-/// One resolved `use` node and its discovery-owned target.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UseResolutionInput {
     declaration: NodeId,
@@ -177,10 +175,7 @@ impl UseResolutionInput {
     }
 }
 
-/// One package target directive and the exact directory module selected by package discovery.
-///
-/// The directive remains the authority for target kind, name, and declaration order. Discovery
-/// owns only path resolution; lowering never reinterprets the authored `module` string.
+/// One package target directive paired with the directory module selected by discovery.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PackageTargetResolutionInput {
     declaration: NodeId,
@@ -208,10 +203,6 @@ impl PackageTargetResolutionInput {
 }
 
 /// One exact source declaration selected for a compiler-owned standard semantic role.
-///
-/// Package discovery supplies the declaration-name token. Checking validates its semantic shape
-/// and standard-package ownership. Neither layer searches for
-/// a matching spelling, so a project declaration with the same name cannot acquire authority.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct StandardRoleInput {
     role: StandardDeclarationRole,
@@ -331,14 +322,12 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self.target
     }
 
-    /// Reuses one immutable discovery snapshot for another explicitly selected target.
     #[must_use]
     pub fn with_target(mut self, target: CompilationTarget) -> Self {
         self.target = target;
         self
     }
 
-    /// Attaches package-discovery target resolutions to the immutable source snapshot.
     #[must_use]
     pub fn with_package_target_resolutions(
         mut self,
@@ -348,8 +337,6 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self
     }
 
-    /// Attaches discovery-selected standard declarations without changing the common constructor
-    /// used by source-only and focused compiler tests.
     #[must_use]
     pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
         self.standard_roles = roles;

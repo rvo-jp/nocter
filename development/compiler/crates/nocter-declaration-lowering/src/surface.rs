@@ -7,11 +7,11 @@ use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
 
-use crate::target_selection::TargetSelection;
 use crate::topology::{PreparedCompileUnit, UseResolutionKey, prepare_compile_unit};
 use crate::{
     CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput, UseTargetInput,
 };
+use nocter_target_selection::TargetSelection;
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

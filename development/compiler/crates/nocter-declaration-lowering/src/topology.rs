@@ -12,11 +12,12 @@ use nocter_source_index::{
 };
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
-use crate::target_selection::TargetSelection;
 use crate::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceKind, PackageIdentity, PackageInput,
-    PackageMode, TopologyViolation, UseResolutionInput, UseTargetInput,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageIdentity, PackageInput, PackageMode, TopologyViolation, UseResolutionInput,
+    UseTargetInput,
 };
+use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
 pub(crate) type UseResolutionKey = (SourceId, usize);
 
@@ -305,7 +306,20 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let packages = canonical_packages(input)?;
     let modules = canonical_modules(input, &packages)?;
     validate_sources(input, &packages, &modules)?;
-    let target_selection = TargetSelection::prepare(input, &modules)?;
+    let target_selection = TargetSelection::prepare(
+        input.target(),
+        input.sources(),
+        modules
+            .iter()
+            .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
+    )
+    .map_err(|error| match error {
+        TargetSelectionError::MissingSource(source) => LoweringError::MissingSource(source),
+        TargetSelectionError::InconsistentSyntax(source) => {
+            LoweringError::InconsistentSyntax(source)
+        }
+        TargetSelectionError::UnknownTarget(literal) => LoweringError::UnknownTargetGate(literal),
+    })?;
     let package_target_resolutions =
         validate_package_target_resolutions(input, &packages, &modules)?;
     let use_resolutions = validate_use_resolutions(input, &modules, &target_selection)?;
@@ -597,7 +611,7 @@ fn validate_use_resolutions<'input, 'syntax>(
     });
     for resolution in input_resolutions {
         let declaration = resolution.declaration();
-        if target_selection.use_is_inactive(declaration) {
+        if !target_selection.use_is_active(declaration) {
             continue;
         }
         let key = use_key(declaration);

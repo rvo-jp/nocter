@@ -2,6 +2,7 @@
 members = [
     "crates/nocter-arm64",
     "crates/nocter-checking",
+    "crates/nocter-compile-input",
     "crates/nocter-conformance",
     "crates/nocter-declarations",
     "crates/nocter-declaration-lowering",
@@ -14,6 +15,7 @@ members = [
     "crates/nocter-source-index",
     "crates/nocter-syntax",
     "crates/nocter-target-program",
+    "crates/nocter-target-selection",
     "crates/nocter-test-support",
 ]
 resolver = "3"
