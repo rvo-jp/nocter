@@ -13,8 +13,8 @@ implementation input.
 
 1. Extend the closed selected-instruction schema from scalar operations, simple stack addresses,
    scalar memory access, scalar direct-call transport, branch, return, and process exit to
-   projected/dynamic addresses, aggregate operations, block-parameter transport, and complete
-   callable parameter/result transport.
+   projected/dynamic addresses, aggregate operations, and complete callable parameter/result
+   transport.
 2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
 3. Expand the native conformance crate from the deterministic constant-process case to control,
@@ -75,7 +75,10 @@ and cannot silently become zero-extended values. `Arm64Program::lower_machine` t
 functions and static data through the existing program builder. The separate `nocter-conformance`
 crate crosses source, checking, specialization, MIR, machine lowering, ARM64, Mach-O, and native
 execution for deterministic constants, scalar calls/arithmetic, control, structural comparison,
-and narrow signed values.
+and narrow signed values. CFG edges now own typed direct-lane parallel copies. The materializer
+executes copies only on the selected edge, orders acyclic dependencies, breaks cycles through one
+ABI-reserved temporary, and supports register/spill combinations without adding a hidden frame
+protocol. Value-producing control flow therefore crosses native block parameters directly.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

@@ -73,6 +73,20 @@ fn guarded_signed_arithmetic_crosses_the_complete_native_pipeline() {
     execute_and_assert_status(&image, 42);
 }
 
+#[test]
+fn block_parameters_cross_control_flow_edges_natively() {
+    let machine = lower_machine(
+        "func choose(condition: bool): i32 {\n\
+             if condition { 1 } else { 2 }\n\
+         }\n\
+         func main(): i32 { choose(true) * 40 + choose(false) }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     use std::os::unix::fs::PermissionsExt;

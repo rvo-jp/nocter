@@ -427,7 +427,9 @@ be introduced to make an unresolved syntax choice.
   process exits into virtual/fixed register transfers. Signed byte and halfword loads retain their
   meaning through explicit sign-extending target instructions. A separate materializer resolves
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
-  nodes fail selection explicitly. Dense function
+  nodes fail selection explicitly. Typed CFG edges own direct-lane parallel copies; a separate
+  resolver orders chains, breaks cycles through one reserved boundary register, and emits only the
+  chosen conditional edge across register and spill locations. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses.
@@ -438,8 +440,9 @@ be introduced to make an unresolved syntax choice.
   macOS without invoking an assembler, linker, or signing tool.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
-  comparisons, and narrow signed values from source, emits signed Mach-O images, and executes them
-  on ARM64 macOS. The constant case also proves byte-for-byte output determinism.
+  comparisons, narrow signed values, and value-producing block joins from source, emits signed
+  Mach-O images, and executes them on ARM64 macOS. The constant case also proves byte-for-byte
+  output determinism.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

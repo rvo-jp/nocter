@@ -7,7 +7,7 @@ use crate::{
     Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64DataRegister,
     Arm64DataSize, Arm64FrameCode, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
     Arm64Register, Arm64SelectedBinaryOperation, Arm64SelectedComparisonOperation,
-    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
+    Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
     Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
     Arm64SelectedUnaryOperation, Arm64Shift,
 };
@@ -439,16 +439,16 @@ fn emit_terminator(
     labels: &[(MachineBlockId, crate::Arm64LabelId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    match *terminator {
-        Arm64SelectedTerminator::Goto(target) => {
-            code.branch(block_label(labels, target)?, false);
+    match terminator {
+        Arm64SelectedTerminator::Goto(edge) => {
+            emit_edge(function, edge, labels, code)?;
         }
         Arm64SelectedTerminator::Branch {
             condition,
-            then_block,
-            else_block,
+            then_edge,
+            else_edge,
         } => {
-            let condition = read_register(function, condition, 0, code)?;
+            let condition = read_register(function, *condition, 0, code)?;
             code.append(Arm64Instruction::AddSubtractImmediate {
                 size: Arm64DataSize::Bits32,
                 operation: Arm64AddSubtract::Subtract,
@@ -458,11 +458,18 @@ fn emit_terminator(
                 immediate: 0,
                 shift_12: false,
             });
-            code.branch_conditional(
-                block_label(labels, then_block)?,
-                Arm64BranchCondition::NotEqual,
-            );
-            code.branch(block_label(labels, else_block)?, false);
+            let then_copy_label = (!then_edge.copies().is_empty()).then(|| code.create_label());
+            let then_target = if let Some(copy_label) = then_copy_label {
+                copy_label
+            } else {
+                block_label(labels, then_edge.target())?
+            };
+            code.branch_conditional(then_target, Arm64BranchCondition::NotEqual);
+            emit_edge(function, else_edge, labels, code)?;
+            if let Some(copy_label) = then_copy_label {
+                code.bind(copy_label)?;
+                emit_edge(function, then_edge, labels, code)?;
+            }
         }
         Arm64SelectedTerminator::Return => {
             Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
@@ -470,7 +477,7 @@ fn emit_terminator(
         Arm64SelectedTerminator::Exit(status) => {
             let status_register = Arm64NocterAbi::argument_register(0)
                 .expect("the ARM64 ABI has an x0 argument register");
-            if let Some(status) = status {
+            if let Some(status) = *status {
                 emit_move(
                     function,
                     Arm64SelectedRegister::Fixed(status_register),
@@ -501,6 +508,17 @@ fn emit_terminator(
             code.append(Arm64Instruction::Break { immediate: 2 });
         }
     }
+    Ok(())
+}
+
+fn emit_edge(
+    function: &Arm64SelectedFunction,
+    edge: &Arm64SelectedEdge,
+    labels: &[(MachineBlockId, crate::Arm64LabelId)],
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::parallel_copy::emit(function, edge.copies(), code)?;
+    code.branch(block_label(labels, edge.target())?, false);
     Ok(())
 }
 
@@ -714,6 +732,7 @@ pub enum Arm64MaterializationError {
     FrameObjectBounds(crate::Arm64FrameObjectId),
     OutgoingBounds(u64),
     OffsetOverflow,
+    InvalidParallelCopy,
     Code(Arm64CodeError),
 }
 

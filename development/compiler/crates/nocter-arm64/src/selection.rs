@@ -2,11 +2,12 @@ use std::fmt;
 
 use nocter_machine::{
     MachineAddressId, MachineAddressRoot, MachineAddressStep, MachineArgumentLocation,
-    MachineBinaryOperation, MachineBlockId, MachineCall, MachineCallAllocation, MachineCallTarget,
-    MachineComparisonOperation, MachineComparisonRepresentation, MachineConstant,
-    MachineFunctionId, MachineFunctionKind, MachineLayoutKind, MachineOperationId,
-    MachineOperationKind, MachineResultAbi, MachineResultLocation, MachineScalar,
-    MachineTerminator, MachineUnaryOperation, MachineValueClass, MachineValueId,
+    MachineBinaryOperation, MachineBlockId, MachineBranchTarget, MachineCall,
+    MachineCallAllocation, MachineCallTarget, MachineComparisonOperation,
+    MachineComparisonRepresentation, MachineConstant, MachineFunctionId, MachineFunctionKind,
+    MachineLayoutKind, MachineOperationId, MachineOperationKind, MachineResultAbi,
+    MachineResultLocation, MachineScalar, MachineTerminator, MachineUnaryOperation,
+    MachineValueClass, MachineValueId,
 };
 
 use crate::{
@@ -113,13 +114,49 @@ pub enum Arm64SelectedComparisonOperation {
     Less { signed: bool },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64SelectedCopy {
+    destination: Arm64SelectedRegister,
+    source: Arm64SelectedRegister,
+}
+
+impl Arm64SelectedCopy {
+    #[must_use]
+    pub const fn destination(self) -> Arm64SelectedRegister {
+        self.destination
+    }
+
+    #[must_use]
+    pub const fn source(self) -> Arm64SelectedRegister {
+        self.source
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Arm64SelectedEdge {
+    target: MachineBlockId,
+    copies: Box<[Arm64SelectedCopy]>,
+}
+
+impl Arm64SelectedEdge {
+    #[must_use]
+    pub const fn target(&self) -> MachineBlockId {
+        self.target
+    }
+
+    #[must_use]
+    pub const fn copies(&self) -> &[Arm64SelectedCopy] {
+        &self.copies
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedTerminator {
-    Goto(MachineBlockId),
+    Goto(Arm64SelectedEdge),
     Branch {
         condition: Arm64SelectedRegister,
-        then_block: MachineBlockId,
-        else_block: MachineBlockId,
+        then_edge: Arm64SelectedEdge,
+        else_edge: Arm64SelectedEdge,
     },
     Return,
     Exit(Option<Arm64SelectedRegister>),
@@ -179,9 +216,6 @@ impl Arm64SelectedFunction {
         for (block_id, block) in function.body().blocks() {
             if block_id.index() != blocks.len() {
                 return Err(Arm64SelectionError::NonDenseBlock(block_id));
-            }
-            if !block.parameters().is_empty() {
-                return Err(Arm64SelectionError::BlockParameters(block_id));
             }
             let mut instructions = Vec::new();
             for operation_id in block.operations() {
@@ -635,20 +669,18 @@ fn select_terminator(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<Arm64SelectedTerminator, Arm64SelectionError> {
     match terminator {
-        MachineTerminator::Goto(target) if target.arguments().is_empty() => {
-            Ok(Arm64SelectedTerminator::Goto(target.block()))
-        }
+        MachineTerminator::Goto(target) => Ok(Arm64SelectedTerminator::Goto(select_edge(
+            function, target, values,
+        )?)),
         MachineTerminator::Branch {
             condition,
             then_target,
             else_target,
-        } if then_target.arguments().is_empty() && else_target.arguments().is_empty() => {
-            Ok(Arm64SelectedTerminator::Branch {
-                condition: one_word(values, *condition)?,
-                then_block: then_target.block(),
-                else_block: else_target.block(),
-            })
-        }
+        } => Ok(Arm64SelectedTerminator::Branch {
+            condition: one_word(values, *condition)?,
+            then_edge: select_edge(function, then_target, values)?,
+            else_edge: select_edge(function, else_target, values)?,
+        }),
         MachineTerminator::Return(value) => {
             select_return(function, block, *value, values, selected)?;
             Ok(Arm64SelectedTerminator::Return)
@@ -660,6 +692,53 @@ fn select_terminator(
         MachineTerminator::Unreachable => Ok(Arm64SelectedTerminator::Unreachable),
         _ => Err(Arm64SelectionError::UnsupportedTerminator(block)),
     }
+}
+
+fn select_edge(
+    function: &nocter_machine::MachineFunction,
+    target: &MachineBranchTarget,
+    values: &Arm64ValuePlan,
+) -> Result<Arm64SelectedEdge, Arm64SelectionError> {
+    let parameters = function
+        .body()
+        .block(target.block())
+        .map(nocter_machine::MachineBlock::parameters)
+        .ok_or(Arm64SelectionError::UnknownBlock(target.block()))?;
+    if parameters.len() != target.arguments().len() {
+        return Err(Arm64SelectionError::EdgeArity(target.block()));
+    }
+    let mut copies = Vec::new();
+    for (argument, parameter) in target
+        .arguments()
+        .iter()
+        .copied()
+        .zip(parameters.iter().copied())
+    {
+        match (values.value(argument), values.value(parameter)) {
+            (Some(Arm64ValueStorage::Omitted), Some(Arm64ValueStorage::Omitted)) => {}
+            (
+                Some(Arm64ValueStorage::Direct(sources)),
+                Some(Arm64ValueStorage::Direct(destinations)),
+            ) if sources.len() == destinations.len() => {
+                copies.extend(
+                    sources
+                        .iter()
+                        .zip(destinations)
+                        .map(|(source, destination)| Arm64SelectedCopy {
+                            destination: Arm64SelectedRegister::Virtual(*destination),
+                            source: Arm64SelectedRegister::Virtual(*source),
+                        }),
+                );
+            }
+            (Some(_), Some(_)) => return Err(Arm64SelectionError::EdgeTransport(target.block())),
+            (None, _) => return Err(Arm64SelectionError::UnknownValue(argument)),
+            (_, None) => return Err(Arm64SelectionError::UnknownValue(parameter)),
+        }
+    }
+    Ok(Arm64SelectedEdge {
+        target: target.block(),
+        copies: copies.into_boxed_slice(),
+    })
 }
 
 fn select_return(
@@ -929,7 +1008,9 @@ pub enum Arm64SelectionError {
     UnsupportedScalar(MachineValueId),
     UnsupportedScalarRepresentation(MachineScalar),
     NonDenseBlock(MachineBlockId),
-    BlockParameters(MachineBlockId),
+    UnknownBlock(MachineBlockId),
+    EdgeArity(MachineBlockId),
+    EdgeTransport(MachineBlockId),
     Parameters(nocter_machine::MachineLinkageId),
     ParameterTransport(nocter_machine::MachineLinkageId),
     MissingResult(MachineOperationId),

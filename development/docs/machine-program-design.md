@@ -256,10 +256,16 @@ name checked frame objects, outgoing offsets, or incoming offsets. Its blocks re
 CFG identities and target-selected instructions. The executable scalar slice covers integer and
 boolean constants, simple stack addresses and scalar loads/stores, integer and boolean operations,
 raw-value comparison, representation-exact readonly-borrow comparison, direct scalar call
-transport, empty-edge local branches, direct returns, traps, and process exit. Signed narrow loads
+transport, local branches, direct returns, traps, and process exit. Signed narrow loads
 have an explicit sign-extending instruction form, so stored scalar width never loses signed
 interpretation. Every other machine operation is a typed selection error rather than a retained
 passthrough node.
+
+Each selected CFG edge owns its direct-lane parallel-copy contract. Copies are materialized only
+after a conditional edge has been chosen. A dedicated resolver removes identities, schedules
+acyclic dependencies from leaves to roots, and saves one source in the ABI-reserved boundary
+register when it encounters a cycle. Register and spill locations use the same schedule; no edge
+introduces an implicit frame slot or relies on sequential-move accident.
 
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
@@ -267,7 +273,8 @@ access authority, binds local labels, and emits concrete code. `Arm64Program::lo
 uses the existing whole-program builder for functions and static data. The cross-crate
 `nocter-conformance` suite compiles constant, scalar call/arithmetic, control, structural
 comparison, and narrow signed-value processes from source through Mach-O and executes the images
-natively on ARM64 macOS. The constant case also checks byte-for-byte determinism.
+natively on ARM64 macOS. A value-producing conditional case crosses machine block parameters and
+their native parallel-copy edges. The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
 text, read-only-data, and link-edit layout; ARM64 section relocation; native entry metadata;
@@ -331,6 +338,7 @@ allocator. Complete function frames now place memory values, packs, spills, hidd
 preserved registers through one deterministic authority. The selected and spill-materialized
 scalar slice now carries simple stack storage, signed/unsigned scalar interpretation, arithmetic,
 readonly-borrow comparison, scalar direct-call transport, control, return, and exit across the
-signed Mach-O boundary and executes natively. Projected and dynamic memory, aggregates,
-block-parameter and multiword/indirect transport, primitives, allocation contexts, cleanup, pack
-callbacks, and test roots remain Phase 5 implementation areas.
+signed Mach-O boundary and executes natively. Direct block-parameter lanes now cross typed CFG
+edges through cycle-safe register/spill parallel copies. Projected and dynamic memory, aggregates,
+memory-valued block parameters, multiword/indirect callable transport, primitives, allocation
+contexts, cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.

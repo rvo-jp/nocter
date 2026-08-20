@@ -14,6 +14,7 @@ mod identity;
 mod instruction;
 mod lower;
 mod pack_layout;
+mod parallel_copy;
 mod program;
 mod register;
 mod register_allocation;
@@ -55,9 +56,9 @@ pub use register_allocation::{
 pub use selected_code::Arm64MaterializationError;
 pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
-    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
-    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
-    Arm64SelectedUnaryOperation, Arm64SelectionError,
+    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction,
+    Arm64SelectedLoadExtension, Arm64SelectedRegister, Arm64SelectedStackAddress,
+    Arm64SelectedTerminator, Arm64SelectedUnaryOperation, Arm64SelectionError,
 };
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
 
