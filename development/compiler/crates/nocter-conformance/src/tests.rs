@@ -213,6 +213,46 @@ fn allocation_context_crosses_root_and_nested_call_boundaries() {
 }
 
 #[test]
+fn pointer_and_view_primitives_cross_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/ptr.{\n\
+             addr, from_ref, pointee_size_for_test, pointee_align_for_test,\n\
+         }\n\
+         use std/str.{str_len_for_test, str_ptr_addr_for_test}\n\
+         use std/slice.{slice_len_for_test, slice_ptr_addr_for_test}\n\
+         use std/string.{bytes_from_str_for_test, str_subview_unchecked_for_test}\n\
+         func main(): i32 {\n\
+             let byte: u8 = 65\n\
+             let pointer = from_ref(&byte)\n\
+             let address = addr(pointer)\n\
+             let middle = str_subview_unchecked_for_test(\"hello\", 1, 3)\n\
+             let static_bytes = bytes_from_str_for_test(\"hello\")\n\
+             if address == addr(pointer) {\n\
+                 if pointee_size_for_test(pointer) == 1 {\n\
+                     if pointee_align_for_test(pointer) == 1 {\n\
+                         if str_len_for_test(middle) == 3 {\n\
+                             if slice_len_for_test(static_bytes) == 5 {\n\
+                                 if slice_ptr_addr_for_test(static_bytes)\n\
+                                     == str_ptr_addr_for_test(\"hello\") {\n\
+                                     return 42\n\
+                                 }\n\
+                             }\n\
+                         }\n\
+                     }\n\
+                 }\n\
+             }\n\
+             return 1\n\
+         }\n",
+        &[&["ptr"], &["str"], &["slice"], &["string"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

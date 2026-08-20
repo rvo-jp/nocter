@@ -23,7 +23,7 @@ use std/str.str_len_raw
 use ./search
 use ./views
 
-pub(/) primitive bytes_from_str(value: &str): &[u8]
+pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 
 pub struct String {
     storage: RawBuffer

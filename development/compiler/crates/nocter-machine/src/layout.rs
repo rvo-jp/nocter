@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_mir::{MirBody, MirProgram, MirRoot};
+use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
 use nocter_model::{
     BuiltinType, CaptureId, FieldId, ParameterId, TypeId, TypeKind, TypeStore, VariantId,
 };
@@ -624,6 +624,13 @@ fn collect_body_types(body: &MirBody, types: &mut BTreeSet<TypeId>) {
     types.extend(body.locals().iter().map(|(_, local)| local.ty()));
     types.extend(body.places().iter().map(|(_, place)| place.ty()));
     types.extend(body.values().iter().map(|(_, value)| value.ty()));
+    for (_, operation) in body.operations().iter() {
+        if let MirOperationKind::Call(call) = operation.kind()
+            && let MirCallTarget::StandardPrimitive { type_arguments, .. } = call.target()
+        {
+            types.extend(type_arguments.iter().copied());
+        }
+    }
 }
 
 fn is_completion_type(types: &TypeStore, ty: TypeId) -> bool {

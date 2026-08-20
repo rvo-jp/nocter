@@ -11,9 +11,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Expand closed primitive-role lowering from current allocation-context reads to pointer/view,
-   process, syscall, I/O, error, and abort operations without name-based dispatch or private call
-   conventions.
+1. Expand closed primitive-role lowering from the completed allocation-context and pure
+   pointer/view operations to memory mutation, process, syscall, I/O, error, and abort operations
+   without name-based dispatch or private call conventions.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release, drop operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -117,6 +117,14 @@ checked machine address before ordinary argument staging and place that address 
 lane. The first primitive expansion reads allocator state/kind through its ordinary machine ABI;
 it does not introduce a primitive call convention or search a standard-library name. Native
 conformance crosses the root and two nested callable boundaries before reading both header words.
+
+Pure pointer and view primitives now expand through that same ordinary ABI boundary. Identity
+conversions preserve their existing lanes, raw view constructors preserve pointer/length pairs,
+view observation selects the appropriate lane, and unchecked string subviews perform one explicit
+pointer adjustment. Pointee size/alignment use the completed machine layout rather than target
+arithmetic; primitive-only generic type arguments are included in the recursive layout closure.
+The compiler-owned `bytes_from_str` contract now records its exact input origin. Native
+conformance proves pointer identity, byte layout, string subviews, and slice/string observations.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

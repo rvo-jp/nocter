@@ -316,6 +316,13 @@ The first closed primitive expansions read the state and kind words through the 
 argument/result ABI plan. Primitive selection dispatches only on the retained `PrimitiveRole` and
 never on a module path or declaration spelling.
 
+Pure pointer and view roles use this same selector. Representation-preserving pointer conversions,
+raw view construction, and string-to-byte views leave the already staged ABI lanes intact. View
+length and pointer observations select one lane, while unchecked string subviews adjust the pointer
+and replace the length without reopening source types. Pointee size and alignment are constants
+from `MachineLayoutStore`; the layout closure therefore includes concrete primitive type arguments
+even when a pointee never appears as a by-value MIR value.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -330,6 +337,8 @@ nested caller-owned results, and native execution. A ninth large argument also c
 register window through the outgoing stack area.
 Dynamic fixed-array place loads/stores and structural indexing over a borrowed fixed array and
 `&str` view exercise the shared checked address evaluator.
+Pointer identity, pointee byte layout, raw string subviews, and slice/string view observations cross
+their ordinary primitive ABI and execute natively as one combined conformance case.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -401,6 +410,6 @@ deterministically initialized padding. Checked projected/dynamic memory and stru
 index borrows share one selected address evaluator. Direct and indirect callable transport are
 complete, including caller-owned large results, callee-owned large parameters, nested calls, and
 stack arguments after the register window closes. Root/incoming/explicit allocation-context
-transport and current-context primitive reads are complete. Memory-valued block parameters, the
-remaining primitives, lexical region representation and cleanup, pack callbacks, and test roots
-remain Phase 5 implementation areas.
+transport, current-context reads, and pure pointer/view primitives are complete. Memory-valued
+block parameters, memory-mutating and system primitives, lexical region representation and
+cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.

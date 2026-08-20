@@ -760,7 +760,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             readonly_bytes(),
             package,
             None,
-            None,
+            Some(vec![0]),
         ),
         PrimitiveRole::StringSubviewUnchecked => make(
             STRING_MODULE,

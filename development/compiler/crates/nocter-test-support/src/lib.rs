@@ -66,18 +66,28 @@ pub(/) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 pub(/) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 pub(/) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
+pub func pointee_size_for_test<T>(pointer: *T): usize { return pointee_size(pointer) }
+pub func pointee_align_for_test<T>(pointer: *T): usize { return pointee_align(pointer) }
 ";
 const STRING_SOURCE: &str = "\
-pub(/) primitive bytes_from_str(value: &str): &[u8]
+pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 pub(/) primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
+pub func bytes_from_str_for_test(value: &str): &[u8] { return bytes_from_str(value) }
+pub func str_subview_unchecked_for_test(text: &str, start: usize, len: usize): &str {
+    return str_subview_unchecked(text, start, len)
+}
 ";
 const SLICE_SOURCE: &str = "\
 pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+pub func slice_len_for_test<T>(value: &[T]): usize { return slice_len_raw(value) }
+pub func slice_ptr_addr_for_test<T>(value: &[T]): usize { return slice_ptr_addr_raw(value) }
 ";
 const STR_SOURCE: &str = "\
 pub(/) primitive str_len_raw(value: &str): usize
 pub(/) primitive str_ptr_addr_raw(value: &str): usize
+pub func str_len_for_test(value: &str): usize { return str_len_raw(value) }
+pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(value) }
 ";
 const PROCESS_SOURCE: &str = "\
 #target: \"arm64-darwin\"

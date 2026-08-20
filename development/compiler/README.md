@@ -432,7 +432,11 @@ be introduced to make an unresolved syntax choice.
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
   nodes fail selection explicitly. Allocation-context selection initializes the root header,
   saves incoming context pointers, and materializes inherited or explicit selections through
-  `x9`; current allocator state/kind primitives expand through their ordinary ABI plans. Typed CFG
+  `x9`; current allocator state/kind primitives expand through their ordinary ABI plans. Pure
+  pointer/view roles share one closed primitive selector: representation-preserving conversions
+  retain staged lanes, view observers select pointer or length, unchecked string subviews adjust
+  the pointer/length pair, and pointee size/alignment consume `MachineLayoutStore`. Concrete type
+  arguments referenced only by a primitive are included in the layout closure. Typed CFG
   edges own direct-lane parallel copies; a separate
   resolver orders chains, breaks cycles through one reserved boundary register, and emits only the
   chosen conditional edge across register and spill locations. Dense function
@@ -456,7 +460,8 @@ be introduced to make an unresolved syntax choice.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
   comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
-  direct and memory-backed aggregates, dynamic fixed-array places, and fixed/view index borrows
+  direct and memory-backed aggregates, dynamic fixed-array places, fixed/view index borrows, and
+  pure pointer/view primitives
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.

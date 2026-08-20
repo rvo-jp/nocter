@@ -193,7 +193,7 @@ pub(crate) fn select_call(
             selected.push(Arm64SelectedInstruction::Call(*target));
         }
         MachineCallTarget::Primitive(target) => {
-            crate::primitive_selection::select(operation, target, selected)?;
+            crate::primitive_selection::select(context.program, operation, target, selected)?;
         }
     }
     select_call_result(operation, abi.result(), result, context.values, selected)
