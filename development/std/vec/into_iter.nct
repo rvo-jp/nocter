@@ -45,7 +45,7 @@ func next<T>(iterator: &+VecIntoIter<T>): T? {
     return take_value_at_ptr(iterator.ptr, index * element_size)
 }
 
-destruct VecIntoIter<T>(&+self) {
+drop VecIntoIter<T>(&+self) {
     let element_size: usize = pointee_size(self.ptr)
     while self.end_index > self.next_index {
         let next_end: usize = self.end_index - 1

@@ -97,10 +97,19 @@ func close(writer: &+BufWriter): void! {
 }
 
 instance BufWriter {
-    pub method &+self.close(): void! { close(self)? return }
+    pub method &+self.close(): void! {
+        close(self)?
+        return
+    }
 }
 
 conform Writer for BufWriter {
-    method &+self.write(bytes: &[u8]): void! { write(self, bytes)? return }
-    method &+self.flush(): void! { flush(self)? return }
+    method &+self.write(bytes: &[u8]): void! {
+        write(self, bytes)?
+        return
+    }
+    method &+self.flush(): void! {
+        flush(self)?
+        return
+    }
 }

@@ -19,7 +19,6 @@ use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
 use std/vec.Vec
-use std/str.str_len_raw
 use ./search
 use ./views
 
@@ -116,7 +115,7 @@ construct String {
     }
 
     pub func copy(value: &str): Self {
-        let value_len: usize = str_len_raw(value)
+        let value_len: usize = bytes_from_str(value).len()
         var result = String.with_capacity(value_len)
         copy_str_to_ptr(result.storage.ptr, 0, value)
         result.len = value_len
@@ -124,7 +123,7 @@ construct String {
     }
 
     pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
-        let value_len: usize = str_len_raw(value)
+        let value_len: usize = bytes_from_str(value).len()
         var result = String.try_with_capacity(allocator, value_len)?
         copy_str_to_ptr(result.storage.ptr, 0, value)
         result.len = value_len

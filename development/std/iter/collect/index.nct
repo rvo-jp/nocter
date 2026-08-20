@@ -1,0 +1,19 @@
+//! Allocation-backed iterator terminal operations.
+//!
+//! This module depends on both the allocation-free iterator contract and the
+//! destination collection. Keeping that dependency here preserves an acyclic
+//! graph between `std/iter` and collection modules.
+
+use std/iter.Iterator
+use std/vec.Vec
+
+/// Consumes `source` into a newly allocated Vec.
+pub func to_vec<I>(source: I): Vec<I.Item> from source where I: Iterator {
+    var iterator = move source
+    var result: Vec<I.Item> = Vec.empty()
+    while true {
+        let item = iterator.next() otherwise { break }
+        result.push(move item)
+    }
+    return move result
+}

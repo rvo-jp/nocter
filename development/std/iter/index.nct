@@ -6,7 +6,6 @@
 use ./core
 use ./mutable
 use ./sources
-use std/vec.Vec
 
 /// Lazily transforms items from an owning source iterator.
 pub struct MapIter<U, I, F> {
@@ -68,7 +67,7 @@ pub interface Iterator {
     pub method &+self.next(): Self.Item?
 
     /// Lazily transforms every yielded item.
-    pub method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(Self.Item): U {
+    pub method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
         return MapIter<U, Self, F> {
             source: move self,
             transform: move transform,
@@ -207,7 +206,7 @@ pub interface Iterator {
     pub method self.fold<U, F>(
         initial: U,
         combine: F,
-    ): U from self | initial | combine where F: &+func(FoldStep<Self.Item, U>): U {
+    ): U from self | initial | combine where F: &+func(step: FoldStep<Self.Item, U>): U {
         var source = move self
         var callback = move combine
         var accumulator = move initial
@@ -219,17 +218,6 @@ pub interface Iterator {
             })
         }
         return move accumulator
-    }
-
-    /// Consumes the iterator into a newly allocated Vec.
-    pub method self.to_vec(): Vec<Self.Item> from self {
-        var source = move self
-        var result: Vec<Self.Item> = Vec.empty()
-        while true {
-            let item = source.next() otherwise { break }
-            result.push(move item)
-        }
-        return move result
     }
 
 }

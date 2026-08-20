@@ -199,3 +199,42 @@ fn joined_callable_sources_share_generic_identity() {
     assert_eq!(generics.own(contract), generics.own(implementation));
     assert_eq!(generics.headers().reserved().source_binding_count(), 8);
 }
+
+#[test]
+fn joined_construction_patterns_reuse_contract_binder_identities() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "use ./make\n\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\nconstruct Pair<L, R> {\n    pub func make(left: L, right: R): Self\n}\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/make.nct",
+        "construct Pair<L, R> {\n    func make(left: L, right: R): Self {\n        return Pair<L, R> { left: move left, right: move right }\n    }\n}\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+
+    let generics = prepare(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/make.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![source_use(&root, 0, "/app/make.nct")],
+    )
+    .unwrap();
+    let contract = SurfaceDeclarationId::from_index(3);
+    let implementation = SurfaceDeclarationId::from_index(5);
+
+    assert_eq!(generics.own(contract), generics.own(implementation));
+    assert_eq!(generics.own(contract).unwrap().len(), 2);
+}

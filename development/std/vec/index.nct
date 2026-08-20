@@ -459,7 +459,7 @@ instance Vec<T> {
     }
 }
 
-destruct Vec<T>(&+self) {
+drop Vec<T>(&+self) {
     clear(self)
     self.capacity = 0
     return

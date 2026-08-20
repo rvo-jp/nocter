@@ -2,18 +2,21 @@
 
 ## Current Task
 
-Begin v0.14.0 Phase 6 from the completed machine and native target. Phase 5 now closes process
-entry state and I/O through the generic syscall boundary without operation-specific backend roles.
+Continue v0.14.0 Phase 6 from the completed canonical package/source discovery boundary. The
+authored standard library now parses, discovers, and completes declaration lowering as one real
+source graph rather than a hand-assembled fixture. Phase 5 closes process entry state and I/O
+through the generic syscall boundary without operation-specific backend roles.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Build canonical package and source discovery so the newly authored `development/std` and public
-   example packages become production compiler inputs rather than hand-assembled test fixtures.
-   Discovery must resolve package/module/source identities and authored `use` edges once; semantic
-   crates must not reopen paths or filesystem structure.
+1. Add exact toolchain-profile and package-target selection to the discovery snapshot. The profile
+   must select the synthetic prelude, built-in attachment modules, compiler-owned standard semantic
+   declarations, and primitive registry from exact source identities rather than later module/name
+   lookup. Then check complete standard-library bodies and public examples through one production
+   compile-session facade.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

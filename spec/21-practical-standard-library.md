@@ -41,11 +41,16 @@ implementation through its readonly slice coercion.
 `where (&T < &T): bool`. `String` and `Vec<T>` reach those declarations through the same readonly
 coercions; neither nominal container duplicates the algorithms.
 
-The iterator terminal operations `find`, `contains`, `position`, `any`, `all`, `fold`, and `to_vec`
-remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
+The allocation-free iterator terminal operations `find`, `contains`, `position`, `any`, `all`, and
+`fold` remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
 dispatch and do not require runtime interface objects. `contains` and `position` consume the
 iterator, borrow each yielded owner for equality, and destroy every yielded owner exactly once,
 including the item that causes early return.
+
+Collection-owning terminals live in modules that depend on both the iterator contract and the
+destination collection. `std/iter/collect.to_vec` consumes any `Iterator` into a `Vec`. It is not an
+`Iterator` default method because making the core iterator module depend on `std/vec` would create
+a module cycle: Vec iteration already depends on `std/iter`.
 
 ## Formatting
 

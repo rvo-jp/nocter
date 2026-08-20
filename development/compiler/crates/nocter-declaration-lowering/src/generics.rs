@@ -1,7 +1,7 @@
 #[path = "generics/violation.rs"]
 mod violation;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_declarations::{GenericOwner, GenericParameter};
@@ -365,9 +365,20 @@ fn project_implementation_binders(
     let representative_declaration = headers.reserved.declarations[representative.index()];
     let representative_binders =
         binder_tokens(headers, representative, representative_declaration)?;
-    if binders.reuses_local_names
-        || representative_binders.reuses_local_names
-        || binders.tokens.len() != parameters.len()
+    if binders.reuses_local_names != representative_binders.reuses_local_names {
+        return Err(GenericError::InconsistentContract(id));
+    }
+    if binders.reuses_local_names {
+        return project_implementation_pattern_binders(
+            headers,
+            id,
+            representative,
+            &binders.tokens,
+            &representative_binders.tokens,
+            parameters,
+        );
+    }
+    if binders.tokens.len() != parameters.len()
         || representative_binders.tokens.len() != parameters.len()
     {
         return Err(GenericError::InconsistentContract(id));
@@ -384,6 +395,49 @@ fn project_implementation_binders(
             return Err(GenericError::InconsistentContract(id));
         }
         project_binder(headers, id, parameter, token, SourceRole::Implementation)?;
+    }
+    Ok(())
+}
+
+fn project_implementation_pattern_binders(
+    headers: &mut PreparedHeaders<'_>,
+    id: SurfaceDeclarationId,
+    representative: SurfaceDeclarationId,
+    binders: &[SyntaxToken],
+    representative_binders: &[SyntaxToken],
+    parameters: &[GenericParameterId],
+) -> Result<(), GenericError> {
+    let mut parameter_by_name = BTreeMap::new();
+    let mut parameters = parameters.iter().copied();
+    for token in representative_binders {
+        let name = binder_symbol(headers, representative, *token)?;
+        if let std::collections::btree_map::Entry::Vacant(entry) = parameter_by_name.entry(name) {
+            entry.insert(
+                parameters
+                    .next()
+                    .ok_or(GenericError::InconsistentContract(id))?,
+            );
+        }
+    }
+    if parameters.next().is_some() {
+        return Err(GenericError::InconsistentContract(id));
+    }
+
+    let mut projected = BTreeSet::new();
+    for token in binders {
+        let name = binder_symbol(headers, id, *token)?;
+        let parameter = *parameter_by_name
+            .get(&name)
+            .ok_or(GenericError::InconsistentContract(id))?;
+        let role = if projected.insert(name) {
+            SourceRole::Implementation
+        } else {
+            SourceRole::Reference
+        };
+        project_binder(headers, id, parameter, *token, role)?;
+    }
+    if projected.len() != parameter_by_name.len() {
+        return Err(GenericError::InconsistentContract(id));
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
 //! Iterator adapter implementations.
 
-conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item): U {
+conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {
     type Item = U
 
     /// Advances the source once and transforms the yielded item once.
@@ -10,7 +10,7 @@ conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item): U {
     }
 }
 
-conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(I.Item): U {
+conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(item: I.Item): U {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()

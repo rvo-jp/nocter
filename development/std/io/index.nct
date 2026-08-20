@@ -273,7 +273,7 @@ instance File {
     }
 }
 
-destruct File(&+self) {
+drop File(&+self) {
     close(self)
     return
 }
@@ -283,7 +283,10 @@ conform Reader for File {
 }
 
 conform Writer for File {
-    method &+self.write(bytes: &[u8]): void! { write(self, bytes)? return }
+    method &+self.write(bytes: &[u8]): void! {
+        write(self, bytes)?
+        return
+    }
     method &+self.flush(): void! { return }
 }
 

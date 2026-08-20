@@ -6,6 +6,7 @@ members = [
     "crates/nocter-conformance",
     "crates/nocter-declarations",
     "crates/nocter-declaration-lowering",
+    "crates/nocter-discovery",
     "crates/nocter-diagnostics",
     "crates/nocter-machine",
     "crates/nocter-macho",

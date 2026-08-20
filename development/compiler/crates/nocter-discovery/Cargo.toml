@@ -1,0 +1,20 @@
+[package]
+name = "nocter-discovery"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-model = { path = "../nocter-model" }
+nocter-source = { path = "../nocter-source" }
+nocter-syntax = { path = "../nocter-syntax" }
+nocter-target-selection = { path = "../nocter-target-selection" }
+
+[dev-dependencies]
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+
+[lints]
+workspace = true

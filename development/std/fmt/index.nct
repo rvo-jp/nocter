@@ -199,29 +199,83 @@ func try_append_i64_digits(out: &+String, value: i64): void! {
 }
 
 func try_append_u64_digit(out: &+String, value: u64): void! {
-    if value == 0 { try_append_str(out, "0")? return }
-    if value == 1 { try_append_str(out, "1")? return }
-    if value == 2 { try_append_str(out, "2")? return }
-    if value == 3 { try_append_str(out, "3")? return }
-    if value == 4 { try_append_str(out, "4")? return }
-    if value == 5 { try_append_str(out, "5")? return }
-    if value == 6 { try_append_str(out, "6")? return }
-    if value == 7 { try_append_str(out, "7")? return }
-    if value == 8 { try_append_str(out, "8")? return }
+    if value == 0 {
+        try_append_str(out, "0")?
+        return
+    }
+    if value == 1 {
+        try_append_str(out, "1")?
+        return
+    }
+    if value == 2 {
+        try_append_str(out, "2")?
+        return
+    }
+    if value == 3 {
+        try_append_str(out, "3")?
+        return
+    }
+    if value == 4 {
+        try_append_str(out, "4")?
+        return
+    }
+    if value == 5 {
+        try_append_str(out, "5")?
+        return
+    }
+    if value == 6 {
+        try_append_str(out, "6")?
+        return
+    }
+    if value == 7 {
+        try_append_str(out, "7")?
+        return
+    }
+    if value == 8 {
+        try_append_str(out, "8")?
+        return
+    }
     try_append_str(out, "9")?
     return
 }
 
 func try_append_i64_digit(out: &+String, value: i64): void! {
-    if value == 0 { try_append_str(out, "0")? return }
-    if value == 1 { try_append_str(out, "1")? return }
-    if value == 2 { try_append_str(out, "2")? return }
-    if value == 3 { try_append_str(out, "3")? return }
-    if value == 4 { try_append_str(out, "4")? return }
-    if value == 5 { try_append_str(out, "5")? return }
-    if value == 6 { try_append_str(out, "6")? return }
-    if value == 7 { try_append_str(out, "7")? return }
-    if value == 8 { try_append_str(out, "8")? return }
+    if value == 0 {
+        try_append_str(out, "0")?
+        return
+    }
+    if value == 1 {
+        try_append_str(out, "1")?
+        return
+    }
+    if value == 2 {
+        try_append_str(out, "2")?
+        return
+    }
+    if value == 3 {
+        try_append_str(out, "3")?
+        return
+    }
+    if value == 4 {
+        try_append_str(out, "4")?
+        return
+    }
+    if value == 5 {
+        try_append_str(out, "5")?
+        return
+    }
+    if value == 6 {
+        try_append_str(out, "6")?
+        return
+    }
+    if value == 7 {
+        try_append_str(out, "7")?
+        return
+    }
+    if value == 8 {
+        try_append_str(out, "8")?
+        return
+    }
     try_append_str(out, "9")?
     return
 }

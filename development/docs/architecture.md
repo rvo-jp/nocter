@@ -131,6 +131,16 @@ implementations, and references remain explicit roles. Structural `TypeId` value
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.
 
+`nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
+lowering. `nocter-discovery` is the sole filesystem authority: it canonicalizes exact resolved
+package roots, loads package declarations and reachable module sources once, distinguishes
+same-module source edges from directory-module edges, rejects ambiguous physical candidates and
+nested-package or cross-module escapes, and retains one edge for every active authored `use`.
+Lexically or syntactically invalid sources remain in the snapshot for diagnostic projection, but
+the snapshot cannot be borrowed as a semantic input until those errors are absent. Discovery uses
+the shared `nocter-target-selection` inventory, so an inactive gated import never probes the
+filesystem and lowering cannot reinterpret target activity.
+
 `nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
 package has an opaque resolved identity distinct from its display name. A module has that package
 identity plus normalized directory segments. Physical package declarations, module roots,
@@ -156,6 +166,14 @@ residual graph. The cycle is rotated by canonical module identity, so compile-un
 cannot change its primary edge or ordered notes. Missing, duplicate, stale, and unreachable
 discovery inputs remain internal boundary failures; only authored source-import shape and module-
 cycle rules receive source diagnostic codes.
+
+The authored standard library now crosses this production boundary as one declaration unit. This
+qualification exposed and removed stale `destruct` syntax, same-line statement sequences, the
+`std/string` to `std/str` back-edge, and the `std/iter` to `std/vec` collection-terminal back-edge.
+Allocation-backed iterator collection lives in `std/iter/collect`, leaving the core Iterator/Vec
+dependency graph acyclic. Separated construction implementations also reuse declaration-pattern
+binder identities through a spelling-keyed projection; repeated pattern tokens project as
+references instead of being rejected as ordinary duplicate generic parameters.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
