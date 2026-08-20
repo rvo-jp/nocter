@@ -67,6 +67,76 @@ pub(crate) fn emit_stack_store(
     Ok(())
 }
 
+pub(crate) fn emit_stack_zero(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedStackAddress,
+    bytes: u64,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let zero = boundary_register(0);
+    crate::frame_access::load_immediate(code, zero, 0, Arm64DataSize::Bits64);
+    for (offset, width) in exact_memory_chunks(bytes) {
+        emit_stack_store(
+            function,
+            width,
+            offset_stack_address(destination, offset)?,
+            Arm64SelectedRegister::Fixed(zero),
+            code,
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn emit_stack_copy(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedStackAddress,
+    source: Arm64SelectedStackAddress,
+    bytes: u64,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    validate_nonoverlapping_copy(function, destination, source, bytes)?;
+    let transfer = Arm64SelectedRegister::Fixed(boundary_register(0));
+    for (offset, width) in exact_memory_chunks(bytes) {
+        emit_stack_load(
+            function,
+            width,
+            Arm64SelectedLoadExtension::Zero,
+            transfer,
+            offset_stack_address(source, offset)?,
+            code,
+        )?;
+        emit_stack_store(
+            function,
+            width,
+            offset_stack_address(destination, offset)?,
+            transfer,
+            code,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_nonoverlapping_copy(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedStackAddress,
+    source: Arm64SelectedStackAddress,
+    bytes: u64,
+) -> Result<(), Arm64MaterializationError> {
+    let destination_start = crate::selected_code::stack_offset(function, destination, bytes)?;
+    let source_start = crate::selected_code::stack_offset(function, source, bytes)?;
+    let destination_end = destination_start
+        .checked_add(bytes)
+        .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+    let source_end = source_start
+        .checked_add(bytes)
+        .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+    if bytes != 0 && destination_start < source_end && source_start < destination_end {
+        Err(Arm64MaterializationError::OverlappingStackCopy)
+    } else {
+        Ok(())
+    }
+}
+
 pub(crate) fn emit_stack_address(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedRegister,
@@ -173,6 +243,54 @@ fn validate_fragmented_width(bytes: u8) -> Result<(), Arm64MaterializationError>
     }
 }
 
+fn exact_memory_chunks(bytes: u64) -> impl Iterator<Item = (u64, u8)> {
+    let mut remaining = bytes;
+    let mut offset = 0_u64;
+    std::iter::from_fn(move || {
+        if remaining == 0 {
+            return None;
+        }
+        let width = if remaining >= 8 {
+            8
+        } else if remaining >= 4 {
+            4
+        } else if remaining >= 2 {
+            2
+        } else {
+            1
+        };
+        let chunk = (offset, width);
+        offset += u64::from(width);
+        remaining -= u64::from(width);
+        Some(chunk)
+    })
+}
+
+fn offset_stack_address(
+    address: Arm64SelectedStackAddress,
+    additional: u64,
+) -> Result<Arm64SelectedStackAddress, Arm64MaterializationError> {
+    let add = |offset: u64| {
+        offset
+            .checked_add(additional)
+            .ok_or(Arm64MaterializationError::OffsetOverflow)
+    };
+    match address {
+        Arm64SelectedStackAddress::FrameObject { object, offset } => {
+            Ok(Arm64SelectedStackAddress::FrameObject {
+                object,
+                offset: add(offset)?,
+            })
+        }
+        Arm64SelectedStackAddress::Outgoing(offset) => {
+            Ok(Arm64SelectedStackAddress::Outgoing(add(offset)?))
+        }
+        Arm64SelectedStackAddress::Incoming(offset) => {
+            Ok(Arm64SelectedStackAddress::Incoming(add(offset)?))
+        }
+    }
+}
+
 fn memory_fragments(bytes: u8) -> impl Iterator<Item = (u8, Arm64LoadStoreSize)> {
     let mut remaining = bytes;
     let mut offset = 0;
@@ -211,7 +329,7 @@ const fn load_store_size(bytes: u8) -> Option<Arm64LoadStoreSize> {
 
 #[cfg(test)]
 mod tests {
-    use super::memory_fragments;
+    use super::{exact_memory_chunks, memory_fragments};
     use crate::Arm64LoadStoreSize;
 
     #[test]
@@ -227,6 +345,14 @@ mod tests {
                 (4, Arm64LoadStoreSize::Half),
                 (6, Arm64LoadStoreSize::Byte),
             ]
+        );
+    }
+
+    #[test]
+    fn decomposes_arbitrary_ranges_without_crossing_the_object_boundary() {
+        assert_eq!(
+            exact_memory_chunks(15).collect::<Vec<_>>(),
+            vec![(0, 8), (8, 4), (12, 2), (14, 1)]
         );
     }
 }

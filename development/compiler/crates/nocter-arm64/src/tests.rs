@@ -751,6 +751,29 @@ fn machine_value_plan_separates_multiword_and_memory_values() {
             })
         )
     }));
+
+    let frame = crate::Arm64FunctionFrame::build(&program, entry, &plan).unwrap();
+    let staging = frame.direct_aggregate_staging().unwrap();
+    let staging = frame.layout().object(staging).unwrap();
+    assert_eq!(staging.size(), 16);
+    assert_eq!(staging.alignment(), 8);
+
+    let large = aggregates
+        .iter()
+        .copied()
+        .find(|value| {
+            matches!(
+                plan.value(*value),
+                Some(crate::Arm64ValueStorage::Memory { .. })
+            )
+        })
+        .unwrap();
+    let large_object = frame
+        .layout()
+        .object(frame.memory_value(large).unwrap())
+        .unwrap();
+    assert_eq!(large_object.size(), 24);
+    assert_eq!(large_object.alignment(), 8);
 }
 
 #[test]

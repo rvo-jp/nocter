@@ -11,9 +11,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the closed selected-instruction schema from scalar operations, simple stack addresses,
-   scalar memory access, scalar direct-call transport, branch, return, and process exit to
-   projected/dynamic addresses, aggregate operations, and indirect callable parameter/result
+1. Extend the closed selected-instruction schema from scalar and aggregate operations, exact
+   direct/memory stack transport, simple stack addresses, direct-call transport, branch, return,
+   and process exit to projected/dynamic addresses and indirect callable parameter/result
    transport.
 2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -86,6 +86,13 @@ section-relative relocation authority. Direct values of one or two ABI words now
 lane widths and cross parameter registers, the non-reopening outgoing stack window, and result
 registers. Native cases cover a returned `&str` and nine two-word view arguments, proving both
 register and stack transport without a view-specific calling convention.
+
+Aggregate selection now consumes the machine layout's byte-write recipe directly. It zeroes the
+complete representation before applying tags and value writes, constructs memory-backed values in
+their own frame object, and reuses one maximum-size staging object only while constructing direct
+aggregates. Exact stack-copy instructions reject overlap and never widen past a representation
+boundary. Native conformance covers 3-byte, two-lane, and 24-byte structs through construction,
+local storage, field projection, and execution.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

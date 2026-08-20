@@ -4,6 +4,7 @@
 //! MIR representations are deliberately absent from its dependency graph.
 
 mod abi;
+mod aggregate_selection;
 mod code;
 mod encode;
 mod frame;

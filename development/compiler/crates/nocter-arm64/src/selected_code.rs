@@ -90,6 +90,14 @@ fn emit_instruction(
             destination,
             source,
         } => crate::memory_code::emit_stack_store(function, bytes, destination, source, code),
+        Arm64SelectedInstruction::ZeroStack { destination, bytes } => {
+            crate::memory_code::emit_stack_zero(function, destination, bytes, code)
+        }
+        Arm64SelectedInstruction::CopyStack {
+            destination,
+            source,
+            bytes,
+        } => crate::memory_code::emit_stack_copy(function, destination, source, bytes, code),
         Arm64SelectedInstruction::StackAddress {
             destination,
             source,
@@ -728,6 +736,7 @@ pub enum Arm64MaterializationError {
     OutgoingBounds(u64),
     OffsetOverflow,
     InvalidMemoryWidth(u8),
+    OverlappingStackCopy,
     InvalidParallelCopy,
     Code(Arm64CodeError),
 }

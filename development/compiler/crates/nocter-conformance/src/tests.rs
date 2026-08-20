@@ -120,6 +120,30 @@ fn two_word_views_cross_the_register_window_and_outgoing_stack() {
     execute_and_assert_status(&image, 42);
 }
 
+#[test]
+fn layout_owned_aggregate_bytes_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "copy struct Triple { first: u8\n    second: u8\n    third: u8 }\n\
+         copy struct Direct { first: i32\n    second: i32\n    third: i32 }\n\
+         copy struct Large { first: i64\n    second: i64\n    third: i64 }\n\
+         func main(): i32 {\n\
+             let triple = Triple { first: 1, second: 2, third: 3 }\n\
+             let direct = Direct { first: 20, second: 20, third: 2 }\n\
+             let large = Large { first: 1, second: 2, third: 42 }\n\
+             if triple.third == 3 {\n\
+                 if large.third == 42 {\n\
+                     return direct.first + direct.second + direct.third\n\
+                 }\n\
+             }\n\
+             return 1\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     use std::os::unix::fs::PermissionsExt;

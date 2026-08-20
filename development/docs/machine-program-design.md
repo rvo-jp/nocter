@@ -214,9 +214,10 @@ the call operation's `live_after` set, excluding the call result, rather than in
 flattened interval that may contain unrelated sibling blocks. Every direct lane then uses the
 common linear-scan allocator; memory values remain explicit requests for later frame placement.
 `Arm64FunctionFrame` is the sole placement boundary. In fixed category order it reserves outgoing
-arguments, machine stack objects, drop flags, memory-backed values, pack descriptor/state pairs,
-spill words, hidden indirect-result and pack-input pointers, and allocation-context storage before
-adding preserved registers and the frame record. Root context storage is two words; an incoming
+arguments, machine stack objects, drop flags, memory-backed values, one reusable direct-aggregate
+construction object, pack descriptor/state pairs, spill words, hidden indirect-result and
+pack-input pointers, and allocation-context storage before adding preserved registers and the
+frame record. Root context storage is two words; an incoming
 context or hidden ABI pointer receives its own saved pointer word.
 
 Every literal call site owns a four-word descriptor containing its state pointer, immutable total
@@ -277,6 +278,14 @@ specified by `MachineCallableAbi`. Direct lanes whose semantic byte width is not
 load/store width are assembled from exact in-bounds fragments. Selection does not widen a 3-, 5-,
 6-, or 7-byte tail into an adjacent frame object.
 
+Aggregate selection consumes `MachineAggregate` as an exact byte-write recipe. It zero-initializes
+the entire representation, then applies layout-owned tag and value offsets. A memory-backed result
+is assembled directly in its value object. A direct result uses the function's single maximum-size
+construction object and is loaded into its allocated lanes immediately, so staging lifetime does
+not become value lifetime. Stack-to-stack movement has one exact non-overlapping copy instruction;
+materialization validates both ranges and rejects overlap instead of silently selecting forward or
+backward copy semantics.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -285,8 +294,9 @@ uses the existing whole-program builder for functions and static data. The cross
 comparison, and narrow signed-value processes from source through Mach-O and executes the images
 natively on ARM64 macOS. A value-producing conditional case crosses machine block parameters and
 their native parallel-copy edges. Static text and two-word view cases cross local storage, results,
-the register window, and outgoing stack arguments. The constant case also checks byte-for-byte
-determinism.
+the register window, and outgoing stack arguments. Direct 3-byte and two-lane aggregates plus a
+24-byte memory aggregate cross construction, local storage, field projection, and native execution.
+The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
 text, read-only-data, and link-edit layout; ARM64 section relocation; native entry metadata;
@@ -351,8 +361,9 @@ preserved registers through one deterministic authority. The selected and spill-
 scalar slice now carries simple stack storage, signed/unsigned scalar interpretation, arithmetic,
 readonly-borrow comparison, scalar direct-call transport, control, return, and exit across the
 signed Mach-O boundary and executes natively. Direct block-parameter lanes now cross typed CFG
-edges through cycle-safe register/spill parallel copies. Projected and dynamic memory, aggregates,
-memory-valued block parameters, indirect callable transport, primitives, allocation contexts,
-cleanup, pack callbacks, and test roots remain Phase 5 implementation areas. Static text and
-one-/two-word direct callable transport are complete, including stack arguments after the register
-window closes.
+edges through cycle-safe register/spill parallel copies. Layout-owned aggregate construction and
+exact memory-value load/store are complete for direct and memory-backed values, including
+deterministically initialized padding. Projected and dynamic memory, memory-valued block
+parameters, indirect callable transport, primitives, allocation contexts, cleanup, pack callbacks,
+and test roots remain Phase 5 implementation areas. Static text and one-/two-word direct callable
+transport are complete, including stack arguments after the register window closes.

@@ -55,7 +55,7 @@ pub(crate) fn select_text_constant(
     Ok(())
 }
 
-pub(crate) fn select_direct_load(
+pub(crate) fn select_load(
     program: &nocter_machine::MachineProgram,
     owner: MachineFunctionId,
     source: MachineAddressId,
@@ -65,6 +65,30 @@ pub(crate) fn select_direct_load(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let address = machine_address(program, owner, source)?;
+    if stored_value_size(program, owner, result)? != address.size() {
+        return Err(Arm64SelectionError::MemoryShape(result));
+    }
+    match values
+        .value(result)
+        .ok_or(Arm64SelectionError::UnknownValue(result))?
+    {
+        crate::Arm64ValueStorage::Omitted if address.size() == 0 => return Ok(()),
+        crate::Arm64ValueStorage::Memory { size, .. } if *size == address.size() => {
+            let object = frame
+                .memory_value(result)
+                .ok_or(Arm64SelectionError::MemoryValue(result))?;
+            selected.push(Arm64SelectedInstruction::CopyStack {
+                destination: Arm64SelectedStackAddress::FrameObject { object, offset: 0 },
+                source: select_stack_address(program, owner, source, frame)?,
+                bytes: *size,
+            });
+            return Ok(());
+        }
+        crate::Arm64ValueStorage::Direct(_) => {}
+        crate::Arm64ValueStorage::Omitted | crate::Arm64ValueStorage::Memory { .. } => {
+            return Err(Arm64SelectionError::MemoryShape(result));
+        }
+    }
     let base = select_stack_address(program, owner, source, frame)?;
     let registers = crate::selection::direct_value(values, result)?;
     let sizes = direct_lane_sizes(address.size(), registers.len())?;
@@ -84,7 +108,7 @@ pub(crate) fn select_direct_load(
     Ok(())
 }
 
-pub(crate) fn select_direct_store(
+pub(crate) fn select_store(
     program: &nocter_machine::MachineProgram,
     owner: MachineFunctionId,
     destination: MachineAddressId,
@@ -94,6 +118,30 @@ pub(crate) fn select_direct_store(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let address = machine_address(program, owner, destination)?;
+    if stored_value_size(program, owner, value)? != address.size() {
+        return Err(Arm64SelectionError::MemoryShape(value));
+    }
+    match values
+        .value(value)
+        .ok_or(Arm64SelectionError::UnknownValue(value))?
+    {
+        crate::Arm64ValueStorage::Omitted if address.size() == 0 => return Ok(()),
+        crate::Arm64ValueStorage::Memory { size, .. } if *size == address.size() => {
+            let object = frame
+                .memory_value(value)
+                .ok_or(Arm64SelectionError::MemoryValue(value))?;
+            selected.push(Arm64SelectedInstruction::CopyStack {
+                destination: select_stack_address(program, owner, destination, frame)?,
+                source: Arm64SelectedStackAddress::FrameObject { object, offset: 0 },
+                bytes: *size,
+            });
+            return Ok(());
+        }
+        crate::Arm64ValueStorage::Direct(_) => {}
+        crate::Arm64ValueStorage::Omitted | crate::Arm64ValueStorage::Memory { .. } => {
+            return Err(Arm64SelectionError::MemoryShape(value));
+        }
+    }
     let base = select_stack_address(program, owner, destination, frame)?;
     let registers = crate::selection::direct_value(values, value)?;
     let sizes = direct_lane_sizes(address.size(), registers.len())?;
@@ -192,6 +240,25 @@ fn machine_address(
         .ok_or(Arm64SelectionError::UnknownAddress(address))
 }
 
+fn stored_value_size(
+    program: &nocter_machine::MachineProgram,
+    owner: MachineFunctionId,
+    value: MachineValueId,
+) -> Result<u64, Arm64SelectionError> {
+    match program
+        .function(owner)
+        .and_then(|function| function.body().value(value))
+        .map(nocter_machine::MachineValue::representation)
+    {
+        Some(nocter_machine::MachineValueRepresentation::Stored { size, .. }) => Ok(size),
+        Some(
+            nocter_machine::MachineValueRepresentation::Completion
+            | nocter_machine::MachineValueRepresentation::Diverging,
+        ) => Err(Arm64SelectionError::MemoryShape(value)),
+        None => Err(Arm64SelectionError::UnknownValue(value)),
+    }
+}
+
 fn direct_lane(offset: u64, lane_count: usize) -> Result<usize, Arm64SelectionError> {
     if !offset.is_multiple_of(Arm64NocterAbi::WORD_SIZE) {
         return Err(Arm64SelectionError::DirectLaneOffset(offset));
@@ -203,7 +270,10 @@ fn direct_lane(offset: u64, lane_count: usize) -> Result<usize, Arm64SelectionEr
         .ok_or(Arm64SelectionError::DirectLaneOffset(offset))
 }
 
-fn direct_lane_sizes(size: u64, lane_count: usize) -> Result<Vec<u8>, Arm64SelectionError> {
+pub(crate) fn direct_lane_sizes(
+    size: u64,
+    lane_count: usize,
+) -> Result<Vec<u8>, Arm64SelectionError> {
     if size == 0 && lane_count == 0 {
         return Ok(Vec::new());
     }
@@ -230,7 +300,7 @@ pub(crate) fn lane_offset(lane: usize) -> Result<u64, Arm64SelectionError> {
         .ok_or(Arm64SelectionError::AddressOverflow)
 }
 
-fn offset_stack_address(
+pub(crate) fn offset_stack_address(
     address: Arm64SelectedStackAddress,
     additional: u64,
 ) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {

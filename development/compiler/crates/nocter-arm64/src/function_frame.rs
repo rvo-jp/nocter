@@ -54,6 +54,7 @@ pub struct Arm64FunctionFrame {
     stack_objects: Box<[Arm64FrameObjectId]>,
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
+    direct_aggregate_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
     indirect_result_pointer: Option<Arm64FrameObjectId>,
@@ -96,6 +97,7 @@ impl Arm64FunctionFrame {
             stack_objects: placed.stack_objects,
             drop_flags: placed.drop_flags,
             memory_values: placed.memory_values,
+            direct_aggregate_staging: placed.direct_aggregate_staging,
             packs: placed.packs,
             spills: placed.spills,
             indirect_result_pointer: hidden.indirect_result_pointer,
@@ -122,6 +124,12 @@ impl Arm64FunctionFrame {
     #[must_use]
     pub fn memory_value(&self, id: MachineValueId) -> Option<Arm64FrameObjectId> {
         self.memory_values.get(id.index()).copied().flatten()
+    }
+
+    /// Shared construction storage for aggregates whose completed value lives in registers.
+    #[must_use]
+    pub const fn direct_aggregate_staging(&self) -> Option<Arm64FrameObjectId> {
+        self.direct_aggregate_staging
     }
 
     #[must_use]
@@ -154,6 +162,7 @@ struct PlacedBodyObjects {
     stack_objects: Box<[Arm64FrameObjectId]>,
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
+    direct_aggregate_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
 }
@@ -200,6 +209,7 @@ fn place_body_objects(
         drop_flags.push(builder.add_object(1, 1)?);
     }
     let memory_values = place_memory_values(body, values, builder)?;
+    let direct_aggregate_staging = place_direct_aggregate_staging(body, values, builder)?;
     let packs = place_packs(body, builder)?;
     let mut spills = Vec::with_capacity(values.registers().spill_count());
     for _ in 0..values.registers().spill_count() {
@@ -209,9 +219,45 @@ fn place_body_objects(
         stack_objects: stack_objects.into_boxed_slice(),
         drop_flags: drop_flags.into_boxed_slice(),
         memory_values,
+        direct_aggregate_staging,
         packs,
         spills: spills.into_boxed_slice(),
     })
+}
+
+fn place_direct_aggregate_staging(
+    body: &nocter_machine::MachineBody,
+    values: &Arm64ValuePlan,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<Option<Arm64FrameObjectId>, Arm64FunctionFrameError> {
+    let mut requirement: Option<(u64, u64)> = None;
+    for (operation_id, operation) in body.operations() {
+        let MachineOperationKind::Aggregate(aggregate) = operation.kind() else {
+            continue;
+        };
+        let result = operation
+            .result()
+            .ok_or(Arm64FunctionFrameError::MissingOperationResult(
+                operation_id,
+            ))?;
+        match values
+            .value(result)
+            .ok_or(Arm64FunctionFrameError::MissingValue(result))?
+        {
+            Arm64ValueStorage::Direct(_) => {
+                let (size, alignment) = requirement.unwrap_or((0, 1));
+                requirement = Some((
+                    size.max(aggregate.size()),
+                    alignment.max(aggregate.alignment()),
+                ));
+            }
+            Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => {}
+        }
+    }
+    requirement
+        .map(|(size, alignment)| builder.add_object(size, alignment))
+        .transpose()
+        .map_err(Arm64FunctionFrameError::from)
 }
 
 fn place_memory_values(
@@ -349,6 +395,7 @@ pub enum Arm64FunctionFrameError {
     NonDenseDropFlag(nocter_machine::MachineDropFlagId),
     NonDenseValue(MachineValueId),
     MissingValue(MachineValueId),
+    MissingOperationResult(nocter_machine::MachineOperationId),
     NonDensePack(MachinePackId),
     PackLayout {
         pack: MachinePackId,
@@ -376,6 +423,7 @@ impl std::error::Error for Arm64FunctionFrameError {
             | Self::NonDenseDropFlag(_)
             | Self::NonDenseValue(_)
             | Self::MissingValue(_)
+            | Self::MissingOperationResult(_)
             | Self::NonDensePack(_) => None,
         }
     }

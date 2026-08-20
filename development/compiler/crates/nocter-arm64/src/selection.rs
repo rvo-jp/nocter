@@ -55,6 +55,15 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedStackAddress,
         source: Arm64SelectedRegister,
     },
+    ZeroStack {
+        destination: Arm64SelectedStackAddress,
+        bytes: u64,
+    },
+    CopyStack {
+        destination: Arm64SelectedStackAddress,
+        source: Arm64SelectedStackAddress,
+        bytes: u64,
+    },
     StackAddress {
         destination: Arm64SelectedRegister,
         source: Arm64SelectedStackAddress,
@@ -395,12 +404,12 @@ fn select_operation(
             let result = operation
                 .result()
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            crate::memory_selection::select_direct_load(
+            crate::memory_selection::select_load(
                 program, owner, *source, result, values, frame, selected,
             )
         }
         MachineOperationKind::Store { destination, value } => {
-            crate::memory_selection::select_direct_store(
+            crate::memory_selection::select_store(
                 program,
                 owner,
                 *destination,
@@ -454,6 +463,15 @@ fn select_operation(
             values,
             selected,
         ),
+        MachineOperationKind::Aggregate(aggregate) => select_aggregate_operation(
+            (program, owner),
+            operation_id,
+            aggregate,
+            operation.result(),
+            values,
+            frame,
+            selected,
+        ),
         MachineOperationKind::Call(call) => select_call(
             program,
             operation_id,
@@ -468,6 +486,26 @@ fn select_operation(
             kind: operation_name(unsupported),
         }),
     }
+}
+
+fn select_aggregate_operation(
+    scope: (&nocter_machine::MachineProgram, MachineFunctionId),
+    operation: MachineOperationId,
+    aggregate: &nocter_machine::MachineAggregate,
+    result: Option<MachineValueId>,
+    values: &Arm64ValuePlan,
+    frame: &Arm64FunctionFrame,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    crate::aggregate_selection::select_aggregate(
+        scope.0,
+        scope.1,
+        aggregate,
+        result.ok_or(Arm64SelectionError::MissingResult(operation))?,
+        values,
+        frame,
+        selected,
+    )
 }
 
 fn select_constant(

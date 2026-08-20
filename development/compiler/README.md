@@ -414,15 +414,17 @@ be introduced to make an unresolved syntax choice.
   cannot force an unrelated value into a callee-saved register. Direct words share the allocator,
   while larger values remain explicit fixed-frame requests.
   `Arm64FunctionFrame` feeds maximum outgoing call storage, machine stack objects, drop flags,
-  memory values, literal descriptor/state pairs, spill lanes, hidden result/pack/context pointers,
-  and preserved registers through that one planner. Pack descriptors have one uniform four-word
+  memory values, one reusable direct-aggregate construction object, literal descriptor/state
+  pairs, spill lanes, hidden result/pack/context pointers, and preserved registers through that one
+  planner. Pack descriptors have one uniform four-word
   callback ABI, while each call site's source-ordered state has its own checked layout.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
   accidental immediate-width limit. `Arm64SelectedFunction` now lowers constants, extension-aware
-  scalar stack loads, stores, stack-address formation, integer and boolean operations, raw-value
+  scalar stack loads, exact aggregate/memory copies, layout-owned aggregate construction,
+  stack-address formation, integer and boolean operations, raw-value
   and readonly-borrow comparisons, direct scalar arguments/results, local branches, returns, and
   process exits into virtual/fixed register transfers. Signed byte and halfword loads retain their
   meaning through explicit sign-extending target instructions. A separate materializer resolves
@@ -438,6 +440,8 @@ be introduced to make an unresolved syntax choice.
   storage, and result registers; views have no private transport path. Memory selection and memory
   instruction materialization are separate modules. A non-native 3-, 5-, 6-, or 7-byte tail is
   decomposed into exact in-bounds fragments rather than widened across an adjacent frame object.
+  Aggregate recipes zero their full representation before member writes, so padding never carries
+  uninitialized process state; stack-copy materialization rejects overlapping ranges explicitly.
 - `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
   `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
@@ -445,10 +449,10 @@ be introduced to make an unresolved syntax choice.
   macOS without invoking an assembler, linker, or signing tool.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
-  comparisons, narrow signed values, value-producing block joins, static text, and two-word view
-  calls from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call
-  also crosses the register-window boundary into outgoing stack transport. The constant case proves
-  byte-for-byte output determinism.
+  comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
+  and direct and memory-backed aggregates from source, emits signed Mach-O images, and executes
+  them on ARM64 macOS. A nine-view call also crosses the register-window boundary into outgoing
+  stack transport. The constant case proves byte-for-byte output determinism.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot
