@@ -22,7 +22,8 @@ use crate::checked::{
     CheckedBodyBuilder, CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput,
     ClosureTableBuilder,
 };
-use crate::copyability::{Copyability, CopyabilityTable};
+use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
+use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
 use crate::loans::{LoanBodyInput, analyze_program_loans};
 use crate::preparation::PreparedCheckingParts;
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
@@ -47,6 +48,7 @@ mod closure_results;
 mod closures;
 mod construction_planning;
 mod constructions;
+mod conversions;
 mod expected;
 mod interpolation;
 mod iterations;
@@ -153,20 +155,14 @@ pub fn check_prepared_program<'syntax>(
     let closures = closures.finish()?;
     let opaque_witnesses = crate::OpaqueWitnessTable::build(&graph, opaque_witnesses)
         .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)?;
-    for (body, checked) in &mut checked_bodies {
-        let source = body_sources
-            .get(*body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-        let cleanups = analyze_body_ownership(
-            &graph,
-            &mut types,
-            &mut copyabilities,
-            &drops,
-            &closures,
-            OwnershipBodyInput::new(source, &checked.body, &checked.node_origins),
-        )?;
-        checked.body.attach_cleanups(cleanups)?;
-    }
+    attach_body_cleanups(
+        facts,
+        &mut types,
+        &mut copyabilities,
+        &closures,
+        &body_sources,
+        &mut checked_bodies,
+    )?;
 
     let (provenance, loans) = analyze_checked_body_relations(
         &graph,
@@ -215,6 +211,36 @@ pub fn check_prepared_program<'syntax>(
         ),
         source_index.finish(),
     ))
+}
+
+fn attach_body_cleanups(
+    facts: BodyProgramFacts<'_>,
+    types: &mut TypeStore,
+    copyabilities: &mut CopyabilityTable,
+    closures: &crate::ClosureTable,
+    body_sources: &BodySourceCatalog<'_>,
+    checked_bodies: &mut [(BodyId, CheckedBodyOutput)],
+) -> Result<(), BodyCheckError> {
+    for (body, checked) in checked_bodies {
+        let source = body_sources
+            .get(*body)
+            .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+        let cleanups = analyze_body_ownership(
+            facts.graph(),
+            types,
+            copyabilities,
+            facts.drops(),
+            closures,
+            OwnershipBodyInput::new(
+                source,
+                &checked.body,
+                &checked.node_origins,
+                &checked.copy_proofs,
+            ),
+        )?;
+        checked.body.attach_cleanups(cleanups)?;
+    }
+    Ok(())
 }
 
 fn check_declared_bodies<'input, 'syntax>(
@@ -340,6 +366,7 @@ struct CheckedBodyOutput {
     projections: Vec<NodeProjection>,
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
+    copy_proofs: CopyProofs,
 }
 
 struct BodyUnitInput<'input, 'syntax> {
@@ -373,6 +400,8 @@ struct BodyChecker<'input, 'syntax> {
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
     assumptions: Vec<crate::CheckedRequirement>,
+    intrinsic_facts: Vec<crate::CheckedPredicate>,
+    copy_proofs: CopyProofs,
     closure_result_inference: Option<closure_results::ClosureResultInference>,
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
     closure_type_arguments: Box<[TypeId]>,
@@ -380,6 +409,21 @@ struct BodyChecker<'input, 'syntax> {
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
+    fn instance_selector(&mut self) -> InstanceOperationSelector<'_> {
+        InstanceOperationSelector::new(
+            InstanceSelectionContext::new(
+                self.graph,
+                self.conformances,
+                self.instance_operations,
+                &self.assumptions,
+                &self.intrinsic_facts,
+                self.source.module(),
+            ),
+            self.types,
+            self.copyabilities,
+        )
+    }
+
     fn new(
         input: &'input CompileUnitInput<'syntax>,
         facts: BodyProgramFacts<'input>,
@@ -469,7 +513,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             node_origins: HashMap::new(),
             loops: Vec::new(),
             flow_reachable: true,
-            assumptions,
+            assumptions: assumptions.declared().to_vec(),
+            intrinsic_facts: assumptions.intrinsic().to_vec(),
+            copy_proofs: assumptions.copy_proofs().clone(),
             closure_result_inference: None,
             closure_ids,
             closure_type_arguments,
@@ -489,6 +535,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             projections: self.projections,
             node_origins: self.node_origins,
             opaque_witness,
+            copy_proofs: self.copy_proofs,
         })
     }
 
@@ -799,11 +846,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let (root, ty) = self.place_root(statement, token)?;
         if self.is_region_root(root)
             || matches!(self.types.get(ty), Some(TypeKind::Borrow { .. }))
-            || self
-                .copyabilities
-                .classify(self.graph, self.types, ty)
-                .map_err(BodyCheckInternalError::Copyability)?
-                == Copyability::Copy
+            || self.classify_copyability(ty)? == Copyability::Copy
         {
             return Err(self.rule(BodyRule::InvalidExplicitDrop, statement)?);
         }
@@ -883,6 +926,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_reference(current, expected);
                 }
                 NodeKind::MoveExpression => self.check_move(current)?,
+                NodeKind::ConversionExpression => {
+                    return self.check_conversion(current, expected);
+                }
                 NodeKind::OutcomeExpression => {
                     return self.check_outcome_expression(current, expected);
                 }
@@ -1072,11 +1118,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if self.is_region_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
         }
-        match self
-            .copyabilities
-            .classify(self.graph, self.types, place.ty)
-            .map_err(BodyCheckInternalError::Copyability)?
-        {
+        match self.classify_copyability(place.ty)? {
             Copyability::Copy => {
                 return Err(self.rule(BodyRule::MoveCopyValue, node)?);
             }
@@ -1093,6 +1135,13 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             }
         }
         self.add_node(node, place.ty, CheckedOperation::Move(place.id))
+    }
+
+    fn classify_copyability(&mut self, ty: TypeId) -> Result<Copyability, BodyCheckError> {
+        self.copyabilities
+            .classify_with_proofs(self.graph, self.types, ty, &self.copy_proofs)
+            .map_err(BodyCheckInternalError::Copyability)
+            .map_err(Into::into)
     }
 
     fn add_node(

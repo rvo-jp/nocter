@@ -29,11 +29,20 @@ impl LoanValue {
     }
 
     pub(super) fn all_loans(&self) -> BTreeSet<LoanId> {
-        let mut loans = self.loans.clone();
-        for value in self.projections.values() {
-            loans.extend(value.all_loans());
+        let mut loans = BTreeSet::new();
+        let mut pending = vec![self];
+        while let Some(value) = pending.pop() {
+            loans.extend(value.loans.iter().copied());
+            pending.extend(value.projections.values());
         }
         loans
+    }
+
+    pub(super) fn flattened(&self) -> Self {
+        Self {
+            loans: self.all_loans(),
+            projections: BTreeMap::new(),
+        }
     }
 
     pub(super) fn projected(&self, projection: ProvenanceProjection) -> Self {

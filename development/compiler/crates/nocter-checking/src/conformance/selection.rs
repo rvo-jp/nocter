@@ -28,9 +28,10 @@ pub(crate) fn proves(
     types: &mut TypeStore,
     table: &ConformanceTable,
     assumptions: &[CheckedRequirement],
+    intrinsic_facts: &[CheckedPredicate],
     predicate: &CheckedPredicate,
 ) -> Result<bool, SubstitutionError> {
-    Prover::new(types, table, assumptions).prove(predicate)
+    Prover::new(types, table, assumptions, intrinsic_facts).prove(predicate)
 }
 
 /// Selects the explicit conformance that proves one exact interface application.
@@ -41,10 +42,11 @@ pub(crate) fn select_conformance(
     types: &mut TypeStore,
     table: &ConformanceTable,
     assumptions: &[CheckedRequirement],
+    intrinsic_facts: &[CheckedPredicate],
     subject: TypeId,
     application: &InterfaceApplication,
 ) -> Result<Option<ConformanceSelection>, SubstitutionError> {
-    let mut prover = Prover::new(types, table, assumptions);
+    let mut prover = Prover::new(types, table, assumptions, intrinsic_facts);
     let root = CheckedPredicate::Capability {
         subject,
         capability: StructuralCapability::Interface(application.clone()),
@@ -61,6 +63,7 @@ struct Prover<'program> {
     types: &'program mut TypeStore,
     table: &'program ConformanceTable,
     assumptions: &'program [CheckedRequirement],
+    intrinsic_facts: &'program [CheckedPredicate],
     active: HashSet<CheckedPredicate>,
     proven: HashSet<CheckedPredicate>,
 }
@@ -70,11 +73,13 @@ impl<'program> Prover<'program> {
         types: &'program mut TypeStore,
         table: &'program ConformanceTable,
         assumptions: &'program [CheckedRequirement],
+        intrinsic_facts: &'program [CheckedPredicate],
     ) -> Self {
         Self {
             types,
             table,
             assumptions,
+            intrinsic_facts,
             active: HashSet::new(),
             proven: HashSet::new(),
         }
@@ -85,6 +90,7 @@ impl<'program> Prover<'program> {
             .assumptions
             .iter()
             .any(|assumption| assumption.predicate() == predicate)
+            || self.intrinsic_facts.contains(predicate)
             || self.proven.contains(predicate)
         {
             return Ok(true);

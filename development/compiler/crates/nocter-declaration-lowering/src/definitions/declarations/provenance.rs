@@ -45,7 +45,7 @@ pub(super) fn contract(
         let _ = receiver;
         return declared([ProvenanceOrigin::Receiver], declaration);
     }
-    if body.is_some() || kind == CallableKind::Primitive {
+    if body.is_some() {
         return Ok(CallableProvenanceContract::inferred());
     }
     let store = types

@@ -10,8 +10,8 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -83,6 +83,15 @@ fn propagation_retains_outer_result_layers_without_reordering() {
 
     assert!(outer.contains(&(OutcomeLayer::Optional, &[OutcomeLayer::Fallible][..])));
     assert!(outer.contains(&(OutcomeLayer::Fallible, &[OutcomeLayer::Optional][..])));
+}
+
+#[test]
+fn propagation_carries_its_payload_context_into_generic_call_inference() {
+    check(
+        "func produce<T>(): T! { loop {} }\n\
+         func forward<T>(): T! { produce()? }\n",
+    )
+    .unwrap();
 }
 
 #[test]

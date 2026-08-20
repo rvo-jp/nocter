@@ -4,15 +4,16 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageIdentity, UseResolutionInput, UseTargetInput,
+    ModuleIdentity, ModuleSourceKind, PackageIdentity, StandardRoleInput, ToolchainInput,
+    UseResolutionInput, UseTargetInput,
 };
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;
 
 use crate::DiscoveryError;
-use crate::error::ImportFailure;
-use crate::request::{DiscoveryRequest, ResolvedPackage};
+use crate::error::{ImportFailure, ToolchainDiscoveryError};
+use crate::request::{DiscoveryRequest, ResolvedPackage, StandardRoleLocator, ToolchainRequest};
 use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
 use crate::syntax::active_use_paths;
 
@@ -22,6 +23,13 @@ struct PackageState {
     canonical_root: PathBuf,
     declaration_path: PathBuf,
     declaration_syntax: usize,
+}
+
+#[derive(Debug)]
+struct LoadedPackages {
+    states: BTreeMap<PackageIdentity, PackageState>,
+    sources: SourceMap,
+    syntax: Vec<SyntaxTree>,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -43,6 +51,7 @@ struct Builder {
     source_owners: BTreeMap<PathBuf, ModuleIdentity>,
     use_resolutions: Vec<UseResolutionInput>,
     pending: BTreeSet<Work>,
+    toolchain: ToolchainRequest,
 }
 
 #[derive(Debug)]
@@ -75,84 +84,14 @@ pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryEr
 
 impl Builder {
     fn new(request: DiscoveryRequest) -> Result<Self, DiscoveryError> {
-        let (target, mut package_specs, roots) = request.into_parts();
-        package_specs.sort_unstable_by(|left, right| left.identity().cmp(right.identity()));
-        let mut packages = BTreeMap::new();
-        let mut root_owners = BTreeMap::new();
-        let mut sources = SourceMap::new();
-        let mut syntax = Vec::new();
-
-        for package in package_specs {
-            let identity = package.identity().clone();
-            if packages.contains_key(&identity) {
-                return Err(DiscoveryError::DuplicatePackage(identity));
-            }
-            let canonical_root = canonicalize("canonicalize package root", package.root())?;
-            if !canonical_root.is_dir() {
-                return Err(DiscoveryError::InvalidPackageRoot {
-                    package: identity,
-                    path: canonical_root,
-                });
-            }
-            if let Some(first) = root_owners.insert(canonical_root.clone(), identity.clone()) {
-                return Err(DiscoveryError::DuplicateCanonicalRoot {
-                    first,
-                    second: identity,
-                    path: canonical_root,
-                });
-            }
-            let declaration_path = canonical_root.join("nocter.nct");
-            if !regular_file(&declaration_path)? {
-                return Err(DiscoveryError::MissingPackageFile {
-                    package: identity,
-                    path: declaration_path,
-                });
-            }
-            let declaration_path = canonicalize("canonicalize package file", &declaration_path)?;
-            if !declaration_path.starts_with(&canonical_root) {
-                return Err(DiscoveryError::InvalidPackageRoot {
-                    package: identity,
-                    path: declaration_path,
-                });
-            }
-            let declaration_syntax = load_source(
-                &mut sources,
-                &mut syntax,
-                &declaration_path,
-                ParseGoal::PackageFile,
-            )?;
-            packages.insert(
-                identity,
-                PackageState {
-                    package,
-                    canonical_root,
-                    declaration_path,
-                    declaration_syntax,
-                },
-            );
-        }
-
-        for state in packages.values() {
-            for dependency in state.package.dependencies().values() {
-                if !packages.contains_key(dependency) {
-                    return Err(DiscoveryError::UnknownPackage(dependency.clone()));
-                }
-            }
-        }
-
-        let mut pending = BTreeSet::new();
-        for package in packages.keys() {
-            pending.insert(Work::Module(ModuleIdentity::new(
-                package.clone(),
-                Vec::<&str>::new(),
-            )));
-        }
-        for root in &roots {
-            if !packages.contains_key(root.package()) {
-                return Err(DiscoveryError::UnknownPackage(root.package().clone()));
-            }
-            pending.insert(Work::Module(root.clone()));
-        }
+        let (target, package_specs, roots, toolchain) = request.into_parts();
+        let loaded = load_packages(package_specs)?;
+        let packages = loaded.states;
+        let sources = loaded.sources;
+        let syntax = loaded.syntax;
+        validate_package_dependencies(&packages)?;
+        validate_toolchain(&packages, &toolchain)?;
+        let pending = initial_work(&packages, &roots, &toolchain)?;
 
         Ok(Self {
             target,
@@ -163,6 +102,7 @@ impl Builder {
             source_owners: BTreeMap::new(),
             use_resolutions: Vec::new(),
             pending,
+            toolchain,
         })
     }
 
@@ -175,6 +115,12 @@ impl Builder {
                 }
             }
         }
+
+        let toolchain = if self.syntax.iter().any(SyntaxTree::has_errors) {
+            None
+        } else {
+            Some(self.resolve_toolchain()?)
+        };
 
         let packages = self
             .packages
@@ -212,7 +158,86 @@ impl Builder {
             packages,
             modules,
             use_resolutions: self.use_resolutions,
+            toolchain,
         })
+    }
+
+    fn resolve_toolchain(&self) -> Result<ToolchainInput, DiscoveryError> {
+        let mut attachments = self.toolchain.builtin_attachments().to_vec();
+        attachments.sort_unstable_by(|left, right| {
+            left.attachment()
+                .cmp(&right.attachment())
+                .then_with(|| left.module().cmp(right.module()))
+        });
+        let mut locators = self.toolchain.standard_roles().to_vec();
+        locators.sort_unstable_by_key(StandardRoleLocator::role);
+        let roles = locators
+            .iter()
+            .map(|locator| self.resolve_standard_role(locator))
+            .collect::<Result<_, _>>()?;
+        Ok(ToolchainInput::new(
+            self.toolchain.standard_package().clone(),
+            self.toolchain.prelude().clone(),
+            attachments,
+            roles,
+        ))
+    }
+
+    fn resolve_standard_role(
+        &self,
+        locator: &StandardRoleLocator,
+    ) -> Result<StandardRoleInput, DiscoveryError> {
+        let module = self.modules.get(locator.module()).ok_or_else(|| {
+            DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
+                role: locator.role(),
+                module: locator.module().clone(),
+                kind: locator.kind(),
+                name: locator.name().into(),
+            })
+        })?;
+        let mut matches = Vec::new();
+        for source in module {
+            let tree = &self.syntax[source.syntax_index()];
+            let mut pending = vec![tree.root_id()];
+            while let Some(node) = pending.pop() {
+                if tree
+                    .node(node)
+                    .is_some_and(|syntax| syntax.kind() == locator.kind())
+                    && let Some(token) = declaration_name_token(tree, node)
+                    && self
+                        .sources
+                        .get(token.source())
+                        .and_then(|source| source.text_at(token.range()))
+                        == Some(locator.name())
+                {
+                    matches.push(token);
+                }
+                for child in tree.children(node).iter().rev() {
+                    if let SyntaxElement::Node(child) = child {
+                        pending.push(*child);
+                    }
+                }
+            }
+        }
+        match matches.as_slice() {
+            [token] => Ok(StandardRoleInput::new(locator.role(), *token)),
+            [] => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::MissingRoleDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    kind: locator.kind(),
+                    name: locator.name().into(),
+                },
+            )),
+            _ => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::AmbiguousRoleDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    kind: locator.kind(),
+                    name: locator.name().into(),
+                },
+            )),
+        }
     }
 
     fn load_module(&mut self, module: ModuleIdentity) -> Result<(), DiscoveryError> {
@@ -572,6 +597,157 @@ fn join_module_path(root: &Path, path: &[Box<str>]) -> PathBuf {
     path.iter().fold(root.to_path_buf(), |path, segment| {
         path.join(Path::new(segment.as_ref()))
     })
+}
+
+fn load_packages(
+    mut package_specs: Vec<ResolvedPackage>,
+) -> Result<LoadedPackages, DiscoveryError> {
+    package_specs.sort_unstable_by(|left, right| left.identity().cmp(right.identity()));
+    let mut packages = BTreeMap::new();
+    let mut root_owners = BTreeMap::new();
+    let mut sources = SourceMap::new();
+    let mut syntax = Vec::new();
+    for package in package_specs {
+        let identity = package.identity().clone();
+        if packages.contains_key(&identity) {
+            return Err(DiscoveryError::DuplicatePackage(identity));
+        }
+        let canonical_root = canonicalize("canonicalize package root", package.root())?;
+        if !canonical_root.is_dir() {
+            return Err(DiscoveryError::InvalidPackageRoot {
+                package: identity,
+                path: canonical_root,
+            });
+        }
+        if let Some(first) = root_owners.insert(canonical_root.clone(), identity.clone()) {
+            return Err(DiscoveryError::DuplicateCanonicalRoot {
+                first,
+                second: identity,
+                path: canonical_root,
+            });
+        }
+        let declaration_path = canonical_root.join("nocter.nct");
+        if !regular_file(&declaration_path)? {
+            return Err(DiscoveryError::MissingPackageFile {
+                package: identity,
+                path: declaration_path,
+            });
+        }
+        let declaration_path = canonicalize("canonicalize package file", &declaration_path)?;
+        if !declaration_path.starts_with(&canonical_root) {
+            return Err(DiscoveryError::InvalidPackageRoot {
+                package: identity,
+                path: declaration_path,
+            });
+        }
+        let declaration_syntax = load_source(
+            &mut sources,
+            &mut syntax,
+            &declaration_path,
+            ParseGoal::PackageFile,
+        )?;
+        packages.insert(
+            identity,
+            PackageState {
+                package,
+                canonical_root,
+                declaration_path,
+                declaration_syntax,
+            },
+        );
+    }
+    Ok(LoadedPackages {
+        states: packages,
+        sources,
+        syntax,
+    })
+}
+
+fn validate_package_dependencies(
+    packages: &BTreeMap<PackageIdentity, PackageState>,
+) -> Result<(), DiscoveryError> {
+    for state in packages.values() {
+        for dependency in state.package.dependencies().values() {
+            if !packages.contains_key(dependency) {
+                return Err(DiscoveryError::UnknownPackage(dependency.clone()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_toolchain(
+    packages: &BTreeMap<PackageIdentity, PackageState>,
+    toolchain: &ToolchainRequest,
+) -> Result<(), DiscoveryError> {
+    if !packages.contains_key(toolchain.standard_package()) {
+        return Err(DiscoveryError::UnknownPackage(
+            toolchain.standard_package().clone(),
+        ));
+    }
+    let mut attachment_kinds = BTreeSet::new();
+    for attachment in toolchain.builtin_attachments() {
+        validate_toolchain_module(toolchain, attachment.module())?;
+        if !attachment_kinds.insert(attachment.attachment()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicateBuiltinAttachment(attachment.attachment()),
+            ));
+        }
+    }
+    let mut role_kinds = BTreeSet::new();
+    for role in toolchain.standard_roles() {
+        validate_toolchain_module(toolchain, role.module())?;
+        if !role_kinds.insert(role.role()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicateStandardRole(role.role()),
+            ));
+        }
+    }
+    validate_toolchain_module(toolchain, toolchain.prelude())
+}
+
+fn initial_work(
+    packages: &BTreeMap<PackageIdentity, PackageState>,
+    roots: &[ModuleIdentity],
+    toolchain: &ToolchainRequest,
+) -> Result<BTreeSet<Work>, DiscoveryError> {
+    let mut pending = packages
+        .keys()
+        .map(|package| Work::Module(ModuleIdentity::new(package.clone(), Vec::<&str>::new())))
+        .collect::<BTreeSet<_>>();
+    for root in roots {
+        if !packages.contains_key(root.package()) {
+            return Err(DiscoveryError::UnknownPackage(root.package().clone()));
+        }
+        pending.insert(Work::Module(root.clone()));
+    }
+    pending.insert(Work::Module(toolchain.prelude().clone()));
+    pending.extend(
+        toolchain
+            .builtin_attachments()
+            .iter()
+            .map(|attachment| Work::Module(attachment.module().clone())),
+    );
+    pending.extend(
+        toolchain
+            .standard_roles()
+            .iter()
+            .map(|role| Work::Module(role.module().clone())),
+    );
+    Ok(pending)
+}
+
+fn validate_toolchain_module(
+    toolchain: &ToolchainRequest,
+    module: &ModuleIdentity,
+) -> Result<(), DiscoveryError> {
+    if module.package() == toolchain.standard_package() {
+        Ok(())
+    } else {
+        Err(DiscoveryError::Toolchain(
+            ToolchainDiscoveryError::ModuleOutsideStandardPackage(module.clone()),
+        ))
+    }
 }
 
 fn normalized_components(path: &Path) -> Result<Vec<Box<str>>, ImportFailure> {

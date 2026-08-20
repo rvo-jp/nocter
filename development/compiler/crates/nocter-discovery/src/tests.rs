@@ -2,10 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity, UseTargetInput};
+use nocter_compile_input::{
+    BuiltinAttachmentInput, ModuleIdentity, PackageIdentity, UseTargetInput,
+};
+use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
+use nocter_syntax::NodeKind;
 
-use crate::{DiscoveryError, DiscoveryRequest, ImportFailure, ResolvedPackage, discover};
+use crate::{
+    DiscoveryError, DiscoveryRequest, ImportFailure, ResolvedPackage, StandardRoleLocator,
+    ToolchainRequest, discover,
+};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -45,6 +52,16 @@ fn module(package: &str, path: &[&str]) -> ModuleIdentity {
     ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied())
 }
 
+fn minimal_toolchain(package: &str) -> ToolchainRequest {
+    let package = PackageIdentity::new(package);
+    ToolchainRequest::new(
+        package.clone(),
+        ModuleIdentity::new(package, Vec::<&str>::new()),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
 #[test]
 fn closes_source_folder_module_and_dependency_edges_once() {
     let tree = TempTree::new();
@@ -69,6 +86,7 @@ fn closes_source_folder_module_and_dependency_edges_once() {
         CompilationTarget::Arm64Darwin,
         vec![app, dep],
         vec![module("workspace:app", &[])],
+        minimal_toolchain("workspace:app"),
     ))
     .unwrap();
 
@@ -127,6 +145,7 @@ fn rejects_a_relative_path_with_both_source_and_module_candidates() {
         CompilationTarget::Arm64Darwin,
         vec![package("workspace:app", "app", &tree.path().join("app"))],
         Vec::new(),
+        minimal_toolchain("workspace:app"),
     ))
     .unwrap_err();
 
@@ -152,6 +171,7 @@ fn inactive_target_imports_do_not_probe_the_filesystem() {
         CompilationTarget::Arm64Darwin,
         vec![package("workspace:app", "app", &tree.path().join("app"))],
         Vec::new(),
+        minimal_toolchain("workspace:app"),
     ))
     .unwrap();
     assert!(unit.compile_input().unwrap().use_resolutions().is_empty());
@@ -171,12 +191,14 @@ fn canonical_output_does_not_depend_on_request_order() {
         CompilationTarget::Arm64Darwin,
         vec![a.clone(), b.clone()],
         vec![module("workspace:b", &[]), module("workspace:a", &[])],
+        minimal_toolchain("workspace:a"),
     ))
     .unwrap();
     let reverse = discover(DiscoveryRequest::new(
         CompilationTarget::Arm64Darwin,
         vec![b, a],
         vec![module("workspace:a", &[]), module("workspace:b", &[])],
+        minimal_toolchain("workspace:a"),
     ))
     .unwrap();
 
@@ -213,6 +235,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         CompilationTarget::Arm64Darwin,
         vec![standard],
         roots,
+        standard_toolchain(&standard_identity),
     ))
     .unwrap();
     let syntax_errors: Vec<_> = unit
@@ -232,9 +255,109 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         })
         .collect();
     assert!(syntax_errors.is_empty(), "{syntax_errors:#?}");
-    let prelude = ModuleIdentity::new(standard_identity, ["prelude"]);
     let input = unit.compile_input().unwrap();
-    nocter_declaration_lowering::lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared =
+        nocter_checking::prepare_program_checking(&input, program, source_index).unwrap();
+    nocter_checking::check_prepared_program(&input, prepared).unwrap_or_else(|error| {
+        let source = error
+            .source_diagnostic()
+            .and_then(|diagnostic| unit.sources().get(diagnostic.primary().source()))
+            .map(|source| source.name().to_string());
+        panic!("standard source {source:?} failed body checking: {error:?}")
+    });
+}
+
+fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
+    let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
+    let attachments = [
+        (BuiltinAttachment::Scalar, "num"),
+        (BuiltinAttachment::Str, "str"),
+        (BuiltinAttachment::Error, "error"),
+        (BuiltinAttachment::Slice, "slice"),
+    ]
+    .into_iter()
+    .map(|(attachment, path)| BuiltinAttachmentInput::new(attachment, module(&[path])))
+    .collect();
+    let roles = [
+        (
+            StandardDeclarationRole::AbortingAllocator,
+            &["mem"][..],
+            NodeKind::StructDeclaration,
+            "Allocator",
+        ),
+        (
+            StandardDeclarationRole::AllocationContext,
+            &["mem"][..],
+            NodeKind::StructDeclaration,
+            "AllocationContext",
+        ),
+        (
+            StandardDeclarationRole::OwnedString,
+            &["string"][..],
+            NodeKind::StructDeclaration,
+            "String",
+        ),
+        (
+            StandardDeclarationRole::InterpolationConstructor,
+            &["string"][..],
+            NodeKind::ConstructionFunction,
+            "empty",
+        ),
+        (
+            StandardDeclarationRole::InterpolationTextAppender,
+            &["string"][..],
+            NodeKind::InherentMethod,
+            "push_str",
+        ),
+        (
+            StandardDeclarationRole::FormatInterface,
+            &["fmt"][..],
+            NodeKind::InterfaceDeclaration,
+            "Format",
+        ),
+        (
+            StandardDeclarationRole::FormatMethod,
+            &["fmt"][..],
+            NodeKind::InterfaceMethod,
+            "format_into",
+        ),
+        (
+            StandardDeclarationRole::IteratorInterface,
+            &["iter"][..],
+            NodeKind::InterfaceDeclaration,
+            "Iterator",
+        ),
+        (
+            StandardDeclarationRole::IteratorItem,
+            &["iter"][..],
+            NodeKind::AssociatedTypeDeclaration,
+            "Item",
+        ),
+        (
+            StandardDeclarationRole::IteratorNextMethod,
+            &["iter"][..],
+            NodeKind::InterfaceMethod,
+            "next",
+        ),
+        (
+            StandardDeclarationRole::ExactSizeIteratorInterface,
+            &["iter"][..],
+            NodeKind::InterfaceDeclaration,
+            "ExactSizeIterator",
+        ),
+        (
+            StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
+            &["iter"][..],
+            NodeKind::InterfaceMethod,
+            "remaining_len",
+        ),
+    ]
+    .into_iter()
+    .map(|(role, path, kind, name)| StandardRoleLocator::new(role, module(path), kind, name))
+    .collect();
+    ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)
 }
 
 fn module_root_paths(root: &Path) -> Vec<Vec<Box<str>>> {

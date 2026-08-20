@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
+use nocter_declarations::StandardDeclarationRole;
 use nocter_model::CompilationTarget;
+use nocter_syntax::NodeKind;
 
 /// One package whose exact identity, physical root, and dependency aliases were resolved before
 /// source discovery.
@@ -12,6 +14,99 @@ pub struct ResolvedPackage {
     display_name: Box<str>,
     root: PathBuf,
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
+}
+
+/// One compiler-owned standard semantic role selected by exact module, declaration kind, and
+/// declaration name. Discovery resolves this locator to one syntax token before semantic lowering.
+#[derive(Clone, Debug)]
+pub struct StandardRoleLocator {
+    role: StandardDeclarationRole,
+    module: ModuleIdentity,
+    kind: NodeKind,
+    name: Box<str>,
+}
+
+impl StandardRoleLocator {
+    #[must_use]
+    pub fn new(
+        role: StandardDeclarationRole,
+        module: ModuleIdentity,
+        kind: NodeKind,
+        name: impl Into<Box<str>>,
+    ) -> Self {
+        Self {
+            role,
+            module,
+            kind,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> StandardDeclarationRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> NodeKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// Exact standard-library authority supplied by the selected compiler toolchain.
+#[derive(Clone, Debug)]
+pub struct ToolchainRequest {
+    standard_package: PackageIdentity,
+    prelude: ModuleIdentity,
+    builtin_attachments: Vec<BuiltinAttachmentInput>,
+    standard_roles: Vec<StandardRoleLocator>,
+}
+
+impl ToolchainRequest {
+    #[must_use]
+    pub fn new(
+        standard_package: PackageIdentity,
+        prelude: ModuleIdentity,
+        builtin_attachments: Vec<BuiltinAttachmentInput>,
+        standard_roles: Vec<StandardRoleLocator>,
+    ) -> Self {
+        Self {
+            standard_package,
+            prelude,
+            builtin_attachments,
+            standard_roles,
+        }
+    }
+
+    #[must_use]
+    pub const fn standard_package(&self) -> &PackageIdentity {
+        &self.standard_package
+    }
+
+    #[must_use]
+    pub const fn prelude(&self) -> &ModuleIdentity {
+        &self.prelude
+    }
+
+    #[must_use]
+    pub fn builtin_attachments(&self) -> &[BuiltinAttachmentInput] {
+        &self.builtin_attachments
+    }
+
+    #[must_use]
+    pub fn standard_roles(&self) -> &[StandardRoleLocator] {
+        &self.standard_roles
+    }
 }
 
 impl ResolvedPackage {
@@ -62,6 +157,7 @@ pub struct DiscoveryRequest {
     target: CompilationTarget,
     packages: Vec<ResolvedPackage>,
     roots: Vec<ModuleIdentity>,
+    toolchain: ToolchainRequest,
 }
 
 impl DiscoveryRequest {
@@ -70,11 +166,13 @@ impl DiscoveryRequest {
         target: CompilationTarget,
         packages: Vec<ResolvedPackage>,
         roots: Vec<ModuleIdentity>,
+        toolchain: ToolchainRequest,
     ) -> Self {
         Self {
             target,
             packages,
             roots,
+            toolchain,
         }
     }
 
@@ -93,9 +191,19 @@ impl DiscoveryRequest {
         &self.roots
     }
 
+    #[must_use]
+    pub const fn toolchain(&self) -> &ToolchainRequest {
+        &self.toolchain
+    }
+
     pub(crate) fn into_parts(
         self,
-    ) -> (CompilationTarget, Vec<ResolvedPackage>, Vec<ModuleIdentity>) {
-        (self.target, self.packages, self.roots)
+    ) -> (
+        CompilationTarget,
+        Vec<ResolvedPackage>,
+        Vec<ModuleIdentity>,
+        ToolchainRequest,
+    ) {
+        (self.target, self.packages, self.roots, self.toolchain)
     }
 }

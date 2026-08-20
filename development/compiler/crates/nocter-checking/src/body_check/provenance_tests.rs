@@ -7,8 +7,8 @@ use crate::{AmbientStorageDependence, prepare_program_checking};
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)

@@ -2,7 +2,9 @@ use std::fmt;
 
 use super::access::{module_index_by_id, module_index_by_identity, visible_from};
 use super::{ModuleNamespace, PreparedImports, lookup};
-use crate::{ImportViolation, ModuleIdentity, SurfaceImportTarget};
+use crate::{
+    ImportViolation, ModuleIdentity, PackageIdentity, SurfaceImportTarget, ToolchainInput,
+};
 use nocter_declarations::{
     BuiltinAttachment, ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace,
     NamespaceEntry, ProgramBuildError,
@@ -11,16 +13,22 @@ use nocter_model::{ModuleId, Symbol};
 use nocter_syntax::NodeId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PreludeError {
+pub enum ToolchainError {
+    MissingProfile,
     Rule(ImportViolation),
+    UnknownStandardPackage(PackageIdentity),
     UnknownModule(ModuleIdentity),
+    PreludeOutsideStandardPackage,
+    AttachmentOutsideStandardPackage(BuiltinAttachment),
+    DuplicateAttachment(BuiltinAttachment),
     InconsistentImport(NodeId),
     Program(ProgramBuildError),
 }
 
-impl fmt::Display for PreludeError {
+impl fmt::Display for ToolchainError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingProfile => formatter.write_str("compile input has no toolchain profile"),
             Self::Rule(violation) => write!(
                 formatter,
                 "{}: {}",
@@ -28,7 +36,25 @@ impl fmt::Display for PreludeError {
                 violation.rule().message()
             ),
             Self::UnknownModule(module) => {
-                write!(formatter, "standard prelude module {module:?} is absent")
+                write!(formatter, "toolchain module {module:?} is absent")
+            }
+            Self::UnknownStandardPackage(package) => {
+                write!(formatter, "standard package {package:?} is absent")
+            }
+            Self::PreludeOutsideStandardPackage => {
+                formatter.write_str("toolchain prelude is outside the selected standard package")
+            }
+            Self::AttachmentOutsideStandardPackage(attachment) => {
+                write!(
+                    formatter,
+                    "{attachment:?} built-in attachment is outside the selected standard package"
+                )
+            }
+            Self::DuplicateAttachment(attachment) => {
+                write!(
+                    formatter,
+                    "toolchain profile repeats {attachment:?} attachment"
+                )
             }
             Self::InconsistentImport(import) => {
                 write!(formatter, "authored import {import:?} has no retained path")
@@ -38,9 +64,9 @@ impl fmt::Display for PreludeError {
     }
 }
 
-impl std::error::Error for PreludeError {}
+impl std::error::Error for ToolchainError {}
 
-impl From<ImportViolation> for PreludeError {
+impl From<ImportViolation> for ToolchainError {
     fn from(violation: ImportViolation) -> Self {
         Self::Rule(violation)
     }
@@ -113,52 +139,65 @@ impl PreparedNamespaces<'_> {
     }
 }
 
-/// Adds the exact compiler-selected standard prelude as a fallback for every non-standard module.
+/// Applies the exact compiler-selected standard package, built-in surfaces, and prelude fallback.
 ///
-/// The package containing `prelude_module` is treated as the standard-library package for this
-/// stage. Its modules receive no fallback. Authored imports of the prelude remain invalid.
+/// Standard ownership comes from `toolchain.standard_package`; it is never inferred from the
+/// prelude path. Standard modules receive no fallback. Authored imports of the prelude remain
+/// invalid.
 ///
 /// # Errors
 ///
-/// Returns [`PreludeError`] when the selected module is absent or source explicitly imports it.
-pub fn apply_standard_prelude<'syntax>(
+/// Returns [`ToolchainError`] when an exact selected identity is absent, inconsistent, duplicated,
+/// or explicitly imported where the compiler owns the edge.
+pub fn apply_toolchain_profile<'syntax>(
     mut imports: PreparedImports<'syntax>,
-    prelude_module: &ModuleIdentity,
-) -> Result<PreparedNamespaces<'syntax>, PreludeError> {
+    toolchain: &ToolchainInput,
+) -> Result<PreparedNamespaces<'syntax>, ToolchainError> {
     let (prelude_index, prelude_id, standard_package, attachment_modules) = {
         let reserved = &imports.generics.headers.reserved;
-        let prelude_index = module_index_by_identity(reserved, prelude_module)
-            .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
+        if toolchain.prelude().package() != toolchain.standard_package() {
+            return Err(ToolchainError::PreludeOutsideStandardPackage);
+        }
+        let prelude_index = module_index_by_identity(reserved, toolchain.prelude())
+            .ok_or_else(|| ToolchainError::UnknownModule(toolchain.prelude().clone()))?;
         for (index, import) in reserved.imports.iter().enumerate() {
             if matches!(
                 import.target(),
-                SurfaceImportTarget::Module(target) if target == prelude_module
+                SurfaceImportTarget::Module(target) if target == toolchain.prelude()
             ) {
                 let path = imports
                     .import_path(index)
-                    .ok_or(PreludeError::InconsistentImport(import.node()))?;
+                    .ok_or(ToolchainError::InconsistentImport(import.node()))?;
                 return Err(ImportViolation::compiler_managed_prelude_import(path).into());
             }
         }
 
         let prelude_id = reserved.module_ids[prelude_index];
-        let standard_package = reserved
-            .program
-            .module_package(prelude_id)
-            .ok_or_else(|| PreludeError::UnknownModule(prelude_module.clone()))?;
-        let attachment_modules = [
-            (BuiltinAttachment::Scalar, "num"),
-            (BuiltinAttachment::Str, "str"),
-            (BuiltinAttachment::Error, "error"),
-            (BuiltinAttachment::Slice, "slice"),
-        ]
-        .into_iter()
-        .filter_map(|(attachment, path)| {
-            let identity = ModuleIdentity::new(prelude_module.package().clone(), [path]);
-            module_index_by_identity(reserved, &identity)
-                .map(|index| (attachment, reserved.module_ids[index]))
-        })
-        .collect::<Vec<_>>();
+        let standard_package_index = reserved
+            .packages
+            .iter()
+            .position(|package| package.identity() == toolchain.standard_package())
+            .ok_or_else(|| {
+                ToolchainError::UnknownStandardPackage(toolchain.standard_package().clone())
+            })?;
+        let standard_package = reserved.package_ids[standard_package_index];
+        let mut attachment_modules = Vec::with_capacity(toolchain.builtin_attachments().len());
+        for input in toolchain.builtin_attachments() {
+            if input.module().package() != toolchain.standard_package() {
+                return Err(ToolchainError::AttachmentOutsideStandardPackage(
+                    input.attachment(),
+                ));
+            }
+            if attachment_modules
+                .iter()
+                .any(|(attachment, _)| *attachment == input.attachment())
+            {
+                return Err(ToolchainError::DuplicateAttachment(input.attachment()));
+            }
+            let index = module_index_by_identity(reserved, input.module())
+                .ok_or_else(|| ToolchainError::UnknownModule(input.module().clone()))?;
+            attachment_modules.push((input.attachment(), reserved.module_ids[index]));
+        }
         (
             prelude_index,
             prelude_id,
@@ -172,7 +211,7 @@ pub fn apply_standard_prelude<'syntax>(
         .reserved
         .program
         .set_standard_package(standard_package)
-        .map_err(PreludeError::Program)?;
+        .map_err(ToolchainError::Program)?;
     for (attachment, module) in attachment_modules {
         imports
             .generics
@@ -180,14 +219,14 @@ pub fn apply_standard_prelude<'syntax>(
             .reserved
             .program
             .set_builtin_attachment_module(attachment, module)
-            .map_err(PreludeError::Program)?;
+            .map_err(ToolchainError::Program)?;
     }
 
     let reserved = &imports.generics.headers.reserved;
     let prelude_namespace = &imports.namespaces[prelude_index];
     let mut fallback: Vec<ModuleNamespace> = Vec::with_capacity(reserved.modules.len());
     for (index, module) in reserved.modules.iter().enumerate() {
-        if module.package() == prelude_module.package() {
+        if module.package() == toolchain.standard_package() {
             fallback.push(Box::new([]));
             continue;
         }

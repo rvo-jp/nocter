@@ -14,8 +14,8 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
 }
 
 fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -267,6 +267,36 @@ fn explicit_construction_owner_resolves_lexical_and_structural_type_arguments() 
          }\n",
     )
     .unwrap();
+}
+
+#[test]
+fn bare_construction_owner_reuses_an_exact_lexical_generic_identity() {
+    check(
+        "struct Box<T> { value: T }\n\
+         construct Box<T> {\n\
+             pub func empty(): Self { loop {} }\n\
+             pub func forwarded(): Self { Box.empty() }\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn borrowed_call_arguments_reborrow_without_making_borrow_values_copyable() {
+    check(
+        "func use_mut(value: &+i32): void { return }\n\
+         func forward(value: &+i32): void { use_mut(value) }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "func invalid(value: &+i32): void {\n\
+             let alias: &+i32 = value\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
 }
 
 #[test]

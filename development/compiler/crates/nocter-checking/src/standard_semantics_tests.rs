@@ -2,7 +2,7 @@ use nocter_declaration_lowering::{StandardRoleInput, lower_compile_unit_declarat
 use nocter_declarations::StandardDeclarationRole;
 use nocter_syntax::NodeKind;
 
-use crate::test_support::Fixture;
+use crate::test_support::{Fixture, with_standard_roles};
 use crate::{PreparationError, StandardSemanticError, prepare_program_checking};
 
 fn with_prepared_roles<T>(
@@ -10,9 +10,9 @@ fn with_prepared_roles<T>(
     roles: Vec<StandardRoleInput>,
     inspect: impl FnOnce(&crate::PreparedChecking) -> T,
 ) -> Result<T, PreparationError> {
-    let (input, prelude) = fixture.input(false);
-    let input = input.with_standard_roles(roles);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let input = with_standard_roles(input, roles);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index)?;
     Ok(inspect(&prepared))

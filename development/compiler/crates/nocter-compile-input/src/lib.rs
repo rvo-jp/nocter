@@ -4,7 +4,7 @@
 //! filesystem policy and performs no semantic work; producers resolve physical topology once and
 //! consumers treat every identity and edge as immutable input.
 
-use nocter_declarations::StandardDeclarationRole;
+use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
@@ -209,6 +209,85 @@ pub struct StandardRoleInput {
     declaration: SyntaxToken,
 }
 
+/// One compiler-owned built-in surface paired with its exact authored module.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct BuiltinAttachmentInput {
+    attachment: BuiltinAttachment,
+    module: ModuleIdentity,
+}
+
+impl BuiltinAttachmentInput {
+    #[must_use]
+    pub const fn new(attachment: BuiltinAttachment, module: ModuleIdentity) -> Self {
+        Self { attachment, module }
+    }
+
+    #[must_use]
+    pub const fn attachment(&self) -> BuiltinAttachment {
+        self.attachment
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+}
+
+/// Exact standard-library authority selected once by toolchain discovery.
+///
+/// The semantic pipeline may resolve these identities into dense program IDs, but it must never
+/// reconstruct them from package names, module spellings, or declaration names.
+#[derive(Clone, Debug)]
+pub struct ToolchainInput {
+    standard_package: PackageIdentity,
+    prelude: ModuleIdentity,
+    builtin_attachments: Vec<BuiltinAttachmentInput>,
+    standard_roles: Vec<StandardRoleInput>,
+}
+
+impl ToolchainInput {
+    #[must_use]
+    pub fn new(
+        standard_package: PackageIdentity,
+        prelude: ModuleIdentity,
+        builtin_attachments: Vec<BuiltinAttachmentInput>,
+        standard_roles: Vec<StandardRoleInput>,
+    ) -> Self {
+        Self {
+            standard_package,
+            prelude,
+            builtin_attachments,
+            standard_roles,
+        }
+    }
+
+    #[must_use]
+    pub const fn standard_package(&self) -> &PackageIdentity {
+        &self.standard_package
+    }
+
+    #[must_use]
+    pub const fn prelude(&self) -> &ModuleIdentity {
+        &self.prelude
+    }
+
+    #[must_use]
+    pub fn builtin_attachments(&self) -> &[BuiltinAttachmentInput] {
+        &self.builtin_attachments
+    }
+
+    #[must_use]
+    pub fn standard_roles(&self) -> &[StandardRoleInput] {
+        &self.standard_roles
+    }
+
+    #[must_use]
+    pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
+        self.standard_roles = roles;
+        self
+    }
+}
+
 impl StandardRoleInput {
     #[must_use]
     pub const fn new(role: StandardDeclarationRole, declaration: SyntaxToken) -> Self {
@@ -294,7 +373,7 @@ pub struct CompileUnitInput<'syntax> {
     modules: Vec<ModuleInput<'syntax>>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
-    standard_roles: Vec<StandardRoleInput>,
+    toolchain: Option<ToolchainInput>,
 }
 
 impl<'syntax> CompileUnitInput<'syntax> {
@@ -313,7 +392,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
             modules,
             use_resolutions,
             package_target_resolutions: Vec::new(),
-            standard_roles: Vec::new(),
+            toolchain: None,
         }
     }
 
@@ -338,8 +417,8 @@ impl<'syntax> CompileUnitInput<'syntax> {
     }
 
     #[must_use]
-    pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
-        self.standard_roles = roles;
+    pub fn with_toolchain(mut self, toolchain: ToolchainInput) -> Self {
+        self.toolchain = Some(toolchain);
         self
     }
 
@@ -369,7 +448,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
     }
 
     #[must_use]
-    pub fn standard_roles(&self) -> &[StandardRoleInput] {
-        &self.standard_roles
+    pub const fn toolchain(&self) -> Option<&ToolchainInput> {
+        self.toolchain.as_ref()
     }
 }

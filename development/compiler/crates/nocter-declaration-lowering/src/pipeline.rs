@@ -3,13 +3,13 @@ use std::fmt;
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, DeclarationDiagnostic,
     DefinitionDiagnostic, GenericDiagnostic, GenericError, HeaderDefinitionError, HeaderError,
-    ImportDiagnostic, ImportError, LoweredDeclarations, ModuleIdentity, NamespaceDiagnostic,
-    PreludeError, PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic,
-    SurfaceDiagnostic, SurfaceError, TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError,
-    TypeNormalizationDiagnostic, TypeNormalizationError, analyze_callable_contracts,
-    apply_standard_prelude, bind_header_type_syntax, collect_declaration_surface,
-    define_declaration_headers, normalize_header_types, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders,
+    ImportDiagnostic, ImportError, LoweredDeclarations, NamespaceDiagnostic, PreparedImports,
+    PreparedNamespaces, PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic,
+    SurfaceDiagnostic, SurfaceError, ToolchainError, TopologyDiagnostic, TypeBindingDiagnostic,
+    TypeBindingError, TypeNormalizationDiagnostic, TypeNormalizationError,
+    analyze_callable_contracts, apply_toolchain_profile, bind_header_type_syntax,
+    collect_declaration_surface, define_declaration_headers, normalize_header_types,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub enum DeclarationLoweringError {
     InternalGeneric(GenericError),
     Import(ImportDiagnostic),
     InternalImport(ImportError),
-    Prelude(PreludeError),
+    Toolchain(ToolchainError),
     TypeBinding(TypeBindingDiagnostic),
     InternalTypeBinding(TypeBindingError),
     TypeNormalization(TypeNormalizationDiagnostic),
@@ -60,7 +60,7 @@ impl DeclarationLoweringError {
             | Self::InternalHeader(_)
             | Self::InternalGeneric(_)
             | Self::InternalImport(_)
-            | Self::Prelude(_)
+            | Self::Toolchain(_)
             | Self::InternalTypeBinding(_)
             | Self::InternalTypeNormalization(_)
             | Self::InternalDefinition(_) => None,
@@ -83,7 +83,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::InternalGeneric(error) => error.fmt(formatter),
             Self::Import(error) => error.fmt(formatter),
             Self::InternalImport(error) => error.fmt(formatter),
-            Self::Prelude(error) => error.fmt(formatter),
+            Self::Toolchain(error) => error.fmt(formatter),
             Self::TypeBinding(error) => error.fmt(formatter),
             Self::InternalTypeBinding(error) => error.fmt(formatter),
             Self::TypeNormalization(error) => error.fmt(formatter),
@@ -109,7 +109,6 @@ impl std::error::Error for DeclarationLoweringError {}
 /// remaining stage errors stay typed until their diagnostic mappings are completed.
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
-    prelude: &ModuleIdentity,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
     let surface = match collect_declaration_surface(input) {
         Ok(surface) => surface,
@@ -183,32 +182,49 @@ pub fn lower_compile_unit_declarations(
         }
         Err(internal) => return Err(DeclarationLoweringError::InternalImport(internal)),
     };
-    let namespaces = match apply_standard_prelude(imports, prelude) {
-        Ok(namespaces) => namespaces,
-        Err(PreludeError::Rule(violation)) => {
-            return match ImportDiagnostic::project(violation, input) {
-                Ok(diagnostic) => Err(DeclarationLoweringError::Import(diagnostic)),
-                Err(internal) => Err(DeclarationLoweringError::Prelude(PreludeError::Rule(
-                    internal,
-                ))),
-            };
-        }
-        Err(internal) => return Err(DeclarationLoweringError::Prelude(internal)),
-    };
-    let bound = match bind_header_type_syntax(namespaces) {
-        Ok(bound) => bound,
+    let namespaces = prepare_toolchain_namespaces(imports, input)?;
+    let bound = bind_types(namespaces, input)?;
+    let normalized = normalize_types(bound, input)?;
+    define_headers(normalized, input)
+}
+
+fn prepare_toolchain_namespaces<'syntax>(
+    imports: PreparedImports<'syntax>,
+    input: &CompileUnitInput<'syntax>,
+) -> Result<PreparedNamespaces<'syntax>, DeclarationLoweringError> {
+    let toolchain = input
+        .toolchain()
+        .ok_or(DeclarationLoweringError::Toolchain(
+            ToolchainError::MissingProfile,
+        ))?;
+    match apply_toolchain_profile(imports, toolchain) {
+        Ok(namespaces) => Ok(namespaces),
+        Err(ToolchainError::Rule(violation)) => match ImportDiagnostic::project(violation, input) {
+            Ok(diagnostic) => Err(DeclarationLoweringError::Import(diagnostic)),
+            Err(internal) => Err(DeclarationLoweringError::Toolchain(ToolchainError::Rule(
+                internal,
+            ))),
+        },
+        Err(internal) => Err(DeclarationLoweringError::Toolchain(internal)),
+    }
+}
+
+fn bind_types<'syntax>(
+    namespaces: PreparedNamespaces<'syntax>,
+    input: &CompileUnitInput<'syntax>,
+) -> Result<PreparedTypeBindings<'syntax>, DeclarationLoweringError> {
+    match bind_header_type_syntax(namespaces) {
+        Ok(bound) => Ok(bound),
         Err(TypeBindingError::Rule(violation)) => {
-            return match TypeBindingDiagnostic::project(violation, input) {
+            match TypeBindingDiagnostic::project(violation, input) {
                 Ok(diagnostic) => Err(DeclarationLoweringError::TypeBinding(diagnostic)),
                 Err(internal) => Err(DeclarationLoweringError::InternalTypeBinding(
                     TypeBindingError::Rule(internal),
                 )),
-            };
+            }
         }
-        Err(internal) => return Err(DeclarationLoweringError::InternalTypeBinding(internal)),
-    };
-    let normalized = normalize_types(bound, input)?;
-    define_headers(normalized, input)
+        Err(internal) => Err(DeclarationLoweringError::InternalTypeBinding(internal)),
+    }
 }
 
 fn define_headers<'syntax>(
@@ -264,7 +280,8 @@ mod tests {
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, DefinitionRule,
         GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         NamespaceRule, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-        TopologyRule, TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
+        ToolchainInput, TopologyRule, TypeBindingRule, TypeNormalizationRule,
+        lower_compile_unit_declarations,
     };
 
     #[test]
@@ -330,11 +347,10 @@ mod tests {
             package_target(&sources, &app_manifest, 2, tool_module),
             package_target(&sources, &app_manifest, 0, app_root),
             package_target(&sources, &app_manifest, 1, test_module),
-        ]);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        ])
+        .with_toolchain(standard_toolchain());
 
-        let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         assert_package_targets(&sources, &lowered);
     }
 
@@ -384,11 +400,10 @@ mod tests {
                 ),
             ],
             Vec::new(),
-        );
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+        )
+        .with_toolchain(standard_toolchain());
 
-        let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let mut targets = lowered.program().package_targets().iter();
         let (target_id, target) = targets
             .next()
@@ -486,11 +501,7 @@ mod tests {
             vec![source_use(&root, 0, "/app/private.nct")],
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
 
         assert_eq!(
             error.source_diagnostic().map(crate::SourceDiagnostic::code),
@@ -534,11 +545,7 @@ mod tests {
             ],
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Topology(diagnostic) = error else {
             panic!("module cycle did not produce a topology diagnostic");
         };
@@ -571,11 +578,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
             panic!("duplicate name did not produce a namespace diagnostic");
         };
@@ -620,11 +623,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
             panic!("reserved name did not produce a namespace diagnostic");
         };
@@ -669,11 +668,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
             panic!("invalid visibility did not produce a namespace diagnostic");
         };
@@ -705,11 +700,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Generic(diagnostic) = error else {
             panic!("duplicate binder did not produce a generic diagnostic");
         };
@@ -760,11 +751,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Generic(diagnostic) = error else {
             panic!("nested shadowing did not produce a generic diagnostic");
         };
@@ -823,11 +810,7 @@ mod tests {
             vec![module_use(&app, 0, dependency_identity)],
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
             panic!("inaccessible import did not produce an import diagnostic");
         };
@@ -877,11 +860,7 @@ mod tests {
             vec![module_use(&app, 0, dependency_identity)],
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
             panic!("missing name did not produce an import diagnostic");
         };
@@ -912,7 +891,7 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
+        let managed_prelude =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -936,10 +915,11 @@ mod tests {
                     &prelude,
                 ),
             ],
-            vec![module_use(&app, 0, prelude_identity.clone())],
-        );
+            vec![module_use(&app, 0, managed_prelude.clone())],
+        )
+        .with_toolchain(standard_toolchain());
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
             panic!("explicit prelude import did not produce an import diagnostic");
         };
@@ -992,11 +972,7 @@ mod tests {
             vec![module_use(&app, 0, dependency_identity)],
         );
 
-        let error = lower_compile_unit_declarations(
-            &input,
-            &ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]),
-        )
-        .unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
             panic!("import collision did not produce a namespace diagnostic");
         };
@@ -1024,8 +1000,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -1051,7 +1025,7 @@ mod tests {
             vec![],
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         assert_eq!(
             error.source_diagnostic().map(crate::SourceDiagnostic::code),
             Some("E0250")
@@ -1081,8 +1055,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1092,7 +1064,7 @@ mod tests {
             &prelude,
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
             panic!("unknown type did not produce a type-binding diagnostic");
         };
@@ -1123,8 +1095,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1134,7 +1104,7 @@ mod tests {
             &prelude,
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
             panic!("duplicate callable parameter did not produce a type-binding diagnostic");
         };
@@ -1190,8 +1160,6 @@ mod tests {
             let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
             let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-            let prelude_identity =
-                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
             let input = input_with_standard_prelude(
                 &sources,
                 &app_manifest,
@@ -1201,7 +1169,7 @@ mod tests {
                 &prelude,
             );
 
-            let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+            let error = lower_compile_unit_declarations(&input).unwrap_err();
             let DeclarationLoweringError::TypeBinding(diagnostic) = error else {
                 panic!("invalid provenance did not produce a type-binding diagnostic");
             };
@@ -1245,8 +1213,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1256,7 +1222,7 @@ mod tests {
             &prelude,
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
             panic!("recursive aliases did not produce a normalization diagnostic");
         };
@@ -1296,8 +1262,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1307,7 +1271,7 @@ mod tests {
             &prelude,
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
             panic!("ambiguous provenance did not produce a normalization diagnostic");
         };
@@ -1344,8 +1308,6 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1355,7 +1317,7 @@ mod tests {
             &prelude,
         );
 
-        let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::TypeNormalization(diagnostic) = error else {
             panic!("unknown associated type did not produce a normalization diagnostic");
         };
@@ -1428,8 +1390,6 @@ mod tests {
             let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
             let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-            let prelude_identity =
-                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
             let mut projected = Vec::new();
             for reverse in [false, true] {
                 let input = input_with_standard_prelude_ordered(
@@ -1441,7 +1401,7 @@ mod tests {
                     &prelude,
                     reverse,
                 );
-                let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+                let error = lower_compile_unit_declarations(&input).unwrap_err();
                 let DeclarationLoweringError::Definition(diagnostic) = error else {
                     panic!("authored definition failure did not cross the production boundary")
                 };
@@ -1542,8 +1502,6 @@ mod tests {
             let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
             let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-            let prelude_identity =
-                ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
             let mut projected = Vec::new();
             for reverse in [false, true] {
                 let input = input_with_standard_prelude_ordered(
@@ -1555,7 +1513,7 @@ mod tests {
                     &prelude,
                     reverse,
                 );
-                let error = lower_compile_unit_declarations(&input, &prelude_identity).unwrap_err();
+                let error = lower_compile_unit_declarations(&input).unwrap_err();
                 projected.push(public_diagnostic(&error));
             }
 
@@ -1592,7 +1550,7 @@ mod tests {
             | DeclarationLoweringError::InternalHeader(_)
             | DeclarationLoweringError::InternalGeneric(_)
             | DeclarationLoweringError::InternalImport(_)
-            | DeclarationLoweringError::Prelude(_)
+            | DeclarationLoweringError::Toolchain(_)
             | DeclarationLoweringError::InternalTypeBinding(_)
             | DeclarationLoweringError::InternalTypeNormalization(_)
             | DeclarationLoweringError::InternalDefinition(_) => {
@@ -1682,6 +1640,17 @@ mod tests {
             sources,
             packages,
             modules,
+            Vec::new(),
+        )
+        .with_toolchain(standard_toolchain())
+    }
+
+    fn standard_toolchain() -> ToolchainInput {
+        let package = PackageIdentity::new("toolchain:std");
+        ToolchainInput::new(
+            package.clone(),
+            ModuleIdentity::new(package, ["prelude"]),
+            Vec::new(),
             Vec::new(),
         )
     }

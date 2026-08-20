@@ -2,7 +2,7 @@ use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind, TypeStore};
 
 use super::super::error::BodyCheckInternalError;
-use crate::copyability::{Copyability, CopyabilityTable};
+use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
 use crate::ownership::{InitializationState, MovePath, OwnershipState, owned_body_roots};
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -17,6 +17,7 @@ pub(super) struct CleanupPlanner<'program> {
     drops: &'program DropTable,
     body: &'program CheckedBody,
     source: BodySource<'program>,
+    copy_proofs: &'program CopyProofs,
 }
 
 impl<'program> CleanupPlanner<'program> {
@@ -27,6 +28,7 @@ impl<'program> CleanupPlanner<'program> {
         drops: &'program DropTable,
         body: &'program CheckedBody,
         source: BodySource<'program>,
+        copy_proofs: &'program CopyProofs,
     ) -> Self {
         Self {
             graph,
@@ -35,6 +37,7 @@ impl<'program> CleanupPlanner<'program> {
             drops,
             body,
             source,
+            copy_proofs,
         }
     }
 
@@ -234,7 +237,7 @@ impl<'program> CleanupPlanner<'program> {
             return Ok(false);
         }
         self.copyabilities
-            .classify(self.graph, self.types, ty)
+            .classify_with_proofs(self.graph, self.types, ty, self.copy_proofs)
             .map(|copyability| copyability == Copyability::MoveOnly)
             .map_err(BodyCheckInternalError::Copyability)
     }
@@ -259,6 +262,12 @@ impl<'program> CleanupPlanner<'program> {
                 .captures()
                 .get(capture)
                 .map(|capture| capture.ty())
+                .ok_or(BodyCheckInternalError::CleanupPlanning),
+            PlaceRoot::Value(value) => self
+                .body
+                .nodes()
+                .get(value)
+                .map(crate::CheckedNode::ty)
                 .ok_or(BodyCheckInternalError::CleanupPlanning),
         }
     }

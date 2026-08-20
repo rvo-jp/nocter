@@ -74,7 +74,7 @@ struct PrimitiveContract {
     result: TypeContract,
     visibility: ContractVisibility,
     target: Option<CompilationTarget>,
-    declared_provenance: Option<Vec<usize>>,
+    provenance_parameters: Vec<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -322,33 +322,24 @@ fn validate_generics(
 }
 
 fn provenance_matches(
-    types: &TypeStore,
+    _types: &TypeStore,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
 ) -> bool {
-    match (&contract.declared_provenance, declaration.provenance()) {
-        (None, CallableProvenanceContract::Inferred) => {
-            types.may_carry_storage(declaration.result())
-        }
-        (None, CallableProvenanceContract::Declared(actual)) => {
-            !types.may_carry_storage(declaration.result()) && actual.origins().is_empty()
-        }
-        (Some(positions), CallableProvenanceContract::Declared(actual)) => {
-            positions.len() == actual.origins().len()
-                && positions
-                    .iter()
-                    .zip(actual.origins())
-                    .all(|(position, origin)| {
-                        declaration
-                            .parameters()
-                            .get(*position)
-                            .is_some_and(|parameter| {
-                                *origin == ProvenanceOrigin::Parameter(*parameter)
-                            })
-                    })
-        }
-        (Some(_), CallableProvenanceContract::Inferred) => false,
-    }
+    let CallableProvenanceContract::Declared(actual) = declaration.provenance() else {
+        return false;
+    };
+    contract.provenance_parameters.len() == actual.origins().len()
+        && contract
+            .provenance_parameters
+            .iter()
+            .zip(actual.origins())
+            .all(|(position, origin)| {
+                declaration
+                    .parameters()
+                    .get(*position)
+                    .is_some_and(|parameter| *origin == ProvenanceOrigin::Parameter(*parameter))
+            })
 }
 
 fn module_path_matches(
@@ -526,7 +517,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 result,
                 visibility,
                 target,
-                declared_provenance| PrimitiveContract {
+                provenance_parameters| PrimitiveContract {
         module,
         name,
         generic_count,
@@ -534,7 +525,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         result,
         visibility,
         target,
-        declared_provenance,
+        provenance_parameters,
     };
     match role {
         PrimitiveRole::NewError => make(
@@ -545,7 +536,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             builtin(BuiltinType::Error),
             package,
             None,
-            Some(vec![0, 1]),
+            vec![0, 1],
         ),
         PrimitiveRole::CurrentAllocatorState => make(
             MEM_MODULE,
@@ -555,7 +546,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::CurrentAllocatorKind => make(
             MEM_MODULE,
@@ -565,7 +556,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::AllocationAbort => make(
             MEM_MODULE,
@@ -575,7 +566,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             never(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::PointerAddress => make(
             PTR_MODULE,
@@ -585,7 +576,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             public,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::PointerFromReference => make(
             PTR_MODULE,
@@ -595,7 +586,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::pointer(TypeContract::Generic(0)),
             public,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::PointerFromReadWriteReference => make(
             PTR_MODULE,
@@ -605,7 +596,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::pointer(TypeContract::Generic(0)),
             public,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::PointerFromAddress => make(
             PTR_MODULE,
@@ -615,7 +606,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::pointer(TypeContract::Generic(0)),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::PointeeSize | PrimitiveRole::PointeeAlignment => make(
             PTR_MODULE,
@@ -629,7 +620,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::CopyStringToPointer => make(
             PTR_MODULE,
@@ -639,7 +630,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             void(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::CopyPointerToPointer => make(
             PTR_MODULE,
@@ -649,7 +640,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             void(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::StoreByteToPointer => make(
             PTR_MODULE,
@@ -659,7 +650,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             void(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::StoreValueToPointer => make(
             PTR_MODULE,
@@ -673,7 +664,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             void(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::DropValueAtPointer => make(
             PTR_MODULE,
@@ -683,7 +674,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             void(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::TakeValueAtPointer => make(
             PTR_MODULE,
@@ -693,7 +684,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::Generic(0),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::StringFromRawParts => make(
             PTR_MODULE,
@@ -703,7 +694,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             str_ref(),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::ByteSliceFromRawParts => make(
             PTR_MODULE,
@@ -713,7 +704,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             readonly_bytes(),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::MutableByteSliceFromRawParts => make(
             PTR_MODULE,
@@ -723,7 +714,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::readwrite(TypeContract::slice(u8())),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::ValueSliceFromRawParts => make(
             PTR_MODULE,
@@ -733,7 +724,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::readonly(TypeContract::slice(TypeContract::Generic(0))),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::MutableValueSliceFromRawParts => make(
             PTR_MODULE,
@@ -743,7 +734,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             TypeContract::readwrite(TypeContract::slice(TypeContract::Generic(0))),
             package,
             None,
-            None,
+            vec![0],
         ),
         PrimitiveRole::BytesFromString => make(
             STRING_MODULE,
@@ -753,7 +744,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             readonly_bytes(),
             package,
             None,
-            Some(vec![0]),
+            vec![0],
         ),
         PrimitiveRole::StringSubviewUnchecked => make(
             STRING_MODULE,
@@ -763,7 +754,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             str_ref(),
             package,
             None,
-            Some(vec![0]),
+            vec![0],
         ),
         PrimitiveRole::SliceLength | PrimitiveRole::SlicePointerAddress => make(
             SLICE_MODULE,
@@ -779,7 +770,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::StringLength | PrimitiveRole::StringPointerAddress => make(
             STR_MODULE,
@@ -793,7 +784,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             None,
-            None,
+            vec![],
         ),
         PrimitiveRole::ProcessExit => make(
             PROCESS_MODULE,
@@ -803,7 +794,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             never(),
             package,
             arm64_darwin,
-            None,
+            vec![],
         ),
         PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => make(
             PROCESS_MODULE,
@@ -817,7 +808,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             usize(),
             package,
             arm64_darwin,
-            None,
+            vec![],
         ),
         PrimitiveRole::ProcessArgument
         | PrimitiveRole::ProcessEnvironmentName
@@ -834,7 +825,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             str_ref(),
             package,
             arm64_darwin,
-            Some(vec![]),
+            vec![],
         ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
@@ -871,7 +862,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 syscall_result(),
                 package,
                 arm64_darwin,
-                None,
+                vec![],
             )
         }
         PrimitiveRole::Trap | PrimitiveRole::Unreachable => make(
@@ -886,7 +877,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             never(),
             package,
             arm64_darwin,
-            None,
+            vec![],
         ),
     }
 }

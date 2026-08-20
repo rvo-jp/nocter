@@ -288,7 +288,7 @@ fn body_module(
 mod tests {
     use nocter_declaration_lowering::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
         lower_compile_unit_declarations,
     };
     use nocter_source::{SourceMap, SourceName};
@@ -343,8 +343,14 @@ mod tests {
                 packages,
                 modules,
                 Vec::new(),
-            );
-            let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+            )
+            .with_toolchain(ToolchainInput::new(
+                PackageIdentity::new("toolchain:std"),
+                prelude_identity.clone(),
+                Vec::new(),
+                Vec::new(),
+            ));
+            let lowered = lower_compile_unit_declarations(&input).unwrap();
             let catalog =
                 catalog_body_sources(&input, lowered.program().graph(), lowered.source_index())
                     .unwrap();
@@ -393,6 +399,8 @@ mod tests {
         let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
         let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let prelude_identity =
+            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -411,10 +419,14 @@ mod tests {
                 ),
             ],
             Vec::new(),
-        );
-        let prelude_identity =
-            ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-        let lowered = lower_compile_unit_declarations(&input, &prelude_identity).unwrap();
+        )
+        .with_toolchain(ToolchainInput::new(
+            PackageIdentity::new("toolchain:std"),
+            prelude_identity,
+            Vec::new(),
+            Vec::new(),
+        ));
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let error =
             catalog_body_sources(&input, lowered.program().graph(), &SourceIndex::default())
                 .unwrap_err();

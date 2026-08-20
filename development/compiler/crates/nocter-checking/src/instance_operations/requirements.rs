@@ -5,6 +5,7 @@ use super::selection::{
     retain_direct_candidates,
 };
 use crate::conformance::{proves_predicate, substitute_predicate};
+use crate::copyability::CopyProofs;
 use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
@@ -33,6 +34,7 @@ impl InstanceOperationSelector<'_> {
             .assumptions
             .iter()
             .any(|assumption| assumption.predicate() == predicate)
+            || self.intrinsic_facts.contains(predicate)
         {
             return Ok(true);
         }
@@ -41,8 +43,15 @@ impl InstanceOperationSelector<'_> {
         }
         let proven = match predicate {
             CheckedPredicate::Copy(ty) => {
+                let proofs = CopyProofs::from_predicates(
+                    self.types,
+                    self.assumptions
+                        .iter()
+                        .map(CheckedRequirement::predicate)
+                        .chain(self.intrinsic_facts.iter()),
+                );
                 self.copyabilities
-                    .classify(self.graph, self.types, *ty)
+                    .classify_with_proofs(self.graph, self.types, *ty, &proofs)
                     .map_err(InstanceSelectionError::Copyability)?
                     == Copyability::Copy
             }
@@ -61,7 +70,13 @@ impl InstanceOperationSelector<'_> {
             CheckedPredicate::Ordering(ty) => {
                 self.proves_comparison(*ty, ComparisonOperation::Less)?
             }
-            _ => proves_predicate(self.types, self.conformances, self.assumptions, predicate)?,
+            _ => proves_predicate(
+                self.types,
+                self.conformances,
+                self.assumptions,
+                self.intrinsic_facts,
+                predicate,
+            )?,
         };
         self.active.remove(predicate);
         Ok(proven)

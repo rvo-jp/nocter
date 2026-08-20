@@ -44,7 +44,9 @@ impl Analyzer<'_, '_> {
         } else {
             match place.root() {
                 PlaceRoot::Local(local) => DestinationLifetime::Scope(self.local_scope(local)?),
-                PlaceRoot::Parameter(_) | PlaceRoot::Capture(_) => DestinationLifetime::External,
+                PlaceRoot::Parameter(_) | PlaceRoot::Capture(_) | PlaceRoot::Value(_) => {
+                    DestinationLifetime::External
+                }
             }
         };
         self.validate_destination(node, destination, value)

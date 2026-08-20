@@ -25,7 +25,7 @@ pub enum StandardDeclarationRole {
 ///
 /// These semantic roles are distinct from module path spellings. Compilation setup resolves each
 /// role to an exact module identity once, before declaration validation.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BuiltinAttachment {
     Scalar,
     Str,

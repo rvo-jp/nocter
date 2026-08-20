@@ -245,7 +245,7 @@
   Prelude composition adds no second import diagnostic system: authored import preparation retains
   every module-path origin, and an explicit compiler-managed prelude import reuses <code>ImportRule</code>
   <code>E0262</code>. Missing compiler-selected modules, missing retained origins, and invalid builder state
-  remain internal <code>PreludeError</code> variants. The frozen program retains authored and fallback module
+  remain internal <code>ToolchainError</code> variants. The frozen program retains authored and fallback module
   namespace layers separately. Later body lookup consumes them directly; fallback names remain
   shadowable and non-exportable. Block imports belong to checked lexical scopes rather than the
   declaration import arena.
@@ -255,7 +255,18 @@
   equalities without an associated projection as <code>E0310</code>-<code>E0313</code> and <code>E0320</code>. The alias cycle
   witness is complete and canonically rotated by declaration identity. General equalities are
   validated after alias expansion. No source coordinate enters a <code>BoundTypeKind</code>, canonical
-  <code>TypeKind</code>, or semantic ID.</li><li><code>nocter-checking</code> owns the Phase 3 syntax boundary. It catalogs every declaration <code>BodyId</code> from
+  <code>TypeKind</code>, or semantic ID.</li><li><code>nocter-compile-input</code> owns the neutral immutable handoff from physical discovery to semantic
+  lowering. It carries canonical package/module/source topology, selected import and package-target
+  edges, and one exact toolchain profile. That profile names the standard package, prelude,
+  built-in attachment modules, and standard semantic declaration tokens without assigning dense
+  semantic IDs or retaining filesystem policy.</li><li><code>nocter-target-selection</code> owns target-gate decoding and activity. Discovery and declaration
+  surface construction consume the same prepared decisions; inactive imports and declarations do
+  not probe the filesystem or acquire semantic identity.</li><li><code>nocter-discovery</code> is the only filesystem source-graph authority. It canonicalizes resolved
+  package roots, loads package and module roots, closes implementation-source and dependency edges,
+  rejects ownership escapes and source/module ambiguity, and freezes deterministic compile input.
+  It also loads every exact toolchain module and resolves each standard semantic role locator to one
+  declaration token before lowering. A syntax-clean complete <code>development/std</code> graph passes full
+  declaration and checked-body construction through this boundary.</li><li><code>nocter-checking</code> owns the Phase 3 syntax boundary. It catalogs every declaration <code>BodyId</code> from
   its exact source projection and resolves body scopes, locals, block imports, and explicit closure
   captures without creating a second module namespace. Its program-wide conformance table applies
   binder refinements before storing target/interface patterns, substitutes <code>Self</code>, generic, and
@@ -377,7 +388,10 @@
   element origins; maps exact callable summaries through receiver and parameter identities; and
   stores caller-visible origins separately from compiler-owned current-allocation dependence.
   Return validation projects <code>E0395</code> for local, owned-parameter, temporary, region, unknown, or
-  undeclared origins, and conformance implementations cannot exceed their interface method bound.</li><li><code>nocter-target-program</code> owns the selected-target and executable boundaries. <code>TargetProgram</code>
+  undeclared origins, and conformance implementations cannot exceed their interface method bound.
+  Callable mapping keeps carried input authority separate from the implicit place loan created for
+  one invocation. Only an explicit borrow-bearing result representation can retain that invocation
+  loan; owned raw storage may preserve provenance without borrowing a local capability place.</li><li><code>nocter-target-program</code> owns the selected-target and executable boundaries. <code>TargetProgram</code>
   consumes the checked program and one immutable toolchain snapshot, validates target/package
   identity and the complete closed primitive registry, and is shared by check, build, and run.
   <code>ExecutableProgram</code> then selects one process or test root and closes only reachable callable,

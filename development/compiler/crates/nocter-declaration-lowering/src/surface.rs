@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, declaration_name_token,
 };
 
 use crate::topology::{PreparedCompileUnit, UseResolutionKey, prepare_compile_unit};
@@ -521,7 +521,7 @@ fn append_declaration(
             node,
             kind,
             owner,
-            name: declaration_name(tree, node, kind),
+            name: declaration_name_token(tree, node),
             visibility: direct_child(tree, node, NodeKind::Visibility),
             target_gate,
         });
@@ -645,85 +645,6 @@ fn declaration_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
         NodeKind::OpaqueResult => Some(SurfaceDeclarationKind::OpaqueType),
         _ => None,
     }
-}
-
-fn declaration_name(
-    tree: &SyntaxTree,
-    declaration: NodeId,
-    kind: SurfaceDeclarationKind,
-) -> Option<SyntaxToken> {
-    let tokens = descendant_tokens(tree, declaration);
-    match kind {
-        SurfaceDeclarationKind::Function | SurfaceDeclarationKind::ConstructionFunction => {
-            identifier_after(&tokens, |token| {
-                token.kind() == TokenKind::Keyword(Keyword::Func)
-            })
-        }
-        SurfaceDeclarationKind::Primitive => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Primitive)
-        }),
-        SurfaceDeclarationKind::TypeAlias | SurfaceDeclarationKind::AssociatedType => {
-            identifier_after(&tokens, |token| {
-                token.kind() == TokenKind::Keyword(Keyword::Type)
-            })
-        }
-        SurfaceDeclarationKind::Struct => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Struct)
-        }),
-        SurfaceDeclarationKind::Enum => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Enum)
-        }),
-        SurfaceDeclarationKind::Interface => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Interface)
-        }),
-        SurfaceDeclarationKind::Test => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Test)
-        }),
-        SurfaceDeclarationKind::InterfaceMethod
-        | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Punctuation(Punctuation::Dot)
-        }),
-        SurfaceDeclarationKind::Field | SurfaceDeclarationKind::Variant => tokens
-            .iter()
-            .copied()
-            .find(|token| token.kind() == TokenKind::Identifier),
-        SurfaceDeclarationKind::Construction
-        | SurfaceDeclarationKind::Literal
-        | SurfaceDeclarationKind::Instance
-        | SurfaceDeclarationKind::Coercion
-        | SurfaceDeclarationKind::Equality
-        | SurfaceDeclarationKind::Ordering
-        | SurfaceDeclarationKind::Index
-        | SurfaceDeclarationKind::Expansion
-        | SurfaceDeclarationKind::Conformance
-        | SurfaceDeclarationKind::Drop
-        | SurfaceDeclarationKind::OpaqueType => None,
-    }
-}
-
-fn identifier_after(
-    tokens: &[SyntaxToken],
-    mut predicate: impl FnMut(SyntaxToken) -> bool,
-) -> Option<SyntaxToken> {
-    let marker = tokens.iter().position(|token| predicate(*token))?;
-    tokens[marker + 1..]
-        .iter()
-        .copied()
-        .find(|token| token.kind() == TokenKind::Identifier)
-}
-
-fn descendant_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    let mut tokens = Vec::new();
-    let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => pending.extend(tree.children(node).iter().rev().copied()),
-            SyntaxElement::Token(token) => tokens.push(token),
-            SyntaxElement::Missing(_) => {}
-        }
-    }
-    tokens
 }
 
 #[cfg(test)]

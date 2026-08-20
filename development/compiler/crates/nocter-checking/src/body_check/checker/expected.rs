@@ -4,7 +4,6 @@ use nocter_syntax::NodeId;
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::instance_operations::InstanceOperationSelector;
 use crate::{
     BorrowConversionImplementation, BorrowConversionPreparation, CheckedBorrowConversion,
     CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence, ExpectedTypeError,
@@ -12,6 +11,60 @@ use crate::{
 };
 
 impl BodyChecker<'_, '_> {
+    pub(super) fn materialize_call_place(
+        &mut self,
+        node: NodeId,
+        place: PlaceId,
+        actual: TypeId,
+        expected: TypeId,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((source_capability, source)) = borrowed_type(self.types, actual) {
+            let mut target = expected;
+            let mut outer = Vec::new();
+            loop {
+                if let Some((target_capability, target_referent)) =
+                    borrowed_type(self.types, target)
+                    && source == target_referent
+                    && source_capability == BorrowCapability::ReadWrite
+                {
+                    let value = if source_capability == BorrowCapability::ReadWrite
+                        && target_capability == BorrowCapability::Readonly
+                    {
+                        let source_value =
+                            self.reborrow_place_value(node, place, source_capability)?;
+                        self.add_node(
+                            node,
+                            target,
+                            CheckedOperation::BorrowConversion(CheckedBorrowConversion::new(
+                                source_value,
+                                target,
+                                BorrowConversionPreparation::WeakenReadwrite,
+                                BorrowConversionImplementation::CapabilityWeakening,
+                            )),
+                        )?
+                    } else {
+                        self.reborrow_place_value(node, place, target_capability)?
+                    };
+                    outer.reverse();
+                    return self.materialize_injections(node, value, &outer);
+                }
+                match self.types.get(target) {
+                    Some(TypeKind::Optional(payload)) => {
+                        outer.push(OutcomeLayer::Optional);
+                        target = *payload;
+                    }
+                    Some(TypeKind::Fallible(payload)) => {
+                        outer.push(OutcomeLayer::Fallible);
+                        target = *payload;
+                    }
+                    Some(_) => break,
+                    None => return Err(BodyCheckInternalError::UnknownType(target).into()),
+                }
+            }
+        }
+        self.apply_expected_place(node, place, actual, expected)
+    }
+
     pub(super) fn apply_expected_place(
         &mut self,
         node: NodeId,
@@ -64,7 +117,7 @@ impl BodyChecker<'_, '_> {
         let mut target = expected;
         let mut outer = Vec::new();
         loop {
-            if let Some(conversion) = self.select_borrow_conversion(actual, target)? {
+            if let Some(conversion) = self.select_borrow_conversion(node, actual, target)? {
                 let converted = self.add_node(
                     node,
                     target,
@@ -93,8 +146,9 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn select_borrow_conversion(
+    pub(super) fn select_borrow_conversion(
         &mut self,
+        node: NodeId,
         actual: TypeId,
         expected: TypeId,
     ) -> Result<Option<(BorrowConversionPreparation, BorrowConversionImplementation)>, BodyCheckError>
@@ -115,15 +169,7 @@ impl BodyChecker<'_, '_> {
             )));
         }
         let candidates = {
-            let mut selector = InstanceOperationSelector::new(
-                self.graph,
-                self.types,
-                self.conformances,
-                self.copyabilities,
-                self.instance_operations,
-                &self.assumptions,
-                self.source.module(),
-            );
+            let mut selector = self.instance_selector();
             selector
                 .select_borrow_coercions(source, source_capability, target_capability)
                 .map_err(BodyCheckInternalError::from)?
@@ -136,7 +182,7 @@ impl BodyChecker<'_, '_> {
             return Ok(None);
         };
         if candidates.next().is_some() {
-            return Err(BodyCheckInternalError::ExpectedConversion.into());
+            return Err(self.rule(BodyRule::TypeMismatch, node)?);
         }
         let preparation = match (source_capability, selected.receiver_capability()) {
             (BorrowCapability::Readonly, BorrowCapability::Readonly) => {
@@ -149,7 +195,7 @@ impl BodyChecker<'_, '_> {
                 BorrowConversionPreparation::WeakenReadwrite
             }
             (BorrowCapability::Readonly, BorrowCapability::ReadWrite) => {
-                return Err(BodyCheckInternalError::ExpectedConversion.into());
+                return Err(self.rule(BodyRule::TypeMismatch, node)?);
             }
         };
         Ok(Some((

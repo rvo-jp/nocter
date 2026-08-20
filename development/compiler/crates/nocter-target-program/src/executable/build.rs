@@ -367,11 +367,12 @@ impl<'program> ExecutableClosureBuilder<'program> {
     ) -> Result<DraftDispatchStep, ExecutableProgramError> {
         match step {
             ResolvedDispatchStep::Direct(dispatch) => {
-                let callable_key = CallableInstanceKey::new_in(
+                let callable_key = CallableInstanceKey::new_with_interface_self(
                     self.target,
                     self.resolver.types(),
                     dispatch.callable(),
                     dispatch.generic_arguments().clone(),
+                    dispatch.interface_self(),
                 )?;
                 let declaration = self
                     .target

@@ -46,15 +46,16 @@ pub use generics::{
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use import_diagnostic::ImportDiagnostic;
 pub use imports::{
-    ImportError, ImportRule, ImportViolation, PreludeError, PreparedImports, PreparedNamespaces,
-    apply_standard_prelude, prepare_authored_imports,
+    ImportError, ImportRule, ImportViolation, PreparedImports, PreparedNamespaces, ToolchainError,
+    apply_toolchain_profile, prepare_authored_imports,
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, StandardRoleInput, UseResolutionInput, UseTargetInput,
+    BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
+    UseTargetInput,
 };
 pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};

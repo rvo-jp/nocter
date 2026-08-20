@@ -3,14 +3,14 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{
-    ImportError, PreludeError, PreparedImports, apply_standard_prelude, prepare_authored_imports,
+    ImportError, PreparedImports, ToolchainError, apply_toolchain_profile, prepare_authored_imports,
 };
 use crate::test_support::{module_use, source_use};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    collect_declaration_surface, prepare_declaration_headers, prepare_generic_binders,
-    reserve_declaration_identities,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
+    UseResolutionInput, collect_declaration_surface, prepare_declaration_headers,
+    prepare_generic_binders, reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -56,6 +56,10 @@ fn module<'syntax>(
 
 fn root_source<'syntax>(path: &str, syntax: &'syntax SyntaxTree) -> ModuleSourceInput<'syntax> {
     ModuleSourceInput::new(path, ModuleSourceKind::Root, syntax)
+}
+
+fn toolchain(prelude: ModuleIdentity) -> ToolchainInput {
+    ToolchainInput::new(prelude.package().clone(), prelude, Vec::new(), Vec::new())
 }
 
 fn prepare<'syntax>(
@@ -571,7 +575,7 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let app_string = imports.lookup_local(app_root_module, string).unwrap();
     let standard_string = imports.lookup_local(std_string_module, string).unwrap();
 
-    let namespaces = apply_standard_prelude(imports, &std_prelude_identity).unwrap();
+    let namespaces = apply_toolchain_profile(imports, &toolchain(std_prelude_identity)).unwrap();
 
     assert_eq!(
         namespaces.lookup_local(app_root_module, string),
@@ -645,11 +649,11 @@ fn source_code_cannot_import_the_compiler_managed_prelude() {
     )
     .unwrap();
 
-    let error = apply_standard_prelude(imports, &prelude_identity).unwrap_err();
+    let error = apply_toolchain_profile(imports, &toolchain(prelude_identity)).unwrap_err();
 
     assert!(matches!(
         error,
-        PreludeError::Rule(violation)
+        ToolchainError::Rule(violation)
             if violation.rule() == crate::ImportRule::CompilerManagedPreludeImport
     ));
 }

@@ -74,6 +74,7 @@ impl AssociatedValidationContext<'_> {
                 self.types,
                 self.table,
                 self.conformance.requirements(),
+                &[],
                 requirement.predicate(),
             )? {
                 return Err(diagnostic::unsatisfied_associated_bound(

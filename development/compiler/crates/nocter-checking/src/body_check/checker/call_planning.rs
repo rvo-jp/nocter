@@ -9,7 +9,6 @@ use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::conformance::normalize_requirements;
-use crate::instance_operations::InstanceOperationSelector;
 use crate::syntax::direct_nodes;
 use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, GenericArgument, GenericArguments, NameTarget};
@@ -214,15 +213,7 @@ impl BodyChecker<'_, '_> {
                 .require_callable(closure, contract.clone())
                 .map_err(BodyCheckInternalError::from)?;
         }
-        let mut selector = InstanceOperationSelector::new(
-            self.graph,
-            self.types,
-            self.conformances,
-            self.copyabilities,
-            self.instance_operations,
-            &self.assumptions,
-            self.source.module(),
-        );
+        let mut selector = self.instance_selector();
         selector
             .requirements_hold(&ordinary, &TypeSubstitution::default())
             .map_err(BodyCheckInternalError::from)

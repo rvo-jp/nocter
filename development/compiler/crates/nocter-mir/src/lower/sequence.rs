@@ -27,7 +27,7 @@ enum PreparedSegment {
     },
     Spread {
         iterator: PreparedIterator,
-        plan: ExecutableSequenceSpread,
+        plan: Box<ExecutableSequenceSpread>,
         destruction: Option<MirDestructionPlan>,
     },
 }
@@ -104,7 +104,7 @@ impl FunctionLowerer<'_> {
                             place: iterator,
                             ty: spread.iterator_type(),
                         },
-                        plan: spread.clone(),
+                        plan: Box::new(spread.clone()),
                         destruction: spread
                             .destruction()
                             .map(|plan| self.lower_deferred_destruction(owner, plan))

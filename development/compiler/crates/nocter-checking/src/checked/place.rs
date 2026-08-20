@@ -9,6 +9,8 @@ pub enum PlaceRoot {
     Parameter(ParameterId),
     Local(LocalBindingId),
     Capture(CaptureId),
+    /// A checked expression whose result is a borrow value projected as a place.
+    Value(BodyNodeId),
 }
 
 /// Storage authority retained by a checked place.
@@ -110,14 +112,20 @@ impl CheckedPlace {
     }
 
     pub(crate) fn evaluation_nodes(&self) -> impl Iterator<Item = BodyNodeId> + '_ {
-        self.projections
-            .iter()
-            .filter_map(|projection| match projection {
-                PlaceProjection::BuiltinIndex { index }
-                | PlaceProjection::CoercedBuiltinIndex { index, .. }
-                | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
-                PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => None,
-            })
+        let root = match self.root {
+            PlaceRoot::Value(value) => Some(value),
+            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => None,
+        };
+        root.into_iter().chain(
+            self.projections
+                .iter()
+                .filter_map(|projection| match projection {
+                    PlaceProjection::BuiltinIndex { index }
+                    | PlaceProjection::CoercedBuiltinIndex { index, .. }
+                    | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
+                    PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => None,
+                }),
+        )
     }
 
     pub(crate) fn has_dynamic_evaluation(&self) -> bool {

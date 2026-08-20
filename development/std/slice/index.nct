@@ -49,11 +49,9 @@ instance [T] {
     pub method &self.first(): &T? {
         return self.get(0)?
     }
-}
 
-instance [T] where (&T == &T): bool {
     /// Compares elements from left to right without consuming either slice.
-    pub operator (&self == other: &Self): bool {
+    pub operator (&self == other: &Self): bool where (&T == &T): bool {
         if self.len() != other.len() {
             return false
         }
@@ -68,13 +66,13 @@ instance [T] where (&T == &T): bool {
     }
 
     /// Returns whether an equal element is present.
-    pub method &self.contains(expected: &T): bool {
+    pub method &self.contains(expected: &T): bool where (&T == &T): bool {
         let _index: usize = self.position(expected) otherwise { return false }
         return true
     }
 
     /// Returns the first index containing an equal element.
-    pub method &self.position(expected: &T): usize? {
+    pub method &self.position(expected: &T): usize? where (&T == &T): bool {
         var index: usize = 0
         while index < self.len() {
             if values_equal(&self[index], expected) {
@@ -84,11 +82,8 @@ instance [T] where (&T == &T): bool {
         }
         return none
     }
-}
-
-instance [T] where (&T < &T): bool {
     /// Orders elements lexicographically without consuming either slice.
-    pub operator (&self < other: &Self): bool {
+    pub operator (&self < other: &Self): bool where (&T < &T): bool {
         let shared_len: usize = if self.len() < other.len() { self.len() } else { other.len() }
         var index: usize = 0
         while index < shared_len {

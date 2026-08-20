@@ -11,8 +11,8 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -93,6 +93,31 @@ fn invalid_negative_literals_report_the_numeric_boundary() {
 
     let unsigned = check("func invalid(): u8 {\n    -1\n}\n").unwrap_err();
     assert_eq!(unsigned.source_diagnostic().unwrap().code(), "E0370");
+}
+
+#[test]
+fn comparison_context_reaches_a_negative_integer_literal() {
+    let output =
+        check("func is_minimum(value: i64): bool {\n    value == -9_223_372_036_854_775_808\n}\n")
+            .unwrap();
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            matches!(
+                node.operation(),
+                CheckedOperation::Constant(ConstantValue::Integer(value))
+                    if *value == i128::from(i64::MIN)
+            ) && node.ty() == output.program().types().builtin(BuiltinType::I64)
+        })
+    }));
+}
+
+#[test]
+fn comparison_context_reaches_a_builtin_integer_expression() {
+    check(
+        "func fits(size: usize, overhead: usize): bool {\n    size <= 18_446_744_073_709_551_615 - overhead\n}\n",
+    )
+    .unwrap();
 }
 
 #[test]

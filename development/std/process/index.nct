@@ -92,9 +92,10 @@ pub(/) func close_fd_word(fd: usize): void {
 
 #target: "arm64-darwin"
 pub(/) func cwd_path_len(buffer: &+RawBuffer): usize! {
+    let buffer_len = buffer.len
     let raw_bytes = raw_bytes_mut(buffer)
     var index: usize = 0
-    while index < buffer.len {
+    while index < buffer_len {
         if raw_bytes[index] == 0 {
             return index
         }
@@ -181,10 +182,10 @@ pub func cwd(): String! {
     let fd = open_current_directory_aborting()?
     var allocator = page_allocator()
     var buffer = alloc(&+allocator, darwin_max_path_len(), 1)
-    let len = fill_cwd_path(fd, &+buffer) catch error {
+    let len = fill_cwd_path(fd, &+buffer) catch failure {
         free(&+allocator, move buffer)
         close_fd_word(fd)
-        return error
+        return failure
     }
     let view = str_from_raw_parts(buffer.ptr, len)
     let value = String.copy(view)
@@ -194,23 +195,23 @@ pub func cwd(): String! {
 }
 
 pub func try_cwd(allocator: &+TryAllocator): String! {
-    let fd = open_current_directory() catch error {
-        return error
+    let fd = open_current_directory() catch failure {
+        return failure
     }
-    var buffer = try_alloc(allocator, darwin_max_path_len(), 1) catch error {
+    var buffer = try_alloc(allocator, darwin_max_path_len(), 1) catch failure {
         close_fd_word(fd)
-        return error
+        return failure
     }
-    let len = fill_cwd_path(fd, &+buffer) catch error {
+    let len = fill_cwd_path(fd, &+buffer) catch failure {
         try_free(allocator, move buffer)
         close_fd_word(fd)
-        return error
+        return failure
     }
     let view = str_from_raw_parts(buffer.ptr, len)
-    let value = String.try_copy(allocator, view) catch error {
+    let value = String.try_copy(allocator, view) catch failure {
         try_free(allocator, move buffer)
         close_fd_word(fd)
-        return error
+        return failure
     }
     try_free(allocator, move buffer)
     close_fd_word(fd)

@@ -89,8 +89,10 @@ dependencies = [
 name = "nocter-discovery"
 version = "0.0.0"
 dependencies = [
+ "nocter-checking",
  "nocter-compile-input",
  "nocter-declaration-lowering",
+ "nocter-declarations",
  "nocter-model",
  "nocter-source",
  "nocter-syntax",

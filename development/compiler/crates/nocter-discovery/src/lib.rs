@@ -10,10 +10,10 @@ mod request;
 mod snapshot;
 mod syntax;
 
-pub use error::{DiscoveryError, ImportFailure};
+pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
 pub use graph::discover;
-pub use request::{DiscoveryRequest, ResolvedPackage};
-pub use snapshot::{DiscoveredModule, DiscoveredSource, DiscoveredUnit, SyntaxErrorsPresent};
+pub use request::{DiscoveryRequest, ResolvedPackage, StandardRoleLocator, ToolchainRequest};
+pub use snapshot::{CompileInputError, DiscoveredModule, DiscoveredSource, DiscoveredUnit};
 
 #[cfg(test)]
 mod tests;

@@ -21,8 +21,8 @@ mod executable;
 #[test]
 fn complete_closed_registry_constructs_a_target_program() {
     let fixture = Fixture::new();
-    let (input, prelude) = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -242,6 +242,8 @@ fn body_dependencies_follow_only_executable_checked_edges() {
         .filter_map(|selection| match selection.dispatch() {
             StaticDispatch::Direct(callable) => Some(callable),
             StaticDispatch::InterfaceMethod { .. }
+            | StaticDispatch::InterfaceSelfMethod { .. }
+            | StaticDispatch::InterfaceDefault { .. }
             | StaticDispatch::OpaqueMethod { .. }
             | StaticDispatch::StructuralRequirement(_) => None,
         })
@@ -475,8 +477,8 @@ fn test_target_selects_only_direct_cases_in_source_order() {
 #[test]
 fn semantic_attachment_cannot_swap_same_shaped_primitive_names() {
     let fixture = Fixture::new();
-    let (input, prelude) = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -513,8 +515,8 @@ fn semantic_attachment_cannot_swap_same_shaped_primitive_names() {
 }
 
 fn build_target_program(fixture: &Fixture) -> TargetProgram {
-    let (input, prelude) = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();

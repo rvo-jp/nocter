@@ -11,8 +11,8 @@ fn explicit_move_transfers_a_move_only_parameter_into_the_body_result() {
         "struct Owned {\n    value: i32\n}\n\
          func consume(value: Owned): Owned {\n    move value\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -30,8 +30,8 @@ fn moved_local_is_initialized_before_its_own_transfer() {
         "struct Owned {\n    value: i32\n}\n\
          func consume(value: Owned): Owned {\n    let local = move value\n    move local\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
@@ -44,8 +44,8 @@ fn second_use_after_move_reports_uninitialized_place() {
         "struct Owned {\n    value: i32\n}\n\
          func invalid(value: Owned): Owned {\n    let first = move value\n    move value\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -56,8 +56,8 @@ fn second_use_after_move_reports_uninitialized_place() {
 #[test]
 fn explicit_move_rejects_copy_and_borrow_values_separately() {
     let copy = Fixture::new("func invalid(value: i32): i32 {\n    move value\n}\n");
-    let (input, prelude) = copy.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = copy.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -65,8 +65,8 @@ fn explicit_move_rejects_copy_and_borrow_values_separately() {
 
     let borrow =
         Fixture::new("func invalid(value: &+i32): void {\n    let _ = move value\n    return\n}\n");
-    let (input, prelude) = borrow.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = borrow.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -80,8 +80,8 @@ fn generic_named_field_move_uses_the_substituted_field_type() {
          struct Box<T> {\n    item: T\n}\n\
          func take(box: Box<Owned>): Owned {\n    move box.item\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -114,8 +114,8 @@ fn disjoint_named_fields_move_independently() {
          struct Pair {\n    first: Owned\n    second: Owned\n}\n\
          func split(pair: Pair): Owned {\n    let _ = move pair.first\n    move pair.second\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
@@ -130,8 +130,8 @@ fn named_field_move_invalidates_that_field_and_its_parent() {
              struct Pair {{\n    first: Owned\n    second: Owned\n}}\n\
              func invalid(pair: Pair): void {{\n    let _ = move pair.first\n    let _ = {result}\n    return\n}}\n"
         ));
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
         let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -147,8 +147,8 @@ fn named_field_move_rejects_borrowed_and_unknown_fields() {
          struct Box {\n    item: Owned\n}\n\
          func invalid(box: &+Box): Owned {\n    move box.item\n}\n",
     );
-    let (input, prelude) = borrowed.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = borrowed.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -159,8 +159,8 @@ fn named_field_move_rejects_borrowed_and_unknown_fields() {
          struct Box {\n    item: Owned\n}\n\
          func invalid(box: Box): Owned {\n    move box.missing\n}\n",
     );
-    let (input, prelude) = unknown.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = unknown.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -177,8 +177,8 @@ fn named_field_move_obeys_the_declaring_module_visibility_boundary() {
     );
     let mut expected = None;
     for reverse in [false, true] {
-        let (input, prelude) = fixture.input(reverse);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(reverse);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
         let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -201,8 +201,8 @@ fn a_type_owned_drop_forbids_partial_move_with_a_related_location() {
          drop Box(&+self) {\n    return\n}\n\
          func invalid(box: Box): Owned {\n    move box.item\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

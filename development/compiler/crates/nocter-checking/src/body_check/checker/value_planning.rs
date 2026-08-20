@@ -104,7 +104,18 @@ impl BodyChecker<'_, '_> {
         let known = !generics
             .iter()
             .any(|parameter| inference_parameters.contains(parameter));
-        if !known && let Some(place) = self.positional_value_place(syntax)? {
+        if let Some(place) = self.positional_value_place(syntax)? {
+            if known {
+                let value = self.materialize_call_place(syntax, place.id, place.ty, destination)?;
+                inference
+                    .constrain_contextual(
+                        self.types,
+                        destination,
+                        InferenceEvidence::Typed(self.node_type(value)?),
+                    )
+                    .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
+                return Ok(ValueDraft::Checked { syntax, value });
+            }
             inference
                 .constrain_contextual(self.types, destination, InferenceEvidence::Typed(place.ty))
                 .map_err(|error| self.inference_error(syntax, error, failure_rule))?;
@@ -233,7 +244,7 @@ impl BodyChecker<'_, '_> {
                         self.apply_expected(syntax, value, destination)
                     }
                     ValueDraft::Place { syntax, place, ty } => {
-                        self.apply_expected_place(syntax, place, ty, destination)
+                        self.materialize_call_place(syntax, place, ty, destination)
                     }
                     ValueDraft::Deferred { syntax } => {
                         self.check_expression(syntax, Some(destination))
@@ -264,6 +275,9 @@ impl BodyChecker<'_, '_> {
             NodeKind::PostfixExpression
                 if direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
             {
+                if super::calls::construction_member_syntax(self, syntax)?.is_some() {
+                    return Ok(None);
+                }
                 self.postfix_place(syntax, BorrowCapability::Readonly)
                     .map(Some)
             }

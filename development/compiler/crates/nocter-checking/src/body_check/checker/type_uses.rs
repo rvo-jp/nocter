@@ -460,20 +460,31 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         mut segments: Vec<NamedSegment>,
     ) -> Result<TypeId, BodyCheckError> {
-        if segments.len() == 1 && segments[0].arguments.is_empty() {
+        if segments[0].arguments.is_empty() {
             let name = self.segment_symbol(segments[0].token)?;
-            if let Some(parameter) = self.lexical_generic(name)? {
+            let base = if let Some(parameter) = self.lexical_generic(name)? {
                 self.project_type_entity(
                     segments[0].token,
                     SemanticEntity::GenericParameter(parameter),
                 )?;
-                return self
-                    .types
-                    .intern(TypeKind::GenericParameter(parameter))
-                    .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into());
-            }
-            if self.token_text(segments[0].token)? == "Self" {
-                return self.lexical_self_type(node, segments[0].token);
+                Some(
+                    self.types
+                        .intern(TypeKind::GenericParameter(parameter))
+                        .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?,
+                )
+            } else if self.token_text(segments[0].token)? == "Self" {
+                Some(self.lexical_self_type(node, segments[0].token)?)
+            } else {
+                None
+            };
+            if let Some(base) = base {
+                return match segments.as_slice() {
+                    [_] => Ok(base),
+                    [_, associated] if associated.arguments.is_empty() => {
+                        self.resolve_associated_projection(node, base, associated.token)
+                    }
+                    _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
+                };
             }
         }
 
@@ -514,6 +525,59 @@ impl BodyChecker<'_, '_> {
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         }
         self.resolve_type_entity(node, entity, Vec::new())
+    }
+
+    fn resolve_associated_projection(
+        &mut self,
+        node: NodeId,
+        base: TypeId,
+        token: SyntaxToken,
+    ) -> Result<TypeId, BodyCheckError> {
+        let name = self.segment_symbol(token)?;
+        let declarations = self.graph.declarations();
+        let mut candidates = self
+            .assumptions
+            .iter()
+            .map(crate::CheckedRequirement::predicate)
+            .chain(self.intrinsic_facts.iter())
+            .filter_map(|predicate| {
+                let crate::CheckedPredicate::Capability {
+                    subject,
+                    capability: nocter_declarations::StructuralCapability::Interface(application),
+                } = predicate
+                else {
+                    return None;
+                };
+                (*subject == base).then_some(application.interface())
+            })
+            .flat_map(|interface| {
+                declarations
+                    .interfaces()
+                    .get(interface)
+                    .map(nocter_declarations::InterfaceDeclaration::associated_types)
+                    .unwrap_or_default()
+                    .iter()
+                    .copied()
+            })
+            .filter(|associated| {
+                declarations
+                    .associated_types()
+                    .get(*associated)
+                    .is_some_and(|declaration| declaration.name() == name)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_unstable();
+        candidates.dedup();
+        let [associated] = candidates.as_slice() else {
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+        };
+        self.project_type_entity(token, SemanticEntity::AssociatedType(*associated))?;
+        self.types
+            .intern(TypeKind::AssociatedProjection {
+                base,
+                associated: *associated,
+            })
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
     }
 
     fn resolve_unapplied_nominal(

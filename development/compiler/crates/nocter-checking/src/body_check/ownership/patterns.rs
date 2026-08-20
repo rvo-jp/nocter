@@ -149,6 +149,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .enum_residual_action(subject, ty, pattern)
     }

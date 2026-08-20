@@ -21,16 +21,21 @@ instance Utf8Path {
     pub coerce &self as &str {
         return &self.text as &str
     }
+
+    pub method &self.is_absolute(): bool { return is_absolute(self) }
+    pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
 }
 
 func is_absolute(path: &Utf8Path): bool {
     let value: &str = &path.text as &str
-    return value.len() != 0 && bytes(value)[0] == 47
+    let raw: &[u8] = bytes(value)
+    return value.len() != 0 && raw[0] == 47
 }
 
 func join(path: &Utf8Path, child: &str): Utf8Path! {
     validate(child)?
-    if child.len() != 0 && bytes(child)[0] == 47 {
+    let child_bytes: &[u8] = bytes(child)
+    if child.len() != 0 && child_bytes[0] == 47 {
         return Utf8Path.new(child)?
     }
     var result = String.copy(&path.text as &str)
@@ -53,9 +58,4 @@ pub func validate(value: &str): void! {
 
 pub func invalid_path(): error {
     return error.new("std.path.invalid_path", "UTF-8 path contains a NUL byte")
-}
-
-instance Utf8Path {
-    pub method &self.is_absolute(): bool { return is_absolute(self) }
-    pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
 }

@@ -2,6 +2,7 @@ use nocter_declarations::{ProvenanceOrigin, RequirementKind, StructuralCapabilit
 use nocter_model::{BodyNodeId, CallableId, TypeId};
 
 use super::Analyzer;
+use crate::provenance::invocation_place_can_reach_result;
 use crate::provenance::state::ProvenanceState;
 use crate::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, BodyCheckError,
@@ -16,10 +17,52 @@ struct CallableValueProvenance {
     storage: Option<ValueProvenance>,
 }
 
+/// The two distinct storage channels available through a method receiver.
+///
+/// `carried` belongs to the receiver value itself (for example a view iterator's source). `place`
+/// belongs to the temporary borrow used to invoke a method on an owned place. A declared direct
+/// borrow result may retain the latter; an associated or generic result fixed independently of the
+/// invocation may retain only the former.
+struct ReceiverProvenance {
+    carried: ValueProvenance,
+    place: Option<ValueProvenance>,
+}
+
+impl ReceiverProvenance {
+    fn carried(value: ValueProvenance) -> Self {
+        Self {
+            carried: value,
+            place: None,
+        }
+    }
+}
+
+struct ArgumentProvenance {
+    carried: ValueProvenance,
+    place: Option<ValueProvenance>,
+}
+
+impl ArgumentProvenance {
+    fn carried(value: ValueProvenance) -> Self {
+        Self {
+            carried: value,
+            place: None,
+        }
+    }
+
+    fn retained(&self, retain_invocation_place: bool) -> &ValueProvenance {
+        if retain_invocation_place {
+            self.place.as_ref().unwrap_or(&self.carried)
+        } else {
+            &self.carried
+        }
+    }
+}
+
 struct EvaluatedCall {
     callable: Option<CallableValueProvenance>,
-    receiver: Option<ValueProvenance>,
-    arguments: Vec<ValueProvenance>,
+    receiver: Option<ReceiverProvenance>,
+    arguments: Vec<ArgumentProvenance>,
 }
 
 impl Analyzer<'_, '_> {
@@ -32,7 +75,7 @@ impl Analyzer<'_, '_> {
             return Ok((ValueProvenance::independent(), false));
         };
         let result = match acquisition.acquisition() {
-            IterationAcquisition::Direct => source,
+            IterationAcquisition::Direct => source.carried,
             IterationAcquisition::Expansion(selection) => match selection.dispatch() {
                 StaticDispatch::Direct(callable) => self.map_callable_summary(
                     callable,
@@ -51,9 +94,12 @@ impl Analyzer<'_, '_> {
                     ) {
                         return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                     }
-                    source
+                    source.carried
                 }
-                StaticDispatch::InterfaceMethod { .. } | StaticDispatch::OpaqueMethod { .. } => {
+                StaticDispatch::InterfaceMethod { .. }
+                | StaticDispatch::InterfaceSelfMethod { .. }
+                | StaticDispatch::InterfaceDefault { .. }
+                | StaticDispatch::OpaqueMethod { .. } => {
                     return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                 }
             },
@@ -91,6 +137,12 @@ impl Analyzer<'_, '_> {
             | StaticDispatch::InterfaceMethod {
                 method: callable, ..
             }
+            | StaticDispatch::InterfaceSelfMethod {
+                method: callable, ..
+            }
+            | StaticDispatch::InterfaceDefault {
+                method: callable, ..
+            }
             | StaticDispatch::OpaqueMethod {
                 method: callable, ..
             } => callable,
@@ -99,7 +151,12 @@ impl Analyzer<'_, '_> {
             }
         };
         Ok(self
-            .map_callable_summary(callable, Some(iterator), &[], current_allocation)?
+            .map_callable_summary(
+                callable,
+                Some(&ReceiverProvenance::carried(iterator.clone())),
+                &[],
+                current_allocation,
+            )?
             .projected(ProvenanceProjection::OutcomeValue))
     }
 
@@ -234,7 +291,7 @@ impl Analyzer<'_, '_> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
-        let mut result = self.map_call_result(call, &evaluated, state)?;
+        let mut result = self.map_call_result(call, &evaluated, state, result_type)?;
         if !self.types.may_carry_storage(result_type) {
             result = ValueProvenance::independent();
         }
@@ -292,7 +349,19 @@ impl Analyzer<'_, '_> {
             if !reaches {
                 return Ok(None);
             }
-            arguments.push(value);
+            let checked = self
+                .body
+                .nodes()
+                .get(*argument)
+                .ok_or(BodyCheckInternalError::MissingNode(*argument))?;
+            let argument = match checked.operation() {
+                CheckedOperation::Borrow { place, .. } => ArgumentProvenance {
+                    carried: self.read_place(*place, state)?,
+                    place: Some(value),
+                },
+                _ => ArgumentProvenance::carried(value),
+            };
+            arguments.push(argument);
         }
         Ok(Some(EvaluatedCall {
             callable,
@@ -306,6 +375,7 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         evaluated: &EvaluatedCall,
         state: &ProvenanceState,
+        result_type: TypeId,
     ) -> Result<ValueProvenance, BodyCheckError> {
         Ok(match call.target() {
             CallTarget::Static(selection) => {
@@ -336,20 +406,24 @@ impl Analyzer<'_, '_> {
                     _ => return Err(BodyCheckInternalError::ProvenanceAnalysis.into()),
                 };
                 let mut mapped = ValueProvenance::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
                 for origin in contract.provenance().origins() {
                     let argument = evaluated
                         .arguments
                         .get(origin.position())
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    mapped.union_with(argument);
+                    mapped.union_with(&argument.retained(retain_place).flattened());
                 }
                 let callable = evaluated
                     .callable
                     .as_ref()
                     .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                mapped.union_with(&callable.value);
-                if let Some(environment) = &callable.storage {
-                    mapped.union_with(environment);
+                mapped.union_with(&callable.value.flattened());
+                if invocation_place_can_reach_result(self.graph, self.types, result_type)
+                    && let Some(environment) = &callable.storage
+                {
+                    mapped.union_with(&environment.flattened());
                 }
                 mapped
             }
@@ -363,28 +437,27 @@ impl Analyzer<'_, '_> {
                     .as_ref()
                     .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
                 let mut mapped = ValueProvenance::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
                 for origin in &summary.parameters {
-                    mapped.union_with(
-                        evaluated
-                            .arguments
-                            .get(origin.position())
-                            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
-                    );
+                    let argument = evaluated
+                        .arguments
+                        .get(origin.position())
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    mapped.union_with(&argument.retained(retain_place).flattened());
                 }
                 for capture in &summary.captures {
-                    mapped.union_with(
-                        &callable
-                            .value
-                            .projected(ProvenanceProjection::ClosureCaptureValue(*capture)),
-                    );
+                    let value = callable
+                        .value
+                        .projected(ProvenanceProjection::ClosureCaptureValue(*capture));
+                    mapped.union_with(&value.flattened());
                 }
                 if summary.environment {
-                    mapped.union_with(
-                        callable
-                            .storage
-                            .as_ref()
-                            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
-                    );
+                    let environment = callable
+                        .storage
+                        .as_ref()
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    mapped.union_with(&environment.flattened());
                 }
                 match summary.ambient {
                     AmbientStorageDependence::Independent => {}
@@ -404,7 +477,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         receiver: &CheckedReceiver,
         state: &mut ProvenanceState,
-    ) -> Result<Option<ValueProvenance>, BodyCheckError> {
+    ) -> Result<Option<ReceiverProvenance>, BodyCheckError> {
         let (value, reaches) = self.evaluate(receiver.value(), state)?;
         if !reaches {
             return Ok(None);
@@ -412,10 +485,13 @@ impl Analyzer<'_, '_> {
         let provenance = match receiver.preparation() {
             ReceiverPreparation::Owned
             | ReceiverPreparation::PreserveBorrow(_)
-            | ReceiverPreparation::WeakenReadwriteBorrow => value,
-            ReceiverPreparation::BorrowTemporary(_) => {
-                ValueProvenance::from_source(ProvenanceSource::Temporary(receiver.value()))
-            }
+            | ReceiverPreparation::WeakenReadwriteBorrow => ReceiverProvenance::carried(value),
+            ReceiverPreparation::BorrowTemporary(_) => ReceiverProvenance {
+                carried: value,
+                place: Some(ValueProvenance::from_source(ProvenanceSource::Temporary(
+                    receiver.value(),
+                ))),
+            },
             ReceiverPreparation::BorrowPlace(_) => {
                 let checked = self
                     .body
@@ -425,7 +501,10 @@ impl Analyzer<'_, '_> {
                 let CheckedOperation::Place(place) = checked.operation() else {
                     return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                 };
-                self.place_storage(*place, state)?
+                ReceiverProvenance {
+                    carried: value,
+                    place: Some(self.place_storage(*place, state)?),
+                }
             }
         };
         Ok(Some(provenance))
@@ -434,8 +513,8 @@ impl Analyzer<'_, '_> {
     fn map_callable_summary(
         &self,
         callable: CallableId,
-        receiver: Option<&ValueProvenance>,
-        arguments: &[ValueProvenance],
+        receiver: Option<&ReceiverProvenance>,
+        arguments: &[ArgumentProvenance],
         current_allocation: &ValueProvenance,
     ) -> Result<ValueProvenance, BodyCheckInternalError> {
         let declaration = self
@@ -452,7 +531,17 @@ impl Analyzer<'_, '_> {
         for origin in &summary.origins {
             match origin {
                 ProvenanceOrigin::Receiver => {
-                    result.union_with(receiver.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?);
+                    let receiver = receiver.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    let receiver = if invocation_place_can_reach_result(
+                        self.graph,
+                        self.types,
+                        declaration.result(),
+                    ) {
+                        receiver.place.as_ref().unwrap_or(&receiver.carried)
+                    } else {
+                        &receiver.carried
+                    };
+                    result.union_with(&receiver.flattened());
                 }
                 ProvenanceOrigin::Parameter(parameter) => {
                     let position = declaration
@@ -460,18 +549,22 @@ impl Analyzer<'_, '_> {
                         .iter()
                         .position(|candidate| candidate == parameter)
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    result.union_with(
-                        arguments
-                            .get(position)
-                            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    let argument = arguments
+                        .get(position)
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    let retain_place = invocation_place_can_reach_result(
+                        self.graph,
+                        self.types,
+                        declaration.result(),
                     );
+                    result.union_with(&argument.retained(retain_place).flattened());
                 }
             }
         }
         match summary.ambient {
             AmbientStorageDependence::Independent => {}
             AmbientStorageDependence::Current => {
-                result.union_with(current_allocation);
+                result.union_with(&current_allocation.flattened());
             }
             AmbientStorageDependence::Unknown => {
                 result.union_with(&ValueProvenance::from_source(ProvenanceSource::Unknown));
@@ -544,6 +637,12 @@ fn static_callable(dispatch: StaticDispatch) -> Option<nocter_model::CallableId>
     match dispatch {
         StaticDispatch::Direct(callable)
         | StaticDispatch::InterfaceMethod {
+            method: callable, ..
+        }
+        | StaticDispatch::InterfaceSelfMethod {
+            method: callable, ..
+        }
+        | StaticDispatch::InterfaceDefault {
             method: callable, ..
         }
         | StaticDispatch::OpaqueMethod {

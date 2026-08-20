@@ -7,7 +7,8 @@ use nocter_model::{BorrowCapability, CallableCapability, ModuleId, TypeId, TypeK
 use super::InstanceOperationTable;
 use crate::conformance::normalize_requirements;
 use crate::type_relations::{
-    SubstitutionError, TypeSubstitution, is_concrete_type, match_type_pattern,
+    SubstitutionError, TypeSubstitution, TypeUnificationError, collect_generic_parameters,
+    match_type_pattern,
 };
 use crate::{
     CheckedPredicate, CheckedRequirement, ConformanceTable, CopyabilityError, CopyabilityTable,
@@ -165,6 +166,36 @@ impl From<SubstitutionError> for InstanceSelectionError {
 }
 
 /// Stateful authority for one body's instance-operation selection and recursive requirement proof.
+#[derive(Clone, Copy)]
+pub(crate) struct InstanceSelectionContext<'program> {
+    graph: &'program DeclarationGraph,
+    conformances: &'program ConformanceTable,
+    table: &'program InstanceOperationTable,
+    assumptions: &'program [CheckedRequirement],
+    intrinsic_facts: &'program [CheckedPredicate],
+    from: ModuleId,
+}
+
+impl<'program> InstanceSelectionContext<'program> {
+    pub(crate) const fn new(
+        graph: &'program DeclarationGraph,
+        conformances: &'program ConformanceTable,
+        table: &'program InstanceOperationTable,
+        assumptions: &'program [CheckedRequirement],
+        intrinsic_facts: &'program [CheckedPredicate],
+        from: ModuleId,
+    ) -> Self {
+        Self {
+            graph,
+            conformances,
+            table,
+            assumptions,
+            intrinsic_facts,
+            from,
+        }
+    }
+}
+
 pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) graph: &'program DeclarationGraph,
     pub(super) types: &'program mut TypeStore,
@@ -172,28 +203,26 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) copyabilities: &'program mut CopyabilityTable,
     pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
+    pub(super) intrinsic_facts: &'program [CheckedPredicate],
     pub(super) from: ModuleId,
     pub(super) active: HashSet<CheckedPredicate>,
 }
 
 impl<'program> InstanceOperationSelector<'program> {
     pub(crate) fn new(
-        graph: &'program DeclarationGraph,
+        context: InstanceSelectionContext<'program>,
         types: &'program mut TypeStore,
-        conformances: &'program ConformanceTable,
         copyabilities: &'program mut CopyabilityTable,
-        table: &'program InstanceOperationTable,
-        assumptions: &'program [CheckedRequirement],
-        from: ModuleId,
     ) -> Self {
         Self {
-            graph,
+            graph: context.graph,
             types,
-            conformances,
+            conformances: context.conformances,
             copyabilities,
-            table,
-            assumptions,
-            from,
+            table: context.table,
+            assumptions: context.assumptions,
+            intrinsic_facts: context.intrinsic_facts,
+            from: context.from,
             active: HashSet::new(),
         }
     }
@@ -485,9 +514,6 @@ impl<'program> InstanceOperationSelector<'program> {
         &mut self,
         target: TypeId,
     ) -> Result<Vec<ApplicableInstance>, InstanceSelectionError> {
-        if !is_concrete_type(self.types, target)? {
-            return Ok(Vec::new());
-        }
         let instances = self
             .table
             .candidates(self.types, target)
@@ -514,8 +540,15 @@ impl<'program> InstanceOperationSelector<'program> {
             for (parameter, ty) in bindings.iter() {
                 substitution.bind_generic(parameter, ty);
             }
-            let generic_arguments =
-                selected_generic_arguments(self.types, &generic_parameters, &substitution)?;
+            let Some(generic_arguments) = selected_instance_generic_arguments(
+                self.types,
+                target,
+                &generic_parameters,
+                &substitution,
+            )?
+            else {
+                continue;
+            };
             if self.requirements_hold(&requirements, &substitution)? {
                 applicable.push(ApplicableInstance {
                     instance,
@@ -526,6 +559,37 @@ impl<'program> InstanceOperationSelector<'program> {
         }
         Ok(applicable)
     }
+}
+
+fn selected_instance_generic_arguments(
+    types: &mut TypeStore,
+    target: TypeId,
+    generic_parameters: &[nocter_model::GenericParameterId],
+    substitution: &TypeSubstitution,
+) -> Result<Option<GenericArguments>, InstanceSelectionError> {
+    let receiver_parameters =
+        collect_generic_parameters(types, [target]).map_err(|error| match error {
+            TypeUnificationError::UnknownType(ty) => InstanceSelectionError::UnknownType(ty),
+            TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. } => {
+                InstanceSelectionError::Substitution(SubstitutionError::InvalidStore)
+            }
+        })?;
+    let mut arguments = Vec::with_capacity(generic_parameters.len());
+    for parameter in generic_parameters {
+        let generic = types
+            .intern(TypeKind::GenericParameter(*parameter))
+            .map_err(|_| InstanceSelectionError::IncompleteGeneric(*parameter))?;
+        let ty = substitution.apply_type(types, generic)?;
+        if matches!(types.get(ty), Some(TypeKind::GenericParameter(actual)) if actual == parameter)
+            && !receiver_parameters.contains(parameter)
+        {
+            return Ok(None);
+        }
+        arguments.push(GenericArgument::new(*parameter, ty));
+    }
+    GenericArguments::new(arguments)
+        .map(Some)
+        .map_err(|duplicate| InstanceSelectionError::DuplicateGeneric(duplicate.parameter()))
 }
 
 pub(crate) fn selected_generic_arguments(

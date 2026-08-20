@@ -17,20 +17,16 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let (operand, punctuation) = match self.kind(node)? {
-            NodeKind::MoveExpression => (
-                self.check_move_place(node)?,
-                outcome_punctuation(self, node)?,
-            ),
+        let punctuation = outcome_punctuation(self, node)?;
+        let operand = match self.kind(node)? {
+            NodeKind::MoveExpression => self.check_move_place(node)?,
             NodeKind::OutcomeExpression => {
                 let children = direct_nodes(self.tree(), node);
                 let [operand] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
-                (
-                    self.check_expression(*operand, None)?,
-                    outcome_punctuation(self, node)?,
-                )
+                let operand_expected = self.outcome_operand_expected(expected, punctuation)?;
+                self.check_expression(*operand, operand_expected)?
             }
             _ => return Err(BodyCheckInternalError::InvalidSyntax(node).into()),
         };
@@ -77,6 +73,60 @@ impl BodyChecker<'_, '_> {
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })
+    }
+
+    fn outcome_operand_expected(
+        &mut self,
+        payload: Option<TypeId>,
+        punctuation: Punctuation,
+    ) -> Result<Option<TypeId>, BodyCheckInternalError> {
+        let Some(payload) = payload else {
+            return Ok(None);
+        };
+        if punctuation != Punctuation::Question || self.closure_result_inference.is_some() {
+            return Ok(None);
+        }
+        let accepts_optional = accepts_propagation(
+            self.types,
+            self.result_type,
+            ExpectedEvidence::Absent,
+            OutcomeLayer::Optional,
+        );
+        let accepts_fallible = accepts_propagation(
+            self.types,
+            self.result_type,
+            ExpectedEvidence::Failure,
+            OutcomeLayer::Fallible,
+        );
+        let payload = if payload == self.result_type {
+            match (accepts_optional, accepts_fallible) {
+                (true, false) => propagated_payload(
+                    self.types,
+                    self.result_type,
+                    ExpectedEvidence::Absent,
+                    OutcomeLayer::Optional,
+                ),
+                (false, true) => propagated_payload(
+                    self.types,
+                    self.result_type,
+                    ExpectedEvidence::Failure,
+                    OutcomeLayer::Fallible,
+                ),
+                (false, false) | (true, true) => None,
+            }
+            .unwrap_or(payload)
+        } else {
+            payload
+        };
+        let kind = match (accepts_optional, accepts_fallible) {
+            (true, false) => TypeKind::Optional(payload),
+            (false, true) => TypeKind::Fallible(payload),
+            (false, false) | (true, true) => return Ok(None),
+        };
+        self.types
+            .intern(kind)
+            .map(Some)
+            .map_err(|_| BodyCheckInternalError::UnknownType(payload))
     }
 
     pub(super) fn check_recovery_expression(
@@ -155,6 +205,40 @@ impl BodyChecker<'_, '_> {
             .define_local(local, self.types.builtin(BuiltinType::Error))?;
         Ok(Some(local))
     }
+}
+
+fn propagated_payload(
+    types: &nocter_model::TypeStore,
+    result: TypeId,
+    evidence: ExpectedEvidence,
+    layer: OutcomeLayer,
+) -> Option<TypeId> {
+    let plan = plan_expected_type(types, result, evidence).ok()?;
+    let ((OutcomeLayer::Optional, ExpectedBase::Absent(outcome))
+    | (OutcomeLayer::Fallible, ExpectedBase::Failure(outcome))) = (layer, plan.base())
+    else {
+        return None;
+    };
+    match (layer, types.get(outcome)?) {
+        (OutcomeLayer::Optional, TypeKind::Optional(payload))
+        | (OutcomeLayer::Fallible, TypeKind::Fallible(payload)) => Some(*payload),
+        _ => None,
+    }
+}
+
+fn accepts_propagation(
+    types: &nocter_model::TypeStore,
+    result: TypeId,
+    evidence: ExpectedEvidence,
+    layer: OutcomeLayer,
+) -> bool {
+    plan_expected_type(types, result, evidence).is_ok_and(|plan| {
+        matches!(
+            (layer, plan.base()),
+            (OutcomeLayer::Optional, ExpectedBase::Absent(_))
+                | (OutcomeLayer::Fallible, ExpectedBase::Failure(_))
+        )
+    })
 }
 
 fn outcome_layer(types: &nocter_model::TypeStore, ty: TypeId) -> Option<(OutcomeLayer, TypeId)> {

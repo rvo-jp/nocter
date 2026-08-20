@@ -8,12 +8,14 @@ publish = false
 
 [dependencies]
 nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-selection = { path = "../nocter-target-selection" }
 
 [dev-dependencies]
+nocter-checking = { path = "../nocter-checking" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 
 [lints]

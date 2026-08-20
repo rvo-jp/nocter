@@ -1,5 +1,8 @@
 mod analysis;
+mod contract;
 mod state;
+
+pub(crate) use contract::{invocation_place_can_reach_result, type_can_carry_loan};
 
 use std::collections::HashMap;
 

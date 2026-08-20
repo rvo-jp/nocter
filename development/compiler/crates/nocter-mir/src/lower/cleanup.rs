@@ -135,6 +135,7 @@ impl FunctionLowerer<'_> {
                 }
             }
             PlaceRoot::Capture(capture) => self.lower_capture_path(capture)?,
+            PlaceRoot::Value(_) => return Err(MirLoweringError::InvalidCleanup(owner)),
         };
         for (field, source_ty) in path
             .fields()

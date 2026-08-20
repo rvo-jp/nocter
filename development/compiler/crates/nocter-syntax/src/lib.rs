@@ -4,6 +4,7 @@ mod diagnostic;
 mod lexer;
 mod literal;
 mod parser;
+mod query;
 mod token;
 mod tree;
 
@@ -14,6 +15,7 @@ pub use literal::{
     decode_string_literal, decode_string_text,
 };
 pub use parser::{ParseGoal, parse};
+pub use query::declaration_name_token;
 pub use token::{BuiltinType, Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{
     MissingSyntax, NodeId, NodeKind, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree, TokenId,

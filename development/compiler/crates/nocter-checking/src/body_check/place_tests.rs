@@ -9,8 +9,8 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -20,8 +20,8 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
 fn readonly_borrow_uses_the_same_resolved_parameter_place() {
     let fixture =
         Fixture::new("func observe(value: i32): void {\n    let view = &value\n    return\n}\n");
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -329,12 +329,21 @@ fn lexical_index_requirement_dispatches_a_generic_place() {
 }
 
 #[test]
-fn unresolved_generic_receiver_does_not_use_concrete_instance_lookup() {
-    let missing = check(
+fn generic_receiver_selects_the_matching_generic_instance_operation() {
+    let output = check(
         "struct Buffer<T> { values: [T; 1] }\ninstance Buffer<T> {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n}\nfunc invalid<T>(source: &Buffer<T>): &T {\n    return &source[0]\n}\n",
     )
-    .unwrap_err();
-    assert_eq!(missing.source_diagnostic().unwrap().code(), "E0388");
+    .unwrap();
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.places().iter().any(|(_, place)| {
+            matches!(
+                place.projections().last(),
+                Some(PlaceProjection::SelectedIndex { operation, .. })
+                    if matches!(operation.dispatch(), crate::StaticDispatch::Direct(_))
+                        && operation.generic_arguments().as_slice().len() == 1
+            )
+        })
+    }));
 }
 
 #[test]

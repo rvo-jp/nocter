@@ -10,8 +10,8 @@ use crate::test_support::Fixture;
 fn overlapping_instance_patterns_are_rejected_before_body_checking() {
     let fixture =
         Fixture::new("struct Box<T> {}\ninstance Box<T> {}\ninstance Box<U> where U = i32 {}\n");
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = prepare_program_checking(&input, program, source_index).unwrap_err();
 
@@ -23,8 +23,8 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     let fixture = Fixture::new(
         "struct Box<T> {}\ninstance Box<T> where T = i32 {}\ninstance Box<U> where U = u32 {}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
@@ -62,8 +62,8 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     let fixture = Fixture::new(
         "struct Buffer<T> {}\ninstance Buffer<T> {\n    pub operator (&self[index: usize]): &T {\n        loop {}\n    }\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
@@ -90,8 +90,8 @@ fn duplicate_coercion_identity_is_rejected_before_body_selection() {
     let fixture = Fixture::new(
         "struct View { value: i32 }\nstruct Source { first: View\n    second: View\n}\ninstance Source {\n    pub coerce &self as &View {\n        return &self.first\n    }\n    pub coerce &self as &View {\n        return &self.second\n    }\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = prepare_program_checking(&input, program, source_index).unwrap_err();
 

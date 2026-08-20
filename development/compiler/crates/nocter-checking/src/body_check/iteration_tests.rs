@@ -4,7 +4,7 @@ use nocter_model::{BorrowCapability, TypeKind};
 use nocter_syntax::NodeKind;
 
 use super::check_prepared_program;
-use crate::test_support::Fixture;
+use crate::test_support::{Fixture, with_standard_roles};
 use crate::{
     BodyRule, CheckedControl, CheckedOperation, CleanupTarget, CleanupTiming, IterationAcquisition,
     LoopKind, ReceiverPreparation, StaticDispatch, prepare_program_checking,
@@ -35,9 +35,9 @@ pub interface Iterator {{
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
         ),
     ];
-    let (input, prelude) = fixture.input(false);
-    let input = input.with_standard_roles(roles);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let input = with_standard_roles(input, roles);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -542,9 +542,9 @@ fn borrowed_iterator_keeps_source_loan_live_through_body() {
     let error = check_iteration(
         r"
 struct Source {}
-struct Iter {}
+struct Iter { source: &Source }
 instance Source {
-    pub operator (...&self): Iter from self { return Iter {} }
+    pub operator (...&self): Iter from self { return Iter { source: self } }
     pub method &+self.clear(): void { return }
 }
 conform Iterator for Iter {
@@ -570,9 +570,9 @@ fn readwrite_iterator_holds_exclusive_source_loan_through_body() {
     let error = check_iteration(
         r"
 struct Source {}
-struct Iter {}
+struct Iter { source: &+Source }
 instance Source {
-    pub operator (...&+self): Iter from self { return Iter {} }
+    pub operator (...&+self): Iter from self { return Iter { source: self } }
     pub method &+self.clear(): void { return }
 }
 conform Iterator for Iter {

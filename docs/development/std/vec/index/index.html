@@ -269,7 +269,7 @@
     <span class="token-comment">/// Consumes an iterator and grows a Vec without an intermediate collection.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> from_iter<span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span> <span class="token-operator">{</span>
         <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> iterator <span class="token-operator">{</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> iterator <span class="token-operator">{</span>
             result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -283,7 +283,7 @@
         <span class="token-keyword">let</span> initial_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> source<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
         result<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>initial_len<span class="token-operator">)</span>
-        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> source <span class="token-operator">{</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> source <span class="token-operator">{</span>
             result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -300,18 +300,6 @@
             index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Exposes the initialized element prefix as a readonly view.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-comment">/// Exposes the initialized element prefix as a readwrite view.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;+</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">view_mut</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -486,6 +474,16 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Exposes the initialized element prefix as a readonly view.</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Exposes the initialized element prefix as a readwrite view.</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;+</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">view_mut</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
     <span class="token-comment">/// Creates an allocation-free iterator over readonly element borrows.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">ViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>

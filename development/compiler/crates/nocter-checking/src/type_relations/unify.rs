@@ -81,6 +81,7 @@ impl TypeUnifier<'_> {
             let left = self.resolve(left)?;
             let right = self.resolve(right)?;
             if left == right {
+                self.record_identity_evidence(left)?;
                 continue;
             }
             let left_kind = self.kind(left)?.clone();
@@ -100,6 +101,22 @@ impl TypeUnifier<'_> {
         Ok(GenericBindings {
             bindings: self.bindings,
         })
+    }
+
+    fn record_identity_evidence(&mut self, root: TypeId) -> Result<(), TypeUnificationError> {
+        let mut pending = vec![root];
+        let mut visited = HashSet::new();
+        while let Some(ty) = pending.pop() {
+            if !visited.insert(ty) {
+                continue;
+            }
+            let kind = self.kind(ty)?.clone();
+            if let Some(variable) = self.variable(&kind) {
+                self.bindings.entry(variable).or_insert(ty);
+            }
+            append_references(&kind, &mut pending);
+        }
+        Ok(())
     }
 
     fn variable(&self, kind: &TypeKind) -> Option<GenericParameterId> {
@@ -135,6 +152,9 @@ impl TypeUnifier<'_> {
             let Some(next) = self.bindings.get(&variable).copied() else {
                 return Ok(current);
             };
+            if next == current {
+                return Ok(current);
+            }
             if !visited.insert(variable) {
                 return Err(TypeUnificationError::RecursiveBinding {
                     parameter: variable,
@@ -420,5 +440,32 @@ mod tests {
         let bindings = unify_type_pairs(&types, [parameter], [(pattern, actual)]).unwrap();
 
         assert_eq!(bindings.get(parameter), Some(concrete));
+    }
+
+    #[test]
+    fn exact_lexical_identity_is_valid_generic_evidence() {
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let mut types = TypeStore::new();
+        let variable = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
+
+        let bindings = unify_type_pairs(&types, [parameter], [(variable, variable)]).unwrap();
+
+        assert_eq!(bindings.get(parameter), Some(variable));
+    }
+
+    #[test]
+    fn exact_structural_identity_reaches_nested_generic_evidence() {
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let mut types = TypeStore::new();
+        let variable = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
+        let optional = types.intern(TypeKind::Optional(variable)).unwrap();
+
+        let bindings = unify_type_pairs(&types, [parameter], [(optional, optional)]).unwrap();
+
+        assert_eq!(bindings.get(parameter), Some(variable));
     }
 }

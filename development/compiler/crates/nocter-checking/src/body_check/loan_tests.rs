@@ -6,8 +6,8 @@ use crate::test_support::Fixture;
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -145,6 +145,68 @@ fn receiver_derived_method_result_keeps_the_receiver_loan_live() {
         Some(crate::BodyRule::BorrowedPlaceMutation),
         "{error:?}"
     );
+}
+
+#[test]
+fn associated_result_uses_carried_origin_instead_of_the_receiver_reborrow() {
+    check(
+        "pub interface Source {\n\
+             pub type Item\n\
+             pub method &+self.next(): Self.Item?\n\
+             pub method self.last(): Self.Item? from self {\n\
+                 var source = move self\n\
+                 var result: Self.Item? = none\n\
+                 while true {\n\
+                     let item = source.next() otherwise { break }\n\
+                     result = move item\n\
+                 }\n\
+                 return move result\n\
+             }\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn scalar_only_owned_result_does_not_retain_a_capability_argument_loan() {
+    check(
+        "struct Capability { state: usize }\n\
+         struct Buffer { state: usize }\n\
+         func make(capability: &+Capability): Buffer {\n\
+             return Buffer { state: capability.state }\n\
+         }\n\
+         func touch(capability: &+Capability): void {\n\
+             capability.state = capability.state\n\
+             return\n\
+         }\n\
+         func valid(capability: &+Capability): usize {\n\
+             let buffer = make(capability)\n\
+             touch(capability)\n\
+             return buffer.state\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn generic_owned_result_without_a_borrow_slot_does_not_retain_an_invocation_loan() {
+    check(
+        "struct Capability { state: usize }\n\
+         struct Buffer<T> { state: usize }\n\
+         func make<T>(capability: &+Capability): Buffer<T> {\n\
+             return Buffer<T> { state: capability.state }\n\
+         }\n\
+         func touch(capability: &+Capability): void {\n\
+             capability.state = capability.state\n\
+             return\n\
+         }\n\
+         func valid<T>(capability: &+Capability): usize {\n\
+             let buffer: Buffer<T> = make(capability)\n\
+             touch(capability)\n\
+             return buffer.state\n\
+         }\n",
+    )
+    .unwrap();
 }
 
 #[test]

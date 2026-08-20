@@ -7,7 +7,7 @@ use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
-use crate::instance_operations::{InstanceOperationSelector, MethodCandidate};
+use crate::instance_operations::MethodCandidate;
 use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
 use crate::{
     CheckedIteratorAcquisition, CheckedOperation, CheckedReceiver, IterationAcquisition,
@@ -84,12 +84,7 @@ impl BodyChecker<'_, '_> {
         let Some(contribution) = mode.contribution_type(self.types, item) else {
             return Err(self.rule(BodyRule::InvalidSpreadElement, spread)?);
         };
-        if mode == SpreadMode::Copy
-            && self
-                .copyabilities
-                .classify(self.graph, self.types, contribution)
-                .map_err(BodyCheckInternalError::Copyability)?
-                != Copyability::Copy
+        if mode == SpreadMode::Copy && self.classify_copyability(contribution)? != Copyability::Copy
         {
             return Err(self.rule(BodyRule::InvalidSpreadElement, spread)?);
         }
@@ -236,7 +231,7 @@ impl BodyChecker<'_, '_> {
         rules: IterationRules,
     ) -> Result<AcquiredIterator, BodyCheckError> {
         let candidates = {
-            let mut selector = self.operation_selector();
+            let mut selector = self.instance_selector();
             selector
                 .select_expansions(source_type, capability)
                 .map_err(BodyCheckInternalError::from)?
@@ -294,7 +289,7 @@ impl BodyChecker<'_, '_> {
         }
 
         let candidates = {
-            let mut selector = self.operation_selector();
+            let mut selector = self.instance_selector();
             selector
                 .select_expansions(source_type, ExpansionCapability::Owned)
                 .map_err(BodyCheckInternalError::from)?
@@ -400,7 +395,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<StaticSelection, BodyCheckError> {
         let (exact_interface, exact_method) = self.exact_size_roles()?;
         let exact = {
-            let mut selector = self.operation_selector();
+            let mut selector = self.instance_selector();
             selector
                 .select_exact_interface_method(iterator, exact_interface, exact_method)
                 .map_err(BodyCheckInternalError::from)?
@@ -420,7 +415,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<Vec<MethodCandidate>, BodyCheckError> {
         let (interface, method) = self.iterator_roles()?;
         let selected = {
-            let mut selector = self.operation_selector();
+            let mut selector = self.instance_selector();
             selector
                 .select_exact_interface_method(target, interface, method)
                 .map_err(BodyCheckInternalError::from)?
@@ -452,18 +447,6 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn operation_selector(&mut self) -> InstanceOperationSelector<'_> {
-        InstanceOperationSelector::new(
-            self.graph,
-            self.types,
-            self.conformances,
-            self.copyabilities,
-            self.instance_operations,
-            &self.assumptions,
-            self.source.module(),
-        )
-    }
-
     fn project_expansion(
         &mut self,
         syntax: NodeId,
@@ -474,11 +457,16 @@ impl BodyChecker<'_, '_> {
             .filter(|token| token.kind() == token_kind)
             .ok_or(BodyCheckInternalError::InvalidSyntax(syntax))?;
         let entity = match dispatch {
-            StaticDispatch::Direct(callable) => SemanticEntity::Callable(callable),
+            StaticDispatch::Direct(callable)
+            | StaticDispatch::InterfaceDefault {
+                method: callable, ..
+            } => SemanticEntity::Callable(callable),
             StaticDispatch::StructuralRequirement(requirement) => {
                 SemanticEntity::Requirement(requirement)
             }
-            StaticDispatch::InterfaceMethod { .. } | StaticDispatch::OpaqueMethod { .. } => {
+            StaticDispatch::InterfaceMethod { .. }
+            | StaticDispatch::InterfaceSelfMethod { .. }
+            | StaticDispatch::OpaqueMethod { .. } => {
                 return Err(BodyCheckInternalError::CallContractSelection);
             }
         };

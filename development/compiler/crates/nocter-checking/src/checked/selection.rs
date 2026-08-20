@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_model::{CallableId, DropId, GenericParameterId, RequirementId, TypeId};
+use nocter_model::{CallableId, DropId, GenericParameterId, InterfaceId, RequirementId, TypeId};
 
 /// Static operation selected during body checking.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -8,6 +8,18 @@ pub enum StaticDispatch {
     Direct(CallableId),
     InterfaceMethod {
         requirement: RequirementId,
+        method: CallableId,
+    },
+    /// A call from an interface default body to that interface's surface under intrinsic `Self`
+    /// evidence. Concrete specialization selects the implementing conformance.
+    InterfaceSelfMethod {
+        interface: InterfaceId,
+        method: CallableId,
+    },
+    /// One interface-owned default body selected for an exact receiver type.
+    InterfaceDefault {
+        interface: InterfaceId,
+        receiver: TypeId,
         method: CallableId,
     },
     OpaqueMethod {

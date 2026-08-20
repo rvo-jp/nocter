@@ -22,12 +22,38 @@ impl BodyChecker<'_, '_> {
         let (reference, suffix) = match syntax {
             CallSyntax::Direct { reference, suffix } => (reference, suffix),
             CallSyntax::Member {
+                callee,
                 owner,
                 member,
                 suffix,
             } => {
+                if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
+                    return self
+                        .check_literal_pack_method(node, parameter, member, suffix, expected);
+                }
                 return if member_owner_is_value(self, owner)? {
-                    self.check_method_call(node, owner, member, suffix, expected)
+                    if owner_is_direct_call_result(self, owner)? {
+                        return self.check_method_call(node, owner, member, suffix, expected);
+                    }
+                    match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
+                        Ok(place) => {
+                            self.check_callable_place_call(node, callee, &place, suffix, expected)
+                        }
+                        Err(error)
+                            if matches!(
+                                error.rule(),
+                                Some(BodyRule::UnknownField | BodyRule::InaccessibleField)
+                            ) || matches!(
+                                error,
+                                BodyCheckError::Internal(
+                                    BodyCheckInternalError::UnsupportedSyntax(_, _)
+                                )
+                            ) =>
+                        {
+                            self.check_method_call(node, owner, member, suffix, expected)
+                        }
+                        Err(error) => Err(error),
+                    }
                 } else {
                     self.check_construction_function_call(node, owner, member, suffix, expected)
                 };
@@ -96,6 +122,21 @@ impl BodyChecker<'_, '_> {
     }
 }
 
+fn owner_is_direct_call_result(
+    checker: &BodyChecker<'_, '_>,
+    mut node: NodeId,
+) -> Result<bool, BodyCheckInternalError> {
+    while checker.kind(node).is_ok_and(is_transparent_expression) {
+        let children = direct_nodes(checker.tree(), node);
+        let [child] = children.as_slice() else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node));
+        };
+        node = *child;
+    }
+    Ok(checker.kind(node)? == NodeKind::PostfixExpression
+        && crate::syntax::direct_child(checker.tree(), node, NodeKind::CallSuffix).is_some())
+}
+
 pub(super) fn member_owner_is_value(
     checker: &BodyChecker<'_, '_>,
     mut node: NodeId,
@@ -153,6 +194,7 @@ enum CallSyntax {
         suffix: NodeId,
     },
     Member {
+        callee: NodeId,
         owner: NodeId,
         member: NodeId,
         suffix: NodeId,
@@ -200,6 +242,7 @@ fn call_syntax(
             && checker.kind(*member)? == NodeKind::MemberSuffix
         {
             return Ok(CallSyntax::Member {
+                callee,
                 owner: *owner,
                 member: *member,
                 suffix: *suffix,

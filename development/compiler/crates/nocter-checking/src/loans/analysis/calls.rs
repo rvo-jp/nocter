@@ -6,10 +6,44 @@ use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId}
 use super::Analyzer;
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
+use crate::provenance::{invocation_place_can_reach_result, type_can_carry_loan};
 use crate::{
     BodyCheckError, BodyCheckInternalError, CallTarget, CheckedCall, CheckedOperation, LoanId,
     ReceiverPreparation, StaticDispatch,
 };
+
+pub(super) struct InvocationLoan {
+    carried: LoanValue,
+    place: Option<LoanValue>,
+}
+
+impl InvocationLoan {
+    pub(super) fn carried(value: LoanValue) -> Self {
+        Self {
+            carried: value,
+            place: None,
+        }
+    }
+
+    fn retained(&self, retain_invocation_place: bool) -> &LoanValue {
+        if retain_invocation_place {
+            self.place.as_ref().unwrap_or(&self.carried)
+        } else {
+            &self.carried
+        }
+    }
+
+    pub(super) fn into_carried(self) -> LoanValue {
+        self.carried
+    }
+
+    fn extend_active(&self, active: &mut BTreeSet<LoanId>) {
+        active.extend(self.carried.all_loans());
+        if let Some(place) = &self.place {
+            active.extend(place.all_loans());
+        }
+    }
+}
 
 impl Analyzer<'_, '_> {
     pub(super) fn evaluate_comparison(
@@ -133,13 +167,6 @@ impl Analyzer<'_, '_> {
         else {
             return Ok((LoanValue::independent(), false));
         };
-        let mut result = self.map_call_target(
-            call,
-            callable_value.as_ref(),
-            callable_environment.as_ref(),
-            receiver.as_ref(),
-            &arguments,
-        )?;
         let result_type = self
             .input
             .body
@@ -147,7 +174,15 @@ impl Analyzer<'_, '_> {
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?
             .ty();
-        if !self.types.may_carry_storage(result_type) {
+        let mut result = self.map_call_target(
+            call,
+            callable_value.as_ref(),
+            callable_environment.as_ref(),
+            receiver.as_ref(),
+            &arguments,
+            result_type,
+        )?;
+        if !type_can_carry_loan(self.graph, self.types, result_type) {
             result = LoanValue::independent();
         }
         Ok((result, true))
@@ -159,7 +194,7 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<LoanValue>, BodyCheckError> {
+    ) -> Result<Option<InvocationLoan>, BodyCheckError> {
         let Some(receiver) = call.receiver() else {
             return Ok(None);
         };
@@ -173,11 +208,12 @@ impl Analyzer<'_, '_> {
         receiver: &crate::CheckedReceiver,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<LoanValue>, BodyCheckError> {
+    ) -> Result<Option<InvocationLoan>, BodyCheckError> {
         let value = match receiver.preparation() {
             ReceiverPreparation::BorrowPlace(capability) => {
                 let place = self.place_node(receiver.value())?;
                 self.evaluate_place_indices(place, state, extra)?;
+                let carried = self.read_place(place, state)?;
                 let loans = self.issue_loan_as(
                     LoanId::Operand { node, position },
                     node,
@@ -186,24 +222,21 @@ impl Analyzer<'_, '_> {
                     state,
                     extra,
                 )?;
-                state.set_node(receiver.value(), self.read_place(place, state)?);
-                loans
-            }
-            ReceiverPreparation::BorrowTemporary(_) => {
-                let (_, reaches) = self.evaluate(receiver.value(), state, extra)?;
-                if !reaches {
-                    return Ok(None);
+                state.set_node(receiver.value(), carried.clone());
+                InvocationLoan {
+                    carried,
+                    place: Some(loans),
                 }
-                LoanValue::independent()
             }
-            ReceiverPreparation::Owned
+            ReceiverPreparation::BorrowTemporary(_)
+            | ReceiverPreparation::Owned
             | ReceiverPreparation::PreserveBorrow(_)
             | ReceiverPreparation::WeakenReadwriteBorrow => {
                 let (value, reaches) = self.evaluate(receiver.value(), state, extra)?;
                 if !reaches {
                     return Ok(None);
                 }
-                value
+                InvocationLoan::carried(value)
             }
         };
         Ok(Some(value))
@@ -212,13 +245,13 @@ impl Analyzer<'_, '_> {
     fn evaluate_call_arguments(
         &mut self,
         call: &CheckedCall,
-        receiver: Option<&LoanValue>,
+        receiver: Option<&InvocationLoan>,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<Vec<LoanValue>>, BodyCheckError> {
+    ) -> Result<Option<Vec<InvocationLoan>>, BodyCheckError> {
         let mut invocation_active = extra.clone();
         if let Some(receiver) = receiver {
-            invocation_active.extend(receiver.all_loans());
+            receiver.extend_active(&mut invocation_active);
         }
         let mut arguments = Vec::with_capacity(call.arguments().len());
         for argument in call.arguments() {
@@ -226,8 +259,21 @@ impl Analyzer<'_, '_> {
             if !reaches {
                 return Ok(None);
             }
-            invocation_active.extend(value.all_loans());
-            arguments.push(value);
+            let checked = self
+                .input
+                .body
+                .nodes()
+                .get(*argument)
+                .ok_or(BodyCheckInternalError::MissingNode(*argument))?;
+            let argument = match checked.operation() {
+                CheckedOperation::Borrow { place, .. } => InvocationLoan {
+                    carried: self.read_place(*place, state)?,
+                    place: Some(value),
+                },
+                _ => InvocationLoan::carried(value),
+            };
+            argument.extend_active(&mut invocation_active);
+            arguments.push(argument);
         }
         Ok(Some(arguments))
     }
@@ -237,14 +283,21 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         callable_value: Option<&LoanValue>,
         callable_environment: Option<&LoanValue>,
-        receiver: Option<&LoanValue>,
-        arguments: &[LoanValue],
+        receiver: Option<&InvocationLoan>,
+        arguments: &[InvocationLoan],
+        result_type: nocter_model::TypeId,
     ) -> Result<LoanValue, BodyCheckError> {
         Ok(match call.target() {
             CallTarget::Static(selection) => {
                 let callable = match selection.dispatch() {
                     StaticDispatch::Direct(callable)
                     | StaticDispatch::InterfaceMethod {
+                        method: callable, ..
+                    }
+                    | StaticDispatch::InterfaceSelfMethod {
+                        method: callable, ..
+                    }
+                    | StaticDispatch::InterfaceDefault {
                         method: callable, ..
                     }
                     | StaticDispatch::OpaqueMethod {
@@ -274,16 +327,21 @@ impl Analyzer<'_, '_> {
                     })
                     .ok_or(BodyCheckInternalError::LoanAnalysis)?;
                 let mut result = LoanValue::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
                 for origin in contract.provenance().origins() {
-                    result.union_with(
-                        arguments
-                            .get(origin.position())
-                            .ok_or(BodyCheckInternalError::LoanAnalysis)?,
-                    );
+                    let argument = arguments
+                        .get(origin.position())
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    result.union_with(&argument.retained(retain_place).flattened());
                 }
-                result.union_with(callable_value.ok_or(BodyCheckInternalError::LoanAnalysis)?);
-                if let Some(environment) = callable_environment {
-                    result.union_with(environment);
+                result.union_with(
+                    &callable_value
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?
+                        .flattened(),
+                );
+                if retain_place && let Some(environment) = callable_environment {
+                    result.union_with(&environment.flattened());
                 }
                 result
             }
@@ -295,22 +353,24 @@ impl Analyzer<'_, '_> {
                     .ok_or(BodyCheckInternalError::LoanAnalysis)?;
                 let callable = callable_value.ok_or(BodyCheckInternalError::LoanAnalysis)?;
                 let mut result = LoanValue::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
                 for origin in summary.parameters().origins() {
-                    result.union_with(
-                        arguments
-                            .get(origin.position())
-                            .ok_or(BodyCheckInternalError::LoanAnalysis)?,
-                    );
+                    let argument = arguments
+                        .get(origin.position())
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    result.union_with(&argument.retained(retain_place).flattened());
                 }
                 for capture in summary.captures() {
-                    result.union_with(
-                        &callable
-                            .projected(crate::ProvenanceProjection::ClosureCaptureValue(*capture)),
-                    );
+                    let capture = callable
+                        .projected(crate::ProvenanceProjection::ClosureCaptureValue(*capture));
+                    result.union_with(&capture.flattened());
                 }
                 if summary.retains_environment() {
                     result.union_with(
-                        callable_environment.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                        &callable_environment
+                            .ok_or(BodyCheckInternalError::LoanAnalysis)?
+                            .flattened(),
                     );
                 }
                 result
@@ -321,8 +381,8 @@ impl Analyzer<'_, '_> {
     pub(super) fn map_callable_result(
         &self,
         callable: CallableId,
-        receiver: Option<&LoanValue>,
-        arguments: &[LoanValue],
+        receiver: Option<&InvocationLoan>,
+        arguments: &[InvocationLoan],
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -339,7 +399,16 @@ impl Analyzer<'_, '_> {
         for origin in summary.origins() {
             match origin {
                 ProvenanceOrigin::Receiver => {
-                    result.union_with(receiver.ok_or(BodyCheckInternalError::LoanAnalysis)?);
+                    let receiver = receiver.ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    result.union_with(
+                        &receiver
+                            .retained(invocation_place_can_reach_result(
+                                self.graph,
+                                self.types,
+                                declaration.result(),
+                            ))
+                            .flattened(),
+                    );
                 }
                 ProvenanceOrigin::Parameter(parameter) => {
                     let position = declaration
@@ -347,10 +416,17 @@ impl Analyzer<'_, '_> {
                         .iter()
                         .position(|candidate| candidate == parameter)
                         .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    let argument = arguments
+                        .get(position)
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
                     result.union_with(
-                        arguments
-                            .get(position)
-                            .ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                        &argument
+                            .retained(invocation_place_can_reach_result(
+                                self.graph,
+                                self.types,
+                                declaration.result(),
+                            ))
+                            .flattened(),
                     );
                 }
             }

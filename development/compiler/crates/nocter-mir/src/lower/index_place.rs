@@ -170,7 +170,7 @@ impl FunctionLowerer<'_> {
         Ok((*input, signature.result()))
     }
 
-    fn borrow_shape(
+    pub(super) fn borrow_shape(
         &self,
         place: PlaceId,
         ty: TypeId,

@@ -23,7 +23,7 @@ use crate::{
 use access::{module_index_by_id, module_index_by_identity, visibility_is_within, visible_from};
 use projection::project_import;
 
-pub use prelude::{PreludeError, PreparedNamespaces, apply_standard_prelude};
+pub use prelude::{PreparedNamespaces, ToolchainError, apply_toolchain_profile};
 pub use violation::{ImportRule, ImportViolation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

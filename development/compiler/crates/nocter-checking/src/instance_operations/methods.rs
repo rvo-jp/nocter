@@ -334,19 +334,9 @@ impl InstanceOperationSelector<'_> {
         target: TypeId,
         name: Symbol,
     ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
-        let requirements = self.assumptions.to_vec();
+        let evidence = self.lexical_interface_evidence(target, None);
         let mut selected = Vec::new();
-        for requirement in requirements {
-            let CheckedPredicate::Capability {
-                subject,
-                capability: StructuralCapability::Interface(application),
-            } = requirement.predicate()
-            else {
-                continue;
-            };
-            if *subject != target {
-                continue;
-            }
+        for (application, evidence) in evidence {
             let interface_id = application.interface();
             let interface = self
                 .graph
@@ -355,14 +345,14 @@ impl InstanceOperationSelector<'_> {
                 .get(interface_id)
                 .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
             let associated_types = interface.associated_types().to_vec();
-            let mut substitution = self.interface_substitution(target, application)?;
+            let mut substitution = self.interface_substitution(target, &application)?;
             self.bind_lexical_associated_types(
                 interface_id,
                 target,
                 &associated_types,
                 &mut substitution,
             )?;
-            let generic_arguments = interface_generic_arguments(interface, application)?;
+            let generic_arguments = interface_generic_arguments(interface, &application)?;
             for method in interface.methods() {
                 let callable = self
                     .graph
@@ -383,10 +373,7 @@ impl InstanceOperationSelector<'_> {
                     receiver_capability: capability,
                     generic_arguments: generic_arguments.clone(),
                     substitution: substitution.clone(),
-                    dispatch: StaticDispatch::InterfaceMethod {
-                        requirement: requirement.declaration(),
-                        method: *method,
-                    },
+                    dispatch: evidence.dispatch(interface_id, *method),
                     receiver_coercion: None,
                 });
             }
@@ -406,28 +393,18 @@ impl InstanceOperationSelector<'_> {
             .interfaces()
             .get(interface_id)
             .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
-        let requirements = self.assumptions.to_vec();
+        let evidence = self.lexical_interface_evidence(target, Some(interface_id));
         let mut selected = Vec::new();
-        for requirement in requirements {
-            let CheckedPredicate::Capability {
-                subject,
-                capability: StructuralCapability::Interface(application),
-            } = requirement.predicate()
-            else {
-                continue;
-            };
-            if *subject != target || application.interface() != interface_id {
-                continue;
-            }
+        for (application, evidence) in evidence {
             let associated_types = interface.associated_types().to_vec();
-            let mut substitution = self.interface_substitution(target, application)?;
+            let mut substitution = self.interface_substitution(target, &application)?;
             self.bind_lexical_associated_types(
                 interface_id,
                 target,
                 &associated_types,
                 &mut substitution,
             )?;
-            let generic_arguments = interface_generic_arguments(interface, application)?;
+            let generic_arguments = interface_generic_arguments(interface, &application)?;
             let capability =
                 receiver_capability(self.graph, self.types, surface, &substitution, target)?;
             selected.push(MethodCandidate {
@@ -436,10 +413,7 @@ impl InstanceOperationSelector<'_> {
                 receiver_capability: capability,
                 generic_arguments,
                 substitution,
-                dispatch: StaticDispatch::InterfaceMethod {
-                    requirement: requirement.declaration(),
-                    method: surface,
-                },
+                dispatch: evidence.dispatch(interface_id, surface),
                 receiver_coercion: None,
             });
         }
@@ -523,14 +497,19 @@ impl InstanceOperationSelector<'_> {
             let selection = conformance
                 .method(surface)
                 .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
-            let (callable, substitution, generic_arguments) = match selection {
+            let (callable, substitution, generic_arguments, dispatch) = match selection {
                 MethodSelection::Implementation(callable) => {
                     let arguments = selected_generic_arguments(
                         self.types,
                         conformance.generic_parameters(),
                         &pattern_substitution,
                     )?;
-                    (callable, pattern_substitution, arguments)
+                    (
+                        callable,
+                        pattern_substitution,
+                        arguments,
+                        StaticDispatch::Direct(callable),
+                    )
                 }
                 MethodSelection::Default(callable) => {
                     let application = specialized_application(
@@ -546,7 +525,16 @@ impl InstanceOperationSelector<'_> {
                         );
                     }
                     let arguments = interface_generic_arguments(interface, &application)?;
-                    (callable, substitution, arguments)
+                    (
+                        callable,
+                        substitution,
+                        arguments,
+                        StaticDispatch::InterfaceDefault {
+                            interface: interface_id,
+                            receiver: target,
+                            method: callable,
+                        },
+                    )
                 }
             };
             let capability =
@@ -557,7 +545,7 @@ impl InstanceOperationSelector<'_> {
                 receiver_capability: capability,
                 generic_arguments,
                 substitution,
-                dispatch: StaticDispatch::Direct(callable),
+                dispatch,
                 receiver_coercion: None,
             });
         }
@@ -588,6 +576,7 @@ impl InstanceOperationSelector<'_> {
             self.types,
             self.conformances,
             self.assumptions,
+            self.intrinsic_facts,
             target,
             application,
         )?
@@ -606,14 +595,19 @@ impl InstanceOperationSelector<'_> {
         let selection = conformance
             .method(surface)
             .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
-        let (callable, substitution, generic_arguments) = match selection {
+        let (callable, substitution, generic_arguments, dispatch) = match selection {
             MethodSelection::Implementation(callable) => {
                 let arguments = selected_generic_arguments(
                     self.types,
                     conformance.generic_parameters(),
                     &pattern_substitution,
                 )?;
-                (callable, pattern_substitution, arguments)
+                (
+                    callable,
+                    pattern_substitution,
+                    arguments,
+                    StaticDispatch::Direct(callable),
+                )
             }
             MethodSelection::Default(callable) => {
                 let mut substitution = self.interface_substitution(target, application)?;
@@ -624,7 +618,16 @@ impl InstanceOperationSelector<'_> {
                     );
                 }
                 let arguments = interface_generic_arguments(&interface, application)?;
-                (callable, substitution, arguments)
+                (
+                    callable,
+                    substitution,
+                    arguments,
+                    StaticDispatch::InterfaceDefault {
+                        interface: application.interface(),
+                        receiver: target,
+                        method: callable,
+                    },
+                )
             }
         };
         let receiver_capability =
@@ -635,7 +638,7 @@ impl InstanceOperationSelector<'_> {
             receiver_capability,
             generic_arguments,
             substitution,
-            dispatch: StaticDispatch::Direct(callable),
+            dispatch,
             receiver_coercion: None,
         }])
     }
@@ -671,6 +674,43 @@ impl InstanceOperationSelector<'_> {
         Ok(substitution)
     }
 
+    fn lexical_interface_evidence(
+        &self,
+        target: TypeId,
+        interface: Option<nocter_model::InterfaceId>,
+    ) -> Vec<(InterfaceApplication, LexicalInterfaceEvidence)> {
+        let declared = self.assumptions.iter().filter_map(|requirement| {
+            let CheckedPredicate::Capability {
+                subject,
+                capability: StructuralCapability::Interface(application),
+            } = requirement.predicate()
+            else {
+                return None;
+            };
+            (*subject == target
+                && interface.is_none_or(|expected| expected == application.interface()))
+            .then(|| {
+                (
+                    application.clone(),
+                    LexicalInterfaceEvidence::Requirement(requirement.declaration()),
+                )
+            })
+        });
+        let intrinsic = self.intrinsic_facts.iter().filter_map(|predicate| {
+            let CheckedPredicate::Capability {
+                subject,
+                capability: StructuralCapability::Interface(application),
+            } = predicate
+            else {
+                return None;
+            };
+            (*subject == target
+                && interface.is_none_or(|expected| expected == application.interface()))
+            .then(|| (application.clone(), LexicalInterfaceEvidence::InterfaceSelf))
+        });
+        declared.chain(intrinsic).collect()
+    }
+
     fn bind_lexical_associated_types(
         &mut self,
         interface: nocter_model::InterfaceId,
@@ -696,13 +736,27 @@ impl InstanceOperationSelector<'_> {
                 associated_projection(self.graph, self.types, *left, interface, target)
             {
                 substitution.bind_associated(associated, *right);
-            } else if let Some(associated) =
-                associated_projection(self.graph, self.types, *right, interface, target)
-            {
-                substitution.bind_associated(associated, *left);
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LexicalInterfaceEvidence {
+    Requirement(nocter_model::RequirementId),
+    InterfaceSelf,
+}
+
+impl LexicalInterfaceEvidence {
+    fn dispatch(self, interface: nocter_model::InterfaceId, method: CallableId) -> StaticDispatch {
+        match self {
+            Self::Requirement(requirement) => StaticDispatch::InterfaceMethod {
+                requirement,
+                method,
+            },
+            Self::InterfaceSelf => StaticDispatch::InterfaceSelfMethod { interface, method },
+        }
     }
 }
 

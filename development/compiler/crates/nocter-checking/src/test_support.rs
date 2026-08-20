@@ -1,7 +1,7 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    UseTargetInput,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, StandardRoleInput,
+    ToolchainInput, UseResolutionInput, UseTargetInput,
 };
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
@@ -14,6 +14,18 @@ pub(crate) struct Fixture {
     child: Option<SyntaxTree>,
     standard: SyntaxTree,
     prelude: SyntaxTree,
+}
+
+pub(crate) fn with_standard_roles(
+    input: CompileUnitInput<'_>,
+    roles: Vec<StandardRoleInput>,
+) -> CompileUnitInput<'_> {
+    let toolchain = input
+        .toolchain()
+        .expect("checking fixture always supplies a toolchain profile")
+        .clone()
+        .with_standard_roles(roles);
+    input.with_toolchain(toolchain)
 }
 
 impl Fixture {
@@ -62,7 +74,7 @@ impl Fixture {
         declaration_token(&self.sources, &self.app, kind, name)
     }
 
-    pub(crate) fn input(&self, reverse: bool) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    pub(crate) fn input(&self, reverse: bool) -> CompileUnitInput<'_> {
         let mut packages = vec![
             package(
                 "workspace:app",
@@ -109,16 +121,19 @@ impl Fixture {
                 )),
             )]
         });
-        (
-            CompileUnitInput::new(
-                nocter_model::CompilationTarget::Arm64Darwin,
-                &self.sources,
-                packages,
-                modules,
-                resolutions,
-            ),
-            prelude,
+        CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &self.sources,
+            packages,
+            modules,
+            resolutions,
         )
+        .with_toolchain(ToolchainInput::new(
+            PackageIdentity::new("toolchain:std"),
+            prelude,
+            Vec::new(),
+            Vec::new(),
+        ))
     }
 }
 

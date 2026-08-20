@@ -158,13 +158,6 @@ construct String {
     }
 }
 
-instance String {
-    /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub coerce &self as &str {
-        return view(self)
-    }
-}
-
 func view(text: &String): &str {
     return str_from_raw_parts(text.storage.ptr, text.len)
 }
@@ -337,6 +330,11 @@ pub func capacity_overflow(): error {
 }
 
 instance String {
+    /// Exposes the initialized UTF-8 prefix without transferring ownership.
+    pub coerce &self as &str {
+        return view(self)
+    }
+
     pub method &self.capacity(): usize {
         return capacity(self)
     }

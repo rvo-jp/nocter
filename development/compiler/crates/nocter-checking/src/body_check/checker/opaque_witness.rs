@@ -170,8 +170,14 @@ impl BodyChecker<'_, '_> {
             subject: witness,
             capability: nocter_declarations::StructuralCapability::Interface(application.clone()),
         };
-        if !proves_predicate(self.types, self.conformances, &self.assumptions, &predicate)
-            .map_err(BodyCheckInternalError::BodyAssumptions)?
+        if !proves_predicate(
+            self.types,
+            self.conformances,
+            &self.assumptions,
+            &self.intrinsic_facts,
+            &predicate,
+        )
+        .map_err(BodyCheckInternalError::BodyAssumptions)?
         {
             return Err(self.rule(BodyRule::InvalidOpaqueWitness, node)?);
         }
@@ -179,6 +185,7 @@ impl BodyChecker<'_, '_> {
             self.types,
             self.conformances,
             &self.assumptions,
+            &self.intrinsic_facts,
             witness,
             &application,
         )

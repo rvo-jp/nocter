@@ -89,11 +89,27 @@ impl ValueProvenance {
 
     #[must_use]
     pub fn all_sources(&self) -> BTreeSet<ProvenanceSource> {
-        let mut sources = self.sources.clone();
-        for child in self.projections.values() {
-            sources.extend(child.all_sources());
+        let mut sources = BTreeSet::new();
+        let mut pending = vec![self];
+        while let Some(value) = pending.pop() {
+            sources.extend(value.sources.iter().copied());
+            pending.extend(value.projections.values());
         }
         sources
+    }
+
+    /// Erases field-sensitive shape while retaining every storage authority carried by a value.
+    ///
+    /// Callable provenance contracts name input origins, not a structural mapping between input
+    /// and result projections. Values crossing such a boundary must therefore become root-wide:
+    /// retaining an input projection tree would invent a stronger contract and would give loops
+    /// an unbounded provenance domain when a result is fed back into a later call.
+    #[must_use]
+    pub(crate) fn flattened(&self) -> Self {
+        Self {
+            sources: self.all_sources(),
+            projections: BTreeMap::new(),
+        }
     }
 
     #[must_use]
@@ -404,6 +420,28 @@ mod tests {
             root.projected(ProvenanceProjection::Field(field))
                 .all_sources(),
             std::collections::BTreeSet::from([ProvenanceSource::Local(local)])
+        );
+    }
+
+    #[test]
+    fn callable_boundary_flattening_erases_projection_shape() {
+        let mut fields = ArenaBuilder::<FieldId, _>::new();
+        let field = fields.insert(());
+        let _ = fields.finish();
+        let mut locals = ArenaBuilder::<LocalBindingId, _>::new();
+        let local = locals.insert(());
+        let _ = locals.finish();
+        let projected = ValueProvenance::from_projection(
+            ProvenanceProjection::Field(field),
+            ValueProvenance::from_source(ProvenanceSource::Local(local)),
+        );
+
+        let flattened = projected.flattened();
+
+        assert!(flattened.projections().is_empty());
+        assert_eq!(
+            flattened.direct_sources().collect::<Vec<_>>(),
+            vec![ProvenanceSource::Local(local)]
         );
     }
 }

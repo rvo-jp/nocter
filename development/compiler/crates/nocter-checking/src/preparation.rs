@@ -125,6 +125,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 
 #[derive(Debug)]
 pub enum PreparationError {
+    MissingToolchain,
     TargetMismatch {
         input: CompilationTarget,
         program: CompilationTarget,
@@ -145,7 +146,8 @@ impl PreparationError {
         match self {
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
-            Self::TargetMismatch { .. }
+            Self::MissingToolchain
+            | Self::TargetMismatch { .. }
             | Self::DropTable(_)
             | Self::ConstructionSurfaces(_)
             | Self::StandardSemantics(_) => None,
@@ -159,6 +161,7 @@ impl PreparationError {
 impl fmt::Display for PreparationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingToolchain => formatter.write_str("compile input has no toolchain profile"),
             Self::TargetMismatch { input, program } => write!(
                 formatter,
                 "checking input target {input} does not match declaration program target {program}"
@@ -241,6 +244,9 @@ pub fn prepare_program_checking<'syntax>(
     program: DeclarationProgram,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
+    let toolchain = input
+        .toolchain()
+        .ok_or(PreparationError::MissingToolchain)?;
     if input.target() != program.target() {
         return Err(PreparationError::TargetMismatch {
             input: input.target(),
@@ -258,7 +264,7 @@ pub fn prepare_program_checking<'syntax>(
     let construction_surfaces = ConstructionSurfaceTable::build(&graph, &types)?;
     let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)?;
     let standard_semantics =
-        StandardSemanticTable::build(input.standard_roles(), &graph, &types, &source_index)?;
+        StandardSemanticTable::build(toolchain.standard_roles(), &graph, &types, &source_index)?;
     let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
@@ -292,8 +298,8 @@ mod tests {
              construct Value { pub func new(): Self { loop {} } }\n\
              func main(): void { return }\n",
         );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
@@ -311,8 +317,8 @@ mod tests {
         let fixture = Fixture::new(
             "struct Bad { value: void }\nfunc main(): void { missing\n    return\n}\n",
         );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let error = prepare_program_checking(&input, program, source_index).unwrap_err();
 
@@ -325,8 +331,8 @@ mod tests {
             "struct Owned {\n    value: i32\n}\n\
              copy struct Invalid<T> {\n    owned: Owned\n    marker: &T\n}\n",
         );
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let error = prepare_program_checking(&input, program, source_index).unwrap_err();
 
@@ -336,8 +342,8 @@ mod tests {
     #[test]
     fn copy_struct_retains_its_generic_dependent_family_condition() {
         let fixture = Fixture::new("copy struct Box<T> {\n    value: T\n}\n");
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
         let (family, declaration) = prepared

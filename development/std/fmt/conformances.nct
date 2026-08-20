@@ -93,5 +93,6 @@ conform Format for usize {
 
 func copy_value<T>(value: &T): T where copy T {
     let pointer: *T = from_ref(value)
-    return slice_from_raw_parts_value(pointer, 1)[0]
+    let values: &[T] = slice_from_raw_parts_value(pointer, 1)
+    return values[0]
 }

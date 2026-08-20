@@ -1,16 +1,17 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_model::BuiltinType;
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    BorrowConversionImplementation, BorrowConversionPreparation, CheckedOperation, StaticDispatch,
-    prepare_program_checking,
+    BorrowConversionImplementation, BorrowConversionPreparation, CheckedOperation,
+    PrimitiveOperation, StaticDispatch, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -157,6 +158,58 @@ fn expected_type_conversion_never_chains_source_coercions() {
     .unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");
+}
+
+#[test]
+fn explicit_integer_conversion_records_one_lossless_checked_operation() {
+    let output = check("func widen(value: u32): i64 {\n    value as i64\n}\n").unwrap();
+    let conversions = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Primitive(PrimitiveOperation::IntegerConversion {
+                operand,
+                target,
+            }) => Some((*operand, *target, node.ty())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(conversions.len(), 1);
+    assert_eq!(
+        conversions[0].1,
+        output.program().types().builtin(BuiltinType::I64)
+    );
+    assert_eq!(conversions[0].1, conversions[0].2);
+}
+
+#[test]
+fn explicit_integer_conversion_rejects_narrowing_and_signed_to_unsigned_ranges() {
+    for source in [
+        "func narrow(value: u64): u8 {\n    value as u8\n}\n",
+        "func change_sign(value: i32): u64 {\n    value as u64\n}\n",
+        "func too_wide(value: u64): i64 {\n    value as i64\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");
+    }
+}
+
+#[test]
+fn explicit_borrow_conversion_selects_one_exact_source_entry() {
+    let output = check(
+        "struct Text { value: i32 }\nstruct Wrapper { text: Text }\ninstance Wrapper {\n    pub coerce &self as &Text {\n        return &self.text\n    }\n}\nfunc view(wrapper: &Wrapper): &Text {\n    wrapper as &Text\n}\n",
+    )
+    .unwrap();
+    let conversions = conversions(&output);
+
+    assert_eq!(conversions.len(), 1);
+    assert!(matches!(
+        conversions[0].implementation(),
+        BorrowConversionImplementation::Selected(_)
+    ));
 }
 
 fn conversions(output: &crate::CheckedProgramOutput) -> Vec<&crate::CheckedBorrowConversion> {

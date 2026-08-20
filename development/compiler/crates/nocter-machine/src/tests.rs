@@ -1646,8 +1646,8 @@ fn lower_test_fixture(source: &str) -> nocter_mir::MirProgram {
 }
 
 fn lower_selected_fixture(fixture: &CompilerFixture, tests: bool) -> nocter_mir::MirProgram {
-    let (input, prelude) = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (declarations, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, declarations, source_index).unwrap();
     let checked = check_prepared_program(&input, prepared)

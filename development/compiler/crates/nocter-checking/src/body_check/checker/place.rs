@@ -6,9 +6,7 @@ use super::{BodyChecker, NodeProjection, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
-use crate::instance_operations::{
-    IndexOperationCandidate, InstanceOperationSelector, retain_direct_candidates,
-};
+use crate::instance_operations::{IndexOperationCandidate, retain_direct_candidates};
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, identifier_tokens, is_transparent_expression,
 };
@@ -22,6 +20,7 @@ struct PlaceDraft {
     projections: Vec<PlaceProjection>,
     projection_types: Vec<TypeId>,
     partial_parents: Vec<nocter_model::NominalTypeId>,
+    source_projections: Vec<NodeProjection>,
 }
 
 impl BodyChecker<'_, '_> {
@@ -83,9 +82,29 @@ impl BodyChecker<'_, '_> {
         syntax: PlaceSyntax,
         capability: BorrowCapability,
     ) -> Result<ResolvedPlace, BodyCheckError> {
-        let token = direct_identifier(self.tree(), syntax.root)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(syntax.root))?;
-        let mut draft = self.start_place(syntax.root, token)?;
+        let mut draft = if self.kind(syntax.root)? == NodeKind::ReferenceExpression {
+            let token = direct_identifier(self.tree(), syntax.root)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(syntax.root))?;
+            self.start_place(syntax.root, token)?
+        } else {
+            if matches!(
+                self.kind(syntax.root)?,
+                NodeKind::StructLiteral
+                    | NodeKind::TypedSequenceLiteral
+                    | NodeKind::TypedStringLiteral
+                    | NodeKind::ArrayLiteral
+                    | NodeKind::StringExpression
+                    | NodeKind::ScalarLiteral
+                    | NodeKind::ClosureExpression
+            ) {
+                return Err(BodyCheckInternalError::UnsupportedSyntax(
+                    syntax.root,
+                    self.kind(syntax.root)?,
+                )
+                .into());
+            }
+            self.start_value_place(syntax.root)?
+        };
         for operation in syntax.operations {
             match operation {
                 PlaceOperation::Field(suffix) => {
@@ -108,6 +127,60 @@ impl BodyChecker<'_, '_> {
             .place(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
         Ok(place.is_writable())
+    }
+
+    pub(super) fn reborrow_place_value(
+        &mut self,
+        syntax: NodeId,
+        place: nocter_model::PlaceId,
+        target_capability: BorrowCapability,
+    ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
+        let checked = self
+            .builder
+            .place(place)
+            .cloned()
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
+        let Some(TypeKind::Borrow {
+            capability: source_capability,
+            referent,
+        }) = self.types.get(checked.ty()).cloned()
+        else {
+            return Err(self.rule(BodyRule::TypeMismatch, syntax)?);
+        };
+        let mut draft = PlaceDraft {
+            root: checked.root(),
+            ty: checked.ty(),
+            access: checked.access(),
+            writable: checked.is_writable(),
+            projections: checked.projections().to_vec(),
+            projection_types: checked.projection_types().to_vec(),
+            partial_parents: Vec::new(),
+            source_projections: Vec::new(),
+        };
+        let base = self.place_projection_base(&mut draft)?;
+        if base != referent
+            || (target_capability == BorrowCapability::ReadWrite
+                && (source_capability != BorrowCapability::ReadWrite || !draft.writable))
+        {
+            return Err(self.rule(BodyRule::InvalidReadWriteBorrow, syntax)?);
+        }
+        draft.ty = base;
+        let place = self.finish_place(draft);
+        let ty = self
+            .types
+            .intern(TypeKind::Borrow {
+                capability: target_capability,
+                referent,
+            })
+            .map_err(|_| BodyCheckInternalError::UnknownType(referent))?;
+        self.add_node(
+            syntax,
+            ty,
+            crate::CheckedOperation::Borrow {
+                capability: target_capability,
+                place: place.id,
+            },
+        )
     }
 
     pub(super) fn is_region_place(
@@ -143,6 +216,15 @@ impl BodyChecker<'_, '_> {
         self.start_place_from_root(node, root, ty)
     }
 
+    fn start_value_place(&mut self, node: NodeId) -> Result<PlaceDraft, BodyCheckError> {
+        let value = self.check_expression(node, None)?;
+        let ty = self.node_type(value)?;
+        if !matches!(self.types.get(ty), Some(TypeKind::Borrow { .. })) {
+            return Err(self.rule(BodyRule::InvalidIndexOperation, node)?);
+        }
+        self.start_place_from_root(node, PlaceRoot::Value(value), ty)
+    }
+
     pub(super) fn target_place(
         &mut self,
         node: NodeId,
@@ -170,7 +252,7 @@ impl BodyChecker<'_, '_> {
                 .captures()
                 .get(capture)
                 .is_some_and(|capture| capture.mode() == crate::CaptureMode::ReadWrite),
-            PlaceRoot::Parameter(_) => false,
+            PlaceRoot::Parameter(_) | PlaceRoot::Value(_) => false,
         };
         let access = match root {
             PlaceRoot::Capture(capture) => match self
@@ -194,7 +276,9 @@ impl BodyChecker<'_, '_> {
                     .into());
                 }
             },
-            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) => PlaceAccess::Owned,
+            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Value(_) => {
+                PlaceAccess::Owned
+            }
         };
         Ok(PlaceDraft {
             root,
@@ -204,6 +288,7 @@ impl BodyChecker<'_, '_> {
             projections: Vec::new(),
             projection_types: Vec::new(),
             partial_parents: Vec::new(),
+            source_projections: Vec::new(),
         })
     }
 
@@ -246,7 +331,7 @@ impl BodyChecker<'_, '_> {
         }
         let origin = SourceOrigin::from_token(self.tree(), field_token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-        self.projections.push(NodeProjection {
+        draft.source_projections.push(NodeProjection {
             entity: SemanticEntity::Field(selected.field()),
             origin,
         });
@@ -289,15 +374,7 @@ impl BodyChecker<'_, '_> {
         }
         let receiver_writable = draft.writable;
         let mut candidates = {
-            let mut selector = InstanceOperationSelector::new(
-                self.graph,
-                self.types,
-                self.conformances,
-                self.copyabilities,
-                self.instance_operations,
-                &self.assumptions,
-                self.source.module(),
-            );
+            let mut selector = self.instance_selector();
             let mut candidates = selector
                 .select_index_operations(base, capability)
                 .map_err(BodyCheckInternalError::from)?;
@@ -388,6 +465,7 @@ impl BodyChecker<'_, '_> {
     }
 
     fn finish_place(&mut self, draft: PlaceDraft) -> ResolvedPlace {
+        self.projections.extend(draft.source_projections);
         ResolvedPlace {
             id: self.builder.add_place(
                 draft.root,
@@ -535,11 +613,25 @@ fn collect_postfix_operations(
                     NodeKind::MemberSuffix => PlaceOperation::Field(children[1]),
                     NodeKind::IndexSuffix => PlaceOperation::Index(children[1]),
                     NodeKind::CallSuffix => {
-                        return Err(PlaceSyntaxError::NotPlace(children[1]));
+                        if operations.is_empty() {
+                            return Err(PlaceSyntaxError::NotPlace(children[1]));
+                        }
+                        operations.reverse();
+                        return Ok(PlaceSyntax {
+                            root: node,
+                            operations,
+                        });
                     }
                     _ => return Err(PlaceSyntaxError::InvalidSyntax(node)),
                 });
                 node = children[0];
+            }
+            _ if !operations.is_empty() => {
+                operations.reverse();
+                return Ok(PlaceSyntax {
+                    root: node,
+                    operations,
+                });
             }
             _ => return Err(PlaceSyntaxError::NotPlace(node)),
         }

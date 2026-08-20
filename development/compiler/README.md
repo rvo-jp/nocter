@@ -152,7 +152,7 @@ be introduced to make an unresolved syntax choice.
   Prelude composition adds no second import diagnostic system: authored import preparation retains
   every module-path origin, and an explicit compiler-managed prelude import reuses `ImportRule`
   `E0262`. Missing compiler-selected modules, missing retained origins, and invalid builder state
-  remain internal `PreludeError` variants. The frozen program retains authored and fallback module
+  remain internal `ToolchainError` variants. The frozen program retains authored and fallback module
   namespace layers separately. Later body lookup consumes them directly; fallback names remain
   shadowable and non-exportable. Block imports belong to checked lexical scopes rather than the
   declaration import arena.
@@ -163,6 +163,20 @@ be introduced to make an unresolved syntax choice.
   witness is complete and canonically rotated by declaration identity. General equalities are
   validated after alias expansion. No source coordinate enters a `BoundTypeKind`, canonical
   `TypeKind`, or semantic ID.
+- `nocter-compile-input` owns the neutral immutable handoff from physical discovery to semantic
+  lowering. It carries canonical package/module/source topology, selected import and package-target
+  edges, and one exact toolchain profile. That profile names the standard package, prelude,
+  built-in attachment modules, and standard semantic declaration tokens without assigning dense
+  semantic IDs or retaining filesystem policy.
+- `nocter-target-selection` owns target-gate decoding and activity. Discovery and declaration
+  surface construction consume the same prepared decisions; inactive imports and declarations do
+  not probe the filesystem or acquire semantic identity.
+- `nocter-discovery` is the only filesystem source-graph authority. It canonicalizes resolved
+  package roots, loads package and module roots, closes implementation-source and dependency edges,
+  rejects ownership escapes and source/module ambiguity, and freezes deterministic compile input.
+  It also loads every exact toolchain module and resolves each standard semantic role locator to one
+  declaration token before lowering. A syntax-clean complete `development/std` graph passes full
+  declaration and checked-body construction through this boundary.
 - `nocter-checking` owns the Phase 3 syntax boundary. It catalogs every declaration `BodyId` from
   its exact source projection and resolves body scopes, locals, block imports, and explicit closure
   captures without creating a second module namespace. Its program-wide conformance table applies
@@ -286,6 +300,9 @@ be introduced to make an unresolved syntax choice.
   stores caller-visible origins separately from compiler-owned current-allocation dependence.
   Return validation projects `E0395` for local, owned-parameter, temporary, region, unknown, or
   undeclared origins, and conformance implementations cannot exceed their interface method bound.
+  Callable mapping keeps carried input authority separate from the implicit place loan created for
+  one invocation. Only an explicit borrow-bearing result representation can retain that invocation
+  loan; owned raw storage may preserve provenance without borrowing a local capability place.
 - `nocter-target-program` owns the selected-target and executable boundaries. `TargetProgram`
   consumes the checked program and one immutable toolchain snapshot, validates target/package
   identity and the complete closed primitive registry, and is shared by check, build, and run.

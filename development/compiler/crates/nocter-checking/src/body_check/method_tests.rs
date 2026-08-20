@@ -10,8 +10,8 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -218,8 +218,22 @@ fn conformance_default_method_uses_specialized_interface_contract() {
         })
         .expect("default method call");
 
-    assert!(matches!(selection.dispatch(), StaticDispatch::Direct(_)));
+    assert!(matches!(
+        selection.dispatch(),
+        StaticDispatch::InterfaceDefault { .. }
+    ));
     assert_eq!(selection.generic_arguments().as_slice().len(), 1);
+}
+
+#[test]
+fn interface_default_body_proves_its_exact_self_conformance() {
+    check(
+        "pub interface Readable {\n\
+             pub method &self.read(): i32 { inspect(self) }\n\
+         }\n\
+         func inspect<R>(value: &R): i32 where R: Readable { 0 }\n",
+    )
+    .unwrap();
 }
 
 #[test]
@@ -380,6 +394,17 @@ fn exact_receiver_method_has_priority_over_coercion_routes() {
 }
 
 #[test]
+fn nested_field_method_fallback_publishes_each_source_projection_once() {
+    check(
+        "struct Inner {}\n\
+         instance Inner { pub method &self.len(): usize { 0 } }\n\
+         struct Outer { inner: Inner }\n\
+         func len(value: &Outer): usize { value.inner.len() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn equally_ranked_receiver_coercion_routes_are_ambiguous() {
     let error = check(
         "struct First {}\n\
@@ -411,8 +436,8 @@ fn method_selection_is_independent_of_compile_unit_input_order() {
     );
     let mut outputs = Vec::new();
     for reverse in [false, true] {
-        let (input, prelude) = fixture.input(reverse);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(reverse);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let prepared = prepare_program_checking(&input, program, source_index).unwrap();
         outputs.push(check_prepared_program(&input, prepared).unwrap());

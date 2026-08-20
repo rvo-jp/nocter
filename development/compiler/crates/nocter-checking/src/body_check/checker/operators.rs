@@ -8,7 +8,7 @@ use crate::body_check::literal::{
     contextual_integer_type, fits_negative_integer, is_integer_type, is_signed_integer_type,
     parse_integer,
 };
-use crate::instance_operations::{ComparisonCandidateImplementation, InstanceOperationSelector};
+use crate::instance_operations::ComparisonCandidateImplementation;
 use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
 use crate::{
     CheckedComparison, CheckedControl, CheckedOperation, CheckedReadonlyOperand,
@@ -201,7 +201,7 @@ impl BodyChecker<'_, '_> {
         let [left_syntax, right_syntax] = binary_operands(self, node)?;
         let left = self.check_readonly_operand(left_syntax, None)?;
         let right_expected = (is_integer_type(self.types, left.owner)
-            && direct_integer_literal(self, right_syntax).is_some())
+            && is_contextual_integer_expression(self, right_syntax))
         .then_some(left.owner);
         let right = self.check_readonly_operand(right_syntax, right_expected)?;
         let never = self.types.builtin(BuiltinType::Never);
@@ -219,15 +219,7 @@ impl BodyChecker<'_, '_> {
                 (left.owner, right.owner)
             };
             let candidates = {
-                let mut selector = InstanceOperationSelector::new(
-                    self.graph,
-                    self.types,
-                    self.conformances,
-                    self.copyabilities,
-                    self.instance_operations,
-                    &self.assumptions,
-                    self.source.module(),
-                );
+                let mut selector = self.instance_selector();
                 selector
                     .select_comparison_operations(semantic_left, semantic_right, operation)
                     .map_err(BodyCheckInternalError::from)?
@@ -372,6 +364,49 @@ fn direct_integer_literal(
             .then(|| direct_token(checker.tree(), current))
             .flatten()
             .filter(|token| token.kind() == TokenKind::IntegerLiteral);
+    }
+}
+
+/// Identifies a built-in integer expression that can adopt a comparison operand's integer type.
+///
+/// Arithmetic owns exact operand compatibility after receiving the context. This keeps literal
+/// inference available without forcing a left-owned type onto heterogeneous source operators.
+fn is_contextual_integer_expression(checker: &BodyChecker<'_, '_>, root: NodeId) -> bool {
+    let mut current = root;
+    loop {
+        let Some(kind) = checker
+            .tree()
+            .node(current)
+            .map(nocter_syntax::SyntaxNode::kind)
+        else {
+            return false;
+        };
+        if is_transparent_expression(kind) {
+            let children = direct_nodes(checker.tree(), current);
+            if let [child] = children.as_slice() {
+                current = *child;
+                continue;
+            }
+        }
+        if matches!(
+            kind,
+            NodeKind::AdditiveExpression
+                | NodeKind::MultiplicativeExpression
+                | NodeKind::ShiftExpression
+        ) {
+            return true;
+        }
+        if kind == NodeKind::UnaryExpression
+            && direct_token(checker.tree(), current)
+                .is_some_and(|token| token.kind() == TokenKind::Punctuation(Punctuation::Minus))
+        {
+            let children = direct_nodes(checker.tree(), current);
+            let [operand] = children.as_slice() else {
+                return false;
+            };
+            return direct_integer_literal(checker, *operand).is_some();
+        }
+        return direct_integer_literal(checker, current).is_some();
     }
 }
 

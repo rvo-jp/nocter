@@ -2,7 +2,7 @@ use nocter_declarations::StructuralCapability;
 use nocter_model::{BodyNodeId, CallableCapability, ClosureId, TypeId, TypeKind};
 use nocter_syntax::NodeId;
 
-use super::BodyChecker;
+use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::direct_nodes;
@@ -20,6 +20,17 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let place = self.named_place(reference)?;
+        self.check_callable_place_call(node, reference, &place, suffix, expected)
+    }
+
+    pub(super) fn check_callable_place_call(
+        &mut self,
+        node: NodeId,
+        reference: NodeId,
+        place: &ResolvedPlace,
+        suffix: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let selected = self.callable_contract(place.ty, node)?;
         let (capability, parameters, result) = match &selected {
             CallableValueContract::Closure(_, signature) => (

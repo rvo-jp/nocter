@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::Analyzer;
+use super::calls::InvocationLoan;
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
@@ -37,6 +38,12 @@ impl Analyzer<'_, '_> {
             | crate::StaticDispatch::InterfaceMethod {
                 method: callable, ..
             }
+            | crate::StaticDispatch::InterfaceSelfMethod {
+                method: callable, ..
+            }
+            | crate::StaticDispatch::InterfaceDefault {
+                method: callable, ..
+            }
             | crate::StaticDispatch::OpaqueMethod {
                 method: callable, ..
             } => callable,
@@ -45,7 +52,11 @@ impl Analyzer<'_, '_> {
             }
         };
         Ok(self
-            .map_callable_result(callable, Some(iterator), &[])?
+            .map_callable_result(
+                callable,
+                Some(&InvocationLoan::carried(iterator.clone())),
+                &[],
+            )?
             .projected(ProvenanceProjection::OutcomeValue))
     }
 

@@ -7,6 +7,10 @@ use nocter_source::SourceError;
 use nocter_syntax::NodeId;
 use nocter_target_selection::TargetSelectionError;
 
+mod toolchain;
+
+pub use toolchain::ToolchainDiscoveryError;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportFailure {
     UnknownDependency { alias: Box<str> },
@@ -22,6 +26,7 @@ pub enum ImportFailure {
 pub enum DiscoveryError {
     DuplicatePackage(PackageIdentity),
     UnknownPackage(PackageIdentity),
+    Toolchain(ToolchainDiscoveryError),
     InvalidPackageRoot {
         package: PackageIdentity,
         path: PathBuf,
@@ -77,6 +82,7 @@ impl fmt::Display for DiscoveryError {
             Self::UnknownPackage(package) => {
                 write!(formatter, "unknown resolved package {}", package.as_str())
             }
+            Self::Toolchain(error) => error.fmt(formatter),
             Self::InvalidPackageRoot { package, path } => write!(
                 formatter,
                 "package {} has invalid root {}",
@@ -162,6 +168,7 @@ impl std::error::Error for DiscoveryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Filesystem { error, .. } => Some(error),
+            Self::Toolchain(error) => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }

@@ -2,21 +2,24 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed canonical package/source discovery boundary. The
-authored standard library now parses, discovers, and completes declaration lowering as one real
-source graph rather than a hand-assembled fixture. Phase 5 closes process entry state and I/O
-through the generic syscall boundary without operation-specific backend roles.
+Continue v0.14.0 Phase 6 from the completed exact toolchain and checked-standard-library boundary.
+Discovery now resolves the standard package, prelude, built-in attachment modules, and every
+standard semantic role into one immutable toolchain profile. The complete authored standard
+library parses, discovers, lowers, prepares, and passes body checking as one real source graph
+rather than a hand-assembled fixture. Phase 5 closes process entry state and I/O through the
+generic syscall boundary without operation-specific backend roles.
 The previous compiler is preserved by commit `f6c08da3` and removed from the active working tree.
 No previous source, test, binary behavior, or implementation document may be used as an
 implementation input.
 
 ## Immediate Work
 
-1. Add exact toolchain-profile and package-target selection to the discovery snapshot. The profile
-   must select the synthetic prelude, built-in attachment modules, compiler-owned standard semantic
-   declarations, and primitive registry from exact source identities rather than later module/name
-   lookup. Then check complete standard-library bodies and public examples through one production
-   compile-session facade.
+1. Introduce one production compile-session facade that consumes a syntax-clean discovery snapshot
+   and owns declaration lowering, checking, target-program validation, and optional executable-root
+   selection without exposing partially assembled stage inputs. Add single-file discovery through
+   that same session, then qualify every public example through it. Primitive registry selection
+   must join this exact toolchain identity path rather than reopen standard module or declaration
+   names in target construction.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

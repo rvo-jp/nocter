@@ -1,7 +1,7 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    UseTargetInput, lower_compile_unit_declarations,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
+    UseResolutionInput, UseTargetInput, lower_compile_unit_declarations,
 };
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_source_index::{SemanticEntity, SourceRole};
@@ -15,8 +15,8 @@ fn lexical_identities_cover_scopes_and_explicit_capture_projection() {
         "func main(input: i32, arena: i32): void {\n    let first = input\n    for item in input ..< input {\n        let inside = item\n    }\n    region temp using arena {\n        let nested = temp\n    }\n    if input is State.some(payload) {\n        let branch = payload\n    }\n    let closure = (&first; value: i32): i32 { value + first }\n    drop first\n    return\n}\n",
         "",
     );
-    let (input, prelude) = fixture.input(false, Vec::new());
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let resolution = resolve_body_names(&input, program.graph(), source_index).unwrap();
     let (_, body) = resolution
@@ -69,8 +69,8 @@ fn binding_initializer_cannot_see_the_binding_being_declared() {
         "func main(): void {\n    let value = value\n    return\n}\n",
         "",
     );
-    let (input, prelude) = fixture.input(false, Vec::new());
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
 
@@ -83,8 +83,8 @@ fn closure_outer_binding_requires_an_explicit_capture() {
         "func main(input: i32): void {\n    let closure = (value: i32): i32 { input + value }\n    return\n}\n",
         "",
     );
-    let (input, prelude) = fixture.input(false, Vec::new());
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
 
@@ -106,8 +106,8 @@ fn closure_capture_rules_distinguish_missing_and_duplicate_targets() {
         ),
     ] {
         let fixture = Fixture::new(source, "");
-        let (input, prelude) = fixture.input(false, Vec::new());
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false, Vec::new());
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
@@ -120,8 +120,8 @@ fn authored_module_names_collide_but_prelude_fallback_is_shadowable() {
         "func helper(): void { return }\nfunc bad(helper: i32): void { return }\n",
         "pub struct print {}\n",
     );
-    let (input, prelude) = fixture.input(false, Vec::new());
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0341");
@@ -130,8 +130,8 @@ fn authored_module_names_collide_but_prelude_fallback_is_shadowable() {
         "func main(print: i32): void {\n    let value = print\n    return\n}\n",
         "pub struct print {}\n",
     );
-    let (input, prelude) = shadow_fixture.input(false, Vec::new());
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = shadow_fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     resolve_body_names(&input, program.graph(), source_index).unwrap();
 }
@@ -148,8 +148,8 @@ fn block_import_resolves_to_export_without_creating_local_storage() {
         use_node,
         UseTargetInput::Module(target),
     )];
-    let (input, prelude) = fixture.input_with_library(false, resolutions);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input_with_library(false, resolutions);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let resolution = resolve_body_names(&input, program.graph(), source_index).unwrap();
     let (_, body) = resolution
@@ -182,8 +182,8 @@ fn missing_selected_block_import_has_its_own_rule() {
         use_node,
         UseTargetInput::Module(target),
     )];
-    let (input, prelude) = fixture.input_with_library(false, resolutions);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input_with_library(false, resolutions);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
 
@@ -198,8 +198,8 @@ fn body_name_diagnostic_is_independent_of_package_and_module_input_order() {
     );
     let mut diagnostics = Vec::new();
     for reverse in [false, true] {
-        let (input, prelude) = fixture.input(reverse, Vec::new());
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(reverse, Vec::new());
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         diagnostics.push(
             resolve_body_names(&input, program.graph(), source_index)
@@ -242,11 +242,7 @@ impl Fixture {
         }
     }
 
-    fn input(
-        &self,
-        reverse: bool,
-        resolutions: Vec<UseResolutionInput>,
-    ) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    fn input(&self, reverse: bool, resolutions: Vec<UseResolutionInput>) -> CompileUnitInput<'_> {
         self.build_input(reverse, resolutions, false)
     }
 
@@ -254,7 +250,7 @@ impl Fixture {
         &self,
         reverse: bool,
         resolutions: Vec<UseResolutionInput>,
-    ) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    ) -> CompileUnitInput<'_> {
         self.build_input(reverse, resolutions, true)
     }
 
@@ -263,7 +259,7 @@ impl Fixture {
         reverse: bool,
         resolutions: Vec<UseResolutionInput>,
         include_library: bool,
-    ) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    ) -> CompileUnitInput<'_> {
         let mut packages = vec![
             package(
                 "workspace:app",
@@ -301,16 +297,19 @@ impl Fixture {
             modules.reverse();
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-        (
-            CompileUnitInput::new(
-                nocter_model::CompilationTarget::Arm64Darwin,
-                &self.sources,
-                packages,
-                modules,
-                resolutions,
-            ),
-            prelude,
+        CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &self.sources,
+            packages,
+            modules,
+            resolutions,
         )
+        .with_toolchain(ToolchainInput::new(
+            PackageIdentity::new("toolchain:std"),
+            prelude,
+            Vec::new(),
+            Vec::new(),
+        ))
     }
 }
 

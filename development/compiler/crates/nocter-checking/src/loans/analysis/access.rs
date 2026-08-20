@@ -10,7 +10,7 @@ use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
     BodyCheckError, BodyCheckInternalError, BodyRule, CheckedLoan, LoanId, LoanPlace,
-    LoanProjection, LoanRoot, PlaceProjection,
+    LoanProjection, LoanRoot, PlaceProjection, PlaceRoot,
 };
 
 impl Analyzer<'_, '_> {
@@ -47,7 +47,12 @@ impl Analyzer<'_, '_> {
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
-        Ok(state.value(&LiveSlot::Place(LivePlace::from_checked(place))))
+        Ok(match place.root() {
+            PlaceRoot::Value(value) => state.value(&LiveSlot::Node(value)),
+            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => {
+                state.value(&LiveSlot::Place(LivePlace::from_checked(place)))
+            }
+        })
     }
 
     pub(super) fn remove_place(
@@ -178,10 +183,12 @@ impl Analyzer<'_, '_> {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let carrier = state.value(&LiveSlot::Place(LivePlace::from_parts(
-            place.root(),
-            prefix,
-        )));
+        let carrier = match place.root() {
+            PlaceRoot::Value(value) => state.value(&LiveSlot::Node(value)),
+            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => state.value(
+                &LiveSlot::Place(LivePlace::from_parts(place.root(), prefix)),
+            ),
+        };
         let parents = carrier.all_loans();
         let suffix = Self::loan_projections(&place.projections()[dereference + 1..]);
         let mut targets = Vec::new();

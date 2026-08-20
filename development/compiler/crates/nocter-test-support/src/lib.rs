@@ -1,11 +1,12 @@
 //! Shared source fixture for compiler boundary and integration tests.
 
 use nocter_declaration_lowering::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, StandardRoleInput, UseResolutionInput, UseTargetInput,
+    BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
+    UseTargetInput,
 };
-use nocter_declarations::StandardDeclarationRole;
+use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
@@ -445,13 +446,13 @@ impl CompilerFixture {
         }
     }
 
-    /// Returns a borrowing compile-unit input and the standard prelude module.
+    /// Returns a borrowing compile-unit input with its exact toolchain profile.
     ///
     /// # Panics
     ///
     /// Panics when an internally authored fixture manifest lacks its required target directive.
     #[must_use]
-    pub fn input(&self) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    pub fn input(&self) -> CompileUnitInput<'_> {
         let app_package = PackageIdentity::new("workspace:app");
         let standard_package = PackageIdentity::new("toolchain:std");
         let app_declaration = self
@@ -516,14 +517,15 @@ impl CompilerFixture {
             )
         }));
         let use_resolutions = self.app_use_resolutions(&standard_package);
-        let prelude = ModuleIdentity::new(standard_package, ["prelude"]);
+        let toolchain = self.toolchain_input(&standard_package);
         let mut input = CompileUnitInput::new(
             CompilationTarget::Arm64Darwin,
             &self.sources,
             packages,
             modules,
             use_resolutions,
-        );
+        )
+        .with_toolchain(toolchain);
         if let Some(manifest) = &self.app_manifest {
             let declaration = manifest
                 .children(manifest.root_id())
@@ -546,10 +548,23 @@ impl CompilerFixture {
                 ModuleIdentity::new(app_package, Vec::<&str>::new()),
             )]);
         }
-        if !self.standard_roles.is_empty() {
-            input = input.with_standard_roles(self.standard_role_inputs());
-        }
-        (input, prelude)
+        input
+    }
+
+    fn toolchain_input(&self, standard: &PackageIdentity) -> ToolchainInput {
+        let attachment = |kind, path| {
+            BuiltinAttachmentInput::new(kind, ModuleIdentity::new(standard.clone(), [path]))
+        };
+        ToolchainInput::new(
+            standard.clone(),
+            ModuleIdentity::new(standard.clone(), ["prelude"]),
+            vec![
+                attachment(BuiltinAttachment::Str, "str"),
+                attachment(BuiltinAttachment::Error, "error"),
+                attachment(BuiltinAttachment::Slice, "slice"),
+            ],
+            self.standard_role_inputs(),
+        )
     }
 
     fn standard_role_inputs(&self) -> Vec<StandardRoleInput> {

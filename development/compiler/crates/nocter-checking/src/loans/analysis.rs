@@ -323,8 +323,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             .nodes()
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?;
+        let ty = checked.ty();
         let operation = checked.operation().clone();
-        let result = match operation {
+        let mut result = match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
             | CheckedOperation::LiteralPackLength(_) => (LoanValue::independent(), true),
@@ -388,6 +389,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 self.evaluate_closure(&closure, state, extra_active)?
             }
         };
+        if !crate::provenance::type_can_carry_loan(self.graph, self.types, ty) {
+            result.0 = LoanValue::independent();
+        }
         state.set_node(node, result.0.clone());
         Ok(result)
     }
@@ -436,7 +440,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             return Ok((LoanValue::independent(), false));
         };
         let result = match acquisition.acquisition() {
-            crate::IterationAcquisition::Direct => source,
+            crate::IterationAcquisition::Direct => source.into_carried(),
             crate::IterationAcquisition::Expansion(selection) => match selection.dispatch() {
                 crate::StaticDispatch::Direct(callable) => {
                     self.map_callable_result(callable, Some(&source), &[])?
@@ -452,9 +456,11 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                     ) {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }
-                    source
+                    source.into_carried()
                 }
                 crate::StaticDispatch::InterfaceMethod { .. }
+                | crate::StaticDispatch::InterfaceSelfMethod { .. }
+                | crate::StaticDispatch::InterfaceDefault { .. }
                 | crate::StaticDispatch::OpaqueMethod { .. } => {
                     return Err(BodyCheckInternalError::LoanAnalysis.into());
                 }

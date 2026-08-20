@@ -1,13 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 
-use nocter_declarations::{DeclarationGraph, NominalShape, RequirementKind};
+use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{
     BorrowCapability, BuiltinType, ClosureId, FieldId, GenericParameterId, NominalTypeId, TypeId,
     TypeKind, TypeStore, VariantId,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
+use crate::CheckedPredicate;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 mod diagnostic;
@@ -45,11 +46,43 @@ impl CopyCondition {
         }
     }
 
-    const fn classification(&self) -> Copyability {
+    fn classification(&self, proofs: &CopyProofs) -> Copyability {
         match self {
             Self::Always => Copyability::Copy,
+            Self::Requires(required) if required.is_subset(&proofs.parameters) => Copyability::Copy,
             Self::Requires(_) | Self::Impossible => Copyability::MoveOnly,
         }
+    }
+}
+
+/// Exact lexical `copy` facts available while checking one body.
+///
+/// Structural conditions belong to [`CopyabilityTable`]. Keeping authored proof scope in this
+/// separate value prevents a requirement on one member from changing sibling bodies or the rest
+/// of the program.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CopyProofs {
+    parameters: BTreeSet<GenericParameterId>,
+}
+
+impl CopyProofs {
+    pub(crate) fn from_predicates<'a>(
+        types: &TypeStore,
+        predicates: impl IntoIterator<Item = &'a CheckedPredicate>,
+    ) -> Self {
+        let parameters = predicates
+            .into_iter()
+            .filter_map(|predicate| {
+                let CheckedPredicate::Copy(ty) = predicate else {
+                    return None;
+                };
+                match types.get(*ty) {
+                    Some(TypeKind::GenericParameter(parameter)) => Some(*parameter),
+                    _ => None,
+                }
+            })
+            .collect();
+        Self { parameters }
     }
 }
 
@@ -67,7 +100,6 @@ enum CopyabilityAction {
 /// are memoized by canonical `TypeId`, then retained in `CheckedProgram` for later stages.
 #[derive(Clone, Debug, Default)]
 pub struct CopyabilityTable {
-    parameters: BTreeSet<GenericParameterId>,
     conditions: BTreeMap<TypeId, CopyCondition>,
     families: BTreeMap<NominalTypeId, CopyCondition>,
     closures: BTreeMap<ClosureId, ClosureCopyCondition>,
@@ -85,19 +117,9 @@ impl CopyabilityTable {
         types: &mut TypeStore,
         source_index: &SourceIndex,
     ) -> Result<Self, CopyabilityBuildError> {
-        let mut table = Self::new(graph);
+        let mut table = Self::default();
         table.validate_copy_families(graph, types, source_index)?;
         Ok(table)
-    }
-
-    fn new(graph: &DeclarationGraph) -> Self {
-        let mut table = Self::default();
-        for (_, requirement) in graph.declarations().requirements().iter() {
-            if let RequirementKind::Copy(parameter) = requirement.kind() {
-                table.parameters.insert(*parameter);
-            }
-        }
-        table
     }
 
     fn validate_copy_families(
@@ -152,7 +174,9 @@ impl CopyabilityTable {
     /// Returns a classification already fixed by checking.
     #[must_use]
     pub fn get(&self, ty: TypeId) -> Option<Copyability> {
-        self.conditions.get(&ty).map(CopyCondition::classification)
+        self.conditions
+            .get(&ty)
+            .map(|condition| condition.classification(&CopyProofs::default()))
     }
 
     /// Returns the retained symbolic condition for a copy-struct family.
@@ -225,6 +249,22 @@ impl CopyabilityTable {
             self.evaluate(graph, types, root)?;
         }
         self.get(root)
+            .ok_or(CopyabilityError::InvalidTraversal(root))
+    }
+
+    pub(crate) fn classify_with_proofs(
+        &mut self,
+        graph: &DeclarationGraph,
+        types: &mut TypeStore,
+        root: TypeId,
+        proofs: &CopyProofs,
+    ) -> Result<Copyability, CopyabilityError> {
+        if !self.conditions.contains_key(&root) {
+            self.evaluate(graph, types, root)?;
+        }
+        self.conditions
+            .get(&root)
+            .map(|condition| condition.classification(proofs))
             .ok_or(CopyabilityError::InvalidTraversal(root))
     }
 
@@ -321,13 +361,7 @@ impl CopyabilityTable {
                 }
                 None => Some(CopyCondition::Impossible),
             },
-            TypeKind::GenericParameter(parameter) => {
-                Some(if self.parameters.contains(&parameter) {
-                    CopyCondition::Always
-                } else {
-                    CopyCondition::requiring(parameter)
-                })
-            }
+            TypeKind::GenericParameter(parameter) => Some(CopyCondition::requiring(parameter)),
             TypeKind::FixedArray { element, .. }
             | TypeKind::Optional(element)
             | TypeKind::Fallible(element) => {

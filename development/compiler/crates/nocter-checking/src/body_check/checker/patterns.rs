@@ -318,11 +318,7 @@ impl BodyChecker<'_, '_> {
                     subject.checked.preparation(),
                     PatternSubjectPreparation::OwnedTemporary
                         | PatternSubjectPreparation::ConsumedPlace
-                ) && self
-                    .copyabilities
-                    .classify(self.graph, self.types, payload)
-                    .map_err(BodyCheckInternalError::Copyability)?
-                    == Copyability::MoveOnly
+                ) && self.classify_copyability(payload)? == Copyability::MoveOnly
                 {
                     residual_payload.push(parameter);
                 }
@@ -405,12 +401,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<(TypeId, PatternBindingMode), BodyCheckError> {
         match preparation {
             PatternSubjectPreparation::RetainedPlace => {
-                if self
-                    .copyabilities
-                    .classify(self.graph, self.types, payload)
-                    .map_err(BodyCheckInternalError::Copyability)?
-                    != Copyability::Copy
-                {
+                if self.classify_copyability(payload)? != Copyability::Copy {
                     return Err(self.rule(BodyRule::InvalidPatternOperation, slot)?);
                 }
                 Ok((payload, PatternBindingMode::Copy))
@@ -427,12 +418,7 @@ impl BodyChecker<'_, '_> {
             }
             PatternSubjectPreparation::OwnedTemporary
             | PatternSubjectPreparation::ConsumedPlace => {
-                let mode = if self
-                    .copyabilities
-                    .classify(self.graph, self.types, payload)
-                    .map_err(BodyCheckInternalError::Copyability)?
-                    == Copyability::Copy
-                {
+                let mode = if self.classify_copyability(payload)? == Copyability::Copy {
                     PatternBindingMode::Copy
                 } else {
                     PatternBindingMode::Move

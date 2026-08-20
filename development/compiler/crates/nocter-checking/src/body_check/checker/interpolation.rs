@@ -1,15 +1,25 @@
 use nocter_declarations::StandardDeclarationRole;
-use nocter_model::{BorrowCapability, BuiltinType, CallableCapability, TypeId, TypeKind};
+use nocter_model::{
+    BorrowCapability, BuiltinType, CallableCapability, CallableId, InterfaceId, NominalTypeId,
+    TypeId, TypeKind,
+};
 use nocter_syntax::{DecodedStringPart, NodeId};
 
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::instance_operations::InstanceOperationSelector;
 use crate::{
     AllocationSelection, CheckedInterpolation, CheckedOperation, CheckedReadonlyOperand,
     ConstantValue, GenericArguments, InterpolationPart, StaticDispatch, StaticSelection,
 };
+
+struct InterpolationSemantics {
+    string: NominalTypeId,
+    constructor: CallableId,
+    text_appender: CallableId,
+    format: InterfaceId,
+    format_method: CallableId,
+}
 
 impl BodyChecker<'_, '_> {
     pub(super) fn check_string_expression(
@@ -70,31 +80,11 @@ impl BodyChecker<'_, '_> {
         parts: Box<[DecodedStringPart]>,
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
-        let (
-            Some(string),
-            Some(constructor),
-            Some(text_appender),
-            Some(format),
-            Some(format_method),
-        ) = (
-            self.standard_semantics
-                .nominal(StandardDeclarationRole::OwnedString),
-            self.standard_semantics
-                .callable(StandardDeclarationRole::InterpolationConstructor),
-            self.standard_semantics
-                .callable(StandardDeclarationRole::InterpolationTextAppender),
-            self.standard_semantics
-                .interface(StandardDeclarationRole::FormatInterface),
-            self.standard_semantics
-                .callable(StandardDeclarationRole::FormatMethod),
-        )
-        else {
-            return Err(BodyCheckInternalError::MissingInterpolationSemanticRoles.into());
-        };
+        let semantics = self.interpolation_semantics()?;
         let string_type = self
             .types
             .intern(TypeKind::Nominal {
-                definition: string,
+                definition: semantics.string,
                 arguments: Box::default(),
             })
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
@@ -114,17 +104,13 @@ impl BodyChecker<'_, '_> {
                         continue;
                     }
                     let candidates = {
-                        let mut selector = InstanceOperationSelector::new(
-                            self.graph,
-                            self.types,
-                            self.conformances,
-                            self.copyabilities,
-                            self.instance_operations,
-                            &self.assumptions,
-                            self.source.module(),
-                        );
+                        let mut selector = self.instance_selector();
                         selector
-                            .select_exact_interface_method(operand.owner, format, format_method)
+                            .select_exact_interface_method(
+                                operand.owner,
+                                semantics.format,
+                                semantics.format_method,
+                            )
                             .map_err(BodyCheckInternalError::from)?
                     };
                     let [formatter] = candidates.as_slice() else {
@@ -155,11 +141,11 @@ impl BodyChecker<'_, '_> {
             result,
             CheckedOperation::Interpolation(CheckedInterpolation::new(
                 StaticSelection::new(
-                    StaticDispatch::Direct(constructor),
+                    StaticDispatch::Direct(semantics.constructor),
                     GenericArguments::default(),
                 ),
                 StaticSelection::new(
-                    StaticDispatch::Direct(text_appender),
+                    StaticDispatch::Direct(semantics.text_appender),
                     GenericArguments::default(),
                 ),
                 checked_parts,
@@ -170,5 +156,31 @@ impl BodyChecker<'_, '_> {
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })
+    }
+
+    fn interpolation_semantics(&self) -> Result<InterpolationSemantics, BodyCheckError> {
+        let semantics = InterpolationSemantics {
+            string: self
+                .standard_semantics
+                .nominal(StandardDeclarationRole::OwnedString)
+                .ok_or(BodyCheckInternalError::MissingInterpolationSemanticRoles)?,
+            constructor: self
+                .standard_semantics
+                .callable(StandardDeclarationRole::InterpolationConstructor)
+                .ok_or(BodyCheckInternalError::MissingInterpolationSemanticRoles)?,
+            text_appender: self
+                .standard_semantics
+                .callable(StandardDeclarationRole::InterpolationTextAppender)
+                .ok_or(BodyCheckInternalError::MissingInterpolationSemanticRoles)?,
+            format: self
+                .standard_semantics
+                .interface(StandardDeclarationRole::FormatInterface)
+                .ok_or(BodyCheckInternalError::MissingInterpolationSemanticRoles)?,
+            format_method: self
+                .standard_semantics
+                .callable(StandardDeclarationRole::FormatMethod)
+                .ok_or(BodyCheckInternalError::MissingInterpolationSemanticRoles)?,
+        };
+        Ok(semantics)
     }
 }

@@ -4,12 +4,13 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, ParameterRole, StructuralCapability};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
-    ModuleId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
+    InterfaceId, ModuleId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
 use crate::conformance::normalize_requirements;
 use crate::instance_operations::{
-    ComparisonCandidateImplementation, InstanceOperationSelector, retain_direct_candidates,
+    ComparisonCandidateImplementation, InstanceOperationSelector, InstanceSelectionContext,
+    retain_direct_candidates,
 };
 use crate::{
     CheckedPredicate, CheckedProgram, ComparisonOperation, GenericArgument, GenericArguments,
@@ -22,6 +23,7 @@ use crate::{
 pub struct ResolvedCallableDispatch {
     callable: CallableId,
     generic_arguments: GenericArguments,
+    interface_self: Option<(InterfaceId, TypeId)>,
 }
 
 impl ResolvedCallableDispatch {
@@ -33,6 +35,11 @@ impl ResolvedCallableDispatch {
     #[must_use]
     pub const fn generic_arguments(&self) -> &GenericArguments {
         &self.generic_arguments
+    }
+
+    #[must_use]
+    pub const fn interface_self(&self) -> Option<(InterfaceId, TypeId)> {
+        self.interface_self
     }
 }
 
@@ -191,12 +198,36 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                     callable,
                     generic_arguments: arguments,
+                    interface_self: None,
                 }),
             )),
             StaticDispatch::InterfaceMethod {
                 requirement,
                 method,
             } => self.resolve_interface_method(requirement, method, &arguments, enclosing, from),
+            StaticDispatch::InterfaceSelfMethod { interface, method } => {
+                self.resolve_interface_self_method(interface, method, &arguments, enclosing, from)
+            }
+            StaticDispatch::InterfaceDefault {
+                interface,
+                receiver,
+                method,
+            } => {
+                let receiver = enclosing.apply_type(&mut self.types, receiver)?;
+                if !is_concrete_type(&self.types, receiver)? {
+                    return Err(ConcreteDispatchError::SymbolicInterfaceSelf {
+                        interface,
+                        receiver,
+                    });
+                }
+                Ok(ResolvedDispatchPlan::Invocation(
+                    ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
+                        callable: method,
+                        generic_arguments: arguments,
+                        interface_self: Some((interface, receiver)),
+                    }),
+                ))
+            }
             StaticDispatch::OpaqueMethod { opaque, method } => {
                 self.resolve_opaque_method(opaque, method, &arguments, enclosing, from)
             }
@@ -279,19 +310,115 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 method: surface,
             });
         }
+        self.resolve_interface_application_method(
+            subject,
+            &application,
+            surface,
+            specialized_arguments,
+            from,
+            Some(requirement),
+        )
+    }
+
+    fn resolve_interface_self_method(
+        &mut self,
+        interface: InterfaceId,
+        surface: CallableId,
+        specialized_arguments: &GenericArguments,
+        enclosing: &TypeSubstitution,
+        from: ModuleId,
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
+        let symbolic = self
+            .types
+            .intern(TypeKind::InterfaceSelf(interface))
+            .map_err(|_| ConcreteDispatchError::InvalidInterfaceSelfMethod {
+                interface,
+                surface,
+            })?;
+        let subject = enclosing.apply_type(&mut self.types, symbolic)?;
+        if !is_concrete_type(&self.types, subject)? {
+            return Err(ConcreteDispatchError::SymbolicInterfaceSelf {
+                interface,
+                receiver: subject,
+            });
+        }
+        let declaration = self
+            .program
+            .graph()
+            .declarations()
+            .interfaces()
+            .get(interface)
+            .ok_or(ConcreteDispatchError::InvalidInterfaceSelfMethod { interface, surface })?;
+        if !declaration.methods().contains(&surface) {
+            return Err(ConcreteDispatchError::InvalidInterfaceSelfMethod { interface, surface });
+        }
+        let application = nocter_declarations::InterfaceApplication::new(
+            interface,
+            declaration
+                .generic_parameters()
+                .iter()
+                .map(|parameter| {
+                    specialized_arguments.get(*parameter).ok_or(
+                        ConcreteDispatchError::MissingMethodArgument {
+                            method: surface,
+                            parameter: *parameter,
+                        },
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        self.resolve_interface_application_method(
+            subject,
+            &application,
+            surface,
+            specialized_arguments,
+            from,
+            None,
+        )
+    }
+
+    fn resolve_interface_application_method(
+        &mut self,
+        subject: TypeId,
+        application: &nocter_declarations::InterfaceApplication,
+        surface: CallableId,
+        specialized_arguments: &GenericArguments,
+        from: ModuleId,
+        requirement: Option<RequirementId>,
+    ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = {
             let mut selector = InstanceOperationSelector::new(
-                self.program.graph(),
+                InstanceSelectionContext::new(
+                    self.program.graph(),
+                    self.program.conformances(),
+                    self.program.instance_operations(),
+                    &[],
+                    &[],
+                    from,
+                ),
                 &mut self.types,
-                self.program.conformances(),
                 &mut self.copyabilities,
-                self.program.instance_operations(),
-                &[],
-                from,
             );
-            selector.select_conformance_method_for_application(subject, &application, surface)?
+            selector.select_conformance_method_for_application(subject, application, surface)?
         };
-        let candidate = exactly_one(candidates, requirement)?;
+        let candidate = if let Some(requirement) = requirement {
+            exactly_one(candidates, requirement)?
+        } else {
+            let mut candidates = candidates.into_iter();
+            let Some(candidate) = candidates.next() else {
+                return Err(ConcreteDispatchError::InvalidInterfaceSelfMethod {
+                    interface: application.interface(),
+                    surface,
+                });
+            };
+            if candidates.next().is_some() {
+                return Err(ConcreteDispatchError::InvalidInterfaceSelfMethod {
+                    interface: application.interface(),
+                    surface,
+                });
+            }
+            candidate
+        };
         let target = candidate.callable();
         let surface_declaration = self
             .program
@@ -333,6 +460,15 @@ impl<'program> ConcreteDispatchResolver<'program> {
             ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                 callable: target,
                 generic_arguments,
+                interface_self: match candidate.dispatch() {
+                    StaticDispatch::InterfaceDefault {
+                        interface,
+                        receiver,
+                        ..
+                    } => Some((interface, receiver)),
+                    StaticDispatch::Direct(_) => None,
+                    _ => return Err(ConcreteDispatchError::NonConcreteCandidate),
+                },
             }),
         ))
     }
@@ -349,13 +485,16 @@ impl<'program> ConcreteDispatchResolver<'program> {
         let definition = specialized.definition;
         let candidates = {
             let mut selector = InstanceOperationSelector::new(
-                self.program.graph(),
+                InstanceSelectionContext::new(
+                    self.program.graph(),
+                    self.program.conformances(),
+                    self.program.instance_operations(),
+                    &[],
+                    &[],
+                    from,
+                ),
                 &mut self.types,
-                self.program.conformances(),
                 &mut self.copyabilities,
-                self.program.instance_operations(),
-                &[],
-                from,
             );
             selector.select_conformance_method_for_application(
                 specialized.witness,
@@ -436,6 +575,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
             operation: ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
                 callable: target,
                 generic_arguments,
+                interface_self: None,
             }),
         })
     }
@@ -728,13 +868,16 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn selector(&mut self, from: ModuleId) -> InstanceOperationSelector<'_> {
         InstanceOperationSelector::new(
-            self.program.graph(),
+            InstanceSelectionContext::new(
+                self.program.graph(),
+                self.program.conformances(),
+                self.program.instance_operations(),
+                &[],
+                &[],
+                from,
+            ),
             &mut self.types,
-            self.program.conformances(),
             &mut self.copyabilities,
-            self.program.instance_operations(),
-            &[],
-            from,
         )
     }
 
@@ -747,6 +890,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         Ok(ResolvedDispatchStep::Direct(ResolvedCallableDispatch {
             callable,
             generic_arguments: selection.generic_arguments().clone(),
+            interface_self: None,
         }))
     }
 }
@@ -821,6 +965,14 @@ pub enum ConcreteDispatchError {
         requirement: RequirementId,
         method: CallableId,
     },
+    InvalidInterfaceSelfMethod {
+        interface: InterfaceId,
+        surface: CallableId,
+    },
+    SymbolicInterfaceSelf {
+        interface: InterfaceId,
+        receiver: TypeId,
+    },
     MethodGenericDomainMismatch {
         surface: CallableId,
         target: CallableId,
@@ -862,6 +1014,11 @@ impl fmt::Display for ConcreteDispatchError {
             }
             Self::InvalidInterfaceMethod { .. } => {
                 formatter.write_str("interface dispatch names a method outside its interface")
+            }
+            Self::InvalidInterfaceSelfMethod { .. } => formatter
+                .write_str("interface default dispatch has no exact concrete method evidence"),
+            Self::SymbolicInterfaceSelf { .. } => {
+                formatter.write_str("interface default dispatch retains a symbolic Self type")
             }
             Self::MethodGenericDomainMismatch { .. } => formatter
                 .write_str("interface and implementation method generic domains do not match"),

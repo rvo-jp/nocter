@@ -51,7 +51,7 @@ test headers { return }
 use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    UseResolutionInput, apply_standard_prelude, bind_header_type_syntax,
+    ToolchainInput, UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
     collect_declaration_surface, define_declaration_headers, normalize_header_types,
     prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
     reserve_declaration_identities,
@@ -132,7 +132,13 @@ fn try_lower<'syntax>(
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_standard_prelude(imports, prelude).unwrap();
+    let toolchain = ToolchainInput::new(
+        prelude.package().clone(),
+        prelude.clone(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let normalized = normalize_header_types(bound).unwrap();
     define_declaration_headers(normalized)
@@ -175,7 +181,11 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_standard_prelude(imports, &prelude).unwrap();
+    let namespaces = apply_toolchain_profile(
+        imports,
+        &ToolchainInput::new(prelude.package().clone(), prelude, Vec::new(), Vec::new()),
+    )
+    .unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let normalized = normalize_header_types(bound).unwrap();
     define_declaration_headers(normalized).unwrap_err()
@@ -362,14 +372,17 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
 
 #[test]
 fn rejects_ambiguous_bodyless_result_provenance() {
-    let error = definition_error(
+    for source in [
         "interface Choose {\n    pub method &self.choose(other: &Self): &Self\n}\n",
-    );
-    assert!(matches!(
-        error,
-        super::HeaderDefinitionError::Rule(violation)
-            if violation.rule() == DefinitionRule::AmbiguousBodylessResultProvenance
-    ));
+        "primitive choose<T>(left: &T, right: &T): &T\n",
+    ] {
+        let error = definition_error(source);
+        assert!(matches!(
+            error,
+            super::HeaderDefinitionError::Rule(violation)
+                if violation.rule() == DefinitionRule::AmbiguousBodylessResultProvenance
+        ));
+    }
 }
 
 #[test]

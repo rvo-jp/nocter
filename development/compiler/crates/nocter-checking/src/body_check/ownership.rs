@@ -16,7 +16,7 @@ mod temporaries;
 
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
-use crate::copyability::{Copyability, CopyabilityTable};
+use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
 use crate::ownership::{
     MovePath, OwnershipState, OwnershipStateError, TemporaryIdentity, initialized_body_roots,
 };
@@ -42,6 +42,7 @@ pub(super) fn analyze_body_ownership(
         source,
         body,
         origins,
+        copy_proofs,
     } = input;
     let mut state = OwnershipState::default();
     for root in initialized_body_roots(graph, source)
@@ -59,6 +60,7 @@ pub(super) fn analyze_body_ownership(
         source,
         body,
         origins,
+        copy_proofs,
         loops: Vec::new(),
         scopes: Vec::new(),
         regions: Vec::new(),
@@ -100,6 +102,7 @@ pub(super) struct OwnershipBodyInput<'program> {
     source: BodySource<'program>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
+    copy_proofs: &'program CopyProofs,
 }
 
 impl<'program> OwnershipBodyInput<'program> {
@@ -107,11 +110,13 @@ impl<'program> OwnershipBodyInput<'program> {
         source: BodySource<'program>,
         body: &'program CheckedBody,
         origins: &'program HashMap<BodyNodeId, SourceOrigin>,
+        copy_proofs: &'program CopyProofs,
     ) -> Self {
         Self {
             source,
             body,
             origins,
+            copy_proofs,
         }
     }
 }
@@ -124,6 +129,7 @@ struct OwnershipAnalyzer<'program> {
     source: BodySource<'program>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
+    copy_proofs: &'program CopyProofs,
     loops: Vec<LoopFlow>,
     scopes: Vec<BodyScopeId>,
     regions: Vec<RegionFlow>,
@@ -582,7 +588,9 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit_place_evaluation(&place, state)? {
             return Ok(false);
         }
-        if place.has_dynamic_evaluation() || place.access() != PlaceAccess::Owned {
+        if !matches!(place.root(), crate::PlaceRoot::Value(_))
+            && (place.has_dynamic_evaluation() || place.access() != PlaceAccess::Owned)
+        {
             self.require_path_initialized(node, &MovePath::initialized_base(&place), state)?;
         }
         let actions = match place.access() {
@@ -641,9 +649,11 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit_place_evaluation(&place, state)? {
             return Ok(false);
         }
-        let required =
-            MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
-        self.require_path_initialized(node, &required, state)?;
+        if !matches!(place.root(), crate::PlaceRoot::Value(_)) {
+            let required =
+                MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+            self.require_path_initialized(node, &required, state)?;
+        }
         Ok(true)
     }
 
@@ -676,9 +686,11 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit_place_evaluation(&place, state)? {
             return Ok(false);
         }
-        let required =
-            MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
-        self.require_path_initialized(node, &required, state)?;
+        if !matches!(place.root(), crate::PlaceRoot::Value(_)) {
+            let required =
+                MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+            self.require_path_initialized(node, &required, state)?;
+        }
         Ok(true)
     }
 
@@ -831,6 +843,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .scope_actions(scope, state)
     }
@@ -878,6 +891,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         );
         match self.closure {
             Some(closure) if closure.signature().capability() == CallableCapability::Owned => {
@@ -900,6 +914,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .value_action(node, ty)
     }
@@ -916,6 +931,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .explicit_path_action(path, ty)
     }
@@ -933,6 +949,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .replacement_path_actions(path, ty, state)
     }
@@ -949,6 +966,7 @@ impl OwnershipAnalyzer<'_> {
             self.drops,
             self.body,
             self.source,
+            self.copy_proofs,
         )
         .replacement_place_action(place, ty)
     }
@@ -1049,7 +1067,7 @@ impl OwnershipAnalyzer<'_> {
     ) -> Result<(), BodyCheckError> {
         match self
             .copyabilities
-            .classify(self.graph, self.types, ty)
+            .classify_with_proofs(self.graph, self.types, ty, self.copy_proofs)
             .map_err(BodyCheckInternalError::Copyability)?
         {
             Copyability::Copy => Ok(()),

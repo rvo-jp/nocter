@@ -403,11 +403,7 @@ impl BodyChecker<'_, '_> {
                 {
                     return Err(self.rule(BodyRule::InvalidMoveSource, syntax)?);
                 }
-                match self
-                    .copyabilities
-                    .classify(self.graph, self.types, place.ty)
-                    .map_err(BodyCheckInternalError::Copyability)?
-                {
+                match self.classify_copyability(place.ty)? {
                     Copyability::Copy => return Err(self.rule(BodyRule::MoveCopyValue, syntax)?),
                     Copyability::MoveOnly => {}
                 }

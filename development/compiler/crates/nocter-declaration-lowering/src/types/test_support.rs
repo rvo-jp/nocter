@@ -3,9 +3,10 @@ use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, pars
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
-    apply_standard_prelude, collect_declaration_surface, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
+    UseResolutionInput, apply_toolchain_profile, collect_declaration_surface,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    reserve_declaration_identities,
 };
 
 use super::{PreparedTypeBindings, TypeBindingError, bind_header_type_syntax};
@@ -79,7 +80,13 @@ pub(super) fn bind<'syntax>(
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_standard_prelude(imports, prelude).unwrap();
+    let toolchain = ToolchainInput::new(
+        prelude.package().clone(),
+        prelude.clone(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     bind_header_type_syntax(namespaces)
 }
 

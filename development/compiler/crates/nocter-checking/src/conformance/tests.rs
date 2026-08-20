@@ -1,6 +1,6 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
     lower_compile_unit_declarations,
 };
 use nocter_source::{SourceId, SourceMap, SourceName};
@@ -13,8 +13,8 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
     let fixture = Fixture::new(
         "pub interface Readable {\n    pub method &self.read(): i32\n    pub method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(): i32 { return 0 }\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let table = build_conformance_table(&graph, &mut types, &source_index).unwrap();
@@ -53,8 +53,8 @@ fn conformance_method_failures_have_distinct_rules() {
         ),
     ] {
         let fixture = Fixture::new(source);
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, mut types) = program.into_parts();
         let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
@@ -69,8 +69,8 @@ fn exact_overlap_diagnostic_is_input_order_independent() {
     );
     let mut diagnostics = Vec::new();
     for reverse in [false, true] {
-        let (input, prelude) = fixture.input(reverse);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(reverse);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, mut types) = program.into_parts();
         diagnostics.push(
@@ -90,8 +90,8 @@ fn refined_pattern_overlaps_a_general_generic_pattern() {
     let fixture = Fixture::new(
         "pub interface Marker<T> {}\nstruct Box<T> {}\nconform Marker<T> for Box<T> {}\nconform Marker<U> for Box<U> where U = i32 {}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
@@ -104,8 +104,8 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     let fixture = Fixture::new(
         "pub interface Marker<T> {}\nstruct Box<T> {}\nconform Marker<T> for Box<T> where T = i32 {}\nconform Marker<U> for Box<U> where U = u32 {}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let table = build_conformance_table(&graph, &mut types, &source_index).unwrap();
@@ -137,8 +137,8 @@ fn associated_type_bounds_use_the_same_conformance_table() {
         "pub interface Marker {}\npub interface Source { pub type Item: Marker }\nstruct Wrapper<T> {}\nconform Source for Wrapper<T> where T: Marker { type Item = T }\n",
     ] {
         let fixture = Fixture::new(source);
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, mut types) = program.into_parts();
 
@@ -151,8 +151,8 @@ fn unsatisfied_associated_type_bound_has_its_own_rule() {
     let fixture = Fixture::new(
         "pub interface Marker {}\npub interface Source { pub type Item: Marker }\nstruct Missing {}\nstruct Wrapper<T> {}\nconform Source for Wrapper<T> where T = Missing { type Item = T }\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, mut types) = program.into_parts();
     let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
@@ -187,7 +187,7 @@ impl Fixture {
         }
     }
 
-    fn input(&self, reverse: bool) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    fn input(&self, reverse: bool) -> CompileUnitInput<'_> {
         let mut packages = vec![
             package(
                 "workspace:app",
@@ -217,16 +217,19 @@ impl Fixture {
             modules.reverse();
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-        (
-            CompileUnitInput::new(
-                nocter_model::CompilationTarget::Arm64Darwin,
-                &self.sources,
-                packages,
-                modules,
-                Vec::new(),
-            ),
-            prelude,
+        CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &self.sources,
+            packages,
+            modules,
+            Vec::new(),
         )
+        .with_toolchain(ToolchainInput::new(
+            PackageIdentity::new("toolchain:std"),
+            prelude,
+            Vec::new(),
+            Vec::new(),
+        ))
     }
 }
 

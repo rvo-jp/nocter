@@ -4,7 +4,7 @@ use nocter_model::{BuiltinType, TypeKind};
 use nocter_syntax::NodeKind;
 
 use super::check_prepared_program;
-use crate::test_support::Fixture;
+use crate::test_support::{Fixture, with_standard_roles};
 use crate::{
     AllocationSelection, BodyRule, CheckedOperation, CheckedOutcome, CleanupTarget, CleanupTiming,
     IterationAcquisition, LoopKind, PlaceRoot, SequenceElement, SpreadMode, StaticDispatch,
@@ -13,8 +13,8 @@ use crate::{
 
 fn checked(source: &str) -> crate::CheckedProgramOutput {
     let fixture = Fixture::new(source);
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap()
@@ -46,9 +46,9 @@ fn checked_with_iteration_standard(
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "remaining_len"),
         ),
     ];
-    let (input, prelude) = fixture.input(false);
-    let input = input.with_standard_roles(roles);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let input = with_standard_roles(input, roles);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -251,8 +251,8 @@ construct Vec<T> {
 }
 ",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -493,9 +493,9 @@ fn borrowed_spread_keeps_the_source_loan_live_through_the_result() {
     let error = checked_with_iteration_standard(&iteration_standard(
         r"
 struct Source {}
-struct RefIter {}
+struct RefIter { source: &Source }
 instance Source {
-    pub operator (...&self): RefIter from self { return RefIter {} }
+    pub operator (...&self): RefIter from self { return RefIter { source: self } }
     pub method &+self.clear(): void { return }
 }
 conform Iterator for RefIter {
@@ -625,9 +625,9 @@ func values(allocator: &+Allocator): Vec<i32> {
         StandardDeclarationRole::AbortingAllocator,
         fixture.standard_declaration_token(NodeKind::StructDeclaration, "Allocator"),
     );
-    let (input, prelude) = fixture.input(false);
-    let input = input.with_standard_roles(vec![role]);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let input = with_standard_roles(input, vec![role]);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -678,9 +678,9 @@ func values(allocator: &+Untrusted): Vec<i32> {
         StandardDeclarationRole::AbortingAllocator,
         fixture.standard_declaration_token(NodeKind::StructDeclaration, "Allocator"),
     );
-    let (input, prelude) = fixture.input(false);
-    let input = input.with_standard_roles(vec![role]);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let input = with_standard_roles(input, vec![role]);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

@@ -40,7 +40,8 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
             reader.next = 0
             if received == 0 { break }
         }
-        destination[written] = (&reader.buffer as &[u8])[reader.next]
+        let available: &[u8] = &reader.buffer as &[u8]
+        destination[written] = available[reader.next]
         written = written + 1
         reader.next = reader.next + 1
     }

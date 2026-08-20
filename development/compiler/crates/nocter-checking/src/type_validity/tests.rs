@@ -1,6 +1,6 @@
 use nocter_declaration_lowering::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
     lower_compile_unit_declarations,
 };
 use nocter_source::{SourceId, SourceMap, SourceName};
@@ -13,8 +13,8 @@ fn valid_special_roots_and_indirections_are_accepted() {
     let fixture = Fixture::new(
         "type Completion = void\ntype Divergence = never\ntype Bytes = [u8]\nfunc stop(): never {}\nfunc perform(): void! {}\nfunc inspect(bytes: &[u8], pointer: *void): void {}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, types) = program.into_parts();
 
@@ -32,8 +32,8 @@ fn invalid_type_positions_have_distinct_rules() {
         ("func bad(value: str): void {}\n", "E0365"),
     ] {
         let fixture = Fixture::new(source);
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, types) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
@@ -45,8 +45,8 @@ fn invalid_type_positions_have_distinct_rules() {
 #[test]
 fn aliases_do_not_bypass_use_site_validity() {
     let fixture = Fixture::new("type Completion = void\nstruct Bad { value: Completion }\n");
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let (graph, types) = program.into_parts();
     let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
@@ -61,8 +61,8 @@ fn associated_bindings_and_refinements_are_data_positions() {
         "struct Box<T> {}\ninstance Box<T> where T = void {}\n",
     ] {
         let fixture = Fixture::new(source);
-        let (input, prelude) = fixture.input(false);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, types) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
@@ -76,8 +76,8 @@ fn type_validity_diagnostic_is_input_order_independent() {
     let fixture = Fixture::new("struct Bad { value: void }\n");
     let mut diagnostics = Vec::new();
     for reverse in [false, true] {
-        let (input, prelude) = fixture.input(reverse);
-        let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+        let input = fixture.input(reverse);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, source_index) = lowered.into_parts();
         let (graph, types) = program.into_parts();
         diagnostics.push(
@@ -118,7 +118,7 @@ impl Fixture {
         }
     }
 
-    fn input(&self, reverse: bool) -> (CompileUnitInput<'_>, ModuleIdentity) {
+    fn input(&self, reverse: bool) -> CompileUnitInput<'_> {
         let mut packages = vec![
             package(
                 "workspace:app",
@@ -148,16 +148,19 @@ impl Fixture {
             modules.reverse();
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-        (
-            CompileUnitInput::new(
-                nocter_model::CompilationTarget::Arm64Darwin,
-                &self.sources,
-                packages,
-                modules,
-                Vec::new(),
-            ),
-            prelude,
+        CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &self.sources,
+            packages,
+            modules,
+            Vec::new(),
         )
+        .with_toolchain(ToolchainInput::new(
+            PackageIdentity::new("toolchain:std"),
+            prelude,
+            Vec::new(),
+            Vec::new(),
+        ))
     }
 }
 

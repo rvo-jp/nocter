@@ -175,6 +175,16 @@ dependency graph acyclic. Separated construction implementations also reuse decl
 binder identities through a spelling-keyed projection; repeated pattern tokens project as
 references instead of being rejected as ordinary duplicate generic parameters.
 
+The selected toolchain is part of the discovery request and the immutable compile input. It names
+one exact standard package, prelude module, set of built-in attachment modules, and set of standard
+semantic declaration roles. Discovery loads every selected module and resolves each role locator
+to one declaration-name token before semantic lowering. Lowering records standard package and
+built-in authority from those identities; checking resolves standard semantic declarations through
+the same source-index tokens. No later stage may recover toolchain authority from a package name,
+module path, declaration spelling, or opportunistic presence in the source graph. The complete
+authored standard source graph now passes declaration lowering and body checking through this
+boundary as one qualification case.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic
@@ -697,6 +707,17 @@ node. Return validation rejects storage outside authored or inferred contracts, 
 temporary receiver results, and intersects implementation origins with the selected interface
 method contract. This post-body authority does not change call selection identity or evaluation
 order.
+
+Callable boundaries distinguish two input channels. The carried channel describes loans and
+storage already represented by the receiver or argument value. The invocation-place channel
+describes only an implicit borrow created to call through an owned place. A result may retain the
+second channel only when its declared representation contains an explicit borrow slot; raw
+pointers and scalar-only owned storage can preserve storage authority without borrowing the local
+allocator or container place. Nominal traversal substitutes declaration binders and inspects
+fields, variant payloads, and concrete generic arguments. Unresolved generic and associated result
+types remain carried values rather than acquiring the invocation lifetime. Callable summaries are
+flattened only at the boundary, keeping their origin domain finite under recursive calls and loops;
+aggregate values inside a body remain projection-sensitive.
 
 A following program-wide loan analysis consumes that provenance authority and the immutable
 cleanup schedules. Reverse structured liveness computes source-level last uses for checked places

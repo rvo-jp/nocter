@@ -129,7 +129,7 @@ construct Vec<T> {
     /// Consumes an iterator and grows a Vec without an intermediate collection.
     pub func from_iter<I>(iterator: I): Self where I: Iterator, I.Item = T {
         var result: Vec<T> = Vec.empty()
-        for item in iterator {
+        for item in move iterator {
             result.push(move item)
         }
         return move result
@@ -143,7 +143,7 @@ construct Vec<T> {
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()
         result.reserve(initial_len)
-        for item in source {
+        for item in move source {
             result.push(move item)
         }
         return move result
@@ -160,18 +160,6 @@ construct Vec<T> {
             index = index + 1
         }
         return move result
-    }
-}
-
-instance Vec<T> {
-    /// Exposes the initialized element prefix as a readonly view.
-    pub coerce &self as &[T] {
-        return view(self)
-    }
-
-    /// Exposes the initialized element prefix as a readwrite view.
-    pub coerce &+self as &+[T] {
-        return view_mut(self)
     }
 }
 
@@ -346,6 +334,16 @@ pub func index_out_of_bounds(): error {
 }
 
 instance Vec<T> {
+    /// Exposes the initialized element prefix as a readonly view.
+    pub coerce &self as &[T] {
+        return view(self)
+    }
+
+    /// Exposes the initialized element prefix as a readwrite view.
+    pub coerce &+self as &+[T] {
+        return view_mut(self)
+    }
+
     /// Creates an allocation-free iterator over readonly element borrows.
     pub operator (...&self): ViewIter<T> {
         return ViewIter.from_view(view(self))

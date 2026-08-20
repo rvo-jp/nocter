@@ -7,7 +7,7 @@ use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
-use crate::instance_operations::{InstanceOperationSelector, MethodCandidate};
+use crate::instance_operations::MethodCandidate;
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, CheckedReceiver, CheckedReceiverCoercion,
@@ -65,15 +65,7 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
         let available = self.receiver_borrow_capability(&receiver)?;
         let mut candidates = {
-            let mut selector = InstanceOperationSelector::new(
-                self.graph,
-                self.types,
-                self.conformances,
-                self.copyabilities,
-                self.instance_operations,
-                &self.assumptions,
-                self.source.module(),
-            );
+            let mut selector = self.instance_selector();
             selector
                 .select_method_candidates(receiver_owner, member_name)
                 .map_err(BodyCheckInternalError::from)?
@@ -87,15 +79,7 @@ impl BodyChecker<'_, '_> {
             )
         });
         if candidates.is_empty() {
-            let mut selector = InstanceOperationSelector::new(
-                self.graph,
-                self.types,
-                self.conformances,
-                self.copyabilities,
-                self.instance_operations,
-                &self.assumptions,
-                self.source.module(),
-            );
+            let mut selector = self.instance_selector();
             candidates = selector
                 .select_coerced_method_candidates(receiver_owner, member_name, available)
                 .map_err(BodyCheckInternalError::from)?;
@@ -194,7 +178,14 @@ impl BodyChecker<'_, '_> {
                 if crate::syntax::direct_child(self.tree(), syntax, NodeKind::CallSuffix)
                     .is_none() =>
             {
-                Some(self.postfix_place(syntax, BorrowCapability::Readonly)?)
+                match self.postfix_place(syntax, BorrowCapability::Readonly) {
+                    Ok(place) => Some(place),
+                    Err(BodyCheckError::Internal(BodyCheckInternalError::UnsupportedSyntax(
+                        _,
+                        _,
+                    ))) => None,
+                    Err(error) => return Err(error),
+                }
             }
             _ => None,
         };
@@ -310,11 +301,7 @@ impl BodyChecker<'_, '_> {
                 if place.access != PlaceAccess::Owned {
                     return Err(self.rule(BodyRule::InvalidCall, syntax)?);
                 }
-                let operation = match self
-                    .copyabilities
-                    .classify(self.graph, self.types, place.ty)
-                    .map_err(BodyCheckInternalError::Copyability)?
-                {
+                let operation = match self.classify_copyability(place.ty)? {
                     Copyability::Copy => CheckedOperation::Copy(place.id),
                     Copyability::MoveOnly => {
                         for parent in place.partial_parents.iter().rev() {

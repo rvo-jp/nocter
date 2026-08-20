@@ -641,6 +641,7 @@ impl<'program> DependencyCollector<'program> {
                 self.record_type(ty.ty())?;
             }
             nocter_checking::PlaceRoot::Parameter(_) => {}
+            nocter_checking::PlaceRoot::Value(value) => self.visit_node(value)?,
         }
         for ty in place.projection_types() {
             self.record_type(*ty)?;

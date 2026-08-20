@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
 use nocter_declarations::CallableOwner;
-use nocter_model::{CallableId, GenericParameterId, TypeId, TypeStore};
+use nocter_model::{CallableId, GenericParameterId, InterfaceId, TypeId, TypeStore};
 
 use crate::{ExecutableEntry, TargetProgram};
 
@@ -17,6 +17,7 @@ use crate::{ExecutableEntry, TargetProgram};
 pub struct CallableInstanceKey {
     callable: CallableId,
     generic_arguments: GenericArguments,
+    interface_self: Option<(InterfaceId, TypeId)>,
 }
 
 impl CallableInstanceKey {
@@ -51,6 +52,16 @@ impl CallableInstanceKey {
         types: &TypeStore,
         callable: CallableId,
         generic_arguments: GenericArguments,
+    ) -> Result<Self, CallableInstanceKeyError> {
+        Self::new_with_interface_self(program, types, callable, generic_arguments, None)
+    }
+
+    pub(crate) fn new_with_interface_self(
+        program: &TargetProgram,
+        types: &TypeStore,
+        callable: CallableId,
+        generic_arguments: GenericArguments,
+        interface_self: Option<(InterfaceId, TypeId)>,
     ) -> Result<Self, CallableInstanceKeyError> {
         let graph = program.checked().graph();
         let declaration = graph
@@ -88,9 +99,36 @@ impl CallableInstanceKey {
                 });
             }
         }
+        match (declaration.owner(), interface_self) {
+            (CallableOwner::Interface(expected), Some((actual, receiver)))
+                if expected == actual =>
+            {
+                if !is_concrete_type(types, receiver)
+                    .map_err(CallableInstanceKeyError::InvalidTypeStore)?
+                {
+                    return Err(CallableInstanceKeyError::SymbolicInterfaceSelf {
+                        callable,
+                        interface: expected,
+                        receiver,
+                    });
+                }
+            }
+            (CallableOwner::Interface(interface), _) => {
+                return Err(CallableInstanceKeyError::InterfaceSelfMismatch {
+                    callable,
+                    interface,
+                    actual: interface_self,
+                });
+            }
+            (_, Some(actual)) => {
+                return Err(CallableInstanceKeyError::UnexpectedInterfaceSelf { callable, actual });
+            }
+            (_, None) => {}
+        }
         Ok(Self {
             callable,
             generic_arguments,
+            interface_self,
         })
     }
 
@@ -116,12 +154,20 @@ impl CallableInstanceKey {
         &self.generic_arguments
     }
 
+    #[must_use]
+    pub const fn interface_self(&self) -> Option<(InterfaceId, TypeId)> {
+        self.interface_self
+    }
+
     /// Builds the single substitution authority for this specialization.
     #[must_use]
     pub fn substitution(&self) -> TypeSubstitution {
         let mut substitution = TypeSubstitution::default();
         for argument in self.generic_arguments.as_slice() {
             substitution.bind_generic(argument.parameter(), argument.ty());
+        }
+        if let Some((interface, receiver)) = self.interface_self {
+            substitution.set_interface_self(interface, receiver);
         }
         substitution
     }
@@ -158,6 +204,20 @@ pub enum CallableInstanceKeyError {
         parameter: GenericParameterId,
         ty: TypeId,
     },
+    InterfaceSelfMismatch {
+        callable: CallableId,
+        interface: InterfaceId,
+        actual: Option<(InterfaceId, TypeId)>,
+    },
+    UnexpectedInterfaceSelf {
+        callable: CallableId,
+        actual: (InterfaceId, TypeId),
+    },
+    SymbolicInterfaceSelf {
+        callable: CallableId,
+        interface: InterfaceId,
+        receiver: TypeId,
+    },
     InvalidTypeStore(SubstitutionError),
 }
 
@@ -175,6 +235,13 @@ impl fmt::Display for CallableInstanceKeyError {
             Self::SymbolicArgument { .. } => {
                 formatter.write_str("callable instance contains a symbolic generic argument")
             }
+            Self::InterfaceSelfMismatch { .. } => formatter
+                .write_str("interface-owned callable instance has no exact Self specialization"),
+            Self::UnexpectedInterfaceSelf { .. } => formatter
+                .write_str("non-interface callable instance has an interface Self specialization"),
+            Self::SymbolicInterfaceSelf { .. } => {
+                formatter.write_str("callable instance contains a symbolic interface Self type")
+            }
             Self::InvalidTypeStore(error) => error.fmt(formatter),
         }
     }
@@ -187,7 +254,10 @@ impl std::error::Error for CallableInstanceKeyError {
             Self::UnknownCallable(_)
             | Self::UnknownOwner { .. }
             | Self::GenericDomainMismatch { .. }
-            | Self::SymbolicArgument { .. } => None,
+            | Self::SymbolicArgument { .. }
+            | Self::InterfaceSelfMismatch { .. }
+            | Self::UnexpectedInterfaceSelf { .. }
+            | Self::SymbolicInterfaceSelf { .. } => None,
         }
     }
 }

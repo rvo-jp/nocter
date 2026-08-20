@@ -10,8 +10,8 @@ fn copy_struct_specialization_uses_substituted_field_copyability() {
         "copy struct Box<T> {\n    value: T\n}\n\
          func duplicate(value: Box<i32>): Box<i32> {\n    value\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -37,8 +37,8 @@ fn copy_struct_specialization_remains_move_only_for_move_only_argument() {
          copy struct Box<T> {\n    value: T\n}\n\
          func duplicate(value: Box<Owned>): Box<Owned> {\n    value\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -49,8 +49,25 @@ fn copy_struct_specialization_remains_move_only_for_move_only_argument() {
 #[test]
 fn callable_copy_requirement_supplies_the_generic_body_proof() {
     let fixture = Fixture::new("func duplicate<T>(value: T): T where copy T {\n    value\n}\n");
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+
+    check_prepared_program(&input, prepared).unwrap();
+}
+
+#[test]
+fn callable_copy_proof_does_not_leak_to_a_sibling_body() {
+    let fixture = Fixture::new(
+        "struct Box<T> { value: T }\n\
+         instance Box<T> {\n\
+             pub method self.copied(): T where copy T { self.value }\n\
+             pub method self.moved(): T { move self.value }\n\
+         }\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
@@ -60,8 +77,8 @@ fn callable_copy_requirement_supplies_the_generic_body_proof() {
 #[test]
 fn unconstrained_generic_parameter_is_not_implicitly_copied() {
     let fixture = Fixture::new("func duplicate<T>(value: T): T {\n    value\n}\n");
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -75,8 +92,8 @@ fn payloadless_enum_is_copyable_without_a_marker() {
         "enum Choice {\n    yes\n    no\n}\n\
          func duplicate(value: Choice): Choice {\n    value\n}\n",
     );
-    let (input, prelude) = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
 
@@ -86,16 +103,16 @@ fn payloadless_enum_is_copyable_without_a_marker() {
 #[test]
 fn readonly_and_readwrite_borrows_have_distinct_copyability() {
     let readonly = Fixture::new("func duplicate(value: &i32): &i32 from value {\n    value\n}\n");
-    let (input, prelude) = readonly.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = readonly.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap();
 
     let readwrite =
         Fixture::new("func duplicate(value: &+i32): &+i32 from value {\n    value\n}\n");
-    let (input, prelude) = readwrite.input(false);
-    let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
+    let input = readwrite.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, source_index) = lowered.into_parts();
     let prepared = prepare_program_checking(&input, program, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

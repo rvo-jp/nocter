@@ -43,7 +43,32 @@ impl FunctionLowerer<'_> {
             PlaceRoot::Capture(capture) => {
                 let mut path = self.lower_capture_path(capture)?;
                 path.projections.reserve(checked.projections().len());
-                return self.finish_lower_place(place, &checked, path);
+                return self.finish_lower_place(place, &checked, path, 0);
+            }
+            PlaceRoot::Value(value) => {
+                let checked_value = self
+                    .body
+                    .nodes()
+                    .get(value)
+                    .ok_or(MirLoweringError::InvalidProjectionTypes(place))?;
+                let value_ty = self.concrete_type(checked_value.ty())?;
+                let (capability, referent) = self.borrow_shape(place, value_ty)?;
+                let Some(PlaceProjection::BorrowDeref {
+                    capability: projected,
+                }) = checked.projections().first()
+                else {
+                    return Err(MirLoweringError::InvalidProjectionTypes(place));
+                };
+                if *projected != capability {
+                    return Err(MirLoweringError::InvalidProjectionTypes(place));
+                }
+                let value = self.require_value(value)?;
+                let path = LoweredPlacePath {
+                    root: MirPlaceRoot::Dereference { value, capability },
+                    projections: Vec::with_capacity(checked.projections().len() - 1),
+                    ty: referent,
+                };
+                return self.finish_lower_place(place, &checked, path, 1);
             }
         };
         let root_ty = match root {
@@ -58,7 +83,7 @@ impl FunctionLowerer<'_> {
             projections: Vec::with_capacity(checked.projections().len()),
             ty: root_ty,
         };
-        self.finish_lower_place(place, &checked, path)
+        self.finish_lower_place(place, &checked, path, 0)
     }
 
     fn finish_lower_place(
@@ -66,8 +91,13 @@ impl FunctionLowerer<'_> {
         place: PlaceId,
         checked: &nocter_checking::CheckedPlace,
         mut path: LoweredPlacePath,
+        projection_start: usize,
     ) -> Result<MirPlaceId, MirLoweringError> {
-        for (projection, source_ty) in checked.projections().iter().zip(checked.projection_types())
+        for (projection, source_ty) in checked
+            .projections()
+            .iter()
+            .zip(checked.projection_types())
+            .skip(projection_start)
         {
             let ty = self.concrete_type(*source_ty)?;
             match projection {
