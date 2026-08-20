@@ -477,8 +477,10 @@
   error reporting, and region creation/release now use machine identities as well. Standard
   primitives retain closed roles and use the same concrete ABI planner as direct calls. Direct and
   primitive targets share one call representation. Literal descriptors retain ordered fixed and
-  spread segments through a dedicated body-local identity, while residual cleanup is frozen into
-  machine-function targets, tags, strides, and byte offsets. Compiler-provided comparison, checked
+  spread segments through a dedicated body-local identity. Every spread freezes a direct next
+  function, its callable ABI, and a checked receiver offset into the transferred iterator state;
+  the caller-side borrow value does not survive the machine boundary. Residual cleanup is frozen
+  into machine-function targets, tags, strides, and byte offsets. Compiler-provided comparison, checked
   index, and borrow-weakening dispatch is lowered into representation-exact machine operations;
   no structural call target survives. One whole-program allocation-context fixed point now marks
   roots, context-independent functions, and incoming-context functions across inherited calls,

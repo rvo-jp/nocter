@@ -1176,9 +1176,12 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
     );
     assert!(spread.destruction().is_some());
     assert!(matches!(
-        spread.next().target(),
-        crate::MachineCallTarget::Direct(_)
+        program
+            .function(spread.next().target())
+            .map(crate::MachineFunction::kind),
+        Some(crate::MachineFunctionKind::Callable(_))
     ));
+    assert_eq!(spread.next().receiver_offset(), 0);
 }
 
 #[test]
@@ -1371,11 +1374,9 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let (caller, literal, spread) = literal_spread(&program);
 
-    assert!(
-        !program
-            .allocation()
-            .target_requires_context(spread.next().target())
-            .unwrap()
+    assert_eq!(
+        program.allocation().get(spread.next().target()),
+        Some(MachineAllocationRequirement::None)
     );
     let destruction = spread.destruction().expect("iterator destruction function");
     let crate::MachineDestructionKind::Struct {

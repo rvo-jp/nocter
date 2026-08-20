@@ -164,7 +164,7 @@ fn pack_requires_context(
                 }
             }
             MachinePackSegment::Spread(spread) => {
-                if target_requires_context(spread.next().target(), requirements)? {
+                if function_requires_incoming(requirements, spread.next().target())? {
                     return Ok(true);
                 }
                 if let Some(function) = spread.destruction()

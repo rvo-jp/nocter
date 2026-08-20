@@ -69,6 +69,7 @@ impl MachineProgram {
                         ProgramLoweringContext {
                             types: program.executable().types(),
                             layouts: &layouts,
+                            abi: &abi,
                             data: &data,
                             functions: &domains.items,
                             destructions: &destructions,
@@ -306,6 +307,10 @@ pub enum MachineProgramError {
         owner: MachineLinkageId,
         operation: MirOperationId,
     },
+    InvalidPackReceiver {
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+    },
     MissingOperationResult {
         owner: MachineLinkageId,
         operation: MirOperationId,
@@ -355,6 +360,7 @@ impl std::error::Error for MachineProgramError {
             | Self::Destruction { .. }
             | Self::Structural { .. }
             | Self::InvalidPackTarget { .. }
+            | Self::InvalidPackReceiver { .. }
             | Self::MissingOperationResult { .. }
             | Self::UnsupportedPlaceSwitch(_)
             | Self::InvalidValueSwitch(_)

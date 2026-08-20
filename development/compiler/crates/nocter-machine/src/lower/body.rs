@@ -40,7 +40,7 @@ pub(super) fn lower_body(
         .collect::<Vec<_>>();
     let addresses = lower_addresses(body, context.types, context.layouts, &ids)?;
     let values = lower_values(body, context.types, context.layouts, &ids)?;
-    let packs = lower_packs(body, context, &ids)?;
+    let packs = lower_packs(body, &addresses, context, &ids)?;
     let operations = lower_operations(body, context, &ids)?;
     let blocks = lower_blocks(body, context.layouts, &ids)?;
 

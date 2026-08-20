@@ -96,10 +96,13 @@ already forbids ordinary parameters on those bodies, their machine signature res
 compiler-owned pack-descriptor pointer lane without inventing a source type or variadic ABI. The
 machine program assigns every caller-owned descriptor a body-local `MachinePackId`. Each descriptor
 retains its exact element and optional-next types, total-length value, and ordered fixed or spread
-segments. A spread contains only a machine address, remaining-count value, closed call target,
-contribution mode, and optional generated cleanup-function target. Fixed segments use the same
-cleanup-function domain. The literal body exposes only explicit length, consuming-next, and
-destroy operations over its hidden pointer.
+segments. A spread contains only a machine address, remaining-count value, direct function
+identity, exact callable ABI, receiver byte offset within the transferred iterator, contribution
+mode, and optional generated cleanup-function target. Machine lowering proves the receiver is a
+static subaddress of the iterator and removes the caller-side borrow SSA value; target callbacks
+never retain a pointer into the caller's former iterator storage. Fixed segments use the same
+cleanup-function domain. The literal body exposes only explicit length, consuming-next, and destroy
+operations over its hidden pointer.
 
 Concrete destruction plans are interned once across pointer primitives and pack segments. Their
 generated functions use one compiler-owned `(byte_pointer, byte_offset)` ABI. A partially consumed

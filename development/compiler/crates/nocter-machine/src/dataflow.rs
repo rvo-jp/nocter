@@ -411,7 +411,6 @@ fn add_pack_inputs(
             MachinePackSegment::Spread(spread) => {
                 add_address_inputs(body, spread.iterator(), inputs)?;
                 insert_value(body, spread.remaining(), inputs)?;
-                insert_value(body, spread.next().receiver(), inputs)?;
             }
         }
     }
