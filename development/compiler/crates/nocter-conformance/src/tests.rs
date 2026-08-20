@@ -88,6 +88,44 @@ fn block_parameters_cross_control_flow_edges_natively() {
 }
 
 #[test]
+fn memory_values_cross_control_flow_edges_natively() {
+    let machine = lower_machine(
+        "copy struct Large { first: i64\n    second: i64\n    third: i32 }\n\
+         func choose(condition: bool): Large {\n\
+             if condition {\n\
+                 Large { first: 20, second: 20, third: 42 }\n\
+             } else {\n\
+                 Large { first: 1, second: 1, third: 1 }\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let fallback = choose(false)\n\
+             if fallback.third == 1 {\n\
+                 let selected = choose(true)\n\
+                 return selected.third\n\
+             }\n\
+             return 2\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn optional_tag_switches_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "func force(value: i32?): i32 { value! }\n\
+         func main(): i32 { force(42) }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn static_text_and_two_word_view_transport_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func relay(text: &str): &str { text }\n\

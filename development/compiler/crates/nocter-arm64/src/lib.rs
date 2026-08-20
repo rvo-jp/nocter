@@ -20,6 +20,7 @@ mod identity;
 mod instruction;
 mod lower;
 mod memory_code;
+mod memory_parallel_copy;
 mod memory_selection;
 mod pack_layout;
 mod parallel_copy;
@@ -33,6 +34,8 @@ mod selected_code;
 mod selection;
 mod selection_error;
 mod structural_selection;
+mod switch_code;
+mod switch_selection;
 mod system_primitive_code;
 mod system_primitive_selection;
 mod value_plan;
@@ -77,8 +80,8 @@ pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
     Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedIndexAddressDomain,
     Arm64SelectedInstruction, Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress,
-    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
-    Arm64SelectedUnaryOperation,
+    Arm64SelectedMemoryCopy, Arm64SelectedRegister, Arm64SelectedStackAddress,
+    Arm64SelectedSwitchCase, Arm64SelectedTerminator, Arm64SelectedUnaryOperation,
 };
 pub use selection_error::Arm64SelectionError;
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};

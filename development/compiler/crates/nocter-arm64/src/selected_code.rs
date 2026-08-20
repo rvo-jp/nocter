@@ -474,7 +474,7 @@ fn emit_terminator(
                 immediate: 0,
                 shift_12: false,
             });
-            let then_copy_label = (!then_edge.copies().is_empty()).then(|| code.create_label());
+            let then_copy_label = then_edge.has_copies().then(|| code.create_label());
             let then_target = if let Some(copy_label) = then_copy_label {
                 copy_label
             } else {
@@ -487,6 +487,11 @@ fn emit_terminator(
                 emit_edge(function, then_edge, labels, code)?;
             }
         }
+        Arm64SelectedTerminator::Switch {
+            subject,
+            cases,
+            fallback,
+        } => crate::switch_code::emit(function, subject, cases, fallback, labels, code)?,
         Arm64SelectedTerminator::Return => {
             Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
         }
@@ -503,12 +508,13 @@ fn emit_terminator(
     Ok(())
 }
 
-fn emit_edge(
+pub(crate) fn emit_edge(
     function: &Arm64SelectedFunction,
     edge: &Arm64SelectedEdge,
     labels: &[(MachineBlockId, crate::Arm64LabelId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
+    crate::memory_parallel_copy::emit(function, edge.memory_copies(), code)?;
     crate::parallel_copy::emit(function, edge.copies(), code)?;
     code.branch(block_label(labels, edge.target())?, false);
     Ok(())
@@ -685,7 +691,7 @@ pub(crate) fn stack_offset(
     }
 }
 
-fn block_label(
+pub(crate) fn block_label(
     labels: &[(MachineBlockId, crate::Arm64LabelId)],
     block: MachineBlockId,
 ) -> Result<crate::Arm64LabelId, Arm64MaterializationError> {
@@ -738,7 +744,9 @@ pub enum Arm64MaterializationError {
     InvalidMemoryWidth(u8),
     OverlappingStackCopy,
     InvalidParallelCopy,
+    MissingMemoryEdgeStaging,
     InvalidSystemCallArity(u8),
+    InvalidSwitchWidth(usize),
     Code(Arm64CodeError),
 }
 

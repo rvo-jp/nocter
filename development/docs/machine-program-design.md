@@ -215,9 +215,9 @@ flattened interval that may contain unrelated sibling blocks. Every direct lane 
 common linear-scan allocator; memory values remain explicit requests for later frame placement.
 `Arm64FunctionFrame` is the sole placement boundary. In fixed category order it reserves outgoing
 arguments, machine stack objects, drop flags, memory-backed values, one reusable direct-aggregate
-construction object, pack descriptor/state pairs, spill words, hidden indirect-result and
-pack-input pointers, and allocation-context storage before adding preserved registers and the
-frame record. Root context storage is two words; an incoming
+construction object, one maximum-size memory-edge cycle object, pack descriptor/state pairs, spill
+words, hidden indirect-result and pack-input pointers, and allocation-context storage before
+adding preserved registers and the frame record. Root context storage is two words; an incoming
 context or hidden ABI pointer receives its own saved pointer word.
 
 Every literal call site owns a four-word descriptor containing its state pointer, immutable total
@@ -258,17 +258,25 @@ blocks retain only machine CFG identities and target-selected instructions. The 
 covers integer and boolean constants, checked static/dynamic addresses and scalar loads/stores,
 integer and boolean operations,
 raw-value comparison, representation-exact readonly-borrow comparison, direct scalar call
-transport, indirect caller-owned aggregate transport, local branches, direct returns, traps, and
-process exit. Signed narrow loads
+transport, indirect caller-owned aggregate transport, local branches, value and stored-tag
+switches, direct returns, traps, and process exit. Signed narrow loads
 have an explicit sign-extending instruction form, so stored scalar width never loses signed
 interpretation. Every other machine operation is a typed selection error rather than a retained
 passthrough node.
 
-Each selected CFG edge owns its direct-lane parallel-copy contract. Copies are materialized only
-after a conditional edge has been chosen. A dedicated resolver removes identities, schedules
-acyclic dependencies from leaves to roots, and saves one source in the ABI-reserved boundary
-register when it encounters a cycle. Register and spill locations use the same schedule; no edge
-introduces an implicit frame slot or relies on sequential-move accident.
+Each selected CFG edge owns parallel-copy contracts for direct lanes and memory values. Copies are
+materialized only after a conditional or switch edge has been chosen. The direct resolver removes
+identities, schedules acyclic dependencies from leaves to roots, and saves one source in the
+ABI-reserved boundary register when it encounters a register/spill cycle. The memory resolver
+applies the same parallel-assignment rule to exact frame objects and uses the function's planned
+maximum-size edge temporary only to break a cycle. Sequential copy order is never used as block
+parameter semantics.
+
+Value switches retain one or two selected subject lanes and compare the complete low/high `u128`
+case representation before branching. Stored-tag switches load the exact byte at the
+layout-provided tag offset through `Arm64SelectedAddressPlan`; they do not reproduce enum or outcome
+layout. Cases and fallbacks carry the same edge object as ordinary branches, so register, spill,
+and memory block parameters have one successor transport contract.
 
 Static text is selected as one data-address lane plus one byte-length lane at the offsets already
 owned by `MachineLayoutStore`. Selected code retains `MachineDataId`; whole-program lowering builds
@@ -370,6 +378,8 @@ pipeline. Trap, unreachable, and allocation abort cross materialization but are 
 test runner.
 User drop calls and conditional drop flags execute natively; the case proves both skipped cleanup
 for branch-local uninitialized storage and reverse cleanup for initialized temporaries.
+Optional tag selection and both arms of a 24-byte value-producing conditional execute natively;
+the memory edge scheduler separately proves identity removal, acyclic ordering, and cycle breaking.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -443,6 +453,7 @@ complete, including caller-owned large results, callee-owned large parameters, n
 stack arguments after the register window closes. Root/incoming/explicit allocation-context
 transport, current-context reads, pure pointer/view primitives, byte/value transfer primitives,
 Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user destruction, and
-conditional drop flags are complete. Memory-valued block parameters, recursive concrete pointer
-destruction, process-entry state, I/O and error primitives, lexical region representation and
-cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.
+conditional drop flags, value and stored-tag switches, and cycle-safe direct/memory block-parameter
+transport are complete. Recursive concrete pointer destruction, process-entry state, I/O and error
+primitives, lexical region representation and cleanup, pack callbacks, and test roots remain Phase
+5 implementation areas.

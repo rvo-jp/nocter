@@ -55,6 +55,7 @@ pub struct Arm64FunctionFrame {
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
     direct_aggregate_staging: Option<Arm64FrameObjectId>,
+    memory_edge_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
     indirect_result_pointer: Option<Arm64FrameObjectId>,
@@ -98,6 +99,7 @@ impl Arm64FunctionFrame {
             drop_flags: placed.drop_flags,
             memory_values: placed.memory_values,
             direct_aggregate_staging: placed.direct_aggregate_staging,
+            memory_edge_staging: placed.memory_edge_staging,
             packs: placed.packs,
             spills: placed.spills,
             indirect_result_pointer: hidden.indirect_result_pointer,
@@ -132,6 +134,12 @@ impl Arm64FunctionFrame {
         self.direct_aggregate_staging
     }
 
+    /// One value-sized temporary used only to break cycles in block-edge memory assignments.
+    #[must_use]
+    pub const fn memory_edge_staging(&self) -> Option<Arm64FrameObjectId> {
+        self.memory_edge_staging
+    }
+
     #[must_use]
     pub fn pack(&self, id: MachinePackId) -> Option<&Arm64PackFrame> {
         self.packs.get(id.index())
@@ -163,6 +171,7 @@ struct PlacedBodyObjects {
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
     direct_aggregate_staging: Option<Arm64FrameObjectId>,
+    memory_edge_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
 }
@@ -210,6 +219,7 @@ fn place_body_objects(
     }
     let memory_values = place_memory_values(body, values, builder)?;
     let direct_aggregate_staging = place_direct_aggregate_staging(body, values, builder)?;
+    let memory_edge_staging = place_memory_edge_staging(body, values, builder)?;
     let packs = place_packs(body, builder)?;
     let mut spills = Vec::with_capacity(values.registers().spill_count());
     for _ in 0..values.registers().spill_count() {
@@ -220,9 +230,37 @@ fn place_body_objects(
         drop_flags: drop_flags.into_boxed_slice(),
         memory_values,
         direct_aggregate_staging,
+        memory_edge_staging,
         packs,
         spills: spills.into_boxed_slice(),
     })
+}
+
+fn place_memory_edge_staging(
+    body: &nocter_machine::MachineBody,
+    values: &Arm64ValuePlan,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<Option<Arm64FrameObjectId>, Arm64FunctionFrameError> {
+    let mut requirement: Option<(u64, u64)> = None;
+    for parameter in body
+        .blocks()
+        .flat_map(|(_, block)| block.parameters().iter().copied())
+    {
+        match values
+            .value(parameter)
+            .ok_or(Arm64FunctionFrameError::MissingValue(parameter))?
+        {
+            Arm64ValueStorage::Memory { size, alignment } => {
+                let (required_size, required_alignment) = requirement.unwrap_or((0, 1));
+                requirement = Some((required_size.max(*size), required_alignment.max(*alignment)));
+            }
+            Arm64ValueStorage::Omitted | Arm64ValueStorage::Direct(_) => {}
+        }
+    }
+    requirement
+        .map(|(size, alignment)| builder.add_object(size, alignment))
+        .transpose()
+        .map_err(Arm64FunctionFrameError::from)
 }
 
 fn place_direct_aggregate_staging(

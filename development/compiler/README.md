@@ -414,9 +414,10 @@ be introduced to make an unresolved syntax choice.
   cannot force an unrelated value into a callee-saved register. Direct words share the allocator,
   while larger values remain explicit fixed-frame requests.
   `Arm64FunctionFrame` feeds maximum outgoing call storage, machine stack objects, drop flags,
-  memory values, one reusable direct-aggregate construction object, literal descriptor/state
-  pairs, spill lanes, hidden result/pack/context pointers, and preserved registers through that one
-  planner. Pack descriptors have one uniform four-word
+  memory values, one reusable direct-aggregate construction object, one maximum-size
+  memory-edge cycle temporary, literal descriptor/state pairs, spill lanes, hidden
+  result/pack/context pointers, and preserved registers through that one planner. Pack descriptors
+  have one uniform four-word
   callback ABI, while each call site's source-ordered state has its own checked layout.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
@@ -426,8 +427,9 @@ be introduced to make an unresolved syntax choice.
   scalar memory loads, exact aggregate/memory copies, layout-owned aggregate construction,
   checked stack/pointer/view address formation and indexing, integer and boolean operations, raw-value
   and readonly-borrow comparisons, direct scalar arguments/results, indirect caller-owned
-  aggregate transport, local branches, returns, and process exits into virtual/fixed register
-  transfers. Signed byte and halfword loads retain their
+  aggregate transport, local branches, one- and two-word value switches, layout-owned stored-tag
+  switches, returns, and process exits into virtual/fixed register transfers. Signed byte and
+  halfword loads retain their
   meaning through explicit sign-extending target instructions. A separate materializer resolves
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
   nodes fail selection explicitly. Allocation-context selection initializes the root header,
@@ -436,10 +438,11 @@ be introduced to make an unresolved syntax choice.
   pointer/view roles share one closed primitive selector: representation-preserving conversions
   retain staged lanes, view observers select pointer or length, unchecked string subviews adjust
   the pointer/length pair, and pointee size/alignment consume `MachineLayoutStore`. Concrete type
-  arguments referenced only by a primitive are included in the layout closure. Typed CFG
-  edges own direct-lane parallel copies; a separate
-  resolver orders chains, breaks cycles through one reserved boundary register, and emits only the
-  chosen conditional edge across register and spill locations. Dense function
+  arguments referenced only by a primitive are included in the layout closure. Typed CFG edges
+  own both direct-lane and memory-value parallel copies. The direct resolver orders register/spill
+  chains and breaks cycles through one reserved boundary register. The memory resolver applies the
+  same parallel-assignment contract to frame objects and breaks a cycle through its planned frame
+  temporary. Both run only after their conditional or switch edge is selected. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses. Static text selection now
@@ -472,8 +475,9 @@ be introduced to make an unresolved syntax choice.
   macOS without invoking an assembler, linker, or signing tool.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
-  comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
-  direct and memory-backed aggregates, dynamic fixed-array places, fixed/view index borrows, and
+  comparisons, narrow signed values, direct- and memory-valued block joins, optional tag switches,
+  static text, two-word view calls, direct and memory-backed aggregates, dynamic fixed-array places,
+  fixed/view index borrows, and
   pure pointer/view primitives, runtime-sized or generic memory transfers, Darwin syscalls, and
   primitive process exit, user destruction, and conditional drop flags
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also

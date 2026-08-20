@@ -11,15 +11,17 @@ implementation input.
 
 ## Immediate Work
 
-1. Expand closed primitive-role lowering from the completed allocation-context, pure pointer/view,
-   byte/value transfer, syscall, process-exit, trap, abort, and direct user-drop operations to
-   recursive concrete destruction, process-entry state, I/O, and error construction without
-   name-based dispatch or private call conventions.
+1. Introduce one compiler-generated concrete-destruction function authority shared by
+   `drop_value_at_ptr<T>`, recursive aggregate cleanup, and literal-pack residual cleanup. It must
+   use ordinary machine linkage and ABI plans rather than target-private callbacks or role-specific
+   recursive selection.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
-   region creation/release, drop operations, checked indexing, literal packs,
-   and generated pack callbacks without retaining a machine-operation fallback in selected code.
-3. Expand the native conformance crate from the deterministic constant-process case to control,
-   calls, memory, outcomes, ownership cleanup, allocation, literals, and test-root execution.
+   region creation/release through that representation without deriving runtime state from the
+   current standard-library implementation.
+3. Generate and execute literal-pack next/residual-destruction callbacks, then close independent
+   test roots through the same function, allocation-context, and process-image authorities.
+4. Complete process-entry state, I/O, and error-construction primitive roles without name-based
+   dispatch or private call conventions.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive
@@ -151,6 +153,14 @@ checked place address in `x0`, inherits allocation context only when the target 
 uses the ordinary direct call relocation. Every drop flag is initialized in the function entry and
 read or written as one exact frame byte. Native conformance proves both an uninitialized skipped
 cleanup and initialized reverse temporary destruction.
+
+Every closed machine terminator now crosses the ARM64 boundary. Value switches compare one- or
+two-word subjects without truncating their `u128` case domain; stored-tag switches load the exact
+layout-owned tag byte through the common selected-address plan. Switch and conditional successors
+share one edge object. Direct lanes use register/spill parallel copies, while memory-backed block
+parameters use a separate cycle-safe parallel-copy scheduler and one maximum-size frame staging
+object only when a cycle must be broken. Identity copies disappear, acyclic chains preserve source
+bytes, and both selected and fallback 24-byte joins plus an optional-tag switch execute natively.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

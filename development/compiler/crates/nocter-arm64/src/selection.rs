@@ -185,10 +185,35 @@ impl Arm64SelectedCopy {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64SelectedMemoryCopy {
+    destination: Arm64SelectedStackAddress,
+    source: Arm64SelectedStackAddress,
+    bytes: u64,
+}
+
+impl Arm64SelectedMemoryCopy {
+    #[must_use]
+    pub const fn destination(self) -> Arm64SelectedStackAddress {
+        self.destination
+    }
+
+    #[must_use]
+    pub const fn source(self) -> Arm64SelectedStackAddress {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn bytes(self) -> u64 {
+        self.bytes
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arm64SelectedEdge {
     target: MachineBlockId,
     copies: Box<[Arm64SelectedCopy]>,
+    memory_copies: Box<[Arm64SelectedMemoryCopy]>,
 }
 
 impl Arm64SelectedEdge {
@@ -201,6 +226,38 @@ impl Arm64SelectedEdge {
     pub const fn copies(&self) -> &[Arm64SelectedCopy] {
         &self.copies
     }
+
+    #[must_use]
+    pub const fn memory_copies(&self) -> &[Arm64SelectedMemoryCopy] {
+        &self.memory_copies
+    }
+
+    #[must_use]
+    pub const fn has_copies(&self) -> bool {
+        !self.copies.is_empty() || !self.memory_copies.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Arm64SelectedSwitchCase {
+    value: u128,
+    edge: Arm64SelectedEdge,
+}
+
+impl Arm64SelectedSwitchCase {
+    pub(crate) const fn new(value: u128, edge: Arm64SelectedEdge) -> Self {
+        Self { value, edge }
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> u128 {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn edge(&self) -> &Arm64SelectedEdge {
+        &self.edge
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -210,6 +267,11 @@ pub enum Arm64SelectedTerminator {
         condition: Arm64SelectedRegister,
         then_edge: Arm64SelectedEdge,
         else_edge: Arm64SelectedEdge,
+    },
+    Switch {
+        subject: Box<[Arm64SelectedRegister]>,
+        cases: Box<[Arm64SelectedSwitchCase]>,
+        fallback: Arm64SelectedEdge,
     },
     Return,
     Exit(Option<Arm64SelectedRegister>),
@@ -292,6 +354,7 @@ impl Arm64SelectedFunction {
                 block.terminator(),
                 &values,
                 &frame,
+                &addresses,
                 &mut instructions,
             )?;
             blocks.push((
@@ -616,11 +679,14 @@ fn select_terminator(
     terminator: &MachineTerminator,
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
+    addresses: &crate::Arm64SelectedAddressPlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<Arm64SelectedTerminator, Arm64SelectionError> {
+    let switch_context =
+        crate::switch_selection::SwitchSelectionContext::new(function, values, frame);
     match terminator {
         MachineTerminator::Goto(target) => Ok(Arm64SelectedTerminator::Goto(select_edge(
-            function, target, values,
+            function, target, values, frame,
         )?)),
         MachineTerminator::Branch {
             condition,
@@ -628,8 +694,8 @@ fn select_terminator(
             else_target,
         } => Ok(Arm64SelectedTerminator::Branch {
             condition: one_word(values, *condition)?,
-            then_edge: select_edge(function, then_target, values)?,
-            else_edge: select_edge(function, else_target, values)?,
+            then_edge: select_edge(function, then_target, values, frame)?,
+            else_edge: select_edge(function, else_target, values, frame)?,
         }),
         MachineTerminator::BranchDropFlag {
             flag,
@@ -639,10 +705,29 @@ fn select_terminator(
             let condition = crate::destruction_selection::select_flag_read(*flag, frame, selected)?;
             Ok(Arm64SelectedTerminator::Branch {
                 condition,
-                then_edge: select_edge(function, initialized, values)?,
-                else_edge: select_edge(function, uninitialized, values)?,
+                then_edge: select_edge(function, initialized, values, frame)?,
+                else_edge: select_edge(function, uninitialized, values, frame)?,
             })
         }
+        MachineTerminator::SwitchValue {
+            subject,
+            cases,
+            fallback,
+        } => crate::switch_selection::select_value(switch_context, *subject, cases, fallback),
+        MachineTerminator::SwitchTag {
+            subject,
+            tag_offset,
+            cases,
+            fallback,
+        } => crate::switch_selection::select_tag(
+            switch_context,
+            *subject,
+            *tag_offset,
+            cases,
+            fallback,
+            addresses,
+            selected,
+        ),
         MachineTerminator::Return(value) => {
             crate::call_selection::select_return(function, block, *value, values, frame, selected)?;
             Ok(Arm64SelectedTerminator::Return)
@@ -652,14 +737,14 @@ fn select_terminator(
         )),
         MachineTerminator::Trap => Ok(Arm64SelectedTerminator::Trap),
         MachineTerminator::Unreachable => Ok(Arm64SelectedTerminator::Unreachable),
-        _ => Err(Arm64SelectionError::UnsupportedTerminator(block)),
     }
 }
 
-fn select_edge(
+pub(crate) fn select_edge(
     function: &nocter_machine::MachineFunction,
     target: &MachineBranchTarget,
     values: &Arm64ValuePlan,
+    frame: &Arm64FunctionFrame,
 ) -> Result<Arm64SelectedEdge, Arm64SelectionError> {
     let parameters = function
         .body()
@@ -670,6 +755,7 @@ fn select_edge(
         return Err(Arm64SelectionError::EdgeArity(target.block()));
     }
     let mut copies = Vec::new();
+    let mut memory_copies = Vec::new();
     for (argument, parameter) in target
         .arguments()
         .iter()
@@ -692,6 +778,21 @@ fn select_edge(
                         }),
                 );
             }
+            (
+                Some(Arm64ValueStorage::Memory {
+                    size: source_size, ..
+                }),
+                Some(Arm64ValueStorage::Memory {
+                    size: destination_size,
+                    ..
+                }),
+            ) if source_size == destination_size => {
+                memory_copies.push(Arm64SelectedMemoryCopy {
+                    destination: memory_value_address(frame, parameter)?,
+                    source: memory_value_address(frame, argument)?,
+                    bytes: *source_size,
+                });
+            }
             (Some(_), Some(_)) => return Err(Arm64SelectionError::EdgeTransport(target.block())),
             (None, _) => return Err(Arm64SelectionError::UnknownValue(argument)),
             (_, None) => return Err(Arm64SelectionError::UnknownValue(parameter)),
@@ -700,7 +801,18 @@ fn select_edge(
     Ok(Arm64SelectedEdge {
         target: target.block(),
         copies: copies.into_boxed_slice(),
+        memory_copies: memory_copies.into_boxed_slice(),
     })
+}
+
+fn memory_value_address(
+    frame: &Arm64FunctionFrame,
+    value: MachineValueId,
+) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
+    frame
+        .memory_value(value)
+        .map(|object| Arm64SelectedStackAddress::FrameObject { object, offset: 0 })
+        .ok_or(Arm64SelectionError::MemoryValue(value))
 }
 
 pub(crate) fn direct_value(
