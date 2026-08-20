@@ -5,8 +5,8 @@ use nocter_machine::{
 
 use crate::{
     Arm64DataSize, Arm64FunctionFrame, Arm64NocterAbi, Arm64SelectedInstruction,
-    Arm64SelectedLoadExtension, Arm64SelectedRegister, Arm64SelectedStackAddress,
-    Arm64SelectionError, Arm64ValuePlan, Arm64ValueStorage,
+    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64SelectionError, Arm64ValuePlan, Arm64ValueStorage,
 };
 
 /// Selects one aggregate from its layout-owned byte-write recipe.
@@ -52,14 +52,16 @@ pub(crate) fn select_aggregate(
     if let Arm64ValueStorage::Direct(registers) = storage {
         let sizes = crate::memory_selection::direct_lane_sizes(aggregate.size(), registers.len())?;
         for (lane, (register, bytes)) in registers.iter().copied().zip(sizes).enumerate() {
-            selected.push(Arm64SelectedInstruction::LoadStack {
+            selected.push(Arm64SelectedInstruction::LoadMemory {
                 bytes,
                 extension: Arm64SelectedLoadExtension::Zero,
                 destination: Arm64SelectedRegister::Virtual(register),
-                source: crate::memory_selection::offset_stack_address(
-                    destination,
-                    crate::memory_selection::lane_offset(lane)?,
-                )?,
+                source: Arm64SelectedMemoryAddress::Stack(
+                    crate::memory_selection::offset_stack_address(
+                        destination,
+                        crate::memory_selection::lane_offset(lane)?,
+                    )?,
+                ),
             });
         }
     }
@@ -91,12 +93,11 @@ impl AggregateWriteSelection<'_> {
                     destination: scratch,
                     value: u64::from(value),
                 });
-                selected.push(Arm64SelectedInstruction::StoreStack {
+                selected.push(Arm64SelectedInstruction::StoreMemory {
                     bytes: 1,
-                    destination: crate::memory_selection::offset_stack_address(
-                        self.destination,
-                        offset,
-                    )?,
+                    destination: Arm64SelectedMemoryAddress::Stack(
+                        crate::memory_selection::offset_stack_address(self.destination, offset)?,
+                    ),
                     source: scratch,
                 });
                 Ok(())
@@ -125,12 +126,14 @@ impl AggregateWriteSelection<'_> {
             Arm64ValueStorage::Direct(registers) => {
                 let sizes = crate::memory_selection::direct_lane_sizes(size, registers.len())?;
                 for (lane, (register, bytes)) in registers.iter().copied().zip(sizes).enumerate() {
-                    selected.push(Arm64SelectedInstruction::StoreStack {
+                    selected.push(Arm64SelectedInstruction::StoreMemory {
                         bytes,
-                        destination: crate::memory_selection::offset_stack_address(
-                            destination,
-                            crate::memory_selection::lane_offset(lane)?,
-                        )?,
+                        destination: Arm64SelectedMemoryAddress::Stack(
+                            crate::memory_selection::offset_stack_address(
+                                destination,
+                                crate::memory_selection::lane_offset(lane)?,
+                            )?,
+                        ),
                         source: Arm64SelectedRegister::Virtual(register),
                     });
                 }
@@ -148,9 +151,9 @@ impl AggregateWriteSelection<'_> {
                 if source == destination {
                     return Err(Arm64SelectionError::AggregateStorageAlias(self.result));
                 }
-                selected.push(Arm64SelectedInstruction::CopyStack {
-                    destination,
-                    source,
+                selected.push(Arm64SelectedInstruction::CopyMemoryNonOverlapping {
+                    destination: Arm64SelectedMemoryAddress::Stack(destination),
+                    source: Arm64SelectedMemoryAddress::Stack(source),
                     bytes: size,
                 });
                 Ok(())

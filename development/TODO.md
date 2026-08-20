@@ -12,9 +12,8 @@ implementation input.
 ## Immediate Work
 
 1. Extend the closed selected-instruction schema from scalar and aggregate operations, exact
-   direct/memory stack transport, simple stack addresses, direct-call transport, branch, return,
-   and process exit to projected/dynamic addresses and indirect callable parameter/result
-   transport.
+   direct/memory transport, checked projected/dynamic addresses, direct-call transport, branch,
+   return, and process exit to indirect callable parameter/result transport.
 2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
 3. Expand the native conformance crate from the deterministic constant-process case to control,
@@ -93,6 +92,14 @@ their own frame object, and reuses one maximum-size staging object only while co
 aggregates. Exact stack-copy instructions reject overlap and never widen past a representation
 boundary. Native conformance covers 3-byte, two-lane, and 24-byte structs through construction,
 local storage, field projection, and execution.
+
+Address selection now normalizes every machine address into a checked stack object or a runtime
+base-register calculation. Pointer, view, offset, dereference, and fixed/view index steps share one
+materializer; place loads/stores/address formation and built-in index borrows no longer implement
+parallel bounds or stride arithmetic. The selected memory schema accepts stack and register bases,
+including exact non-overlapping copies between user-addressable storage and compiler-owned memory
+values. Native conformance covers dynamic fixed-array load/store, borrowed fixed-array indexing,
+and `&str` view indexing.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

@@ -4,6 +4,8 @@
 //! MIR representations are deliberately absent from its dependency graph.
 
 mod abi;
+mod address_code;
+mod address_selection;
 mod aggregate_selection;
 mod code;
 mod encode;
@@ -24,9 +26,14 @@ mod register_allocation;
 mod selected_code;
 mod selection;
 mod selection_error;
+mod structural_selection;
 mod value_plan;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
+pub use address_selection::{
+    Arm64SelectedAddressCalculation, Arm64SelectedAddressPlan, Arm64SelectedAddressRoot,
+    Arm64SelectedAddressStep, Arm64SelectedIndex, Arm64SelectedIndexBound,
+};
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;
 pub use frame::{
@@ -60,9 +67,10 @@ pub use register_allocation::{
 pub use selected_code::Arm64MaterializationError;
 pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
-    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction,
-    Arm64SelectedLoadExtension, Arm64SelectedRegister, Arm64SelectedStackAddress,
-    Arm64SelectedTerminator, Arm64SelectedUnaryOperation,
+    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedIndexAddressDomain,
+    Arm64SelectedInstruction, Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress,
+    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
+    Arm64SelectedUnaryOperation,
 };
 pub use selection_error::Arm64SelectionError;
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};

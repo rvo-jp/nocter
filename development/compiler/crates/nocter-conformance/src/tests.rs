@@ -144,6 +144,40 @@ fn layout_owned_aggregate_bytes_cross_the_native_pipeline() {
     execute_and_assert_status(&image, 42);
 }
 
+#[test]
+fn checked_dynamic_places_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "func main(): i32 {\n\
+             var values: [i32; 3] = [20, 1, 2]\n\
+             values[1] = 20\n\
+             return values[0] + values[1] + values[2]\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn built_in_index_borrows_share_native_address_evaluation() {
+    let machine = lower_machine(
+        "func read(values: &[i32; 3], index: usize): i32 { values[index] }\n\
+         func byte_at(text: &str, index: usize): u8 { text[index] }\n\
+         func main(): i32 {\n\
+             let values: [i32; 3] = [20, 20, 2]\n\
+             if byte_at(\"abc\", 1) == 98 {\n\
+                 return read(&values, 0) + read(&values, 1) + read(&values, 2)\n\
+             }\n\
+             return 1\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     use std::os::unix::fs::PermissionsExt;

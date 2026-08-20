@@ -18,7 +18,7 @@ pub enum Arm64SelectionError {
     UnknownValue(MachineValueId),
     UnknownData(MachineDataId),
     UnknownAddress(MachineAddressId),
-    NonStackAddress,
+    NonDenseAddress(MachineAddressId),
     ProjectedAddress,
     AddressOverflow,
     UnknownStack(nocter_machine::MachineStackId),
@@ -30,6 +30,7 @@ pub enum Arm64SelectionError {
     AggregateStorageAlias(MachineValueId),
     MissingAggregateStaging,
     DirectLaneOffset(u64),
+    DirectCopy(MachineOperationId),
     UnsupportedScalar(MachineValueId),
     UnsupportedScalarRepresentation(MachineScalar),
     NonDenseBlock(MachineBlockId),
@@ -94,5 +95,34 @@ impl From<Arm64ValuePlanError> for Arm64SelectionError {
 impl From<Arm64FunctionFrameError> for Arm64SelectionError {
     fn from(error: Arm64FunctionFrameError) -> Self {
         Self::Frame(error)
+    }
+}
+
+pub(crate) const fn operation_name(
+    operation: &nocter_machine::MachineOperationKind,
+) -> &'static str {
+    use nocter_machine::MachineOperationKind;
+
+    match operation {
+        MachineOperationKind::Constant(_) => "constant",
+        MachineOperationKind::Load { .. } => "load",
+        MachineOperationKind::AddressOf { .. } => "address-of",
+        MachineOperationKind::Store { .. } => "store",
+        MachineOperationKind::Unary { .. } => "unary",
+        MachineOperationKind::Binary { .. } => "binary",
+        MachineOperationKind::IntegerConversion { .. } => "integer-conversion",
+        MachineOperationKind::Comparison(_) => "comparison",
+        MachineOperationKind::IndexBorrow(_) => "index-borrow",
+        MachineOperationKind::BorrowWeakening { .. } => "borrow-weakening",
+        MachineOperationKind::Aggregate(_) => "aggregate",
+        MachineOperationKind::InvokeDrop { .. } => "invoke-drop",
+        MachineOperationKind::ReportError { .. } => "report-error",
+        MachineOperationKind::CreateRegion { .. } => "create-region",
+        MachineOperationKind::ReleaseRegion { .. } => "release-region",
+        MachineOperationKind::SetDropFlag { .. } => "set-drop-flag",
+        MachineOperationKind::Call(_) => "call",
+        MachineOperationKind::PackLength => "pack-length",
+        MachineOperationKind::PackNext => "pack-next",
+        MachineOperationKind::DestroyPack => "destroy-pack",
     }
 }

@@ -1,7 +1,8 @@
 use crate::{
     Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
     Arm64Logical, Arm64MaterializationError, Arm64NocterAbi, Arm64Register, Arm64SelectedFunction,
-    Arm64SelectedLoadExtension, Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64Shift,
+    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64Shift,
 };
 
 pub(crate) fn emit_data_address(
@@ -16,7 +17,31 @@ pub(crate) fn emit_data_address(
     Ok(())
 }
 
-pub(crate) fn emit_stack_load(
+pub(crate) fn emit_memory_load(
+    function: &Arm64SelectedFunction,
+    bytes: u8,
+    extension: Arm64SelectedLoadExtension,
+    destination: Arm64SelectedRegister,
+    source: Arm64SelectedMemoryAddress,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match source {
+        Arm64SelectedMemoryAddress::Stack(source) => {
+            emit_stack_load(function, bytes, extension, destination, source, code)
+        }
+        Arm64SelectedMemoryAddress::Register { base, offset } => crate::address_code::emit_load(
+            function,
+            bytes,
+            extension,
+            destination,
+            base,
+            offset,
+            code,
+        ),
+    }
+}
+
+fn emit_stack_load(
     function: &Arm64SelectedFunction,
     bytes: u8,
     extension: Arm64SelectedLoadExtension,
@@ -50,7 +75,24 @@ pub(crate) fn emit_stack_load(
     Ok(())
 }
 
-pub(crate) fn emit_stack_store(
+pub(crate) fn emit_memory_store(
+    function: &Arm64SelectedFunction,
+    bytes: u8,
+    destination: Arm64SelectedMemoryAddress,
+    source: Arm64SelectedRegister,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match destination {
+        Arm64SelectedMemoryAddress::Stack(destination) => {
+            emit_stack_store(function, bytes, destination, source, code)
+        }
+        Arm64SelectedMemoryAddress::Register { base, offset } => {
+            crate::address_code::emit_store(function, bytes, base, offset, source, code)
+        }
+    }
+}
+
+fn emit_stack_store(
     function: &Arm64SelectedFunction,
     bytes: u8,
     destination: Arm64SelectedStackAddress,
@@ -87,28 +129,34 @@ pub(crate) fn emit_stack_zero(
     Ok(())
 }
 
-pub(crate) fn emit_stack_copy(
+pub(crate) fn emit_memory_copy(
     function: &Arm64SelectedFunction,
-    destination: Arm64SelectedStackAddress,
-    source: Arm64SelectedStackAddress,
+    destination: Arm64SelectedMemoryAddress,
+    source: Arm64SelectedMemoryAddress,
     bytes: u64,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    validate_nonoverlapping_copy(function, destination, source, bytes)?;
-    let transfer = Arm64SelectedRegister::Fixed(boundary_register(0));
+    if let (
+        Arm64SelectedMemoryAddress::Stack(destination),
+        Arm64SelectedMemoryAddress::Stack(source),
+    ) = (destination, source)
+    {
+        validate_nonoverlapping_copy(function, destination, source, bytes)?;
+    }
+    let transfer = Arm64SelectedRegister::Fixed(boundary_register(1));
     for (offset, width) in exact_memory_chunks(bytes) {
-        emit_stack_load(
+        emit_memory_load(
             function,
             width,
             Arm64SelectedLoadExtension::Zero,
             transfer,
-            offset_stack_address(source, offset)?,
+            offset_memory_address(source, offset)?,
             code,
         )?;
-        emit_stack_store(
+        emit_memory_store(
             function,
             width,
-            offset_stack_address(destination, offset)?,
+            offset_memory_address(destination, offset)?,
             transfer,
             code,
         )?;
@@ -137,17 +185,24 @@ fn validate_nonoverlapping_copy(
     }
 }
 
-pub(crate) fn emit_stack_address(
+pub(crate) fn emit_memory_address(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedRegister,
-    source: Arm64SelectedStackAddress,
+    source: Arm64SelectedMemoryAddress,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    let offset = crate::selected_code::stack_offset(function, source, 0)?;
-    let destination = crate::selected_code::write_target(function, destination)?;
-    crate::frame_access::form_stack_address(code, destination.register, offset);
-    crate::selected_code::finish_write(destination, code);
-    Ok(())
+    match source {
+        Arm64SelectedMemoryAddress::Stack(source) => {
+            let offset = crate::selected_code::stack_offset(function, source, 0)?;
+            let destination = crate::selected_code::write_target(function, destination)?;
+            crate::frame_access::form_stack_address(code, destination.register, offset);
+            crate::selected_code::finish_write(destination, code);
+            Ok(())
+        }
+        Arm64SelectedMemoryAddress::Register { base, offset } => {
+            crate::address_code::emit_address(function, destination, base, offset, code)
+        }
+    }
 }
 
 fn emit_fragmented_load(
@@ -291,7 +346,26 @@ fn offset_stack_address(
     }
 }
 
-fn memory_fragments(bytes: u8) -> impl Iterator<Item = (u8, Arm64LoadStoreSize)> {
+fn offset_memory_address(
+    address: Arm64SelectedMemoryAddress,
+    additional: u64,
+) -> Result<Arm64SelectedMemoryAddress, Arm64MaterializationError> {
+    match address {
+        Arm64SelectedMemoryAddress::Stack(address) => Ok(Arm64SelectedMemoryAddress::Stack(
+            offset_stack_address(address, additional)?,
+        )),
+        Arm64SelectedMemoryAddress::Register { base, offset } => {
+            Ok(Arm64SelectedMemoryAddress::Register {
+                base,
+                offset: offset
+                    .checked_add(additional)
+                    .ok_or(Arm64MaterializationError::OffsetOverflow)?,
+            })
+        }
+    }
+}
+
+pub(crate) fn memory_fragments(bytes: u8) -> impl Iterator<Item = (u8, Arm64LoadStoreSize)> {
     let mut remaining = bytes;
     let mut offset = 0;
     std::iter::from_fn(move || {

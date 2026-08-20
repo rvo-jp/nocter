@@ -72,12 +72,12 @@ fn emit_instruction(
             destination,
             source,
         } => emit_move(function, destination, source, size, code),
-        Arm64SelectedInstruction::LoadStack {
+        Arm64SelectedInstruction::LoadMemory {
             bytes,
             extension,
             destination,
             source,
-        } => crate::memory_code::emit_stack_load(
+        } => crate::memory_code::emit_memory_load(
             function,
             bytes,
             extension,
@@ -85,23 +85,31 @@ fn emit_instruction(
             source,
             code,
         ),
-        Arm64SelectedInstruction::StoreStack {
+        Arm64SelectedInstruction::StoreMemory {
             bytes,
             destination,
             source,
-        } => crate::memory_code::emit_stack_store(function, bytes, destination, source, code),
+        } => crate::memory_code::emit_memory_store(function, bytes, destination, source, code),
         Arm64SelectedInstruction::ZeroStack { destination, bytes } => {
             crate::memory_code::emit_stack_zero(function, destination, bytes, code)
         }
-        Arm64SelectedInstruction::CopyStack {
+        Arm64SelectedInstruction::CopyMemoryNonOverlapping {
             destination,
             source,
             bytes,
-        } => crate::memory_code::emit_stack_copy(function, destination, source, bytes, code),
-        Arm64SelectedInstruction::StackAddress {
+        } => crate::memory_code::emit_memory_copy(function, destination, source, bytes, code),
+        Arm64SelectedInstruction::ResolveAddress(address) => {
+            emit_resolved_address(function, address, code)
+        }
+        Arm64SelectedInstruction::IndexAddress {
+            destination,
+            index,
+            domain,
+        } => crate::address_code::emit_index_address(function, destination, index, domain, code),
+        Arm64SelectedInstruction::MemoryAddress {
             destination,
             source,
-        } => crate::memory_code::emit_stack_address(function, destination, source, code),
+        } => crate::memory_code::emit_memory_address(function, destination, source, code),
         Arm64SelectedInstruction::Unary {
             size,
             operation,
@@ -141,6 +149,18 @@ fn emit_instruction(
             Ok(())
         }
     }
+}
+
+fn emit_resolved_address(
+    function: &Arm64SelectedFunction,
+    address: nocter_machine::MachineAddressId,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let calculation = function
+        .addresses()
+        .calculation(address)
+        .ok_or(Arm64MaterializationError::UnknownSelectedAddress(address))?;
+    crate::address_code::emit_resolve(function, calculation, code)
 }
 
 fn emit_unary(
@@ -729,6 +749,7 @@ pub enum Arm64MaterializationError {
     UnknownFunction(MachineFunctionId),
     UnknownData(MachineDataId),
     UnknownBlock(MachineBlockId),
+    UnknownSelectedAddress(nocter_machine::MachineAddressId),
     UnknownVirtualRegister(crate::Arm64VirtualRegister),
     UnknownSpill(crate::Arm64SpillSlotId),
     UnknownFrameObject(crate::Arm64FrameObjectId),

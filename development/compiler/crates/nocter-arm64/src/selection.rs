@@ -1,10 +1,10 @@
 use nocter_machine::{
-    MachineArgumentLocation, MachineBinaryOperation, MachineBlockId, MachineBranchTarget,
-    MachineCall, MachineCallAllocation, MachineCallTarget, MachineComparisonOperation,
-    MachineComparisonRepresentation, MachineConstant, MachineDataId, MachineFunctionId,
-    MachineFunctionKind, MachineLayoutKind, MachineOperationId, MachineOperationKind,
-    MachineResultAbi, MachineResultLocation, MachineScalar, MachineTerminator,
-    MachineUnaryOperation, MachineValueClass, MachineValueId,
+    MachineAddressId, MachineArgumentLocation, MachineBinaryOperation, MachineBlockId,
+    MachineBranchTarget, MachineCall, MachineCallAllocation, MachineCallTarget,
+    MachineComparisonOperation, MachineComparisonRepresentation, MachineConstant, MachineDataId,
+    MachineFunctionId, MachineFunctionKind, MachineLayoutKind, MachineOperationId,
+    MachineOperationKind, MachineResultAbi, MachineResultLocation, MachineScalar,
+    MachineTerminator, MachineUnaryOperation, MachineValueClass, MachineValueId,
 };
 
 use crate::{
@@ -29,6 +29,15 @@ pub enum Arm64SelectedStackAddress {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64SelectedMemoryAddress {
+    Stack(Arm64SelectedStackAddress),
+    Register {
+        base: Arm64SelectedRegister,
+        offset: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedInstruction {
     LoadImmediate {
         size: Arm64DataSize,
@@ -44,29 +53,36 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
     },
-    LoadStack {
+    LoadMemory {
         bytes: u8,
         extension: Arm64SelectedLoadExtension,
         destination: Arm64SelectedRegister,
-        source: Arm64SelectedStackAddress,
+        source: Arm64SelectedMemoryAddress,
     },
-    StoreStack {
+    StoreMemory {
         bytes: u8,
-        destination: Arm64SelectedStackAddress,
+        destination: Arm64SelectedMemoryAddress,
         source: Arm64SelectedRegister,
     },
     ZeroStack {
         destination: Arm64SelectedStackAddress,
         bytes: u64,
     },
-    CopyStack {
-        destination: Arm64SelectedStackAddress,
-        source: Arm64SelectedStackAddress,
+    /// Exact copy between storage domains proven distinct during selection.
+    CopyMemoryNonOverlapping {
+        destination: Arm64SelectedMemoryAddress,
+        source: Arm64SelectedMemoryAddress,
         bytes: u64,
     },
-    StackAddress {
+    ResolveAddress(MachineAddressId),
+    IndexAddress {
         destination: Arm64SelectedRegister,
-        source: Arm64SelectedStackAddress,
+        index: Arm64SelectedRegister,
+        domain: Arm64SelectedIndexAddressDomain,
+    },
+    MemoryAddress {
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedMemoryAddress,
     },
     Unary {
         size: Arm64DataSize,
@@ -91,6 +107,20 @@ pub enum Arm64SelectedInstruction {
         right: Arm64SelectedRegister,
     },
     Call(MachineFunctionId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64SelectedIndexAddressDomain {
+    Fixed {
+        pointer: Arm64SelectedRegister,
+        length: u64,
+        stride: u64,
+    },
+    View {
+        pointer: Arm64SelectedRegister,
+        length: Arm64SelectedRegister,
+        stride: u64,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -198,6 +228,7 @@ pub struct Arm64SelectedFunction {
     owner: MachineFunctionId,
     values: Arm64ValuePlan,
     frame: Arm64FunctionFrame,
+    addresses: crate::Arm64SelectedAddressPlan,
     entry_instructions: Box<[Arm64SelectedInstruction]>,
     blocks: Box<[(MachineBlockId, Arm64SelectedBlock)]>,
     entry: MachineBlockId,
@@ -221,6 +252,7 @@ impl Arm64SelectedFunction {
             .ok_or(Arm64SelectionError::UnknownFunction(owner))?;
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
+        let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
         let entry_instructions = select_parameters(function, &frame)?;
         let mut blocks = Vec::with_capacity(function.body().blocks().len());
         for (block_id, block) in function.body().blocks() {
@@ -235,6 +267,7 @@ impl Arm64SelectedFunction {
                     *operation_id,
                     &values,
                     &frame,
+                    &addresses,
                     &mut instructions,
                 )?;
             }
@@ -257,6 +290,7 @@ impl Arm64SelectedFunction {
             owner,
             values,
             frame,
+            addresses,
             entry_instructions,
             blocks: blocks.into_boxed_slice(),
             entry: function.body().entry(),
@@ -276,6 +310,11 @@ impl Arm64SelectedFunction {
     #[must_use]
     pub const fn frame(&self) -> &Arm64FunctionFrame {
         &self.frame
+    }
+
+    #[must_use]
+    pub const fn addresses(&self) -> &crate::Arm64SelectedAddressPlan {
+        &self.addresses
     }
 
     #[must_use]
@@ -331,13 +370,15 @@ fn select_parameters(
             ) if words == registers.words() => {
                 let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
                 for (lane, bytes) in sizes.into_iter().enumerate() {
-                    selected.push(Arm64SelectedInstruction::StoreStack {
+                    selected.push(Arm64SelectedInstruction::StoreMemory {
                         bytes,
-                        destination: crate::memory_selection::frame_stack(
-                            frame,
-                            stack,
-                            crate::memory_selection::lane_offset(lane)?,
-                        )?,
+                        destination: Arm64SelectedMemoryAddress::Stack(
+                            crate::memory_selection::frame_stack(
+                                frame,
+                                stack,
+                                crate::memory_selection::lane_offset(lane)?,
+                            )?,
+                        ),
                         source: Arm64SelectedRegister::Fixed(argument_register(
                             registers.first(),
                             lane,
@@ -355,19 +396,23 @@ fn select_parameters(
                 }
                 for (lane, bytes) in sizes.into_iter().enumerate() {
                     let offset = crate::memory_selection::lane_offset(lane)?;
-                    selected.push(Arm64SelectedInstruction::LoadStack {
+                    selected.push(Arm64SelectedInstruction::LoadMemory {
                         bytes,
                         extension: Arm64SelectedLoadExtension::Zero,
                         destination: Arm64SelectedRegister::Fixed(scratch_boundary()),
-                        source: Arm64SelectedStackAddress::Incoming(
-                            slot.offset()
-                                .checked_add(offset)
-                                .ok_or(Arm64SelectionError::AddressOverflow)?,
+                        source: Arm64SelectedMemoryAddress::Stack(
+                            Arm64SelectedStackAddress::Incoming(
+                                slot.offset()
+                                    .checked_add(offset)
+                                    .ok_or(Arm64SelectionError::AddressOverflow)?,
+                            ),
                         ),
                     });
-                    selected.push(Arm64SelectedInstruction::StoreStack {
+                    selected.push(Arm64SelectedInstruction::StoreMemory {
                         bytes,
-                        destination: crate::memory_selection::frame_stack(frame, stack, offset)?,
+                        destination: Arm64SelectedMemoryAddress::Stack(
+                            crate::memory_selection::frame_stack(frame, stack, offset)?,
+                        ),
                         source: Arm64SelectedRegister::Fixed(scratch_boundary()),
                     });
                 }
@@ -384,6 +429,7 @@ fn select_operation(
     operation_id: MachineOperationId,
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
+    addresses: &crate::Arm64SelectedAddressPlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let operation = program
@@ -400,37 +446,17 @@ fn select_operation(
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
             select_constant(program, owner, *constant, result, values, selected)
         }
-        MachineOperationKind::Load { source } => {
-            let result = operation
-                .result()
-                .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            crate::memory_selection::select_load(
-                program, owner, *source, result, values, frame, selected,
-            )
-        }
-        MachineOperationKind::Store { destination, value } => {
-            crate::memory_selection::select_store(
-                program,
-                owner,
-                *destination,
-                *value,
-                values,
-                frame,
-                selected,
-            )
-        }
-        MachineOperationKind::AddressOf { source } => {
-            let result = operation
-                .result()
-                .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            selected.push(Arm64SelectedInstruction::StackAddress {
-                destination: one_word(values, result)?,
-                source: crate::memory_selection::select_stack_address(
-                    program, owner, *source, frame,
-                )?,
-            });
-            Ok(())
-        }
+        MachineOperationKind::Load { .. }
+        | MachineOperationKind::Store { .. }
+        | MachineOperationKind::AddressOf { .. } => crate::memory_selection::select_operation(
+            (program, owner),
+            operation_id,
+            operation,
+            values,
+            frame,
+            addresses,
+            selected,
+        ),
         MachineOperationKind::Unary {
             operation: unary,
             operand,
@@ -463,6 +489,9 @@ fn select_operation(
             values,
             selected,
         ),
+        MachineOperationKind::IndexBorrow(_) | MachineOperationKind::BorrowWeakening { .. } => {
+            crate::structural_selection::select_operation(operation_id, operation, values, selected)
+        }
         MachineOperationKind::Aggregate(aggregate) => select_aggregate_operation(
             (program, owner),
             operation_id,
@@ -483,7 +512,7 @@ fn select_operation(
         ),
         unsupported => Err(Arm64SelectionError::UnsupportedOperation {
             operation: operation_id,
-            kind: operation_name(unsupported),
+            kind: crate::selection_error::operation_name(unsupported),
         }),
     }
 }
@@ -638,13 +667,15 @@ fn select_call_arguments(
                     return Err(Arm64SelectionError::CallArguments(operation));
                 }
                 for (lane, source) in sources.iter().copied().enumerate() {
-                    selected.push(Arm64SelectedInstruction::StoreStack {
+                    selected.push(Arm64SelectedInstruction::StoreMemory {
                         bytes: u8::try_from(Arm64NocterAbi::WORD_SIZE)
                             .expect("one ABI word fits the selected byte width"),
-                        destination: Arm64SelectedStackAddress::Outgoing(
-                            slot.offset()
-                                .checked_add(crate::memory_selection::lane_offset(lane)?)
-                                .ok_or(Arm64SelectionError::AddressOverflow)?,
+                        destination: Arm64SelectedMemoryAddress::Stack(
+                            Arm64SelectedStackAddress::Outgoing(
+                                slot.offset()
+                                    .checked_add(crate::memory_selection::lane_offset(lane)?)
+                                    .ok_or(Arm64SelectionError::AddressOverflow)?,
+                            ),
                         ),
                         source: Arm64SelectedRegister::Virtual(source),
                     });
@@ -936,29 +967,4 @@ fn argument_register(first: u8, lane: usize) -> Result<Arm64Register, Arm64Selec
         .checked_add(lane)
         .and_then(Arm64NocterAbi::argument_register)
         .ok_or(Arm64SelectionError::RegisterOverflow)
-}
-
-const fn operation_name(operation: &MachineOperationKind) -> &'static str {
-    match operation {
-        MachineOperationKind::Constant(_) => "constant",
-        MachineOperationKind::Load { .. } => "load",
-        MachineOperationKind::AddressOf { .. } => "address-of",
-        MachineOperationKind::Store { .. } => "store",
-        MachineOperationKind::Unary { .. } => "unary",
-        MachineOperationKind::Binary { .. } => "binary",
-        MachineOperationKind::IntegerConversion { .. } => "integer-conversion",
-        MachineOperationKind::Comparison(_) => "comparison",
-        MachineOperationKind::IndexBorrow(_) => "index-borrow",
-        MachineOperationKind::BorrowWeakening { .. } => "borrow-weakening",
-        MachineOperationKind::Aggregate(_) => "aggregate",
-        MachineOperationKind::InvokeDrop { .. } => "invoke-drop",
-        MachineOperationKind::ReportError { .. } => "report-error",
-        MachineOperationKind::CreateRegion { .. } => "create-region",
-        MachineOperationKind::ReleaseRegion { .. } => "release-region",
-        MachineOperationKind::SetDropFlag { .. } => "set-drop-flag",
-        MachineOperationKind::Call(_) => "call",
-        MachineOperationKind::PackLength => "pack-length",
-        MachineOperationKind::PackNext => "pack-next",
-        MachineOperationKind::DestroyPack => "destroy-pack",
-    }
 }

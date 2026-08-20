@@ -252,10 +252,11 @@ use the ARM64 extended-register stack-pointer form. Frame size therefore has no 
 12-bit-immediate ceiling, and the general allocator never competes for the scratch register.
 
 `Arm64SelectedFunction` is the consuming boundary between machine operations and physical code.
-Its register operands are either allocated virtual lanes or explicit ABI registers; stack operands
-name checked frame objects, outgoing offsets, or incoming offsets. Its blocks retain only machine
-CFG identities and target-selected instructions. The executable scalar slice covers integer and
-boolean constants, simple stack addresses and scalar loads/stores, integer and boolean operations,
+Its register operands are either allocated virtual lanes or explicit ABI registers; memory
+operands name checked frame objects, outgoing/incoming offsets, or selected runtime bases. Its
+blocks retain only machine CFG identities and target-selected instructions. The executable slice
+covers integer and boolean constants, checked static/dynamic addresses and scalar loads/stores,
+integer and boolean operations,
 raw-value comparison, representation-exact readonly-borrow comparison, direct scalar call
 transport, local branches, direct returns, traps, and process exit. Signed narrow loads
 have an explicit sign-extending instruction form, so stored scalar width never loses signed
@@ -286,6 +287,15 @@ not become value lifetime. Stack-to-stack movement has one exact non-overlapping
 materialization validates both ranges and rejects overlap instead of silently selecting forward or
 backward copy semantics.
 
+`Arm64SelectedAddressPlan` normalizes every dense machine address before block selection. A path
+with only stack and constant-offset steps becomes one bounds-checked frame address. Pointer, view,
+dereference, and runtime-index paths retain only selected value registers plus layout-owned
+offsets, bounds, and strides. Materialization evaluates them into the reserved address-boundary
+lane, performs unsigned bounds checks, and traps an invalid index before access. Ordinary place
+loads/stores/address formation and structural fixed/view index borrows call this same evaluator.
+The selected memory-address type therefore replaces stack-only operation variants rather than
+adding projected-memory exceptions.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -296,6 +306,8 @@ natively on ARM64 macOS. A value-producing conditional case crosses machine bloc
 their native parallel-copy edges. Static text and two-word view cases cross local storage, results,
 the register window, and outgoing stack arguments. Direct 3-byte and two-lane aggregates plus a
 24-byte memory aggregate cross construction, local storage, field projection, and native execution.
+Dynamic fixed-array place loads/stores and structural indexing over a borrowed fixed array and
+`&str` view exercise the shared checked address evaluator.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -363,7 +375,8 @@ readonly-borrow comparison, scalar direct-call transport, control, return, and e
 signed Mach-O boundary and executes natively. Direct block-parameter lanes now cross typed CFG
 edges through cycle-safe register/spill parallel copies. Layout-owned aggregate construction and
 exact memory-value load/store are complete for direct and memory-backed values, including
-deterministically initialized padding. Projected and dynamic memory, memory-valued block
-parameters, indirect callable transport, primitives, allocation contexts, cleanup, pack callbacks,
-and test roots remain Phase 5 implementation areas. Static text and one-/two-word direct callable
-transport are complete, including stack arguments after the register window closes.
+deterministically initialized padding. Checked projected/dynamic memory and structural fixed/view
+index borrows share one selected address evaluator. Memory-valued block parameters, indirect
+callable transport, primitives, allocation contexts, cleanup, pack callbacks, and test roots remain
+Phase 5 implementation areas. Static text and one-/two-word direct callable transport are complete,
+including stack arguments after the register window closes.
