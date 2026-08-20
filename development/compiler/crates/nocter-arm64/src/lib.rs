@@ -7,6 +7,7 @@ mod abi;
 mod address_code;
 mod address_selection;
 mod aggregate_selection;
+mod call_selection;
 mod code;
 mod encode;
 mod frame;

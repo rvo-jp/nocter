@@ -258,7 +258,8 @@ blocks retain only machine CFG identities and target-selected instructions. The 
 covers integer and boolean constants, checked static/dynamic addresses and scalar loads/stores,
 integer and boolean operations,
 raw-value comparison, representation-exact readonly-borrow comparison, direct scalar call
-transport, local branches, direct returns, traps, and process exit. Signed narrow loads
+transport, indirect caller-owned aggregate transport, local branches, direct returns, traps, and
+process exit. Signed narrow loads
 have an explicit sign-extending instruction form, so stored scalar width never loses signed
 interpretation. Every other machine operation is a typed selection error rather than a retained
 passthrough node.
@@ -296,6 +297,16 @@ loads/stores/address formation and structural fixed/view index borrows call this
 The selected memory-address type therefore replaces stack-only operation variants rather than
 adding projected-memory exceptions.
 
+Indirect call transport consumes `MachineValueClass::Indirect` without introducing a second ABI
+planner. Each caller passes the address of its memory-backed argument value and provides a
+memory-backed result object through the target's dedicated indirect-result lane. At entry, the
+callee first saves that result pointer and every register-carried parameter before performing any
+address materialization. It then copies indirect inputs into its own parameter objects, preserving
+callee-local ownership and preventing an ABI pointer from becoming language-visible storage.
+Return copies the exact stored-layout byte count into the caller object. The saved result pointer
+survives nested calls; register-window closure carries later indirect pointers through the same
+ordered outgoing and incoming stack slots as direct values.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -305,7 +316,9 @@ comparison, and narrow signed-value processes from source through Mach-O and exe
 natively on ARM64 macOS. A value-producing conditional case crosses machine block parameters and
 their native parallel-copy edges. Static text and two-word view cases cross local storage, results,
 the register window, and outgoing stack arguments. Direct 3-byte and two-lane aggregates plus a
-24-byte memory aggregate cross construction, local storage, field projection, and native execution.
+24-byte memory aggregate cross construction, local storage, field projection, indirect arguments,
+nested caller-owned results, and native execution. A ninth large argument also crosses the closed
+register window through the outgoing stack area.
 Dynamic fixed-array place loads/stores and structural indexing over a borrowed fixed array and
 `&str` view exercise the shared checked address evaluator.
 The constant case also checks byte-for-byte determinism.
@@ -376,7 +389,7 @@ signed Mach-O boundary and executes natively. Direct block-parameter lanes now c
 edges through cycle-safe register/spill parallel copies. Layout-owned aggregate construction and
 exact memory-value load/store are complete for direct and memory-backed values, including
 deterministically initialized padding. Checked projected/dynamic memory and structural fixed/view
-index borrows share one selected address evaluator. Memory-valued block parameters, indirect
-callable transport, primitives, allocation contexts, cleanup, pack callbacks, and test roots remain
-Phase 5 implementation areas. Static text and one-/two-word direct callable transport are complete,
-including stack arguments after the register window closes.
+index borrows share one selected address evaluator. Direct and indirect callable transport are
+complete, including caller-owned large results, callee-owned large parameters, nested calls, and
+stack arguments after the register window closes. Memory-valued block parameters, primitives,
+allocation contexts, cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.

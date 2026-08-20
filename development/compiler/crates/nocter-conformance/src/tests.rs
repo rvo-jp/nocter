@@ -145,6 +145,52 @@ fn layout_owned_aggregate_bytes_cross_the_native_pipeline() {
 }
 
 #[test]
+fn indirect_aggregate_arguments_and_results_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "copy struct Large { first: i64\n    second: i64\n    third: i32 }\n\
+         func identity(value: Large): Large { value }\n\
+         func relay(value: Large): Large { identity(value) }\n\
+         func main(): i32 {\n\
+             let value = relay(Large { first: 1, second: 2, third: 42 })\n\
+             return value.third\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn indirect_aggregate_arguments_cross_the_outgoing_stack_boundary() {
+    let machine = lower_machine(
+        "copy struct Large { first: i64\n    second: i64\n    third: i32 }\n\
+         func ninth(\n\
+             a: Large, b: Large, c: Large, d: Large, e: Large,\n\
+             f: Large, g: Large, h: Large, i: Large,\n\
+         ): Large { i }\n\
+         func main(): i32 {\n\
+             let value = ninth(\n\
+                 Large { first: 0, second: 0, third: 1 },\n\
+                 Large { first: 0, second: 0, third: 2 },\n\
+                 Large { first: 0, second: 0, third: 3 },\n\
+                 Large { first: 0, second: 0, third: 4 },\n\
+                 Large { first: 0, second: 0, third: 5 },\n\
+                 Large { first: 0, second: 0, third: 6 },\n\
+                 Large { first: 0, second: 0, third: 7 },\n\
+                 Large { first: 0, second: 0, third: 8 },\n\
+                 Large { first: 0, second: 0, third: 42 },\n\
+             )\n\
+             return value.third\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

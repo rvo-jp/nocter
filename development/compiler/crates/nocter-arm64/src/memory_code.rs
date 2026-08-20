@@ -143,7 +143,7 @@ pub(crate) fn emit_memory_copy(
     {
         validate_nonoverlapping_copy(function, destination, source, bytes)?;
     }
-    let transfer = Arm64SelectedRegister::Fixed(boundary_register(1));
+    let transfer = Arm64SelectedRegister::Fixed(crate::frame_access::scratch(0));
     for (offset, width) in exact_memory_chunks(bytes) {
         emit_memory_load(
             function,

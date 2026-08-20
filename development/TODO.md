@@ -11,10 +11,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Extend the closed selected-instruction schema from scalar and aggregate operations, exact
-   direct/memory transport, checked projected/dynamic addresses, direct-call transport, branch,
-   return, and process exit to indirect callable parameter/result transport.
-2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
+1. Lower allocation contexts and primitive calls through the completed direct and indirect ABI
+   transport without introducing primitive-specific register conventions.
+2. Lower drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
 3. Expand the native conformance crate from the deterministic constant-process case to control,
    calls, memory, outcomes, ownership cleanup, allocation, literals, and test-root execution.
@@ -100,6 +99,14 @@ parallel bounds or stride arithmetic. The selected memory schema accepts stack a
 including exact non-overlapping copies between user-addressable storage and compiler-owned memory
 values. Native conformance covers dynamic fixed-array load/store, borrowed fixed-array indexing,
 and `&str` view indexing.
+
+Indirect callable transport now uses the same immutable machine ABI plan as direct transport.
+Callers pass large arguments by pointer and allocate large-result storage in their own frame;
+callees copy each argument into callee-owned parameter storage and copy each return into the
+caller-provided result object. A returning callee saves the dedicated result pointer before any
+nested call. Register inputs are persisted before indirect copies begin, so late address
+materialization cannot overwrite an unprocessed ABI lane. Native conformance covers nested large
+results and the ninth large argument crossing the closed register window onto the outgoing stack.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

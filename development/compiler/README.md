@@ -425,8 +425,9 @@ be introduced to make an unresolved syntax choice.
   accidental immediate-width limit. `Arm64SelectedFunction` now lowers constants, extension-aware
   scalar memory loads, exact aggregate/memory copies, layout-owned aggregate construction,
   checked stack/pointer/view address formation and indexing, integer and boolean operations, raw-value
-  and readonly-borrow comparisons, direct scalar arguments/results, local branches, returns, and
-  process exits into virtual/fixed register transfers. Signed byte and halfword loads retain their
+  and readonly-borrow comparisons, direct scalar arguments/results, indirect caller-owned
+  aggregate transport, local branches, returns, and process exits into virtual/fixed register
+  transfers. Signed byte and halfword loads retain their
   meaning through explicit sign-extending target instructions. A separate materializer resolves
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
   nodes fail selection explicitly. Typed CFG edges own direct-lane parallel copies; a separate
