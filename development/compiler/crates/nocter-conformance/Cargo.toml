@@ -1,0 +1,22 @@
+[package]
+name = "nocter-conformance"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dev-dependencies]
+nocter-arm64 = { path = "../nocter-arm64" }
+nocter-checking = { path = "../nocter-checking" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-declarations = { path = "../nocter-declarations" }
+nocter-machine = { path = "../nocter-machine" }
+nocter-macho = { path = "../nocter-macho" }
+nocter-mir = { path = "../nocter-mir" }
+nocter-model = { path = "../nocter-model" }
+nocter-target-program = { path = "../nocter-target-program" }
+nocter-test-support = { path = "../nocter-test-support" }
+
+[lints]
+workspace = true

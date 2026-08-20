@@ -22,6 +22,11 @@ SourceProgram
 Each arrow is a one-way lowering boundary. A later program cannot recover a decision by revisiting
 an earlier representation.
 
+`nocter-conformance` is not another pipeline stage. It is the only test crate allowed to depend on
+the complete chain, and it verifies that adjacent crate contracts compose into deterministic native
+behavior. Production crates keep their one-way dependency edges; cross-pipeline test setup does not
+leak back into a semantic or target authority.
+
 ## Separate Source Projection
 
 Source files, byte ranges, comments, and editor offsets live in a `SourceIndex` beside the semantic

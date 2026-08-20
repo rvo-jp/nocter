@@ -398,8 +398,7 @@ be introduced to make an unresolved syntax choice.
   one immutable dataflow table. It expands values hidden inside addresses and literal packs once,
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   `live_in`/`live_out` sets, and records exact inputs and `live_after` values for every operation.
-  ARM64 selection consumes those facts instead of rebuilding machine semantics. Instruction
-  selection remains the next Phase 5 boundary.
+  ARM64 selection consumes those facts instead of rebuilding machine semantics.
 - `nocter-arm64` owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as `sp` or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
@@ -422,8 +421,10 @@ be introduced to make an unresolved syntax choice.
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. The selected virtual-instruction/frame schema and spill
-  materialization remain separate later responsibilities in this crate. Dense function
+  accidental immediate-width limit. The first `Arm64SelectedFunction` slice now lowers constants,
+  no-argument direct calls, local branches, returns, and process exits into virtual/fixed register
+  transfers. A separate materializer resolves physical registers, injects spill loads/stores, and
+  emits frame-safe code. Unsupported machine nodes fail selection explicitly. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses.
@@ -432,6 +433,9 @@ be introduced to make an unresolved syntax choice.
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
   SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
   macOS without invoking an assembler, linker, or signing tool.
+- `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
+  image boundary. Its first deterministic case compiles `func main(): i32 { 42 }` from source,
+  emits a signed Mach-O image twice, compares the bytes, and executes it on ARM64 macOS.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

@@ -487,8 +487,7 @@
   one immutable dataflow table. It expands values hidden inside addresses and literal packs once,
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   <code>live_in</code>/<code>live_out</code> sets, and records exact inputs and <code>live_after</code> values for every operation.
-  ARM64 selection consumes those facts instead of rebuilding machine semantics. Instruction
-  selection remains the next Phase 5 boundary.</li><li><code>nocter-arm64</code> owns physical ARM64 register roles and instruction encoding without depending on
+  ARM64 selection consumes those facts instead of rebuilding machine semantics.</li><li><code>nocter-arm64</code> owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as <code>sp</code> or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated
   before little-endian encoding. Dense local labels are resolved only after monotonic conditional
@@ -510,15 +509,19 @@
   callee-saved slots deterministically, and terminate in the <code>x29</code>/<code>x30</code> frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved <code>x16</code> scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. The selected virtual-instruction/frame schema and spill
-  materialization remain separate later responsibilities in this crate. Dense function
+  accidental immediate-width limit. The first <code>Arm64SelectedFunction</code> slice now lowers constants,
+  no-argument direct calls, local branches, returns, and process exits into virtual/fixed register
+  transfers. A separate materializer resolves physical registers, injects spill loads/stores, and
+  emits frame-safe code. Unsupported machine nodes fail selection explicitly. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while <code>adrp</code>/<code>add</code> data pairs resolve
   only after the writer supplies final section virtual addresses.</li><li><code>nocter-macho</code> consumes only a completed <code>Arm64Program</code>. It assigns the <code>__TEXT</code>, <code>__const</code>, and
   <code>__LINKEDIT</code> file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
   SHA-256 ad-hoc code signature. Its target test writes and executes the resulting file on ARM64
-  macOS without invoking an assembler, linker, or signing tool.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 is complete. Checked-body construction covers the closed body grammar, including collection iteration, authored binding annotations, and executable lexical regions. Region handles are typed compiler-managed resources; one cleanup authority orders body destruction before region release on every reachable exit, retains the parent allocator loan for the complete child lifetime, and emits no fictional unwinding for <code>never</code> termination.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
+  macOS without invoking an assembler, linker, or signing tool.</li><li><code>nocter-conformance</code> owns tests that intentionally cross every compiler crate and the native
+  image boundary. Its first deterministic case compiles <code>func main(): i32 { 42 }</code> from source,
+  emits a signed Mach-O image twice, compares the bytes, and executes it on ARM64 macOS.</li></ul><p>Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot silently discard a token.</p><p>Phase 2 is complete. Declaration validation identifies exact semantic subjects, and diagnostics project them through <code>SourceIndex</code> without duplicating validation in lowering. Every production failure is classified as an authored rule or an internal compiler/discovery integrity error. Declaration-owned semantic-boundary fixtures compare complete diagnostics under reversed package and module input order. Phase 3 is complete. Checked-body construction covers the closed body grammar, including collection iteration, authored binding annotations, and executable lexical regions. Region handles are typed compiler-managed resources; one cleanup authority orders body destruction before region release on every reachable exit, retains the parent allocator loan for the complete child lifetime, and emits no fictional unwinding for <code>never</code> termination.</p><h2 id="verification">Verification</h2><p>Run from <code>development/compiler/</code>:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--workspace</span>
 </code></pre>

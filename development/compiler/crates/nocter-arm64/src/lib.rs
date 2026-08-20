@@ -7,14 +7,18 @@ mod abi;
 mod code;
 mod encode;
 mod frame;
+mod frame_access;
 mod frame_code;
 mod function_frame;
 mod identity;
 mod instruction;
+mod lower;
 mod pack_layout;
 mod program;
 mod register;
 mod register_allocation;
+mod selected_code;
+mod selection;
 mod value_plan;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
@@ -33,6 +37,7 @@ pub use instruction::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
     Arm64Logical, Arm64MoveWide, Arm64Shift,
 };
+pub use lower::Arm64LoweringError;
 pub use pack_layout::{
     Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,
 };
@@ -46,6 +51,11 @@ pub use register::{
 pub use register_allocation::{
     Arm64AllocatedLocation, Arm64RegisterAllocation, Arm64RegisterAllocationBuilder,
     Arm64RegisterAllocationError, Arm64SpillSlotId, Arm64VirtualRegister,
+};
+pub use selected_code::Arm64MaterializationError;
+pub use selection::{
+    Arm64SelectedBlock, Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64SelectedTerminator, Arm64SelectionError,
 };
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
 

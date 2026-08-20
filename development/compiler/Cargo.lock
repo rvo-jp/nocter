@@ -30,6 +30,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-conformance"
+version = "0.0.0"
+dependencies = [
+ "nocter-arm64",
+ "nocter-checking",
+ "nocter-declaration-lowering",
+ "nocter-declarations",
+ "nocter-machine",
+ "nocter-macho",
+ "nocter-mir",
+ "nocter-model",
+ "nocter-target-program",
+ "nocter-test-support",
+]
+
+[[package]]
 name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [

@@ -1,0 +1,403 @@
+use std::fmt;
+
+use nocter_machine::{MachineBlockId, MachineFunctionId};
+
+use crate::{
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AllocatedLocation, Arm64BaseRegister,
+    Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64DataSize,
+    Arm64FrameCode, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi, Arm64Register,
+    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64SelectedTerminator,
+};
+
+impl Arm64SelectedFunction {
+    /// Materializes physical instructions and spill traffic after selection and frame placement.
+    ///
+    /// # Errors
+    ///
+    /// Rejects missing function/block mappings, invalid virtual locations, frame-address overflow,
+    /// malformed object offsets, and concrete code-encoding failures.
+    pub fn materialize(
+        &self,
+        functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    ) -> Result<Arm64Code, Arm64MaterializationError> {
+        let mut code = Arm64CodeBuilder::new();
+        let labels = self
+            .blocks()
+            .map(|(block, _)| (block, code.create_label()))
+            .collect::<Vec<_>>();
+        Arm64FrameCode::emit_prologue(self.frame().layout(), &mut code);
+        for instruction in self.entry_instructions() {
+            emit_instruction(self, instruction, functions, &mut code)?;
+        }
+        code.branch(block_label(&labels, self.entry())?, false);
+        for (block_id, block) in self.blocks() {
+            code.bind(block_label(&labels, block_id)?)?;
+            for instruction in block.instructions() {
+                emit_instruction(self, instruction, functions, &mut code)?;
+            }
+            emit_terminator(self, block.terminator(), &labels, &mut code)?;
+        }
+        code.finish().map_err(Arm64MaterializationError::Code)
+    }
+}
+
+fn emit_instruction(
+    function: &Arm64SelectedFunction,
+    instruction: &Arm64SelectedInstruction,
+    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match *instruction {
+        Arm64SelectedInstruction::LoadImmediate {
+            size,
+            destination,
+            value,
+        } => emit_immediate(function, destination, value, size, code),
+        Arm64SelectedInstruction::Move {
+            size,
+            destination,
+            source,
+        } => emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::LoadStack {
+            size,
+            destination,
+            source,
+        } => {
+            let offset = stack_offset(function, source, load_store_bytes(size))?;
+            let destination = write_target(function, destination)?;
+            crate::frame_access::load_at_stack_offset(code, size, destination.register, offset);
+            finish_write(destination, code);
+            Ok(())
+        }
+        Arm64SelectedInstruction::StoreStack {
+            size,
+            destination,
+            source,
+        } => {
+            let source = read_register(function, source, 0, code)?;
+            let offset = stack_offset(function, destination, load_store_bytes(size))?;
+            crate::frame_access::store_at_stack_offset(code, size, source, offset);
+            Ok(())
+        }
+        Arm64SelectedInstruction::StackAddress {
+            destination,
+            source,
+        } => {
+            let offset = stack_offset(function, source, 0)?;
+            let destination = write_target(function, destination)?;
+            crate::frame_access::form_stack_address(code, destination.register, offset);
+            finish_write(destination, code);
+            Ok(())
+        }
+        Arm64SelectedInstruction::Call(target) => {
+            code.call(function_target(functions, target)?);
+            Ok(())
+        }
+    }
+}
+
+fn emit_terminator(
+    function: &Arm64SelectedFunction,
+    terminator: &Arm64SelectedTerminator,
+    labels: &[(MachineBlockId, crate::Arm64LabelId)],
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match *terminator {
+        Arm64SelectedTerminator::Goto(target) => {
+            code.branch(block_label(labels, target)?, false);
+        }
+        Arm64SelectedTerminator::Branch {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            let condition = read_register(function, condition, 0, code)?;
+            code.append(Arm64Instruction::AddSubtractImmediate {
+                size: Arm64DataSize::Bits32,
+                operation: Arm64AddSubtract::Subtract,
+                set_flags: true,
+                destination: Arm64AddSubtractDestination::Zero,
+                source: Arm64BaseRegister::General(condition),
+                immediate: 0,
+                shift_12: false,
+            });
+            code.branch_conditional(
+                block_label(labels, then_block)?,
+                Arm64BranchCondition::NotEqual,
+            );
+            code.branch(block_label(labels, else_block)?, false);
+        }
+        Arm64SelectedTerminator::Return => {
+            Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
+        }
+        Arm64SelectedTerminator::Exit(status) => {
+            let status_register = Arm64NocterAbi::argument_register(0)
+                .expect("the ARM64 ABI has an x0 argument register");
+            if let Some(status) = status {
+                emit_move(
+                    function,
+                    Arm64SelectedRegister::Fixed(status_register),
+                    status,
+                    Arm64DataSize::Bits64,
+                    code,
+                )?;
+            } else {
+                crate::frame_access::load_immediate(
+                    code,
+                    status_register,
+                    0,
+                    Arm64DataSize::Bits64,
+                );
+            }
+            crate::frame_access::load_immediate(
+                code,
+                crate::frame_access::scratch(0),
+                1,
+                Arm64DataSize::Bits64,
+            );
+            code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+        }
+        Arm64SelectedTerminator::Trap => {
+            code.append(Arm64Instruction::Break { immediate: 1 });
+        }
+        Arm64SelectedTerminator::Unreachable => {
+            code.append(Arm64Instruction::Break { immediate: 2 });
+        }
+    }
+    Ok(())
+}
+
+fn emit_immediate(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedRegister,
+    value: u64,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let destination = write_target(function, destination)?;
+    crate::frame_access::load_immediate(code, destination.register, value, size);
+    finish_write(destination, code);
+    Ok(())
+}
+
+fn emit_move(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedRegister,
+    source: Arm64SelectedRegister,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = read_register(function, source, 0, code)?;
+    let destination = write_target(function, destination)?;
+    if source != destination.register {
+        code.append(Arm64Instruction::AddSubtractImmediate {
+            size,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::General(destination.register),
+            source: Arm64BaseRegister::General(source),
+            immediate: 0,
+            shift_12: false,
+        });
+    }
+    finish_write(destination, code);
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct WriteTarget {
+    register: Arm64Register,
+    spill_offset: Option<u64>,
+}
+
+fn write_target(
+    function: &Arm64SelectedFunction,
+    selected: Arm64SelectedRegister,
+) -> Result<WriteTarget, Arm64MaterializationError> {
+    match selected {
+        Arm64SelectedRegister::Fixed(register) => Ok(WriteTarget {
+            register,
+            spill_offset: None,
+        }),
+        Arm64SelectedRegister::Virtual(register) => {
+            match function
+                .values()
+                .registers()
+                .location(register)
+                .ok_or(Arm64MaterializationError::UnknownVirtualRegister(register))?
+            {
+                Arm64AllocatedLocation::Register(register) => Ok(WriteTarget {
+                    register,
+                    spill_offset: None,
+                }),
+                Arm64AllocatedLocation::Spill(spill) => Ok(WriteTarget {
+                    register: crate::frame_access::scratch(0),
+                    spill_offset: Some(spill_offset(function, spill)?),
+                }),
+            }
+        }
+    }
+}
+
+fn finish_write(target: WriteTarget, code: &mut Arm64CodeBuilder) {
+    if let Some(offset) = target.spill_offset {
+        crate::frame_access::store_at_stack_offset(
+            code,
+            Arm64LoadStoreSize::Double,
+            target.register,
+            offset,
+        );
+    }
+}
+
+fn read_register(
+    function: &Arm64SelectedFunction,
+    selected: Arm64SelectedRegister,
+    scratch: u8,
+    code: &mut Arm64CodeBuilder,
+) -> Result<Arm64Register, Arm64MaterializationError> {
+    match selected {
+        Arm64SelectedRegister::Fixed(register) => Ok(register),
+        Arm64SelectedRegister::Virtual(register) => {
+            match function
+                .values()
+                .registers()
+                .location(register)
+                .ok_or(Arm64MaterializationError::UnknownVirtualRegister(register))?
+            {
+                Arm64AllocatedLocation::Register(register) => Ok(register),
+                Arm64AllocatedLocation::Spill(spill) => {
+                    let register = crate::frame_access::scratch(scratch);
+                    crate::frame_access::load_at_stack_offset(
+                        code,
+                        Arm64LoadStoreSize::Double,
+                        register,
+                        spill_offset(function, spill)?,
+                    );
+                    Ok(register)
+                }
+            }
+        }
+    }
+}
+
+fn spill_offset(
+    function: &Arm64SelectedFunction,
+    spill: crate::Arm64SpillSlotId,
+) -> Result<u64, Arm64MaterializationError> {
+    let object = function
+        .frame()
+        .spill(spill)
+        .ok_or(Arm64MaterializationError::UnknownSpill(spill))?;
+    function
+        .frame()
+        .layout()
+        .object(object)
+        .map(crate::Arm64FrameObject::offset)
+        .ok_or(Arm64MaterializationError::UnknownFrameObject(object))
+}
+
+fn stack_offset(
+    function: &Arm64SelectedFunction,
+    address: Arm64SelectedStackAddress,
+    access_size: u64,
+) -> Result<u64, Arm64MaterializationError> {
+    match address {
+        Arm64SelectedStackAddress::FrameObject { object, offset } => {
+            let object_layout = function
+                .frame()
+                .layout()
+                .object(object)
+                .ok_or(Arm64MaterializationError::UnknownFrameObject(object))?;
+            let end = offset
+                .checked_add(access_size)
+                .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+            if end > object_layout.size() {
+                return Err(Arm64MaterializationError::FrameObjectBounds(object));
+            }
+            object_layout
+                .offset()
+                .checked_add(offset)
+                .ok_or(Arm64MaterializationError::OffsetOverflow)
+        }
+        Arm64SelectedStackAddress::Outgoing(offset) => {
+            let end = offset
+                .checked_add(access_size)
+                .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+            if end > function.frame().layout().outgoing_argument_size() {
+                return Err(Arm64MaterializationError::OutgoingBounds(offset));
+            }
+            Ok(offset)
+        }
+        Arm64SelectedStackAddress::Incoming(offset) => function
+            .frame()
+            .layout()
+            .size()
+            .checked_add(offset)
+            .ok_or(Arm64MaterializationError::OffsetOverflow),
+    }
+}
+
+fn block_label(
+    labels: &[(MachineBlockId, crate::Arm64LabelId)],
+    block: MachineBlockId,
+) -> Result<crate::Arm64LabelId, Arm64MaterializationError> {
+    labels
+        .get(block.index())
+        .and_then(|(actual, label)| (*actual == block).then_some(*label))
+        .ok_or(Arm64MaterializationError::UnknownBlock(block))
+}
+
+fn function_target(
+    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    target: MachineFunctionId,
+) -> Result<crate::Arm64FunctionId, Arm64MaterializationError> {
+    functions
+        .get(target.index())
+        .and_then(|(actual, selected)| (*actual == target).then_some(*selected))
+        .ok_or(Arm64MaterializationError::UnknownFunction(target))
+}
+
+const fn load_store_bytes(size: Arm64LoadStoreSize) -> u64 {
+    match size {
+        Arm64LoadStoreSize::Byte => 1,
+        Arm64LoadStoreSize::Half => 2,
+        Arm64LoadStoreSize::Word => 4,
+        Arm64LoadStoreSize::Double => 8,
+    }
+}
+
+#[derive(Debug)]
+pub enum Arm64MaterializationError {
+    UnknownFunction(MachineFunctionId),
+    UnknownBlock(MachineBlockId),
+    UnknownVirtualRegister(crate::Arm64VirtualRegister),
+    UnknownSpill(crate::Arm64SpillSlotId),
+    UnknownFrameObject(crate::Arm64FrameObjectId),
+    FrameObjectBounds(crate::Arm64FrameObjectId),
+    OutgoingBounds(u64),
+    OffsetOverflow,
+    Code(Arm64CodeError),
+}
+
+impl fmt::Display for Arm64MaterializationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ARM64 materialization failed: {self:?}")
+    }
+}
+
+impl std::error::Error for Arm64MaterializationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Code(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl From<Arm64CodeError> for Arm64MaterializationError {
+    fn from(error: Arm64CodeError) -> Self {
+        Self::Code(error)
+    }
+}

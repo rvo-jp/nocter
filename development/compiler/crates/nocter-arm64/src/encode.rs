@@ -494,3 +494,12 @@ pub enum Arm64EncodingError {
     MisalignedPageAddress,
     PageAddressOutOfRange,
 }
+
+impl fmt::Display for Arm64EncodingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ARM64 instruction encoding failed: {self:?}")
+    }
+}
+
+impl std::error::Error for Arm64EncodingError {}
+use std::fmt;

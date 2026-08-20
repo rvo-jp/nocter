@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64DataId, Arm64DataSize, Arm64EncodingError, Arm64FunctionId, Arm64Instruction,
@@ -349,6 +351,24 @@ pub enum Arm64CodeError {
     UnboundLabel(Arm64LabelId),
     OffsetOverflow,
     Encoding(Arm64EncodingError),
+}
+
+impl fmt::Display for Arm64CodeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ARM64 code construction failed: {self:?}")
+    }
+}
+
+impl std::error::Error for Arm64CodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Encoding(error) => Some(error),
+            Self::UnknownLabel(_)
+            | Self::DuplicateLabel(_)
+            | Self::UnboundLabel(_)
+            | Self::OffsetOverflow => None,
+        }
+    }
 }
 
 impl From<Arm64EncodingError> for Arm64CodeError {

@@ -918,6 +918,26 @@ fn function_frame_retains_hidden_abi_pointers_and_root_context() {
 }
 
 #[test]
+fn lowers_a_constant_process_through_selection_and_spill_materialization() {
+    let machine = crate::test_support::lower_machine("func main(): i32 { 42 }\n");
+    let program = crate::Arm64Program::lower_machine(&machine).unwrap();
+    let entry = program.function(program.entry()).unwrap();
+    let entry_start = usize::try_from(entry.offset()).unwrap();
+    let entry_end = usize::try_from(entry.offset() + entry.size()).unwrap();
+    let words = program.text()[entry_start..entry_end]
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert!(words.contains(&0xd280_0030));
+    assert_eq!(words.last(), Some(&0xd400_1001));
+    assert!(program.text().chunks_exact(4).any(|bytes| {
+        let word = u32::from_le_bytes(bytes.try_into().unwrap());
+        word & 0xff80_0000 == 0xd280_0000 && (word >> 5) & 0xffff == 42
+    }));
+}
+
+#[test]
 fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let target = builder.declare_function();

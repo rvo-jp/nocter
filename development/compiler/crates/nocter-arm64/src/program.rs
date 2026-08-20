@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::code::Arm64CodeFixup;
 use crate::{
     Arm64Code, Arm64DataId, Arm64EncodingError, Arm64FunctionId, Arm64Instruction, Arm64Register,
@@ -457,6 +459,30 @@ pub enum Arm64ProgramError {
     OffsetOverflow,
     AddressOverflow,
     Encoding(Arm64EncodingError),
+}
+
+impl fmt::Display for Arm64ProgramError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ARM64 program construction failed: {self:?}")
+    }
+}
+
+impl std::error::Error for Arm64ProgramError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Encoding(error) => Some(error),
+            Self::UnknownFunction(_)
+            | Self::DuplicateFunction(_)
+            | Self::MissingFunction(_)
+            | Self::UnknownData(_)
+            | Self::InvalidDataAlignment(_)
+            | Self::MissingEntry
+            | Self::DuplicateEntry
+            | Self::InvalidFixupOffset(_)
+            | Self::OffsetOverflow
+            | Self::AddressOverflow => None,
+        }
+    }
 }
 
 impl From<Arm64EncodingError> for Arm64ProgramError {

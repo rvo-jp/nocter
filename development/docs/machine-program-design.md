@@ -250,6 +250,21 @@ distant slots materialize their full 64-bit offset in the ABI-reserved `x16` scr
 use the ARM64 extended-register stack-pointer form. Frame size therefore has no accidental
 12-bit-immediate ceiling, and the general allocator never competes for the scratch register.
 
+`Arm64SelectedFunction` is the consuming boundary between machine operations and physical code.
+Its register operands are either allocated virtual lanes or explicit ABI registers; stack operands
+name checked frame objects, outgoing offsets, or incoming offsets. Its blocks retain only machine
+CFG identities and target-selected instructions. The first executable slice covers integer and
+boolean constants, no-argument direct calls, empty-edge local branches, direct returns, traps, and
+process exit. Every other machine operation is a typed selection error rather than a retained
+passthrough node.
+
+The materializer receives the completed selected function, value plan, frame, and dense function
+mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
+access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
+uses the existing whole-program builder for functions and static data. The cross-crate
+`nocter-conformance` suite compiles a constant process from source through Mach-O, checks byte-for-
+byte determinism, and executes the image natively on ARM64 macOS.
+
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
 text, read-only-data, and link-edit layout; ARM64 section relocation; native entry metadata;
 dyld/libSystem load commands; deterministic content-derived UUID; and complete byte serialization.
@@ -309,6 +324,7 @@ caller-saved registers, restrict call-crossing ranges to callee-saved registers,
 preservation, and assign dense spills under pressure. The machine-driven value plan classifies
 zero, one-word, two-word, and memory values and feeds exact CFG call-survival facts into that
 allocator. Complete function frames now place memory values, packs, spills, hidden ABI state, and
-preserved registers through one deterministic authority. Selected virtual instructions, pack
-callback generation, and spill-aware instruction materialization remain Phase 5 implementation
-areas.
+preserved registers through one deterministic authority. The first selected and spill-materialized
+constant/direct-call/return/exit slice now crosses the signed Mach-O boundary and executes natively.
+Scalar and memory operations, complete ABI transport, primitives, allocation contexts, cleanup,
+pack callbacks, and test roots remain Phase 5 implementation areas.
