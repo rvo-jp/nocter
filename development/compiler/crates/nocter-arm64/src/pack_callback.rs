@@ -7,6 +7,8 @@ use crate::{
     Arm64MaterializationError, Arm64NocterAbi, Arm64Register, Arm64SelectedFunction,
 };
 
+mod spread;
+
 /// One of the two callbacks stored in every literal-pack descriptor.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Arm64PackCallbackKind {
@@ -74,19 +76,19 @@ pub(crate) fn materialize(
     if pack.segments().len() != frame.state_layout().segments().len() {
         return Err(Arm64MaterializationError::InvalidPackCallback(key));
     }
-    if pack
+    let has_spread = pack
         .segments()
         .iter()
-        .any(|segment| matches!(segment, nocter_machine::MachinePackSegment::Spread(_)))
-    {
-        return Err(Arm64MaterializationError::UnsupportedPackSpread(key));
-    }
+        .any(|segment| matches!(segment, nocter_machine::MachinePackSegment::Spread(_)));
     match key.kind() {
+        Arm64PackCallbackKind::Next if has_spread => {
+            spread::materialize_next(machine, pack, frame.state_layout(), key, functions)
+        }
         Arm64PackCallbackKind::Next => {
             materialize_fixed_next(machine, pack, frame.state_layout(), key)
         }
         Arm64PackCallbackKind::Destroy => {
-            materialize_fixed_destroy(pack, frame.state_layout(), key, functions)
+            materialize_destroy(pack, frame.state_layout(), key, functions)
         }
     }
 }
@@ -242,7 +244,7 @@ fn fixed_next_shape<'layout>(
     })
 }
 
-fn materialize_fixed_destroy(
+fn materialize_destroy(
     pack: &nocter_machine::MachinePack,
     state: &crate::Arm64PackStateLayout,
     key: Arm64PackCallbackKey,
@@ -290,12 +292,18 @@ fn materialize_fixed_destroy(
         .enumerate()
         .rev()
     {
-        let (
-            nocter_machine::MachinePackSegment::Value { destruction, .. },
-            crate::Arm64PackSegmentLayout::Value { value_offset, .. },
-        ) = (segment, layout)
-        else {
-            return Err(Arm64MaterializationError::InvalidPackCallback(key));
+        let (destruction, value_offset) = match (segment, layout) {
+            (
+                nocter_machine::MachinePackSegment::Value { destruction, .. },
+                crate::Arm64PackSegmentLayout::Value { value_offset, .. },
+            ) => (*destruction, *value_offset),
+            (
+                nocter_machine::MachinePackSegment::Spread(spread),
+                crate::Arm64PackSegmentLayout::Spread {
+                    iterator_offset, ..
+                },
+            ) => (spread.destruction(), *iterator_offset),
+            _ => return Err(Arm64MaterializationError::InvalidPackCallback(key)),
         };
         let Some(destruction) = destruction else {
             continue;
@@ -311,7 +319,7 @@ fn materialize_fixed_destroy(
         crate::frame_access::load_immediate(
             &mut code,
             argument(1),
-            *value_offset,
+            value_offset,
             Arm64DataSize::Bits64,
         );
         move_register(
@@ -319,7 +327,7 @@ fn materialize_fixed_destroy(
             Arm64NocterAbi::allocation_context_register(),
             context_register(),
         );
-        code.call(function_target(functions, *destruction)?);
+        code.call(function_target(functions, destruction)?);
         code.bind(skip)?;
     }
     Arm64FrameCode::emit_epilogue(&frame, &mut code);
@@ -335,7 +343,7 @@ enum NextDestination {
 #[derive(Clone, Copy)]
 enum ClosedNextDestination {
     Direct { offset: u64, size: u64 },
-    Indirect,
+    Indirect { pointer: Arm64Register },
 }
 
 impl NextDestination {
@@ -379,6 +387,21 @@ impl NextDestination {
         staging: Option<crate::Arm64FrameObjectId>,
         key: Arm64PackCallbackKey,
     ) -> Result<ClosedNextDestination, Arm64MaterializationError> {
+        self.close_with_indirect_pointer(
+            frame,
+            staging,
+            Arm64NocterAbi::indirect_result_register(),
+            key,
+        )
+    }
+
+    fn close_with_indirect_pointer(
+        self,
+        frame: &Arm64FrameLayout,
+        staging: Option<crate::Arm64FrameObjectId>,
+        pointer: Arm64Register,
+        key: Arm64PackCallbackKey,
+    ) -> Result<ClosedNextDestination, Arm64MaterializationError> {
         match (self, staging) {
             (Self::Direct { size, .. }, Some(staging)) => frame
                 .object(staging)
@@ -387,7 +410,7 @@ impl NextDestination {
                     size,
                 })
                 .ok_or(Arm64MaterializationError::InvalidPackCallback(key)),
-            (Self::Indirect, None) => Ok(ClosedNextDestination::Indirect),
+            (Self::Indirect, None) => Ok(ClosedNextDestination::Indirect { pointer }),
             _ => Err(Arm64MaterializationError::InvalidPackCallback(key)),
         }
     }
@@ -409,13 +432,9 @@ impl ClosedNextDestination {
                     scratch(0),
                     checked_add(base, offset)?,
                 ),
-                Self::Indirect => store_register_offset(
-                    code,
-                    width,
-                    scratch(0),
-                    Arm64NocterAbi::indirect_result_register(),
-                    offset,
-                ),
+                Self::Indirect { pointer } => {
+                    store_register_offset(code, width, scratch(0), pointer, offset);
+                }
             }
         }
         Ok(())
@@ -436,13 +455,9 @@ impl ClosedNextDestination {
                 scratch(0),
                 checked_add(base, offset)?,
             ),
-            Self::Indirect => store_register_offset(
-                code,
-                Arm64LoadStoreSize::Byte,
-                scratch(0),
-                Arm64NocterAbi::indirect_result_register(),
-                offset,
-            ),
+            Self::Indirect { pointer } => {
+                store_register_offset(code, Arm64LoadStoreSize::Byte, scratch(0), pointer, offset);
+            }
         }
         Ok(())
     }
@@ -471,11 +486,11 @@ impl ClosedNextDestination {
                     scratch(0),
                     checked_add(checked_add(base, destination_offset)?, offset)?,
                 ),
-                Self::Indirect => store_register_offset(
+                Self::Indirect { pointer } => store_register_offset(
                     code,
                     width,
                     scratch(0),
-                    Arm64NocterAbi::indirect_result_register(),
+                    pointer,
                     checked_add(destination_offset, offset)?,
                 ),
             }

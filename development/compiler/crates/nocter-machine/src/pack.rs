@@ -1,8 +1,6 @@
 use nocter_model::TypeId;
 
-use crate::{
-    MachineAddressId, MachineCallableAbi, MachineFunctionId, MachineResultAbi, MachineValueId,
-};
+use crate::{MachineAddressId, MachineFunctionId, MachineResultAbi, MachineValueId};
 
 /// How a successful spread item becomes one pack element.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -11,12 +9,14 @@ pub enum MachinePackContribution {
     CopyBorrowed,
 }
 
-/// The already selected call used to consume one item from a spread iterator.
+/// The direct function and receiver location used to consume one spread item.
+///
+/// The target function remains the only authority for its ordinary call ABI. Keeping that ABI out
+/// of the pack descriptor prevents callback metadata from drifting away from the function table.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachinePackNext {
     receiver_offset: u64,
     target: MachineFunctionId,
-    abi: MachineCallableAbi,
     result: TypeId,
     item: TypeId,
 }
@@ -25,14 +25,12 @@ impl MachinePackNext {
     pub(crate) const fn new(
         receiver_offset: u64,
         target: MachineFunctionId,
-        abi: MachineCallableAbi,
         result: TypeId,
         item: TypeId,
     ) -> Self {
         Self {
             receiver_offset,
             target,
-            abi,
             result,
             item,
         }
@@ -46,11 +44,6 @@ impl MachinePackNext {
     #[must_use]
     pub const fn target(&self) -> MachineFunctionId {
         self.target
-    }
-
-    #[must_use]
-    pub const fn abi(&self) -> &MachineCallableAbi {
-        &self.abi
     }
 
     #[must_use]

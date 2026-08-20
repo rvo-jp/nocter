@@ -32,6 +32,7 @@ mod primitive_selection;
 mod program;
 mod register;
 mod register_allocation;
+mod runtime_trap;
 mod selected_code;
 mod selection;
 mod selection_error;

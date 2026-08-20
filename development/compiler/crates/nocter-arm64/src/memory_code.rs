@@ -239,8 +239,7 @@ pub(crate) fn emit_fragmented_load(
 ) -> Result<(), Arm64MaterializationError> {
     validate_fragmented_width(bytes)?;
     crate::frame_access::load_immediate(code, destination, 0, Arm64DataSize::Bits64);
-    let fragment = boundary_register(0);
-    let shift = boundary_register(1);
+    let [fragment, shift] = temporary_registers_avoiding(destination);
     for (fragment_offset, size) in memory_fragments(bytes) {
         crate::frame_access::load_at_stack_offset(
             code,
@@ -276,15 +275,14 @@ pub(crate) fn emit_fragmented_load(
     Ok(())
 }
 
-fn emit_fragmented_store(
+pub(crate) fn emit_fragmented_store(
     code: &mut Arm64CodeBuilder,
     bytes: u8,
     source: Arm64Register,
     offset: u64,
 ) -> Result<(), Arm64MaterializationError> {
     validate_fragmented_width(bytes)?;
-    let fragment = boundary_register(0);
-    let shift = boundary_register(1);
+    let [fragment, shift] = temporary_registers_avoiding(source);
     for (fragment_offset, size) in memory_fragments(bytes) {
         let stored = if fragment_offset == 0 {
             source
@@ -314,6 +312,21 @@ fn emit_fragmented_store(
         );
     }
     Ok(())
+}
+
+fn temporary_registers_avoiding(occupied: Arm64Register) -> [Arm64Register; 2] {
+    let mut available = [
+        crate::frame_access::scratch(0),
+        crate::frame_access::scratch(1),
+        boundary_register(0),
+        boundary_register(1),
+    ]
+    .into_iter()
+    .filter(|register| *register != occupied);
+    [
+        available.next().expect("four temporary lanes remain"),
+        available.next().expect("four temporary lanes remain"),
+    ]
 }
 
 fn validate_fragmented_width(bytes: u8) -> Result<(), Arm64MaterializationError> {
@@ -429,7 +442,9 @@ const fn load_store_size(bytes: u8) -> Option<Arm64LoadStoreSize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{exact_memory_chunks, memory_fragments};
+    use super::{
+        boundary_register, exact_memory_chunks, memory_fragments, temporary_registers_avoiding,
+    };
     use crate::Arm64LoadStoreSize;
 
     #[test]
@@ -446,6 +461,12 @@ mod tests {
                 (6, Arm64LoadStoreSize::Byte),
             ]
         );
+        for occupied in [boundary_register(0), crate::frame_access::scratch(0)] {
+            let temporary = temporary_registers_avoiding(occupied);
+            assert_ne!(temporary[0], occupied);
+            assert_ne!(temporary[1], occupied);
+            assert_ne!(temporary[0], temporary[1]);
+        }
     }
 
     #[test]

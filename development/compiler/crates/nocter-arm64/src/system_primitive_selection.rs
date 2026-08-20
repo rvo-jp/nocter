@@ -71,13 +71,15 @@ fn select_break(
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 0)?;
     validate_diverging(operation, target)?;
-    let immediate = match target.role() {
-        PrimitiveRole::Trap => 4,
-        PrimitiveRole::Unreachable => 5,
-        PrimitiveRole::AllocationAbort => 6,
+    let reason = match target.role() {
+        PrimitiveRole::Trap => crate::runtime_trap::Arm64RuntimeTrap::ExplicitTrap,
+        PrimitiveRole::Unreachable => crate::runtime_trap::Arm64RuntimeTrap::ExplicitUnreachable,
+        PrimitiveRole::AllocationAbort => crate::runtime_trap::Arm64RuntimeTrap::AllocationFailure,
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     };
-    selected.push(Arm64SelectedInstruction::Break { immediate });
+    selected.push(Arm64SelectedInstruction::Break {
+        immediate: reason.immediate(),
+    });
     Ok(())
 }
 

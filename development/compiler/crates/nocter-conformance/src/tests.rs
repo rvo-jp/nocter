@@ -82,6 +82,188 @@ fn fixed_literal_pack_residual_cleanup_uses_generated_destruction() {
 }
 
 #[test]
+fn spread_literal_pack_callbacks_cross_the_complete_native_pipeline() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         use std/mem.allocation_context_state_for_test\n\
+         struct Sum { value: i32 }\n\
+         construct Sum {\n\
+             pub literal [](...items: i32): Self {\n\
+                 var total = 0\n\
+                 for item in items { total += item }\n\
+                 return Self { value: total }\n\
+             }\n\
+         }\n\
+         struct Iter { next_value: i32\n\
+             remaining: usize }\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? {\n\
+                 let _ = allocation_context_state_for_test()\n\
+                 if self.remaining == 0 {\n\
+                     return none\n\
+                 }\n\
+                 let value = self.next_value\n\
+                 self.next_value += 1\n\
+                 self.remaining -= 1\n\
+                 return value\n\
+             }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return self.remaining }\n\
+         }\n\
+         func main(): i32 {\n\
+             let iterator = Iter { next_value: 4, remaining: 3 }\n\
+             let empty = Iter { next_value: 100, remaining: 0 }\n\
+             let result = Sum [10, ...move iterator, ...move empty, 20]\n\
+             return result.value\n\
+         }\n",
+        &[&[], &[], &["mem"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 45);
+}
+
+#[test]
+fn spread_literal_pack_residual_cleanup_destroys_the_iterator() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         use std/process.exit_for_test\n\
+         struct Sink {}\n\
+         construct Sink {\n\
+             pub literal [](...items: i32): Self { return Self {} }\n\
+         }\n\
+         struct Iter {}\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? { return none }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return 0 }\n\
+         }\n\
+         drop Iter(&+self) { exit_for_test(42) }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {}\n\
+             let value = Sink [...move iterator]\n\
+             drop value\n\
+             return 1\n\
+         }\n",
+        &[&[], &[], &["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn spread_literal_pack_transports_indirect_optional_values() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         copy struct Large { first: i64\n\
+             second: i64\n\
+             third: i32 }\n\
+         struct Sum { value: i32 }\n\
+         construct Sum {\n\
+             pub literal [](...items: Large): Self {\n\
+                 var total = 0\n\
+                 for item in items { total += item.third }\n\
+                 return Self { value: total }\n\
+             }\n\
+         }\n\
+         struct Iter { value: Large\n\
+             remaining: usize }\n\
+         conform Iterator for Iter {\n\
+             type Item = Large\n\
+             method &+self.next(): Large? {\n\
+                 if self.remaining == 0 {\n\
+                     return none\n\
+                 }\n\
+                 self.remaining -= 1\n\
+                 return self.value\n\
+             }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return self.remaining }\n\
+         }\n\
+         func main(): i32 {\n\
+             let iterator = Iter {\n\
+                 value: Large { first: 10, second: 20, third: 42 },\n\
+                 remaining: 1,\n\
+             }\n\
+             let result = Sum [...move iterator]\n\
+             return result.value\n\
+         }\n",
+        &[&[], &[]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn spread_literal_pack_copies_borrowed_iterator_items() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         struct Sum { value: i32 }\n\
+         construct Sum {\n\
+             pub literal [](...items: i32): Self {\n\
+                 var total = 0\n\
+                 for item in items { total += item }\n\
+                 return Self { value: total }\n\
+             }\n\
+         }\n\
+         struct Source { first: i32\n\
+             second: i32 }\n\
+         struct RefIter { source: &Source\n\
+             index: usize }\n\
+         instance Source {\n\
+             pub operator (...&self): RefIter from self {\n\
+                 return RefIter { source: self, index: 0 }\n\
+             }\n\
+         }\n\
+         conform Iterator for RefIter {\n\
+             type Item = &i32\n\
+             method &+self.next(): &i32? from self {\n\
+                 if self.index == 0 {\n\
+                     self.index = 1\n\
+                     return &self.source.first\n\
+                 }\n\
+                 if self.index == 1 {\n\
+                     self.index = 2\n\
+                     return &self.source.second\n\
+                 }\n\
+                 return none\n\
+             }\n\
+         }\n\
+         conform ExactSizeIterator for RefIter {\n\
+             method &self.remaining_len(): usize { return 2 - self.index }\n\
+         }\n\
+         func main(): i32 {\n\
+             let source = Source { first: 20, second: 21 }\n\
+             let result = Sum [1, ...source]\n\
+             return result.value\n\
+         }\n",
+        &[&[], &[]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn scalar_comparison_and_branch_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

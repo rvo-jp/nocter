@@ -68,10 +68,9 @@ fn lower_pack(
                 let abi = context
                     .abi
                     .get(*item)
-                    .cloned()
                     .ok_or(MachineProgramError::MissingCallableAbi(*item))?;
                 let receiver_offset =
-                    receiver_offset(operation, spread, body, addresses, context, ids, &abi)?;
+                    receiver_offset(operation, spread, body, addresses, context, ids, abi)?;
                 let contribution = match spread.contribution() {
                     MirPackContribution::Direct => MachinePackContribution::Direct,
                     MirPackContribution::CopyBorrowed => MachinePackContribution::CopyBorrowed,
@@ -89,7 +88,6 @@ fn lower_pack(
                     MachinePackNext::new(
                         receiver_offset,
                         target,
-                        abi,
                         spread.next_result(),
                         spread.item(),
                     ),

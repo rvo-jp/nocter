@@ -564,10 +564,14 @@ fn emit_terminator(
             crate::system_primitive_code::emit_exit(function, *status, code)?;
         }
         Arm64SelectedTerminator::Trap => {
-            code.append(Arm64Instruction::Break { immediate: 1 });
+            code.append(Arm64Instruction::Break {
+                immediate: crate::runtime_trap::Arm64RuntimeTrap::MirTrap.immediate(),
+            });
         }
         Arm64SelectedTerminator::Unreachable => {
-            code.append(Arm64Instruction::Break { immediate: 2 });
+            code.append(Arm64Instruction::Break {
+                immediate: crate::runtime_trap::Arm64RuntimeTrap::MirUnreachable.immediate(),
+            });
         }
     }
     Ok(())
@@ -810,7 +814,6 @@ pub enum Arm64MaterializationError {
     UnknownFunction(MachineFunctionId),
     UnknownPackCallback(crate::Arm64PackCallbackKey),
     InvalidPackCallback(crate::Arm64PackCallbackKey),
-    UnsupportedPackSpread(crate::Arm64PackCallbackKey),
     UnknownData(MachineDataId),
     UnknownBlock(MachineBlockId),
     UnknownSelectedAddress(nocter_machine::MachineAddressId),

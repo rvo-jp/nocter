@@ -204,7 +204,9 @@ fn emit_index(
         (index, bound)
     {
         if index >= length {
-            code.append(Arm64Instruction::Break { immediate: 3 });
+            code.append(Arm64Instruction::Break {
+                immediate: crate::runtime_trap::Arm64RuntimeTrap::Bounds.immediate(),
+            });
             return Ok(());
         }
         let offset = index
@@ -261,7 +263,9 @@ fn emit_bounds_check(
     });
     let valid = code.create_label();
     code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
-    code.append(Arm64Instruction::Break { immediate: 3 });
+    code.append(Arm64Instruction::Break {
+        immediate: crate::runtime_trap::Arm64RuntimeTrap::Bounds.immediate(),
+    });
     code.bind(valid)?;
     Ok(())
 }

@@ -97,8 +97,9 @@ compiler-owned pack-descriptor pointer lane without inventing a source type or v
 machine program assigns every caller-owned descriptor a body-local `MachinePackId`. Each descriptor
 retains its exact element and optional-next types, total-length value, and ordered fixed or spread
 segments. A spread contains only a machine address, remaining-count value, direct function
-identity, exact callable ABI, receiver byte offset within the transferred iterator, contribution
-mode, and optional generated cleanup-function target. Machine lowering proves the receiver is a
+identity, receiver byte offset within the transferred iterator, contribution mode, and optional
+generated cleanup-function target. The referenced function remains the single callable-ABI
+authority. Machine lowering proves the receiver is a
 static subaddress of the iterator and removes the caller-side borrow SSA value; target callbacks
 never retain a pointer into the caller's former iterator storage. Fixed segments use the same
 cleanup-function domain. The literal body exposes only explicit length, consuming-next, and destroy
@@ -241,9 +242,12 @@ under their checked machine size and alignment. The target declares two stable f
 body-local pack and stores their relocated addresses in the descriptor. Fixed-segment next
 callbacks construct the planned direct or caller-owned `Optional<T>` result and advance the cursor;
 fixed residual callbacks first make the state consumed, then call ordinary generated destruction
-functions for unconsumed values in reverse order. A literal body therefore consumes one stable
-descriptor ABI without erasing the ownership layout of each caller's pack. Spread segments retain
-the same layout and function identities, but their iterator-call execution is not implemented yet.
+functions for unconsumed values in reverse order. Spread callbacks invoke the frozen direct next
+function through its unique callable ABI. They stage direct or caller-owned `Optional<Item>`
+results, copy readonly referents when required, decrement the exact remaining count, skip exhausted
+segments, and destroy iterator state before advancing. A contradictory early `none` reaches the
+compiler-owned exact-size trap. A literal body therefore consumes one stable descriptor ABI
+without erasing the ownership layout of each caller's pack.
 
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
@@ -477,5 +481,7 @@ generated machine functions; recursive structs, active enum payloads, reverse fi
 pointer plans, and hidden allocation-context propagation execute natively through pointer calls.
 Fixed literal packs now initialize and transfer their four-word descriptors, execute consuming-next
 through the exact result ABI, and destroy unconsumed elements through those generated functions.
-Process-entry state, I/O and error primitives, lexical region representation and cleanup, pack
-spread-callback execution, and test roots remain Phase 5 implementation areas.
+Spread packs execute the same native descriptor ABI for direct and copied-borrow contributions,
+including direct and indirect optional transport, empty-segment advancement, inherited allocation
+contexts, and iterator cleanup. Process-entry state, I/O and error primitives, lexical region
+representation and cleanup, and test roots remain Phase 5 implementation areas.

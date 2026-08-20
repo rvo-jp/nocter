@@ -11,17 +11,12 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete literal-pack callbacks for spread segments. Fixed-segment descriptors now initialize
-   their caller-owned state, length, and target function pointers; consuming-next returns the
-   exact `Optional<T>` ABI, and residual cleanup invokes the shared generated
-   `(byte_pointer, byte_offset)` destruction functions in reverse order. Spread callbacks must
-   call their frozen iterator target and preserve the same descriptor and cleanup authorities.
-2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
+1. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release through that representation without deriving runtime state from the
    current standard-library implementation.
-3. Close independent test roots through the same function, allocation-context, and process-image
+2. Close independent test roots through the same function, allocation-context, and process-image
    authorities.
-4. Complete process-entry state, I/O, and error-construction primitive roles without name-based
+3. Complete process-entry state, I/O, and error-construction primitive roles without name-based
    dispatch or private call conventions.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,

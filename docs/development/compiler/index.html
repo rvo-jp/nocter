@@ -478,8 +478,9 @@
   primitives retain closed roles and use the same concrete ABI planner as direct calls. Direct and
   primitive targets share one call representation. Literal descriptors retain ordered fixed and
   spread segments through a dedicated body-local identity. Every spread freezes a direct next
-  function, its callable ABI, and a checked receiver offset into the transferred iterator state;
-  the caller-side borrow value does not survive the machine boundary. Residual cleanup is frozen
+  function and a checked receiver offset into the transferred iterator state; that function's
+  callable ABI remains the unique transport authority, and the caller-side borrow value does not
+  survive the machine boundary. Residual cleanup is frozen
   into machine-function targets, tags, strides, and byte offsets. Compiler-provided comparison, checked
   index, and borrow-weakening dispatch is lowered into representation-exact machine operations;
   no structural call target survives. One whole-program allocation-context fixed point now marks
@@ -521,7 +522,10 @@
   stable next/destroy function identities for every body-local pack. Fixed segments execute the
   complete callback path: next returns the planned direct or caller-owned <code>Optional&lt;T&gt;</code> result,
   advances the state cursor, and residual cleanup destroys every unconsumed owner in reverse order
-  through ordinary generated functions. Spread-segment callback execution remains open.
+  through ordinary generated functions. Spread callbacks invoke their direct iterator function
+  through that function's ordinary ABI, support direct and copied-borrow contributions, stage both
+  direct and caller-owned optional results, skip empty spreads, and destroy iterator state exactly
+  once. An iterator that contradicts its frozen exact length terminates with a distinct target trap.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the <code>x29</code>/<code>x30</code> frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
