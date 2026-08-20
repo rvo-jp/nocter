@@ -12,8 +12,9 @@ implementation input.
 ## Immediate Work
 
 1. Expand closed primitive-role lowering from the completed allocation-context, pure pointer/view,
-   and byte/value transfer operations to destruction, process, syscall, I/O, error, and abort
-   operations without name-based dispatch or private call conventions.
+   byte/value transfer, syscall, process-exit, trap, and abort operations to concrete destruction,
+   process-entry state, I/O, and error construction without name-based dispatch or private call
+   conventions.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release, drop operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -133,6 +134,14 @@ memory copies. No primitive duplicates the target's direct/indirect size boundar
 conformance crosses string and pointer copies, indexed byte stores, a 24-byte indirect store, and
 both direct and indirect generic takes. `drop_value_at_ptr<T>` remains coupled to the pending
 concrete destruction authority rather than being misimplemented as a byte operation.
+
+Darwin system primitives now have one target-owned selection and materialization boundary. Generic
+syscalls translate the ordinary Nocter argument registers to Darwin's number and argument lanes,
+then normalize carry-based success or failure into the declared two-word result. Process exit
+shares the root terminator's exact syscall emitter. Trap, unreachable, and allocation abort use
+distinct compiler-owned break reasons and cannot fall through. Native conformance executes both
+syscall result paths and primitive process exit; termination-only roles are materialized without a
+runtime-library dependency.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

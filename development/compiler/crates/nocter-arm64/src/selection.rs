@@ -101,6 +101,15 @@ pub enum Arm64SelectedInstruction {
         left: Arm64SelectedRegister,
         right: Arm64SelectedRegister,
     },
+    DarwinSystemCall {
+        argument_count: u8,
+    },
+    ExitProcess {
+        status: Arm64SelectedRegister,
+    },
+    Break {
+        immediate: u16,
+    },
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

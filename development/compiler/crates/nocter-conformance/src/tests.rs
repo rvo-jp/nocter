@@ -326,6 +326,63 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
 }
 
 #[test]
+fn darwin_syscall_primitives_cross_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/os.{syscall0_succeeds_for_test, syscall1_fails_for_test}\n\
+         func main(): i32 {\n\
+             if syscall0_succeeds_for_test(0x02000014) {\n\
+                 if syscall1_fails_for_test(0x02000006, 18446744073709551615) {\n\
+                     return 42\n\
+                 }\n\
+             }\n\
+             return 1\n\
+         }\n",
+        &[&["internal", "os"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn process_exit_primitive_crosses_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process.exit_for_test\n\
+         func main(): i32 { exit_for_test(42) }\n",
+        &[&["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/os.terminate_for_test\n\
+         func main(): i32 { terminate_for_test(false) }\n",
+        &[&["internal", "os"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+}
+
+#[test]
+fn allocation_abort_primitive_materializes_without_a_runtime_dependency() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/mem.allocation_abort_for_test\n\
+         func main(): i32 { allocation_abort_for_test() }\n",
+        &[&["mem"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

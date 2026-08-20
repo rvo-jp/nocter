@@ -59,6 +59,19 @@ pub(crate) fn select(
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)
         }
+        PrimitiveRole::AllocationAbort
+        | PrimitiveRole::ProcessExit
+        | PrimitiveRole::Syscall0
+        | PrimitiveRole::Syscall1
+        | PrimitiveRole::Syscall2
+        | PrimitiveRole::Syscall3
+        | PrimitiveRole::Syscall4
+        | PrimitiveRole::Syscall5
+        | PrimitiveRole::Syscall6
+        | PrimitiveRole::Trap
+        | PrimitiveRole::Unreachable => {
+            super::system_primitive_selection::select(operation, target, selected)
+        }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
 }

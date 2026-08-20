@@ -122,6 +122,11 @@ fn emit_instruction(
             left,
             right,
         } => emit_binary(function, operation, destination, left, right, size, code),
+        Arm64SelectedInstruction::DarwinSystemCall { .. }
+        | Arm64SelectedInstruction::ExitProcess { .. }
+        | Arm64SelectedInstruction::Break { .. } => {
+            crate::system_primitive_code::emit_selected(function, instruction, code)
+        }
         Arm64SelectedInstruction::CompareBorrowed {
             size,
             extension,
@@ -144,8 +149,7 @@ fn emit_instruction(
             code,
         ),
         Arm64SelectedInstruction::Call(target) => {
-            code.call(function_target(functions, target)?);
-            Ok(())
+            function_target(functions, target).map(|target| code.call(target))
         }
     }
 }
@@ -487,31 +491,7 @@ fn emit_terminator(
             Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
         }
         Arm64SelectedTerminator::Exit(status) => {
-            let status_register = Arm64NocterAbi::argument_register(0)
-                .expect("the ARM64 ABI has an x0 argument register");
-            if let Some(status) = *status {
-                emit_move(
-                    function,
-                    Arm64SelectedRegister::Fixed(status_register),
-                    status,
-                    Arm64DataSize::Bits64,
-                    code,
-                )?;
-            } else {
-                crate::frame_access::load_immediate(
-                    code,
-                    status_register,
-                    0,
-                    Arm64DataSize::Bits64,
-                );
-            }
-            crate::frame_access::load_immediate(
-                code,
-                crate::frame_access::scratch(0),
-                1,
-                Arm64DataSize::Bits64,
-            );
-            code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+            crate::system_primitive_code::emit_exit(function, *status, code)?;
         }
         Arm64SelectedTerminator::Trap => {
             code.append(Arm64Instruction::Break { immediate: 1 });
@@ -758,6 +738,7 @@ pub enum Arm64MaterializationError {
     InvalidMemoryWidth(u8),
     OverlappingStackCopy,
     InvalidParallelCopy,
+    InvalidSystemCallArity(u8),
     Code(Arm64CodeError),
 }
 

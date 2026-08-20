@@ -47,6 +47,7 @@ pub func allocation_context_state_for_test(): usize {
 pub func allocation_context_kind_for_test(): usize {
     return current_allocator_kind()
 }
+pub func allocation_abort_for_test(): never { allocation_abort_raw() }
 ";
 const PTR_SOURCE: &str = "\
 pub primitive addr<T>(pointer: *T): usize
@@ -128,6 +129,7 @@ pub(/) primitive env_count_raw(): usize
 pub(/) primitive env_name_raw(index: usize): &str
 #target: \"arm64-darwin\"
 pub(/) primitive env_value_raw(index: usize): &str
+pub func exit_for_test(code: i32): never { exit_raw(code) }
 ";
 const IO_SOURCE: &str = "\
 #target: \"arm64-darwin\"
@@ -169,6 +171,18 @@ pub(/) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: us
 pub(/) primitive trap(): never
 #target: \"arm64-darwin\"
 pub(/) primitive unreachable(): never
+pub func syscall0_succeeds_for_test(number: usize): bool {
+    let result = syscall0(number)
+    return result.errno == 0 && result.value > 0
+}
+pub func syscall1_fails_for_test(number: usize, argument: usize): bool {
+    let result = syscall1(number, argument)
+    return result.errno != 0
+}
+pub func terminate_for_test(use_unreachable: bool): never {
+    if use_unreachable { unreachable() }
+    trap()
+}
 ";
 
 struct FixtureModule {

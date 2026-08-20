@@ -330,6 +330,14 @@ and pointer copies lower to a zero-safe forward byte loop. Indexed byte stores a
 the fixed-size indirect copy path. Target selection therefore does not repeat the ABI's direct-size
 limit, invent generic value registers, or widen partial lanes.
 
+Darwin system roles have their own closed selected instruction vocabulary. A generic syscall moves
+the Nocter call's first direct lane into Darwin's syscall-number register, shifts its remaining
+direct lanes into the platform argument window, emits one supervisor call, and converts the carry
+flag into the declared `{ value, errno }` pair. The same exit emitter serves compiler-generated
+root termination and the process-exit primitive. Trap, unreachable, and allocation abort emit
+distinct break immediates, preserving a stable compiler-owned termination reason without a runtime
+symbol or primitive-specific call convention.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -348,6 +356,9 @@ Pointer identity, pointee byte layout, raw string subviews, and slice/string vie
 their ordinary primitive ABI and execute natively as one combined conformance case.
 Runtime string/pointer copies, indexed byte storage, a 24-byte generic store, and direct/indirect
 generic takes likewise cross source, machine ABI, native selection, and Mach-O execution.
+Generic syscall success and failure plus primitive process exit also execute across this complete
+pipeline. Trap, unreachable, and allocation abort cross materialization but are not executed by the
+test runner.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -419,7 +430,8 @@ deterministically initialized padding. Checked projected/dynamic memory and stru
 index borrows share one selected address evaluator. Direct and indirect callable transport are
 complete, including caller-owned large results, callee-owned large parameters, nested calls, and
 stack arguments after the register window closes. Root/incoming/explicit allocation-context
-transport, current-context reads, pure pointer/view primitives, and byte/value transfer primitives
-are complete. Memory-valued block parameters, concrete pointer destruction, system primitives,
+transport, current-context reads, pure pointer/view primitives, byte/value transfer primitives,
+Darwin syscalls, process exit, trap, unreachable, and allocation abort are complete. Memory-valued
+block parameters, concrete pointer destruction, process-entry state, I/O and error primitives,
 lexical region representation and cleanup, pack callbacks, and test roots remain Phase 5
 implementation areas.

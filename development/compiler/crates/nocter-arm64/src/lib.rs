@@ -32,6 +32,8 @@ mod selected_code;
 mod selection;
 mod selection_error;
 mod structural_selection;
+mod system_primitive_code;
+mod system_primitive_selection;
 mod value_plan;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
