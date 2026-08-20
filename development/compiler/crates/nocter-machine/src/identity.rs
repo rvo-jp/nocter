@@ -7,13 +7,20 @@ macro_rules! machine_ids {
             #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
             pub struct $name(usize);
 
+            impl $name {
+                #[must_use]
+                pub const fn index(self) -> usize {
+                    self.0
+                }
+            }
+
             impl MachineId for $name {
                 fn new(index: usize) -> Self {
                     Self(index)
                 }
 
                 fn index(self) -> usize {
-                    self.0
+                    self.index()
                 }
             }
 

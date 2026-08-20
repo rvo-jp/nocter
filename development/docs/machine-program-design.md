@@ -207,6 +207,12 @@ The target ABI register partition is one closed authority shared by allocation a
 The fixed `x9` lane carries the compiler-propagated allocation-context pointer and never enters
 general allocation. Fixed argument/result lanes are likewise boundary-only. Virtual values use
 `x10`-`x15` or `x19`-`x28`; a range live across a call may use only the latter or a spill slot.
+`Arm64ValuePlan` first partitions machine values into omitted storage, one or two virtual word
+lanes, or memory storage for values larger than the direct ABI limit. It uses machine operation
+inputs and block liveness to extend deterministic intervals. Call crossing is marked directly from
+the call operation's `live_after` set, excluding the call result, rather than inferred from a
+flattened interval that may contain unrelated sibling blocks. Every direct lane then uses the
+common linear-scan allocator; memory values remain explicit requests for later frame placement.
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
 `x19`-`x28` registers in numeric order, and ends with the canonical saved `x29`/`x30` frame record.
@@ -287,5 +293,7 @@ and distant offsets. Deterministic Mach-O section placement, load commands, relo
 ad-hoc signing, and executable serialization are implemented and pass a native execution test.
 A deterministic virtual-register live-range builder and linear-scan allocator now reuse expired
 caller-saved registers, restrict call-crossing ranges to callee-saved registers, record required
-preservation, and assign dense spills under pressure. Machine instruction selection and spill
-materialization remain Phase 5 implementation areas.
+preservation, and assign dense spills under pressure. The machine-driven value plan classifies
+zero, one-word, two-word, and memory values and feeds exact CFG call-survival facts into that
+allocator. Selected virtual instructions, fixed-frame placement for memory values and spills, and
+spill materialization remain Phase 5 implementation areas.

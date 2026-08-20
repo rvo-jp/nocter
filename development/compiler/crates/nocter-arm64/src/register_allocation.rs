@@ -68,6 +68,7 @@ struct LiveRange {
 pub struct Arm64RegisterAllocationBuilder {
     ranges: Vec<LiveRange>,
     calls: BTreeSet<usize>,
+    call_crossing: BTreeSet<Arm64VirtualRegister>,
 }
 
 impl Arm64RegisterAllocationBuilder {
@@ -76,6 +77,7 @@ impl Arm64RegisterAllocationBuilder {
         Self {
             ranges: Vec::new(),
             calls: BTreeSet::new(),
+            call_crossing: BTreeSet::new(),
         }
     }
 
@@ -120,9 +122,29 @@ impl Arm64RegisterAllocationBuilder {
         self.calls.insert(position);
     }
 
+    /// Marks a register as live across a call from CFG dataflow. This is more precise than
+    /// deriving the fact from one flattened instruction interval because unrelated branch arms
+    /// may occupy positions between the interval endpoints.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown virtual register.
+    pub fn mark_call_crossing(
+        &mut self,
+        register: Arm64VirtualRegister,
+    ) -> Result<(), Arm64RegisterAllocationError> {
+        if self.ranges.get(register.0).is_none() {
+            return Err(Arm64RegisterAllocationError::UnknownVirtualRegister(
+                register,
+            ));
+        }
+        self.call_crossing.insert(register);
+        Ok(())
+    }
+
     #[must_use]
     pub fn finish(self) -> Arm64RegisterAllocation {
-        allocate(self.ranges, &self.calls)
+        allocate(self.ranges, &self.calls, &self.call_crossing)
     }
 }
 
@@ -140,7 +162,11 @@ struct ActiveInterval {
     physical: Arm64Register,
 }
 
-fn allocate(ranges: Vec<LiveRange>, calls: &BTreeSet<usize>) -> Arm64RegisterAllocation {
+fn allocate(
+    ranges: Vec<LiveRange>,
+    calls: &BTreeSet<usize>,
+    call_crossing: &BTreeSet<Arm64VirtualRegister>,
+) -> Arm64RegisterAllocation {
     let mut intervals = ranges
         .into_iter()
         .enumerate()
@@ -148,10 +174,11 @@ fn allocate(ranges: Vec<LiveRange>, calls: &BTreeSet<usize>) -> Arm64RegisterAll
             register: Arm64VirtualRegister(index),
             start: range.start,
             end: range.end,
-            crosses_call: calls
-                .range((Bound::Excluded(range.start), Bound::Excluded(range.end)))
-                .next()
-                .is_some(),
+            crosses_call: call_crossing.contains(&Arm64VirtualRegister(index))
+                || calls
+                    .range((Bound::Excluded(range.start), Bound::Excluded(range.end)))
+                    .next()
+                    .is_some(),
         })
         .collect::<Vec<_>>();
     intervals.sort_unstable_by_key(|interval| (interval.start, interval.register));

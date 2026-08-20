@@ -409,12 +409,17 @@ be introduced to make an unresolved syntax choice.
   allocation. The hidden allocation-context pointer has the fixed `x9` lane, while general virtual
   values use only `x10`-`x15` and `x19`-`x28`. The deterministic linear-scan allocator restricts
   call-crossing ranges to callee-saved registers or spills and reports the exact preservation set.
+  One `Arm64ValuePlan` now classifies zero-storage, one- or two-word direct, and memory-backed
+  machine values before selection. It derives deterministic intervals from machine CFG facts and
+  marks only values actually live after a call as call-crossing; flattened sibling block order
+  cannot force an unrelated value into a callee-saved register. Direct words share the allocator,
+  while larger values remain explicit fixed-frame requests.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved `x16` scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. Machine instruction selection and spill materialization
-  remain separate later responsibilities in this crate. Dense function
+  accidental immediate-width limit. The selected virtual-instruction/frame schema and spill
+  materialization remain separate later responsibilities in this crate. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
   only after the writer supplies final section virtual addresses.

@@ -21,6 +21,7 @@ impl Arm64NocterAbi {
     pub const WORD_SIZE: u64 = 8;
     pub const STACK_ALIGNMENT: u64 = 16;
     pub const ARGUMENT_REGISTER_COUNT: u8 = 8;
+    pub const DIRECT_VALUE_WORD_LIMIT: u8 = 2;
 
     #[must_use]
     pub const fn argument_register(index: u8) -> Option<Arm64Register> {

@@ -11,12 +11,12 @@ implementation input.
 
 ## Immediate Work
 
-1. Define the ARM64 selection schema and virtual-register domain, then lower every closed machine
-   operation without consulting MIR or semantic types. Consume `MachineFunctionDataflow` as the
-   sole operation-input and CFG-liveness authority rather than scanning operation internals again.
-2. Allocate physical registers and spills through the existing ABI register partition and fixed
-   frame planner, including the compiler-owned pack and allocation-context lanes. Derive exact
-   call-crossing intervals from operation `live_after` facts.
+1. Define the selected ARM64 virtual-instruction and frame-object schema, then lower every closed
+   machine operation without consulting MIR or semantic types. Consume the completed
+   `Arm64ValuePlan` and `MachineFunctionDataflow` instead of scanning dependencies again.
+2. Place memory-valued results and allocated spill lanes through the fixed-frame planner, including
+   the compiler-owned pack and allocation-context objects. Materialize physical operands only
+   after the selected instruction graph and frame layout are both closed.
 3. Feed selected functions and static data through the existing checked program-fixup and Mach-O
    image boundaries, then qualify native process and test-root execution.
 

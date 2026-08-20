@@ -633,6 +633,138 @@ fn register_allocation_rejects_unknown_and_predefinition_uses() {
 }
 
 #[test]
+fn machine_value_plan_uses_exact_call_crossing_facts() {
+    let program = crate::test_support::lower_machine(
+        "func identity(value: i32): i32 { value }\n\
+         func main(): i32 { 1 + identity(2) }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let function = program.function(entry).unwrap();
+    let first = function
+        .body()
+        .operations()
+        .find_map(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::Constant(
+                    nocter_machine::MachineConstant::Integer(1)
+                )
+            )
+            .then(|| operation.result().unwrap())
+        })
+        .unwrap();
+    let call_result = function
+        .body()
+        .operations()
+        .find_map(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::Call(_)
+            )
+            .then(|| operation.result().unwrap())
+        })
+        .unwrap();
+    let plan = crate::Arm64ValuePlan::build(function).unwrap();
+    let first_register = plan.value(first).unwrap().direct_registers().unwrap()[0];
+    let call_result_register = plan.value(call_result).unwrap().direct_registers().unwrap()[0];
+
+    assert!(matches!(
+        plan.registers().location(first_register),
+        Some(crate::Arm64AllocatedLocation::Register(register))
+            if crate::Arm64NocterAbi::is_callee_saved(register)
+    ));
+    assert!(matches!(
+        plan.registers().location(call_result_register),
+        Some(crate::Arm64AllocatedLocation::Register(register))
+            if !crate::Arm64NocterAbi::is_callee_saved(register)
+    ));
+}
+
+#[test]
+fn machine_value_plan_separates_multiword_and_memory_values() {
+    let program = crate::test_support::lower_machine(
+        "copy struct Pair { first: u64\n    second: u64 }\n\
+         struct Large { first: u64\n    second: u64\n    third: u64 }\n\
+         func main(): i32 {\n\
+             let pair = Pair { first: 1, second: 2 }\n\
+             let large = Large { first: 3, second: 4, third: 5 }\n\
+             let _ = pair\n\
+             drop large\n\
+             0\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let function = program.function(entry).unwrap();
+    let aggregates = function
+        .body()
+        .operations()
+        .filter_map(|(_, operation)| {
+            if matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::Aggregate(_)
+            ) {
+                operation.result()
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let plan = crate::Arm64ValuePlan::build(function).unwrap();
+
+    assert!(aggregates.iter().any(|value| {
+        matches!(
+            plan.value(*value),
+            Some(crate::Arm64ValueStorage::Direct(registers)) if registers.len() == 2
+        )
+    }));
+    assert!(aggregates.iter().any(|value| {
+        matches!(
+            plan.value(*value),
+            Some(crate::Arm64ValueStorage::Memory {
+                size: 24,
+                alignment: 8,
+            })
+        )
+    }));
+}
+
+#[test]
+fn machine_value_plan_accepts_edge_defined_join_values() {
+    let program = crate::test_support::lower_machine(
+        "func choose(condition: bool): i32 {\n\
+             if condition { 1 } else { 2 }\n\
+         }\n\
+         func main(): i32 { choose(true) }\n",
+    );
+    let function = program
+        .functions()
+        .map(|(_, function)| function)
+        .find(|function| {
+            function
+                .body()
+                .blocks()
+                .any(|(_, block)| !block.parameters().is_empty())
+        })
+        .unwrap();
+    let plan = crate::Arm64ValuePlan::build(function).unwrap();
+
+    for parameter in function
+        .body()
+        .blocks()
+        .flat_map(|(_, block)| block.parameters())
+    {
+        assert!(matches!(
+            plan.value(*parameter),
+            Some(crate::Arm64ValueStorage::Direct(registers)) if registers.len() == 1
+        ));
+    }
+}
+
+#[test]
 fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let target = builder.declare_function();

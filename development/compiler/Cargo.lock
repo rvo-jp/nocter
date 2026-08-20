@@ -6,7 +6,14 @@ version = 4
 name = "nocter-arm64"
 version = "0.0.0"
 dependencies = [
+ "nocter-checking",
+ "nocter-declaration-lowering",
+ "nocter-declarations",
  "nocter-machine",
+ "nocter-mir",
+ "nocter-model",
+ "nocter-target-program",
+ "nocter-test-support",
 ]
 
 [[package]]

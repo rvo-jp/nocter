@@ -13,6 +13,7 @@ mod instruction;
 mod program;
 mod register;
 mod register_allocation;
+mod value_plan;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
@@ -38,6 +39,9 @@ pub use register_allocation::{
     Arm64AllocatedLocation, Arm64RegisterAllocation, Arm64RegisterAllocationBuilder,
     Arm64RegisterAllocationError, Arm64SpillSlotId, Arm64VirtualRegister,
 };
+pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
 
+#[cfg(test)]
+mod test_support;
 #[cfg(test)]
 mod tests;

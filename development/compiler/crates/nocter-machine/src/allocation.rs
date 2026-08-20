@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_target_program::PrimitiveRole;
 
-use crate::identity::{MachineId, MachineTable};
+use crate::identity::MachineTable;
 use crate::{
     MachineCall, MachineCallAllocation, MachineCallTarget, MachineDestructionCapture,
     MachineDestructionField, MachineDestructionKind, MachineDestructionPayload,

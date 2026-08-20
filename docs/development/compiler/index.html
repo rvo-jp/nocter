@@ -497,12 +497,17 @@
   allocation. The hidden allocation-context pointer has the fixed <code>x9</code> lane, while general virtual
   values use only <code>x10</code>-<code>x15</code> and <code>x19</code>-<code>x28</code>. The deterministic linear-scan allocator restricts
   call-crossing ranges to callee-saved registers or spills and reports the exact preservation set.
+  One <code>Arm64ValuePlan</code> now classifies zero-storage, one- or two-word direct, and memory-backed
+  machine values before selection. It derives deterministic intervals from machine CFG facts and
+  marks only values actually live after a call as call-crossing; flattened sibling block order
+  cannot force an unrelated value into a callee-saved register. Direct words share the allocator,
+  while larger values remain explicit fixed-frame requests.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the <code>x29</code>/<code>x30</code> frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
   or the reserved <code>x16</code> scratch path, so large frames and distant save slots do not impose an
-  accidental immediate-width limit. Machine instruction selection and spill materialization
-  remain separate later responsibilities in this crate. Dense function
+  accidental immediate-width limit. The selected virtual-instruction/frame schema and spill
+  materialization remain separate later responsibilities in this crate. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while <code>adrp</code>/<code>add</code> data pairs resolve
   only after the writer supplies final section virtual addresses.</li><li><code>nocter-macho</code> consumes only a completed <code>Arm64Program</code>. It assigns the <code>__TEXT</code>, <code>__const</code>, and
