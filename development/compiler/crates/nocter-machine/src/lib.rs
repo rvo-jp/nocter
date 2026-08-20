@@ -6,6 +6,7 @@
 mod allocation;
 mod call;
 mod control;
+mod dataflow;
 mod destruction;
 mod identity;
 mod layout;
@@ -23,6 +24,9 @@ pub use allocation::{MachineAllocationError, MachineAllocationPlan, MachineAlloc
 pub use call::{MachineCall, MachineCallAllocation, MachineCallTarget, MachinePrimitiveTarget};
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
+};
+pub use dataflow::{
+    MachineBlockDataflow, MachineDataflowError, MachineFunctionDataflow, MachineOperationDataflow,
 };
 pub use destruction::{
     MachineDestructionCapture, MachineDestructionError, MachineDestructionField,

@@ -64,7 +64,12 @@ impl MachineProgram {
                     &data,
                     &functions_by_item,
                 )?;
-                Ok(MachineFunction::new(linkage_id, kind, body))
+                MachineFunction::new(linkage_id, kind, body).map_err(|error| {
+                    MachineProgramError::Dataflow {
+                        owner: linkage_id,
+                        error,
+                    }
+                })
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
         let root = lower_root(linkage.root(), &functions_by_linkage)?;
@@ -185,6 +190,10 @@ pub enum MachineProgramError {
     Abi(MachineAbiError),
     Linkage(MachineLinkageError),
     Allocation(MachineAllocationError),
+    Dataflow {
+        owner: MachineLinkageId,
+        error: crate::MachineDataflowError,
+    },
     DuplicateFunctionLinkage(MachineLinkageId),
     DuplicateItemFunction(ExecutableItemId),
     MissingFunctionLinkage(MachineLinkageId),
@@ -245,6 +254,7 @@ impl std::error::Error for MachineProgramError {
             Self::Abi(error) => Some(error),
             Self::Linkage(error) => Some(error),
             Self::Allocation(error) => Some(error),
+            Self::Dataflow { error, .. } => Some(error),
             Self::DuplicateFunctionLinkage(_)
             | Self::DuplicateItemFunction(_)
             | Self::MissingFunctionLinkage(_)

@@ -687,6 +687,155 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
 }
 
 #[test]
+fn machine_dataflow_tracks_values_that_survive_a_call() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func identity(value: i32): i32 { value }\n\
+         func main(): i32 { 1 + identity(2) }\n",
+    ))
+    .unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let function = program.function(entry).unwrap();
+    let body = function.body();
+    let (call_id, call) = body
+        .operations()
+        .find_map(|(operation_id, operation)| {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                return None;
+            };
+            Some((operation_id, call))
+        })
+        .expect("fixture must contain one call");
+    let first = body
+        .operations()
+        .find_map(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::Constant(crate::MachineConstant::Integer(1))
+            )
+            .then(|| operation.result().unwrap())
+        })
+        .expect("fixture must materialize the left operand before the call");
+    let call_result = body.operation(call_id).unwrap().result().unwrap();
+    let flow = function.dataflow().operation(call_id).unwrap();
+
+    assert_eq!(flow.inputs(), call.arguments());
+    assert!(flow.live_after().contains(&first));
+    assert!(flow.live_after().contains(&call_result));
+    assert!(
+        call.arguments()
+            .iter()
+            .all(|argument| !flow.live_after().contains(argument))
+    );
+}
+
+#[test]
+fn machine_dataflow_expands_address_dependencies_once() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func main(): i32 {\n\
+             let values: [i32; 2] = [7, 9]\n\
+             return values[1]\n\
+         }\n",
+    ))
+    .unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let function = program.function(entry).unwrap();
+    let body = function.body();
+    let (address_id, index) = body
+        .addresses()
+        .find_map(|(address_id, address)| {
+            address.steps().iter().find_map(|step| match step {
+                crate::MachineAddressStep::Index {
+                    index: crate::MachineIndex::Value(index),
+                    ..
+                } => Some((address_id, *index)),
+                crate::MachineAddressStep::Offset(_)
+                | crate::MachineAddressStep::Dereference
+                | crate::MachineAddressStep::ViewDereference { .. }
+                | crate::MachineAddressStep::Index {
+                    index: crate::MachineIndex::Constant(_),
+                    ..
+                } => None,
+            })
+        })
+        .expect("fixture must contain one dynamically indexed address");
+    let operation_id = body
+        .operations()
+        .find_map(|(operation_id, operation)| match operation.kind() {
+            MachineOperationKind::Load { source } | MachineOperationKind::AddressOf { source }
+                if *source == address_id =>
+            {
+                Some(operation_id)
+            }
+            _ => None,
+        })
+        .expect("indexed address must be consumed by a machine operation");
+
+    assert!(
+        function
+            .dataflow()
+            .operation(operation_id)
+            .unwrap()
+            .inputs()
+            .contains(&index)
+    );
+}
+
+#[test]
+fn machine_dataflow_treats_block_parameters_as_edge_definitions() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func choose(condition: bool): i32 {\n\
+             if condition { 1 } else { 2 }\n\
+         }\n\
+         func main(): i32 { choose(true) }\n",
+    ))
+    .unwrap();
+    let function = program
+        .functions()
+        .map(|(_, function)| function)
+        .find(|function| {
+            function
+                .body()
+                .blocks()
+                .any(|(_, block)| !block.parameters().is_empty())
+        })
+        .expect("if expression must produce one parameterized join block");
+    let (join_id, join) = function
+        .body()
+        .blocks()
+        .find(|(_, block)| !block.parameters().is_empty())
+        .unwrap();
+    let join_flow = function.dataflow().block(join_id).unwrap();
+
+    for parameter in join.parameters() {
+        assert!(join_flow.definitions().contains(parameter));
+        assert!(!join_flow.live_in().contains(parameter));
+    }
+
+    let mut incoming_edges = 0;
+    for (predecessor_id, predecessor) in function.body().blocks() {
+        let MachineTerminator::Goto(target) = predecessor.terminator() else {
+            continue;
+        };
+        if target.block() != join_id {
+            continue;
+        }
+        incoming_edges += 1;
+        let predecessor_flow = function.dataflow().block(predecessor_id).unwrap();
+        assert!(
+            target
+                .arguments()
+                .iter()
+                .all(|argument| { predecessor_flow.terminator_inputs().contains(argument) })
+        );
+    }
+    assert_eq!(incoming_edges, 2);
+}
+
+#[test]
 fn machine_program_erases_local_places_into_stack_addresses_and_memory_operations() {
     let mir = lower_fixture(
         "func main(): i32 {\n\

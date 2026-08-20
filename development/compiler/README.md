@@ -394,8 +394,12 @@ be introduced to make an unresolved syntax choice.
   no structural call target survives. One whole-program allocation-context fixed point now marks
   roots, context-independent functions, and incoming-context functions across inherited calls,
   user drops, and hidden pack callbacks or destruction. Explicit `using` selections satisfy their
-  target without making the caller context-dependent. ARM64 instruction selection remains the
-  next Phase 5 boundary.
+  target without making the caller context-dependent. Every completed machine function also owns
+  one immutable dataflow table. It expands values hidden inside addresses and literal packs once,
+  validates bidirectional value definitions and typed CFG edges, computes deterministic block
+  `live_in`/`live_out` sets, and records exact inputs and `live_after` values for every operation.
+  ARM64 selection consumes those facts instead of rebuilding machine semantics. Instruction
+  selection remains the next Phase 5 boundary.
 - `nocter-arm64` owns physical ARM64 register roles and instruction encoding without depending on
   MIR or any semantic crate. Register 31 is typed as `sp` or the zero register per instruction
   form, and every immediate, scaled offset, wide-move shift, and branch displacement is validated

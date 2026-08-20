@@ -167,6 +167,21 @@ pointer/length offsets and element stride. Readwrite-to-readonly borrow weakenin
 explicit representation-preserving operation. The machine program therefore retains neither a
 structural dispatch target nor a reason to reopen type selection.
 
+Every `MachineFunction` owns one `MachineFunctionDataflow` derived while its body is closed.
+Operation inputs include dependencies nested inside checked addresses, dynamic indexes, explicit
+allocation addresses, and fixed or spread literal-pack segments; target lowering never needs a
+second operation-shape walker to recover them. The same authority validates that operation results
+and block parameters point back to their exact definition sites, that every operation has one
+block owner, and that branch arguments match destination parameters in arity and type.
+
+CFG liveness treats block parameters as definitions local to the destination and predecessor edge
+arguments as terminator inputs. A deterministic backwards fixed point records block `live_in` and
+`live_out`, then a reverse block walk records the exact live set immediately after every operation.
+This operation-level boundary is required for calls: a value defined before a call and live after
+it must use a callee-saved register or spill, while the call's own result starts at the call and is
+not incorrectly classified as surviving its clobber. ARM64 allocation consumes these facts; it
+does not infer liveness from linear instruction order or reopen machine addresses and packs.
+
 ## ARM64 and Mach-O Boundaries
 
 ARM64 lowering receives only validated machine operations and completed transport plans. It owns
@@ -261,7 +276,9 @@ operations, and layout-owned residual destruction recipes.
 The completed allocation-context fixed point marks roots, context-independent callables, and
 incoming-context callables in a dense function table. It follows inherited calls and hidden pack
 callbacks or destruction, while explicit allocation selections terminate propagation into the
-caller.
+caller. Each machine function now also owns validated operation dependencies, typed CFG edges,
+block liveness, and exact operation `live_after` sets. Tests cover call-surviving values, dynamic
+index dependencies hidden in addresses, and edge-defined join parameters.
 
 The typed ARM64 register, instruction-encoding, local-label, conditional-branch relaxation, ABI
 register-role, fixed-frame placement, whole-program text/data ownership, and typed fixup foundations

@@ -152,19 +152,22 @@ pub struct MachineFunction {
     linkage: MachineLinkageId,
     kind: MachineFunctionKind,
     body: MachineBody,
+    dataflow: crate::MachineFunctionDataflow,
 }
 
 impl MachineFunction {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         linkage: MachineLinkageId,
         kind: MachineFunctionKind,
         body: MachineBody,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, crate::MachineDataflowError> {
+        let dataflow = crate::MachineFunctionDataflow::build(&body)?;
+        Ok(Self {
             linkage,
             kind,
             body,
-        }
+            dataflow,
+        })
     }
 
     #[must_use]
@@ -180,6 +183,11 @@ impl MachineFunction {
     #[must_use]
     pub const fn body(&self) -> &MachineBody {
         &self.body
+    }
+
+    #[must_use]
+    pub const fn dataflow(&self) -> &crate::MachineFunctionDataflow {
+        &self.dataflow
     }
 }
 
