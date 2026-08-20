@@ -267,6 +267,16 @@ acyclic dependencies from leaves to roots, and saves one source in the ABI-reser
 register when it encounters a cycle. Register and spill locations use the same schedule; no edge
 introduces an implicit frame slot or relies on sequential-move accident.
 
+Static text is selected as one data-address lane plus one byte-length lane at the offsets already
+owned by `MachineLayoutStore`. Selected code retains `MachineDataId`; whole-program lowering builds
+one dense `MachineDataId` to `Arm64DataId` map before materialization, and the existing section
+relocation authority resolves the address. Direct one- and two-word values share one raw-lane
+transport across parameter registers, stack arguments, local storage, block edges, and result
+registers. The register window never reopens after a value spills to outgoing stack, exactly as
+specified by `MachineCallableAbi`. Direct lanes whose semantic byte width is not one native
+load/store width are assembled from exact in-bounds fragments. Selection does not widen a 3-, 5-,
+6-, or 7-byte tail into an adjacent frame object.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -274,7 +284,9 @@ uses the existing whole-program builder for functions and static data. The cross
 `nocter-conformance` suite compiles constant, scalar call/arithmetic, control, structural
 comparison, and narrow signed-value processes from source through Mach-O and executes the images
 natively on ARM64 macOS. A value-producing conditional case crosses machine block parameters and
-their native parallel-copy edges. The constant case also checks byte-for-byte determinism.
+their native parallel-copy edges. Static text and two-word view cases cross local storage, results,
+the register window, and outgoing stack arguments. The constant case also checks byte-for-byte
+determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
 text, read-only-data, and link-edit layout; ARM64 section relocation; native entry metadata;
@@ -340,5 +352,7 @@ scalar slice now carries simple stack storage, signed/unsigned scalar interpreta
 readonly-borrow comparison, scalar direct-call transport, control, return, and exit across the
 signed Mach-O boundary and executes natively. Direct block-parameter lanes now cross typed CFG
 edges through cycle-safe register/spill parallel copies. Projected and dynamic memory, aggregates,
-memory-valued block parameters, multiword/indirect callable transport, primitives, allocation
-contexts, cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.
+memory-valued block parameters, indirect callable transport, primitives, allocation contexts,
+cleanup, pack callbacks, and test roots remain Phase 5 implementation areas. Static text and
+one-/two-word direct callable transport are complete, including stack arguments after the register
+window closes.

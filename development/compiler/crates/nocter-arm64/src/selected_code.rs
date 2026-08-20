@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_machine::{MachineBlockId, MachineFunctionId};
+use nocter_machine::{MachineBlockId, MachineDataId, MachineFunctionId};
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AllocatedLocation, Arm64BaseRegister,
@@ -22,6 +22,7 @@ impl Arm64SelectedFunction {
     pub fn materialize(
         &self,
         functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+        data: &[(MachineDataId, crate::Arm64DataId)],
     ) -> Result<Arm64Code, Arm64MaterializationError> {
         let mut code = Arm64CodeBuilder::new();
         let labels = self
@@ -30,13 +31,13 @@ impl Arm64SelectedFunction {
             .collect::<Vec<_>>();
         Arm64FrameCode::emit_prologue(self.frame().layout(), &mut code);
         for instruction in self.entry_instructions() {
-            emit_instruction(self, instruction, functions, &mut code)?;
+            emit_instruction(self, instruction, functions, data, &mut code)?;
         }
         code.branch(block_label(&labels, self.entry())?, false);
         for (block_id, block) in self.blocks() {
             code.bind(block_label(&labels, block_id)?)?;
             for instruction in block.instructions() {
-                emit_instruction(self, instruction, functions, &mut code)?;
+                emit_instruction(self, instruction, functions, data, &mut code)?;
             }
             emit_terminator(self, block.terminator(), &labels, &mut code)?;
         }
@@ -48,6 +49,7 @@ fn emit_instruction(
     function: &Arm64SelectedFunction,
     instruction: &Arm64SelectedInstruction,
     functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    data: &[(MachineDataId, crate::Arm64DataId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     match *instruction {
@@ -56,59 +58,42 @@ fn emit_instruction(
             destination,
             value,
         } => emit_immediate(function, destination, value, size, code),
+        Arm64SelectedInstruction::LoadDataAddress {
+            destination,
+            source,
+        } => crate::memory_code::emit_data_address(
+            function,
+            destination,
+            data_target(data, source)?,
+            code,
+        ),
         Arm64SelectedInstruction::Move {
             size,
             destination,
             source,
         } => emit_move(function, destination, source, size, code),
         Arm64SelectedInstruction::LoadStack {
-            size,
+            bytes,
             extension,
             destination,
             source,
-        } => {
-            let offset = stack_offset(function, source, load_store_bytes(size))?;
-            let destination = write_target(function, destination)?;
-            match extension {
-                Arm64SelectedLoadExtension::Zero => crate::frame_access::load_at_stack_offset(
-                    code,
-                    size,
-                    destination.register,
-                    offset,
-                ),
-                Arm64SelectedLoadExtension::Sign(destination_size) => {
-                    crate::frame_access::load_signed_at_stack_offset(
-                        code,
-                        size,
-                        destination_size,
-                        destination.register,
-                        offset,
-                    );
-                }
-            }
-            finish_write(destination, code);
-            Ok(())
-        }
-        Arm64SelectedInstruction::StoreStack {
-            size,
+        } => crate::memory_code::emit_stack_load(
+            function,
+            bytes,
+            extension,
             destination,
             source,
-        } => {
-            let source = read_register(function, source, 0, code)?;
-            let offset = stack_offset(function, destination, load_store_bytes(size))?;
-            crate::frame_access::store_at_stack_offset(code, size, source, offset);
-            Ok(())
-        }
+            code,
+        ),
+        Arm64SelectedInstruction::StoreStack {
+            bytes,
+            destination,
+            source,
+        } => crate::memory_code::emit_stack_store(function, bytes, destination, source, code),
         Arm64SelectedInstruction::StackAddress {
             destination,
             source,
-        } => {
-            let offset = stack_offset(function, source, 0)?;
-            let destination = write_target(function, destination)?;
-            crate::frame_access::form_stack_address(code, destination.register, offset);
-            finish_write(destination, code);
-            Ok(())
-        }
+        } => crate::memory_code::emit_stack_address(function, destination, source, code),
         Arm64SelectedInstruction::Unary {
             size,
             operation,
@@ -560,12 +545,12 @@ fn emit_move(
 }
 
 #[derive(Clone, Copy)]
-struct WriteTarget {
-    register: Arm64Register,
-    spill_offset: Option<u64>,
+pub(crate) struct WriteTarget {
+    pub(crate) register: Arm64Register,
+    pub(crate) spill_offset: Option<u64>,
 }
 
-fn write_target(
+pub(crate) fn write_target(
     function: &Arm64SelectedFunction,
     selected: Arm64SelectedRegister,
 ) -> Result<WriteTarget, Arm64MaterializationError> {
@@ -594,7 +579,7 @@ fn write_target(
     }
 }
 
-fn finish_write(target: WriteTarget, code: &mut Arm64CodeBuilder) {
+pub(crate) fn finish_write(target: WriteTarget, code: &mut Arm64CodeBuilder) {
     if let Some(offset) = target.spill_offset {
         crate::frame_access::store_at_stack_offset(
             code,
@@ -605,7 +590,7 @@ fn finish_write(target: WriteTarget, code: &mut Arm64CodeBuilder) {
     }
 }
 
-fn read_register(
+pub(crate) fn read_register(
     function: &Arm64SelectedFunction,
     selected: Arm64SelectedRegister,
     scratch: u8,
@@ -652,7 +637,7 @@ fn spill_offset(
         .ok_or(Arm64MaterializationError::UnknownFrameObject(object))
 }
 
-fn stack_offset(
+pub(crate) fn stack_offset(
     function: &Arm64SelectedFunction,
     address: Arm64SelectedStackAddress,
     access_size: u64,
@@ -713,6 +698,15 @@ fn function_target(
         .ok_or(Arm64MaterializationError::UnknownFunction(target))
 }
 
+fn data_target(
+    data: &[(MachineDataId, crate::Arm64DataId)],
+    source: MachineDataId,
+) -> Result<crate::Arm64DataId, Arm64MaterializationError> {
+    data.get(source.index())
+        .and_then(|(actual, target)| (*actual == source).then_some(*target))
+        .ok_or(Arm64MaterializationError::UnknownData(source))
+}
+
 const fn load_store_bytes(size: Arm64LoadStoreSize) -> u64 {
     match size {
         Arm64LoadStoreSize::Byte => 1,
@@ -725,6 +719,7 @@ const fn load_store_bytes(size: Arm64LoadStoreSize) -> u64 {
 #[derive(Debug)]
 pub enum Arm64MaterializationError {
     UnknownFunction(MachineFunctionId),
+    UnknownData(MachineDataId),
     UnknownBlock(MachineBlockId),
     UnknownVirtualRegister(crate::Arm64VirtualRegister),
     UnknownSpill(crate::Arm64SpillSlotId),
@@ -732,6 +727,7 @@ pub enum Arm64MaterializationError {
     FrameObjectBounds(crate::Arm64FrameObjectId),
     OutgoingBounds(u64),
     OffsetOverflow,
+    InvalidMemoryWidth(u8),
     InvalidParallelCopy,
     Code(Arm64CodeError),
 }

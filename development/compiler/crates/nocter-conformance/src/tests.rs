@@ -87,6 +87,39 @@ fn block_parameters_cross_control_flow_edges_natively() {
     execute_and_assert_status(&image, 42);
 }
 
+#[test]
+fn static_text_and_two_word_view_transport_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "func relay(text: &str): &str { text }\n\
+         func main(): i32 {\n\
+             let text = relay(\"hello\")\n\
+             return 42\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn two_word_views_cross_the_register_window_and_outgoing_stack() {
+    let machine = lower_machine(
+        "func last(\n\
+             a: &str, b: &str, c: &str, d: &str, e: &str,\n\
+             f: &str, g: &str, h: &str, i: &str,\n\
+         ): &str { i }\n\
+         func main(): i32 {\n\
+             let text = last(\"a\", \"b\", \"c\", \"d\", \"e\", \"f\", \"g\", \"h\", \"i\")\n\
+             return 42\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     use std::os::unix::fs::PermissionsExt;

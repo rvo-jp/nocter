@@ -1,18 +1,15 @@
-use std::fmt;
-
 use nocter_machine::{
-    MachineAddressId, MachineAddressRoot, MachineAddressStep, MachineArgumentLocation,
-    MachineBinaryOperation, MachineBlockId, MachineBranchTarget, MachineCall,
-    MachineCallAllocation, MachineCallTarget, MachineComparisonOperation,
-    MachineComparisonRepresentation, MachineConstant, MachineFunctionId, MachineFunctionKind,
-    MachineLayoutKind, MachineOperationId, MachineOperationKind, MachineResultAbi,
-    MachineResultLocation, MachineScalar, MachineTerminator, MachineUnaryOperation,
-    MachineValueClass, MachineValueId,
+    MachineArgumentLocation, MachineBinaryOperation, MachineBlockId, MachineBranchTarget,
+    MachineCall, MachineCallAllocation, MachineCallTarget, MachineComparisonOperation,
+    MachineComparisonRepresentation, MachineConstant, MachineDataId, MachineFunctionId,
+    MachineFunctionKind, MachineLayoutKind, MachineOperationId, MachineOperationKind,
+    MachineResultAbi, MachineResultLocation, MachineScalar, MachineTerminator,
+    MachineUnaryOperation, MachineValueClass, MachineValueId,
 };
 
 use crate::{
-    Arm64DataSize, Arm64FunctionFrame, Arm64FunctionFrameError, Arm64LoadStoreSize, Arm64NocterAbi,
-    Arm64Register, Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage, Arm64VirtualRegister,
+    Arm64DataSize, Arm64FunctionFrame, Arm64LoadStoreSize, Arm64NocterAbi, Arm64Register,
+    Arm64SelectionError, Arm64ValuePlan, Arm64ValueStorage, Arm64VirtualRegister,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,19 +35,23 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         value: u64,
     },
+    LoadDataAddress {
+        destination: Arm64SelectedRegister,
+        source: MachineDataId,
+    },
     Move {
         size: Arm64DataSize,
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
     },
     LoadStack {
-        size: Arm64LoadStoreSize,
+        bytes: u8,
         extension: Arm64SelectedLoadExtension,
         destination: Arm64SelectedRegister,
         source: Arm64SelectedStackAddress,
     },
     StoreStack {
-        size: Arm64LoadStoreSize,
+        bytes: u8,
         destination: Arm64SelectedStackAddress,
         source: Arm64SelectedRegister,
     },
@@ -316,29 +317,51 @@ fn select_parameters(
         match (argument.class(), argument.location()) {
             (MachineValueClass::Zero, None) => {}
             (
-                MachineValueClass::Direct { words: 1 },
+                MachineValueClass::Direct { words },
                 Some(MachineArgumentLocation::Registers(registers)),
-            ) => selected.push(Arm64SelectedInstruction::StoreStack {
-                size: scalar_stack_size(function, stack)?,
-                destination: frame_stack(frame, stack, 0)?,
-                source: Arm64SelectedRegister::Fixed(argument_register(registers.first(), 0)?),
-            }),
-            (
-                MachineValueClass::Direct { words: 1 },
-                Some(MachineArgumentLocation::Stack(slot)),
-            ) => {
-                let size = scalar_stack_size(function, stack)?;
-                selected.push(Arm64SelectedInstruction::LoadStack {
-                    size,
-                    extension: Arm64SelectedLoadExtension::Zero,
-                    destination: Arm64SelectedRegister::Fixed(scratch_boundary()),
-                    source: Arm64SelectedStackAddress::Incoming(slot.offset()),
-                });
-                selected.push(Arm64SelectedInstruction::StoreStack {
-                    size,
-                    destination: frame_stack(frame, stack, 0)?,
-                    source: Arm64SelectedRegister::Fixed(scratch_boundary()),
-                });
+            ) if words == registers.words() => {
+                let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
+                for (lane, bytes) in sizes.into_iter().enumerate() {
+                    selected.push(Arm64SelectedInstruction::StoreStack {
+                        bytes,
+                        destination: crate::memory_selection::frame_stack(
+                            frame,
+                            stack,
+                            crate::memory_selection::lane_offset(lane)?,
+                        )?,
+                        source: Arm64SelectedRegister::Fixed(argument_register(
+                            registers.first(),
+                            lane,
+                        )?),
+                    });
+                }
+            }
+            (MachineValueClass::Direct { words }, Some(MachineArgumentLocation::Stack(slot))) => {
+                let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
+                let transport_size = u64::from(words)
+                    .checked_mul(Arm64NocterAbi::WORD_SIZE)
+                    .ok_or(Arm64SelectionError::AddressOverflow)?;
+                if slot.size() < transport_size {
+                    return Err(Arm64SelectionError::ParameterTransport(function.linkage()));
+                }
+                for (lane, bytes) in sizes.into_iter().enumerate() {
+                    let offset = crate::memory_selection::lane_offset(lane)?;
+                    selected.push(Arm64SelectedInstruction::LoadStack {
+                        bytes,
+                        extension: Arm64SelectedLoadExtension::Zero,
+                        destination: Arm64SelectedRegister::Fixed(scratch_boundary()),
+                        source: Arm64SelectedStackAddress::Incoming(
+                            slot.offset()
+                                .checked_add(offset)
+                                .ok_or(Arm64SelectionError::AddressOverflow)?,
+                        ),
+                    });
+                    selected.push(Arm64SelectedInstruction::StoreStack {
+                        bytes,
+                        destination: crate::memory_selection::frame_stack(frame, stack, offset)?,
+                        source: Arm64SelectedRegister::Fixed(scratch_boundary()),
+                    });
+                }
             }
             _ => return Err(Arm64SelectionError::ParameterTransport(function.linkage())),
         }
@@ -366,28 +389,26 @@ fn select_operation(
             let result = operation
                 .result()
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            select_constant(*constant, result, values, selected)
+            select_constant(program, owner, *constant, result, values, selected)
         }
         MachineOperationKind::Load { source } => {
             let result = operation
                 .result()
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            let (size, extension) = scalar_memory_load(program, owner, result)?;
-            selected.push(Arm64SelectedInstruction::LoadStack {
-                size,
-                extension,
-                destination: one_word(values, result)?,
-                source: select_stack_address(program, owner, *source, frame)?,
-            });
-            Ok(())
+            crate::memory_selection::select_direct_load(
+                program, owner, *source, result, values, frame, selected,
+            )
         }
         MachineOperationKind::Store { destination, value } => {
-            selected.push(Arm64SelectedInstruction::StoreStack {
-                size: address_load_size(program, owner, *destination)?,
-                destination: select_stack_address(program, owner, *destination, frame)?,
-                source: one_word(values, *value)?,
-            });
-            Ok(())
+            crate::memory_selection::select_direct_store(
+                program,
+                owner,
+                *destination,
+                *value,
+                values,
+                frame,
+                selected,
+            )
         }
         MachineOperationKind::AddressOf { source } => {
             let result = operation
@@ -395,7 +416,9 @@ fn select_operation(
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
             selected.push(Arm64SelectedInstruction::StackAddress {
                 destination: one_word(values, result)?,
-                source: select_stack_address(program, owner, *source, frame)?,
+                source: crate::memory_selection::select_stack_address(
+                    program, owner, *source, frame,
+                )?,
             });
             Ok(())
         }
@@ -448,15 +471,22 @@ fn select_operation(
 }
 
 fn select_constant(
+    program: &nocter_machine::MachineProgram,
+    owner: MachineFunctionId,
     constant: MachineConstant,
     result: MachineValueId,
     values: &Arm64ValuePlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    if let MachineConstant::Text(data) = constant {
+        return crate::memory_selection::select_text_constant(
+            program, owner, data, result, values, selected,
+        );
+    }
     let bits = match constant {
         MachineConstant::Bool(value) => u128::from(value),
         MachineConstant::Integer(value) => value.cast_unsigned(),
-        MachineConstant::Text(_) => return Err(Arm64SelectionError::TextConstant),
+        MachineConstant::Text(_) => unreachable!("text constants return before scalar selection"),
     };
     let registers = direct_value(values, result)?;
     for (lane, register) in registers.iter().copied().enumerate() {
@@ -543,21 +573,45 @@ fn select_call_arguments(
         match (argument.class(), argument.location()) {
             (MachineValueClass::Zero, None) => {}
             (
-                MachineValueClass::Direct { words: 1 },
+                MachineValueClass::Direct { words },
                 Some(MachineArgumentLocation::Registers(registers)),
-            ) => selected.push(Arm64SelectedInstruction::Move {
-                size: Arm64DataSize::Bits64,
-                destination: Arm64SelectedRegister::Fixed(argument_register(registers.first(), 0)?),
-                source: one_word(values, value)?,
-            }),
-            (
-                MachineValueClass::Direct { words: 1 },
-                Some(MachineArgumentLocation::Stack(slot)),
-            ) => selected.push(Arm64SelectedInstruction::StoreStack {
-                size: Arm64LoadStoreSize::Double,
-                destination: Arm64SelectedStackAddress::Outgoing(slot.offset()),
-                source: one_word(values, value)?,
-            }),
+            ) if words == registers.words() => {
+                let sources = direct_value(values, value)?;
+                if sources.len() != usize::from(words) {
+                    return Err(Arm64SelectionError::CallArguments(operation));
+                }
+                for (lane, source) in sources.iter().copied().enumerate() {
+                    selected.push(Arm64SelectedInstruction::Move {
+                        size: Arm64DataSize::Bits64,
+                        destination: Arm64SelectedRegister::Fixed(argument_register(
+                            registers.first(),
+                            lane,
+                        )?),
+                        source: Arm64SelectedRegister::Virtual(source),
+                    });
+                }
+            }
+            (MachineValueClass::Direct { words }, Some(MachineArgumentLocation::Stack(slot))) => {
+                let sources = direct_value(values, value)?;
+                let transport_size = u64::from(words)
+                    .checked_mul(Arm64NocterAbi::WORD_SIZE)
+                    .ok_or(Arm64SelectionError::AddressOverflow)?;
+                if sources.len() != usize::from(words) || slot.size() < transport_size {
+                    return Err(Arm64SelectionError::CallArguments(operation));
+                }
+                for (lane, source) in sources.iter().copied().enumerate() {
+                    selected.push(Arm64SelectedInstruction::StoreStack {
+                        bytes: u8::try_from(Arm64NocterAbi::WORD_SIZE)
+                            .expect("one ABI word fits the selected byte width"),
+                        destination: Arm64SelectedStackAddress::Outgoing(
+                            slot.offset()
+                                .checked_add(crate::memory_selection::lane_offset(lane)?)
+                                .ok_or(Arm64SelectionError::AddressOverflow)?,
+                        ),
+                        source: Arm64SelectedRegister::Virtual(source),
+                    });
+                }
+            }
             _ => return Err(Arm64SelectionError::CallArguments(operation)),
         }
     }
@@ -635,7 +689,8 @@ fn select_comparison(
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
     let (size, extension, offset, signed) = match comparison.representation() {
         MachineComparisonRepresentation::Scalar(scalar) => {
-            let (size, extension, signed) = scalar_memory_representation(scalar)?;
+            let (size, extension, signed) =
+                crate::memory_selection::scalar_memory_representation(scalar)?;
             (size, extension, 0, signed)
         }
         MachineComparisonRepresentation::Tag { offset } => (
@@ -780,7 +835,7 @@ fn select_return(
     }
 }
 
-fn direct_value(
+pub(crate) fn direct_value(
     values: &Arm64ValuePlan,
     value: MachineValueId,
 ) -> Result<&[Arm64VirtualRegister], Arm64SelectionError> {
@@ -819,126 +874,6 @@ fn scalar_value(
             Ok((size, *signed))
         }
         _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
-    }
-}
-
-fn scalar_memory_load(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
-    value: MachineValueId,
-) -> Result<(Arm64LoadStoreSize, Arm64SelectedLoadExtension), Arm64SelectionError> {
-    let ty = program
-        .function(owner)
-        .and_then(|function| function.body().value(value))
-        .map(nocter_machine::MachineValue::ty)
-        .ok_or(Arm64SelectionError::UnknownValue(value))?;
-    let scalar = match program
-        .layouts()
-        .get(ty)
-        .map(nocter_machine::MachineLayout::kind)
-    {
-        Some(MachineLayoutKind::Scalar(scalar)) => *scalar,
-        _ => return Err(Arm64SelectionError::UnsupportedScalar(value)),
-    };
-    let (size, extension, _) = scalar_memory_representation(scalar)?;
-    Ok((size, extension))
-}
-
-fn scalar_memory_representation(
-    scalar: MachineScalar,
-) -> Result<(Arm64LoadStoreSize, Arm64SelectedLoadExtension, bool), Arm64SelectionError> {
-    match scalar {
-        MachineScalar::Bool => Ok((
-            Arm64LoadStoreSize::Byte,
-            Arm64SelectedLoadExtension::Zero,
-            false,
-        )),
-        MachineScalar::Integer { bits, signed } => {
-            let (size, register_size) = match bits {
-                8 => (Arm64LoadStoreSize::Byte, Arm64DataSize::Bits32),
-                16 => (Arm64LoadStoreSize::Half, Arm64DataSize::Bits32),
-                32 => (Arm64LoadStoreSize::Word, Arm64DataSize::Bits32),
-                64 => (Arm64LoadStoreSize::Double, Arm64DataSize::Bits64),
-                _ => return Err(Arm64SelectionError::UnsupportedScalarRepresentation(scalar)),
-            };
-            let extension = if signed && matches!(bits, 8 | 16) {
-                Arm64SelectedLoadExtension::Sign(register_size)
-            } else {
-                Arm64SelectedLoadExtension::Zero
-            };
-            Ok((size, extension, signed))
-        }
-    }
-}
-
-fn select_stack_address(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
-    address: MachineAddressId,
-    frame: &Arm64FunctionFrame,
-) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
-    let address = program
-        .function(owner)
-        .and_then(|function| function.body().address(address))
-        .ok_or(Arm64SelectionError::UnknownAddress(address))?;
-    let MachineAddressRoot::Stack(stack) = address.root() else {
-        return Err(Arm64SelectionError::NonStackAddress);
-    };
-    let mut offset = 0_u64;
-    for step in address.steps() {
-        let MachineAddressStep::Offset(step) = step else {
-            return Err(Arm64SelectionError::ProjectedAddress);
-        };
-        offset = offset
-            .checked_add(*step)
-            .ok_or(Arm64SelectionError::AddressOverflow)?;
-    }
-    frame_stack(frame, stack, offset)
-}
-
-fn address_load_size(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
-    address: MachineAddressId,
-) -> Result<Arm64LoadStoreSize, Arm64SelectionError> {
-    let size = program
-        .function(owner)
-        .and_then(|function| function.body().address(address))
-        .map(nocter_machine::MachineAddress::size)
-        .ok_or(Arm64SelectionError::UnknownAddress(address))?;
-    load_store_size(size).ok_or(Arm64SelectionError::MemoryWidth(size))
-}
-
-fn scalar_stack_size(
-    function: &nocter_machine::MachineFunction,
-    stack: nocter_machine::MachineStackId,
-) -> Result<Arm64LoadStoreSize, Arm64SelectionError> {
-    let size = function
-        .body()
-        .stack(stack)
-        .map(nocter_machine::MachineStackObject::size)
-        .ok_or(Arm64SelectionError::UnknownStack(stack))?;
-    load_store_size(size).ok_or(Arm64SelectionError::MemoryWidth(size))
-}
-
-fn frame_stack(
-    frame: &Arm64FunctionFrame,
-    stack: nocter_machine::MachineStackId,
-    offset: u64,
-) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
-    frame
-        .stack_object(stack)
-        .map(|object| Arm64SelectedStackAddress::FrameObject { object, offset })
-        .ok_or(Arm64SelectionError::UnknownStack(stack))
-}
-
-const fn load_store_size(size: u64) -> Option<Arm64LoadStoreSize> {
-    match size {
-        1 => Some(Arm64LoadStoreSize::Byte),
-        2 => Some(Arm64LoadStoreSize::Half),
-        4 => Some(Arm64LoadStoreSize::Word),
-        8 => Some(Arm64LoadStoreSize::Double),
-        _ => None,
     }
 }
 
@@ -987,87 +922,5 @@ const fn operation_name(operation: &MachineOperationKind) -> &'static str {
         MachineOperationKind::PackLength => "pack-length",
         MachineOperationKind::PackNext => "pack-next",
         MachineOperationKind::DestroyPack => "destroy-pack",
-    }
-}
-
-#[derive(Debug)]
-pub enum Arm64SelectionError {
-    UnknownFunction(MachineFunctionId),
-    NonCallableTarget(MachineFunctionId),
-    UnknownOperation {
-        function: MachineFunctionId,
-        operation: MachineOperationId,
-    },
-    UnknownValue(MachineValueId),
-    UnknownAddress(MachineAddressId),
-    NonStackAddress,
-    ProjectedAddress,
-    AddressOverflow,
-    UnknownStack(nocter_machine::MachineStackId),
-    MemoryWidth(u64),
-    UnsupportedScalar(MachineValueId),
-    UnsupportedScalarRepresentation(MachineScalar),
-    NonDenseBlock(MachineBlockId),
-    UnknownBlock(MachineBlockId),
-    EdgeArity(MachineBlockId),
-    EdgeTransport(MachineBlockId),
-    Parameters(nocter_machine::MachineLinkageId),
-    ParameterTransport(nocter_machine::MachineLinkageId),
-    MissingResult(MachineOperationId),
-    UnsupportedOperation {
-        operation: MachineOperationId,
-        kind: &'static str,
-    },
-    UnsupportedTerminator(MachineBlockId),
-    TextConstant,
-    MemoryValue(MachineValueId),
-    ExpectedOneWord(MachineValueId),
-    CallArguments(MachineOperationId),
-    CallPack(MachineOperationId),
-    CallAllocation(MachineOperationId),
-    PrimitiveCall(MachineOperationId),
-    IndirectResult(MachineOperationId),
-    ResultTransport(MachineOperationId),
-    RootReturn(MachineBlockId),
-    IndirectReturn(MachineBlockId),
-    ReturnTransport(MachineBlockId),
-    RegisterOverflow,
-    Allocation(nocter_machine::MachineAllocationError),
-    ValuePlan(Arm64ValuePlanError),
-    Frame(Arm64FunctionFrameError),
-}
-
-impl fmt::Display for Arm64SelectionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "ARM64 instruction selection failed: {self:?}")
-    }
-}
-
-impl std::error::Error for Arm64SelectionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Allocation(error) => Some(error),
-            Self::ValuePlan(error) => Some(error),
-            Self::Frame(error) => Some(error),
-            _ => None,
-        }
-    }
-}
-
-impl From<nocter_machine::MachineAllocationError> for Arm64SelectionError {
-    fn from(error: nocter_machine::MachineAllocationError) -> Self {
-        Self::Allocation(error)
-    }
-}
-
-impl From<Arm64ValuePlanError> for Arm64SelectionError {
-    fn from(error: Arm64ValuePlanError) -> Self {
-        Self::ValuePlan(error)
-    }
-}
-
-impl From<Arm64FunctionFrameError> for Arm64SelectionError {
-    fn from(error: Arm64FunctionFrameError) -> Self {
-        Self::Frame(error)
     }
 }

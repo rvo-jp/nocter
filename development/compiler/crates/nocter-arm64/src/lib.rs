@@ -13,6 +13,8 @@ mod function_frame;
 mod identity;
 mod instruction;
 mod lower;
+mod memory_code;
+mod memory_selection;
 mod pack_layout;
 mod parallel_copy;
 mod program;
@@ -20,6 +22,7 @@ mod register;
 mod register_allocation;
 mod selected_code;
 mod selection;
+mod selection_error;
 mod value_plan;
 
 pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
@@ -58,8 +61,9 @@ pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
     Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction,
     Arm64SelectedLoadExtension, Arm64SelectedRegister, Arm64SelectedStackAddress,
-    Arm64SelectedTerminator, Arm64SelectedUnaryOperation, Arm64SelectionError,
+    Arm64SelectedTerminator, Arm64SelectedUnaryOperation,
 };
+pub use selection_error::Arm64SelectionError;
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
 
 #[cfg(test)]

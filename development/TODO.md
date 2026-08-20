@@ -13,7 +13,7 @@ implementation input.
 
 1. Extend the closed selected-instruction schema from scalar operations, simple stack addresses,
    scalar memory access, scalar direct-call transport, branch, return, and process exit to
-   projected/dynamic addresses, aggregate operations, and complete callable parameter/result
+   projected/dynamic addresses, aggregate operations, and indirect callable parameter/result
    transport.
 2. Lower allocation contexts, primitives, drop/region operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -79,6 +79,13 @@ and narrow signed values. CFG edges now own typed direct-lane parallel copies. T
 executes copies only on the selected edge, orders acyclic dependencies, breaks cycles through one
 ABI-reserved temporary, and supports register/spill combinations without adding a hidden frame
 protocol. Value-producing control flow therefore crosses native block parameters directly.
+
+Static text constants now select the layout-owned pointer and length lanes, retain their dense
+`MachineDataId` until whole-program materialization maps it to `Arm64DataId`, and use the existing
+section-relative relocation authority. Direct values of one or two ABI words now load/store exact
+lane widths and cross parameter registers, the non-reopening outgoing stack window, and result
+registers. Native cases cover a returned `&str` and nine two-word view arguments, proving both
+register and stack transport without a view-specific calling convention.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

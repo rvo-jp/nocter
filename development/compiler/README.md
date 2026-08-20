@@ -432,7 +432,12 @@ be introduced to make an unresolved syntax choice.
   chosen conditional edge across register and spill locations. Dense function
   and data identities already feed typed fixups:
   function branches resolve only after stable text layout, while `adrp`/`add` data pairs resolve
-  only after the writer supplies final section virtual addresses.
+  only after the writer supplies final section virtual addresses. Static text selection now
+  populates layout-owned pointer/length lanes through that data mapping. One- and two-word direct
+  values use the same lane projection across parameter registers, outgoing stack arguments, local
+  storage, and result registers; views have no private transport path. Memory selection and memory
+  instruction materialization are separate modules. A non-native 3-, 5-, 6-, or 7-byte tail is
+  decomposed into exact in-bounds fragments rather than widened across an adjacent frame object.
 - `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
   `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
@@ -440,9 +445,10 @@ be introduced to make an unresolved syntax choice.
   macOS without invoking an assembler, linker, or signing tool.
 - `nocter-conformance` owns tests that intentionally cross every compiler crate and the native
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
-  comparisons, narrow signed values, and value-producing block joins from source, emits signed
-  Mach-O images, and executes them on ARM64 macOS. The constant case also proves byte-for-byte
-  output determinism.
+  comparisons, narrow signed values, value-producing block joins, static text, and two-word view
+  calls from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call
+  also crosses the register-window boundary into outgoing stack transport. The constant case proves
+  byte-for-byte output determinism.
 
 Accepted fixtures through G033 have human-readable node-shape snapshots. Accepted, rejected, and
 semantic-boundary fixture groups all verify exact lexical-token projection; error recovery cannot

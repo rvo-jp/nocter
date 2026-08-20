@@ -33,15 +33,19 @@ impl Arm64Program {
             }
             functions.push((function.owner(), builder.declare_function()));
         }
-        for (_, data) in machine.data().iter() {
-            builder.add_data(data.bytes(), 1)?;
+        let mut data = Vec::with_capacity(machine.data().len());
+        for (source, definition) in machine.data().iter() {
+            if source.index() != data.len() {
+                return Err(Arm64LoweringError::NonDenseData(source));
+            }
+            data.push((source, builder.add_data(definition.bytes(), 1)?));
         }
         for function in &selected {
             let target = functions
                 .get(function.owner().index())
                 .and_then(|(owner, target)| (*owner == function.owner()).then_some(*target))
                 .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
-            builder.define_function(target, function.materialize(&functions)?)?;
+            builder.define_function(target, function.materialize(&functions, &data)?)?;
         }
         let entry = functions
             .get(root.index())
@@ -56,6 +60,7 @@ impl Arm64Program {
 pub enum Arm64LoweringError {
     TestProgram,
     NonDenseFunction(MachineFunctionId),
+    NonDenseData(nocter_machine::MachineDataId),
     UnknownFunction(MachineFunctionId),
     Selection(Arm64SelectionError),
     Materialization(Arm64MaterializationError),
@@ -74,7 +79,10 @@ impl std::error::Error for Arm64LoweringError {
             Self::Selection(error) => Some(error),
             Self::Materialization(error) => Some(error),
             Self::Program(error) => Some(error),
-            Self::TestProgram | Self::NonDenseFunction(_) | Self::UnknownFunction(_) => None,
+            Self::TestProgram
+            | Self::NonDenseFunction(_)
+            | Self::NonDenseData(_)
+            | Self::UnknownFunction(_) => None,
         }
     }
 }
