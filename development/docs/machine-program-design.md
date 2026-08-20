@@ -490,4 +490,13 @@ contexts, and iterator cleanup. Lexical regions now use a target-owned five-word
 ordinary context header, independent mapping-list head, and retained parent header. Calls and
 authored destruction select the active resource statically, CFG validation enforces nested
 lifetime balance, and release walks the mapping list through the target syscall boundary.
-Process-entry state, I/O and error primitives, and test roots remain Phase 5 implementation areas.
+Test roots now lower to declaration-order `Arm64TestExecutable` values. Their immutable code and
+data payload is materialized once and shared, while every case owns a distinct native entry for an
+independent process image. The machine boundary closes test names to owned UTF-8 metadata and
+dense `MachineTestId` values before target lowering. Fallible roots report the built-in four-word
+`error` directly from its frozen layout as `code: message\n`; a target-owned frame buffer supplies
+the fixed punctuation without allocation, and failed stderr writes do not alter the required exit
+status. `new_error` constructs the same four words through its ordinary indirect-result ABI and
+retains both declared input origins.
+
+Process-entry state and the remaining I/O primitives remain Phase 5 implementation areas.

@@ -319,6 +319,12 @@ so the native runner can launch separate processes without a synthetic source `m
 target has no invented root case. `Exit` and `ReportError` are valid only in root bodies, while
 `Return` is valid only in callable bodies.
 
+The ARM64 boundary materializes the shared closed function/data payload once for a test target and
+projects each retained root into a separate executable entry. It does not synthesize a source
+callable or a combined in-process dispatcher. A failing root reports `error.code` and
+`error.message` through allocation-free target code and exits with status one, so one process
+failure cannot suppress a later declaration-order run.
+
 Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
 must supply the witness pattern selected during checking after substituting the opaque
 declaration's concrete generic arguments. Projection must produce that same specialized witness.

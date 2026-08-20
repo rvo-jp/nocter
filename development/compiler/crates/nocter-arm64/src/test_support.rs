@@ -11,7 +11,14 @@ use nocter_target_program::{
 use nocter_test_support::CompilerFixture;
 
 pub(crate) fn lower_machine(source: &str) -> MachineProgram {
-    let fixture = CompilerFixture::with_app(source);
+    lower_fixture(&CompilerFixture::with_app(source), false)
+}
+
+pub(crate) fn lower_tests(source: &str) -> MachineProgram {
+    lower_fixture(&CompilerFixture::with_tests(source), true)
+}
+
+fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     let (input, prelude) = fixture.input();
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (declarations, source_index) = lowered.into_parts();
@@ -34,7 +41,11 @@ pub(crate) fn lower_machine(source: &str) -> MachineProgram {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = if tests {
+        ExecutableProgram::for_tests(target, selected).unwrap()
+    } else {
+        ExecutableProgram::for_executable(target, selected).unwrap()
+    };
     MachineProgram::lower(&lower_executable(executable).unwrap()).unwrap()
 }
 

@@ -149,6 +149,7 @@ impl MachineOperationKind {
             self,
             Self::Call(_)
                 | Self::InvokeDrop { .. }
+                | Self::ReportError { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext
                 | Self::DestroyPack

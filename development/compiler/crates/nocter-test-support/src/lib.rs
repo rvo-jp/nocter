@@ -10,7 +10,14 @@ use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
-const ERROR_SOURCE: &str = "pub(/) primitive new_error(code: &str, message: &str): error\n";
+const ERROR_SOURCE: &str = "\
+pub(/) primitive new_error(code: &str, message: &str): error from code | message
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+";
 const ITERATION_SOURCE: &str = "\
 pub interface Iterator {
     pub type Item

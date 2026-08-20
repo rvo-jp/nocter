@@ -552,7 +552,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             builtin(BuiltinType::Error),
             package,
             None,
-            None,
+            Some(vec![0, 1]),
         ),
         PrimitiveRole::CurrentAllocatorState => make(
             MEM_MODULE,

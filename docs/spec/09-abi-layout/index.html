@@ -206,7 +206,9 @@ word 3: message.len
 </code></pre><p>Rules:</p><ul><li><code>error.code</code> and <code>error.message</code> are the user-facing fields of <code>error</code>.</li><li>Both fields have type <code>&amp;str</code>.</li><li>The field order is <code>code</code>, then <code>message</code>.</li><li>The built-in <code>error</code> type has size 32 bytes and alignment 8 on the current ABI.</li><li><code>error</code> does not own its string storage and has no drop declaration.</li><li><code>error</code> is copyable because both fields are copyable borrowed views.</li><li>An <code>error</code> value carries borrow-like provenance from both <code>&amp;str</code> fields.</li><li>Returning or storing an <code>error</code> must satisfy the same borrow-like escape rules
   as any aggregate containing <code>&amp;str</code>.</li><li>The compiler-generated entry wrapper may report <code>error.code</code> and
   <code>error.message</code> directly from these fields without allocating or calling a
-  fallible standard-library API.</li></ul><h3 id="drop-abi">Drop ABI</h3><p>Source syntax:</p><pre><code class="language-nct">drop <span class="token-type">Resource</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
+  fallible standard-library API.</li><li>The native wrapper writes the UTF-8 bytes <code>code</code>, <code>: </code>, <code>message</code>, and a trailing newline to
+  stderr in that order. Each write is best-effort; a reporting failure is ignored and the wrapper
+  still exits with status <code>1</code>.</li></ul><h3 id="drop-abi">Drop ABI</h3><p>Source syntax:</p><pre><code class="language-nct">drop <span class="token-type">Resource</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
     <span class="token-operator">...</span>
 <span class="token-operator">}</span>
 </code></pre><p>ABI form:</p><pre><code class="language-text">x0     &amp;+Self

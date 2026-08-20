@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-11">
+    <meta property="article:modified_time" content="2026-08-20">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/error/index.nct - Nocter">
@@ -143,7 +143,7 @@
 <span class="token-comment">//! Error codes are open UTF-8 strings. Standard-library and user-library code</span>
 <span class="token-comment">//! use dotted codes such as "std.io.not_found" or "app.config.missing_key".</span>
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">new_error</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">new_error</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> error from code | message
 
 <span class="token-keyword">construct</span> error <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from code | message <span class="token-operator">{</span>

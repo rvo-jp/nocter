@@ -192,46 +192,46 @@ impl MachineFunction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineTestProgram {
-    declaration: TestId,
-    name: Symbol,
+    id: crate::MachineTestId,
+    name: Box<str>,
     root: MachineFunctionId,
     body: MachineFunctionId,
 }
 
 impl MachineTestProgram {
-    pub(crate) const fn new(
-        declaration: TestId,
-        name: Symbol,
+    pub(crate) fn new(
+        id: crate::MachineTestId,
+        name: impl Into<Box<str>>,
         root: MachineFunctionId,
         body: MachineFunctionId,
     ) -> Self {
         Self {
-            declaration,
-            name,
+            id,
+            name: name.into(),
             root,
             body,
         }
     }
 
     #[must_use]
-    pub const fn declaration(self) -> TestId {
-        self.declaration
+    pub const fn id(&self) -> crate::MachineTestId {
+        self.id
     }
 
     #[must_use]
-    pub const fn name(self) -> Symbol {
-        self.name
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     #[must_use]
-    pub const fn root(self) -> MachineFunctionId {
+    pub const fn root(&self) -> MachineFunctionId {
         self.root
     }
 
     #[must_use]
-    pub const fn body(self) -> MachineFunctionId {
+    pub const fn body(&self) -> MachineFunctionId {
         self.body
     }
 }

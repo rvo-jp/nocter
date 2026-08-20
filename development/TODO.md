@@ -11,9 +11,7 @@ implementation input.
 
 ## Immediate Work
 
-1. Close independent test roots through the same function, allocation-context, and process-image
-   authorities.
-2. Complete process-entry state, I/O, and error-construction primitive roles without name-based
+1. Complete process-entry state and I/O primitive roles without name-based
    dispatch or private call conventions.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,

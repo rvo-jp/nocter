@@ -1027,6 +1027,56 @@ fn lowers_a_constant_process_through_selection_and_spill_materialization() {
 }
 
 #[test]
+fn test_suite_retains_declaration_order_and_independent_entries() {
+    let machine = crate::test_support::lower_tests(
+        "test first { return }\n\
+         test second { return }\n",
+    );
+    let suite = crate::Arm64TestSuite::lower_machine(&machine).unwrap();
+
+    assert_eq!(
+        suite
+            .tests()
+            .iter()
+            .map(crate::Arm64TestExecutable::name)
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
+    assert_ne!(
+        suite.tests()[0].program().entry(),
+        suite.tests()[1].program().entry()
+    );
+    assert_eq!(
+        suite.tests()[0].program().text().as_ptr(),
+        suite.tests()[1].program().text().as_ptr(),
+        "test entries must share one completed code payload"
+    );
+}
+
+#[test]
+fn process_and_test_lowering_reject_the_opposite_root_kind() {
+    let process = crate::test_support::lower_machine("func main(): i32 { 0 }\n");
+    let tests = crate::test_support::lower_tests("test only { return }\n");
+
+    assert!(matches!(
+        crate::Arm64TestSuite::lower_machine(&process),
+        Err(crate::Arm64LoweringError::ExpectedTestProgram)
+    ));
+    assert!(matches!(
+        crate::Arm64Program::lower_machine(&tests),
+        Err(crate::Arm64LoweringError::ExpectedProcessProgram)
+    ));
+}
+
+#[test]
+fn empty_test_target_produces_no_synthetic_entry() {
+    let machine = crate::test_support::lower_tests("");
+    let suite = crate::Arm64TestSuite::lower_machine(&machine).unwrap();
+
+    assert!(suite.tests().is_empty());
+}
+
+#[test]
 fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let target = builder.declare_function();

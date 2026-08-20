@@ -12,6 +12,9 @@ mod call_selection;
 mod code;
 mod destruction_selection;
 mod encode;
+mod error_code;
+mod error_layout;
+mod error_selection;
 mod frame;
 mod frame_access;
 mod frame_code;
@@ -66,7 +69,7 @@ pub use instruction::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
     Arm64Logical, Arm64MoveWide, Arm64Shift,
 };
-pub use lower::Arm64LoweringError;
+pub use lower::{Arm64LoweringError, Arm64TestExecutable, Arm64TestSuite};
 pub use pack_callback::{Arm64PackCallbackKey, Arm64PackCallbackKind};
 pub use pack_layout::{
     Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,

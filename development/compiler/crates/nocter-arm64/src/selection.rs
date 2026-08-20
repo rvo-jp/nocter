@@ -172,6 +172,11 @@ pub enum Arm64SelectedInstruction {
     ReleaseRegion {
         region: crate::Arm64FrameObjectId,
     },
+    /// Reports one built-in error without allocation or a fallible library call.
+    ReportError {
+        error: crate::Arm64FrameObjectId,
+        buffer: crate::Arm64FrameObjectId,
+    },
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,
@@ -491,7 +496,6 @@ fn select_operation(
     let owner = context.owner();
     let values = context.values();
     let frame = context.frame();
-    let addresses = context.addresses();
     match operation.kind() {
         MachineOperationKind::Constant(constant) => {
             let result = operation
@@ -507,7 +511,7 @@ fn select_operation(
             operation,
             values,
             frame,
-            addresses,
+            context.addresses(),
             selected,
         ),
         MachineOperationKind::Unary {
@@ -565,6 +569,9 @@ fn select_operation(
         MachineOperationKind::CreateRegion { .. } | MachineOperationKind::ReleaseRegion { .. } => {
             crate::region_selection::select_operation(operation_id, operation, context, selected)
         }
+        MachineOperationKind::ReportError { .. } => {
+            crate::error_selection::select_report(operation_id, operation, context, selected)
+        }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,
             operation_id,
@@ -581,7 +588,9 @@ fn select_operation(
             operation.result(),
             selected,
         ),
-        unsupported => unsupported_operation(operation_id, unsupported),
+        unsupported @ MachineOperationKind::IntegerConversion { .. } => {
+            unsupported_operation(operation_id, unsupported)
+        }
     }
 }
 

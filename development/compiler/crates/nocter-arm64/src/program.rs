@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 use crate::code::Arm64CodeFixup;
 use crate::{
@@ -81,8 +82,8 @@ impl Arm64DataAddressFixup {
 
 /// One fully laid-out ARM64 text section plus its independently laid-out read-only data section.
 /// Only page-address fixups remain because their displacement depends on Mach-O virtual addresses.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Arm64Program {
+#[derive(Debug, Eq, PartialEq)]
+struct Arm64ProgramContents {
     text: Box<[u8]>,
     read_only_data: Box<[u8]>,
     functions: Box<[Arm64FunctionRange]>,
@@ -90,43 +91,60 @@ pub struct Arm64Program {
     data_alignment: u64,
     function_address_fixups: Box<[Arm64FunctionAddressFixup]>,
     data_fixups: Box<[Arm64DataAddressFixup]>,
+}
+
+/// One independently executable entry over immutable target code and data. Test entries from the
+/// same machine program share the completed contents and differ only in their native entry.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Arm64Program {
+    contents: Arc<Arm64ProgramContents>,
     entry: Arm64FunctionId,
 }
 
 impl Arm64Program {
     #[must_use]
-    pub const fn text(&self) -> &[u8] {
-        &self.text
+    pub fn text(&self) -> &[u8] {
+        &self.contents.text
     }
 
     #[must_use]
-    pub const fn read_only_data(&self) -> &[u8] {
-        &self.read_only_data
+    pub fn read_only_data(&self) -> &[u8] {
+        &self.contents.read_only_data
     }
 
     #[must_use]
     pub fn function(&self, id: Arm64FunctionId) -> Option<Arm64FunctionRange> {
-        self.functions.get(id.0).copied()
+        self.contents.functions.get(id.0).copied()
     }
 
     #[must_use]
     pub fn data(&self, id: Arm64DataId) -> Option<Arm64DataRange> {
-        self.data.get(id.0).copied()
+        self.contents.data.get(id.0).copied()
     }
 
     #[must_use]
-    pub const fn data_fixups(&self) -> &[Arm64DataAddressFixup] {
-        &self.data_fixups
+    pub fn data_fixups(&self) -> &[Arm64DataAddressFixup] {
+        &self.contents.data_fixups
     }
 
     #[must_use]
-    pub const fn read_only_data_alignment(&self) -> u64 {
-        self.data_alignment
+    pub fn read_only_data_alignment(&self) -> u64 {
+        self.contents.data_alignment
     }
 
     #[must_use]
     pub const fn entry(&self) -> Arm64FunctionId {
         self.entry
+    }
+
+    pub(crate) fn with_entry(&self, entry: Arm64FunctionId) -> Result<Self, Arm64ProgramError> {
+        if self.contents.functions.get(entry.0).is_none() {
+            return Err(Arm64ProgramError::UnknownFunction(entry));
+        }
+        Ok(Self {
+            contents: Arc::clone(&self.contents),
+            entry,
+        })
     }
 
     /// Resolves every function- and data-address pair for final section virtual addresses.
@@ -140,8 +158,8 @@ impl Arm64Program {
         text_virtual_address: u64,
         data_virtual_address: u64,
     ) -> Result<Box<[u8]>, Arm64ProgramError> {
-        let mut text = self.text.to_vec();
-        for fixup in &self.function_address_fixups {
+        let mut text = self.contents.text.to_vec();
+        for fixup in &self.contents.function_address_fixups {
             let instruction_address = text_virtual_address
                 .checked_add(fixup.instruction_offset)
                 .ok_or(Arm64ProgramError::AddressOverflow)?;
@@ -156,7 +174,7 @@ impl Arm64Program {
                 fixup.destination,
             )?;
         }
-        for fixup in &self.data_fixups {
+        for fixup in &self.contents.data_fixups {
             let instruction_address = text_virtual_address
                 .checked_add(fixup.instruction_offset)
                 .ok_or(Arm64ProgramError::AddressOverflow)?;
@@ -341,13 +359,15 @@ impl Arm64ProgramBuilder {
         }
 
         Ok(Arm64Program {
-            text: text.into_boxed_slice(),
-            read_only_data,
-            functions: functions.into_boxed_slice(),
-            data,
-            data_alignment,
-            function_address_fixups: function_address_fixups.into_boxed_slice(),
-            data_fixups: data_fixups.into_boxed_slice(),
+            contents: Arc::new(Arm64ProgramContents {
+                text: text.into_boxed_slice(),
+                read_only_data,
+                functions: functions.into_boxed_slice(),
+                data,
+                data_alignment,
+                function_address_fixups: function_address_fixups.into_boxed_slice(),
+                data_fixups: data_fixups.into_boxed_slice(),
+            }),
             entry,
         })
     }

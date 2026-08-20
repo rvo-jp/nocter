@@ -116,7 +116,10 @@ being misclassified.
 A primitive declaration has a typed Nocter signature but no Nocter body:
 
 ```nct
-pub(/) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(
+    code: &str,
+    message: &str,
+): error from code | message
 ```
 
 After visibility checks, calls are type checked and use the Nocter ABI like ordinary calls. The

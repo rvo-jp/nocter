@@ -150,6 +150,9 @@ fn emit_instruction(
         | Arm64SelectedInstruction::ReleaseRegion { .. } => {
             crate::region_code::emit_selected(function, instruction, code)
         }
+        Arm64SelectedInstruction::ReportError { .. } => {
+            crate::error_code::emit_selected(function, instruction, code)
+        }
         Arm64SelectedInstruction::CompareBorrowed { .. } => {
             emit_selected_borrowed_comparison(function, instruction, code)
         }
@@ -825,6 +828,7 @@ pub enum Arm64MaterializationError {
     UnknownSpill(crate::Arm64SpillSlotId),
     UnknownFrameObject(crate::Arm64FrameObjectId),
     InvalidRegionFrame(crate::Arm64FrameObjectId),
+    InvalidErrorFrame(crate::Arm64FrameObjectId),
     FrameObjectBounds(crate::Arm64FrameObjectId),
     OutgoingBounds(u64),
     OffsetOverflow,

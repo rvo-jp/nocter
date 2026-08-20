@@ -17,6 +17,9 @@ pub(crate) fn select(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
+        PrimitiveRole::NewError => {
+            crate::error_selection::select_new_error(operation, target, selected)
+        }
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
             select_context_reader(operation, target, selected)
         }

@@ -40,7 +40,7 @@ pub use destruction_table::{MachineDestruction, MachineDestructionTable};
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
     MachineFunctionId, MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId,
-    MachineValueId,
+    MachineTestId, MachineValueId,
 };
 
 pub use layout::{

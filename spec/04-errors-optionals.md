@@ -73,6 +73,15 @@ construct error {
 }
 ```
 
+Its package-visible representation primitive preserves the same two input origins:
+
+```nct
+pub(/) primitive new_error(
+    code: &str,
+    message: &str,
+): error from code | message
+```
+
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
 ```nct

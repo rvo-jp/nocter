@@ -61,6 +61,7 @@ pub struct Arm64FunctionFrame {
     indirect_result_pointer: Option<Arm64FrameObjectId>,
     pack_input_pointer: Option<Arm64FrameObjectId>,
     allocation_context: Arm64AllocationContextFrame,
+    error_report_buffer: Option<Arm64FrameObjectId>,
 }
 
 impl Arm64FunctionFrame {
@@ -105,6 +106,7 @@ impl Arm64FunctionFrame {
             indirect_result_pointer: hidden.indirect_result_pointer,
             pack_input_pointer: hidden.pack_input_pointer,
             allocation_context: hidden.allocation_context,
+            error_report_buffer: hidden.error_report_buffer,
         })
     }
 
@@ -164,6 +166,11 @@ impl Arm64FunctionFrame {
     pub const fn allocation_context(&self) -> Arm64AllocationContextFrame {
         self.allocation_context
     }
+
+    #[must_use]
+    pub const fn error_report_buffer(&self) -> Option<Arm64FrameObjectId> {
+        self.error_report_buffer
+    }
 }
 
 struct PlacedBodyObjects {
@@ -180,6 +187,7 @@ struct HiddenObjects {
     indirect_result_pointer: Option<Arm64FrameObjectId>,
     pack_input_pointer: Option<Arm64FrameObjectId>,
     allocation_context: Arm64AllocationContextFrame,
+    error_report_buffer: Option<Arm64FrameObjectId>,
 }
 
 fn reserve_outgoing_area(
@@ -395,10 +403,25 @@ fn place_hidden_objects(
             builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
         ),
     };
+    let error_report_buffer = program
+        .function(function_id)
+        .is_some_and(|function| {
+            function.body().operations().any(|(_, operation)| {
+                matches!(operation.kind(), MachineOperationKind::ReportError { .. })
+            })
+        })
+        .then(|| {
+            builder.add_object(
+                crate::error_layout::Arm64ErrorLayout::REPORT_BUFFER_SIZE,
+                crate::error_layout::Arm64ErrorLayout::REPORT_BUFFER_ALIGNMENT,
+            )
+        })
+        .transpose()?;
     Ok(HiddenObjects {
         indirect_result_pointer,
         pack_input_pointer,
         allocation_context,
+        error_report_buffer,
     })
 }
 

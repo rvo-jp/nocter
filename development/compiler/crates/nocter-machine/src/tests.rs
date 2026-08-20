@@ -627,6 +627,25 @@ fn test_root_linkage_retains_declaration_order_separately_from_key_order() {
 }
 
 #[test]
+fn machine_test_roots_close_names_and_dense_test_identities() {
+    let mir = lower_test_fixture(
+        "test first { return }\n\
+         test second { return }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Tests(cases) = program.root() else {
+        panic!("fixture must produce test machine roots")
+    };
+
+    assert_eq!(cases.len(), 2);
+    assert_eq!(cases[0].id().index(), 0);
+    assert_eq!(cases[0].name(), "first");
+    assert_eq!(cases[1].id().index(), 1);
+    assert_eq!(cases[1].name(), "second");
+    assert_ne!(cases[0].root(), cases[1].root());
+}
+
+#[test]
 fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
     let mir = lower_fixture(
         "func main(): i32 {\n\

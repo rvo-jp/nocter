@@ -331,6 +331,9 @@ Rules:
 - The compiler-generated entry wrapper may report `error.code` and
   `error.message` directly from these fields without allocating or calling a
   fallible standard-library API.
+- The native wrapper writes the UTF-8 bytes `code`, `: `, `message`, and a trailing newline to
+  stderr in that order. Each write is best-effort; a reporting failure is ignored and the wrapper
+  still exits with status `1`.
 
 ### Drop ABI
 

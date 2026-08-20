@@ -24,6 +24,28 @@ fn constant_process_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn independent_test_roots_cross_the_complete_native_pipeline() {
+    let machine = lower_test_machine(
+        "test passes { return }\n\
+         test fails { return error.new(\"app.failure\", \"failed\") }\n",
+    );
+    let suite = nocter_arm64::Arm64TestSuite::lower_machine(&machine).unwrap();
+
+    assert_eq!(
+        suite
+            .tests()
+            .iter()
+            .map(nocter_arm64::Arm64TestExecutable::name)
+            .collect::<Vec<_>>(),
+        ["passes", "fails"]
+    );
+    let passing = nocter_macho::MachOImage::build(suite.tests()[0].program()).unwrap();
+    let failing = nocter_macho::MachOImage::build(suite.tests()[1].program()).unwrap();
+    execute_and_assert_output(&passing, 0, b"");
+    execute_and_assert_output(&failing, 1, b"app.failure: failed\n");
+}
+
+#[test]
 fn scalar_call_and_arithmetic_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func double(value: i32): i32 { value * 2 }\n\
@@ -930,15 +952,45 @@ fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_and_assert_output(image: &nocter_macho::MachOImage, expected: i32, stderr: &[u8]) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = std::env::temp_dir().join(format!(
+        "nocter-conformance-output-{}-{}",
+        std::process::id(),
+        expected
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let output = std::process::Command::new(&path).output().unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(output.status.code(), Some(expected));
+    assert_eq!(output.stdout, b"");
+    assert_eq!(output.stderr, stderr);
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_and_assert_output(_image: &nocter_macho::MachOImage, _expected: i32, _stderr: &[u8]) {}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);
     lower_machine_fixture(&fixture)
 }
 
+fn lower_test_machine(source: &str) -> MachineProgram {
+    let fixture = CompilerFixture::with_tests(source);
+    lower_fixture(&fixture, true)
+}
+
 fn lower_machine_fixture(fixture: &CompilerFixture) -> MachineProgram {
+    lower_fixture(fixture, false)
+}
+
+fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     let (input, prelude) = fixture.input();
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (declarations, source_index) = lowered.into_parts();
@@ -963,7 +1015,11 @@ fn lower_machine_fixture(fixture: &CompilerFixture) -> MachineProgram {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = if tests {
+        ExecutableProgram::for_tests(target, selected).unwrap()
+    } else {
+        ExecutableProgram::for_executable(target, selected).unwrap()
+    };
     MachineProgram::lower(&lower_executable(executable).unwrap()).unwrap()
 }
 
