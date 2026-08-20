@@ -149,7 +149,7 @@ impl FunctionLowerer<'_> {
         target: MirCallTarget,
         arguments: impl Into<Box<[MirValueId]>>,
     ) -> Result<MirValueId, MirLoweringError> {
-        self.emit_call_with_allocation(ty, target, arguments, MirCallAllocation::Inherit)
+        self.emit_call_with_allocation(ty, target, arguments, self.current_call_allocation())
     }
 
     pub(super) fn emit_pack_call(

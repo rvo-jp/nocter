@@ -163,6 +163,15 @@ pub enum Arm64SelectedInstruction {
     Break {
         immediate: u16,
     },
+    /// Initializes one compiler-owned non-movable lexical allocation context.
+    CreateRegion {
+        region: crate::Arm64FrameObjectId,
+        parent: Arm64SelectedRegister,
+    },
+    /// Releases every mapping owned by one lexical allocation context.
+    ReleaseRegion {
+        region: crate::Arm64FrameObjectId,
+    },
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,
@@ -545,19 +554,16 @@ fn select_operation(
             frame,
             selected,
         ),
-        MachineOperationKind::InvokeDrop { target, place } => {
-            crate::destruction_selection::select_drop(
-                program,
+        MachineOperationKind::InvokeDrop { .. } | MachineOperationKind::SetDropFlag { .. } => {
+            crate::destruction_selection::select_operation(
                 operation_id,
-                *target,
-                *place,
-                frame,
-                addresses,
+                operation,
+                context,
                 selected,
             )
         }
-        MachineOperationKind::SetDropFlag { flag, initialized } => {
-            crate::destruction_selection::select_flag_write(*flag, *initialized, frame, selected)
+        MachineOperationKind::CreateRegion { .. } | MachineOperationKind::ReleaseRegion { .. } => {
+            crate::region_selection::select_operation(operation_id, operation, context, selected)
         }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,

@@ -177,6 +177,7 @@ impl<'a> DestructionBuilder<'a> {
             self.append_effect(MachineOperationKind::InvokeDrop {
                 target: drop,
                 place: subject,
+                allocation: crate::MachineCallAllocation::Inherit,
             })?;
         }
         for field in fields {
@@ -198,6 +199,7 @@ impl<'a> DestructionBuilder<'a> {
             self.append_effect(MachineOperationKind::InvokeDrop {
                 target: drop,
                 place: subject,
+                allocation: crate::MachineCallAllocation::Inherit,
             })?;
         }
         if variants.is_empty() {

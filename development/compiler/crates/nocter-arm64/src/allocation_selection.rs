@@ -57,13 +57,46 @@ pub(crate) fn select_call(
     addresses: &Arm64SelectedAddressPlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let requires_context = program.allocation().call_requires_context(call)?;
-    match (requires_context, call.allocation()) {
-        (false, MachineCallAllocation::Inherit) => Ok(()),
-        (false, MachineCallAllocation::Explicit(_)) => {
-            Err(Arm64SelectionError::CallAllocation(operation))
-        }
+    select_target(
+        program,
+        operation,
+        call.target(),
+        call.allocation(),
+        frame,
+        addresses,
+        selected,
+    )
+}
+
+/// Selects the context lane for any direct call boundary, including authored and generated drop.
+pub(crate) fn select_target(
+    program: &nocter_machine::MachineProgram,
+    operation: nocter_machine::MachineOperationId,
+    target: &nocter_machine::MachineCallTarget,
+    allocation: MachineCallAllocation,
+    frame: &Arm64FunctionFrame,
+    addresses: &Arm64SelectedAddressPlan,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let requires_context = program.allocation().target_requires_context(target)?;
+    match (requires_context, allocation) {
+        (false, _) => Ok(()),
         (true, MachineCallAllocation::Inherit) => select_inherited(operation, frame, selected),
+        (true, MachineCallAllocation::Lexical(region)) => {
+            let object = frame
+                .stack_object(region)
+                .ok_or(Arm64SelectionError::CallAllocation(operation))?;
+            selected.push(Arm64SelectedInstruction::MemoryAddress {
+                destination: Arm64SelectedRegister::Fixed(
+                    Arm64NocterAbi::allocation_context_register(),
+                ),
+                source: Arm64SelectedMemoryAddress::Stack(Arm64SelectedStackAddress::FrameObject {
+                    object,
+                    offset: 0,
+                }),
+            });
+            Ok(())
+        }
         (true, MachineCallAllocation::Explicit(address)) => {
             let source = addresses.use_address(address, selected)?;
             selected.push(Arm64SelectedInstruction::MemoryAddress {
@@ -124,24 +157,6 @@ pub(crate) fn select_current(
         | Arm64AllocationContextFrame::IncomingPointer(_) => {
             select_inherited(operation, frame, selected)
         }
-    }
-}
-
-/// Materializes the inherited context for a compiler-generated direct call boundary.
-pub(crate) fn select_inherited_target(
-    program: &nocter_machine::MachineProgram,
-    operation: nocter_machine::MachineOperationId,
-    target: MachineFunctionId,
-    frame: &Arm64FunctionFrame,
-    selected: &mut Vec<Arm64SelectedInstruction>,
-) -> Result<(), Arm64SelectionError> {
-    let requires_context = program
-        .allocation()
-        .target_requires_context(&nocter_machine::MachineCallTarget::Direct(target))?;
-    if requires_context {
-        select_inherited(operation, frame, selected)
-    } else {
-        Ok(())
     }
 }
 

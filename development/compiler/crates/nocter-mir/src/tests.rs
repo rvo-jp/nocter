@@ -406,8 +406,16 @@ fn build_pack_call(
     builder.finish(entry, environment)
 }
 
-#[test]
-fn region_operations_require_the_selected_standard_contract() {
+struct RegionTestContext {
+    environment: TestEnvironment,
+    item: ExecutableItemId,
+    void: TypeId,
+    i32_: TypeId,
+    context: TypeId,
+    parent: TypeId,
+}
+
+fn region_test_context() -> RegionTestContext {
     let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
     let allocator = nominal_ids.insert(());
     let context = nominal_ids.insert(());
@@ -437,12 +445,31 @@ fn region_operations_require_the_selected_standard_contract() {
         (StandardDeclarationRole::AbortingAllocator, allocator),
         (StandardDeclarationRole::AllocationContext, context),
     ]);
+    RegionTestContext {
+        environment,
+        item,
+        void,
+        i32_,
+        context: context_ty,
+        parent: parent_ty,
+    }
+}
+
+#[test]
+fn region_operations_require_the_selected_standard_contract() {
+    let RegionTestContext {
+        environment,
+        item,
+        void,
+        i32_,
+        context: context_ty,
+        parent: parent_ty,
+    } = region_test_context();
 
     let mut builder = MirFunctionBuilder::new(item, void);
     let parent = builder.add_parameter(parent_ty, false);
     let parent_place = builder.add_place(MirPlaceRoot::Local(parent), [], parent_ty);
     let region = builder.add_local(context_ty, MirLocalKind::Region, false);
-    let region_place = builder.add_place(MirPlaceRoot::Local(region), [], context_ty);
     let (entry, _) = builder.create_block([]);
     let parent = builder
         .append_value(
@@ -454,17 +481,8 @@ fn region_operations_require_the_selected_standard_contract() {
             },
         )
         .unwrap();
-    let child = builder
-        .append_value(entry, context_ty, MirOperationKind::CreateRegion { parent })
-        .unwrap();
     builder
-        .append_effect(
-            entry,
-            MirOperationKind::Initialize {
-                destination: region_place,
-                value: child,
-            },
-        )
+        .append_effect(entry, MirOperationKind::CreateRegion { parent, region })
         .unwrap();
     builder
         .append_effect(entry, MirOperationKind::ReleaseRegion { region })
@@ -475,6 +493,7 @@ fn region_operations_require_the_selected_standard_contract() {
     builder.finish(entry, &environment).unwrap();
 
     let mut invalid = MirFunctionBuilder::new(item, void);
+    let region = invalid.add_local(context_ty, MirLocalKind::Region, false);
     let (entry, _) = invalid.create_block([]);
     let parent = invalid
         .append_value(
@@ -484,7 +503,7 @@ fn region_operations_require_the_selected_standard_contract() {
         )
         .unwrap();
     invalid
-        .append_value(entry, context_ty, MirOperationKind::CreateRegion { parent })
+        .append_effect(entry, MirOperationKind::CreateRegion { parent, region })
         .unwrap();
     invalid
         .terminate(entry, MirTerminator::Return(None))
@@ -494,6 +513,48 @@ fn region_operations_require_the_selected_standard_contract() {
         Err(MirBodyBuildError::Validation(
             MirValidationError::OperationType(_)
         ))
+    ));
+}
+
+#[test]
+fn region_flow_rejects_a_live_context_at_return() {
+    let RegionTestContext {
+        environment,
+        item,
+        void,
+        context: context_ty,
+        parent: parent_ty,
+        ..
+    } = region_test_context();
+    let mut unbalanced = MirFunctionBuilder::new(item, void);
+    let parent = unbalanced.add_parameter(parent_ty, false);
+    let parent_place = unbalanced.add_place(MirPlaceRoot::Local(parent), [], parent_ty);
+    let region = unbalanced.add_local(context_ty, MirLocalKind::Region, false);
+    let (entry, _) = unbalanced.create_block([]);
+    let parent = unbalanced
+        .append_value(
+            entry,
+            parent_ty,
+            MirOperationKind::Read {
+                place: parent_place,
+                mode: MirReadMode::Copy,
+            },
+        )
+        .unwrap();
+    unbalanced
+        .append_effect(entry, MirOperationKind::CreateRegion { parent, region })
+        .unwrap();
+    unbalanced
+        .terminate(entry, MirTerminator::Return(None))
+        .unwrap();
+    assert!(matches!(
+        unbalanced.finish(entry, &environment),
+        Err(MirBodyBuildError::Validation(
+            MirValidationError::InvalidRegionFlow {
+                region: Some(actual),
+                ..
+            }
+        )) if actual == region
     ));
 }
 

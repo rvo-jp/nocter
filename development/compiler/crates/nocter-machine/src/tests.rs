@@ -984,15 +984,25 @@ fn process_error_reporting_and_user_drop_are_closed_machine_operations() {
 fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
+         use std/mem.allocation_context_state_for_test\n\
          func main(): void {\n\
-             let allocator = Allocator {}\n\
-             region temporary using allocator {}\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
+             region temporary using allocator {\n\
+                 let _ = allocation_context_state_for_test()\n\
+             }\n\
              return\n\
          }\n",
-        &[&[]],
+        &[&[], &["mem"]],
     );
     let mir = lower_selected_fixture(&fixture, false);
     let program = MachineProgram::lower(&mir).unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    assert_eq!(
+        program.allocation().get(entry),
+        Some(MachineAllocationRequirement::None)
+    );
     let lifetime = program
         .functions()
         .flat_map(|(_, function)| function.body().operations())
@@ -1003,6 +1013,15 @@ fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
         })
         .collect::<Vec<_>>();
     assert_eq!(lifetime, ["create", "release"]);
+    assert!(program.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::Call(call)
+                    if matches!(call.allocation(), crate::MachineCallAllocation::Lexical(_))
+            )
+        })
+    }));
 }
 
 #[test]
@@ -1409,7 +1428,7 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
              }\n\
          }\n\
          func main(): i32 {\n\
-             let allocator = Allocator {}\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
              let values = Vec [1] using allocator\n\
              drop values\n\
              0\n\

@@ -55,6 +55,7 @@ pub enum Arm64SelectionError {
     CallArguments(MachineOperationId),
     CallPack(MachineOperationId),
     CallAllocation(MachineOperationId),
+    RegionOperation(MachineOperationId),
     PrimitiveCall(MachineOperationId),
     DropAbi(MachineOperationId),
     MissingIndirectResultPointer,

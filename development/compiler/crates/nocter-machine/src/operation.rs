@@ -115,12 +115,14 @@ pub enum MachineOperationKind {
     InvokeDrop {
         target: MachineFunctionId,
         place: MachineAddressId,
+        allocation: crate::MachineCallAllocation,
     },
     ReportError {
         error: MachineValueId,
     },
     CreateRegion {
         parent: MachineValueId,
+        region: crate::MachineStackId,
     },
     ReleaseRegion {
         region: crate::MachineStackId,
@@ -145,7 +147,11 @@ impl MachineOperationKind {
     pub const fn has_call_boundary(&self) -> bool {
         matches!(
             self,
-            Self::Call(_) | Self::InvokeDrop { .. } | Self::PackNext | Self::DestroyPack
+            Self::Call(_)
+                | Self::InvokeDrop { .. }
+                | Self::ReleaseRegion { .. }
+                | Self::PackNext
+                | Self::DestroyPack
         )
     }
 }

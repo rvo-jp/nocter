@@ -65,6 +65,10 @@ pub enum MirValidationError {
     InvalidRootSignature,
     InvalidRootTerminator(MirBlockId),
     InvalidPackExit(MirBlockId),
+    InvalidRegionFlow {
+        block: MirBlockId,
+        region: Option<MirLocalId>,
+    },
 }
 
 impl fmt::Display for MirValidationError {

@@ -143,9 +143,10 @@ fn operation_requires_context(
             let target = target_requires_context(call.target(), requirements)?;
             Ok(target && call.allocation() == MachineCallAllocation::Inherit)
         }
-        MachineOperationKind::InvokeDrop { target, .. } => {
-            function_requires_incoming(requirements, *target)
-        }
+        MachineOperationKind::InvokeDrop {
+            target, allocation, ..
+        } => Ok(function_requires_incoming(requirements, *target)?
+            && *allocation == MachineCallAllocation::Inherit),
         _ => Ok(false),
     }
 }

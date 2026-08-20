@@ -11,12 +11,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
-   region creation/release through that representation without deriving runtime state from the
-   current standard-library implementation.
-2. Close independent test roots through the same function, allocation-context, and process-image
+1. Close independent test roots through the same function, allocation-context, and process-image
    authorities.
-3. Complete process-entry state, I/O, and error-construction primitive roles without name-based
+2. Complete process-entry state, I/O, and error-construction primitive roles without name-based
    dispatch or private call conventions.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,

@@ -5,10 +5,36 @@ use nocter_machine::{
 };
 
 use crate::{
-    Arm64DataSize, Arm64FunctionFrame, Arm64NocterAbi, Arm64SelectedAddressPlan,
-    Arm64SelectedInstruction, Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress,
-    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectionError,
+    Arm64DataSize, Arm64FunctionFrame, Arm64NocterAbi, Arm64SelectedInstruction,
+    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64SelectionError,
 };
+
+pub(crate) fn select_operation(
+    operation_id: MachineOperationId,
+    operation: &nocter_machine::MachineOperation,
+    context: crate::Arm64SelectionContext<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    match operation.kind() {
+        nocter_machine::MachineOperationKind::InvokeDrop {
+            target,
+            place,
+            allocation,
+        } => select_drop(
+            context,
+            operation_id,
+            *target,
+            *place,
+            *allocation,
+            selected,
+        ),
+        nocter_machine::MachineOperationKind::SetDropFlag { flag, initialized } => {
+            select_flag_write(*flag, *initialized, context.frame(), selected)
+        }
+        _ => unreachable!("the caller routes only destruction operations"),
+    }
+}
 
 /// Initializes every conditional ownership bit before source operations begin.
 pub(crate) fn select_entry(
@@ -58,17 +84,25 @@ pub(crate) fn select_flag_read(
 }
 
 pub(crate) fn select_drop(
-    program: &nocter_machine::MachineProgram,
+    context: crate::Arm64SelectionContext<'_>,
     operation: MachineOperationId,
     target: MachineFunctionId,
     place: MachineAddressId,
-    frame: &Arm64FunctionFrame,
-    addresses: &Arm64SelectedAddressPlan,
+    allocation: nocter_machine::MachineCallAllocation,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    let program = context.program();
+    let frame = context.frame();
+    let addresses = context.addresses();
     validate_drop_abi(program, operation, target)?;
-    crate::allocation_selection::select_inherited_target(
-        program, operation, target, frame, selected,
+    crate::allocation_selection::select_target(
+        program,
+        operation,
+        &nocter_machine::MachineCallTarget::Direct(target),
+        allocation,
+        frame,
+        addresses,
+        selected,
     )?;
     let place = addresses.use_address(place, selected)?;
     selected.push(Arm64SelectedInstruction::MemoryAddress {

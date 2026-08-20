@@ -196,6 +196,11 @@ Entering the statement:
 3. binds the immutable region handle to `name`
 4. makes the child allocation context current for allocating calls in the body
 
+The child is a non-movable compiler-owned resource. It retains the selected parent's allocator
+header, owns an independent allocation-list head, and presents the ordinary allocation-context
+header to calls. The lexical current context is selected statically at each call and destruction
+boundary; entering a region does not mutate a process-global or function-local ambient pointer.
+
 The region name is an ordinary lexical binding name for lookup and diagnostics. The compiler does
 not infer semantics from spellings such as `scratch`, `temp`, or `arena`.
 
@@ -216,6 +221,11 @@ Rules:
 At every normal exiting edge, live values owned inside the body are dropped in reverse ownership
 order before the child allocator releases its storage. This applies to fallthrough, `return`,
 `break`, `continue`, and `?` propagation.
+
+On `arm64-darwin`, each nonempty region allocation owns a mapping whose private prefix retains the
+previous mapping and the complete mapping byte count. Release walks that list and unmaps every
+entry. A failed unmap is a compiler-runtime invariant failure and terminates instead of continuing
+with a partially released region.
 
 Calling a `never` function does not cause implicit cleanup. Allocation failure on the standard path
 terminates immediately without region release; the operating system reclaims process resources.

@@ -102,6 +102,7 @@ fn validate_body(
             MirOperationKind::InvokeDrop {
                 body: drop_body,
                 place,
+                ..
             } => {
                 let place_type = place_type(body, *place);
                 if !place_type.is_some_and(|ty| {

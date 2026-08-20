@@ -11,8 +11,11 @@ use crate::{
 };
 
 const REGION_STANDARD: &str = r"
-pub struct Allocator { marker: Owned }
-pub struct AllocationContext {}
+pub struct Allocator { state: usize
+    kind: usize
+    marker: Owned }
+pub struct AllocationContext { state: usize
+    kind: usize }
 struct Owned { value: i32 }
 struct Untrusted {}
 struct Vec<T> {}

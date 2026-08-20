@@ -460,7 +460,7 @@ fn sequence_using_retains_the_same_call_scoped_allocation_lane() {
              }\n\
          }\n\
          func main(): i32 {\n\
-             let allocator = Allocator {}\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
              let _ = Vec [1] using allocator\n\
              0\n\
          }\n",
@@ -566,7 +566,7 @@ fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
              pub literal \"\"(text: &str): Self { return Self {} }\n\
          }\n\
          func main(): void {\n\
-             let allocator = Allocator {}\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
              let _ = Text \"hello\" using allocator\n\
              return\n\
          }\n",
@@ -1457,7 +1457,7 @@ fn lowers_nested_regions_with_ordered_early_exit_cleanup() {
              return\n\
          }\n\
          func main(): void {\n\
-             let allocator = Allocator {}\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
              normal(&allocator)\n\
              region outer using allocator {\n\
                  let first = Owned { value: 1 }\n\

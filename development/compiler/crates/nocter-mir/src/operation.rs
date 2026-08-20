@@ -152,12 +152,13 @@ pub enum MirCallTarget {
 
 /// Allocation context visible only while one call executes.
 ///
-/// Lexical regions already change the inherited context through their create/release lifetime.
-/// Typed literal `using` overrides instead name an existing allocator or region place and must be
-/// restored as part of the call boundary.
+/// `Inherit` reads the function-entry context. `Region` selects a compiler-owned non-movable
+/// lexical resource, while `Explicit` names a source-selected allocator or context place. Keeping
+/// lexical selection explicit prevents lowering from relying on mutable ambient runtime state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MirCallAllocation {
     Inherit,
+    Region(MirLocalId),
     Explicit(MirPlaceId),
 }
 
@@ -275,6 +276,7 @@ pub enum MirOperationKind {
     InvokeDrop {
         body: ExecutableItemId,
         place: MirPlaceId,
+        allocation: MirCallAllocation,
     },
     /// Reports one built-in error at a compiler-owned process boundary without allocation.
     ReportError {
@@ -282,6 +284,7 @@ pub enum MirOperationKind {
     },
     CreateRegion {
         parent: MirValueId,
+        region: MirLocalId,
     },
     ReleaseRegion {
         region: MirLocalId,
@@ -303,7 +306,6 @@ impl MirOperationKind {
                 | Self::Call(_)
                 | Self::PackLength
                 | Self::PackNext
-                | Self::CreateRegion { .. }
         )
     }
 }

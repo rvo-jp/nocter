@@ -610,7 +610,8 @@ fn explicit_literal_allocation_uses_a_validated_standard_role_place() {
     let fixture = Fixture::with_standard(
         "",
         r"
-pub struct Allocator {}
+pub struct Allocator { state: usize
+    kind: usize }
 struct Vec<T> {}
 construct Vec<T> {
     pub literal [](...items: T): Self { return Self {} }
@@ -661,7 +662,8 @@ fn explicit_literal_allocation_rejects_an_untrusted_nominal() {
     let fixture = Fixture::with_standard(
         "",
         r"
-pub struct Allocator {}
+pub struct Allocator { state: usize
+    kind: usize }
 struct Untrusted {}
 struct Vec<T> {}
 construct Vec<T> {

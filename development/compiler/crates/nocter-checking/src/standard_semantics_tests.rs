@@ -199,6 +199,40 @@ pub interface Format {
 }
 
 #[test]
+fn allocation_nominal_roles_require_the_two_word_context_header() {
+    let valid = Fixture::with_standard(
+        "",
+        "pub struct Allocator { first: usize\n    second: usize }\n",
+    );
+    with_prepared_roles(
+        &valid,
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::AbortingAllocator,
+            valid.standard_declaration_token(NodeKind::StructDeclaration, "Allocator"),
+        )],
+        |_| (),
+    )
+    .unwrap();
+
+    let invalid = Fixture::with_standard("", "pub struct AllocationContext {}\n");
+    let error = with_prepared_roles(
+        &invalid,
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::AllocationContext,
+            invalid.standard_declaration_token(NodeKind::StructDeclaration, "AllocationContext"),
+        )],
+        |_| (),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidNominalContract(
+            StandardDeclarationRole::AllocationContext
+        ))
+    ));
+}
+
+#[test]
 fn exact_standard_iteration_contracts_are_accepted() {
     let fixture = Fixture::with_standard(
         "",

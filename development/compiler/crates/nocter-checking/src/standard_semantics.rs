@@ -3,8 +3,8 @@ use std::fmt;
 
 use nocter_declaration_lowering::StandardRoleInput;
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, ParameterRole, StandardDeclarationRole,
-    Visibility,
+    CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
+    StandardDeclarationRole, Visibility,
 };
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
@@ -48,7 +48,7 @@ impl StandardSemanticTable {
             entries.insert(input.role(), entity);
         }
         let table = Self { entries };
-        table.validate_nominal_roles(graph)?;
+        table.validate_nominal_roles(graph, types)?;
         table.validate_relationships(graph, types)?;
         Ok(table)
     }
@@ -169,6 +169,7 @@ impl StandardSemanticTable {
     fn validate_nominal_roles(
         &self,
         graph: &DeclarationGraph,
+        types: &TypeStore,
     ) -> Result<(), StandardSemanticError> {
         for role in [
             StandardDeclarationRole::AbortingAllocator,
@@ -185,9 +186,36 @@ impl StandardSemanticTable {
             {
                 return Err(StandardSemanticError::InvalidNominalContract(role));
             }
+            if matches!(
+                role,
+                StandardDeclarationRole::AbortingAllocator
+                    | StandardDeclarationRole::AllocationContext
+            ) && !has_allocation_context_header(graph, types, declaration)
+            {
+                return Err(StandardSemanticError::InvalidNominalContract(role));
+            }
         }
         Ok(())
     }
+}
+
+fn has_allocation_context_header(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    declaration: &nocter_declarations::NominalTypeDeclaration,
+) -> bool {
+    let NominalShape::Struct { fields, .. } = declaration.shape() else {
+        return false;
+    };
+    fields.get(..2).is_some_and(|header| {
+        header.iter().all(|field| {
+            graph
+                .declarations()
+                .fields()
+                .get(*field)
+                .is_some_and(|field| field.ty() == types.builtin(BuiltinType::Usize))
+        })
+    })
 }
 
 fn resolve_role_source(

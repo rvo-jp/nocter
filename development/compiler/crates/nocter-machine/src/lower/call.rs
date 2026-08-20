@@ -34,6 +34,7 @@ pub(super) fn lower_call(
         .collect::<Result<Vec<_>, _>>()?;
     let allocation = match call.allocation() {
         MirCallAllocation::Inherit => MachineCallAllocation::Inherit,
+        MirCallAllocation::Region(region) => MachineCallAllocation::Lexical(ids.stack(region)?),
         MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
     };
     let pack = call.pack().map(|_| ids.pack(operation)).transpose()?;

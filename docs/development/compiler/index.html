@@ -421,8 +421,11 @@
   Exhaustion and early transfer share the iterator's drop flag. Pattern lowering consumes checked
   copy/move/borrow modes and complete-or-residual cleanup plans, projects specialized payload
   places, and keeps mutually exclusive cleanup flags separate on one canonical subject slot.
-  Lexical regions use paired typed creation and release operations; the existing cleanup schedule
-  orders body destruction before release on fallthrough and early transfer. Closure construction,
+  Lexical regions use paired typed creation and release operations over non-movable locals; no
+  region handle passes through SSA. Ordinary calls, literal calls, and authored destruction retain
+  the exact active region selection. A CFG stack validator proves creation, inner-first release,
+  merge agreement, and normal-terminal cleanup, while the existing cleanup schedule orders body
+  destruction before release on fallthrough and early transfer. Closure construction,
   concrete invocation, capture access, owned capture moves, and recursive closure destruction use
   the executable-owned layout and binding-preserving MIR projections. Callable bounds specialize
   to direct generated-body calls; owned contracts retain explicit post-call destruction when the
@@ -540,8 +543,12 @@
   meaning through explicit sign-extending target instructions. A separate materializer resolves
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
   nodes fail selection explicitly. Allocation-context selection initializes the root header,
-  saves incoming context pointers, and materializes inherited or explicit selections through
-  <code>x9</code>; current allocator state/kind primitives expand through their ordinary ABI plans. Pure
+  saves incoming context pointers, and materializes inherited, lexical-region, or explicit
+  selections through <code>x9</code>; current allocator state/kind primitives expand through their ordinary
+  ABI plans. A lexical region receives one compiler-owned five-word frame resource containing its
+  ordinary header, independent allocation-list head, and retained parent header. Creation derives
+  that header from the checked parent, and release advances then unmaps every owned mapping through
+  a checked Darwin syscall loop. Pure
   pointer/view roles share one closed primitive selector: representation-preserving conversions
   retain staged lanes, view observers select pointer or length, unchecked string subviews adjust
   the pointer/length pair, and pointee size/alignment consume <code>MachineLayoutStore</code>. Concrete type

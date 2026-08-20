@@ -98,19 +98,33 @@ fn lower_operation(
                 ids,
             )?)
         }
-        MirOperationKind::InvokeDrop { body, place } => MachineOperationKind::InvokeDrop {
+        MirOperationKind::InvokeDrop {
+            body,
+            place,
+            allocation,
+        } => MachineOperationKind::InvokeDrop {
             target: program
                 .functions
                 .get(body)
                 .copied()
                 .ok_or(MachineProgramError::MissingItemFunction(*body))?,
             place: ids.address(*place)?,
+            allocation: match allocation {
+                nocter_mir::MirCallAllocation::Inherit => crate::MachineCallAllocation::Inherit,
+                nocter_mir::MirCallAllocation::Region(region) => {
+                    crate::MachineCallAllocation::Lexical(ids.stack(*region)?)
+                }
+                nocter_mir::MirCallAllocation::Explicit(place) => {
+                    crate::MachineCallAllocation::Explicit(ids.address(*place)?)
+                }
+            },
         },
         MirOperationKind::ReportError { error } => MachineOperationKind::ReportError {
             error: ids.value(*error)?,
         },
-        MirOperationKind::CreateRegion { parent } => MachineOperationKind::CreateRegion {
+        MirOperationKind::CreateRegion { parent, region } => MachineOperationKind::CreateRegion {
             parent: ids.value(*parent)?,
+            region: ids.stack(*region)?,
         },
         MirOperationKind::ReleaseRegion { region } => MachineOperationKind::ReleaseRegion {
             region: ids.stack(*region)?,

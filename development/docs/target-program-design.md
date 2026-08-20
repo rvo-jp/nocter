@@ -327,10 +327,10 @@ prove those representation facts; it does not expose interface selection or perm
 lookup.
 
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
-and signature-correct call targets, SSA dominance, and complete terminal behavior. Flow-sensitive
-initialized-use and balanced region-release validation remain coupled to pending region
-flow analysis and whole-function storage validation; documentation must not claim those gates
-before they exist. These are compiler integrity checks over an accepted program, not a second source
+and signature-correct call targets, SSA dominance, complete terminal behavior, and one consistent
+ordered region stack across every CFG edge. Flow-sensitive initialized-use validation remains
+coupled to pending whole-function storage validation; documentation must not claim that gate before
+it exists. These are compiler integrity checks over an accepted program, not a second source
 diagnostic system.
 
 ## Construction Order
@@ -381,11 +381,15 @@ consumed, temporary, or borrow-dereferenced subject storage. Checked binding mod
 copy, move, or borrow without repeating copyability proof, while one checked remainder plan
 selects complete or variant-residual destruction. Mutually exclusive remainders use independent
 drop flags on the shared subject slot, and value-producing arms join through typed block
-parameters. Lexical region entry creates and initializes one compiler-owned allocation-context
-local from its checked parent borrow. Region exit remains part of the ordinary cleanup schedule,
-which orders inner values before child release on fallthrough and every explicit transfer.
-Validation requires the compiler-selected allocator and allocation-context nominal identities for
-both operations. Concrete closures lower through a binding-preserving aggregate tied to one
+parameters. Lexical region entry creates one compiler-owned allocation-context local directly as a
+non-movable resource; it never materializes the handle as an SSA value. Every ordinary call,
+literal call, and authored destruction freezes either the function-entry context, the exact active
+region local, or an explicit source-selected place. Region exit remains part of the ordinary
+cleanup schedule, which orders inner values before child release on fallthrough and every explicit
+transfer. MIR validation interprets region state as an ordered CFG stack: creation, current-context
+selection, inner-first release, merge agreement, and normal-terminal emptiness are all checked.
+Validation also requires the compiler-selected allocator and allocation-context nominal identities
+for both operations. Concrete closures lower through a binding-preserving aggregate tied to one
 executable closure item. Direct closure calls borrow or consume that same environment according to
 its frozen capability. Inside the closure body, hidden environment and stored-borrow dereferences
 remain explicit typed place projections; move captures participate in the ordinary cleanup-flag

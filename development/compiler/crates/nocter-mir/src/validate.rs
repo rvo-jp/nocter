@@ -4,7 +4,10 @@ use crate::validation_call::validate_call;
 use crate::validation_closure::validate_closure_aggregate;
 use crate::validation_graph::{place_values, successors};
 use crate::validation_place::place_facts;
-use crate::validation_region::{validate_region_creation, validate_region_release};
+use crate::validation_region::{
+    validate_region_creation, validate_region_flow, validate_region_release,
+    validate_region_selection,
+};
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{
     is_integer, matches_nominal_member, matches_opaque_projection, matches_opaque_witness,
@@ -101,6 +104,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         let dominators = self.compute_dominators(&predecessors);
         self.validate_operations(&operation_locations, &dominators)?;
         self.validate_terminators(&operation_locations, &dominators)?;
+        validate_region_flow(self.function)?;
         Ok(())
     }
 
@@ -653,9 +657,20 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
-            MirOperationKind::InvokeDrop { body, place } => {
+            MirOperationKind::InvokeDrop {
+                body,
+                place,
+                allocation,
+            } => {
                 self.require_item(*body)?;
                 self.require_place(*place)?;
+                match allocation {
+                    crate::MirCallAllocation::Inherit => {}
+                    crate::MirCallAllocation::Region(region) => {
+                        validate_region_selection(self.environment, self.function, id, *region)?;
+                    }
+                    crate::MirCallAllocation::Explicit(_) => return Err(mismatch()),
+                }
                 if result.is_some() {
                     return Err(mismatch());
                 }
@@ -668,12 +683,13 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
-            MirOperationKind::CreateRegion { parent } => validate_region_creation(
+            MirOperationKind::CreateRegion { parent, region } => validate_region_creation(
                 self.environment,
                 self.function,
                 id,
                 *parent,
-                result.ok_or_else(mismatch)?,
+                *region,
+                result,
             )?,
             MirOperationKind::ReleaseRegion { region } => {
                 validate_region_release(self.environment, self.function, id, *region, result)?;
@@ -969,7 +985,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::PackNext
             | MirOperationKind::DestroyPack
             | MirOperationKind::ReleaseRegion { .. } => {}
-            MirOperationKind::CreateRegion { parent } => values.push(*parent),
+            MirOperationKind::CreateRegion { parent, .. } => values.push(*parent),
             MirOperationKind::ReportError { error } => values.push(*error),
             MirOperationKind::Read { place, .. }
             | MirOperationKind::Borrow { place, .. }

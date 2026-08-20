@@ -482,6 +482,13 @@ allocator loan, allowing enclosing cleanup only after the child has released. Pr
 analysis consume those identities directly; neither infers a region from source spelling or block
 containment.
 
+MIR creates the context local as a non-movable resource rather than a temporary SSA value followed
+by initialization. Lowering records the innermost region identity on ordinary calls, literals, and
+authored destruction. A CFG stack validator rejects selection before creation, outer-first release,
+inconsistent merges, and live regions at normal terminals. Machine and target lowering preserve
+that identity until ARM64 frame placement assigns the closed runtime header and allocation-list
+storage.
+
 Explicit source `drop` is a checked control operation over the same owned root path. It attaches an
 unconditional action to that statement's outgoing edge and consumes the path state; it does not
 call a method, allocate hidden storage, or maintain a second explicit-destruction liveness table.

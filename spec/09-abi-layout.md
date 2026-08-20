@@ -59,6 +59,16 @@ or region-context address for that call. The caller must retain or rematerialize
 pointer across a call because `x9` is caller-saved. A callable without the execution requirement
 cannot read the lane.
 
+A lexical region is a non-movable target-owned frame resource. Its first two words are the same
+state/kind header exposed through `x9`; its state points to a private allocation-list head in the
+same frame object, its kind is the standard region kind, and it retains the selected parent's
+state/kind header after that head. The source-level `AllocationContext` declaration supplies the
+two-word header contract but does not set the complete physical size of this compiler-owned
+resource. Region-backed mappings start with a private
+previous-mapping pointer and mapping-byte count. Normal region release advances the head before
+unmapping each entry, then leaves the list empty. This representation is part of the
+`arm64-darwin` Nocter ABI rather than an inferred property of current standard-library source.
+
 ### ABI Values
 
 ABI classification uses 64-bit words.

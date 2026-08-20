@@ -11,6 +11,7 @@ pub(crate) enum Arm64RuntimeTrap {
     ExplicitUnreachable,
     AllocationFailure,
     ExactSizeIteratorViolation,
+    RegionReleaseFailure,
 }
 
 impl Arm64RuntimeTrap {
@@ -23,6 +24,7 @@ impl Arm64RuntimeTrap {
             Self::ExplicitUnreachable => 5,
             Self::AllocationFailure => 6,
             Self::ExactSizeIteratorViolation => 7,
+            Self::RegionReleaseFailure => 8,
         }
     }
 }

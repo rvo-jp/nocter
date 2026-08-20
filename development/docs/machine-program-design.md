@@ -155,9 +155,12 @@ explicitly instead of surviving inside a generic passthrough operation.
 SSA identity and stored representation are intentionally separate. A `MachineValue` is classified
 as stored bytes, successful completion, or divergence. Only stored values require size and
 alignment; explicit MIR completion values therefore survive control and call wiring without
-inventing a zero-byte layout for `void` or `never`. User-drop invocation names a machine function
-and machine address. Region creation and release name machine values and stack objects, and process
-error reporting names the exact machine error value. None retain MIR-local identities.
+inventing a zero-byte layout for `void` or `never`. User-drop invocation names a machine function,
+machine address, and the same closed allocation selection as an ordinary call. Region creation
+names its parent value and compiler-owned stack resource directly; release names that same
+resource. Lexical selections likewise retain a machine stack identity rather than an address to
+movable source storage. Process error reporting names the exact machine error value. None retain
+MIR-local identities.
 
 Standard primitive targets retain their closed `PrimitiveRole`, concrete layout-key type
 arguments, exact concrete signature, and an explicit specialized semantic dependency. Most
@@ -483,5 +486,8 @@ Fixed literal packs now initialize and transfer their four-word descriptors, exe
 through the exact result ABI, and destroy unconsumed elements through those generated functions.
 Spread packs execute the same native descriptor ABI for direct and copied-borrow contributions,
 including direct and indirect optional transport, empty-segment advancement, inherited allocation
-contexts, and iterator cleanup. Process-entry state, I/O and error primitives, lexical region
-representation and cleanup, and test roots remain Phase 5 implementation areas.
+contexts, and iterator cleanup. Lexical regions now use a target-owned five-word frame resource:
+ordinary context header, independent mapping-list head, and retained parent header. Calls and
+authored destruction select the active resource statically, CFG validation enforces nested
+lifetime balance, and release walks the mapping list through the target syscall boundary.
+Process-entry state, I/O and error primitives, and test roots remain Phase 5 implementation areas.

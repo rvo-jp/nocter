@@ -2,6 +2,7 @@ use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, TypeId, TypeKind};
 
 use crate::validation_pack::validate_call_pack;
+use crate::validation_region::validate_region_selection;
 use crate::{
     MirBody, MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency, MirStructuralCall,
     MirValidationEnvironment, MirValidationError,
@@ -104,8 +105,17 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
     }
 
     fn validate_allocation(&self, call: &MirCall) -> Result<(), MirValidationError> {
-        let MirCallAllocation::Explicit(place) = call.allocation() else {
-            return Ok(());
+        let place = match call.allocation() {
+            MirCallAllocation::Inherit => return Ok(()),
+            MirCallAllocation::Region(region) => {
+                return validate_region_selection(
+                    self.environment,
+                    self.function,
+                    self.operation,
+                    region,
+                );
+            }
+            MirCallAllocation::Explicit(place) => place,
         };
         let MirCallTarget::Direct(item) = call.target() else {
             return Err(self.invalid());

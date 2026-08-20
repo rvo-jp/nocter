@@ -3,7 +3,7 @@ use nocter_target_program::PrimitiveRole;
 
 use crate::{
     MachineAddressId, MachineCallableAbi, MachineFunctionId, MachinePackId,
-    MachinePrimitiveDependency, MachineValueId,
+    MachinePrimitiveDependency, MachineStackId, MachineValueId,
 };
 
 /// One compiler-known primitive target with its concrete signature transport already planned.
@@ -62,6 +62,7 @@ pub enum MachineCallTarget {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineCallAllocation {
     Inherit,
+    Lexical(MachineStackId),
     Explicit(MachineAddressId),
 }
 

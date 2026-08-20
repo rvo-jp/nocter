@@ -34,8 +34,10 @@ pub interface Format {
 }
 ";
 const ALLOCATION_SOURCE: &str = "\
-pub struct Allocator {}
-pub struct AllocationContext {}
+pub struct Allocator { pub state: usize
+    pub kind: usize }
+pub struct AllocationContext { state: usize
+    kind: usize }
 ";
 const MEM_SOURCE: &str = "\
 pub(/) primitive current_allocator_state(): usize

@@ -17,6 +17,17 @@ impl FunctionLowerer<'_> {
         owner: BodyNodeId,
         timing: CleanupTiming,
     ) -> Result<(), MirLoweringError> {
+        let lexical_regions = self.regions.clone();
+        let result = self.lower_cleanup_actions(owner, timing);
+        self.regions = lexical_regions;
+        result
+    }
+
+    fn lower_cleanup_actions(
+        &mut self,
+        owner: BodyNodeId,
+        timing: CleanupTiming,
+    ) -> Result<(), MirLoweringError> {
         let actions = self
             .body
             .cleanups()
@@ -59,6 +70,9 @@ impl FunctionLowerer<'_> {
         if let CleanupTarget::Region { binding, .. } = target {
             let region = self.ensure_local(*binding)?;
             self.append_effect(MirOperationKind::ReleaseRegion { region })?;
+            if self.regions.pop() != Some(region) {
+                return Err(MirLoweringError::InvalidRegion(owner));
+            }
             return Ok(());
         }
         let place = match target {
@@ -262,7 +276,11 @@ impl FunctionLowerer<'_> {
             .body()
             .drop_item(selection)
             .ok_or(MirLoweringError::InvalidCleanup(owner))?;
-        self.append_effect(MirOperationKind::InvokeDrop { body, place })
+        self.append_effect(MirOperationKind::InvokeDrop {
+            body,
+            place,
+            allocation: self.current_call_allocation(),
+        })
     }
 
     fn project_cleanup_place(

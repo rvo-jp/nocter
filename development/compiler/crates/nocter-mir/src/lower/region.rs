@@ -2,7 +2,7 @@ use nocter_model::{BodyNodeId, LocalBindingId, MirValueId};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
-use crate::{MirOperationKind, MirPlaceRoot};
+use crate::MirOperationKind;
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_region(
@@ -14,14 +14,20 @@ impl FunctionLowerer<'_> {
     ) -> Result<Option<MirValueId>, MirLoweringError> {
         let parent = self.lower_place_carrier(allocator)?;
         let local = self.ensure_local(binding)?;
-        let ty = self
-            .builder
+        self.builder
             .local_type(local)
             .ok_or(MirLoweringError::InvalidRegion(node))?;
-        let value = self.append_value(ty, MirOperationKind::CreateRegion { parent })?;
-        let destination = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
-        self.append_effect(MirOperationKind::Initialize { destination, value })?;
-        self.lower_node(body)?;
+        self.append_effect(MirOperationKind::CreateRegion {
+            parent,
+            region: local,
+        })?;
+        self.regions.push(local);
+        let lowered = self.lower_node(body);
+        let active = self.regions.pop();
+        if active != Some(local) {
+            return Err(MirLoweringError::InvalidRegion(node));
+        }
+        lowered?;
         Ok(None)
     }
 }

@@ -37,6 +37,13 @@ pub struct Allocator {
     kind: usize
 }
 
+// Compiler-created lexical regions are the only public source of this opaque capability. The
+// target-owned region frame begins with the same state/kind header as Allocator.
+pub struct AllocationContext {
+    state: usize
+    kind: usize
+}
+
 pub struct TryAllocator {
     state: usize
     kind: usize

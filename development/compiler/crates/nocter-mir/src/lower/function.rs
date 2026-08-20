@@ -78,6 +78,8 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) materialized_value_storage: BTreeSet<BodyNodeId>,
     pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
     pub(super) loops: BTreeMap<LoopId, LoopTargets>,
+    /// Innermost last. These compiler-owned resources select calls without mutating ambient state.
+    pub(super) regions: Vec<MirLocalId>,
 }
 
 impl<'a> FunctionLowerer<'a> {
@@ -125,6 +127,7 @@ impl<'a> FunctionLowerer<'a> {
             materialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
             loops: BTreeMap::new(),
+            regions: Vec::new(),
         })
     }
 

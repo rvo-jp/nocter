@@ -371,7 +371,7 @@ fn operation_inputs(
         MachineOperationKind::ReportError { error } => {
             insert_value(body, *error, &mut inputs)?;
         }
-        MachineOperationKind::CreateRegion { parent } => {
+        MachineOperationKind::CreateRegion { parent, .. } => {
             insert_value(body, *parent, &mut inputs)?;
         }
         MachineOperationKind::Call(call) => add_call_inputs(body, call, &mut inputs)?,

@@ -479,6 +479,67 @@ fn allocation_context_crosses_root_and_nested_call_boundaries() {
 }
 
 #[test]
+fn lexical_regions_select_and_restore_non_movable_contexts() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         use std/mem.allocation_context_state_for_test\n\
+         use std/mem.allocation_context_kind_for_test\n\
+         func current_state(): usize { allocation_context_state_for_test() }\n\
+         func main(): i32 {\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
+             region outer using allocator {\n\
+                 let outer_state = current_state()\n\
+                 if outer_state == 0 { return 1 }\n\
+                 if allocation_context_kind_for_test() != 1 { return 2 }\n\
+                 region inner using outer {\n\
+                     let inner_state = current_state()\n\
+                     if inner_state == 0 { return 3 }\n\
+                     if inner_state == outer_state { return 4 }\n\
+                     if allocation_context_kind_for_test() != 1 { return 5 }\n\
+                 }\n\
+                 if current_state() != outer_state { return 6 }\n\
+                 return 42\n\
+             }\n\
+         }\n",
+        &[&[], &["mem"], &["mem"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn lexical_region_context_reaches_authored_destruction() {
+    let fixture = CompilerFixture::with_app_allocation_standard_uses(
+        "use std.Allocator\n\
+         use std/mem.allocation_context_kind_for_test\n\
+         use std/process.exit_for_test\n\
+         struct Guard {}\n\
+         drop Guard(&+self) {\n\
+             if allocation_context_kind_for_test() != 1 {\n\
+                 exit_for_test(7)\n\
+             }\n\
+             return\n\
+         }\n\
+         func main(): i32 {\n\
+             let allocator = Allocator { state: 0, kind: 0 }\n\
+             region temporary using allocator {\n\
+                 let guard = Guard {}\n\
+             }\n\
+             return 42\n\
+         }\n",
+        &[&[], &["mem"], &["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn pointer_and_view_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/ptr.{\n\

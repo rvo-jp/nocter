@@ -208,7 +208,14 @@ fn place_body_objects(
         if stack_id.index() != stack_objects.len() {
             return Err(Arm64FunctionFrameError::NonDenseStack(stack_id));
         }
-        stack_objects.push(builder.add_object(object.size(), object.alignment())?);
+        let (size, alignment) = match object.purpose() {
+            nocter_machine::MachineStackPurpose::Region => (
+                crate::region_layout::Arm64RegionLayout::SIZE,
+                crate::region_layout::Arm64RegionLayout::ALIGNMENT,
+            ),
+            _ => (object.size(), object.alignment()),
+        };
+        stack_objects.push(builder.add_object(size, alignment)?);
     }
     let mut drop_flags = Vec::with_capacity(body.drop_flags().len());
     for (flag_id, _) in body.drop_flags() {
