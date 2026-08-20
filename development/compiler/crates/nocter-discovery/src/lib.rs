@@ -12,7 +12,9 @@ mod syntax;
 
 pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
 pub use graph::discover;
-pub use request::{DiscoveryRequest, ResolvedPackage, StandardRoleLocator, ToolchainRequest};
+pub use request::{
+    DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator, ToolchainRequest,
+};
 pub use snapshot::{CompileInputError, DiscoveredModule, DiscoveredSource, DiscoveredUnit};
 
 #[cfg(test)]

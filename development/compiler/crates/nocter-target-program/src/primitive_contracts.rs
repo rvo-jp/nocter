@@ -882,7 +882,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     }
 }
 
-pub(crate) fn primitive_location(role: PrimitiveRole) -> (&'static [&'static str], &'static str) {
+/// Returns the standard source location selected by this compiler toolchain for a primitive role.
+///
+/// Discovery resolves this locator to an exact declaration token. Target validation never uses
+/// the location to recover semantic identity.
+#[must_use]
+pub fn primitive_source_location(role: PrimitiveRole) -> (&'static [&'static str], &'static str) {
     let contract = contract(role);
     (contract.module, contract.name)
 }

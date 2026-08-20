@@ -4,7 +4,7 @@
 //! filesystem policy and performs no semantic work; producers resolve physical topology once and
 //! consumers treat every identity and edge as immutable input.
 
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
@@ -209,6 +209,30 @@ pub struct StandardRoleInput {
     declaration: SyntaxToken,
 }
 
+/// One exact source callable selected for a compiler-owned primitive role.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PrimitiveRoleInput {
+    role: PrimitiveRole,
+    declaration: SyntaxToken,
+}
+
+impl PrimitiveRoleInput {
+    #[must_use]
+    pub const fn new(role: PrimitiveRole, declaration: SyntaxToken) -> Self {
+        Self { role, declaration }
+    }
+
+    #[must_use]
+    pub const fn role(self) -> PrimitiveRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn declaration(self) -> SyntaxToken {
+        self.declaration
+    }
+}
+
 /// One compiler-owned built-in surface paired with its exact authored module.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BuiltinAttachmentInput {
@@ -243,6 +267,7 @@ pub struct ToolchainInput {
     prelude: ModuleIdentity,
     builtin_attachments: Vec<BuiltinAttachmentInput>,
     standard_roles: Vec<StandardRoleInput>,
+    primitive_roles: Vec<PrimitiveRoleInput>,
 }
 
 impl ToolchainInput {
@@ -258,6 +283,7 @@ impl ToolchainInput {
             prelude,
             builtin_attachments,
             standard_roles,
+            primitive_roles: Vec::new(),
         }
     }
 
@@ -282,8 +308,19 @@ impl ToolchainInput {
     }
 
     #[must_use]
+    pub fn primitive_roles(&self) -> &[PrimitiveRoleInput] {
+        &self.primitive_roles
+    }
+
+    #[must_use]
     pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
         self.standard_roles = roles;
+        self
+    }
+
+    #[must_use]
+    pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleInput>) -> Self {
+        self.primitive_roles = roles;
         self
     }
 }

@@ -258,15 +258,17 @@
   <code>TypeKind</code>, or semantic ID.</li><li><code>nocter-compile-input</code> owns the neutral immutable handoff from physical discovery to semantic
   lowering. It carries canonical package/module/source topology, selected import and package-target
   edges, and one exact toolchain profile. That profile names the standard package, prelude,
-  built-in attachment modules, and standard semantic declaration tokens without assigning dense
-  semantic IDs or retaining filesystem policy.</li><li><code>nocter-target-selection</code> owns target-gate decoding and activity. Discovery and declaration
+  built-in attachment modules, standard semantic declaration tokens, and primitive declaration
+  tokens without assigning dense semantic IDs or retaining filesystem policy.</li><li><code>nocter-target-selection</code> owns target-gate decoding and activity. Discovery and declaration
   surface construction consume the same prepared decisions; inactive imports and declarations do
   not probe the filesystem or acquire semantic identity.</li><li><code>nocter-discovery</code> is the only filesystem source-graph authority. It canonicalizes resolved
   package roots, loads package and module roots, closes implementation-source and dependency edges,
   rejects ownership escapes and source/module ambiguity, and freezes deterministic compile input.
   It also loads every exact toolchain module and resolves each standard semantic role locator to one
-  declaration token before lowering. A syntax-clean complete <code>development/std</code> graph passes full
-  declaration and checked-body construction through this boundary.</li><li><code>nocter-checking</code> owns the Phase 3 syntax boundary. It catalogs every declaration <code>BodyId</code> from
+  declaration token before lowering. Primitive roles enter the same path and become exact callable
+  identities through <code>SourceIndex</code>, never a checked-graph name search. A syntax-clean complete
+  <code>development/std</code> graph passes full declaration and checked-body construction through this
+  boundary.</li><li><code>nocter-checking</code> owns the Phase 3 syntax boundary. It catalogs every declaration <code>BodyId</code> from
   its exact source projection and resolves body scopes, locals, block imports, and explicit closure
   captures without creating a second module namespace. Its program-wide conformance table applies
   binder refinements before storing target/interface patterns, substitutes <code>Self</code>, generic, and
@@ -410,7 +412,12 @@
   dispatch retain named coercion and operation lanes, so MIR
   never infers operand ownership from step order. Enum residual cleanup keeps its active variant
   and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or destroy a
-  moved payload. No unresolved requirement or source name reaches MIR.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
+  moved payload. No unresolved requirement or source name reaches MIR.</li><li><code>nocter-session</code> owns the production stage order from one syntax-clean <code>DiscoveredUnit</code> to a
+  target-validated program. It consumes declaration lowering, checking, exact primitive registry
+  resolution, target capability selection, and <code>TargetProgram</code> construction without exposing a
+  mutable partial pipeline. Its result keeps target semantics and source projection as independent
+  immutable values. Command and editor layers consume this boundary instead of assembling lower
+  crates directly.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body

@@ -96,6 +96,7 @@ dependencies = [
  "nocter-model",
  "nocter-source",
  "nocter-syntax",
+ "nocter-target-program",
  "nocter-target-selection",
 ]
 
@@ -136,6 +137,21 @@ name = "nocter-model"
 version = "0.0.0"
 
 [[package]]
+name = "nocter-session"
+version = "0.0.0"
+dependencies = [
+ "nocter-checking",
+ "nocter-compile-input",
+ "nocter-declaration-lowering",
+ "nocter-declarations",
+ "nocter-discovery",
+ "nocter-model",
+ "nocter-source-index",
+ "nocter-syntax",
+ "nocter-target-program",
+]
+
+[[package]]
 name = "nocter-source"
 version = "0.0.0"
 
@@ -161,9 +177,11 @@ name = "nocter-target-program"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
+ "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-model",
+ "nocter-source-index",
  "nocter-test-support",
 ]
 

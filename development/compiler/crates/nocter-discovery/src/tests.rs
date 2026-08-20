@@ -5,13 +5,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use nocter_compile_input::{
     BuiltinAttachmentInput, ModuleIdentity, PackageIdentity, UseTargetInput,
 };
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
 use nocter_syntax::NodeKind;
 
 use crate::{
-    DiscoveryError, DiscoveryRequest, ImportFailure, ResolvedPackage, StandardRoleLocator,
-    ToolchainRequest, discover,
+    DiscoveryError, DiscoveryRequest, ImportFailure, PrimitiveRoleLocator, ResolvedPackage,
+    StandardRoleLocator, ToolchainRequest, discover,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -357,7 +357,16 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
     .into_iter()
     .map(|(role, path, kind, name)| StandardRoleLocator::new(role, module(path), kind, name))
     .collect();
+    let primitives = PrimitiveRole::ALL
+        .iter()
+        .copied()
+        .map(|role| {
+            let (path, name) = nocter_target_program::primitive_source_location(role);
+            PrimitiveRoleLocator::new(role, module(path), NodeKind::PrimitiveDeclaration, name)
+        })
+        .collect();
     ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)
+        .with_primitive_roles(primitives)
 }
 
 fn module_root_paths(root: &Path) -> Vec<Vec<Box<str>>> {

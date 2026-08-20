@@ -177,13 +177,22 @@ references instead of being rejected as ordinary duplicate generic parameters.
 
 The selected toolchain is part of the discovery request and the immutable compile input. It names
 one exact standard package, prelude module, set of built-in attachment modules, and set of standard
-semantic declaration roles. Discovery loads every selected module and resolves each role locator
-to one declaration-name token before semantic lowering. Lowering records standard package and
-built-in authority from those identities; checking resolves standard semantic declarations through
-the same source-index tokens. No later stage may recover toolchain authority from a package name,
-module path, declaration spelling, or opportunistic presence in the source graph. The complete
-authored standard source graph now passes declaration lowering and body checking through this
-boundary as one qualification case.
+semantic declaration roles, and closed primitive roles. Discovery loads every selected module and
+resolves each role locator to one declaration-name token before semantic lowering. Lowering records
+standard package and built-in authority from those identities; checking resolves standard semantic
+declarations through the same source-index tokens. Target setup resolves primitive tokens through
+that index into a canonical registry. No later stage may recover toolchain authority from a package
+name, module path, declaration spelling, or opportunistic presence in the source graph. The
+complete authored standard source graph now passes declaration lowering and body checking through
+this boundary as one qualification case.
+
+`nocter-session` owns the only production transition from a syntax-clean discovery snapshot to a
+target-validated semantic program. It invokes the declaration facade, checking preparation and
+body boundary, exact primitive registry resolution, target capability selection, and
+`TargetProgram` validation in one fixed ownership chain. Lower stages remain independently
+testable, but a command must not publish success from one of those partial boundaries. A completed
+session retains the `TargetProgram` and `SourceIndex` as separate immutable values; source
+projection never enters target semantic identity.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by

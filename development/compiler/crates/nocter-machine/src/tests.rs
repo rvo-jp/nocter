@@ -1695,12 +1695,13 @@ fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveReg
                     .iter()
                     .map(|segment| graph.symbols().spelling(*segment))
                     .collect::<Option<Vec<_>>>()?;
+                let (module, name) = nocter_target_program::primitive_source_location(role);
                 (declaration.kind() == CallableKind::Primitive
-                    && actual_path == role.module_path()
+                    && actual_path == module
                     && declaration
                         .name()
                         .and_then(|name| graph.symbols().spelling(name))
-                        == Some(role.declaration_name()))
+                        == Some(name))
                 .then_some(callable)
             })
             .unwrap_or_else(|| panic!("missing fixture primitive {role:?}"));

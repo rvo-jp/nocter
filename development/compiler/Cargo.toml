@@ -12,6 +12,7 @@ members = [
     "crates/nocter-macho",
     "crates/nocter-model",
     "crates/nocter-mir",
+    "crates/nocter-session",
     "crates/nocter-source",
     "crates/nocter-source-index",
     "crates/nocter-syntax",

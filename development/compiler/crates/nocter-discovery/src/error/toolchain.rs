@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
 use nocter_syntax::NodeKind;
 
 /// A toolchain-profile failure selected before semantic lowering.
@@ -10,6 +10,7 @@ pub enum ToolchainDiscoveryError {
     ModuleOutsideStandardPackage(ModuleIdentity),
     DuplicateBuiltinAttachment(BuiltinAttachment),
     DuplicateStandardRole(StandardDeclarationRole),
+    DuplicatePrimitiveRole(PrimitiveRole),
     MissingRoleDeclaration {
         role: StandardDeclarationRole,
         module: ModuleIdentity,
@@ -20,6 +21,16 @@ pub enum ToolchainDiscoveryError {
         role: StandardDeclarationRole,
         module: ModuleIdentity,
         kind: NodeKind,
+        name: Box<str>,
+    },
+    MissingPrimitiveDeclaration {
+        role: PrimitiveRole,
+        module: ModuleIdentity,
+        name: Box<str>,
+    },
+    AmbiguousPrimitiveDeclaration {
+        role: PrimitiveRole,
+        module: ModuleIdentity,
         name: Box<str>,
     },
 }
@@ -43,6 +54,9 @@ impl fmt::Display for ToolchainDiscoveryError {
                     "toolchain repeats {role:?} standard semantic role"
                 )
             }
+            Self::DuplicatePrimitiveRole(role) => {
+                write!(formatter, "toolchain repeats {role:?} primitive role")
+            }
             Self::MissingRoleDeclaration {
                 role,
                 module,
@@ -60,6 +74,14 @@ impl fmt::Display for ToolchainDiscoveryError {
             } => write!(
                 formatter,
                 "toolchain role {role:?} matches multiple {kind:?} declarations named {name:?} in {module:?}"
+            ),
+            Self::MissingPrimitiveDeclaration { role, module, name } => write!(
+                formatter,
+                "toolchain primitive {role:?} cannot find primitive {name:?} in {module:?}"
+            ),
+            Self::AmbiguousPrimitiveDeclaration { role, module, name } => write!(
+                formatter,
+                "toolchain primitive {role:?} matches multiple primitive declarations named {name:?} in {module:?}"
             ),
         }
     }

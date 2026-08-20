@@ -14,12 +14,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Introduce one production compile-session facade that consumes a syntax-clean discovery snapshot
-   and owns declaration lowering, checking, target-program validation, and optional executable-root
-   selection without exposing partially assembled stage inputs. Add single-file discovery through
-   that same session, then qualify every public example through it. Primitive registry selection
-   must join this exact toolchain identity path rather than reopen standard module or declaration
-   names in target construction.
+1. Add single-file discovery as an explicit layout alongside declared-package discovery, then pass
+   every public example through the same `nocter-session` target boundary. The session now owns
+   declaration lowering, checking, exact primitive-role resolution, toolchain selection, and target
+   validation; the next command layer must consume this boundary rather than assemble stages.
+   After example qualification, add executable-root selection and command request/result types.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

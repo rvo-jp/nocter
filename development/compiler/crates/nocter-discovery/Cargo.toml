@@ -17,6 +17,7 @@ nocter-target-selection = { path = "../nocter-target-selection" }
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-target-program = { path = "../nocter-target-program" }
 
 [lints]
 workspace = true

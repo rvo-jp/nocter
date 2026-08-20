@@ -1,5 +1,5 @@
 [package]
-name = "nocter-target-program"
+name = "nocter-session"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -9,13 +9,15 @@ publish = false
 [dependencies]
 nocter-checking = { path = "../nocter-checking" }
 nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
-nocter-model = { path = "../nocter-model" }
+nocter-discovery = { path = "../nocter-discovery" }
 nocter-source-index = { path = "../nocter-source-index" }
+nocter-syntax = { path = "../nocter-syntax" }
+nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]
-nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
-nocter-test-support = { path = "../nocter-test-support" }
+nocter-model = { path = "../nocter-model" }
 
 [lints]
 workspace = true

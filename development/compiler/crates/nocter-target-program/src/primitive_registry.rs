@@ -1,165 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_model::{CallableId, CompilationTarget};
-
-/// One compiler-owned primitive contract in canonical registry order.
-///
-/// The enum is deliberately closed. Discovery may attach a semantic callable to a role, but it
-/// cannot add a backend operation or turn an arbitrary standard-library spelling into one.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum PrimitiveRole {
-    NewError,
-    CurrentAllocatorState,
-    CurrentAllocatorKind,
-    AllocationAbort,
-    PointerAddress,
-    PointerFromReference,
-    PointerFromReadWriteReference,
-    PointerFromAddress,
-    PointeeSize,
-    PointeeAlignment,
-    CopyStringToPointer,
-    CopyPointerToPointer,
-    StoreByteToPointer,
-    StoreValueToPointer,
-    DropValueAtPointer,
-    TakeValueAtPointer,
-    StringFromRawParts,
-    ByteSliceFromRawParts,
-    MutableByteSliceFromRawParts,
-    ValueSliceFromRawParts,
-    MutableValueSliceFromRawParts,
-    BytesFromString,
-    StringSubviewUnchecked,
-    SliceLength,
-    SlicePointerAddress,
-    StringLength,
-    StringPointerAddress,
-    ProcessExit,
-    ProcessArgumentCount,
-    ProcessArgument,
-    ProcessEnvironmentCount,
-    ProcessEnvironmentName,
-    ProcessEnvironmentValue,
-    Syscall0,
-    Syscall1,
-    Syscall2,
-    Syscall3,
-    Syscall4,
-    Syscall5,
-    Syscall6,
-    Trap,
-    Unreachable,
-}
-
-impl PrimitiveRole {
-    pub const ALL: &'static [Self] = &[
-        Self::NewError,
-        Self::CurrentAllocatorState,
-        Self::CurrentAllocatorKind,
-        Self::AllocationAbort,
-        Self::PointerAddress,
-        Self::PointerFromReference,
-        Self::PointerFromReadWriteReference,
-        Self::PointerFromAddress,
-        Self::PointeeSize,
-        Self::PointeeAlignment,
-        Self::CopyStringToPointer,
-        Self::CopyPointerToPointer,
-        Self::StoreByteToPointer,
-        Self::StoreValueToPointer,
-        Self::DropValueAtPointer,
-        Self::TakeValueAtPointer,
-        Self::StringFromRawParts,
-        Self::ByteSliceFromRawParts,
-        Self::MutableByteSliceFromRawParts,
-        Self::ValueSliceFromRawParts,
-        Self::MutableValueSliceFromRawParts,
-        Self::BytesFromString,
-        Self::StringSubviewUnchecked,
-        Self::SliceLength,
-        Self::SlicePointerAddress,
-        Self::StringLength,
-        Self::StringPointerAddress,
-        Self::ProcessExit,
-        Self::ProcessArgumentCount,
-        Self::ProcessArgument,
-        Self::ProcessEnvironmentCount,
-        Self::ProcessEnvironmentName,
-        Self::ProcessEnvironmentValue,
-        Self::Syscall0,
-        Self::Syscall1,
-        Self::Syscall2,
-        Self::Syscall3,
-        Self::Syscall4,
-        Self::Syscall5,
-        Self::Syscall6,
-        Self::Trap,
-        Self::Unreachable,
-    ];
-
-    /// Returns the target gate required by this registry role.
-    #[must_use]
-    pub const fn target(self) -> Option<CompilationTarget> {
-        match self {
-            Self::ProcessExit
-            | Self::ProcessArgumentCount
-            | Self::ProcessArgument
-            | Self::ProcessEnvironmentCount
-            | Self::ProcessEnvironmentName
-            | Self::ProcessEnvironmentValue
-            | Self::Syscall0
-            | Self::Syscall1
-            | Self::Syscall2
-            | Self::Syscall3
-            | Self::Syscall4
-            | Self::Syscall5
-            | Self::Syscall6
-            | Self::Trap
-            | Self::Unreachable => Some(CompilationTarget::Arm64Darwin),
-            Self::NewError
-            | Self::CurrentAllocatorState
-            | Self::CurrentAllocatorKind
-            | Self::AllocationAbort
-            | Self::PointerAddress
-            | Self::PointerFromReference
-            | Self::PointerFromReadWriteReference
-            | Self::PointerFromAddress
-            | Self::PointeeSize
-            | Self::PointeeAlignment
-            | Self::CopyStringToPointer
-            | Self::CopyPointerToPointer
-            | Self::StoreByteToPointer
-            | Self::StoreValueToPointer
-            | Self::DropValueAtPointer
-            | Self::TakeValueAtPointer
-            | Self::StringFromRawParts
-            | Self::ByteSliceFromRawParts
-            | Self::MutableByteSliceFromRawParts
-            | Self::ValueSliceFromRawParts
-            | Self::MutableValueSliceFromRawParts
-            | Self::BytesFromString
-            | Self::StringSubviewUnchecked
-            | Self::SliceLength
-            | Self::SlicePointerAddress
-            | Self::StringLength
-            | Self::StringPointerAddress => None,
-        }
-    }
-
-    /// Returns the canonical standard-package module path owned by this role.
-    #[must_use]
-    pub fn module_path(self) -> &'static [&'static str] {
-        crate::primitive_contracts::primitive_location(self).0
-    }
-
-    /// Returns the canonical declaration name owned by this role.
-    #[must_use]
-    pub fn declaration_name(self) -> &'static str {
-        crate::primitive_contracts::primitive_location(self).1
-    }
-}
+use nocter_compile_input::PrimitiveRoleInput;
+pub use nocter_declarations::PrimitiveRole;
+use nocter_model::CallableId;
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin};
 
 /// The exact semantic declaration attached to one compiler-owned primitive role.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -192,6 +37,24 @@ pub struct PrimitiveRegistry {
 }
 
 impl PrimitiveRegistry {
+    /// Resolves exact discovery-selected declaration tokens into a complete primitive registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an exact-resolution error when a token has no unique callable declaration binding,
+    /// or a registry error when roles or callable identities are duplicated or incomplete.
+    pub fn resolve(
+        inputs: &[PrimitiveRoleInput],
+        source_index: &SourceIndex,
+    ) -> Result<Self, PrimitiveResolutionError> {
+        let bindings = inputs
+            .iter()
+            .copied()
+            .map(|input| resolve_binding(input, source_index))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::new(bindings).map_err(PrimitiveResolutionError::Registry)
+    }
+
     /// Freezes a complete registry in canonical role order.
     ///
     /// # Errors
@@ -240,6 +103,74 @@ impl PrimitiveRegistry {
             .iter()
             .find(|binding| binding.callable() == callable)
             .map(|binding| binding.role())
+    }
+}
+
+fn resolve_binding(
+    input: PrimitiveRoleInput,
+    source_index: &SourceIndex,
+) -> Result<PrimitiveBinding, PrimitiveResolutionError> {
+    let token = input.declaration();
+    let mut matches = source_index
+        .bindings_at(token.source(), token.range().start())
+        .filter(|binding| {
+            binding.role() == SourceRole::Declaration
+                && binding.origin().syntax() == SyntaxOrigin::Token(token)
+        })
+        .map(|binding| binding.entity());
+    let Some(entity) = matches.next() else {
+        return Err(PrimitiveResolutionError::MissingDeclaration(input.role()));
+    };
+    if matches.next().is_some() {
+        return Err(PrimitiveResolutionError::AmbiguousDeclaration(input.role()));
+    }
+    let SemanticEntity::Callable(callable) = entity else {
+        return Err(PrimitiveResolutionError::NotCallable(input.role()));
+    };
+    Ok(PrimitiveBinding::new(input.role(), callable))
+}
+
+/// Failure to turn exact primitive source identities into one canonical registry.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PrimitiveResolutionError {
+    MissingDeclaration(PrimitiveRole),
+    AmbiguousDeclaration(PrimitiveRole),
+    NotCallable(PrimitiveRole),
+    Registry(PrimitiveBindingError),
+}
+
+impl fmt::Display for PrimitiveResolutionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingDeclaration(role) => {
+                write!(
+                    formatter,
+                    "primitive role {role:?} has no declaration binding"
+                )
+            }
+            Self::AmbiguousDeclaration(role) => write!(
+                formatter,
+                "primitive role {role:?} has multiple declaration bindings"
+            ),
+            Self::NotCallable(role) => {
+                write!(
+                    formatter,
+                    "primitive role {role:?} does not select a callable"
+                )
+            }
+            Self::Registry(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for PrimitiveResolutionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Registry(error) => Some(error),
+            Self::MissingDeclaration(_) | Self::AmbiguousDeclaration(_) | Self::NotCallable(_) => {
+                None
+            }
+        }
     }
 }
 

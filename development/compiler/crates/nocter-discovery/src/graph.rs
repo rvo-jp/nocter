@@ -4,8 +4,8 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageIdentity, StandardRoleInput, ToolchainInput,
-    UseResolutionInput, UseTargetInput,
+    ModuleIdentity, ModuleSourceKind, PackageIdentity, PrimitiveRoleInput, StandardRoleInput,
+    ToolchainInput, UseResolutionInput, UseTargetInput,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
@@ -13,7 +13,9 @@ use nocter_target_selection::TargetSelection;
 
 use crate::DiscoveryError;
 use crate::error::{ImportFailure, ToolchainDiscoveryError};
-use crate::request::{DiscoveryRequest, ResolvedPackage, StandardRoleLocator, ToolchainRequest};
+use crate::request::{
+    DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator, ToolchainRequest,
+};
 use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
 use crate::syntax::active_use_paths;
 
@@ -175,50 +177,35 @@ impl Builder {
             .iter()
             .map(|locator| self.resolve_standard_role(locator))
             .collect::<Result<_, _>>()?;
+        let mut primitive_locators = self.toolchain.primitive_roles().to_vec();
+        primitive_locators.sort_unstable_by_key(PrimitiveRoleLocator::role);
+        let primitives = primitive_locators
+            .iter()
+            .map(|locator| self.resolve_primitive_role(locator))
+            .collect::<Result<_, _>>()?;
         Ok(ToolchainInput::new(
             self.toolchain.standard_package().clone(),
             self.toolchain.prelude().clone(),
             attachments,
             roles,
-        ))
+        )
+        .with_primitive_roles(primitives))
     }
 
     fn resolve_standard_role(
         &self,
         locator: &StandardRoleLocator,
     ) -> Result<StandardRoleInput, DiscoveryError> {
-        let module = self.modules.get(locator.module()).ok_or_else(|| {
-            DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
-                role: locator.role(),
-                module: locator.module().clone(),
-                kind: locator.kind(),
-                name: locator.name().into(),
-            })
-        })?;
-        let mut matches = Vec::new();
-        for source in module {
-            let tree = &self.syntax[source.syntax_index()];
-            let mut pending = vec![tree.root_id()];
-            while let Some(node) = pending.pop() {
-                if tree
-                    .node(node)
-                    .is_some_and(|syntax| syntax.kind() == locator.kind())
-                    && let Some(token) = declaration_name_token(tree, node)
-                    && self
-                        .sources
-                        .get(token.source())
-                        .and_then(|source| source.text_at(token.range()))
-                        == Some(locator.name())
-                {
-                    matches.push(token);
-                }
-                for child in tree.children(node).iter().rev() {
-                    if let SyntaxElement::Node(child) = child {
-                        pending.push(*child);
-                    }
-                }
-            }
-        }
+        let matches = self
+            .declaration_matches(locator.module(), locator.kind(), locator.name())
+            .ok_or_else(|| {
+                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    kind: locator.kind(),
+                    name: locator.name().into(),
+                })
+            })?;
         match matches.as_slice() {
             [token] => Ok(StandardRoleInput::new(locator.role(), *token)),
             [] => Err(DiscoveryError::Toolchain(
@@ -238,6 +225,74 @@ impl Builder {
                 },
             )),
         }
+    }
+
+    fn resolve_primitive_role(
+        &self,
+        locator: &PrimitiveRoleLocator,
+    ) -> Result<PrimitiveRoleInput, DiscoveryError> {
+        let matches = self
+            .declaration_matches(
+                locator.module(),
+                nocter_syntax::NodeKind::PrimitiveDeclaration,
+                locator.name(),
+            )
+            .ok_or_else(|| {
+                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingPrimitiveDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                })
+            })?;
+        match matches.as_slice() {
+            [token] => Ok(PrimitiveRoleInput::new(locator.role(), *token)),
+            [] => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::MissingPrimitiveDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                },
+            )),
+            _ => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::AmbiguousPrimitiveDeclaration {
+                    role: locator.role(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                },
+            )),
+        }
+    }
+
+    fn declaration_matches(
+        &self,
+        module: &ModuleIdentity,
+        kind: nocter_syntax::NodeKind,
+        name: &str,
+    ) -> Option<Vec<nocter_syntax::SyntaxToken>> {
+        let module = self.modules.get(module)?;
+        let mut matches = Vec::new();
+        for source in module {
+            let tree = &self.syntax[source.syntax_index()];
+            let mut pending = vec![tree.root_id()];
+            while let Some(node) = pending.pop() {
+                if tree.node(node).is_some_and(|syntax| syntax.kind() == kind)
+                    && let Some(token) = declaration_name_token(tree, node)
+                    && self
+                        .sources
+                        .get(token.source())
+                        .and_then(|source| source.text_at(token.range()))
+                        == Some(name)
+                {
+                    matches.push(token);
+                }
+                for child in tree.children(node).iter().rev() {
+                    if let SyntaxElement::Node(child) = child {
+                        pending.push(*child);
+                    }
+                }
+            }
+        }
+        Some(matches)
     }
 
     fn load_module(&mut self, module: ModuleIdentity) -> Result<(), DiscoveryError> {
@@ -703,6 +758,15 @@ fn validate_toolchain(
             ));
         }
     }
+    let mut primitive_kinds = BTreeSet::new();
+    for role in toolchain.primitive_roles() {
+        validate_toolchain_module(toolchain, role.module())?;
+        if !primitive_kinds.insert(role.role()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicatePrimitiveRole(role.role()),
+            ));
+        }
+    }
     validate_toolchain_module(toolchain, toolchain.prelude())
 }
 
@@ -731,6 +795,12 @@ fn initial_work(
     pending.extend(
         toolchain
             .standard_roles()
+            .iter()
+            .map(|role| Work::Module(role.module().clone())),
+    );
+    pending.extend(
+        toolchain
+            .primitive_roles()
             .iter()
             .map(|role| Work::Module(role.module().clone())),
     );

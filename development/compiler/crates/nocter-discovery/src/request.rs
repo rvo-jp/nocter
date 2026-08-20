@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
-use nocter_declarations::StandardDeclarationRole;
+use nocter_declarations::{PrimitiveRole, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
 use nocter_syntax::NodeKind;
 
@@ -24,6 +24,52 @@ pub struct StandardRoleLocator {
     module: ModuleIdentity,
     kind: NodeKind,
     name: Box<str>,
+}
+
+/// One primitive role and the exact declaration shape selected by the compiler toolchain.
+#[derive(Clone, Debug)]
+pub struct PrimitiveRoleLocator {
+    role: PrimitiveRole,
+    module: ModuleIdentity,
+    kind: NodeKind,
+    name: Box<str>,
+}
+
+impl PrimitiveRoleLocator {
+    #[must_use]
+    pub fn new(
+        role: PrimitiveRole,
+        module: ModuleIdentity,
+        kind: NodeKind,
+        name: impl Into<Box<str>>,
+    ) -> Self {
+        Self {
+            role,
+            module,
+            kind,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> PrimitiveRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> NodeKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl StandardRoleLocator {
@@ -70,6 +116,7 @@ pub struct ToolchainRequest {
     prelude: ModuleIdentity,
     builtin_attachments: Vec<BuiltinAttachmentInput>,
     standard_roles: Vec<StandardRoleLocator>,
+    primitive_roles: Vec<PrimitiveRoleLocator>,
 }
 
 impl ToolchainRequest {
@@ -85,6 +132,7 @@ impl ToolchainRequest {
             prelude,
             builtin_attachments,
             standard_roles,
+            primitive_roles: Vec::new(),
         }
     }
 
@@ -106,6 +154,17 @@ impl ToolchainRequest {
     #[must_use]
     pub fn standard_roles(&self) -> &[StandardRoleLocator] {
         &self.standard_roles
+    }
+
+    #[must_use]
+    pub fn primitive_roles(&self) -> &[PrimitiveRoleLocator] {
+        &self.primitive_roles
+    }
+
+    #[must_use]
+    pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleLocator>) -> Self {
+        self.primitive_roles = roles;
+        self
     }
 }
 

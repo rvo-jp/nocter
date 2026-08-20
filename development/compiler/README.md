@@ -166,8 +166,8 @@ be introduced to make an unresolved syntax choice.
 - `nocter-compile-input` owns the neutral immutable handoff from physical discovery to semantic
   lowering. It carries canonical package/module/source topology, selected import and package-target
   edges, and one exact toolchain profile. That profile names the standard package, prelude,
-  built-in attachment modules, and standard semantic declaration tokens without assigning dense
-  semantic IDs or retaining filesystem policy.
+  built-in attachment modules, standard semantic declaration tokens, and primitive declaration
+  tokens without assigning dense semantic IDs or retaining filesystem policy.
 - `nocter-target-selection` owns target-gate decoding and activity. Discovery and declaration
   surface construction consume the same prepared decisions; inactive imports and declarations do
   not probe the filesystem or acquire semantic identity.
@@ -175,8 +175,10 @@ be introduced to make an unresolved syntax choice.
   package roots, loads package and module roots, closes implementation-source and dependency edges,
   rejects ownership escapes and source/module ambiguity, and freezes deterministic compile input.
   It also loads every exact toolchain module and resolves each standard semantic role locator to one
-  declaration token before lowering. A syntax-clean complete `development/std` graph passes full
-  declaration and checked-body construction through this boundary.
+  declaration token before lowering. Primitive roles enter the same path and become exact callable
+  identities through `SourceIndex`, never a checked-graph name search. A syntax-clean complete
+  `development/std` graph passes full declaration and checked-body construction through this
+  boundary.
 - `nocter-checking` owns the Phase 3 syntax boundary. It catalogs every declaration `BodyId` from
   its exact source projection and resolves body scopes, locals, block imports, and explicit closure
   captures without creating a second module namespace. Its program-wide conformance table applies
@@ -323,6 +325,12 @@ be introduced to make an unresolved syntax choice.
   never infers operand ownership from step order. Enum residual cleanup keeps its active variant
   and still-initialized payload set, so it cannot repeat a pre-transfer owner drop or destroy a
   moved payload. No unresolved requirement or source name reaches MIR.
+- `nocter-session` owns the production stage order from one syntax-clean `DiscoveredUnit` to a
+  target-validated program. It consumes declaration lowering, checking, exact primitive registry
+  resolution, target capability selection, and `TargetProgram` construction without exposing a
+  mutable partial pipeline. Its result keeps target semantics and source projection as independent
+  immutable values. Command and editor layers consume this boundary instead of assembling lower
+  crates directly.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

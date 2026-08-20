@@ -44,9 +44,11 @@ pub use executable::{
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 pub use primitive_contracts::{
     PrimitiveContractError, PrimitiveContractRule, PrimitiveRegistryValidationError,
+    primitive_source_location,
 };
 pub use primitive_registry::{
-    PrimitiveBinding, PrimitiveBindingError, PrimitiveRegistry, PrimitiveRole,
+    PrimitiveBinding, PrimitiveBindingError, PrimitiveRegistry, PrimitiveResolutionError,
+    PrimitiveRole,
 };
 pub use program::{TargetProgram, TargetProgramError};
 pub use snapshot::ToolchainSnapshot;
