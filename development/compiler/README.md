@@ -452,6 +452,10 @@ be introduced to make an unresolved syntax choice.
   uninitialized process state; stack-copy materialization rejects overlapping ranges explicitly.
   One selected address plan normalizes static frame paths and runtime pointer/view paths. Place
   access and structural index borrows share its unsigned bounds and layout-owned stride evaluator.
+  Memory-transfer roles use a separate selector and materializer over the same instruction schema.
+  One machine-owned stored-value classifier drives both ABI planning and generic primitive
+  validation. Runtime-sized copies use a zero-safe byte loop; indexed byte storage and generic
+  `store/take<T>` reuse exact direct-lane loads/stores or fixed-size indirect copies.
 - `nocter-macho` consumes only a completed `Arm64Program`. It assigns the `__TEXT`, `__const`, and
   `__LINKEDIT` file and virtual ranges, resolves section-address-dependent data pairs, writes the
   native entry and dyld/libSystem load commands, derives a content-stable UUID, and emits its own
@@ -461,7 +465,7 @@ be introduced to make an unresolved syntax choice.
   image boundary. It compiles constants, scalar calls and arithmetic, control, structural
   comparisons, narrow signed values, value-producing block joins, static text, two-word view calls,
   direct and memory-backed aggregates, dynamic fixed-array places, fixed/view index borrows, and
-  pure pointer/view primitives
+  pure pointer/view primitives and runtime-sized or generic memory transfers
   from source, emits signed Mach-O images, and executes them on ARM64 macOS. A nine-view call also
   crosses the register-window boundary into outgoing stack transport. The constant case proves
   byte-for-byte output determinism.

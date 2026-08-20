@@ -93,11 +93,10 @@ fn emit_instruction(
         Arm64SelectedInstruction::ZeroStack { destination, bytes } => {
             crate::memory_code::emit_stack_zero(function, destination, bytes, code)
         }
-        Arm64SelectedInstruction::CopyMemoryNonOverlapping {
-            destination,
-            source,
-            bytes,
-        } => crate::memory_code::emit_memory_copy(function, destination, source, bytes, code),
+        Arm64SelectedInstruction::CopyMemoryNonOverlapping { .. }
+        | Arm64SelectedInstruction::CopyMemoryNonOverlappingDynamic { .. } => {
+            crate::memory_code::emit_selected_copy(function, instruction, code)
+        }
         Arm64SelectedInstruction::ResolveAddress(address) => {
             emit_resolved_address(function, address, code)
         }

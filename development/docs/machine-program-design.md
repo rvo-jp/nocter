@@ -323,6 +323,13 @@ and replace the length without reopening source types. Pointee size and alignmen
 from `MachineLayoutStore`; the layout closure therefore includes concrete primitive type arguments
 even when a pointee never appears as a by-value MIR value.
 
+Memory transfer roles retain the same boundary. One machine-owned classifier determines zero,
+direct, or indirect transport from the completed layout and selected target. Runtime-sized string
+and pointer copies lower to a zero-safe forward byte loop. Indexed byte stores and generic
+`store/take<T>` first form the runtime base, then reuse the existing exact-width lane operations or
+the fixed-size indirect copy path. Target selection therefore does not repeat the ABI's direct-size
+limit, invent generic value registers, or widen partial lanes.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -339,6 +346,8 @@ Dynamic fixed-array place loads/stores and structural indexing over a borrowed f
 `&str` view exercise the shared checked address evaluator.
 Pointer identity, pointee byte layout, raw string subviews, and slice/string view observations cross
 their ordinary primitive ABI and execute natively as one combined conformance case.
+Runtime string/pointer copies, indexed byte storage, a 24-byte generic store, and direct/indirect
+generic takes likewise cross source, machine ABI, native selection, and Mach-O execution.
 The constant case also checks byte-for-byte determinism.
 
 The separate `nocter-macho` crate receives only a completed `Arm64Program`. It owns the page-zero,
@@ -410,6 +419,7 @@ deterministically initialized padding. Checked projected/dynamic memory and stru
 index borrows share one selected address evaluator. Direct and indirect callable transport are
 complete, including caller-owned large results, callee-owned large parameters, nested calls, and
 stack arguments after the register window closes. Root/incoming/explicit allocation-context
-transport, current-context reads, and pure pointer/view primitives are complete. Memory-valued
-block parameters, memory-mutating and system primitives, lexical region representation and
-cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.
+transport, current-context reads, pure pointer/view primitives, and byte/value transfer primitives
+are complete. Memory-valued block parameters, concrete pointer destruction, system primitives,
+lexical region representation and cleanup, pack callbacks, and test roots remain Phase 5
+implementation areas.

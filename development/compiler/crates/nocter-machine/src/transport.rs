@@ -15,6 +15,23 @@ pub enum MachineValueClass {
     Indirect,
 }
 
+impl MachineValueClass {
+    /// Classifies one completed stored layout under the selected machine ABI.
+    #[must_use]
+    pub fn for_layout(layout: &MachineLayout, target: MachineTarget) -> Self {
+        if layout.size() == 0 {
+            Self::Zero
+        } else {
+            let words = layout.size().div_ceil(target.word_size());
+            if words <= u64::from(target.direct_value_word_limit()) {
+                u8::try_from(words).map_or(Self::Indirect, |words| Self::Direct { words })
+            } else {
+                Self::Indirect
+            }
+        }
+    }
+}
+
 /// A consecutive range of integer registers in the selected ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineRegisterSpan {
@@ -294,7 +311,7 @@ pub(crate) fn plan_signature(
             return Err(MachineAbiError::CompletionArgument(ty));
         }
         let layout = require_layout(types, layouts, ty)?;
-        let class = classify(layout, target);
+        let class = MachineValueClass::for_layout(layout, target);
         let transport_words = match class {
             MachineValueClass::Zero => 0,
             MachineValueClass::Direct { words } => words,
@@ -352,7 +369,7 @@ fn plan_result(
         Some(TypeKind::Builtin(BuiltinType::Never)) => Ok(MachineResultAbi::Diverging),
         Some(_) => {
             let target = layouts.target();
-            let class = classify(require_layout(types, layouts, ty)?, target);
+            let class = MachineValueClass::for_layout(require_layout(types, layouts, ty)?, target);
             let location = match class {
                 MachineValueClass::Zero => MachineResultLocation::Omitted,
                 MachineValueClass::Direct { words } => {
@@ -372,21 +389,6 @@ fn plan_result(
             }))
         }
         None => Err(MachineAbiError::UnknownType(ty)),
-    }
-}
-
-fn classify(layout: &MachineLayout, target: MachineTarget) -> MachineValueClass {
-    if layout.size() == 0 {
-        MachineValueClass::Zero
-    } else {
-        let words = layout.size().div_ceil(target.word_size());
-        if words <= u64::from(target.direct_value_word_limit()) {
-            MachineValueClass::Direct {
-                words: u8::try_from(words).expect("direct word count is bounded by the target"),
-            }
-        } else {
-            MachineValueClass::Indirect
-        }
     }
 }
 

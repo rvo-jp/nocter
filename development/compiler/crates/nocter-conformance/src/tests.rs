@@ -253,6 +253,79 @@ fn pointer_and_view_primitives_cross_the_native_pipeline() {
 }
 
 #[test]
+fn memory_transfer_primitives_cross_the_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/ptr.{\n\
+             copy_ptr_to_ptr_for_test, copy_str_to_ptr_for_test, from_ref, from_ref_mut,\n\
+             store_u8_to_ptr_for_test, store_value_to_ptr_for_test,\n\
+             take_three_u64_at_ptr_for_test, take_u64_at_ptr_for_test,\n\
+         }\n\
+         struct Bytes {\n\
+             a: u8\n\
+             b: u8\n\
+             c: u8\n\
+             d: u8\n\
+             e: u8\n\
+         }\n\
+         struct Large {\n\
+             first: u64\n\
+             second: u64\n\
+             third: u64\n\
+         }\n\
+         struct LargePair {\n\
+             first: Large\n\
+             second: Large\n\
+         }\n\
+         func main(): i32 {\n\
+             var bytes = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
+             copy_str_to_ptr_for_test(from_ref_mut(&+bytes.a), 0, \"hello\")\n\
+             var copied = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
+             copy_ptr_to_ptr_for_test(\n\
+                 from_ref_mut(&+copied.a),\n\
+                 from_ref(&bytes.a),\n\
+                 5,\n\
+             )\n\
+             store_u8_to_ptr_for_test(from_ref_mut(&+copied.a), 1, 97)\n\
+             var pair = LargePair {\n\
+                 first: Large { first: 10, second: 20, third: 30 },\n\
+                 second: Large { first: 0, second: 0, third: 0 },\n\
+             }\n\
+             let replacement = Large { first: 40, second: 41, third: 42 }\n\
+             let large_pointer = from_ref_mut(&+pair.first)\n\
+             store_value_to_ptr_for_test(large_pointer, 24, move replacement)\n\
+             let recovered = take_u64_at_ptr_for_test(from_ref(&pair.second.third), 0)\n\
+             var arrays: [[u64; 3]; 2] = [[1, 2, 3], [40, 41, 42]]\n\
+             let recovered_array = take_three_u64_at_ptr_for_test(\n\
+                 from_ref_mut(&+arrays[0]),\n\
+                 24,\n\
+             )\n\
+             if bytes.a == 104 {\n\
+                 if bytes.e == 111 {\n\
+                     if copied.a == 104 {\n\
+                         if copied.b == 97 {\n\
+                             if copied.e == 111 {\n\
+                                 if recovered == 42 {\n\
+                                     if recovered_array[2] == 42 {\n\
+                                         return 42\n\
+                                     }\n\
+                                 }\n\
+                             }\n\
+                         }\n\
+                     }\n\
+                 }\n\
+             }\n\
+             return 1\n\
+         }\n",
+        &[&["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\

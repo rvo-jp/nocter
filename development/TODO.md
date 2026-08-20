@@ -11,9 +11,9 @@ implementation input.
 
 ## Immediate Work
 
-1. Expand closed primitive-role lowering from the completed allocation-context and pure
-   pointer/view operations to memory mutation, process, syscall, I/O, error, and abort operations
-   without name-based dispatch or private call conventions.
+1. Expand closed primitive-role lowering from the completed allocation-context, pure pointer/view,
+   and byte/value transfer operations to destruction, process, syscall, I/O, error, and abort
+   operations without name-based dispatch or private call conventions.
 2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
    region creation/release, drop operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
@@ -125,6 +125,14 @@ pointer adjustment. Pointee size/alignment use the completed machine layout rath
 arithmetic; primitive-only generic type arguments are included in the recursive layout closure.
 The compiler-owned `bytes_from_str` contract now records its exact input origin. Native
 conformance proves pointer identity, byte layout, string subviews, and slice/string observations.
+
+Memory transfer primitives now reuse one machine-owned value classifier and the ordinary ABI
+plan. Runtime-sized pointer copies use one zero-safe forward loop; byte stores and generic
+`store/take<T>` compose dynamic base formation with existing exact lane loads/stores or indirect
+memory copies. No primitive duplicates the target's direct/indirect size boundary. Native
+conformance crosses string and pointer copies, indexed byte stores, a 24-byte indirect store, and
+both direct and indirect generic takes. `drop_value_at_ptr<T>` remains coupled to the pending
+concrete destruction authority rather than being misimplemented as a byte operation.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

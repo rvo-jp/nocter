@@ -22,6 +22,8 @@ mod memory_code;
 mod memory_selection;
 mod pack_layout;
 mod parallel_copy;
+mod primitive_memory_code;
+mod primitive_memory_selection;
 mod primitive_selection;
 mod program;
 mod register;

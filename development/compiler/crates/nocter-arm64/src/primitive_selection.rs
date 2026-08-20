@@ -30,6 +30,13 @@ pub(crate) fn select(
         PrimitiveRole::PointeeSize | PrimitiveRole::PointeeAlignment => {
             select_pointee_layout(program, operation, target, selected)
         }
+        PrimitiveRole::CopyStringToPointer
+        | PrimitiveRole::CopyPointerToPointer
+        | PrimitiveRole::StoreByteToPointer
+        | PrimitiveRole::StoreValueToPointer
+        | PrimitiveRole::TakeValueAtPointer => {
+            super::primitive_memory_selection::select(program, operation, target, selected)
+        }
         PrimitiveRole::StringFromRawParts
         | PrimitiveRole::ByteSliceFromRawParts
         | PrimitiveRole::MutableByteSliceFromRawParts => {
@@ -153,7 +160,7 @@ fn validate_view_type_arguments(
     validate_type_arguments(operation, target, expected)
 }
 
-fn validate_type_arguments(
+pub(super) fn validate_type_arguments(
     operation: MachineOperationId,
     target: &MachinePrimitiveTarget,
     expected: usize,
@@ -213,7 +220,7 @@ fn validate_register_abi(
     Ok(())
 }
 
-fn fixed_register(index: u8) -> Result<Arm64SelectedRegister, Arm64SelectionError> {
+pub(super) fn fixed_register(index: u8) -> Result<Arm64SelectedRegister, Arm64SelectionError> {
     Arm64NocterAbi::argument_register(index)
         .map(Arm64SelectedRegister::Fixed)
         .ok_or(Arm64SelectionError::RegisterOverflow)

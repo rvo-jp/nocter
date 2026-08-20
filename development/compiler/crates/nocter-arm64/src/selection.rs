@@ -72,6 +72,12 @@ pub enum Arm64SelectedInstruction {
         source: Arm64SelectedMemoryAddress,
         bytes: u64,
     },
+    /// Runtime-sized forward copy between non-overlapping pointer ranges.
+    CopyMemoryNonOverlappingDynamic {
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedRegister,
+        bytes: Arm64SelectedRegister,
+    },
     ResolveAddress(MachineAddressId),
     IndexAddress {
         destination: Arm64SelectedRegister,

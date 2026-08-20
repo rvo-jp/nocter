@@ -68,6 +68,32 @@ pub(/) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 pub(/) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 pub func pointee_size_for_test<T>(pointer: *T): usize { return pointee_size(pointer) }
 pub func pointee_align_for_test<T>(pointer: *T): usize { return pointee_align(pointer) }
+pub func copy_str_to_ptr_for_test(destination: *u8, offset: usize, text: &str): void {
+    copy_str_to_ptr(destination, offset, text)
+    return
+}
+pub func copy_ptr_to_ptr_for_test(destination: *u8, source: *u8, byte_count: usize): void {
+    copy_ptr_to_ptr(destination, source, byte_count)
+    return
+}
+pub func store_u8_to_ptr_for_test(
+    destination: *u8,
+    offset: usize,
+    value: u8,
+): void {
+    store_u8_to_ptr(destination, offset, value)
+    return
+}
+pub func store_value_to_ptr_for_test<T>(destination: *T, offset: usize, value: T): void {
+    store_value_to_ptr(destination, offset, move value)
+    return
+}
+pub func take_u64_at_ptr_for_test(pointer: *u64, offset: usize): u64 {
+    return take_value_at_ptr(pointer, offset)
+}
+pub func take_three_u64_at_ptr_for_test(pointer: *[u64; 3], offset: usize): [u64; 3] {
+    return take_value_at_ptr(pointer, offset)
+}
 ";
 const STRING_SOURCE: &str = "\
 pub(/) primitive bytes_from_str(value: &str): &[u8] from value
