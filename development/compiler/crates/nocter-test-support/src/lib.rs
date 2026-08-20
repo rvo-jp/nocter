@@ -44,6 +44,9 @@ pub(/) primitive allocation_abort_raw(): never
 pub func allocation_context_state_for_test(): usize {
     return current_allocator_state()
 }
+pub func allocation_context_kind_for_test(): usize {
+    return current_allocator_kind()
+}
 ";
 const PTR_SOURCE: &str = "\
 pub primitive addr<T>(pointer: *T): usize

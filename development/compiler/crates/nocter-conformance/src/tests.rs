@@ -191,6 +191,28 @@ fn indirect_aggregate_arguments_cross_the_outgoing_stack_boundary() {
 }
 
 #[test]
+fn allocation_context_crosses_root_and_nested_call_boundaries() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/mem.allocation_context_state_for_test\n\
+         use std/mem.allocation_context_kind_for_test\n\
+         func leaf(): usize {\n\
+             allocation_context_state_for_test() + allocation_context_kind_for_test()\n\
+         }\n\
+         func middle(): usize { leaf() }\n\
+         func main(): i32 {\n\
+             if middle() == 0 { return 42 }\n\
+             return 1\n\
+         }\n",
+        &[&["mem"], &["mem"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn checked_dynamic_places_cross_the_native_pipeline() {
     let machine = lower_machine(
         "func main(): i32 {\n\
@@ -247,6 +269,10 @@ fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) 
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);
+    lower_machine_fixture(&fixture)
+}
+
+fn lower_machine_fixture(fixture: &CompilerFixture) -> MachineProgram {
     let (input, prelude) = fixture.input();
     let lowered = lower_compile_unit_declarations(&input, &prelude).unwrap();
     let (declarations, source_index) = lowered.into_parts();

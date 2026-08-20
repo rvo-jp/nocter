@@ -11,9 +11,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Lower allocation contexts and primitive calls through the completed direct and indirect ABI
-   transport without introducing primitive-specific register conventions.
-2. Lower drop/region operations, checked indexing, literal packs,
+1. Expand closed primitive-role lowering from current allocation-context reads to pointer/view,
+   process, syscall, I/O, error, and abort operations without name-based dispatch or private call
+   conventions.
+2. Finalize the non-movable runtime representation of lexical allocation contexts, then lower
+   region creation/release, drop operations, checked indexing, literal packs,
    and generated pack callbacks without retaining a machine-operation fallback in selected code.
 3. Expand the native conformance crate from the deterministic constant-process case to control,
    calls, memory, outcomes, ownership cleanup, allocation, literals, and test-root execution.
@@ -107,6 +109,14 @@ caller-provided result object. A returning callee saves the dedicated result poi
 nested call. Register inputs are persisted before indirect copies begin, so late address
 materialization cannot overwrite an unprocessed ABI lane. Native conformance covers nested large
 results and the ninth large argument crossing the closed register window onto the outgoing stack.
+
+Allocation-context transport now has one ARM64 selection authority. Program roots initialize a
+two-word default header, context-consuming callees save incoming `x9` in their frame, and every
+inherited call reloads or rematerializes the current pointer. Explicit `using` calls resolve their
+checked machine address before ordinary argument staging and place that address in the same hidden
+lane. The first primitive expansion reads allocator state/kind through its ordinary machine ABI;
+it does not introduce a primitive call convention or search a standard-library name. Native
+conformance crosses the root and two nested callable boundaries before reading both header words.
 
 `MachineAllocationPlan` now computes the least fixed point of current-context use over inherited
 direct calls, current-allocation primitives, user drops, and literal-pack iterator or residual

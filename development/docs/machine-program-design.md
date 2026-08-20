@@ -307,6 +307,15 @@ Return copies the exact stored-layout byte count into the caller object. The sav
 survives nested calls; register-window closure carries later indirect pointers through the same
 ordered outgoing and incoming stack slots as direct values.
 
+Allocation-context selection is likewise independent from individual callees. A program or test
+root initializes its compiler-owned two-word default header. A context-consuming callable saves
+the incoming `x9` pointer in its frame before any call can clobber it. Each inherited call reloads
+that saved pointer or forms the root-header address; each explicit call resolves its checked
+machine address before ordinary argument lanes are staged and then writes the same hidden register.
+The first closed primitive expansions read the state and kind words through the primitive's normal
+argument/result ABI plan. Primitive selection dispatches only on the retained `PrimitiveRole` and
+never on a module path or declaration spelling.
+
 The materializer receives the completed selected function, value plan, frame, and dense function
 mapping. It resolves virtual lanes, inserts spill traffic through the shared large-offset frame
 access authority, binds local labels, and emits concrete code. `Arm64Program::lower_machine` then
@@ -391,5 +400,7 @@ exact memory-value load/store are complete for direct and memory-backed values, 
 deterministically initialized padding. Checked projected/dynamic memory and structural fixed/view
 index borrows share one selected address evaluator. Direct and indirect callable transport are
 complete, including caller-owned large results, callee-owned large parameters, nested calls, and
-stack arguments after the register window closes. Memory-valued block parameters, primitives,
-allocation contexts, cleanup, pack callbacks, and test roots remain Phase 5 implementation areas.
+stack arguments after the register window closes. Root/incoming/explicit allocation-context
+transport and current-context primitive reads are complete. Memory-valued block parameters, the
+remaining primitives, lexical region representation and cleanup, pack callbacks, and test roots
+remain Phase 5 implementation areas.

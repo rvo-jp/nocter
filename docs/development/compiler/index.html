@@ -518,7 +518,10 @@
   transfers. Signed byte and halfword loads retain their
   meaning through explicit sign-extending target instructions. A separate materializer resolves
   physical registers, injects spill loads/stores, and emits frame-safe code. Unsupported machine
-  nodes fail selection explicitly. Typed CFG edges own direct-lane parallel copies; a separate
+  nodes fail selection explicitly. Allocation-context selection initializes the root header,
+  saves incoming context pointers, and materializes inherited or explicit selections through
+  <code>x9</code>; current allocator state/kind primitives expand through their ordinary ABI plans. Typed CFG
+  edges own direct-lane parallel copies; a separate
   resolver orders chains, breaks cycles through one reserved boundary register, and emits only the
   chosen conditional edge across register and spill locations. Dense function
   and data identities already feed typed fixups:

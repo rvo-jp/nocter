@@ -251,7 +251,8 @@ impl Arm64SelectedFunction {
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
         let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
-        let entry_instructions = crate::call_selection::select_parameters(function, &frame)?;
+        let entry_instructions =
+            crate::call_selection::select_parameters(program, owner, function, &frame)?;
         let mut blocks = Vec::with_capacity(function.body().blocks().len());
         for (block_id, block) in function.body().blocks() {
             if block_id.index() != blocks.len() {
@@ -418,12 +419,10 @@ fn select_operation(
             selected,
         ),
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
-            program,
+            crate::call_selection::CallSelectionContext::new(program, values, frame, addresses),
             operation_id,
             call,
             operation.result(),
-            values,
-            frame,
             selected,
         ),
         unsupported => Err(Arm64SelectionError::UnsupportedOperation {
