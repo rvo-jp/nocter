@@ -41,6 +41,7 @@ impl Arm64ValueStorage {
 /// an unrelated CFG path.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arm64ValuePlan {
+    owner: nocter_machine::MachineLinkageId,
     values: Box<[Arm64ValueStorage]>,
     registers: Arm64RegisterAllocation,
 }
@@ -86,9 +87,15 @@ impl Arm64ValuePlan {
         let values = values.into_boxed_slice();
         apply_liveness(function, &schedule, &values, &mut register_builder)?;
         Ok(Self {
+            owner: function.linkage(),
             values,
             registers: register_builder.finish(),
         })
+    }
+
+    #[must_use]
+    pub const fn owner(&self) -> nocter_machine::MachineLinkageId {
+        self.owner
     }
 
     #[must_use]

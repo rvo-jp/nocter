@@ -213,6 +213,19 @@ inputs and block liveness to extend deterministic intervals. Call crossing is ma
 the call operation's `live_after` set, excluding the call result, rather than inferred from a
 flattened interval that may contain unrelated sibling blocks. Every direct lane then uses the
 common linear-scan allocator; memory values remain explicit requests for later frame placement.
+`Arm64FunctionFrame` is the sole placement boundary. In fixed category order it reserves outgoing
+arguments, machine stack objects, drop flags, memory-backed values, pack descriptor/state pairs,
+spill words, hidden indirect-result and pack-input pointers, and allocation-context storage before
+adding preserved registers and the frame record. Root context storage is two words; an incoming
+context or hidden ABI pointer receives its own saved pointer word.
+
+Every literal call site owns a four-word descriptor containing its state pointer, immutable total
+length, next callback, and residual-destruction callback. Its separate state object starts with a
+segment cursor and stores fixed values or spread remaining-count/iterator pairs in source order
+under their checked machine size and alignment. The target later generates callbacks specialized
+to that state layout; a literal body therefore consumes one stable descriptor ABI without erasing
+the ownership layout of each caller's pack.
+
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
 `x19`-`x28` registers in numeric order, and ends with the canonical saved `x29`/`x30` frame record.
@@ -295,5 +308,7 @@ A deterministic virtual-register live-range builder and linear-scan allocator no
 caller-saved registers, restrict call-crossing ranges to callee-saved registers, record required
 preservation, and assign dense spills under pressure. The machine-driven value plan classifies
 zero, one-word, two-word, and memory values and feeds exact CFG call-survival facts into that
-allocator. Selected virtual instructions, fixed-frame placement for memory values and spills, and
-spill materialization remain Phase 5 implementation areas.
+allocator. Complete function frames now place memory values, packs, spills, hidden ABI state, and
+preserved registers through one deterministic authority. Selected virtual instructions, pack
+callback generation, and spill-aware instruction materialization remain Phase 5 implementation
+areas.

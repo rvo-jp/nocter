@@ -765,6 +765,159 @@ fn machine_value_plan_accepts_edge_defined_join_values() {
 }
 
 #[test]
+fn function_frame_places_outgoing_arguments_spills_and_preserved_registers_together() {
+    let program = crate::test_support::lower_machine(
+        "func sink(\n\
+             a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32,\n\
+             i: i32, j: i32, k: i32, l: i32, m: i32, n: i32, o: i32, p: i32,\n\
+             q: i32,\n\
+         ): i32 { 0 }\n\
+         func main(): i32 {\n\
+             sink(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let values = crate::Arm64ValuePlan::build(program.function(entry).unwrap()).unwrap();
+    assert!(values.registers().spill_count() > 0);
+    let frame = crate::Arm64FunctionFrame::build(&program, entry, &values).unwrap();
+
+    assert_eq!(frame.layout().outgoing_argument_size(), 80);
+    for register in values.registers().preserved_registers() {
+        assert!(
+            frame
+                .layout()
+                .saved_registers()
+                .iter()
+                .any(|saved| saved.register() == *register)
+        );
+    }
+    for (_, operation) in program.function(entry).unwrap().body().operations() {
+        let Some(result) = operation.result() else {
+            continue;
+        };
+        let Some(registers) = values
+            .value(result)
+            .and_then(crate::Arm64ValueStorage::direct_registers)
+        else {
+            continue;
+        };
+        for register in registers {
+            if let Some(crate::Arm64AllocatedLocation::Spill(spill)) =
+                values.registers().location(*register)
+            {
+                assert!(frame.spill(spill).is_some());
+            }
+        }
+    }
+}
+
+#[test]
+fn function_frame_places_pack_descriptor_and_source_order_state() {
+    let program = crate::test_support::lower_machine(
+        "struct Vec<T> {}\n\
+         construct Vec<T> {\n\
+             pub literal [](...items: T): Self {\n\
+                 let _ = items.len()\n\
+                 for item in items {}\n\
+                 return Self {}\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let values = Vec [1, 2]\n\
+             drop values\n\
+             0\n\
+         }\n",
+    );
+    let (function_id, function, pack_id) = program
+        .functions()
+        .find_map(|(function_id, function)| {
+            function
+                .body()
+                .packs()
+                .next()
+                .map(|(pack_id, _)| (function_id, function, pack_id))
+        })
+        .unwrap();
+    let values = crate::Arm64ValuePlan::build(function).unwrap();
+    let frame = crate::Arm64FunctionFrame::build(&program, function_id, &values).unwrap();
+    let pack = frame.pack(pack_id).unwrap();
+    let descriptor = frame.layout().object(pack.descriptor()).unwrap();
+    let state = frame.layout().object(pack.state()).unwrap();
+
+    assert_eq!(
+        (descriptor.size(), descriptor.alignment()),
+        (
+            crate::Arm64PackDescriptorLayout::SIZE,
+            crate::Arm64PackDescriptorLayout::ALIGNMENT,
+        )
+    );
+    assert_eq!(pack.state_layout().cursor_offset(), 0);
+    assert_eq!(pack.state_layout().segments().len(), 2);
+    assert!(matches!(
+        pack.state_layout().segments(),
+        [
+            crate::Arm64PackSegmentLayout::Value {
+                value_offset: 8,
+                size: 4,
+                alignment: 4,
+            },
+            crate::Arm64PackSegmentLayout::Value {
+                value_offset: 12,
+                size: 4,
+                alignment: 4,
+            },
+        ]
+    ));
+    assert_eq!((state.size(), state.alignment()), (16, 8));
+}
+
+#[test]
+fn function_frame_retains_hidden_abi_pointers_and_root_context() {
+    let program = crate::test_support::lower_machine(
+        "struct Large { first: u64\n    second: u64\n    third: u64 }\n\
+         func make(): Large { Large { first: 1, second: 2, third: 3 } }\n\
+         func main(): i32 {\n\
+             let value = make()\n\
+             drop value\n\
+             0\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { root, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let root_values = crate::Arm64ValuePlan::build(program.function(root).unwrap()).unwrap();
+    let root_frame = crate::Arm64FunctionFrame::build(&program, root, &root_values).unwrap();
+    assert!(matches!(
+        root_frame.allocation_context(),
+        crate::Arm64AllocationContextFrame::ProgramRoot(object)
+            if root_frame.layout().object(object).is_some_and(|object| object.size() == 16)
+    ));
+
+    let (function_id, function) = program
+        .functions()
+        .find(|(_, function)| {
+            matches!(
+                function.kind(),
+                nocter_machine::MachineFunctionKind::Callable(abi)
+                    if matches!(
+                        abi.result(),
+                        nocter_machine::MachineResultAbi::Value(result)
+                            if matches!(
+                                result.location(),
+                                nocter_machine::MachineResultLocation::CallerStorage { .. }
+                            )
+                    )
+            )
+        })
+        .unwrap();
+    let values = crate::Arm64ValuePlan::build(function).unwrap();
+    let frame = crate::Arm64FunctionFrame::build(&program, function_id, &values).unwrap();
+    assert!(frame.indirect_result_pointer().is_some());
+}
+
+#[test]
 fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let target = builder.declare_function();

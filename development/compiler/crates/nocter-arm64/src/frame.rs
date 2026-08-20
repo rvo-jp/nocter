@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt;
 
 use crate::{Arm64NocterAbi, Arm64Register};
 
@@ -232,3 +233,11 @@ pub enum Arm64FrameLayoutError {
     NotCalleeSaved(Arm64Register),
     FrameOverflow,
 }
+
+impl fmt::Display for Arm64FrameLayoutError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ARM64 frame layout failed: {self:?}")
+    }
+}
+
+impl std::error::Error for Arm64FrameLayoutError {}

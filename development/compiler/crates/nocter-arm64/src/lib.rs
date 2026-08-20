@@ -8,8 +8,10 @@ mod code;
 mod encode;
 mod frame;
 mod frame_code;
+mod function_frame;
 mod identity;
 mod instruction;
+mod pack_layout;
 mod program;
 mod register;
 mod register_allocation;
@@ -23,10 +25,16 @@ pub use frame::{
     Arm64FrameObjectId, Arm64SavedRegister,
 };
 pub use frame_code::Arm64FrameCode;
+pub use function_frame::{
+    Arm64AllocationContextFrame, Arm64FunctionFrame, Arm64FunctionFrameError, Arm64PackFrame,
+};
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
     Arm64Logical, Arm64MoveWide, Arm64Shift,
+};
+pub use pack_layout::{
+    Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,
 };
 pub use program::{
     Arm64DataAddressFixup, Arm64DataRange, Arm64FunctionRange, Arm64Program, Arm64ProgramBuilder,

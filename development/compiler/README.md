@@ -414,6 +414,10 @@ be introduced to make an unresolved syntax choice.
   marks only values actually live after a call as call-crossing; flattened sibling block order
   cannot force an unrelated value into a callee-saved register. Direct words share the allocator,
   while larger values remain explicit fixed-frame requests.
+  `Arm64FunctionFrame` feeds maximum outgoing call storage, machine stack objects, drop flags,
+  memory values, literal descriptor/state pairs, spill lanes, hidden result/pack/context pointers,
+  and preserved registers through that one planner. Pack descriptors have one uniform four-word
+  callback ABI, while each call site's source-ordered state has its own checked layout.
   Fixed frames reserve the maximum outgoing argument area, lay out objects and
   callee-saved slots deterministically, and terminate in the `x29`/`x30` frame record while
   preserving 16-byte alignment. Prologue and epilogue materialization uses checked immediate forms
