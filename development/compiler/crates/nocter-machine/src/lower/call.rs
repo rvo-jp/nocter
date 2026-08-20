@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
 
-use nocter_mir::{MirCall, MirCallAllocation, MirCallTarget};
+use nocter_mir::{MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency};
 use nocter_model::{ExecutableItemId, MirOperationId, TypeStore};
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
+use super::destruction::lower_destruction;
 use super::structural::lower_structural;
 use crate::{
     MachineCall, MachineCallAllocation, MachineCallTarget, MachineFunctionId, MachineLayoutStore,
-    MachineOperationKind, MachinePrimitiveTarget,
+    MachineOperationKind, MachinePrimitiveDependency, MachinePrimitiveTarget,
 };
 
 pub(super) fn lower_call(
@@ -56,6 +57,7 @@ pub(super) fn lower_call_target(
             role,
             type_arguments,
             signature,
+            dependency,
         } => {
             let abi = crate::transport::plan_signature(
                 types,
@@ -64,10 +66,26 @@ pub(super) fn lower_call_target(
                 signature.result(),
                 None,
             )?;
+            let dependency = match dependency {
+                MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
+                MirPrimitiveDependency::Destruction { subject, plan } => {
+                    MachinePrimitiveDependency::Destruction {
+                        subject: *subject,
+                        plan: plan
+                            .as_deref()
+                            .map(|plan| {
+                                lower_destruction(plan, ids.owner(), operation, layouts, functions)
+                            })
+                            .transpose()?
+                            .map(Box::new),
+                    }
+                }
+            };
             Ok(MachineCallTarget::Primitive(MachinePrimitiveTarget::new(
                 *role,
                 type_arguments.clone(),
                 abi,
+                dependency,
             )))
         }
         MirCallTarget::Structural(_) => Err(MachineProgramError::InvalidPackTarget {

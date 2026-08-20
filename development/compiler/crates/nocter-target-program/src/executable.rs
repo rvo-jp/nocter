@@ -19,12 +19,14 @@ use crate::{
 mod build;
 mod callable_invocation;
 mod closure_layout;
+mod primitive_dependency;
 mod sequence_pack;
 mod signature;
 mod type_representation;
 
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
+pub use primitive_dependency::ExecutablePrimitiveDependency;
 pub(crate) use sequence_pack::ExecutableSequenceIteration;
 pub use sequence_pack::{
     ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
@@ -52,6 +54,7 @@ pub struct ExecutablePrimitiveCall {
     role: PrimitiveRole,
     generic_arguments: GenericArguments,
     signature: ExecutableSignature,
+    dependency: ExecutablePrimitiveDependency,
 }
 
 impl ExecutablePrimitiveCall {
@@ -68,6 +71,11 @@ impl ExecutablePrimitiveCall {
     #[must_use]
     pub const fn signature(&self) -> &ExecutableSignature {
         &self.signature
+    }
+
+    #[must_use]
+    pub const fn dependency(&self) -> &ExecutablePrimitiveDependency {
+        &self.dependency
     }
 }
 
@@ -535,6 +543,7 @@ pub enum ExecutableProgramError {
     InvalidLiteralPackSignature(nocter_model::CallableId),
     InvalidSequencePlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
+    InvalidPrimitiveDependency(PrimitiveRole),
     DuplicateClosureLayout(TypeId),
     InvalidTypeRepresentation(TypeId),
     MissingRepresentationField(nocter_model::FieldId),
@@ -575,6 +584,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::InvalidLiteralPackSignature(_)
             | Self::InvalidSequencePlan(_)
             | Self::InvalidCallableInvocation(_)
+            | Self::InvalidPrimitiveDependency(_)
             | Self::DuplicateClosureLayout(_)
             | Self::InvalidTypeRepresentation(_)
             | Self::MissingRepresentationField(_)

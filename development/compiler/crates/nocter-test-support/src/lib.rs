@@ -89,6 +89,10 @@ pub func store_value_to_ptr_for_test<T>(destination: *T, offset: usize, value: T
     store_value_to_ptr(destination, offset, move value)
     return
 }
+pub func drop_value_at_ptr_for_test<T>(pointer: *T, offset: usize): void {
+    drop_value_at_ptr(pointer, offset)
+    return
+}
 pub func take_u64_at_ptr_for_test(pointer: *u64, offset: usize): u64 {
     return take_value_at_ptr(pointer, offset)
 }

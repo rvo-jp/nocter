@@ -35,10 +35,10 @@ pub use executable::{
     ExecutableClosureEdge, ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep,
     ExecutableDropEdge, ExecutableFieldRepresentation, ExecutableInput, ExecutableInputSource,
     ExecutableItem, ExecutableItemKey, ExecutableOpaqueReceiver, ExecutablePackInput,
-    ExecutablePayloadRepresentation, ExecutablePrimitiveCall, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableSequencePlan, ExecutableSequenceSegment,
-    ExecutableSequenceSpread, ExecutableSignature, ExecutableTestCase, ExecutableTypeEdge,
-    ExecutableTypeRepresentation, ExecutableTypeRepresentationTable,
+    ExecutablePayloadRepresentation, ExecutablePrimitiveCall, ExecutablePrimitiveDependency,
+    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableSequencePlan,
+    ExecutableSequenceSegment, ExecutableSequenceSpread, ExecutableSignature, ExecutableTestCase,
+    ExecutableTypeEdge, ExecutableTypeRepresentation, ExecutableTypeRepresentationTable,
     ExecutableVariantRepresentation,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};

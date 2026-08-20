@@ -19,6 +19,7 @@ use super::{
     ExecutableProgramError, ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
 };
 
+mod primitive;
 mod sequence;
 use crate::{
     CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
@@ -403,6 +404,11 @@ impl<'program> ExecutableClosureBuilder<'program> {
                             role,
                             generic_arguments: callable_key.generic_arguments().clone(),
                             signature,
+                            dependency: self.specialize_primitive_dependency(
+                                role,
+                                callable_key.generic_arguments(),
+                                drops,
+                            )?,
                         },
                     ))
                 } else {

@@ -8,6 +8,7 @@ use crate::{
     MachineDestructionField, MachineDestructionKind, MachineDestructionPayload,
     MachineDestructionPlan, MachineDestructionVariant, MachineFunction, MachineFunctionId,
     MachineFunctionKind, MachineOperationKind, MachinePack, MachinePackId, MachinePackSegment,
+    MachinePrimitiveDependency,
 };
 
 /// How one machine function obtains the compiler-propagated allocation context.
@@ -246,10 +247,19 @@ fn target_requires_context(
 ) -> Result<bool, MachineAllocationError> {
     match target {
         MachineCallTarget::Direct(function) => function_requires_incoming(requirements, *function),
-        MachineCallTarget::Primitive(primitive) => Ok(matches!(
-            primitive.role(),
-            PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind
-        )),
+        MachineCallTarget::Primitive(primitive) => {
+            if let MachinePrimitiveDependency::Destruction {
+                plan: Some(plan), ..
+            } = primitive.dependency()
+                && destruction_requires_context(plan, requirements)?
+            {
+                return Ok(true);
+            }
+            Ok(matches!(
+                primitive.role(),
+                PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind
+            ))
+        }
     }
 }
 

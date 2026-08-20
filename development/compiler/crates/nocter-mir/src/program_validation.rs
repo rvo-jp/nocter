@@ -8,7 +8,7 @@ use crate::program::{MirProgramBuildError, MirProgramOwner};
 use crate::validation_closure::has_valid_closure_environment_signature;
 use crate::{
     MirAggregate, MirBody, MirCallTarget, MirDestructionKind, MirDestructionPlan, MirFunction,
-    MirOperationKind, MirPackSegment, MirRoot,
+    MirOperationKind, MirPackSegment, MirPrimitiveDependency, MirRoot,
 };
 
 pub(crate) fn validate_program(
@@ -86,6 +86,16 @@ fn validate_body(
                         call.pack().map(|pack| (pack.element(), pack.next())),
                         functions,
                     )?;
+                }
+                if let MirCallTarget::StandardPrimitive {
+                    dependency:
+                        MirPrimitiveDependency::Destruction {
+                            plan: Some(plan), ..
+                        },
+                    ..
+                } = call.target()
+                {
+                    validate_deferred_drop_calls(caller, plan, functions, executable)?;
                 }
                 validate_pack_dependencies(caller, body, call, functions, executable)?;
             }

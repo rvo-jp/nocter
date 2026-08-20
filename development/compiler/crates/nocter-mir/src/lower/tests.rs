@@ -95,6 +95,56 @@ fn lowers_standard_calls_with_their_frozen_concrete_signatures() {
 }
 
 #[test]
+fn lowers_pointer_destruction_with_its_frozen_plan() {
+    let program = lower_fixture_with_uses(
+        "use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func main(): i32 {\n\
+             var value = Resource {}\n\
+             let pointer = from_ref_mut(&+value)\n\
+             drop_value_at_ptr_for_test(pointer, 0)\n\
+             return 0\n\
+         }\n",
+        &[&["ptr"], &["ptr"]],
+    )
+    .unwrap();
+    let dependency = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.operations().iter())
+        .find_map(|(_, operation)| match operation.kind() {
+            MirOperationKind::Call(call) => match call.target() {
+                crate::MirCallTarget::StandardPrimitive {
+                    role: PrimitiveRole::DropValueAtPointer,
+                    dependency,
+                    ..
+                } => Some(dependency),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("drop-value primitive");
+    let crate::MirPrimitiveDependency::Destruction {
+        subject,
+        plan: Some(plan),
+    } = dependency
+    else {
+        panic!("drop-value primitive must retain MIR destruction")
+    };
+
+    assert_eq!(plan.ty(), *subject);
+    assert!(matches!(
+        plan.kind(),
+        crate::MirDestructionKind::Struct {
+            drop: Some(_),
+            fields,
+        } if fields.is_empty()
+    ));
+}
+
+#[test]
 fn lowers_static_string_values_as_readonly_str_borrows() {
     let program = lower_fixture(
         "func main(): i32 {\n\

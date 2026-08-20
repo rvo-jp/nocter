@@ -7,7 +7,6 @@ use nocter_target_program::{
 };
 
 use super::MirLoweringError;
-use super::call::step_target;
 use super::function::FunctionLowerer;
 use crate::{
     MirBinaryOperation, MirCallTarget, MirConstant, MirDestructionPlan, MirOperationKind,
@@ -210,8 +209,7 @@ impl FunctionLowerer<'_> {
         }
         let receiver =
             self.prepare_pack_receiver(owner, iterator, &invocation, BorrowCapability::ReadWrite)?;
-        let target =
-            step_target(&invocation.step).ok_or(MirLoweringError::InvalidDispatch(owner))?;
+        let target = self.step_target(owner, &invocation.step)?;
         Ok((receiver, target, signature.result()))
     }
 

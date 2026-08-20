@@ -14,6 +14,7 @@ mod linkage;
 mod lower;
 mod operation;
 mod pack;
+mod primitive_dependency;
 mod program;
 mod storage;
 mod structural;
@@ -57,6 +58,7 @@ pub use operation::{
 pub use pack::{
     MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment, MachinePackSpread,
 };
+pub use primitive_dependency::MachinePrimitiveDependency;
 pub use program::{
     MachineBody, MachineFunction, MachineFunctionKind, MachineProgram, MachineProgramRoot,
     MachineTestProgram,

@@ -10,6 +10,7 @@ mod lower;
 mod operation;
 mod pack;
 mod place;
+mod primitive_dependency;
 mod program;
 mod program_validation;
 mod schema;
@@ -41,6 +42,7 @@ pub use pack::{
     MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment, MirPackSpread,
 };
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
+pub use primitive_dependency::MirPrimitiveDependency;
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder, MirProgramOwner};
 pub use schema::{
     MirBlock, MirBody, MirBranchTarget, MirDropFlag, MirFunction, MirProcessRoot, MirRoot,

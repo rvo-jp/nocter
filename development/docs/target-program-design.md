@@ -190,8 +190,14 @@ unused by the body. Callable receivers precede ordinary parameters and materiali
 owned, readonly-borrow, or readwrite-borrow capability instead of reusing the owner type. Closure
 signatures add one capability-correct environment input before closure parameters. Drop bodies
 retain their exact readwrite receiver, and tests have no inputs. Each standard primitive call also
-freezes its concrete signature. Signature specialization belongs to executable construction; MIR
-cannot apply generic substitution or infer ABI inputs from body references.
+freezes its concrete signature. A primitive whose execution depends on semantic work additionally
+retains a typed dependency at this boundary. Pointer destruction, for example, records both its
+concrete subject and either the complete concrete destruction plan or the positive fact that the
+subject needs no destruction. It also closes every user-drop body named recursively by that plan.
+Later stages therefore never recover destruction from a primitive name, role, or generic type
+argument. Signature and dependency specialization belong to executable construction; MIR cannot
+apply generic substitution, infer ABI inputs from body references, or reopen destruction
+selection.
 
 Each closure item additionally freezes one concrete environment layout: its `ClosureId`, concrete
 closure type, invocation capability, and every capture binding paired with the concrete type stored

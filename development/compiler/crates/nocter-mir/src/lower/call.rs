@@ -2,7 +2,7 @@ use nocter_checking::{CallTarget, CheckedCall, ResolvedPrimitiveDispatch, Static
 use nocter_model::{BodyNodeId, BuiltinType, MirValueId, PlaceId, TypeId, TypeKind};
 use nocter_target_program::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableOpaqueReceiver,
-    ExecutablePrimitiveCall, ExecutableSignature,
+    ExecutablePrimitiveCall, ExecutablePrimitiveDependency, ExecutableSignature,
 };
 
 use super::MirLoweringError;
@@ -116,7 +116,7 @@ impl FunctionLowerer<'_> {
         step: &ExecutableDispatchStep,
         arguments: impl Into<Box<[MirValueId]>>,
     ) -> Result<MirValueId, MirLoweringError> {
-        let target = step_target(step).ok_or(MirLoweringError::InvalidDispatch(node))?;
+        let target = self.step_target(node, step)?;
         self.emit_call(ty, target, arguments)
     }
 
@@ -128,7 +128,7 @@ impl FunctionLowerer<'_> {
         arguments: impl Into<Box<[MirValueId]>>,
         allocation: MirCallAllocation,
     ) -> Result<MirValueId, MirLoweringError> {
-        let target = step_target(step).ok_or(MirLoweringError::InvalidDispatch(node))?;
+        let target = self.step_target(node, step)?;
         self.emit_call_with_allocation(ty, target, arguments, allocation)
     }
 
@@ -139,7 +139,7 @@ impl FunctionLowerer<'_> {
         step: &ExecutableDispatchStep,
         arguments: impl Into<Box<[MirValueId]>>,
     ) -> Result<MirValueId, MirLoweringError> {
-        let target = step_target(step).ok_or(MirLoweringError::InvalidPlaceDispatch(place))?;
+        let target = Self::step_target_for_place(place, step)?;
         self.emit_call(ty, target, arguments)
     }
 
@@ -219,6 +219,65 @@ impl FunctionLowerer<'_> {
             }
         })
     }
+
+    pub(super) fn step_target(
+        &self,
+        owner: BodyNodeId,
+        step: &ExecutableDispatchStep,
+    ) -> Result<MirCallTarget, MirLoweringError> {
+        match step {
+            ExecutableDispatchStep::Direct(callee) => Ok(MirCallTarget::Direct(*callee)),
+            ExecutableDispatchStep::StandardPrimitive(call) => self.primitive_target(owner, call),
+            ExecutableDispatchStep::StructuralPrimitive(primitive) => {
+                Ok(MirCallTarget::Structural(structural_target(primitive)))
+            }
+            ExecutableDispatchStep::CallableValue(_) => {
+                Err(MirLoweringError::InvalidDispatch(owner))
+            }
+        }
+    }
+
+    fn step_target_for_place(
+        place: PlaceId,
+        step: &ExecutableDispatchStep,
+    ) -> Result<MirCallTarget, MirLoweringError> {
+        match step {
+            ExecutableDispatchStep::Direct(callee) => Ok(MirCallTarget::Direct(*callee)),
+            ExecutableDispatchStep::StandardPrimitive(call)
+                if matches!(call.dependency(), ExecutablePrimitiveDependency::None) =>
+            {
+                Ok(primitive_target(call, crate::MirPrimitiveDependency::None))
+            }
+            ExecutableDispatchStep::StructuralPrimitive(primitive) => {
+                Ok(MirCallTarget::Structural(structural_target(primitive)))
+            }
+            ExecutableDispatchStep::StandardPrimitive(_)
+            | ExecutableDispatchStep::CallableValue(_) => {
+                Err(MirLoweringError::InvalidPlaceDispatch(place))
+            }
+        }
+    }
+
+    fn primitive_target(
+        &self,
+        owner: BodyNodeId,
+        call: &ExecutablePrimitiveCall,
+    ) -> Result<MirCallTarget, MirLoweringError> {
+        let dependency = match call.dependency() {
+            ExecutablePrimitiveDependency::None => crate::MirPrimitiveDependency::None,
+            ExecutablePrimitiveDependency::Destruction { subject, plan } => {
+                crate::MirPrimitiveDependency::Destruction {
+                    subject: *subject,
+                    plan: plan
+                        .as_deref()
+                        .map(|plan| self.lower_deferred_destruction(owner, plan))
+                        .transpose()?
+                        .map(Box::new),
+                }
+            }
+        };
+        Ok(primitive_target(call, dependency))
+    }
 }
 
 fn executable_signature(signature: &ExecutableSignature) -> MirCallSignature {
@@ -254,18 +313,10 @@ fn structural_signature(
     }
 }
 
-pub(super) fn step_target(step: &ExecutableDispatchStep) -> Option<MirCallTarget> {
-    match step {
-        ExecutableDispatchStep::Direct(callee) => Some(MirCallTarget::Direct(*callee)),
-        ExecutableDispatchStep::StandardPrimitive(call) => Some(primitive_target(call)),
-        ExecutableDispatchStep::StructuralPrimitive(primitive) => {
-            Some(MirCallTarget::Structural(structural_target(primitive)))
-        }
-        ExecutableDispatchStep::CallableValue(_) => None,
-    }
-}
-
-fn primitive_target(call: &ExecutablePrimitiveCall) -> MirCallTarget {
+fn primitive_target(
+    call: &ExecutablePrimitiveCall,
+    dependency: crate::MirPrimitiveDependency,
+) -> MirCallTarget {
     MirCallTarget::StandardPrimitive {
         role: call.role(),
         type_arguments: call
@@ -276,6 +327,7 @@ fn primitive_target(call: &ExecutablePrimitiveCall) -> MirCallTarget {
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         signature: executable_signature(call.signature()),
+        dependency,
     }
 }
 

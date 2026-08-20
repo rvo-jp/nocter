@@ -145,6 +145,7 @@ pub enum MirCallTarget {
         role: PrimitiveRole,
         type_arguments: Box<[TypeId]>,
         signature: MirCallSignature,
+        dependency: crate::MirPrimitiveDependency,
     },
     Structural(MirStructuralCall),
 }

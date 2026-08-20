@@ -5,8 +5,8 @@ use nocter_model::BuiltinType;
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
-    ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment, ExecutableTypeRepresentation,
-    PrimitiveRole,
+    ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment,
+    ExecutableTypeRepresentation, PrimitiveRole,
 };
 
 #[test]
@@ -630,6 +630,77 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
                 .is_some()
         );
     }
+}
+
+#[test]
+fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
+    let target = build_target_program(&Fixture::with_app_standard_uses(
+        "use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/ptr.from_ref_mut\n\
+         struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func main(): i32 {\n\
+             var value = Resource {}\n\
+             let pointer = from_ref_mut(&+value)\n\
+             drop_value_at_ptr_for_test(pointer, 0)\n\
+             return 0\n\
+         }\n",
+        &[&["ptr"], &["ptr"]],
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let wrapper = named_callable(&target, "drop_value_at_ptr_for_test");
+    let dependencies = callable_dependencies(&target, wrapper);
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let body = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| {
+            matches!(item.key(), ExecutableItemKey::Callable(key) if key.callable() == wrapper)
+                .then_some(item.body())
+        })
+        .expect("reachable concrete wrapper");
+    let primitive = dependencies
+        .selections()
+        .iter()
+        .flat_map(|selection| dispatch_steps(body.dispatch(selection).unwrap()))
+        .find_map(|step| match step {
+            ExecutableDispatchStep::StandardPrimitive(call)
+                if call.role() == PrimitiveRole::DropValueAtPointer =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("drop-value primitive");
+    let ExecutablePrimitiveDependency::Destruction {
+        subject,
+        plan: Some(plan),
+    } = primitive.dependency()
+    else {
+        panic!("drop-value primitive must retain concrete destruction")
+    };
+
+    assert_eq!(plan.ty(), *subject);
+    assert!(matches!(
+        plan.kind(),
+        ConcreteDestructionKind::Struct {
+            drop: Some(_),
+            fields,
+        } if fields.is_empty()
+    ));
+    assert!(
+        executable
+            .items()
+            .iter()
+            .any(|(_, item)| matches!(item.key(), ExecutableItemKey::Drop(_)))
+    );
 }
 
 fn dispatch_steps(plan: &ExecutableDispatchPlan) -> Vec<&ExecutableDispatchStep> {

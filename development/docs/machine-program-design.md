@@ -154,11 +154,15 @@ inventing a zero-byte layout for `void` or `never`. User-drop invocation names a
 and machine address. Region creation and release name machine values and stack objects, and process
 error reporting names the exact machine error value. None retain MIR-local identities.
 
-Standard primitive targets retain only their closed `PrimitiveRole`, concrete layout-key type
-arguments, and exact concrete signature. The surrounding common call retains machine-value
-arguments and allocation context. That signature is passed through the same callable ABI planner
-as source functions. A primitive cannot introduce a private register convention, and ARM64
-selection never looks up a primitive by module or declaration spelling.
+Standard primitive targets retain their closed `PrimitiveRole`, concrete layout-key type
+arguments, exact concrete signature, and an explicit specialized semantic dependency. Most
+primitives carry no dependency. Pointer destruction carries its concrete subject plus an optional
+`MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
+not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
+item once, and the allocation-context fixed point follows user drops inside the dependency. The
+surrounding common call retains machine-value arguments and allocation context. Its signature uses
+the same callable ABI planner as source functions. A primitive cannot introduce a private register
+convention, and ARM64 selection never looks up a primitive by module or declaration spelling.
 
 Compiler-provided structural behavior does not cross a call boundary. Machine lowering replaces
 primitive equality and ordering with comparisons that name exact scalar signedness or an enum tag
@@ -456,4 +460,6 @@ Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user 
 conditional drop flags, value and stored-tag switches, and cycle-safe direct/memory block-parameter
 transport are complete. Recursive concrete pointer destruction, process-entry state, I/O and error
 primitives, lexical region representation and cleanup, pack callbacks, and test roots remain Phase
-5 implementation areas.
+5 implementation areas. Pointer destruction already carries its validated concrete plan through
+the executable, MIR, and machine layers; only generated function materialization and native
+execution remain.

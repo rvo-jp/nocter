@@ -3,7 +3,7 @@ use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, Ty
 
 use crate::validation_pack::validate_call_pack;
 use crate::{
-    MirBody, MirCall, MirCallAllocation, MirCallTarget, MirStructuralCall,
+    MirBody, MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency, MirStructuralCall,
     MirValidationEnvironment, MirValidationError,
 };
 
@@ -42,9 +42,10 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 }
             }
             MirCallTarget::StandardPrimitive {
+                role,
                 type_arguments,
                 signature,
-                ..
+                dependency,
             } => {
                 for ty in type_arguments {
                     self.require_type(*ty)?;
@@ -63,6 +64,7 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 {
                     return Err(self.invalid());
                 }
+                self.validate_primitive_dependency(*role, type_arguments, dependency)?;
             }
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
@@ -70,6 +72,35 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
         }
         validate_call_pack(self.environment, self.function, self.operation, call)?;
         Ok(())
+    }
+
+    fn validate_primitive_dependency(
+        &self,
+        role: nocter_target_program::PrimitiveRole,
+        type_arguments: &[TypeId],
+        dependency: &MirPrimitiveDependency,
+    ) -> Result<(), MirValidationError> {
+        match (role, dependency) {
+            (
+                nocter_target_program::PrimitiveRole::DropValueAtPointer,
+                MirPrimitiveDependency::Destruction { subject, plan },
+            ) if type_arguments == [*subject] => {
+                self.require_type(*subject)?;
+                if let Some(plan) = plan {
+                    if plan.ty() != *subject {
+                        return Err(self.invalid());
+                    }
+                    crate::validation_destruction::validate_destruction_plan(
+                        self.environment,
+                        plan,
+                    )?;
+                }
+                Ok(())
+            }
+            (nocter_target_program::PrimitiveRole::DropValueAtPointer, _)
+            | (_, MirPrimitiveDependency::Destruction { .. }) => Err(self.invalid()),
+            (_, MirPrimitiveDependency::None) => Ok(()),
+        }
     }
 
     fn validate_allocation(&self, call: &MirCall) -> Result<(), MirValidationError> {
