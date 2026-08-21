@@ -11,6 +11,7 @@ mod command_schema;
 mod execute;
 mod failure;
 mod fetch;
+mod format;
 mod input;
 mod inspection;
 mod output_plan;
@@ -18,11 +19,12 @@ mod package_state;
 mod planning;
 mod run;
 mod source;
+mod standalone_source;
 mod test;
 
 pub use arguments::{
     CommandArgumentError, CommandArgumentFailure, DiagnosticFormat, ParsedBuildCommand,
-    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand,
+    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedFormatCommand, ParsedRunCommand,
     ParsedSourceInspectionCommand, ParsedTestCommand, PreparedBuildCommand, PreparedCheckCommand,
     PreparedCommandError, PreparedFetchCommand, PreparedRunCommand, PreparedTestCommand,
     ResolutionOptions, SourceInspectionKind, parse_command_arguments, parse_command_invocation,
@@ -46,6 +48,7 @@ pub use execute::{
 };
 pub use failure::CommandCompilationFailure;
 pub use fetch::{FetchCommandExecutionError, FetchCommandResult, execute_prepared_fetch};
+pub use format::{FormatCommandError, FormatCommandResult, execute_format};
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
     ResolvedProgramInput, SingleFileCommandInput, resolve_package_input, resolve_program_input,
@@ -62,6 +65,7 @@ pub use planning::{
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use source::{CommandSourceError, CommandToolchain};
+pub use standalone_source::StandaloneSourceError;
 pub use test::{
     TestCommandExecutionError, TestCommandIntegrityError, TestCommandPresentation,
     TestCommandResult, TestRunDiagnostic, TestRunOutcome, TestRunResult, TestRunTarget,

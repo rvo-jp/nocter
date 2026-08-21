@@ -44,6 +44,9 @@ pub(crate) fn execute_parsed_command(
         ParsedCommand::SourceInspection(_) => {
             unreachable!("source inspection executes before installation selection")
         }
+        ParsedCommand::Format(_) => {
+            unreachable!("formatting executes before installation selection")
+        }
     }
 }
 

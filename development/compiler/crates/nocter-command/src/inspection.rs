@@ -1,16 +1,10 @@
 use std::fmt;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use nocter_diagnostics::DiagnosticRenderError;
-use nocter_source::{SourceError, SourceName};
-use nocter_source_tooling::{InspectionGoal, SourceInspection};
 
-use crate::{
-    ParsedSourceInspectionCommand, ProgramInputError, ProgramInputOptions, ResolvedProgramInput,
-    SourceInspectionKind, resolve_program_input,
-};
+use crate::standalone_source::{StandaloneSourceError, load_standalone_source};
+use crate::{ParsedSourceInspectionCommand, SourceInspectionKind};
 
 /// Complete versioned output of one standalone source inspection.
 #[derive(Debug)]
@@ -41,34 +35,9 @@ pub fn execute_source_inspection(
     current_directory: impl AsRef<Path>,
 ) -> Result<SourceInspectionCommandResult, SourceInspectionCommandError> {
     let (source, kind) = command.into_parts();
-    let input = resolve_program_input(
-        current_directory,
-        ProgramInputOptions::positional_file(source),
-    )
-    .map_err(SourceInspectionCommandError::Input)?;
-    let ResolvedProgramInput::SingleFile(input) = input else {
-        unreachable!("an explicit positional source always resolves in single-file mode")
-    };
-    let path = input.source();
-    let bytes = fs::read(path).map_err(|source| SourceInspectionCommandError::Read {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let name = path
-        .to_str()
-        .ok_or_else(|| SourceInspectionCommandError::NonUnicodePath(path.to_path_buf()))?;
-    let goal = if path.file_name().is_some_and(|name| name == "nocter.nct") {
-        InspectionGoal::PackageFile
-    } else {
-        InspectionGoal::ModuleSource
-    };
-    let inspection =
-        SourceInspection::new(SourceName::new(name), &bytes, goal).map_err(|source| {
-            SourceInspectionCommandError::Source {
-                path: path.to_path_buf(),
-                source,
-            }
-        })?;
+    let source = load_standalone_source(source, current_directory)
+        .map_err(SourceInspectionCommandError::Source)?;
+    let inspection = source.inspection();
     let (json, succeeded) = match kind {
         SourceInspectionKind::Tokens => (
             inspection.render_tokens_json(),
@@ -84,10 +53,7 @@ pub fn execute_source_inspection(
 
 #[derive(Debug)]
 pub enum SourceInspectionCommandError {
-    Input(ProgramInputError),
-    Read { path: PathBuf, source: io::Error },
-    NonUnicodePath(PathBuf),
-    Source { path: PathBuf, source: SourceError },
+    Source(StandaloneSourceError),
     Render(DiagnosticRenderError),
 }
 
@@ -101,18 +67,7 @@ impl SourceInspectionCommandError {
 impl fmt::Display for SourceInspectionCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Input(error) => error.fmt(formatter),
-            Self::Read { path, source } => {
-                write!(formatter, "cannot read {}: {source}", path.display())
-            }
-            Self::NonUnicodePath(path) => write!(
-                formatter,
-                "source path {} cannot be represented as Unicode",
-                path.display()
-            ),
-            Self::Source { path, source } => {
-                write!(formatter, "cannot normalize {}: {source}", path.display())
-            }
+            Self::Source(error) => error.fmt(formatter),
             Self::Render(error) => write!(formatter, "cannot render source inspection: {error}"),
         }
     }
@@ -121,11 +76,8 @@ impl fmt::Display for SourceInspectionCommandError {
 impl std::error::Error for SourceInspectionCommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Input(error) => Some(error),
-            Self::Read { source, .. } => Some(source),
+            Self::Source(error) => Some(error),
             Self::Render(error) => Some(error),
-            Self::Source { source, .. } => Some(source),
-            Self::NonUnicodePath(_) => None,
         }
     }
 }

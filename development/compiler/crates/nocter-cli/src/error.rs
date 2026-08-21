@@ -2,8 +2,9 @@ use std::fmt;
 
 use nocter_command::{
     BuildCommandExecutionError, CheckCommandExecutionError, CommandArgumentFailure,
-    DiagnosticFormat, FetchCommandExecutionError, PreparedCommandError, ProgramInputError,
-    RunCommandExecutionError, SourceInspectionCommandError, TestCommandExecutionError,
+    DiagnosticFormat, FetchCommandExecutionError, FormatCommandError, PreparedCommandError,
+    ProgramInputError, RunCommandExecutionError, SourceInspectionCommandError,
+    TestCommandExecutionError,
 };
 use nocter_diagnostics::{
     DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
@@ -33,6 +34,7 @@ pub enum InvocationErrorKind {
     Run(Box<RunCommandExecutionError>),
     Test(Box<TestCommandExecutionError>),
     SourceInspection(SourceInspectionCommandError),
+    Format(FormatCommandError),
 }
 
 /// Process-level failure class independent from diagnostic presentation and error code.
@@ -105,6 +107,7 @@ impl InvocationError {
             InvocationErrorKind::Build(error) => error.diagnostic_code(),
             InvocationErrorKind::Run(error) => error.diagnostic_code(),
             InvocationErrorKind::Test(error) => error.diagnostic_code(),
+            InvocationErrorKind::Format(error) => error.diagnostic_code(),
             InvocationErrorKind::AcquisitionInitialization(_) => None,
         }
     }
@@ -182,7 +185,9 @@ impl InvocationError {
 
     #[must_use]
     pub fn failure_class(&self) -> InvocationFailureClass {
-        if self.source_diagnostics().is_some() {
+        if self.source_diagnostics().is_some()
+            || matches!(self.kind.as_ref(), InvocationErrorKind::Format(error) if error.is_source_failure())
+        {
             return InvocationFailureClass::Source;
         }
         let user = match self.kind.as_ref() {
@@ -196,6 +201,7 @@ impl InvocationError {
             InvocationErrorKind::Run(error) => error.is_user_failure(),
             InvocationErrorKind::Test(error) => error.is_user_failure(),
             InvocationErrorKind::SourceInspection(error) => error.is_user_failure(),
+            InvocationErrorKind::Format(error) => error.is_user_failure(),
             InvocationErrorKind::AcquisitionInitialization(_) => false,
         };
         if user {
@@ -216,6 +222,7 @@ impl InvocationError {
             InvocationErrorKind::Check(error) => error.source_diagnostics(),
             InvocationErrorKind::Run(error) => error.source_diagnostics(),
             InvocationErrorKind::Test(error) => error.source_diagnostics(),
+            InvocationErrorKind::Format(error) => error.source_diagnostics(),
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
@@ -244,6 +251,7 @@ impl fmt::Display for InvocationError {
             InvocationErrorKind::Run(error) => error.fmt(formatter),
             InvocationErrorKind::Test(error) => error.fmt(formatter),
             InvocationErrorKind::SourceInspection(error) => error.fmt(formatter),
+            InvocationErrorKind::Format(error) => error.fmt(formatter),
         }
     }
 }
@@ -262,6 +270,7 @@ impl std::error::Error for InvocationError {
             InvocationErrorKind::Run(error) => Some(error),
             InvocationErrorKind::Test(error) => Some(error),
             InvocationErrorKind::SourceInspection(error) => Some(error),
+            InvocationErrorKind::Format(error) => Some(error),
         }
     }
 }

@@ -204,6 +204,80 @@ fn source_inspection_diagnostics_remain_in_the_inspection_envelope() {
 }
 
 #[test]
+fn format_check_and_rewrite_bypass_installation_and_publish_only_on_success() {
+    let tree = TempTree::new("format");
+    let missing_home = tree.0.join("missing-home");
+    let source = tree.0.join("app.nct");
+    fs::write(&source, "func main():void { return }\n").unwrap();
+
+    let error = execute_invocation(invocation(
+        ["fmt", "--check", "app.nct"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.diagnostic_code(), Some("E0602"));
+    assert_eq!(error.exit_code(), 1);
+    assert_eq!(
+        fs::read_to_string(&source).unwrap(),
+        "func main():void { return }\n"
+    );
+
+    let rewritten = execute_invocation(invocation(
+        ["fmt", "app.nct"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert!(matches!(
+        rewritten,
+        InvocationOutcome::Format(nocter_command::FormatCommandResult::Rewritten)
+    ));
+    assert_eq!(
+        fs::read_to_string(&source).unwrap(),
+        "func main(): void { return }\n"
+    );
+
+    let unchanged = execute_invocation(invocation(
+        ["fmt", "--check", "app.nct"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert!(matches!(
+        unchanged,
+        InvocationOutcome::Format(nocter_command::FormatCommandResult::Unchanged)
+    ));
+}
+
+#[test]
+fn format_rejection_keeps_commented_source_unchanged() {
+    let tree = TempTree::new("format-comment");
+    let missing_home = tree.0.join("missing-home");
+    let source = tree.0.join("app.nct");
+    let authored = "// keep exactly\nfunc main():void { return }\n";
+    fs::write(&source, authored).unwrap();
+
+    let error = execute_invocation(invocation(
+        ["fmt", "app.nct"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.exit_code(), 1);
+    assert_eq!(fs::read_to_string(&source).unwrap(), authored);
+    let rendered = error.render_source_diagnostics().unwrap().unwrap();
+    assert!(rendered.contains("error[E0601]"));
+    assert!(rendered.contains("// keep exactly"));
+}
+
+#[test]
 fn compiler_host_is_checked_before_user_source_preparation() {
     let tree = TempTree::new("host");
     let home = tree.installation("arm64-darwin", false);

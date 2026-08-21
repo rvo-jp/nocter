@@ -374,13 +374,23 @@ Fetch uses the package-only projection of the same input authority, so a source-
 representable after parsing. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
 
-`tokens` and `ast` are source-only commands with their own exact-one-file parse result. They reuse
-the common single-file path resolver, then cross `nocter-source-tooling`: one filesystem-independent
-snapshot owns normalized source, lexer output, and its concrete syntax tree. The `nocter.tokens`
-and `nocter.ast` version-1 renderers project that snapshot directly into flat, ID-based JSON; they
-do not create a second AST. Lexer/parser diagnostics use the same projection functions as discovery.
-The process adapter completes these commands before installation selection because package,
-standard-library, host, and target state cannot affect lexical or syntactic inspection.
+`fmt`, `tokens`, and `ast` are source-only commands with exact-one-file parse results. One
+command-owned standalone loader resolves the canonical path, retains the original bytes, selects
+the package-file or module-source parse goal, and constructs `nocter-source-tooling`: one
+filesystem-independent snapshot owning normalized source, lexer output, and its concrete syntax
+tree. The `nocter.tokens` and `nocter.ast` version-1 renderers project that snapshot directly into
+flat, ID-based JSON; they do not create a second AST. Lexer/parser diagnostics use the same
+projection functions as discovery.
+
+Formatting consumes that same snapshot as a concrete-syntax layout operation. It cannot resolve a
+name or inspect a semantic program. A candidate is parsed again under the identical root goal and
+must retain the same non-newline token text and syntax topology before it can leave the tooling
+crate. The command boundary compares original bytes for `--check` and otherwise writes a complete
+same-directory temporary, preserves source permissions, synchronizes it, and performs one final
+rename. Syntax, comment-preservation, formatting-integrity, or publication failure therefore
+cannot expose a partially formatted source. The process adapter completes all three commands
+before installation selection because package, standard-library, host, and target state cannot
+affect lexical or syntactic inspection.
 
 Prepared check, build, and run commands cross one production compiler-command adapter. Its explicit
 `CommandToolchain` contains the already selected target and a `CommandPackageContext` containing

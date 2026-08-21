@@ -15,13 +15,18 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete public source tooling with syntax-owned, filesystem-independent `fmt`. `tokens` and
-   `ast` are closed: one `nocter-source-tooling` snapshot owns normalized input, lexer output, and
-   the parser tree; both commands bypass installation, package discovery, and target selection and
-   emit their specified flat version-1 JSON envelopes even when their inspected stage diagnoses
-   source. Formatting must remain a concrete-syntax transformation rather than a semantic
-   pretty-printer, must reject comments until it can preserve them, and must publish a rewrite only
-   after complete parse and formatting success.
+1. Complete the remaining structural formatter rules, then begin immutable editor snapshots.
+   The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
+   source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
+   normalized source, lexer output, and concrete syntax tree. All three commands bypass
+   installation, package discovery, and target selection. `fmt` rejects syntax errors and comments,
+   reparses its candidate output to prove concrete-syntax preservation, and publishes through a
+   same-directory synchronized temporary followed by rename; `--check` never writes. Its spacing,
+   indentation, top-level separation, delimiter, and idempotence foundation is closed against the
+   complete accepted grammar corpus and every public example. Structural normalization of
+   multi-line comma lists and the specification's explicit redundant-grouping rewrites remains
+   before formatting is complete. `tokens` and `ast` emit their specified flat version-1 JSON
+   envelopes even when their inspected stage diagnoses source.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named

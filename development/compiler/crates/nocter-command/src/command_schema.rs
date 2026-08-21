@@ -13,6 +13,7 @@ pub(crate) enum CommandKind {
     Test,
     Tokens,
     Ast,
+    Fmt,
 }
 
 impl CommandKind {
@@ -45,6 +46,7 @@ pub(crate) enum CommandOption {
     Target,
     Test,
     Case,
+    FormatCheck,
 }
 
 impl CommandOption {
@@ -145,7 +147,7 @@ const RESOLUTION_OPTIONS: u16 = CommandOption::Locked.bit() | CommandOption::Off
 const INPUT_OPTIONS: u16 =
     CommandOption::Root.bit() | CommandOption::File.bit() | CommandOption::Executable.bit();
 
-const OPTIONS: [OptionSchema; 11] = [
+const OPTIONS: [OptionSchema; 12] = [
     OptionSchema {
         option: CommandOption::Help,
         long: "--help",
@@ -222,6 +224,13 @@ const OPTIONS: [OptionSchema; 11] = [
         short: None,
         value: Some("NAME"),
         description: "Select one exact case in the named test target.",
+    },
+    OptionSchema {
+        option: CommandOption::FormatCheck,
+        long: "--check",
+        short: None,
+        value: None,
+        description: "Report a formatting difference without rewriting the source.",
     },
 ];
 
@@ -339,8 +348,17 @@ const AST: CommandSchema = CommandSchema {
     positional: Some(SOURCE),
 };
 
-const COMMANDS: [CommandSchema; 10] = [
-    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST,
+const FMT: CommandSchema = CommandSchema {
+    kind: CommandKind::Fmt,
+    name: "fmt",
+    form: CommandForm::Subcommand,
+    summary: "Format exactly one source file in place.",
+    accepted: HELP_OPTION | CommandOption::FormatCheck.bit(),
+    positional: Some(SOURCE),
+};
+
+const COMMANDS: [CommandSchema; 11] = [
+    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT,
 ];
 
 /// One pure help selection produced by the public argument parser.
@@ -426,7 +444,7 @@ fn render_command_help(schema: CommandSchema) -> String {
 mod tests {
     use super::*;
 
-    const KINDS: [CommandKind; 10] = [
+    const KINDS: [CommandKind; 11] = [
         CommandKind::Help,
         CommandKind::Version,
         CommandKind::Doctor,
@@ -437,6 +455,7 @@ mod tests {
         CommandKind::Test,
         CommandKind::Tokens,
         CommandKind::Ast,
+        CommandKind::Fmt,
     ];
 
     #[test]

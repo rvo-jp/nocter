@@ -47,6 +47,7 @@ pub enum ParsedCommand {
     Run(ParsedRunCommand),
     Test(ParsedTestCommand),
     SourceInspection(ParsedSourceInspectionCommand),
+    Format(ParsedFormatCommand),
 }
 
 impl ParsedCommand {
@@ -61,8 +62,32 @@ impl ParsedCommand {
             | Self::Version
             | Self::Doctor
             | Self::Fetch(_)
-            | Self::SourceInspection(_) => None,
+            | Self::SourceInspection(_)
+            | Self::Format(_) => None,
         }
+    }
+}
+
+/// Pure argument result for formatting one standalone source.
+#[derive(Debug)]
+pub struct ParsedFormatCommand {
+    source: PathBuf,
+    check: bool,
+}
+
+impl ParsedFormatCommand {
+    #[must_use]
+    pub fn source(&self) -> &Path {
+        &self.source
+    }
+
+    #[must_use]
+    pub const fn check(&self) -> bool {
+        self.check
+    }
+
+    pub(crate) fn into_parts(self) -> (PathBuf, bool) {
+        (self.source, self.check)
     }
 }
 
@@ -510,7 +535,25 @@ pub fn parse_command_invocation(
         )
         .map(ParsedCommand::SourceInspection)
         .map_err(|failure| failure.for_command("ast")),
+        CommandKind::Fmt => parse_format(arguments.into_iter())
+            .map(ParsedCommand::Format)
+            .map_err(|failure| failure.for_command("fmt")),
     }
+}
+
+fn parse_format(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedFormatCommand, OptionsParseFailure> {
+    let parsed = parse_options(arguments, CommandKind::Fmt.schema())?;
+    let Some(source) = parsed.positional else {
+        return Err(OptionsParseFailure::plain(
+            CommandArgumentError::MissingSource("fmt"),
+        ));
+    };
+    Ok(ParsedFormatCommand {
+        source,
+        check: parsed.format_check,
+    })
 }
 
 fn parse_source_inspection(
@@ -567,6 +610,7 @@ fn parse_check(
         target,
         test: _,
         case: _,
+        format_check: _,
     } = parse_options(arguments, CommandKind::Check.schema())?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -591,6 +635,7 @@ fn parse_fetch(
         target: _,
         test: _,
         case: _,
+        format_check: _,
     } = parse_options(arguments, CommandKind::Fetch.schema())?;
     Ok(ParsedFetchCommand { root, resolution })
 }
@@ -609,6 +654,7 @@ fn parse_build(
         target,
         test: _,
         case: _,
+        format_check: _,
     } = parse_options(arguments, CommandKind::Build.schema())?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -632,6 +678,7 @@ fn parse_run(
         target,
         test: _,
         case: _,
+        format_check: _,
     } = parse_options(arguments, CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -655,6 +702,7 @@ fn parse_test(
         target,
         test,
         case,
+        format_check: _,
     } = parse_options(arguments, CommandKind::Test.schema())?;
     Ok(ParsedTestCommand {
         root,
@@ -677,6 +725,7 @@ struct ParsedOptions {
     target: Option<CompilationTarget>,
     test: Option<Box<str>>,
     case: Option<Box<str>>,
+    format_check: bool,
 }
 
 fn parse_options(
@@ -871,7 +920,10 @@ fn parse_valued_option(
             CommandArgumentError::NonUnicodeCase,
             CommandArgumentError::EmptyCase,
         ),
-        CommandOption::Help | CommandOption::Locked | CommandOption::Offline => {
+        CommandOption::Help
+        | CommandOption::Locked
+        | CommandOption::Offline
+        | CommandOption::FormatCheck => {
             unreachable!("flag option passed the valued-option boundary")
         }
     }
@@ -892,6 +944,7 @@ fn parse_flag_option(
         CommandOption::Help => Err(CommandArgumentError::HelpMustBeUsedAlone(command.name())),
         CommandOption::Locked => set_flag(&mut parsed.resolution.locked, option.canonical_name()),
         CommandOption::Offline => set_flag(&mut parsed.resolution.offline, option.canonical_name()),
+        CommandOption::FormatCheck => set_flag(&mut parsed.format_check, option.canonical_name()),
         CommandOption::Root
         | CommandOption::File
         | CommandOption::Executable
@@ -1225,6 +1278,33 @@ mod tests {
             CommandArgumentError::OptionNotAccepted {
                 option: "--target",
                 command: "tokens",
+            }
+        );
+    }
+
+    #[test]
+    fn format_requires_one_source_and_has_one_check_flag() {
+        let parsed = parse_command_arguments(arguments(&["fmt", "app.nct", "--check"])).unwrap();
+        let ParsedCommand::Format(parsed) = parsed else {
+            panic!("expected format command")
+        };
+        assert_eq!(parsed.source(), Path::new("app.nct"));
+        assert!(parsed.check());
+        assert_eq!(
+            parse_command_arguments(arguments(&["fmt"])).unwrap_err(),
+            CommandArgumentError::MissingSource("fmt")
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["fmt", "app.nct", "--check", "--check"]))
+                .unwrap_err(),
+            CommandArgumentError::DuplicateOption("--check")
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["fmt", "app.nct", "--format", "json"]))
+                .unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--format",
+                command: "fmt",
             }
         );
     }

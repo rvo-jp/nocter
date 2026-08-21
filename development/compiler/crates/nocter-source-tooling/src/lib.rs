@@ -4,6 +4,7 @@
 //! discover packages, resolve names, select targets, or reconstruct a second syntax model.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fmt::Write;
 
 use nocter_diagnostics::{
@@ -12,6 +13,36 @@ use nocter_diagnostics::{
 };
 use nocter_source::{SourceError, SourceFile, SourceMap, SourceName, TextRange};
 use nocter_syntax::{ExpectedSyntax, ParseGoal, SyntaxElement, SyntaxTree, TokenKind, parse};
+
+mod formatter;
+
+/// Formatting failure selected before any filesystem publication.
+#[derive(Debug)]
+pub enum FormatError {
+    Diagnostics(Box<[SourceDiagnostic]>),
+    ChangedSyntax,
+}
+
+impl FormatError {
+    #[must_use]
+    pub const fn diagnostics(&self) -> Option<&[SourceDiagnostic]> {
+        match self {
+            Self::Diagnostics(diagnostics) => Some(diagnostics),
+            Self::ChangedSyntax => None,
+        }
+    }
+}
+
+impl fmt::Display for FormatError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Diagnostics(_) => formatter.write_str("source cannot be formatted"),
+            Self::ChangedSyntax => formatter.write_str("formatter output changed concrete syntax"),
+        }
+    }
+}
+
+impl std::error::Error for FormatError {}
 
 /// The grammar root selected for one standalone inspection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,6 +107,24 @@ impl SourceInspection {
     #[must_use]
     pub fn ast_succeeded(&self) -> bool {
         !self.syntax.has_errors()
+    }
+
+    /// Formats the retained source through the concrete-syntax layout model.
+    ///
+    /// # Errors
+    ///
+    /// Returns source diagnostics when parsing failed or comments prevent a lossless rewrite, and
+    /// an integrity failure when reparsing the candidate output changes concrete syntax.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the inspection snapshot loses its own source identity.
+    pub fn format(&self) -> Result<String, FormatError> {
+        let source = self
+            .sources
+            .get(self.syntax.source())
+            .expect("inspection source remains in its source map");
+        formatter::format(source, &self.syntax)
     }
 
     /// Renders the `nocter.tokens` version-1 envelope from the retained lexer snapshot.

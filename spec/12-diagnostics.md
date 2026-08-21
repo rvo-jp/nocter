@@ -51,9 +51,16 @@ Rules:
 - Error codes should not encode compiler phase. The same user-visible mistake should keep the same code even if implementation phases change.
 - Error codes become compatibility-sensitive once published in user-facing documentation.
 
+Formatting diagnostic codes:
+
+- `E0601`: formatter cannot safely rewrite a source that contains comments.
+- `E0602`: formatter check found a source file that would change.
+
+`E0601` points to the first comment that prevents a lossless rewrite. `E0602` is spanless because
+the complete canonical output differs rather than one source range being invalid.
+
 Spanless CLI diagnostic codes:
 
-- `E0602`: formatter check found a source file that would change.
 - `E0700`: command-line syntax or unsupported command.
 - `E0701`: target selection failed.
 - `E0702`: filesystem path or permission failure.
