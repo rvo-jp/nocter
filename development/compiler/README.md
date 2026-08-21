@@ -49,7 +49,8 @@ be introduced to make an unresolved syntax choice.
   ambiguity decisions, continuation-newline ownership, body-result classification, control-header
   brace ownership, and bounded malformed-source recovery.
 - `nocter-model` owns typed semantic ID domains, the canonical compile-unit symbol table,
-  normalized parameter-origin sets, and interned structural types. It has no crate dependencies;
+  stable resolved package identities, normalized parameter-origin sets, and interned structural
+  types. It has no crate dependencies;
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
   keys. An interface-owned `Self` has a canonical interface-identity placeholder distinct from
   explicit generic parameters and nominal applications; conformance specialization can therefore
@@ -342,8 +343,18 @@ be introduced to make an unresolved syntax choice.
   Declared-package and explicit single-file discovery converge before this boundary. Every public
   single-file example is qualified through this exact session with the authored standard package.
   Its executable request then resolves the sole target or one authored target name to an exact
-  `PackageTargetId` and consumes the target program into `ExecutableProgram`. Selection and
-  executable closure are typed session failures; command layers never rescan semantic names.
+  `PackageTargetId` and closes an `ExecutableProgram`. Package-wide native requests compile the
+  target program once, share that immutable snapshot across independently specialized executable
+  closures, and return identity-bearing Mach-O images in canonical declaration order only after
+  every entry succeeds. Selection, executable closure, and backend stages remain typed session
+  failures; command layers never rescan semantic names.
+- `nocter-command` owns post-session filesystem and process effects. Single builds publish one
+  complete image through a private sibling file, synchronization, executable permissions, and an
+  atomic rename. Package builds first freeze a pure output plan, reject non-filename executable
+  names and cross-root collisions before writing, then publish every declaration-order image
+  through that same artifact path. Temporary run artifacts use a private directory, inherited
+  standard streams, exact child status, and explicit cleanup. This crate depends on session output
+  rather than semantic or backend internals.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
