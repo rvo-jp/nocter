@@ -22,9 +22,13 @@ implementation input.
    longer decode separate subsets of target directive text. `ResolvedPackageGraph` now loads every
    selected manifest once, owns its source/syntax/declaration snapshot, validates exact alias and
    package identities, requires remote locks, and proves path dependencies select the authored
-   canonical root. Discovery consumes that graph without reopening package files. The remaining
-   resolver must derive the pre-resolved package specs from the root declaration, exact local/home
-   stores, and toolchain package; fetch/store mutation remains a separate authority. Canonical
+   canonical root. Discovery consumes that graph without reopening package files. The exact
+   resolver now derives the complete recursive graph from one root declaration, the package-local
+   and Nocter-home exact stores, mutable path roots, and the toolchain-selected standard package.
+   One shared graph builder ensures that resolution and graph closure load each manifest only once.
+   Missing lock and fetch state crosses typed requirements; locked/offline policy forbids only the
+   relevant mutation. Fetch, lock rewriting, and store installation remain a separate authority,
+   and the command adapter must supply the active Nocter home and standard package. Canonical
    `PackageId` construction is closed: Git and archive locks normalize to Windows-safe exact IDs,
    path packages hash their canonical absolute UTF-8 path, and one dependency-free SHA-256
    implementation is shared with Mach-O emission. Build/run

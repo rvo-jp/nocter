@@ -132,26 +132,25 @@ impl ResolvedPackageGraph {
                 return Err(PackageGraphError::DuplicatePackage(spec.identity.clone()));
             }
         }
-
-        let mut sources = SourceMap::new();
-        let mut syntax = Vec::new();
-        let mut packages = Vec::new();
-        let mut roots = BTreeMap::new();
+        let mut builder = PackageGraphBuilder::new();
+        let mut edges = BTreeMap::new();
         for spec in specs {
-            packages.push(load_package(
-                spec,
-                &identities,
-                &mut roots,
-                &mut sources,
-                &mut syntax,
-            )?);
+            let identity = spec.identity.clone();
+            builder.load(spec.identity, &spec.root)?;
+            if edges
+                .insert(
+                    identity.clone(),
+                    ResolvedPackageEdges {
+                        authored: spec.dependencies,
+                        implicit: spec.implicit_dependencies,
+                    },
+                )
+                .is_some()
+            {
+                return Err(PackageGraphError::DuplicatePackage(identity));
+            }
         }
-        validate_path_roots(&packages)?;
-        Ok(Self {
-            sources,
-            syntax,
-            packages,
-        })
+        builder.finish(edges)
     }
 
     #[must_use]
@@ -175,38 +174,148 @@ impl ResolvedPackageGraph {
     }
 }
 
+pub(crate) struct PackageGraphBuilder {
+    sources: SourceMap,
+    syntax: Vec<SyntaxTree>,
+    packages: BTreeMap<PackageIdentity, LoadedPackageSnapshot>,
+    roots: BTreeMap<PathBuf, PackageIdentity>,
+}
+
+impl PackageGraphBuilder {
+    pub(crate) fn new() -> Self {
+        Self {
+            sources: SourceMap::new(),
+            syntax: Vec::new(),
+            packages: BTreeMap::new(),
+            roots: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn load(
+        &mut self,
+        identity: PackageIdentity,
+        root: &Path,
+    ) -> Result<(), PackageGraphError> {
+        let canonical_root = canonical_package_root(root)?;
+        self.load_canonical(identity, canonical_root)
+    }
+
+    pub(crate) fn load_canonical(
+        &mut self,
+        identity: PackageIdentity,
+        canonical_root: PathBuf,
+    ) -> Result<(), PackageGraphError> {
+        if self.packages.contains_key(&identity) {
+            return Err(PackageGraphError::DuplicatePackage(identity));
+        }
+        let package = load_package(
+            identity.clone(),
+            canonical_root,
+            &mut self.roots,
+            &mut self.sources,
+            &mut self.syntax,
+        )?;
+        self.packages.insert(identity, package);
+        Ok(())
+    }
+
+    pub(crate) fn declaration(&self, identity: &PackageIdentity) -> Option<&PackageDeclaration> {
+        self.packages.get(identity)?.declaration.as_ref()
+    }
+
+    pub(crate) fn finish(
+        self,
+        mut edges: BTreeMap<PackageIdentity, ResolvedPackageEdges>,
+    ) -> Result<ResolvedPackageGraph, PackageGraphError> {
+        let identities = self.packages.keys().cloned().collect::<BTreeSet<_>>();
+        let mut packages = Vec::with_capacity(self.packages.len());
+        for (identity, package) in self.packages {
+            let resolved = edges
+                .remove(&identity)
+                .ok_or_else(|| PackageGraphError::UnknownPackage(identity.clone()))?;
+            let dependencies = validate_edges(
+                &identity,
+                package.declaration.as_ref(),
+                resolved.authored,
+                resolved.implicit,
+                &identities,
+            )?;
+            packages.push(package.finish(identity, dependencies));
+        }
+        if let Some(identity) = edges.into_keys().next() {
+            return Err(PackageGraphError::UnknownPackage(identity));
+        }
+        validate_path_roots(&packages)?;
+        Ok(ResolvedPackageGraph {
+            sources: self.sources,
+            syntax: self.syntax,
+            packages,
+        })
+    }
+}
+
+pub(crate) struct ResolvedPackageEdges {
+    pub(crate) authored: BTreeMap<Box<str>, PackageIdentity>,
+    pub(crate) implicit: BTreeMap<Box<str>, PackageIdentity>,
+}
+
+struct LoadedPackageSnapshot {
+    display_name: Box<str>,
+    canonical_root: PathBuf,
+    declaration_path: PathBuf,
+    declaration_syntax: usize,
+    declaration: Option<PackageDeclaration>,
+}
+
+impl LoadedPackageSnapshot {
+    fn finish(
+        self,
+        identity: PackageIdentity,
+        dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    ) -> ResolvedPackageSnapshot {
+        ResolvedPackageSnapshot {
+            identity,
+            display_name: self.display_name,
+            canonical_root: self.canonical_root,
+            dependencies,
+            declaration_path: self.declaration_path,
+            declaration_syntax: self.declaration_syntax,
+            declaration: self.declaration,
+        }
+    }
+}
+
 fn load_package(
-    spec: ResolvedPackageSpec,
-    identities: &BTreeSet<PackageIdentity>,
+    identity: PackageIdentity,
+    canonical_root: PathBuf,
     roots: &mut BTreeMap<PathBuf, PackageIdentity>,
     sources: &mut SourceMap,
     syntax: &mut Vec<SyntaxTree>,
-) -> Result<ResolvedPackageSnapshot, PackageGraphError> {
-    let canonical_root = canonicalize("canonicalize package root", &spec.root)?;
+) -> Result<LoadedPackageSnapshot, PackageGraphError> {
     if !canonical_root.is_dir() {
         return Err(PackageGraphError::InvalidPackageRoot {
-            package: spec.identity,
+            package: identity,
             path: canonical_root,
         });
     }
-    if let Some(first) = roots.insert(canonical_root.clone(), spec.identity.clone()) {
+    if let Some(first) = roots.insert(canonical_root.clone(), identity.clone()) {
         return Err(PackageGraphError::DuplicateCanonicalRoot {
             first,
-            second: spec.identity,
+            second: identity,
             path: canonical_root,
         });
     }
     let declaration_path = canonical_root.join("nocter.nct");
     if !regular_file(&declaration_path)? {
         return Err(PackageGraphError::MissingPackageFile {
-            package: spec.identity,
+            package: identity,
             path: declaration_path,
         });
     }
     let declaration_path = canonicalize("canonicalize package file", &declaration_path)?;
     if !declaration_path.starts_with(&canonical_root) {
         return Err(PackageGraphError::InvalidPackageRoot {
-            package: spec.identity,
+            package: identity,
             path: declaration_path,
         });
     }
@@ -243,24 +352,19 @@ fn load_package(
             || directory_name(&canonical_root),
             |name| Ok(Box::<str>::from(name.value())),
         )?;
-    let dependencies = validate_edges(
-        &spec.identity,
-        declaration.as_ref(),
-        spec.dependencies,
-        spec.implicit_dependencies,
-        identities,
-    )?;
     let declaration_syntax = syntax.len();
     syntax.push(tree);
-    Ok(ResolvedPackageSnapshot {
-        identity: spec.identity,
+    Ok(LoadedPackageSnapshot {
         display_name,
         canonical_root,
-        dependencies,
         declaration_path,
         declaration_syntax,
         declaration,
     })
+}
+
+pub(crate) fn canonical_package_root(path: &Path) -> Result<PathBuf, PackageGraphError> {
+    canonicalize("canonicalize package root", path)
 }
 
 fn validate_edges(

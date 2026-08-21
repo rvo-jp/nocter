@@ -154,6 +154,17 @@ directory differs from the resolved target package. Syntax-invalid manifests rem
 snapshot for ordinary diagnostic projection. Discovery consumes the graph by ownership and appends
 module sources to its existing source universe; it never opens or parses a manifest again.
 
+`resolve_package_graph` constructs that snapshot directly from one explicit root, Nocter home,
+toolchain-selected standard package, and immutable locked/offline policy. It resolves mutable path
+dependencies at their canonical authored directories and exact remote dependencies first at
+`<root>/.nocter/packages/<PackageId>`, then at `<Nocter-home>/packages/<PackageId>`. A shared graph
+builder loads each selected manifest once while recursively closing its dependencies; resolution
+does not inspect a manifest and then ask the graph to reopen it. Missing locks and installed
+packages cross typed `LockRequired` and `FetchRequired` boundaries. Locked/offline policy converts
+only the forbidden requirement into a policy error. The resolver never writes a lock, contacts a
+source, downloads content, or mutates either store; those actions belong to a future package-state
+authority that must rerun exact resolution after completing its transaction.
+
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
 lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
 once, distinguishes
