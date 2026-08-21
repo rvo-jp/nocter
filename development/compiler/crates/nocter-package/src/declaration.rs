@@ -122,6 +122,7 @@ pub struct PackageDeclaration {
     version: Option<AuthoredString>,
     dependencies: BTreeMap<Box<str>, DependencyDeclaration>,
     locks: BTreeMap<Box<str>, DependencyLock>,
+    lock_directive: Option<NodeId>,
     targets: Box<[PackageTargetDeclaration]>,
 }
 
@@ -144,6 +145,11 @@ impl PackageDeclaration {
     #[must_use]
     pub const fn locks(&self) -> &BTreeMap<Box<str>, DependencyLock> {
         &self.locks
+    }
+
+    #[must_use]
+    pub const fn lock_directive(&self) -> Option<NodeId> {
+        self.lock_directive
     }
 
     #[must_use]
@@ -236,6 +242,7 @@ pub fn decode_package_declaration(
     let mut version = None;
     let mut dependencies = None;
     let mut locks = None;
+    let mut lock_directive = None;
     let mut targets = Vec::new();
     let mut target_order = 0_u32;
 
@@ -267,12 +274,15 @@ pub fn decode_package_declaration(
                 declaration,
                 "dependencies",
             )?,
-            "lock" => set_once(
-                &mut locks,
-                decode_lock(source, tree, declaration)?,
-                declaration,
-                "lock",
-            )?,
+            "lock" => {
+                set_once(
+                    &mut locks,
+                    decode_lock(source, tree, declaration)?,
+                    declaration,
+                    "lock",
+                )?;
+                lock_directive = Some(declaration);
+            }
             "executable" | "test" => {
                 let kind = if directive.as_ref() == "executable" {
                     PackageTargetKind::Executable
@@ -312,6 +322,7 @@ pub fn decode_package_declaration(
         version,
         dependencies,
         locks,
+        lock_directive,
         targets: targets.into_boxed_slice(),
     })
 }

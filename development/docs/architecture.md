@@ -162,8 +162,23 @@ builder loads each selected manifest once while recursively closing its dependen
 does not inspect a manifest and then ask the graph to reopen it. Missing locks and installed
 packages cross typed `LockRequired` and `FetchRequired` boundaries. Locked/offline policy converts
 only the forbidden requirement into a policy error. The resolver never writes a lock, contacts a
-source, downloads content, or mutates either store; those actions belong to a future package-state
-authority that must rerun exact resolution after completing its transaction.
+source, downloads content, or mutates either store. Source-independent `ExactDependencyLock`
+values are distinct from syntax-bearing authored locks. A `PackageLockOverlay` can therefore close
+a provisional graph before generated source is committed, while a `PackageStoreOverlay` selects
+private staged roots before they are published. Both are immutable resolver inputs; neither grants
+mutation authority.
+
+`nocter-package-state` owns the mutation transaction above that read-only boundary. A transport
+implementation receives typed lock-resolution and exact-fetch requests, but only the coordinator
+chooses private staging roots, publishes verified package directories, or rewrites package source.
+It resolves the complete graph through both overlays, publishes only after that graph succeeds,
+reruns resolution using persistent stores alone, then atomically commits one canonical sorted root
+`#lock` block. The source commit compares the exact retained manifest bytes first, so a concurrent
+edit is rejected rather than overwritten; generated source also preserves the manifest's LF or
+CRLF convention. Missing locks below the selected root are rejected because an exact stored
+package and a separately selected path package are not implicit mutation targets. Failed staging
+removes its private transaction tree, and individually published exact packages remain valid cache
+entries even if a later source commit fails.
 The production selection result retains command-root and standard `PackageIdentity` values beside
 the graph, so command discovery never recovers either role from a path or display name. A graph-only
 projection remains available only for consumers that genuinely do not need those roles.

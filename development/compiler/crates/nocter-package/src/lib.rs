@@ -9,6 +9,7 @@ mod graph;
 mod id;
 mod lock;
 mod lock_overlay;
+mod lock_source;
 mod resolution;
 mod store_overlay;
 
@@ -23,6 +24,7 @@ pub use graph::{
 pub use id::{PackageId, PackageIdError};
 pub use lock::{ExactDependencyLock, ExactDependencyLockError, ExactDependencyLockKind};
 pub use lock_overlay::{PackageLockOverlay, PackageLockOverlayError};
+pub use lock_source::{PackageLockSourceError, PackageLockSourceUpdate};
 pub use resolution::{
     PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
     ResolvedPackageSelection, StandardPackage, resolve_package_graph, resolve_package_selection,

@@ -107,6 +107,26 @@ impl PackageResolutionRequest {
         self.store_overlay = store_overlay;
         self
     }
+
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    #[must_use]
+    pub fn nocter_home(&self) -> &Path {
+        &self.nocter_home
+    }
+
+    #[must_use]
+    pub const fn standard(&self) -> &StandardPackage {
+        &self.standard
+    }
+
+    #[must_use]
+    pub const fn policy(&self) -> PackageResolutionPolicy {
+        self.policy
+    }
 }
 
 /// One complete graph with its non-inferable command-root and toolchain identities.
@@ -427,6 +447,7 @@ impl DependencyResolver<'_> {
             package: package.clone(),
             alias: alias.into(),
             package_id,
+            lock: lock.clone(),
             source: Box::new(source.clone()),
         })
     }
@@ -468,6 +489,7 @@ pub enum PackageResolutionError {
         package: PackageIdentity,
         alias: Box<str>,
         package_id: PackageId,
+        lock: ExactDependencyLock,
         source: Box<DependencySource>,
     },
     MissingLockLocked {

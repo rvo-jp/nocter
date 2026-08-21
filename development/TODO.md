@@ -36,9 +36,17 @@ implementation input.
    could reconstruct a phase-selected span. Internal compiler failures remain visibly distinct and
    never receive a source rule code.
 
-   Next, add the package-state transaction that fulfills typed
-   `LockRequired`/`FetchRequired` results and reruns exact resolution; do not make the resolver or
-   command adapter mutate locks or stores.
+   The package-state transaction is now closed. Source-independent exact locks and staged-store
+   overlays let the read-only resolver validate provisional state. `nocter-package-state` injects
+   acquisition, validates the complete staged graph, publishes exact packages, reruns resolution
+   through persistent stores, and commits a canonical root lock block only after comparing the
+   retained source bytes. It rejects implicit lock generation below the selected root and cleans
+   failed staging trees.
+
+   Next, define the concrete Git/HTTPS acquisition implementation from explicit platform and
+   trust inputs, then route `fetch` and the package-mode command preparation boundary through the
+   transaction. Do not let CLI parsing, `nocter-command`, or the read-only resolver execute a
+   transport, choose staging paths, or rewrite package source.
 
    The completed installation boundary remains:
    `nocter-installation` now selects exactly one canonical home from explicit process facts:
@@ -63,12 +71,14 @@ implementation input.
    and Nocter-home exact stores, mutable path roots, and the toolchain-selected standard package.
    One shared graph builder ensures that resolution and graph closure load each manifest only once.
    Missing lock and fetch state crosses typed requirements; locked/offline policy forbids only the
-   relevant mutation. The production command adapter now supplies an explicit target, Nocter home,
+   relevant mutation. Provisional exact locks and staged roots are immutable resolver inputs, and
+   the separate package-state coordinator owns their graph-validated publication. The production
+   command adapter now supplies an explicit target, Nocter home,
    and standard package, preserves the resolver-owned command-root identity, selects only the
    compile-root modules required by all/sole/named executable policy, and crosses the existing
    discovery, session, publication, and launch boundaries. Parsed `--locked` and `--offline`
-   values reach exact resolution unchanged. Fetch, lock rewriting, and store installation remain
-   separate authorities. Canonical
+   values reach exact resolution unchanged. Concrete transport remains outside the command and
+   resolver authorities. Canonical
    `PackageId` construction is closed: Git and archive locks normalize to Windows-safe exact IDs,
    path packages hash their canonical absolute UTF-8 path, and one dependency-free SHA-256
    implementation is shared with Mach-O emission. Build/run

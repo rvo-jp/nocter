@@ -10,7 +10,8 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use crate::{
     DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
-    PackageDeclarationError, decode_package_declaration,
+    PackageDeclarationError, PackageLockSourceError, PackageLockSourceUpdate,
+    decode_package_declaration,
 };
 
 /// One externally resolved package before its authored declaration is loaded and verified.
@@ -73,6 +74,7 @@ pub struct ResolvedPackageSnapshot {
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
     locks: BTreeMap<Box<str>, ExactDependencyLock>,
     declaration_path: PathBuf,
+    manifest_bytes: Box<[u8]>,
     declaration_syntax: usize,
     declaration: Option<PackageDeclaration>,
 }
@@ -188,6 +190,43 @@ impl ResolvedPackageGraph {
         &self.packages
     }
 
+    /// Renders one package declaration with its validated effective locks.
+    ///
+    /// Existing generated lock syntax is replaced as a unit. When no lock directive exists, one
+    /// canonical sorted block is appended. No filesystem state is changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the package is absent or its retained source/syntax identity is
+    /// internally inconsistent.
+    pub fn manifest_lock_update(
+        &self,
+        identity: &PackageIdentity,
+    ) -> Result<PackageLockSourceUpdate, PackageLockSourceError> {
+        let package = self
+            .packages
+            .iter()
+            .find(|package| package.identity() == identity)
+            .ok_or(PackageLockSourceError::UnknownPackage)?;
+        let syntax = self
+            .syntax
+            .get(package.declaration_syntax())
+            .ok_or(PackageLockSourceError::MissingPackageSyntax)?;
+        self.sources
+            .get(syntax.root_id().source())
+            .ok_or(PackageLockSourceError::MissingPackageSource)?;
+        let declaration = package
+            .declaration()
+            .ok_or(PackageLockSourceError::MissingPackageDeclaration)?;
+        crate::lock_source::render_effective_locks(
+            package.declaration_path(),
+            &package.manifest_bytes,
+            syntax,
+            declaration,
+            package.locks(),
+        )
+    }
+
     #[must_use]
     pub fn into_parts(self) -> (SourceMap, Vec<SyntaxTree>, Vec<ResolvedPackageSnapshot>) {
         (self.sources, self.syntax, self.packages)
@@ -285,6 +324,7 @@ struct LoadedPackageSnapshot {
     display_name: Box<str>,
     canonical_root: PathBuf,
     declaration_path: PathBuf,
+    manifest_bytes: Box<[u8]>,
     declaration_syntax: usize,
     declaration: Option<PackageDeclaration>,
 }
@@ -308,6 +348,7 @@ impl LoadedPackageSnapshot {
             dependencies,
             locks,
             declaration_path: self.declaration_path,
+            manifest_bytes: self.manifest_bytes,
             declaration_syntax: self.declaration_syntax,
             declaration: self.declaration,
         }
@@ -387,6 +428,7 @@ fn load_package(
         display_name,
         canonical_root,
         declaration_path,
+        manifest_bytes: bytes.into_boxed_slice(),
         declaration_syntax,
         declaration,
     })
