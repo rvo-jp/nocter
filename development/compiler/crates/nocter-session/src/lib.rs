@@ -16,8 +16,8 @@ pub use executable::{
     ExecutableSessionError, compile_executable,
 };
 pub use native::{
-    NativeImageError, NativeImageSetError, NativeSessionError, compile_native_image,
-    compile_native_images,
+    NativeImageError, NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError,
+    compile_native_image, compile_native_images,
 };
 pub use output::{
     CompiledExecutable, CompiledNativeImage, CompiledNativeImageSet, CompiledTarget,

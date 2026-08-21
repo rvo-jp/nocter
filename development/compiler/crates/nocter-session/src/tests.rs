@@ -8,8 +8,8 @@ use nocter_model::CompilationTarget;
 use nocter_target_program::PrimitiveRole;
 
 use super::{
-    ExecutableCompileRequest, bundled_standard_toolchain, compile_native_image,
-    compile_native_images, compile_target,
+    ExecutableCompileRequest, NativeImageSetCompileRequest, bundled_standard_toolchain,
+    compile_native_image, compile_native_images, compile_target,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -162,7 +162,7 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
     ))
     .unwrap();
 
-    let image_set = compile_native_images(&unit).unwrap();
+    let image_set = compile_native_images(NativeImageSetCompileRequest::all(&unit)).unwrap();
     assert_eq!(
         image_set
             .entries()

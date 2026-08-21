@@ -5,13 +5,18 @@
 
 mod artifact;
 mod build;
+mod output_plan;
 mod run;
 
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
     stage_temporary_image,
 };
-pub use build::{BuildCommandError, BuiltExecutable, build_executable};
+pub use build::{
+    BuildCommandError, BuildSetCommandError, BuiltExecutable, BuiltExecutableEntry,
+    BuiltExecutableSet, build_executable, build_executables,
+};
+pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 
 #[cfg(test)]

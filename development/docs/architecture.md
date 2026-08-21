@@ -246,6 +246,13 @@ Launch and cleanup failures remain distinct, including the case where both occur
 depends on `nocter-session` rather than semantic or backend crates, so command code cannot assemble
 a second compiler pipeline.
 
+Package build first creates a pure `BuildOutputPlan` for the complete native image set. The plan
+maps each identity-bearing entry to its authored executable name directly below the caller-selected
+package root, rejects names that are not one filename, and rejects cross-root output collisions
+before the first filesystem mutation. Publication then consumes that frozen order. Each path is
+committed through the same sibling-file protocol, and artifact errors retain the exact executable
+identity that failed.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

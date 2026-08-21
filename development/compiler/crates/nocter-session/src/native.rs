@@ -28,7 +28,20 @@ pub fn compile_native_image(
     Ok(CompiledNativeImage::new(identity, image, source_index))
 }
 
-/// Compiles every executable owned by the command-root packages through one shared target program.
+/// Closed request to compile every executable owned by the command-root packages.
+#[derive(Clone, Copy, Debug)]
+pub struct NativeImageSetCompileRequest<'unit> {
+    unit: &'unit nocter_discovery::DiscoveredUnit,
+}
+
+impl<'unit> NativeImageSetCompileRequest<'unit> {
+    #[must_use]
+    pub const fn all(unit: &'unit nocter_discovery::DiscoveredUnit) -> Self {
+        Self { unit }
+    }
+}
+
+/// Compiles every root executable through one shared target program.
 ///
 /// Entries preserve canonical package-target declaration order. The function returns no partial
 /// set when one executable fails specialization or backend lowering.
@@ -38,8 +51,9 @@ pub fn compile_native_image(
 /// Returns the exact compile boundary, rejects a root set with no executable, or identifies the
 /// exact executable whose closure or native lowering failed.
 pub fn compile_native_images(
-    unit: &nocter_discovery::DiscoveredUnit,
+    request: NativeImageSetCompileRequest<'_>,
 ) -> Result<CompiledNativeImageSet, NativeImageSetError> {
+    let NativeImageSetCompileRequest { unit } = request;
     let compiled = compile_target(unit)?;
     let (target, source_index) = compiled.into_parts();
     let identities = root_executables(&target);
