@@ -12,9 +12,11 @@ use std::path::{Path, PathBuf};
 use nocter_model::PackageIdentity;
 use nocter_package::StandardPackage;
 
+mod compatibility;
 mod json;
 mod manifest;
 
+pub use compatibility::{CompilerInstallation, InstallationCompatibilityError};
 pub use manifest::{
     ArchiveMetadata, ImplementedTarget, InstallationManifest, LicenseMetadata, ManifestError,
 };
@@ -114,6 +116,19 @@ impl NocterHome {
             license,
             notice,
         })
+    }
+
+    /// Closes the host and native default-target relationship for the running compiler.
+    ///
+    /// # Errors
+    ///
+    /// Returns a compatibility failure when this home belongs to another compiler host or selects
+    /// a non-native default target while cross compilation remains unsupported.
+    pub fn for_compiler(
+        self,
+        compiler_host: &str,
+    ) -> Result<CompilerInstallation, InstallationCompatibilityError> {
+        CompilerInstallation::validate(self, compiler_host)
     }
 
     #[must_use]
@@ -476,6 +491,55 @@ mod tests {
             home.standard_package().identity().as_str(),
             "toolchain-std-v0.14.0"
         );
+    }
+
+    #[test]
+    fn compiler_compatibility_closes_host_and_native_target_identity() {
+        let tree = TempTree::new();
+        let compatible = tree.installation("compatible", b"0.14.0\n");
+        let installation = NocterHome::resolve(NocterHomeRequest::new(
+            Some(compatible.into_os_string()),
+            "unused",
+        ))
+        .unwrap()
+        .for_compiler("arm64-darwin")
+        .unwrap();
+        assert_eq!(installation.manifest().host(), "arm64-darwin");
+
+        let wrong_host = tree.installation("wrong-host", b"0.14.0\n");
+        let error = NocterHome::resolve(NocterHomeRequest::new(
+            Some(wrong_host.into_os_string()),
+            "unused",
+        ))
+        .unwrap()
+        .for_compiler("x64-linux")
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            InstallationCompatibilityError::HostMismatch { .. }
+        ));
+
+        let wrong_target = tree.installation("wrong-target", b"0.14.0\n");
+        let manifest_path = wrong_target.join("MANIFEST.json");
+        let manifest = fs::read_to_string(&manifest_path)
+            .unwrap()
+            .replace(
+                "\"default_target\": \"arm64-darwin\"",
+                "\"default_target\": \"x64-linux\"",
+            )
+            .replace("\"name\": \"arm64-darwin\"", "\"name\": \"x64-linux\"");
+        fs::write(manifest_path, manifest).unwrap();
+        let error = NocterHome::resolve(NocterHomeRequest::new(
+            Some(wrong_target.into_os_string()),
+            "unused",
+        ))
+        .unwrap()
+        .for_compiler("arm64-darwin")
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            InstallationCompatibilityError::NativeDefaultTargetMismatch { .. }
+        ));
     }
 
     #[test]

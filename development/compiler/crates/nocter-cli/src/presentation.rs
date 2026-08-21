@@ -33,7 +33,11 @@ impl InvocationDiagnosticPresentation {
                 root: command.root_hint(),
                 root_absolute_path: None,
             }),
-            ParsedCommand::Fetch(_) | ParsedCommand::Build(_) | ParsedCommand::Run(_) => None,
+            ParsedCommand::Version
+            | ParsedCommand::Doctor
+            | ParsedCommand::Fetch(_)
+            | ParsedCommand::Build(_)
+            | ParsedCommand::Run(_) => None,
         }
     }
 

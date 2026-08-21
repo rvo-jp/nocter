@@ -264,7 +264,17 @@
 <span class="token-function">nocter</span> <span class="token-function">test</span> <span class="token-option">--target</span> arm64-darwin
 </code></pre><p>The default is the host target. <code>arm64-darwin</code> is the currently implemented target. Recognized but unimplemented targets produce target-selection diagnostics. Formatting and syntax-inspection commands do not accept <code>--target</code>.</p><p>Declaration target gates use the source form:</p><pre><code class="language-nct">#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">primitive</span> <span class="token-function">syscall0</span><span class="token-operator">(</span>number<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i64</span>
-</code></pre><h2 id="version-and-doctor">Version and Doctor</h2><p><code>nocter --version</code> reports the compiler release, host, and default target. <code>nocter doctor</code> validates the active Nocter home, including <code>VERSION</code>, <code>MANIFEST.json</code>, the host/default-target relationship, and the standard-library directory. Neither command reads user source.</p><h2 id="output-and-exit-status">Output and Exit Status</h2><p>Compiler-owned exit statuses are:</p><pre><code class="language-text">0  success
+</code></pre><h2 id="version-and-doctor">Version and Doctor</h2><p><code>nocter --version</code> reports the compiler release, host, and default target. <code>nocter doctor</code> validates the active Nocter home, including <code>VERSION</code>, <code>MANIFEST.json</code>, the host/default-target relationship, and the standard-library directory. Neither command reads user source.</p><p>Both commands first select and physically validate the same Nocter home used by compilation. The installation host must equal the running compiler host. While cross compilation is unsupported, the default target must also equal that host. Extra arguments and options are rejected.</p><p>Successful version output has this form:</p><pre><code class="language-text">Nocter
+release: &lt;release&gt;
+host: &lt;host&gt;
+default target: &lt;target&gt;
+</code></pre><p>Successful doctor output has this form:</p><pre><code class="language-text">Nocter home is valid
+root: &lt;canonical Nocter home path&gt;
+selected by: &lt;NOCTER_HOME or compiler executable&gt;
+release: &lt;release&gt;
+host: &lt;host&gt;
+default target: &lt;target&gt;
+</code></pre><h2 id="output-and-exit-status">Output and Exit Status</h2><p>Compiler-owned exit statuses are:</p><pre><code class="language-text">0  success
 1  source diagnostics or a formatting difference
 2  command-line, filesystem, Nocter-home, or target-selection error
 3  internal compiler error

@@ -5,18 +5,26 @@ use nocter_command::{
     ParsedRunCommand, ResolvedProgramInput, execute_prepared_build, execute_prepared_check,
     execute_prepared_fetch, execute_prepared_run,
 };
+use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
 
 use crate::presentation::InvocationDiagnosticPresentation;
-use crate::{InvocationError, InvocationErrorKind, InvocationOutcome};
+use crate::{DoctorReport, InvocationError, InvocationErrorKind, InvocationOutcome, VersionReport};
 
 pub(crate) fn execute_parsed_command(
     command: ParsedCommand,
     current_directory: &Path,
+    installation: &CompilerInstallation,
     toolchain: &CommandToolchain,
     presentation: Option<InvocationDiagnosticPresentation>,
 ) -> Result<InvocationOutcome, InvocationError> {
     match command {
+        ParsedCommand::Version => Ok(InvocationOutcome::Version(
+            VersionReport::from_installation(installation),
+        )),
+        ParsedCommand::Doctor => Ok(InvocationOutcome::Doctor(DoctorReport::from_installation(
+            installation,
+        ))),
         ParsedCommand::Fetch(command) => {
             execute_fetch(command, current_directory, toolchain, presentation)
         }

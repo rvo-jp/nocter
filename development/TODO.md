@@ -15,8 +15,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Add `--version` and `doctor` through the validated installation profile before adding commands
-   that require new compiler stages.
+1. Add top-level and command-specific `help` from one declarative command schema before implementing
+   the remaining tooling commands.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
@@ -37,11 +37,16 @@ implementation input.
    wrappers forward that snapshot like every later compiler phase. Graph/syntax inconsistencies
    remain spanless `E0900` failures instead of borrowing a user-facing import code.
 
-   `--version` must use release, host, and default-target facts already validated by
-   `nocter-installation`; `doctor` must report validation of that same selected home. Neither may
-   create a second manifest decoder, search policy, or installation model. Their successful text
-   is stdout, their typed failures keep status 2, and neither reads user source or initializes
-   package acquisition.
+   `--version` and `doctor` are now closed. Pure parsing gives them an exact argument surface.
+   `nocter-installation` promotes a physically validated `NocterHome` to `CompilerInstallation`
+   only when compiler host, manifest host, and the native-only default target agree. Both reports
+   consume that profile, write successful text to stdout, retain typed status-2 failures, and never
+   prepare user source or initialize package acquisition.
+
+   Help must not add a handwritten second flag table. Extend the existing declarative command shape
+   so parsing, applicability errors, usage text, and command summaries consume the same immutable
+   option vocabulary. `nocter help`, `nocter help <command>`, and `nocter <command> --help` must
+   converge on one typed report and must not require a valid Nocter home or current package.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

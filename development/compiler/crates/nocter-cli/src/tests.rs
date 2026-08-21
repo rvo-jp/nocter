@@ -127,9 +127,92 @@ fn compiler_host_is_checked_before_user_source_preparation() {
 
     assert!(matches!(
         error.kind(),
-        InvocationErrorKind::HostMismatch { .. }
+        InvocationErrorKind::InstallationCompatibility(_)
     ));
     assert_eq!(error.diagnostic_code(), Some("E0703"));
+}
+
+#[test]
+fn version_reports_only_the_validated_installation_identity() {
+    let tree = TempTree::new("version");
+    let home = tree.installation("arm64-darwin", false);
+    let outcome = execute_invocation(invocation(
+        ["--version"],
+        &tree.0.join("unused-missing-directory"),
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(outcome, InvocationOutcome::Version(_)));
+    assert_eq!(
+        outcome.render_standard_output().as_deref(),
+        Some(concat!(
+            "Nocter\n",
+            "release: 0.14.0\n",
+            "host: arm64-darwin\n",
+            "default target: arm64-darwin\n"
+        ))
+    );
+}
+
+#[test]
+fn doctor_reports_the_exact_validated_home() {
+    let tree = TempTree::new("doctor");
+    let home = tree.installation("arm64-darwin", false);
+    let outcome = execute_invocation(invocation(
+        ["doctor"],
+        &tree.0.join("unused-missing-directory"),
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let InvocationOutcome::Doctor(report) = &outcome else {
+        panic!("expected doctor report");
+    };
+    let canonical_home = fs::canonicalize(home).unwrap();
+
+    assert_eq!(report.root(), canonical_home);
+    assert_eq!(
+        outcome.render_standard_output().unwrap(),
+        format!(
+            concat!(
+                "Nocter home is valid\n",
+                "root: {}\n",
+                "selected by: NOCTER_HOME\n",
+                "release: 0.14.0\n",
+                "host: arm64-darwin\n",
+                "default target: arm64-darwin\n"
+            ),
+            canonical_home.display()
+        )
+    );
+}
+
+#[test]
+fn every_command_rejects_a_non_native_default_target_profile() {
+    let tree = TempTree::new("default-target");
+    let home = tree.installation("arm64-darwin", false);
+    let manifest_path = home.join("MANIFEST.json");
+    let manifest = fs::read_to_string(&manifest_path)
+        .unwrap()
+        .replace(
+            "\"default_target\": \"arm64-darwin\"",
+            "\"default_target\": \"x64-linux\"",
+        )
+        .replace("\"name\": \"arm64-darwin\"", "\"name\": \"x64-linux\"");
+    fs::write(manifest_path, manifest).unwrap();
+    let error =
+        execute_invocation(invocation(["doctor"], &tree.0, &home, "arm64-darwin")).unwrap_err();
+
+    assert!(matches!(
+        error.kind(),
+        InvocationErrorKind::InstallationCompatibility(
+            nocter_installation::InstallationCompatibilityError::NativeDefaultTargetMismatch { .. }
+        )
+    ));
+    assert_eq!(error.diagnostic_code(), Some("E0703"));
+    assert_eq!(error.exit_code(), 2);
 }
 
 #[test]

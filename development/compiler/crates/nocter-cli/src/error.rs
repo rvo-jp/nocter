@@ -9,7 +9,7 @@ use nocter_diagnostics::{
     DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
     render_source_diagnostics_json, render_spanless_diagnostic_json,
 };
-use nocter_installation::NocterHomeError;
+use nocter_installation::{InstallationCompatibilityError, NocterHomeError};
 use nocter_package_acquisition::PackageAcquisitionError;
 
 use crate::presentation::InvocationDiagnosticPresentation;
@@ -24,10 +24,7 @@ pub struct InvocationError {
 pub enum InvocationErrorKind {
     Arguments(CommandArgumentFailure),
     Installation(NocterHomeError),
-    HostMismatch {
-        compiler: Box<str>,
-        installation: Box<str>,
-    },
+    InstallationCompatibility(InstallationCompatibilityError),
     AcquisitionInitialization(PackageAcquisitionError),
     Preparation(PreparedCommandError),
     Fetch(Box<FetchCommandExecutionError>),
@@ -90,9 +87,8 @@ impl InvocationError {
                     | ProgramInputError::InvalidSourceExtension(_),
                 ),
             ) => Some("E0700"),
-            InvocationErrorKind::Installation(_) | InvocationErrorKind::HostMismatch { .. } => {
-                Some("E0703")
-            }
+            InvocationErrorKind::Installation(_)
+            | InvocationErrorKind::InstallationCompatibility(_) => Some("E0703"),
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::PackageRootNotDirectory(_)
                 | ProgramInputError::MissingPackageDeclaration(_)
@@ -172,7 +168,7 @@ impl InvocationError {
         let user = match self.kind.as_ref() {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
-            | InvocationErrorKind::HostMismatch { .. }
+            | InvocationErrorKind::InstallationCompatibility(_)
             | InvocationErrorKind::Preparation(_)
             | InvocationErrorKind::Fetch(_) => true,
             InvocationErrorKind::Check(error) => error.is_user_failure(),
@@ -199,7 +195,7 @@ impl InvocationError {
             InvocationErrorKind::Run(error) => error.source_diagnostics(),
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
-            | InvocationErrorKind::HostMismatch { .. }
+            | InvocationErrorKind::InstallationCompatibility(_)
             | InvocationErrorKind::AcquisitionInitialization(_)
             | InvocationErrorKind::Fetch(_)
             | InvocationErrorKind::Preparation(_) => None,
@@ -213,13 +209,7 @@ impl fmt::Display for InvocationError {
         match self.kind.as_ref() {
             InvocationErrorKind::Arguments(error) => error.fmt(formatter),
             InvocationErrorKind::Installation(error) => error.fmt(formatter),
-            InvocationErrorKind::HostMismatch {
-                compiler,
-                installation,
-            } => write!(
-                formatter,
-                "Nocter home host `{installation}` does not match compiler host `{compiler}`"
-            ),
+            InvocationErrorKind::InstallationCompatibility(error) => error.fmt(formatter),
             InvocationErrorKind::AcquisitionInitialization(error) => {
                 write!(formatter, "cannot initialize package acquisition: {error}")
             }
@@ -237,13 +227,13 @@ impl std::error::Error for InvocationError {
         match self.kind.as_ref() {
             InvocationErrorKind::Arguments(error) => Some(error),
             InvocationErrorKind::Installation(error) => Some(error),
+            InvocationErrorKind::InstallationCompatibility(error) => Some(error),
             InvocationErrorKind::Preparation(error) => Some(error),
             InvocationErrorKind::AcquisitionInitialization(error) => Some(error),
             InvocationErrorKind::Fetch(error) => Some(error),
             InvocationErrorKind::Check(error) => Some(error),
             InvocationErrorKind::Build(error) => Some(error),
             InvocationErrorKind::Run(error) => Some(error),
-            InvocationErrorKind::HostMismatch { .. } => None,
         }
     }
 }

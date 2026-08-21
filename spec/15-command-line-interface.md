@@ -400,6 +400,30 @@ primitive syscall0(number: u64): i64
 the active Nocter home, including `VERSION`, `MANIFEST.json`, the host/default-target relationship,
 and the standard-library directory. Neither command reads user source.
 
+Both commands first select and physically validate the same Nocter home used by compilation. The
+installation host must equal the running compiler host. While cross compilation is unsupported,
+the default target must also equal that host. Extra arguments and options are rejected.
+
+Successful version output has this form:
+
+```text
+Nocter
+release: <release>
+host: <host>
+default target: <target>
+```
+
+Successful doctor output has this form:
+
+```text
+Nocter home is valid
+root: <canonical Nocter home path>
+selected by: <NOCTER_HOME or compiler executable>
+release: <release>
+host: <host>
+default target: <target>
+```
+
 ## Output and Exit Status
 
 Compiler-owned exit statuses are:

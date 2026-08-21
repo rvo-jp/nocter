@@ -375,8 +375,12 @@ target authority. The adapter never reads process globals or reconstructs instal
 sole `nocter` process
 entry reads arguments, `NOCTER_HOME`, the real executable, and the current directory once. It
 validates argument structure before installation or source access, delegates installation
-selection to `nocter-installation`, compares compiler-host and manifest-host identity, and creates
-the command toolchain from the validated manifest default target and standard package. Package mode invokes exact
+selection to `nocter-installation`, then creates `CompilerInstallation` only after the manifest
+host and native default target both match the running compiler host. This wrapper makes the
+compatibility relationship a prerequisite for every command instead of a repeated CLI condition.
+The process adapter creates the command toolchain from its default target and standard package.
+`--version` and `doctor` render only this validated profile; they do not prepare source or
+initialize package acquisition. Package mode invokes exact
 package selection, retains the resolver-owned command-root identity, selects the root module and
 only the executable modules required by the command, and then creates one ordinary declared
 discovery request. A named build or check does not open an unselected executable module. Package-set and

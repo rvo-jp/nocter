@@ -20,11 +20,13 @@ mod error;
 mod host;
 mod presentation;
 mod process;
+mod report;
 
 pub use error::{InvocationError, InvocationErrorKind, InvocationFailureClass};
 pub use host::build_host;
 use presentation::InvocationDiagnosticPresentation;
 pub use process::{CurrentProcessError, execute_current_process};
+pub use report::{DoctorReport, VersionReport};
 
 /// Explicit process facts for one command invocation.
 #[derive(Clone, Debug)]
@@ -59,6 +61,8 @@ impl Invocation {
 /// success.
 #[derive(Debug)]
 pub enum InvocationOutcome {
+    Version(VersionReport),
+    Doctor(DoctorReport),
     Fetch(FetchCommandResult),
     Check(Box<CheckCommandResult>),
     Build(BuildCommandResult),
@@ -69,8 +73,22 @@ impl InvocationOutcome {
     #[must_use]
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::Fetch(_) | Self::Check(_) | Self::Build(_) => 0,
+            Self::Version(_)
+            | Self::Doctor(_)
+            | Self::Fetch(_)
+            | Self::Check(_)
+            | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
+        }
+    }
+
+    /// Renders successful human output for commands whose result is a report.
+    #[must_use]
+    pub fn render_standard_output(&self) -> Option<String> {
+        match self {
+            Self::Version(report) => Some(report.render()),
+            Self::Doctor(report) => Some(report.render()),
+            Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => None,
         }
     }
 
@@ -89,7 +107,12 @@ impl InvocationOutcome {
                 )
                 .map(Some)
             }
-            Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => Ok(None),
+            Self::Version(_)
+            | Self::Doctor(_)
+            | Self::Fetch(_)
+            | Self::Check(_)
+            | Self::Build(_)
+            | Self::Run(_) => Ok(None),
         }
     }
 }
@@ -123,24 +146,27 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
             )
         },
     )?;
+    let installation = home.for_compiler(&compiler_host).map_err(|error| {
+        InvocationError::new(
+            InvocationErrorKind::InstallationCompatibility(error),
+            presentation.clone(),
+        )
+    })?;
     if let Some(presentation) = presentation.as_mut() {
-        presentation.target = Some(home.manifest().default_target().name());
-    }
-    if home.manifest().host() != compiler_host.as_ref() {
-        return Err(InvocationError::new(
-            InvocationErrorKind::HostMismatch {
-                compiler: compiler_host,
-                installation: home.manifest().host().into(),
-            },
-            presentation,
-        ));
+        presentation.target = Some(installation.manifest().default_target().name());
     }
     let toolchain = CommandToolchain::new(
-        home.manifest().default_target(),
-        home.root(),
-        home.standard_package(),
+        installation.manifest().default_target(),
+        installation.root(),
+        installation.standard_package(),
     );
-    dispatch::execute_parsed_command(command, &current_directory, &toolchain, presentation)
+    dispatch::execute_parsed_command(
+        command,
+        &current_directory,
+        &installation,
+        &toolchain,
+        presentation,
+    )
 }
 
 fn check_json_context(

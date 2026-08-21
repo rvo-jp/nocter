@@ -11,6 +11,9 @@ fn main() {
                     process::exit(3);
                 }
             }
+            if let Some(rendered) = outcome.render_standard_output() {
+                print!("{rendered}");
+            }
             process::exit(outcome.exit_code());
         }
         Err(error) => {

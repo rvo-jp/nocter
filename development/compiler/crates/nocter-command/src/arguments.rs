@@ -35,6 +35,8 @@ impl ResolutionOptions {
 
 #[derive(Debug)]
 pub enum ParsedCommand {
+    Version,
+    Doctor,
     Fetch(ParsedFetchCommand),
     Check(ParsedCheckCommand),
     Build(ParsedBuildCommand),
@@ -292,6 +294,12 @@ pub fn parse_command_invocation(
         ));
     };
     match command.to_str() {
+        Some("--version") => parse_empty_command(arguments, "--version")
+            .map(|()| ParsedCommand::Version)
+            .map_err(|failure| failure.for_command("--version")),
+        Some("doctor") => parse_empty_command(arguments, "doctor")
+            .map(|()| ParsedCommand::Doctor)
+            .map_err(|failure| failure.for_command("doctor")),
         Some("fetch") => parse_fetch(arguments)
             .map(ParsedCommand::Fetch)
             .map_err(|failure| failure.for_command("fetch")),
@@ -311,6 +319,13 @@ pub fn parse_command_invocation(
             None,
         )),
     }
+}
+
+fn parse_empty_command(
+    arguments: impl Iterator<Item = OsString>,
+    name: &'static str,
+) -> Result<(), OptionsParseFailure> {
+    parse_options(arguments, CommandShape { name, accepted: 0 }).map(|_| ())
 }
 
 fn parse_check(
@@ -834,6 +849,32 @@ mod tests {
 
     fn arguments(values: &[&str]) -> Vec<OsString> {
         values.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn installation_reports_have_an_exact_argument_surface() {
+        assert!(matches!(
+            parse_command_arguments(arguments(&["--version"])).unwrap(),
+            ParsedCommand::Version
+        ));
+        assert!(matches!(
+            parse_command_arguments(arguments(&["doctor"])).unwrap(),
+            ParsedCommand::Doctor
+        ));
+        assert_eq!(
+            parse_command_arguments(arguments(&["--version", "extra"])).unwrap_err(),
+            CommandArgumentError::PositionalNotAccepted {
+                command: "--version",
+                argument: "extra".into(),
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["doctor", "--offline"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--offline",
+                command: "doctor",
+            }
+        );
     }
 
     fn package_root() -> PathBuf {
