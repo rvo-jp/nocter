@@ -15,11 +15,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Resolve declared package target directives to exact module identities in discovery, qualify the
-   public package example through `nocter-session`, then add executable-root selection and command
-   request/result types. Explicit single-file discovery and every public single-file example now
+1. Add executable-root selection and command request/result types on top of `nocter-session`.
+   Explicit single-file discovery, selected declared package targets, and every public example now
    cross the same immutable compile-unit and target-session boundary; the command layer must
-   consume that boundary rather than assemble stages.
+   consume that boundary rather than assemble stages or reopen a target by source name.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

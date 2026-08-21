@@ -9,20 +9,9 @@ use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct PackageIdentity(Box<str>);
+mod identity;
 
-impl PackageIdentity {
-    #[must_use]
-    pub fn new(identity: impl Into<Box<str>>) -> Self {
-        Self(identity.into())
-    }
-
-    #[must_use]
-    pub const fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+pub use identity::{ModuleIdentity, PackageIdentity, is_valid_module_segment};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PackageMode {
@@ -99,39 +88,6 @@ impl<'syntax> PackageInput<'syntax> {
     #[must_use]
     pub const fn declaration(&self) -> Option<&PackageDeclarationInput<'syntax>> {
         self.declaration.as_ref()
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ModuleIdentity {
-    package: PackageIdentity,
-    path: Box<[Box<str>]>,
-}
-
-impl ModuleIdentity {
-    #[must_use]
-    pub fn new<S>(package: PackageIdentity, path: impl IntoIterator<Item = S>) -> Self
-    where
-        S: Into<Box<str>>,
-    {
-        Self {
-            package,
-            path: path
-                .into_iter()
-                .map(Into::into)
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
-        }
-    }
-
-    #[must_use]
-    pub const fn package(&self) -> &PackageIdentity {
-        &self.package
-    }
-
-    #[must_use]
-    pub const fn path(&self) -> &[Box<str>] {
-        &self.path
     }
 }
 

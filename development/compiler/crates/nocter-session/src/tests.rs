@@ -69,6 +69,33 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
     }
 }
 
+#[test]
+fn public_package_example_crosses_the_complete_target_session() {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler.join("../std");
+    let example_root = compiler.join("../../examples/file-summary");
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let example_package = PackageIdentity::new("workspace:file-summary");
+    let example = ResolvedPackage::new(example_package.clone(), "file-summary", &example_root)
+        .with_dependency("std", standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        vec![
+            example,
+            resolved_standard(&standard_root, &standard_package),
+        ],
+        vec![ModuleIdentity::new(example_package, Vec::<&str>::new())],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_target(&unit).unwrap();
+
+    assert_eq!(
+        target.program().checked().graph().package_targets().len(),
+        1
+    );
+}
+
 fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackage {
     ResolvedPackage::new(package.clone(), "std", root).with_dependency("std", package.clone())
 }

@@ -953,14 +953,7 @@ fn require_source<'input>(
 }
 
 fn is_module_segment(segment: &str) -> bool {
-    let bytes = segment.as_bytes();
-    !bytes.is_empty()
-        && segment != "_"
-        && !bytes[0].is_ascii_digit()
-        && bytes
-            .iter()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
-        && Keyword::from_spelling(segment).is_none()
+    nocter_compile_input::is_valid_module_segment(segment)
 }
 
 #[cfg(test)]

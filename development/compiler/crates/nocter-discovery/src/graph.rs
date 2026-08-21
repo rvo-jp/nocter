@@ -4,8 +4,8 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode, PrimitiveRoleInput,
-    StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
+    ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode, PackageTargetResolutionInput,
+    PrimitiveRoleInput, StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
@@ -13,6 +13,7 @@ use nocter_target_selection::TargetSelection;
 
 use crate::DiscoveryError;
 use crate::error::{ImportFailure, ToolchainDiscoveryError};
+use crate::package_targets::authored_package_targets;
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,
     ToolchainRequest,
@@ -59,6 +60,7 @@ struct Builder {
     modules: BTreeMap<ModuleIdentity, Vec<DiscoveredSource>>,
     source_owners: BTreeMap<PathBuf, ModuleIdentity>,
     use_resolutions: Vec<UseResolutionInput>,
+    package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pending: BTreeSet<Work>,
     toolchain: ToolchainRequest,
 }
@@ -114,6 +116,8 @@ impl Builder {
         } = loaded;
         validate_package_dependencies(&packages)?;
         validate_toolchain(&packages, &toolchain)?;
+        let package_target_resolutions =
+            discover_package_targets(&packages, &sources, &syntax, &roots)?;
         let mut pending = initial_work(&packages, &roots, &toolchain)?;
         if let Some((module, path)) = single_file {
             pending.insert(Work::SingleFile { module, path });
@@ -127,6 +131,7 @@ impl Builder {
             modules: BTreeMap::new(),
             source_owners: BTreeMap::new(),
             use_resolutions: Vec::new(),
+            package_target_resolutions,
             pending,
             toolchain,
         })
@@ -190,6 +195,7 @@ impl Builder {
             packages,
             modules,
             use_resolutions: self.use_resolutions,
+            package_target_resolutions: self.package_target_resolutions,
             toolchain,
         })
     }
@@ -664,6 +670,45 @@ impl Builder {
         }
         Ok(())
     }
+}
+
+fn discover_package_targets(
+    packages: &BTreeMap<PackageIdentity, PackageState>,
+    sources: &SourceMap,
+    syntax: &[SyntaxTree],
+    roots: &[ModuleIdentity],
+) -> Result<Vec<PackageTargetResolutionInput>, DiscoveryError> {
+    let selected = roots.iter().collect::<BTreeSet<_>>();
+    let mut resolutions = Vec::new();
+    for package in packages.values() {
+        let Some((_, syntax_index)) = package.declaration.as_ref() else {
+            continue;
+        };
+        let tree = &syntax[*syntax_index];
+        if tree.has_errors() {
+            continue;
+        }
+        let source = sources
+            .get(tree.source())
+            .ok_or(DiscoveryError::InconsistentSyntax(tree.root_id()))?;
+        for target in authored_package_targets(source, tree)? {
+            let module = ModuleIdentity::new(
+                package.identity.clone(),
+                target.module().iter().map(AsRef::as_ref),
+            );
+            if selected.contains(&module) {
+                resolutions.push(PackageTargetResolutionInput::new(
+                    target.declaration(),
+                    module,
+                ));
+            }
+        }
+    }
+    resolutions.sort_unstable_by_key(|resolution| {
+        let declaration = resolution.declaration();
+        (declaration.source(), declaration.index())
+    });
+    Ok(resolutions)
 }
 
 fn load_source(

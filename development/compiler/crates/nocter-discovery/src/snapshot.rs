@@ -3,8 +3,8 @@ use std::fmt;
 
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
-    UseResolutionInput,
+    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
@@ -83,6 +83,7 @@ pub struct DiscoveredUnit {
     pub(crate) packages: Vec<DiscoveredPackage>,
     pub(crate) modules: Vec<DiscoveredModule>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
+    pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pub(crate) toolchain: Option<ToolchainInput>,
 }
 
@@ -168,6 +169,7 @@ impl DiscoveredUnit {
             modules,
             self.use_resolutions.clone(),
         )
+        .with_package_target_resolutions(self.package_target_resolutions.clone())
         .with_toolchain(toolchain))
     }
 

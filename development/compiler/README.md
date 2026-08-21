@@ -178,6 +178,10 @@ be introduced to make an unresolved syntax choice.
 - `nocter-discovery` is the only filesystem source-graph authority. It canonicalizes resolved
   package roots, loads package and module roots, closes implementation-source and dependency edges,
   rejects ownership escapes and source/module ambiguity, and freezes deterministic compile input.
+  Its request explicitly distinguishes declared-package and single-file layouts. Selected declared
+  roots retain exact package-target directive edges, while file mode creates one canonical source
+  package; both emit the same compile-unit schema. Module segment validity has one shared
+  compile-input authority used by discovery and defensive lowering validation.
   It also loads every exact toolchain module and resolves each standard semantic role locator to one
   declaration token before lowering. Primitive roles enter the same path and become exact callable
   identities through `SourceIndex`, never a checked-graph name search. A syntax-clean complete

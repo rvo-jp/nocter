@@ -23,6 +23,13 @@ pub enum ImportFailure {
     SingleFileLocalImport,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PackageTargetFailure {
+    MissingModule,
+    DuplicateModule,
+    InvalidModule,
+}
+
 #[derive(Debug)]
 pub enum DiscoveryError {
     DuplicatePackage(PackageIdentity),
@@ -55,6 +62,10 @@ pub enum DiscoveryError {
         declaration: NodeId,
         path: Box<str>,
         failure: ImportFailure,
+    },
+    PackageTarget {
+        declaration: NodeId,
+        failure: PackageTargetFailure,
     },
     ConflictingSourceOwner {
         path: PathBuf,
@@ -137,6 +148,13 @@ impl fmt::Display for DiscoveryError {
                 formatter,
                 "use {declaration:?} cannot resolve {path}: {failure:?}"
             ),
+            Self::PackageTarget {
+                declaration,
+                failure,
+            } => write!(
+                formatter,
+                "package target {declaration:?} has invalid module selection: {failure:?}"
+            ),
             Self::ConflictingSourceOwner {
                 path,
                 first,
@@ -185,6 +203,7 @@ impl std::error::Error for DiscoveryError {
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }
             | Self::Import { .. }
+            | Self::PackageTarget { .. }
             | Self::ConflictingSourceOwner { .. }
             | Self::NonUnicodeCanonicalPath(_)
             | Self::Source { .. }

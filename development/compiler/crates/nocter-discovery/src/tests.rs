@@ -200,6 +200,38 @@ fn closes_source_folder_module_and_dependency_edges_once() {
 }
 
 #[test]
+fn selected_declared_roots_retain_exact_package_target_directives() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/nocter.nct",
+        "#name: \"app\"\n#executable: { name: \"app\" }\n#test: { name: \"unit\", module: \"./tests/unit\" }\n",
+    );
+    tree.source("app/index.nct", "func main(): void { return }\n");
+    tree.source("app/tests/unit/index.nct", "test works { return }\n");
+
+    let package = PackageIdentity::new("workspace:app");
+    let root = ModuleIdentity::new(package.clone(), Vec::<&str>::new());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        vec![ResolvedPackage::new(
+            package.clone(),
+            "app",
+            tree.path().join("app"),
+        )],
+        vec![
+            root.clone(),
+            ModuleIdentity::new(package, ["tests", "unit"]),
+        ],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+    let input = unit.compile_input().unwrap();
+    assert_eq!(input.package_target_resolutions().len(), 2);
+    assert_eq!(input.package_target_resolutions()[0].module(), &root);
+    nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+}
+
+#[test]
 fn rejects_a_relative_path_with_both_source_and_module_candidates() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "");

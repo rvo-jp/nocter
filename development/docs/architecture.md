@@ -148,6 +148,13 @@ would silently turn the file into a directory graph. It then emits the same pack
 source, import-edge, and toolchain snapshot consumed by declaration lowering. There is no
 single-file semantic pipeline.
 
+Declared discovery also owns package-target module edges for the roots selected by its caller. It
+decodes each target's authored module selector once, validates canonical module segments through a
+shared compile-input rule, and freezes the exact package-directive node with the selected
+`ModuleIdentity`. Declaration lowering verifies and consumes that edge; it never decodes the
+module path again. Target directives for modules outside the requested compile roots do not expand
+the unit.
+
 `nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
 package has an opaque resolved identity distinct from its display name. A module has that package
 identity plus normalized directory segments. Physical package declarations, module roots,
