@@ -180,6 +180,10 @@ produce no response. Document synchronization parameters are decoded into distin
 save, and close values before they reach workspace state. Full synchronization accepts exactly one
 unranged content replacement; incremental ranges, duplicate recognized fields, non-integer
 versions, empty URIs, and missing text are explicit parameter failures.
+`DocumentUri` separately decodes only local absolute `file:` URIs. Scheme parsing, local-authority
+validation, query/fragment rejection, percent decoding, UTF-8 validation, and NUL rejection happen
+without filesystem access. The server layer receives a platform path but remains solely responsible
+for resolving that path against disk or a virtual open-document parent.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot

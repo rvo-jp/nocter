@@ -9,13 +9,15 @@ mod parameters;
 mod response;
 mod session;
 mod transport;
+mod uri;
 
 pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState};
 pub use message::{IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId};
 pub use parameters::{
-    DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, DocumentUri, ParameterError,
+    DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,
     ParameterErrorKind,
 };
 pub use response::{ResponseErrorCode, render_error_response, render_success_response};
 pub use session::{ProtocolEvent, ProtocolReception, ProtocolSession};
 pub use transport::{FrameError, FrameReader, write_frame};
+pub use uri::{DocumentUri, DocumentUriError, DocumentUriErrorKind};

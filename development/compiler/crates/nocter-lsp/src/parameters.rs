@@ -2,15 +2,7 @@ use std::fmt;
 
 use nocter_json::{Member, Value};
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct DocumentUri(Box<str>);
-
-impl DocumentUri {
-    #[must_use]
-    pub const fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+use crate::DocumentUri;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DidOpenParams {
@@ -185,11 +177,7 @@ fn required(value: Option<Value>, path: &str) -> Result<Value, ParameterError> {
 
 fn uri(value: Value, path: &str) -> Result<DocumentUri, ParameterError> {
     let value = string(value, path)?;
-    if value.is_empty() {
-        Err(ParameterError::new(ParameterErrorKind::EmptyUri, path))
-    } else {
-        Ok(DocumentUri(value))
-    }
+    DocumentUri::new(value).map_err(|_| ParameterError::new(ParameterErrorKind::EmptyUri, path))
 }
 
 fn string(value: Value, path: &str) -> Result<Box<str>, ParameterError> {
