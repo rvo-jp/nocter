@@ -21,9 +21,10 @@ target. It validates target availability, compiler-selected primitive completene
 identity, and every selected-target buildability condition. A library-only package may stop at
 this boundary. It does not receive a synthetic entry.
 
-`ExecutableProgram` consumes one `TargetProgram` and one exact executable or test selection. It
-validates the selected module's entry contract, then instantiates the entry-driven reachable graph.
-It owns the only monomorphized item table and freezes every concrete conformance dispatch. It
+`ExecutableProgram` retains immutable shared ownership of one `TargetProgram` and consumes one
+exact executable or test selection. Multiple package targets therefore reuse the same checked and
+target-validated graph while each builds an independent entry-driven reachable closure. Each
+executable owns its monomorphized item table and freezes every concrete conformance dispatch. It
 cannot retain a callable requirement that MIR would have to resolve again.
 
 The implemented executable root is compiler-owned metadata, not a synthetic source declaration. A

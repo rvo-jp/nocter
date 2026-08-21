@@ -15,15 +15,16 @@ implementation input.
 
 ## Immediate Work
 
-1. Add the public command-input and executable-set selection model above the completed command
-   core. `nocter-command` now compiles one exact executable only through `nocter-session`, commits
+1. Add the public command-input and output-plan model above the completed command core.
+   `nocter-command` now compiles one exact executable only through `nocter-session`, commits
    persistent images failure-atomically, and stages/runs/removes temporary images while preserving
    child exit status. Discovery, compile input, and the immutable declaration graph now preserve
    exact command-root package identities separately from traversed dependencies, and one-target
-   session selection consumes only those roots. Package `build` still needs declaration-order
-   all-target selection and output policy; package `run` needs public argument mapping onto the
-   completed sole/named selection policy. Neither may scan semantic declarations or invoke compiler
-   stages directly.
+   session selection consumes only those roots. The native session also compiles all root
+   executables in declaration order from one shared `TargetProgram` and returns an all-or-error
+   identity-bearing image set. Package `build` still needs an explicit collision-safe output plan;
+   package `run` needs public argument mapping onto the completed sole/named selection policy.
+   Neither may scan semantic declarations or invoke compiler stages directly.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

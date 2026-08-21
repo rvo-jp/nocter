@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use nocter_checking::{
     ConcreteDestructionKind, ConcreteDestructionPlan, ConcreteDispatchResolver, DropSelection,
@@ -27,7 +28,7 @@ use crate::{
 };
 
 pub(super) fn build_executable(
-    target: TargetProgram,
+    target: Arc<TargetProgram>,
     selected: nocter_model::PackageTargetId,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
     let entry = select_executable_entry(&target, selected)?;
@@ -50,7 +51,7 @@ pub(super) fn build_executable(
 }
 
 pub(super) fn build_tests(
-    target: TargetProgram,
+    target: Arc<TargetProgram>,
     selected: nocter_model::PackageTargetId,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
     let selection = select_test_target(&target, selected)?;

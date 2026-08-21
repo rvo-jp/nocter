@@ -230,6 +230,13 @@ and Mach-O construction and returns one immutable image beside the unchanged `So
 failures into a command message. Commands may choose paths, write image bytes, and launch an
 artifact, but they cannot invoke or reorder individual compiler stages.
 
+Package-wide native compilation performs frontend checking and `TargetProgram` construction once,
+then gives each root executable immutable shared ownership of that target snapshot. It closes and
+lowers every executable independently in canonical package-target declaration order and returns a
+complete image set only after every entry succeeds. Each entry retains its resolved
+`PackageIdentity`, authored target name, and dense `PackageTargetId`; output planning does not
+recover identity from filenames or display names.
+
 `nocter-command` owns executable filesystem and child-process effects after that session. Build
 writes a uniquely created sibling file, applies executable permissions, synchronizes it, and
 atomically renames it over the requested output; failures remove the private file and never expose

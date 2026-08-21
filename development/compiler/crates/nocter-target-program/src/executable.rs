@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use nocter_checking::{
     ConcreteDestructionError, ConcreteDestructionPlan, ConcreteDispatchError, GenericArguments,
@@ -433,7 +434,7 @@ pub enum ExecutableRoot {
 /// The complete deterministic monomorphized closure for one selected package target.
 #[derive(Debug)]
 pub struct ExecutableProgram {
-    target: TargetProgram,
+    target: Arc<TargetProgram>,
     types: TypeStore,
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
@@ -449,10 +450,10 @@ impl ExecutableProgram {
     ///
     /// Returns the first entry-selection or executable-closure invariant failure.
     pub fn for_executable(
-        target: TargetProgram,
+        target: impl Into<Arc<TargetProgram>>,
         selected: PackageTargetId,
     ) -> Result<Self, ExecutableProgramError> {
-        build::build_executable(target, selected)
+        build::build_executable(target.into(), selected)
     }
 
     /// Selects and closes one compiler-owned test runner.
@@ -461,15 +462,15 @@ impl ExecutableProgram {
     ///
     /// Returns the first test-selection or executable-closure invariant failure.
     pub fn for_tests(
-        target: TargetProgram,
+        target: impl Into<Arc<TargetProgram>>,
         selected: PackageTargetId,
     ) -> Result<Self, ExecutableProgramError> {
-        build::build_tests(target, selected)
+        build::build_tests(target.into(), selected)
     }
 
     #[must_use]
-    pub const fn target(&self) -> &TargetProgram {
-        &self.target
+    pub fn target(&self) -> &TargetProgram {
+        self.target.as_ref()
     }
 
     #[must_use]

@@ -1,11 +1,37 @@
 use std::fmt;
+use std::sync::Arc;
 
 use nocter_declarations::PackageTargetKind;
 use nocter_discovery::DiscoveredUnit;
-use nocter_model::PackageTargetId;
+use nocter_model::{PackageIdentity, PackageTargetId};
 use nocter_target_program::{ExecutableProgram, ExecutableProgramError, TargetProgram};
 
 use crate::{CompileSessionError, CompiledExecutable, compile_target};
+
+/// Resolver-stable identity and authored name of one selected executable target.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutableIdentity {
+    package: PackageIdentity,
+    target: PackageTargetId,
+    name: Box<str>,
+}
+
+impl ExecutableIdentity {
+    #[must_use]
+    pub const fn package(&self) -> &PackageIdentity {
+        &self.package
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> PackageTargetId {
+        self.target
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+}
 
 /// User-visible selection accepted by executable-producing commands.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,41 +84,68 @@ pub fn compile_executable(
     let compiled = compile_target(unit)?;
     let (target, source_index) = compiled.into_parts();
     let selected = select_executable(&target, &selector)?;
-    let program = ExecutableProgram::for_executable(target, selected)?;
-    Ok(CompiledExecutable::new(program, source_index))
+    let program = ExecutableProgram::for_executable(target, selected.target())?;
+    Ok(CompiledExecutable::new(selected, program, source_index))
 }
 
 fn select_executable(
     program: &TargetProgram,
     selector: &ExecutableSelector,
-) -> Result<PackageTargetId, ExecutableSelectionError> {
-    let graph = program.checked().graph();
-    let root_packages = graph.root_packages();
-    let mut candidates = graph.package_targets().iter().filter(|(_, target)| {
-        target.kind() == PackageTargetKind::Executable && root_packages.contains(&target.package())
-    });
+) -> Result<ExecutableIdentity, ExecutableSelectionError> {
+    let candidates = root_executables(program);
     match selector {
-        ExecutableSelector::Only => {
-            let Some((selected, _)) = candidates.next() else {
-                return Err(ExecutableSelectionError::NoExecutable);
-            };
-            if candidates.next().is_some() {
-                return Err(ExecutableSelectionError::MultipleExecutables);
-            }
-            Ok(selected)
-        }
+        ExecutableSelector::Only => match candidates.as_slice() {
+            [] => Err(ExecutableSelectionError::NoExecutable),
+            [selected] => Ok(selected.clone()),
+            _ => Err(ExecutableSelectionError::MultipleExecutables),
+        },
         ExecutableSelector::Named(name) => {
             let matches = candidates
-                .filter(|(_, target)| graph.symbols().spelling(target.name()) == Some(name))
-                .map(|(id, _)| id)
+                .into_iter()
+                .filter(|target| target.name() == name.as_ref())
                 .collect::<Vec<_>>();
             match matches.as_slice() {
-                [selected] => Ok(*selected),
+                [selected] => Ok(selected.clone()),
                 [] => Err(ExecutableSelectionError::UnknownName(name.clone())),
                 _ => Err(ExecutableSelectionError::AmbiguousName(name.clone())),
             }
         }
     }
+}
+
+pub(crate) fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
+    let graph = program.checked().graph();
+    let root_packages = graph.root_packages();
+    graph
+        .package_targets()
+        .iter()
+        .filter(|(_, target)| {
+            target.kind() == PackageTargetKind::Executable
+                && root_packages.contains(&target.package())
+        })
+        .map(|(id, target)| {
+            let package = graph
+                .packages()
+                .get(target.package())
+                .expect("validated package target retains its package");
+            let name = graph
+                .symbols()
+                .spelling(target.name())
+                .expect("validated package target retains its name");
+            ExecutableIdentity {
+                package: package.identity().clone(),
+                target: id,
+                name: name.into(),
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn close_executable(
+    target: Arc<TargetProgram>,
+    selected: &ExecutableIdentity,
+) -> Result<ExecutableProgram, ExecutableProgramError> {
+    ExecutableProgram::for_executable(target, selected.target())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
