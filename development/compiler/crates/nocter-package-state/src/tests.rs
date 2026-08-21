@@ -77,6 +77,8 @@ impl PackageAcquisitionAuthority for FakeAuthority {
         request: LockResolutionRequest<'_>,
     ) -> Result<ExactDependencyLock, Self::Error> {
         assert_eq!(request.alias(), "remote");
+        assert!(request.workspace().is_dir());
+        assert!(fs::read_dir(request.workspace())?.next().is_none());
         self.lock_calls += 1;
         ExactDependencyLock::git(COMMIT)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
@@ -85,6 +87,8 @@ impl PackageAcquisitionAuthority for FakeAuthority {
     fn fetch_package(&mut self, request: PackageFetchRequest<'_>) -> Result<(), Self::Error> {
         assert_eq!(request.alias(), "remote");
         assert_eq!(request.lock().value(), COMMIT);
+        assert!(request.workspace().is_dir());
+        assert!(fs::read_dir(request.workspace())?.next().is_none());
         self.fetch_calls += 1;
         fs::write(request.destination().join("nocter.nct"), &*self.manifest)
     }

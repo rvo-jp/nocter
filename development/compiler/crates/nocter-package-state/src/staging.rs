@@ -14,6 +14,7 @@ pub(crate) struct StagingArea {
     transactions: PathBuf,
     state: PathBuf,
     packages: BTreeMap<PackageId, PathBuf>,
+    next_workspace: u64,
 }
 
 impl StagingArea {
@@ -27,7 +28,19 @@ impl StagingArea {
             transactions,
             state,
             packages: BTreeMap::new(),
+            next_workspace: 0,
         })
+    }
+
+    pub(crate) fn create_workspace(&mut self) -> Result<PathBuf, PackageStateFilesystemError> {
+        let workspaces = self.root.join("acquisition");
+        if self.next_workspace == 0 {
+            create_directory(&workspaces)?;
+        }
+        let path = workspaces.join(self.next_workspace.to_string());
+        self.next_workspace += 1;
+        create_directory(&path)?;
+        Ok(path)
     }
 
     pub(crate) fn create_package(

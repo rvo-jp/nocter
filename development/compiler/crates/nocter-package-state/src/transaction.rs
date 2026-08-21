@@ -113,8 +113,14 @@ impl PackageStateTransaction {
                 alias: alias.into(),
             });
         }
+        let workspace = self
+            .staging_area()?
+            .create_workspace()
+            .map_err(PackageStateError::Filesystem)?;
         let lock = authority
-            .resolve_lock(LockResolutionRequest::new(package, alias, source))
+            .resolve_lock(LockResolutionRequest::new(
+                package, alias, source, &workspace,
+            ))
             .map_err(PackageStateError::Acquisition)?;
         let expected =
             source_lock_kind(source).ok_or_else(|| PackageStateError::UnexpectedLockSource {
@@ -145,15 +151,12 @@ impl PackageStateTransaction {
         lock: &nocter_package::ExactDependencyLock,
         source: &DependencySource,
     ) -> Result<(), PackageStateError<A::Error>> {
-        let area = if let Some(area) = self.staging.as_mut() {
-            area
-        } else {
-            let created =
-                StagingArea::new(&self.canonical_root).map_err(PackageStateError::Filesystem)?;
-            self.staging.insert(created)
-        };
+        let area = self.staging_area()?;
         let destination = area
             .create_package(package_id.clone())
+            .map_err(PackageStateError::Filesystem)?;
+        let workspace = area
+            .create_workspace()
             .map_err(PackageStateError::Filesystem)?;
         authority
             .fetch_package(PackageFetchRequest::new(
@@ -163,6 +166,7 @@ impl PackageStateTransaction {
                 lock,
                 &package_id,
                 &destination,
+                &workspace,
             ))
             .map_err(PackageStateError::Acquisition)?;
         area.validate_package(&package_id)
@@ -172,6 +176,17 @@ impl PackageStateTransaction {
             .map_err(PackageStateError::StoreOverlay)?;
         self.acquired_packages = true;
         Ok(())
+    }
+
+    fn staging_area<E: Error + Send + Sync + 'static>(
+        &mut self,
+    ) -> Result<&mut StagingArea, PackageStateError<E>> {
+        if self.staging.is_none() {
+            let created =
+                StagingArea::new(&self.canonical_root).map_err(PackageStateError::Filesystem)?;
+            self.staging = Some(created);
+        }
+        Ok(self.staging.as_mut().expect("staging area was initialized"))
     }
 
     fn complete<E: Error + Send + Sync + 'static>(
