@@ -33,7 +33,10 @@ implementation input.
    out-of-line positions, and reversed ranges cannot reach an analysis query. The bounded JSON
    parser and exact string renderer have moved from installation/diagnostic ownership into neutral
    `nocter-json`; the LSP protocol layer can now decode JSON-RPC without duplicating parsing or
-   reversing a dependency on installation policy.
+   reversing a dependency on installation policy. `nocter-lsp` now owns bounded CRLF framing,
+   exact request/notification envelopes, 32-bit/string request identities, and the explicit
+   uninitialized/awaiting-initialized/running/shutdown/exited lifecycle. The next increment is the
+   executable protocol loop and exact initialize/document parameter schemas above these gates.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

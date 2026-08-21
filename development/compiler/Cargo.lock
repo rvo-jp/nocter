@@ -1840,6 +1840,13 @@ name = "nocter-json"
 version = "0.0.0"
 
 [[package]]
+name = "nocter-lsp"
+version = "0.0.0"
+dependencies = [
+ "nocter-json",
+]
+
+[[package]]
 name = "nocter-machine"
 version = "0.0.0"
 dependencies = [

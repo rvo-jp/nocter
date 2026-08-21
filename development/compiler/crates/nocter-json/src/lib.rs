@@ -63,6 +63,38 @@ pub fn write_string(output: &mut String, value: &str) {
     output.push('"');
 }
 
+/// Appends one complete JSON value without changing retained object order or number spelling.
+pub fn write_value(output: &mut String, value: &Value) {
+    match value {
+        Value::Null => output.push_str("null"),
+        Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+        Value::Number(value) => output.push_str(value),
+        Value::String(value) => write_string(output, value),
+        Value::Array(values) => {
+            output.push('[');
+            for (index, value) in values.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                write_value(output, value);
+            }
+            output.push(']');
+        }
+        Value::Object(members) => {
+            output.push('{');
+            for (index, member) in members.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                write_string(output, &member.name);
+                output.push(':');
+                write_value(output, &member.value);
+            }
+            output.push('}');
+        }
+    }
+}
+
 struct Parser<'a> {
     input: &'a str,
     bytes: &'a [u8],
@@ -417,5 +449,13 @@ mod tests {
         let mut output = String::new();
         write_string(&mut output, "\"\\\u{08}\u{0c}\n\r\t\u{01}β");
         assert_eq!(output, r#""\"\\\b\f\n\r\t\u0001β""#);
+    }
+
+    #[test]
+    fn renders_parsed_values_without_losing_structure() {
+        let value = parse(r#"{"same":1,"same":[null,true,"β"]}"#).unwrap();
+        let mut output = String::new();
+        write_value(&mut output, &value);
+        assert_eq!(output, r#"{"same":1,"same":[null,true,"β"]}"#);
     }
 }

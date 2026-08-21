@@ -15,6 +15,7 @@ members = [
     "crates/nocter-hash",
     "crates/nocter-installation",
     "crates/nocter-json",
+    "crates/nocter-lsp",
     "crates/nocter-machine",
     "crates/nocter-macho",
     "crates/nocter-model",

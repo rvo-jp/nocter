@@ -166,6 +166,13 @@ silently collapse malformed inputs. The same crate owns JSON string escaping. In
 code therefore depend on a neutral format layer instead of depending on each other or maintaining
 divergent parsers.
 
+`nocter-lsp` owns protocol framing, JSON-RPC request identity and envelope validation, and the LSP
+lifecycle state machine. It accepts only bounded `Content-Length` frames with CRLF headers and
+UTF-8 bodies. Initialization, the `initialized` notification, shutdown, and exit form explicit
+states; invalid requests are rejected before document state or compiler analysis can observe them.
+The crate contains no filesystem or language-semantic policy, so protocol transport cannot become
+a second compiler front end.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
