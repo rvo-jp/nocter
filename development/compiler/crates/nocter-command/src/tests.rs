@@ -475,8 +475,10 @@ fn parsed_resolution_policy_reaches_the_exact_package_boundary() {
     assert!(matches!(
         error,
         super::BuildCommandExecutionError::Source(
-            super::CommandSourceError::PackageResolution(
-                PackageResolutionError::MissingLockOffline { ref alias, .. }
+            super::CommandSourceError::Package(
+                super::CommandPackageStateError::Resolution(
+                    PackageResolutionError::MissingLockOffline { ref alias, .. }
+                )
             )
         ) if alias.as_ref() == "remote"
     ));
@@ -520,6 +522,59 @@ fn package_build_commits_graph_validated_acquisition_before_discovery() {
     let manifest = fs::read_to_string(package_root.join("nocter.nct")).unwrap();
     assert!(manifest.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
     assert!(package_root.join("hello").is_file());
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn fetch_commits_the_shared_graph_validated_package_transaction_without_compiling() {
+    let directory = unique_test_directory("prepared-package-fetch");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"application\"\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
+    );
+    let super::ParsedCommand::Fetch(parsed) = super::parse_command_arguments([
+        "fetch".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected fetch command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+    let mut acquisition = FixtureAcquisition::default();
+
+    let toolchain = command_toolchain();
+    let result =
+        super::execute_prepared_fetch(prepared, toolchain.packages(), &mut acquisition).unwrap();
+
+    assert_eq!(
+        result.root(),
+        &nocter_package::PackageId::from_canonical_path(&fs::canonicalize(&package_root).unwrap())
+            .unwrap()
+            .package_identity()
+    );
+    assert_eq!(acquisition.lock_calls, 1);
+    assert_eq!(acquisition.fetch_calls, 1);
+    assert!(
+        package_root
+            .join(format!(
+                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/nocter.nct"
+            ))
+            .is_file()
+    );
+    let manifest = fs::read_to_string(package_root.join("nocter.nct")).unwrap();
+    assert!(manifest.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    let mut root_entries = fs::read_dir(&package_root)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    root_entries.sort();
+    assert_eq!(
+        root_entries,
+        [std::ffi::OsString::from(".nocter"), "nocter.nct".into()]
+    );
     fs::remove_dir_all(directory).unwrap();
 }
 

@@ -189,7 +189,10 @@ the coordinator-provided transaction workspace, so lock resolution can feed exac
 an ambient cache or a duplicate download. Archive extraction and Git materialization share bounded
 entry, path-depth, and expanded-data budgets and reject link-like entries before graph validation.
 `nocter-command` receives only the abstract acquisition capability; the public process adapter is
-the composition root that selects this concrete authority.
+the composition root that selects this concrete authority. A single command-owned package-state
+adapter maps the coordinator's generic transport error while preserving exact resolution errors.
+Build, run, and fetch all cross that adapter. Fetch stops at its returned graph-validated package
+selection and therefore cannot create a second resolver, publisher, or lock-update path.
 
 The production selection result retains command-root and standard `PackageIdentity` values beside
 the graph, so command discovery never recovers either role from a path or display name. A graph-only
@@ -350,16 +353,21 @@ directory. Run maps package input to sole/named selection and package-root worki
 file run uses sole selection and the invocation directory. `--executable` is rejected for file
 input before compilation; target existence and sole-target cardinality remain session facts.
 
-The public build/run argument boundary is a pure `OsString` parser. It receives arguments without
+The public command argument boundary is a pure `OsString` parser. It receives arguments without
 reading process-global state, keeps positional and `--file` forms distinct, supports `--` without
 forcing paths through Unicode, and rejects unknown, duplicate, missing-value, or command-inapplicable
-options before filesystem access. Preparation then invokes the existing input resolver and command
-planner in that fixed order. `--locked` and `--offline` survive as a separate immutable package
+options before filesystem access. A declarative command shape controls which options and positional
+inputs each command accepts instead of scattering command-name conditionals through parsing.
+Preparation then invokes the existing input resolver and command planner in that fixed order.
+Fetch uses the package-only projection of the same input authority, so a source-file mode is not
+representable after parsing. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
 
-Prepared build and run commands now cross one production command adapter. Its explicit
-`CommandToolchain` contains the already selected target, Nocter home, and standard package; the
-adapter never reads process globals or reconstructs installation state. The sole `nocter` process
+Prepared build and run commands now cross one production compiler-command adapter. Its explicit
+`CommandToolchain` contains the already selected target and a `CommandPackageContext` containing
+the Nocter home and standard package. Fetch receives only that package context, not compilation
+target authority. The adapter never reads process globals or reconstructs installation state. The
+sole `nocter` process
 entry reads arguments, `NOCTER_HOME`, the real executable, and the current directory once. It
 validates argument structure before installation or source access, delegates installation
 selection to `nocter-installation`, compares compiler-host and manifest-host identity, and creates
@@ -375,8 +383,9 @@ separate CLI compiler pipeline.
 The process adapter attaches a spanless diagnostic code only when it owns the complete
 classification: command syntax, filesystem input selection, package-root selection, or Nocter-home
 validation. It leaves compiler-stage failures unclassified rather than replacing a source-backed
-diagnostic with a generic CLI code. The next diagnostic-presentation boundary must retain source
-maps and indexes across failed sessions and render the phase-owned `SourceDiagnostic` directly.
+diagnostic with a generic CLI code. Failed compilation retains the invocation `SourceMap` beside
+the phase-selected `SourceDiagnostic` values. The common renderer consumes that snapshot directly;
+the process adapter neither reopens files nor classifies semantic errors.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by

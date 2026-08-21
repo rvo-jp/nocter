@@ -146,14 +146,31 @@ pub fn resolve_program_input(
     let current_directory = canonicalize(current_directory.as_ref())?;
     match file.as_deref() {
         Some(file) => resolve_single_file(&current_directory, file),
-        None => resolve_package(&current_directory, root.as_deref()),
+        None => resolve_package_input_from(&current_directory, root.as_deref())
+            .map(ResolvedProgramInput::Package),
     }
 }
 
-fn resolve_package(
+/// Resolves the exact package selected by a package-only command.
+///
+/// This boundary shares the same current-directory and package-declaration rules as program
+/// commands while making single-file input unrepresentable.
+///
+/// # Errors
+///
+/// Returns the exact invalid path or filesystem operation.
+pub fn resolve_package_input(
+    current_directory: impl AsRef<Path>,
+    root: Option<&Path>,
+) -> Result<PackageCommandInput, ProgramInputError> {
+    let current_directory = canonicalize(current_directory.as_ref())?;
+    resolve_package_input_from(&current_directory, root)
+}
+
+fn resolve_package_input_from(
     current_directory: &Path,
     root: Option<&Path>,
-) -> Result<ResolvedProgramInput, ProgramInputError> {
+) -> Result<PackageCommandInput, ProgramInputError> {
     let selected = absolute_from(current_directory, root.unwrap_or_else(|| Path::new(".")));
     let metadata = metadata(&selected)?;
     if !metadata.is_dir() {
@@ -175,11 +192,11 @@ fn resolve_package(
             });
         }
     }
-    Ok(ResolvedProgramInput::Package(PackageCommandInput {
+    Ok(PackageCommandInput {
         invocation_directory: current_directory.to_path_buf(),
         root,
         declaration,
-    }))
+    })
 }
 
 fn resolve_single_file(

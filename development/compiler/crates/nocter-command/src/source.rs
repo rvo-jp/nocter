@@ -6,13 +6,15 @@ use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveredUnit, DiscoveryError, DiscoveryRequest, discover};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{
-    PackageGraphError, PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    ResolvedPackageSelection, StandardPackage, resolve_standard_package,
+    PackageGraphError, ResolvedPackageSelection, StandardPackage, resolve_standard_package,
 };
-use nocter_package_state::{PackageAcquisitionAuthority, PackageStateError, resolve_package_state};
+use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{ExecutableSelector, bundled_standard_toolchain};
 
-use crate::{ResolutionOptions, ResolvedProgramInput};
+use crate::package_state::resolve_command_package_state;
+use crate::{
+    CommandPackageContext, CommandPackageStateError, ResolutionOptions, ResolvedProgramInput,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum CommandCompileRoots<'a> {
@@ -27,8 +29,7 @@ pub(crate) enum CommandCompileRoots<'a> {
 #[derive(Clone, Debug)]
 pub struct CommandToolchain {
     target: CompilationTarget,
-    nocter_home: PathBuf,
-    standard: StandardPackage,
+    packages: CommandPackageContext,
 }
 
 impl CommandToolchain {
@@ -40,8 +41,7 @@ impl CommandToolchain {
     ) -> Self {
         Self {
             target,
-            nocter_home: nocter_home.into(),
-            standard,
+            packages: CommandPackageContext::new(nocter_home, standard),
         }
     }
 
@@ -52,12 +52,17 @@ impl CommandToolchain {
 
     #[must_use]
     pub fn nocter_home(&self) -> &Path {
-        &self.nocter_home
+        self.packages.nocter_home()
     }
 
     #[must_use]
     pub const fn standard(&self) -> &StandardPackage {
-        &self.standard
+        self.packages.standard()
+    }
+
+    #[must_use]
+    pub const fn packages(&self) -> &CommandPackageContext {
+        &self.packages
     }
 }
 
@@ -70,16 +75,9 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
 ) -> Result<DiscoveredUnit, CommandSourceError> {
     match input {
         ResolvedProgramInput::Package(package) => {
-            let selected = resolve_package_state(
-                PackageResolutionRequest::new(
-                    package.root(),
-                    toolchain.nocter_home(),
-                    toolchain.standard().clone(),
-                    PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
-                ),
-                authority,
-            )
-            .map_err(command_package_state_error)?;
+            let selected =
+                resolve_command_package_state(package, resolution, toolchain.packages(), authority)
+                    .map_err(CommandSourceError::Package)?;
             discover_declared(selected, toolchain, compile_roots)
         }
         ResolvedProgramInput::SingleFile(source) => {
@@ -94,16 +92,6 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
             ))
             .map_err(CommandSourceError::Discovery)
         }
-    }
-}
-
-fn command_package_state_error<E>(error: PackageStateError<E>) -> CommandSourceError
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    match error {
-        PackageStateError::Resolution(error) => CommandSourceError::PackageResolution(*error),
-        error => CommandSourceError::PackageState(Box::new(error)),
     }
 }
 
@@ -151,8 +139,7 @@ fn discover_declared(
 
 #[derive(Debug)]
 pub enum CommandSourceError {
-    PackageResolution(PackageResolutionError),
-    PackageState(Box<dyn std::error::Error + Send + Sync>),
+    Package(CommandPackageStateError),
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
     Discovery(DiscoveryError),
@@ -161,8 +148,7 @@ pub enum CommandSourceError {
 impl fmt::Display for CommandSourceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PackageResolution(error) => error.fmt(formatter),
-            Self::PackageState(error) => error.fmt(formatter),
+            Self::Package(error) => error.fmt(formatter),
             Self::StandardPackage(error) => {
                 write!(formatter, "standard package is invalid: {error}")
             }
@@ -179,8 +165,7 @@ impl fmt::Display for CommandSourceError {
 impl std::error::Error for CommandSourceError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::PackageResolution(error) => Some(error),
-            Self::PackageState(error) => Some(&**error),
+            Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
             Self::MissingCommandRoot(_) => None,

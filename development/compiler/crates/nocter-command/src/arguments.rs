@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     BuildCommandOptions, BuildCommandPlan, CommandPlanError, ProgramInputError,
-    ProgramInputOptions, RunCommandOptions, RunCommandPlan, resolve_program_input,
+    ProgramInputOptions, RunCommandOptions, RunCommandPlan, resolve_package_input,
+    resolve_program_input,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -27,8 +28,34 @@ impl ResolutionOptions {
 
 #[derive(Debug)]
 pub enum ParsedCommand {
+    Fetch(ParsedFetchCommand),
     Build(ParsedBuildCommand),
     Run(ParsedRunCommand),
+}
+
+#[derive(Debug)]
+pub struct ParsedFetchCommand {
+    root: Option<PathBuf>,
+    resolution: ResolutionOptions,
+}
+
+impl ParsedFetchCommand {
+    /// Resolves the exact package selected by a fetch invocation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact package-root input failure.
+    pub fn prepare(
+        self,
+        current_directory: impl AsRef<Path>,
+    ) -> Result<PreparedFetchCommand, PreparedCommandError> {
+        let input = resolve_package_input(current_directory, self.root.as_deref())
+            .map_err(PreparedCommandError::Input)?;
+        Ok(PreparedFetchCommand {
+            input,
+            resolution: self.resolution,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -114,6 +141,28 @@ pub struct PreparedRunCommand {
     resolution: ResolutionOptions,
 }
 
+#[derive(Debug)]
+pub struct PreparedFetchCommand {
+    input: crate::PackageCommandInput,
+    resolution: ResolutionOptions,
+}
+
+impl PreparedFetchCommand {
+    #[must_use]
+    pub const fn input(&self) -> &crate::PackageCommandInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub const fn resolution(&self) -> ResolutionOptions {
+        self.resolution
+    }
+
+    pub(crate) fn into_parts(self) -> (crate::PackageCommandInput, ResolutionOptions) {
+        (self.input, self.resolution)
+    }
+}
+
 impl PreparedRunCommand {
     #[must_use]
     pub const fn plan(&self) -> &RunCommandPlan {
@@ -130,7 +179,7 @@ impl PreparedRunCommand {
     }
 }
 
-/// Parses build/run arguments without reading process state or the filesystem.
+/// Parses public command arguments without reading process state or the filesystem.
 ///
 /// The iterator starts with the command name and excludes the process executable name.
 ///
@@ -146,10 +195,25 @@ pub fn parse_command_arguments(
         .next()
         .ok_or(CommandArgumentError::MissingCommand)?;
     match command.to_str() {
+        Some("fetch") => parse_fetch(arguments).map(ParsedCommand::Fetch),
         Some("build") => parse_build(arguments).map(ParsedCommand::Build),
         Some("run") => parse_run(arguments).map(ParsedCommand::Run),
         _ => Err(CommandArgumentError::UnknownCommand(command)),
     }
+}
+
+fn parse_fetch(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedFetchCommand, CommandArgumentError> {
+    let ParsedOptions {
+        root,
+        file: _,
+        positional: _,
+        executable: _,
+        output: _,
+        resolution,
+    } = parse_options(arguments, CommandShape::FETCH)?;
+    Ok(ParsedFetchCommand { root, resolution })
 }
 
 fn parse_build(
@@ -162,7 +226,7 @@ fn parse_build(
         executable,
         output,
         resolution,
-    } = parse_options(arguments, true)?;
+    } = parse_options(arguments, CommandShape::BUILD)?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: BuildCommandOptions::new(executable, output),
@@ -180,7 +244,7 @@ fn parse_run(
         executable,
         output: _,
         resolution,
-    } = parse_options(arguments, false)?;
+    } = parse_options(arguments, CommandShape::RUN)?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: RunCommandOptions::new(executable),
@@ -198,9 +262,62 @@ struct ParsedOptions {
     resolution: ResolutionOptions,
 }
 
+#[derive(Clone, Copy)]
+struct CommandShape {
+    name: &'static str,
+    accepted: u32,
+}
+
+impl CommandShape {
+    const ROOT: u32 = 1 << 0;
+    const FILE: u32 = 1 << 1;
+    const POSITIONAL: u32 = 1 << 2;
+    const EXECUTABLE: u32 = 1 << 3;
+    const OUTPUT: u32 = 1 << 4;
+    const RESOLUTION: u32 = 1 << 5;
+
+    const FETCH: Self = Self {
+        name: "fetch",
+        accepted: Self::ROOT | Self::RESOLUTION,
+    };
+    const BUILD: Self = Self {
+        name: "build",
+        accepted: Self::ROOT
+            | Self::FILE
+            | Self::POSITIONAL
+            | Self::EXECUTABLE
+            | Self::OUTPUT
+            | Self::RESOLUTION,
+    };
+    const RUN: Self = Self {
+        name: "run",
+        accepted: Self::ROOT | Self::FILE | Self::POSITIONAL | Self::EXECUTABLE | Self::RESOLUTION,
+    };
+
+    fn accepts(self, option: &'static str) -> bool {
+        let capability = match option {
+            "--root" => Self::ROOT,
+            "--file" => Self::FILE,
+            "--executable" => Self::EXECUTABLE,
+            "--output" => Self::OUTPUT,
+            "--locked" | "--offline" => Self::RESOLUTION,
+            _ => return false,
+        };
+        self.accepted & capability != 0
+    }
+
+    const fn accepts_positional(self) -> bool {
+        self.accepted & Self::POSITIONAL != 0
+    }
+
+    const fn accepts_resolution(self) -> bool {
+        self.accepted & Self::RESOLUTION != 0
+    }
+}
+
 fn parse_options(
     mut arguments: impl Iterator<Item = OsString>,
-    accepts_output: bool,
+    shape: CommandShape,
 ) -> Result<ParsedOptions, CommandArgumentError> {
     let mut parsed = ParsedOptions::default();
     let mut positional_only = false;
@@ -211,25 +328,23 @@ fn parse_options(
         }
         if !positional_only {
             if let Some((name, value)) = split_long_option(&argument) {
-                parse_valued_option(
-                    &mut parsed,
-                    name,
-                    Some(value),
-                    &mut arguments,
-                    accepts_output,
-                )?;
+                parse_valued_option(&mut parsed, name, Some(value), &mut arguments, shape)?;
                 continue;
             }
             if let Some(name) = argument.to_str().filter(|value| value.starts_with('-')) {
                 match name {
                     "--root" | "--file" | "--executable" | "--output" | "-o" => {
-                        parse_valued_option(
-                            &mut parsed,
-                            name,
-                            None,
-                            &mut arguments,
-                            accepts_output,
-                        )?;
+                        parse_valued_option(&mut parsed, name, None, &mut arguments, shape)?;
+                    }
+                    "--locked" | "--offline" if !shape.accepts_resolution() => {
+                        return Err(CommandArgumentError::OptionNotAccepted {
+                            option: if name == "--locked" {
+                                "--locked"
+                            } else {
+                                "--offline"
+                            },
+                            command: shape.name,
+                        });
                     }
                     "--locked" => set_flag(&mut parsed.resolution.locked, "--locked")?,
                     "--offline" => set_flag(&mut parsed.resolution.offline, "--offline")?,
@@ -237,6 +352,12 @@ fn parse_options(
                 }
                 continue;
             }
+        }
+        if !shape.accepts_positional() {
+            return Err(CommandArgumentError::PositionalNotAccepted {
+                command: shape.name,
+                argument,
+            });
         }
         if parsed
             .positional
@@ -260,12 +381,19 @@ fn parse_valued_option(
     name: &str,
     inline_value: Option<&OsStr>,
     arguments: &mut impl Iterator<Item = OsString>,
-    accepts_output: bool,
+    shape: CommandShape,
 ) -> Result<(), CommandArgumentError> {
-    if matches!(name, "--output" | "-o") && !accepts_output {
+    let canonical_name = match name {
+        "--root" => "--root",
+        "--file" => "--file",
+        "--executable" => "--executable",
+        "--output" | "-o" => "--output",
+        _ => return Err(CommandArgumentError::UnknownOption(name.into())),
+    };
+    if !shape.accepts(canonical_name) {
         return Err(CommandArgumentError::OptionNotAccepted {
-            option: "--output",
-            command: "run",
+            option: canonical_name,
+            command: shape.name,
         });
     }
     let value = match inline_value {
@@ -358,6 +486,10 @@ pub enum CommandArgumentError {
     MissingValue(Box<str>),
     DuplicateOption(&'static str),
     MultiplePositionalSources(OsString),
+    PositionalNotAccepted {
+        command: &'static str,
+        argument: OsString,
+    },
     NonUnicodeExecutable(OsString),
     EmptyExecutable,
 }
@@ -383,6 +515,11 @@ impl fmt::Display for CommandArgumentError {
                 formatter,
                 "more than one positional source was provided; unexpected {}",
                 source.to_string_lossy()
+            ),
+            Self::PositionalNotAccepted { command, argument } => write!(
+                formatter,
+                "{command} does not accept a source path; unexpected {}",
+                argument.to_string_lossy()
             ),
             Self::NonUnicodeExecutable(name) => write!(
                 formatter,
@@ -476,6 +613,44 @@ mod tests {
             parse_command_arguments(arguments(&["build", "a.nct", "b.nct"])).unwrap_err(),
             CommandArgumentError::MultiplePositionalSources("b.nct".into())
         );
+    }
+
+    #[test]
+    fn fetch_accepts_only_package_and_resolution_options() {
+        let root = package_root();
+        let parsed =
+            parse_command_arguments(arguments(&["fetch", "--root=.", "--locked", "--offline"]))
+                .unwrap();
+        let ParsedCommand::Fetch(parsed) = parsed else {
+            panic!("expected fetch command");
+        };
+        let prepared = parsed.prepare(&root).unwrap();
+
+        assert_eq!(prepared.input().root(), &fs::canonicalize(&root).unwrap());
+        assert!(prepared.resolution().locked());
+        assert!(prepared.resolution().offline());
+        assert_eq!(
+            parse_command_arguments(arguments(&["fetch", "source.nct"])).unwrap_err(),
+            CommandArgumentError::PositionalNotAccepted {
+                command: "fetch",
+                argument: "source.nct".into(),
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["fetch", "--file", "source.nct"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--file",
+                command: "fetch",
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["fetch", "--executable", "app"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--executable",
+                command: "fetch",
+            }
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

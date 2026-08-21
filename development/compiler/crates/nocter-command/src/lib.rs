@@ -8,16 +8,18 @@ mod artifact;
 mod build;
 mod execute;
 mod failure;
+mod fetch;
 mod input;
 mod output_plan;
+mod package_state;
 mod planning;
 mod run;
 mod source;
 
 pub use arguments::{
-    CommandArgumentError, ParsedBuildCommand, ParsedCommand, ParsedRunCommand,
-    PreparedBuildCommand, PreparedCommandError, PreparedRunCommand, ResolutionOptions,
-    parse_command_arguments,
+    CommandArgumentError, ParsedBuildCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand,
+    PreparedBuildCommand, PreparedCommandError, PreparedFetchCommand, PreparedRunCommand,
+    ResolutionOptions, parse_command_arguments,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
@@ -32,11 +34,13 @@ pub use execute::{
     execute_prepared_build, execute_prepared_run,
 };
 pub use failure::CommandCompilationFailure;
+pub use fetch::{FetchCommandExecutionError, FetchCommandResult, execute_prepared_fetch};
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
-    ResolvedProgramInput, SingleFileCommandInput, resolve_program_input,
+    ResolvedProgramInput, SingleFileCommandInput, resolve_package_input, resolve_program_input,
 };
 pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
+pub use package_state::{CommandPackageContext, CommandPackageStateError};
 pub use planning::{
     BuildCommandOptions, BuildCommandPlan, BuildOperation, CommandPlanError, RunCommandOptions,
     RunCommandPlan, SelectedBuildOutput,

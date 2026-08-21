@@ -15,7 +15,13 @@ implementation input.
 
 ## Immediate Work
 
-1. Close public diagnostic presentation before adding more commands.
+1. Add the public `check` command without creating a check-only acceptance pipeline.
+   `check` must consume the same package transaction, discovery, and target-validated session as
+   build/run, then stop before executable specialization and code generation. Library-only
+   packages remain valid check inputs. Its package/single-file and executable-selection rules must
+   be frozen in command-owned planning before discovery.
+
+   The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses
    arguments before installation or source access, validates the exact installation, compares
    compiler and manifest host identities, derives `CommandToolchain` from the manifest default
@@ -43,12 +49,13 @@ implementation input.
    retained source bytes. It rejects implicit lock generation below the selected root and cleans
    failed staging trees.
 
-   Concrete acquisition and package-mode build/run routing are now closed. The process adapter
+   Concrete acquisition and package-mode build/run/fetch routing are now closed. The process adapter
    selects `nocter-package-acquisition`; `nocter-command` passes only the abstract authority;
    `nocter-package-state` still owns workspaces, publication, graph revalidation, and source commit.
    Embedded public HTTPS/Git and bounded `.tar.gz` materialization invoke no helper executable and
-   reject authentication, links, submodules, and Git LFS. Next, add the standalone `fetch` command
-   without creating a second package-state path.
+   reject authentication, links, submodules, and Git LFS. The standalone `fetch` command accepts
+   only package-root and resolution-policy options, then stops after the same graph-validated
+   package transaction used by build/run; it cannot discover or compile source.
 
    The completed installation boundary remains:
    `nocter-installation` now selects exactly one canonical home from explicit process facts:

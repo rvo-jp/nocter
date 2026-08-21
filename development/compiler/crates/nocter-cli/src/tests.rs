@@ -169,6 +169,30 @@ fn semantic_failures_cross_the_same_process_diagnostic_boundary() {
     assert!(rendered.contains("invalid.nct:1:1\n"));
 }
 
+#[test]
+fn public_fetch_stops_after_the_shared_package_transaction() {
+    let tree = TempTree::new("fetch");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(tree.0.join("nocter.nct"), "#name: \"package\"\n").unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["fetch", "--locked", "--offline"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    let InvocationOutcome::Fetch(result) = outcome else {
+        panic!("expected fetch outcome");
+    };
+    assert_eq!(result.root().as_str().get(..5), Some("path-"));
+    assert_eq!(
+        fs::read_to_string(tree.0.join("nocter.nct")).unwrap(),
+        "#name: \"package\"\n"
+    );
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

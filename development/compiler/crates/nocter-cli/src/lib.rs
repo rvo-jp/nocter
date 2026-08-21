@@ -9,9 +9,9 @@ use std::path::PathBuf;
 
 use nocter_command::{
     BuildCommandExecutionError, BuildCommandResult, CommandArgumentError, CommandToolchain,
-    ExecutedProgram, ParsedCommand, PreparedCommandError, ProgramInputError,
-    RunCommandExecutionError, execute_prepared_build, execute_prepared_run,
-    parse_command_arguments,
+    ExecutedProgram, FetchCommandExecutionError, FetchCommandResult, ParsedCommand,
+    PreparedCommandError, ProgramInputError, RunCommandExecutionError, execute_prepared_build,
+    execute_prepared_fetch, execute_prepared_run, parse_command_arguments,
 };
 use nocter_diagnostics::{DiagnosticRenderError, render_source_diagnostic};
 use nocter_installation::{NocterHome, NocterHomeError, NocterHomeRequest};
@@ -56,6 +56,7 @@ impl Invocation {
 /// success.
 #[derive(Debug)]
 pub enum InvocationOutcome {
+    Fetch(FetchCommandResult),
     Build(BuildCommandResult),
     Run(ExecutedProgram),
 }
@@ -64,7 +65,7 @@ impl InvocationOutcome {
     #[must_use]
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::Build(_) => 0,
+            Self::Fetch(_) | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
         }
     }
@@ -101,6 +102,16 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         home.standard_package(),
     );
     match command {
+        ParsedCommand::Fetch(command) => {
+            let command = command
+                .prepare(current_directory)
+                .map_err(InvocationError::Preparation)?;
+            let mut acquisition = EmbeddedPackageAcquisition::new()
+                .map_err(InvocationError::AcquisitionInitialization)?;
+            execute_prepared_fetch(command, toolchain.packages(), &mut acquisition)
+                .map(InvocationOutcome::Fetch)
+                .map_err(|error| InvocationError::Fetch(Box::new(error)))
+        }
         ParsedCommand::Build(command) => {
             let command = command
                 .prepare(current_directory)
@@ -134,6 +145,7 @@ pub enum InvocationError {
     },
     AcquisitionInitialization(PackageAcquisitionError),
     Preparation(PreparedCommandError),
+    Fetch(Box<FetchCommandExecutionError>),
     Build(Box<BuildCommandExecutionError>),
     Run(Box<RunCommandExecutionError>),
 }
@@ -163,7 +175,9 @@ impl InvocationError {
                 | ProgramInputError::SourceNotFile(_)
                 | ProgramInputError::Filesystem { .. },
             )) => Some("E0702"),
-            Self::AcquisitionInitialization(_) | Self::Build(_) | Self::Run(_) => None,
+            Self::AcquisitionInitialization(_) | Self::Fetch(_) | Self::Build(_) | Self::Run(_) => {
+                None
+            }
         }
     }
 
@@ -183,6 +197,7 @@ impl InvocationError {
             | Self::Installation(_)
             | Self::HostMismatch { .. }
             | Self::AcquisitionInitialization(_)
+            | Self::Fetch(_)
             | Self::Preparation(_) => None,
         };
         let Some((diagnostics, sources)) =
@@ -214,6 +229,7 @@ impl fmt::Display for InvocationError {
                 write!(formatter, "cannot initialize package acquisition: {error}")
             }
             Self::Preparation(error) => error.fmt(formatter),
+            Self::Fetch(error) => error.fmt(formatter),
             Self::Build(error) => error.fmt(formatter),
             Self::Run(error) => error.fmt(formatter),
         }
@@ -227,6 +243,7 @@ impl std::error::Error for InvocationError {
             Self::Installation(error) => Some(error),
             Self::Preparation(error) => Some(error),
             Self::AcquisitionInitialization(error) => Some(error),
+            Self::Fetch(error) => Some(error),
             Self::Build(error) => Some(error),
             Self::Run(error) => Some(error),
             Self::HostMismatch { .. } => None,
