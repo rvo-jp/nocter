@@ -26,7 +26,7 @@ pub use id::{
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;
 pub use symbol::{Symbol, SymbolTable};
-pub use target::CompilationTarget;
+pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
     TypeKind, TypeStore, UnknownTypeId,

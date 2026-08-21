@@ -701,7 +701,8 @@ fn discover_package_targets(
         let source = sources
             .get(tree.source())
             .ok_or(DiscoveryError::InconsistentSyntax(tree.root_id()))?;
-        for target in authored_package_targets(source, tree)? {
+        let declaration = authored_package_targets(source, tree)?;
+        for target in declaration.targets() {
             let module = ModuleIdentity::new(
                 package.identity.clone(),
                 target.module().iter().map(AsRef::as_ref),
@@ -709,6 +710,10 @@ fn discover_package_targets(
             if selected.contains(&module) {
                 resolutions.push(PackageTargetResolutionInput::new(
                     target.declaration(),
+                    target.name().value(),
+                    target.name().literal(),
+                    target.kind(),
+                    target.order(),
                     module,
                 ));
             }

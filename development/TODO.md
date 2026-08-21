@@ -16,6 +16,12 @@ implementation input.
 ## Immediate Work
 
 1. Connect the completed command plans to package graph resolution and public argument parsing.
+   `nocter-package` now owns the only structured interpretation of `nocter.nct`, including
+   presentation metadata, disjoint git/archive/path dependency declarations, exact locks, and
+   target name/kind/order/module facts with syntax origins. Discovery and declaration lowering no
+   longer decode separate subsets of target directive text. The next package-graph layer must load
+   declarations through this decoder, resolve exact identities and stores, and hand the same
+   snapshot onward rather than reopening each manifest.
    `nocter-command` now compiles one exact executable only through `nocter-session`, commits
    persistent images failure-atomically, and stages/runs/removes temporary images while preserving
    child exit status. Discovery, compile input, and the immutable declaration graph now preserve

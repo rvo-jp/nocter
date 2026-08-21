@@ -1,5 +1,16 @@
 use std::fmt;
 
+/// One authored package target category.
+///
+/// This is package and semantic vocabulary rather than declaration storage. Keeping it in the
+/// dependency-free model lets package resolution and declaration lowering exchange the exact
+/// category without either layer depending on the other.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum PackageTargetKind {
+    Executable,
+    Test,
+}
+
 /// One target name recognized by this compiler release.
 ///
 /// Recognition and implementation availability are deliberately separate. Frontend selection

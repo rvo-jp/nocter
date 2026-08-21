@@ -1,10 +1,4 @@
-use nocter_model::{ModuleId, PackageId, Symbol};
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum PackageTargetKind {
-    Executable,
-    Test,
-}
+use nocter_model::{ModuleId, PackageId, PackageTargetKind, Symbol};
 
 /// One package target in explicit package-file declaration order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

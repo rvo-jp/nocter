@@ -11,7 +11,7 @@ mod request;
 mod snapshot;
 mod syntax;
 
-pub use error::{DiscoveryError, ImportFailure, PackageTargetFailure, ToolchainDiscoveryError};
+pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
 pub use graph::discover;
 pub use request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,

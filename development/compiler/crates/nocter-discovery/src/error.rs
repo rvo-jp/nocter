@@ -3,6 +3,7 @@ use std::io;
 use std::path::PathBuf;
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_package::PackageDeclarationError;
 use nocter_source::SourceError;
 use nocter_syntax::NodeId;
 use nocter_target_selection::TargetSelectionError;
@@ -21,13 +22,6 @@ pub enum ImportFailure {
     CrossesModule { module: ModuleIdentity },
     InvalidModuleDirectory,
     SingleFileLocalImport,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PackageTargetFailure {
-    MissingModule,
-    DuplicateModule,
-    InvalidModule,
 }
 
 #[derive(Debug)]
@@ -63,10 +57,7 @@ pub enum DiscoveryError {
         path: Box<str>,
         failure: ImportFailure,
     },
-    PackageTarget {
-        declaration: NodeId,
-        failure: PackageTargetFailure,
-    },
+    PackageDeclaration(PackageDeclarationError),
     ConflictingSourceOwner {
         path: PathBuf,
         first: ModuleIdentity,
@@ -148,13 +139,7 @@ impl fmt::Display for DiscoveryError {
                 formatter,
                 "use {declaration:?} cannot resolve {path}: {failure:?}"
             ),
-            Self::PackageTarget {
-                declaration,
-                failure,
-            } => write!(
-                formatter,
-                "package target {declaration:?} has invalid module selection: {failure:?}"
-            ),
+            Self::PackageDeclaration(error) => error.fmt(formatter),
             Self::ConflictingSourceOwner {
                 path,
                 first,
@@ -194,6 +179,7 @@ impl std::error::Error for DiscoveryError {
         match self {
             Self::Filesystem { error, .. } => Some(error),
             Self::Toolchain(error) => Some(error),
+            Self::PackageDeclaration(error) => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }
@@ -203,7 +189,6 @@ impl std::error::Error for DiscoveryError {
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }
             | Self::Import { .. }
-            | Self::PackageTarget { .. }
             | Self::ConflictingSourceOwner { .. }
             | Self::NonUnicodeCanonicalPath(_)
             | Self::Source { .. }

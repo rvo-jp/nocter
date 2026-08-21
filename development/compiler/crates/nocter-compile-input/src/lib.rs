@@ -5,7 +5,7 @@
 //! consumers treat every identity and edge as immutable input.
 
 use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
-use nocter_model::CompilationTarget;
+use nocter_model::{CompilationTarget, PackageTargetKind};
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
@@ -135,14 +135,29 @@ impl UseResolutionInput {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PackageTargetResolutionInput {
     declaration: NodeId,
+    name: Box<str>,
+    name_literal: NodeId,
+    kind: PackageTargetKind,
+    declaration_order: u32,
     module: ModuleIdentity,
 }
 
 impl PackageTargetResolutionInput {
     #[must_use]
-    pub const fn new(declaration: NodeId, module: ModuleIdentity) -> Self {
+    pub fn new(
+        declaration: NodeId,
+        name: impl Into<Box<str>>,
+        name_literal: NodeId,
+        kind: PackageTargetKind,
+        declaration_order: u32,
+        module: ModuleIdentity,
+    ) -> Self {
         Self {
             declaration,
+            name: name.into(),
+            name_literal,
+            kind,
+            declaration_order,
             module,
         }
     }
@@ -150,6 +165,26 @@ impl PackageTargetResolutionInput {
     #[must_use]
     pub const fn declaration(&self) -> NodeId {
         self.declaration
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[must_use]
+    pub const fn name_literal(&self) -> NodeId {
+        self.name_literal
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> PackageTargetKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn declaration_order(&self) -> u32 {
+        self.declaration_order
     }
 
     #[must_use]

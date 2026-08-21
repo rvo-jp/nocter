@@ -288,7 +288,6 @@ pub(crate) fn reserve_with_contracts(
         &mut source_index,
     )?;
     reserve_package_targets(
-        source_map,
         &packages,
         &package_target_resolutions,
         &package_ids,

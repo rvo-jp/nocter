@@ -10,7 +10,7 @@ use nocter_source_index::{
     DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin,
     SourceRole,
 };
-use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
+use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
@@ -374,6 +374,7 @@ fn validate_package_target_resolutions<'input, 'syntax>(
             ));
         }
     }
+    let mut selected_orders = BTreeSet::new();
     for resolution in &resolutions {
         let declaration = resolution.declaration();
         let Some(package) = package_sources.get(&declaration.source()).copied() else {
@@ -399,7 +400,10 @@ fn validate_package_target_resolutions<'input, 'syntax>(
                 .children(tree.root_id())
                 .iter()
                 .any(|child| matches!(child, SyntaxElement::Node(node) if *node == declaration))
-            || !is_package_target_directive(input, tree, declaration)?
+            || tree
+                .node(resolution.name_literal())
+                .is_none_or(|node| node.kind() != NodeKind::StringLiteral)
+            || !contains_node(tree, declaration, resolution.name_literal())
         {
             return Err(LoweringError::PackageTargetResolution(
                 PackageTargetResolutionError::Invalid(declaration),
@@ -415,6 +419,11 @@ fn validate_package_target_resolutions<'input, 'syntax>(
                 PackageTargetResolutionError::OutsidePackage(declaration),
             ));
         }
+        if !selected_orders.insert((package, resolution.declaration_order())) {
+            return Err(LoweringError::PackageTargetResolution(
+                PackageTargetResolutionError::Invalid(declaration),
+            ));
+        }
     }
     resolutions.sort_unstable_by(|left, right| {
         left.module()
@@ -425,23 +434,22 @@ fn validate_package_target_resolutions<'input, 'syntax>(
     Ok(resolutions)
 }
 
-fn is_package_target_directive(
-    input: &CompileUnitInput<'_>,
-    tree: &nocter_syntax::SyntaxTree,
-    declaration: NodeId,
-) -> Result<bool, LoweringError> {
-    let source = require_source(input, tree.source())?;
-    Ok(tree
-        .children(declaration)
-        .iter()
-        .any(|element| match element {
-            SyntaxElement::Token(token) => {
-                token.kind() == TokenKind::Keyword(Keyword::Test)
-                    || (token.kind() == TokenKind::Identifier
-                        && source.text_at(token.range()) == Some("executable"))
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Missing(_) => false,
-        }))
+fn contains_node(tree: &nocter_syntax::SyntaxTree, root: NodeId, expected: NodeId) -> bool {
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        if node == expected {
+            return true;
+        }
+        pending.extend(
+            tree.children(node)
+                .iter()
+                .filter_map(|element| match element {
+                    SyntaxElement::Node(child) => Some(*child),
+                    SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+                }),
+        );
+    }
+    false
 }
 
 fn canonical_packages<'input, 'syntax>(

@@ -131,9 +131,16 @@ implementations, and references remain explicit roles. Structural `TypeId` value
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.
 
+`nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
+metadata, dependency sources, exact locks, and target declarations into one structured snapshot
+with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
+as an authored dependency or lock; lock kind is validated against its declared source. Package
+target name, kind, declaration order, and normalized module path cross the later pipeline as facts.
+Discovery and declaration lowering do not decode those fields again.
+
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
-lowering. `nocter-discovery` is the sole filesystem authority: it canonicalizes exact resolved
-package roots, loads package declarations and reachable module sources once, distinguishes
+lowering. `nocter-discovery` canonicalizes exact resolved package roots, loads package declarations
+and reachable module sources once, distinguishes
 same-module source edges from directory-module edges, rejects ambiguous physical candidates and
 nested-package or cross-module escapes, and retains one edge for every active authored `use`.
 Lexically or syntactically invalid sources remain in the snapshot for diagnostic projection, but
@@ -148,12 +155,12 @@ would silently turn the file into a directory graph. It then emits the same pack
 source, import-edge, and toolchain snapshot consumed by declaration lowering. There is no
 single-file semantic pipeline.
 
-Declared discovery also owns package-target module edges for the roots selected by its caller. It
-decodes each target's authored module selector once, validates canonical module segments through a
-shared compile-input rule, and freezes the exact package-directive node with the selected
-`ModuleIdentity`. Declaration lowering verifies and consumes that edge; it never decodes the
-module path again. Target directives for modules outside the requested compile roots do not expand
-the unit.
+Declared discovery owns package-target module edges for the roots selected by its caller. It maps
+the package snapshot's normalized module segments to the package's exact `ModuleIdentity` and
+freezes that identity beside the target's declaration, name literal, kind, and authored order.
+Declaration lowering verifies syntax-origin containment and package/module ownership, then consumes
+those facts without reading directive text. Target directives for modules outside the requested
+compile roots do not expand the unit.
 
 `nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
 package has an opaque resolved identity distinct from its display name. A module has that package

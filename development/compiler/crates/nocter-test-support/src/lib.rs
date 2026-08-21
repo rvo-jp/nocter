@@ -528,24 +528,19 @@ impl CompilerFixture {
         .with_root_packages(vec![app_package.clone()])
         .with_toolchain(toolchain);
         if let Some(manifest) = &self.app_manifest {
-            let declaration = manifest
-                .children(manifest.root_id())
-                .iter()
-                .find_map(|element| match element {
-                    SyntaxElement::Node(node)
-                        if manifest
-                            .node(*node)
-                            .is_some_and(|node| node.kind() == NodeKind::PackageDirective) =>
-                    {
-                        Some(*node)
-                    }
-                    SyntaxElement::Node(_)
-                    | SyntaxElement::Token(_)
-                    | SyntaxElement::Missing(_) => None,
-                })
+            let source = self.sources.get(manifest.source()).unwrap();
+            let declaration = nocter_package::decode_package_declaration(source, manifest)
+                .expect("test fixture manifest is valid");
+            let target = declaration
+                .targets()
+                .first()
                 .expect("test fixture manifest has no target directive");
             input = input.with_package_target_resolutions(vec![PackageTargetResolutionInput::new(
-                declaration,
+                target.declaration(),
+                target.name().value(),
+                target.name().literal(),
+                target.kind(),
+                target.order(),
                 ModuleIdentity::new(app_package, Vec::<&str>::new()),
             )]);
         }

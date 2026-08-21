@@ -30,7 +30,17 @@ pub(crate) fn package_target(
     position: usize,
     module: ModuleIdentity,
 ) -> PackageTargetResolutionInput {
-    PackageTargetResolutionInput::new(package_target_declarations(sources, tree)[position], module)
+    let source = sources.get(tree.source()).unwrap();
+    let declaration = nocter_package::decode_package_declaration(source, tree).unwrap();
+    let target = &declaration.targets()[position];
+    PackageTargetResolutionInput::new(
+        target.declaration(),
+        target.name().value(),
+        target.name().literal(),
+        target.kind(),
+        target.order(),
+        module,
+    )
 }
 
 fn use_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
@@ -52,31 +62,4 @@ fn use_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
         }
     }
     declarations
-}
-
-fn package_target_declarations(
-    sources: &nocter_source::SourceMap,
-    tree: &SyntaxTree,
-) -> Vec<NodeId> {
-    let source = sources.get(tree.source()).unwrap();
-    tree.children(tree.root_id())
-        .iter()
-        .filter_map(|element| {
-            let SyntaxElement::Node(node) = element else {
-                return None;
-            };
-            tree.children(*node)
-                .iter()
-                .any(|element| match element {
-                    SyntaxElement::Token(token) => {
-                        token.kind()
-                            == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::Test)
-                            || (token.kind() == nocter_syntax::TokenKind::Identifier
-                                && source.text_at(token.range()) == Some("executable"))
-                    }
-                    SyntaxElement::Node(_) | SyntaxElement::Missing(_) => false,
-                })
-                .then_some(*node)
-        })
-        .collect()
 }
