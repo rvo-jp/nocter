@@ -6,6 +6,10 @@
 
 use nocter_source_index::SourceOrigin;
 
+mod human;
+
+pub use human::{DiagnosticRenderError, render_source_diagnostic};
+
 /// One source-backed note related to a primary diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiagnosticNote {

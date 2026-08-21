@@ -24,12 +24,14 @@ implementation input.
    argument, filesystem, package-root, and home failures receive only their specification-owned
    codes. Compiler failures deliberately receive no invented CLI code.
 
-   The next boundary must carry the discovery source map, final source index when available, and
-   phase-owned `SourceDiagnostic` through failed sessions into one human renderer. It must render
-   exact normalized path, line, column, primary range, related notes, and help without inspecting
-   semantic error variants or reopening source text. Syntax diagnostics need the same envelope.
-   Internal compiler failures remain visibly distinct and never receive a source rule code. After
-   this presentation boundary is closed, add the package-state transaction that fulfills typed
+   The phase-neutral human renderer now consumes only `SourceDiagnostic` and the invocation
+   `SourceMap`. It validates source/range/UTF-8 identity and renders normalized paths, one-based
+   character coordinates with four-column tab expansion, every intersected line, related notes, and help without semantic matching
+   or filesystem access. The next boundary must carry the discovery source map, final source index
+   when available, and phase-owned diagnostic through failed sessions into this renderer. Syntax
+   diagnostics need the same envelope. Internal compiler failures remain visibly distinct and
+   never receive a source rule code. After this presentation boundary is closed, add the
+   package-state transaction that fulfills typed
    `LockRequired`/`FetchRequired` results and reruns exact resolution; do not make the resolver or
    command adapter mutate locks or stores.
 

@@ -513,6 +513,12 @@ its exact syntax subjects into the envelope before reservation; module-surface v
 same only for authored root-versus-implementation rules. An unmatched private construction,
 literal, or coercion entry has its own `E0254` rule rather than being rendered as a mismatch against
 a contract that does not exist.
+One phase-neutral human renderer consumes only this envelope and the invocation `SourceMap`. It
+projects normalized source names, one-based character coordinates with four-column tab expansion,
+every line intersected by the exact primary or related range, related messages, and help. It validates source identity, range
+bounds, and UTF-8 boundaries; it does not inspect a semantic error enum, search syntax, or reopen a
+file. Session failures must retain these two inputs rather than reconstruct presentation after the
+source snapshot has been discarded.
 Freeze-time validation projects semantic declaration-site subjects through
 the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
 that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler

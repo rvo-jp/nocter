@@ -141,10 +141,13 @@ be introduced to make an unresolved syntax choice.
   related notes, and correction guidance. A stage-specific diagnostic retains the semantic rule
   identity separately from that presentation envelope. Compiler-state inconsistencies remain typed
   internal errors and are never assigned a language diagnostic code merely because they crossed the
-  production facade. Module-surface diagnostics select only authored root-versus-implementation
-  violations; malformed syntax snapshots and incomplete discovery edges stay internal. Name and
-  visibility rules retain exact syntax subjects when selected, before temporary surface identities
-  are consumed. The shared namespace rule domain prevents declaration and import collisions from
+  production facade. The phase-neutral renderer consumes only an envelope and `SourceMap`, validates
+  every origin and UTF-8 boundary, and renders multi-line primary and related ranges without
+  reopening files or matching semantic errors. Module-surface diagnostics select only authored
+  root-versus-implementation violations; malformed syntax snapshots and incomplete discovery edges
+  stay internal. Name and visibility rules retain exact syntax subjects when selected, before
+  temporary surface identities are consumed. The shared namespace rule domain prevents declaration
+  and import collisions from
   acquiring stage-specific codes or messages. Import namespaces retain the exact declaration name,
   selected name, or alias token that introduced each binding. Missing selections, inaccessible
   names, and widening re-exports preserve their source subject and the target declaration before
