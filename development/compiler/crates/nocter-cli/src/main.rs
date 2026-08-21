@@ -2,6 +2,15 @@ use std::process;
 
 fn main() {
     match nocter_cli::execute_current_process() {
+        Ok(nocter_cli::InvocationOutcome::LanguageServer(launch)) => {
+            match nocter_cli::run_language_server_stdio(&launch) {
+                Ok(exit) => process::exit(exit.exit_code()),
+                Err(error) => {
+                    eprintln!("error: language server failed: {error}");
+                    process::exit(3);
+                }
+            }
+        }
         Ok(outcome) => {
             match outcome.render_json_diagnostics() {
                 Ok(Some(rendered)) => print!("{rendered}"),

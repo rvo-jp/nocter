@@ -17,6 +17,7 @@ path = "src/main.rs"
 nocter-command = { path = "../nocter-command" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-installation = { path = "../nocter-installation" }
+nocter-language-server = { path = "../nocter-language-server" }
 nocter-package-acquisition = { path = "../nocter-package-acquisition" }
 nocter-source = { path = "../nocter-source" }
 

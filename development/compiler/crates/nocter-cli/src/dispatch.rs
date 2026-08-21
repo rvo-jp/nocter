@@ -9,7 +9,10 @@ use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
 
 use crate::presentation::InvocationDiagnosticPresentation;
-use crate::{DoctorReport, InvocationError, InvocationErrorKind, InvocationOutcome, VersionReport};
+use crate::{
+    DoctorReport, InvocationError, InvocationErrorKind, InvocationOutcome, LanguageServerLaunch,
+    VersionReport,
+};
 
 pub(crate) fn execute_parsed_command(
     command: ParsedCommand,
@@ -47,6 +50,9 @@ pub(crate) fn execute_parsed_command(
         ParsedCommand::Format(_) => {
             unreachable!("formatting executes before installation selection")
         }
+        ParsedCommand::Lsp => Ok(InvocationOutcome::LanguageServer(Box::new(
+            LanguageServerLaunch::new(current_directory, installation.clone()),
+        ))),
     }
 }
 

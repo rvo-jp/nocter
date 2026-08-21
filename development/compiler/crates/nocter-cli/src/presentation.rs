@@ -48,7 +48,8 @@ impl InvocationDiagnosticPresentation {
             | ParsedCommand::Build(_)
             | ParsedCommand::Run(_)
             | ParsedCommand::SourceInspection(_)
-            | ParsedCommand::Format(_) => None,
+            | ParsedCommand::Format(_)
+            | ParsedCommand::Lsp => None,
         }
     }
 

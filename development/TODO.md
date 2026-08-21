@@ -52,8 +52,10 @@ implementation input.
    leaving the session unable to retry. The executable sequential service and framed loop now
    handle initialize, initialized, full document synchronization, unknown requests, shutdown, and
    clean/premature exit without writing non-protocol stdout. Accepted document generations remain
-   explicit outputs. The next increment is the public `nocter lsp` process entry, outbound request
-   correlation for dynamic watcher registration, then root-bound analysis and diagnostics.
+   explicit outputs. The public `nocter lsp` entry now belongs to the shared command schema, accepts
+   no positional or operational options, validates the installation once, and enters its stdio loop
+   before ordinary CLI rendering. The next increment is outbound request correlation for dynamic
+   watcher registration, then root-bound analysis and diagnostics.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

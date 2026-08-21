@@ -210,6 +210,12 @@ responses preserve request identity, and clean versus premature exit produces an
 status. The transport loop writes only framed JSON-RPC messages to its output and exposes accepted
 document generations for the next analysis increment rather than reading source independently.
 
+`nocter lsp` is part of the same declarative command schema as every other public command and has
+an empty argument surface. Argument validation precedes installation access; a launch retains the
+validated installation and current directory for later root/toolchain composition. The binary
+enters the stdio loop before ordinary outcome rendering, guaranteeing that reports and diagnostics
+cannot be printed to protocol stdout.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected

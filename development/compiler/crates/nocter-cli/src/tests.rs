@@ -321,6 +321,21 @@ fn version_reports_only_the_validated_installation_identity() {
 }
 
 #[test]
+fn language_server_launch_retains_the_validated_installation_without_rendered_output() {
+    let tree = TempTree::new("lsp-launch");
+    let home = tree.installation("arm64-darwin", false);
+    let outcome = execute_invocation(invocation(["lsp"], &tree.0, &home, "arm64-darwin")).unwrap();
+    let InvocationOutcome::LanguageServer(launch) = &outcome else {
+        panic!("expected language server launch")
+    };
+
+    assert_eq!(launch.current_directory(), tree.0);
+    assert_eq!(launch.installation().release(), "0.14.0");
+    assert!(outcome.render_standard_output().is_none());
+    assert!(outcome.render_json_diagnostics().unwrap().is_none());
+}
+
+#[test]
 fn doctor_reports_the_exact_validated_home() {
     let tree = TempTree::new("doctor");
     let home = tree.installation("arm64-darwin", false);

@@ -20,6 +20,7 @@ use nocter_installation::{NocterHome, NocterHomeRequest};
 mod dispatch;
 mod error;
 mod host;
+mod lsp;
 mod presentation;
 mod process;
 mod report;
@@ -27,6 +28,7 @@ mod test_report;
 
 pub use error::{InvocationError, InvocationErrorKind, InvocationFailureClass};
 pub use host::build_host;
+pub use lsp::{LanguageServerLaunch, run_language_server_stdio};
 use presentation::InvocationDiagnosticPresentation;
 pub use process::{CurrentProcessError, execute_current_process};
 pub use report::{DoctorReport, VersionReport};
@@ -74,6 +76,7 @@ pub enum InvocationOutcome {
     Test(Box<nocter_command::TestCommandResult>),
     SourceInspection(SourceInspectionCommandResult),
     Format(FormatCommandResult),
+    LanguageServer(Box<LanguageServerLaunch>),
 }
 
 impl InvocationOutcome {
@@ -86,7 +89,8 @@ impl InvocationOutcome {
             | Self::Fetch(_)
             | Self::Check(_)
             | Self::Build(_)
-            | Self::Format(_) => 0,
+            | Self::Format(_)
+            | Self::LanguageServer(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
             Self::Test(result) => i32::from(!result.succeeded()),
             Self::SourceInspection(result) => i32::from(!result.succeeded()),
@@ -102,9 +106,12 @@ impl InvocationOutcome {
             Self::Doctor(report) => Some(report.render()),
             Self::Test(result) => test_report::render_test_human(result),
             Self::SourceInspection(result) => Some(result.json().to_owned()),
-            Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) | Self::Format(_) => {
-                None
-            }
+            Self::Fetch(_)
+            | Self::Check(_)
+            | Self::Build(_)
+            | Self::Run(_)
+            | Self::Format(_)
+            | Self::LanguageServer(_) => None,
         }
     }
 
@@ -135,7 +142,8 @@ impl InvocationOutcome {
             | Self::Run(_)
             | Self::Test(_)
             | Self::SourceInspection(_)
-            | Self::Format(_) => Ok(None),
+            | Self::Format(_)
+            | Self::LanguageServer(_) => Ok(None),
         }
     }
 }

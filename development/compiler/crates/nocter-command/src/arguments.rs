@@ -48,6 +48,7 @@ pub enum ParsedCommand {
     Test(ParsedTestCommand),
     SourceInspection(ParsedSourceInspectionCommand),
     Format(ParsedFormatCommand),
+    Lsp,
 }
 
 impl ParsedCommand {
@@ -63,7 +64,8 @@ impl ParsedCommand {
             | Self::Doctor
             | Self::Fetch(_)
             | Self::SourceInspection(_)
-            | Self::Format(_) => None,
+            | Self::Format(_)
+            | Self::Lsp => None,
         }
     }
 }
@@ -538,6 +540,9 @@ pub fn parse_command_invocation(
         CommandKind::Fmt => parse_format(arguments.into_iter())
             .map(ParsedCommand::Format)
             .map_err(|failure| failure.for_command("fmt")),
+        CommandKind::Lsp => parse_empty_command(arguments.into_iter(), kind.schema())
+            .map(|()| ParsedCommand::Lsp)
+            .map_err(|failure| failure.for_command("lsp")),
     }
 }
 
@@ -1239,6 +1244,28 @@ mod tests {
             CommandArgumentError::OptionNotAccepted {
                 option: "--offline",
                 command: "doctor",
+            }
+        );
+    }
+
+    #[test]
+    fn language_server_has_an_exact_empty_argument_surface() {
+        assert!(matches!(
+            parse_command_arguments(arguments(&["lsp"])).unwrap(),
+            ParsedCommand::Lsp
+        ));
+        assert_eq!(
+            parse_command_arguments(arguments(&["lsp", "app.nct"])).unwrap_err(),
+            CommandArgumentError::PositionalNotAccepted {
+                command: "lsp",
+                argument: "app.nct".into(),
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["lsp", "--offline"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--offline",
+                command: "lsp",
             }
         );
     }

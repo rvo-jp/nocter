@@ -14,6 +14,7 @@ pub(crate) enum CommandKind {
     Tokens,
     Ast,
     Fmt,
+    Lsp,
 }
 
 impl CommandKind {
@@ -357,8 +358,17 @@ const FMT: CommandSchema = CommandSchema {
     positional: Some(SOURCE),
 };
 
-const COMMANDS: [CommandSchema; 11] = [
-    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT,
+const LSP: CommandSchema = CommandSchema {
+    kind: CommandKind::Lsp,
+    name: "lsp",
+    form: CommandForm::Subcommand,
+    summary: "Run the Language Server Protocol over standard input and output.",
+    accepted: HELP_OPTION,
+    positional: None,
+};
+
+const COMMANDS: [CommandSchema; 12] = [
+    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT, LSP,
 ];
 
 /// One pure help selection produced by the public argument parser.
@@ -444,7 +454,7 @@ fn render_command_help(schema: CommandSchema) -> String {
 mod tests {
     use super::*;
 
-    const KINDS: [CommandKind; 11] = [
+    const KINDS: [CommandKind; 12] = [
         CommandKind::Help,
         CommandKind::Version,
         CommandKind::Doctor,
@@ -456,6 +466,7 @@ mod tests {
         CommandKind::Tokens,
         CommandKind::Ast,
         CommandKind::Fmt,
+        CommandKind::Lsp,
     ];
 
     #[test]
@@ -497,7 +508,7 @@ mod tests {
         assert!(rendered.contains("--help"));
         assert!(rendered.contains("test"));
         assert!(!rendered.contains("nocter fmt"));
-        assert!(!rendered.contains("nocter lsp"));
+        assert!(rendered.contains("lsp"));
     }
 
     #[test]
