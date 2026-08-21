@@ -1855,6 +1855,7 @@ dependencies = [
  "nocter-package",
  "nocter-session",
  "nocter-source",
+ "nocter-syntax",
 ]
 
 [[package]]

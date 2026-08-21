@@ -134,6 +134,39 @@ pub struct ResolvedPackageGraph {
     packages: Vec<ResolvedPackageSnapshot>,
 }
 
+/// Reached package source and syntax retained even when exact graph resolution fails.
+#[derive(Clone, Debug)]
+pub struct PackageSourceSnapshot {
+    source_overlay: SourceOverlay,
+    sources: SourceMap,
+    syntax: Vec<SyntaxTree>,
+}
+
+impl PackageSourceSnapshot {
+    pub(crate) fn empty(source_overlay: SourceOverlay) -> Self {
+        Self {
+            source_overlay,
+            sources: SourceMap::new(),
+            syntax: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        &self.source_overlay
+    }
+
+    #[must_use]
+    pub const fn sources(&self) -> &SourceMap {
+        &self.sources
+    }
+
+    #[must_use]
+    pub fn syntax_trees(&self) -> &[SyntaxTree] {
+        &self.syntax
+    }
+}
+
 impl ResolvedPackageGraph {
     /// Loads and validates all exact packages without reopening a manifest in later stages.
     ///
@@ -318,6 +351,14 @@ impl PackageGraphBuilder {
         self.packages.get(identity)?.declaration.as_ref()
     }
 
+    pub(crate) fn source_snapshot(&self) -> PackageSourceSnapshot {
+        PackageSourceSnapshot {
+            source_overlay: self.source_overlay.clone(),
+            sources: self.sources.clone(),
+            syntax: self.syntax.clone(),
+        }
+    }
+
     pub(crate) fn finish(
         self,
         mut edges: BTreeMap<PackageIdentity, ResolvedPackageEdges>,
@@ -452,13 +493,18 @@ fn load_package(
             .expect("new package source remains in the source map"),
         ParseGoal::PackageFile,
     );
+    let declaration_syntax = syntax.len();
+    syntax.push(tree);
+    let tree = syntax
+        .get(declaration_syntax)
+        .expect("new package syntax remains in the syntax snapshot");
     let declaration = if tree.has_errors() {
         None
     } else {
         let source = sources
             .get(source_id)
             .expect("parsed package source remains in the source map");
-        Some(decode_package_declaration(source, &tree).map_err(PackageGraphError::Declaration)?)
+        Some(decode_package_declaration(source, tree).map_err(PackageGraphError::Declaration)?)
     };
     let display_name = declaration
         .as_ref()
@@ -467,8 +513,6 @@ fn load_package(
             || directory_name(&canonical_root),
             |name| Ok(Box::<str>::from(name.value())),
         )?;
-    let declaration_syntax = syntax.len();
-    syntax.push(tree);
     Ok(LoadedPackageSnapshot {
         display_name,
         canonical_root,

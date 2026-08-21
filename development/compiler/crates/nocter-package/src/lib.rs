@@ -19,17 +19,18 @@ pub use declaration::{
     decode_package_declaration,
 };
 pub use graph::{
-    PackageGraphError, ResolvedPackageGraph, ResolvedPackageSnapshot, ResolvedPackageSpec,
+    PackageGraphError, PackageSourceSnapshot, ResolvedPackageGraph, ResolvedPackageSnapshot,
+    ResolvedPackageSpec,
 };
 pub use id::{PackageId, PackageIdError};
 pub use lock::{ExactDependencyLock, ExactDependencyLockError, ExactDependencyLockKind};
 pub use lock_overlay::{PackageLockOverlay, PackageLockOverlayError};
 pub use lock_source::{PackageLockSourceError, PackageLockSourceUpdate};
 pub use resolution::{
-    PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    ResolvedPackageSelection, StandardPackage, resolve_package_graph,
+    PackageResolutionError, PackageResolutionFailure, PackageResolutionPolicy,
+    PackageResolutionRequest, ResolvedPackageSelection, StandardPackage, resolve_package_graph,
     resolve_package_graph_with_source_overlay, resolve_package_selection,
-    resolve_package_selection_with_source_overlay, resolve_standard_package,
-    resolve_standard_package_with_source_overlay,
+    resolve_package_selection_with_source_overlay, resolve_package_selection_with_source_snapshot,
+    resolve_standard_package, resolve_standard_package_with_source_overlay,
 };
 pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

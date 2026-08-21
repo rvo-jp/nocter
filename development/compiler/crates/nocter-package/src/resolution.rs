@@ -14,7 +14,7 @@ use crate::graph::{
 };
 use crate::{
     DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
-    PackageLockOverlay, PackageStoreOverlay, ResolvedPackageGraph,
+    PackageLockOverlay, PackageSourceSnapshot, PackageStoreOverlay, ResolvedPackageGraph,
 };
 
 /// Immutable policy controlling whether exact resolution may request lock or fetch authority.
@@ -194,6 +194,21 @@ pub fn resolve_package_selection_with_source_overlay(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageSelection, PackageResolutionError> {
+    resolve_package_selection_with_source_snapshot(request, source_overlay)
+        .map_err(PackageResolutionFailure::into_error)
+}
+
+/// Resolves through an immutable open-document view and retains every package source and syntax
+/// tree reached before failure.
+///
+/// # Errors
+///
+/// Returns the same exact resolution error together with its immutable reached-source snapshot.
+pub fn resolve_package_selection_with_source_snapshot(
+    request: PackageResolutionRequest,
+    source_overlay: SourceOverlay,
+) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
+    let empty_snapshot = || PackageSourceSnapshot::empty(source_overlay.clone());
     let PackageResolutionRequest {
         root: requested_root,
         nocter_home,
@@ -203,32 +218,39 @@ pub fn resolve_package_selection_with_source_overlay(
         store_overlay,
     } = request;
     let root = canonical_package_root_with_overlay(&source_overlay, &requested_root)
-        .map_err(PackageResolutionError::Graph)?;
+        .map_err(PackageResolutionError::Graph)
+        .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
     let root_id = PackageId::from_canonical_path(&root)
-        .map_err(PackageResolutionError::PackageId)?
+        .map_err(PackageResolutionError::PackageId)
+        .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?
         .package_identity();
     let standard_root = canonical_package_root_with_overlay(&source_overlay, &standard.root)
-        .map_err(PackageResolutionError::Graph)?;
+        .map_err(PackageResolutionError::Graph)
+        .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
     let standard_id = standard.identity;
 
     let source_overlay_for_resolution = source_overlay.clone();
     let mut builder = PackageGraphBuilder::new(source_overlay);
     let mut roots = BTreeMap::new();
     let mut pending = BTreeMap::new();
-    insert_package(
+    if let Err(error) = insert_package(
         &mut builder,
         &mut roots,
         &mut pending,
         standard_id.clone(),
         standard_root,
-    )?;
-    insert_package(
+    ) {
+        return Err(PackageResolutionFailure::from_builder(error, &builder));
+    }
+    if let Err(error) = insert_package(
         &mut builder,
         &mut roots,
         &mut pending,
         root_id.clone(),
         root.clone(),
-    )?;
+    ) {
+        return Err(PackageResolutionFailure::from_builder(error, &builder));
+    }
 
     let local_store = root.join(".nocter").join("packages");
     let home_store = nocter_home.join("packages");
@@ -250,31 +272,37 @@ pub fn resolve_package_selection_with_source_overlay(
             &lock_overlay,
             &standard_id,
         );
-        let resolved = resolved?;
+        let resolved =
+            resolved.map_err(|error| PackageResolutionFailure::from_builder(error, &builder))?;
         for dependency in resolved.pending {
             if let Some(existing) = roots.get(&dependency.target) {
                 if existing != &dependency.root {
-                    return Err(PackageResolutionError::IdentityRootConflict {
-                        package: dependency.target,
-                        first: existing.clone(),
-                        second: dependency.root,
-                    });
+                    return Err(PackageResolutionFailure::from_builder(
+                        PackageResolutionError::IdentityRootConflict {
+                            package: dependency.target,
+                            first: existing.clone(),
+                            second: dependency.root,
+                        },
+                        &builder,
+                    ));
                 }
-            } else {
-                insert_package(
-                    &mut builder,
-                    &mut roots,
-                    &mut pending,
-                    dependency.target,
-                    dependency.root,
-                )?;
+            } else if let Err(error) = insert_package(
+                &mut builder,
+                &mut roots,
+                &mut pending,
+                dependency.target,
+                dependency.root,
+            ) {
+                return Err(PackageResolutionFailure::from_builder(error, &builder));
             }
         }
         edges.insert(identity, resolved.edges);
     }
+    let reached = builder.source_snapshot();
     let graph = builder
         .finish(edges)
-        .map_err(PackageResolutionError::Graph)?;
+        .map_err(PackageResolutionError::Graph)
+        .map_err(|error| PackageResolutionFailure::new(error, reached))?;
     Ok(ResolvedPackageSelection {
         graph,
         root: root_id,
@@ -533,6 +561,52 @@ impl DependencyResolver<'_> {
             }
         }
         Ok(None)
+    }
+}
+
+#[derive(Debug)]
+pub struct PackageResolutionFailure {
+    error: Box<PackageResolutionError>,
+    reached: PackageSourceSnapshot,
+}
+
+impl PackageResolutionFailure {
+    fn new(error: PackageResolutionError, reached: PackageSourceSnapshot) -> Self {
+        Self {
+            error: Box::new(error),
+            reached,
+        }
+    }
+
+    fn from_builder(error: PackageResolutionError, builder: &PackageGraphBuilder) -> Self {
+        Self::new(error, builder.source_snapshot())
+    }
+
+    #[must_use]
+    pub const fn error(&self) -> &PackageResolutionError {
+        &self.error
+    }
+
+    #[must_use]
+    pub const fn reached(&self) -> &PackageSourceSnapshot {
+        &self.reached
+    }
+
+    #[must_use]
+    pub fn into_error(self) -> PackageResolutionError {
+        *self.error
+    }
+}
+
+impl fmt::Display for PackageResolutionFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(formatter)
+    }
+}
+
+impl std::error::Error for PackageResolutionFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&*self.error)
     }
 }
 
@@ -828,6 +902,46 @@ mod tests {
             resolve_package_graph(locked.request(PackageResolutionPolicy::new(false, true))),
             Err(PackageResolutionError::PackageUnavailableOffline { .. })
         ));
+    }
+
+    #[test]
+    fn resolution_failure_retains_every_manifest_reached_before_policy_rejection() {
+        let tree = base_tree(false);
+
+        let failure = resolve_package_selection_with_source_snapshot(
+            tree.request(PackageResolutionPolicy::new(true, true)),
+            SourceOverlay::empty(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            failure.error(),
+            PackageResolutionError::MissingLockLocked { .. }
+        ));
+        assert_eq!(failure.reached().sources().len(), 2);
+        assert_eq!(failure.reached().syntax_trees().len(), 2);
+    }
+
+    #[test]
+    fn declaration_failure_retains_the_tree_that_owns_its_subject() {
+        let tree = base_tree(false);
+        tree.source(
+            "app/nocter.nct",
+            "#dependencies: { remote: { unknown: \"value\", }, }\n",
+        );
+
+        let failure = resolve_package_selection_with_source_snapshot(
+            tree.request(PackageResolutionPolicy::new(true, true)),
+            SourceOverlay::empty(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            failure.error(),
+            PackageResolutionError::Graph(PackageGraphError::Declaration(_))
+        ));
+        assert_eq!(failure.reached().sources().len(), 2);
+        assert_eq!(failure.reached().syntax_trees().len(), 2);
     }
 
     #[test]

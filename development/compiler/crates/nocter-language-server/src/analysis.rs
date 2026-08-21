@@ -9,8 +9,8 @@ use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::SourceOverlay;
 use nocter_package::{
-    PackageGraphError, PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    resolve_package_selection_with_source_overlay, resolve_standard_package_with_source_overlay,
+    PackageGraphError, PackageResolutionFailure, PackageResolutionPolicy, PackageResolutionRequest,
+    resolve_package_selection_with_source_snapshot, resolve_standard_package_with_source_overlay,
 };
 use nocter_session::bundled_standard_toolchain;
 
@@ -84,6 +84,30 @@ impl WorkspaceAnalysisGeneration {
         match &self.state {
             WorkspaceAnalysisState::Complete(snapshot) => snapshot.source_overlay(),
             WorkspaceAnalysisState::PreparationFailed { source_overlay, .. } => source_overlay,
+        }
+    }
+
+    #[must_use]
+    pub fn reached_sources(&self) -> Option<&nocter_source::SourceMap> {
+        match &self.state {
+            WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot.sources()),
+            WorkspaceAnalysisState::PreparationFailed {
+                error: WorkspaceAnalysisError::Package(failure),
+                ..
+            } => Some(failure.reached().sources()),
+            WorkspaceAnalysisState::PreparationFailed { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn reached_syntax_trees(&self) -> &[nocter_syntax::SyntaxTree] {
+        match &self.state {
+            WorkspaceAnalysisState::Complete(snapshot) => snapshot.syntax_trees(),
+            WorkspaceAnalysisState::PreparationFailed {
+                error: WorkspaceAnalysisError::Package(failure),
+                ..
+            } => failure.reached().syntax_trees(),
+            WorkspaceAnalysisState::PreparationFailed { .. } => &[],
         }
     }
 }
@@ -269,7 +293,7 @@ fn discover_package(
     source_overlay: SourceOverlay,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
-    let selected = resolve_package_selection_with_source_overlay(
+    let selected = resolve_package_selection_with_source_snapshot(
         PackageResolutionRequest::new(
             root,
             toolchain.nocter_home(),
@@ -340,7 +364,7 @@ pub enum WorkspaceAnalysisError {
     OutsideWorkspace(PathBuf),
     UnsupportedSource(PathBuf),
     MissingRootPackage(nocter_model::PackageIdentity),
-    Package(PackageResolutionError),
+    Package(PackageResolutionFailure),
     StandardPackage(PackageGraphError),
     Filesystem {
         operation: &'static str,
@@ -363,8 +387,8 @@ impl WorkspaceAnalysisError {
     }
 }
 
-impl From<PackageResolutionError> for WorkspaceAnalysisError {
-    fn from(error: PackageResolutionError) -> Self {
+impl From<PackageResolutionFailure> for WorkspaceAnalysisError {
+    fn from(error: PackageResolutionFailure) -> Self {
         Self::Package(error)
     }
 }

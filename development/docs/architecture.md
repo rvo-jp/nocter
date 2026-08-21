@@ -301,6 +301,15 @@ a provisional graph before generated source is committed, while a `PackageStoreO
 private staged roots before they are published. Both are immutable resolver inputs; neither grants
 mutation authority.
 
+The editor-facing retained resolver wraps every failure in `PackageResolutionFailure`. Its
+`PackageSourceSnapshot` owns the exact source overlay, `SourceMap`, and all manifest syntax trees
+reached before resolution stopped. A tree enters that snapshot before semantic manifest decoding,
+so an invalid directive cannot discard the node that owns its error subject. Ordinary command APIs
+still project the same underlying `PackageResolutionError`; editor analysis keeps the richer value
+for invalidation and presentation. Package declaration failures therefore publish `E0800` at their
+exact retained syntax node, while lock/store policy failures that have no authored source subject
+remain non-positional messages.
+
 `nocter-package-state` owns the mutation transaction above that read-only boundary. A transport
 implementation receives typed lock-resolution and exact-fetch requests, but only the coordinator
 chooses private staging roots, publishes verified package directories, or rewrites package source.

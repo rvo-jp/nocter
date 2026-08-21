@@ -18,6 +18,7 @@ nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 nocter-session = { path = "../nocter-session" }
 nocter-source = { path = "../nocter-source" }
+nocter-syntax = { path = "../nocter-syntax" }
 
 [lints]
 workspace = true

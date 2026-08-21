@@ -74,9 +74,12 @@ implementation input.
    registration after `initialized`; registration success enables ordered create/change/delete
    batches. Each distinct URI advances an overlay-preserving external-change generation and enters
    the same analysis/publication path, while path-local failures do not suppress later changes. The
-   next increment makes package preparation retain reached manifest source/syntax on failure so
-   authored package errors become exact source diagnostics rather than process messages, then opens
-   compiler-owned hover and semantic-token queries over successful current snapshots.
+   Package resolution failures now retain their exact overlay, reached manifest `SourceMap`, and
+   every reached syntax tree. Manifest trees enter the snapshot before declaration decoding, so a
+   semantic declaration failure retains the node that owns its subject and publishes source-backed
+   `E0800`; inherently spanless lock/store policy failures remain process messages. The next
+   increment opens compiler-owned hover and semantic-token queries over successful current
+   snapshots without adding an editor-side semantic model.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
