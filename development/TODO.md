@@ -45,8 +45,10 @@ implementation input.
    filesystem. `nocter-language-server` now resolves existing files or virtual files under one
    existing canonical parent and freezes that URI-to-path identity across open/change/save/close.
    Each successful transition emits the existing immutable analysis generation, while stale changes
-   remain generation-neutral. The next increment is initialize capability decoding and the
-   executable protocol loop above these gates.
+   remain generation-neutral. Initialize decoding now retains fallback/workspace roots and dynamic
+   watcher support while accepting unknown future capabilities. Its response advertises only the
+   implemented UTF-16 and full-document synchronization surface. The next increment is the
+   executable protocol loop, followed by root-bound analysis and diagnostic publication.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

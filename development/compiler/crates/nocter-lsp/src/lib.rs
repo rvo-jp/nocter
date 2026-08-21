@@ -3,6 +3,8 @@
 //! This crate contains no compiler semantics and performs no filesystem access. Validated
 //! messages cross this boundary before they may mutate editor documents or invoke analysis.
 
+mod decode;
+mod initialize;
 mod lifecycle;
 mod message;
 mod parameters;
@@ -11,6 +13,7 @@ mod session;
 mod transport;
 mod uri;
 
+pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};
 pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState};
 pub use message::{IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId};
 pub use parameters::{

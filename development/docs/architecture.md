@@ -192,6 +192,13 @@ reuses it for every change, save, and close. Later filesystem or symlink changes
 move an open document between compiler identities, and failed transitions cannot partially mutate
 the URI map or immutable source overlay.
 
+Initialization decoding retains the optional fallback root, ordered workspace folders, and the
+client's dynamic watched-file registration support. Recognized nested capability fields reject
+duplicates and wrong types, while unknown capabilities remain forward-compatible. The initialize
+result is built from one protocol-owned schema and advertises only UTF-16 positions plus implemented
+open/close, full-change, and included-save-text synchronization; semantic features are added only
+when their production query path exists.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
