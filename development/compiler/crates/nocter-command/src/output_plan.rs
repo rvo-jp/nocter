@@ -26,10 +26,8 @@ impl BuildOutputPlan {
         let mut outputs = Vec::with_capacity(entries.len());
         for entry in entries {
             let identity = entry.identity();
-            if !is_filename(identity.name()) {
-                return Err(OutputPlanError::InvalidExecutableName(identity.clone()));
-            }
-            let path = package_root.join(identity.name());
+            let planned = Self::for_selected(identity, package_root)?;
+            let path = planned.path.clone();
             if let Some(first) = by_path.insert(path.clone(), identity.clone()) {
                 return Err(OutputPlanError::DuplicateOutput {
                     path,
@@ -37,10 +35,7 @@ impl BuildOutputPlan {
                     second: identity.clone(),
                 });
             }
-            outputs.push(PlannedOutput {
-                identity: identity.clone(),
-                path,
-            });
+            outputs.push(planned);
         }
         Ok(Self {
             outputs: outputs.into_boxed_slice(),
@@ -50,6 +45,24 @@ impl BuildOutputPlan {
     #[must_use]
     pub const fn outputs(&self) -> &[PlannedOutput] {
         &self.outputs
+    }
+
+    /// Assigns one selected executable to its authored name below `output_directory`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an authored name that is not one ordinary filename.
+    pub fn for_selected(
+        identity: &ExecutableIdentity,
+        output_directory: impl AsRef<Path>,
+    ) -> Result<PlannedOutput, OutputPlanError> {
+        if !is_filename(identity.name()) {
+            return Err(OutputPlanError::InvalidExecutableName(identity.clone()));
+        }
+        Ok(PlannedOutput {
+            identity: identity.clone(),
+            path: output_directory.as_ref().join(identity.name()),
+        })
     }
 }
 

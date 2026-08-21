@@ -358,6 +358,10 @@ be introduced to make an unresolved syntax choice.
   invocation directory plus package/file options into exactly one canonical package root or
   single `.nct` source. It validates conflicting input forms before filesystem access and never
   searches ancestors, guesses a source entry, or reads process-global current-directory state.
+  Separate build/run plans then map normalized package/file input to all-target or sole/named
+  session selection, implicit or explicit output policy, and an exact working directory. These
+  plans reject file-mode `--executable` without consulting declarations; target existence and
+  cardinality stay in the session boundary.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

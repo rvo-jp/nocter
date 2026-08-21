@@ -53,6 +53,14 @@ pub enum ResolvedProgramInput {
 
 impl ResolvedProgramInput {
     #[must_use]
+    pub fn invocation_directory(&self) -> &Path {
+        match self {
+            Self::Package(package) => package.invocation_directory(),
+            Self::SingleFile(source) => source.invocation_directory(),
+        }
+    }
+
+    #[must_use]
     pub const fn package(&self) -> Option<&PackageCommandInput> {
         match self {
             Self::Package(package) => Some(package),
@@ -71,11 +79,17 @@ impl ResolvedProgramInput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageCommandInput {
+    invocation_directory: PathBuf,
     root: PathBuf,
     declaration: PathBuf,
 }
 
 impl PackageCommandInput {
+    #[must_use]
+    pub fn invocation_directory(&self) -> &Path {
+        &self.invocation_directory
+    }
+
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
@@ -89,10 +103,16 @@ impl PackageCommandInput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SingleFileCommandInput {
+    invocation_directory: PathBuf,
     source: PathBuf,
 }
 
 impl SingleFileCommandInput {
+    #[must_use]
+    pub fn invocation_directory(&self) -> &Path {
+        &self.invocation_directory
+    }
+
     #[must_use]
     pub fn source(&self) -> &Path {
         &self.source
@@ -156,6 +176,7 @@ fn resolve_package(
         }
     }
     Ok(ResolvedProgramInput::Package(PackageCommandInput {
+        invocation_directory: current_directory.to_path_buf(),
         root,
         declaration,
     }))
@@ -177,6 +198,7 @@ fn resolve_single_file(
         return Err(ProgramInputError::SourceNotFile(selected));
     }
     Ok(ResolvedProgramInput::SingleFile(SingleFileCommandInput {
+        invocation_directory: current_directory.to_path_buf(),
         source: canonicalize(&selected)?,
     }))
 }

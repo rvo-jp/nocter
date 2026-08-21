@@ -7,6 +7,7 @@ use nocter_session::{
 };
 use nocter_source_index::SourceIndex;
 
+use crate::SelectedBuildOutput;
 use crate::{
     ArtifactError, BuildOutputPlan, OutputPlanError, PersistentArtifact, persist_native_image,
 };
@@ -82,7 +83,30 @@ pub fn build_executable(
     request: ExecutableCompileRequest<'_>,
     output: impl AsRef<Path>,
 ) -> Result<BuiltExecutable, BuildCommandError> {
+    build_selected_executable(
+        request,
+        SelectedBuildOutput::Exact(output.as_ref().to_path_buf()),
+    )
+}
+
+/// Compiles and atomically commits one selected executable through a closed output policy.
+///
+/// # Errors
+///
+/// Returns the exact compiler-session, default-name planning, or artifact failure.
+pub fn build_selected_executable(
+    request: ExecutableCompileRequest<'_>,
+    output: SelectedBuildOutput,
+) -> Result<BuiltExecutable, BuildCommandError> {
     let compiled = compile_native_image(request)?;
+    let output = match output {
+        SelectedBuildOutput::Exact(path) => path,
+        SelectedBuildOutput::TargetNameIn(directory) => {
+            BuildOutputPlan::for_selected(compiled.identity(), directory)?
+                .path()
+                .to_path_buf()
+        }
+    };
     let (image, source_index) = compiled.into_parts();
     let artifact = persist_native_image(&image, output)?;
     Ok(BuiltExecutable {
@@ -175,6 +199,7 @@ impl From<OutputPlanError> for BuildSetCommandError {
 #[derive(Debug)]
 pub enum BuildCommandError {
     Compile(NativeSessionError),
+    Plan(OutputPlanError),
     Artifact(ArtifactError),
 }
 
@@ -182,6 +207,7 @@ impl fmt::Display for BuildCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Compile(error) => write!(formatter, "native compilation failed: {error}"),
+            Self::Plan(error) => write!(formatter, "output planning failed: {error}"),
             Self::Artifact(error) => write!(formatter, "executable publication failed: {error}"),
         }
     }
@@ -191,6 +217,7 @@ impl std::error::Error for BuildCommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Compile(error) => Some(error),
+            Self::Plan(error) => Some(error),
             Self::Artifact(error) => Some(error),
         }
     }
@@ -205,5 +232,11 @@ impl From<NativeSessionError> for BuildCommandError {
 impl From<ArtifactError> for BuildCommandError {
     fn from(error: ArtifactError) -> Self {
         Self::Artifact(error)
+    }
+}
+
+impl From<OutputPlanError> for BuildCommandError {
+    fn from(error: OutputPlanError) -> Self {
+        Self::Plan(error)
     }
 }

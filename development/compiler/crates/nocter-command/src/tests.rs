@@ -6,7 +6,8 @@ use nocter_compile_input::{ModuleIdentity, PackageIdentity};
 use nocter_discovery::{DiscoveryRequest, ResolvedPackage, discover};
 use nocter_model::CompilationTarget;
 use nocter_session::{
-    ExecutableCompileRequest, NativeImageSetCompileRequest, bundled_standard_toolchain,
+    ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
+    bundled_standard_toolchain,
 };
 
 use super::artifact::persist_bytes;
@@ -112,6 +113,86 @@ fn positional_and_explicit_file_forms_converge_without_permitting_conflicts() {
         )
         .unwrap_err(),
         super::ProgramInputError::RootWithFile
+    ));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn build_and_run_plans_close_package_and_file_selection_rules() {
+    let directory = unique_test_directory("command-plans");
+    let package_root = directory.join("package");
+    fs::create_dir(&package_root).unwrap();
+    fs::write(package_root.join("nocter.nct"), "#name: \"app\"\n").unwrap();
+    fs::write(
+        directory.join("script.nct"),
+        "func main(): void { return }\n",
+    )
+    .unwrap();
+    let canonical_directory = fs::canonicalize(&directory).unwrap();
+    let canonical_package = fs::canonicalize(&package_root).unwrap();
+
+    let package = || {
+        super::resolve_program_input(
+            &directory,
+            super::ProgramInputOptions::package(Some("package")),
+        )
+        .unwrap()
+    };
+    let all =
+        super::BuildCommandPlan::new(package(), super::BuildCommandOptions::default()).unwrap();
+    assert!(matches!(
+        all.operation(),
+        super::BuildOperation::PackageSet { output_directory }
+            if output_directory == &canonical_package
+    ));
+
+    let selected =
+        super::BuildCommandPlan::new(package(), super::BuildCommandOptions::executable("tool"))
+            .unwrap();
+    assert!(matches!(
+        selected.operation(),
+        super::BuildOperation::Selected {
+            selector: ExecutableSelector::Named(name),
+            output: super::SelectedBuildOutput::TargetNameIn(directory),
+        } if name.as_ref() == "tool" && directory == &canonical_package
+    ));
+
+    let explicit =
+        super::BuildCommandPlan::new(package(), super::BuildCommandOptions::output("bin/tool"))
+            .unwrap();
+    assert!(matches!(
+        explicit.operation(),
+        super::BuildOperation::Selected {
+            selector: ExecutableSelector::Only,
+            output: super::SelectedBuildOutput::Exact(path),
+        } if path == &canonical_directory.join("bin/tool")
+    ));
+
+    let run = super::RunCommandPlan::new(package(), super::RunCommandOptions::executable("tool"))
+        .unwrap();
+    assert!(matches!(run.selector(), ExecutableSelector::Named(name) if name.as_ref() == "tool"));
+    assert_eq!(run.working_directory(), canonical_package);
+
+    let file = || {
+        super::resolve_program_input(
+            &directory,
+            super::ProgramInputOptions::positional_file("script.nct"),
+        )
+        .unwrap()
+    };
+    let script =
+        super::BuildCommandPlan::new(file(), super::BuildCommandOptions::default()).unwrap();
+    assert!(matches!(
+        script.operation(),
+        super::BuildOperation::Selected {
+            selector: ExecutableSelector::Only,
+            output: super::SelectedBuildOutput::Exact(path),
+        } if path == &canonical_directory.join("script")
+    ));
+    assert!(matches!(
+        super::RunCommandPlan::new(file(), super::RunCommandOptions::executable("forbidden"))
+            .unwrap_err(),
+        super::CommandPlanError::ExecutableWithSingleFile
     ));
     fs::remove_dir_all(directory).unwrap();
 }

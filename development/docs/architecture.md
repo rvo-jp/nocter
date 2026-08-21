@@ -261,6 +261,15 @@ mutual-exclusion check, require the `.nct` extension and one regular file, and c
 `--root`. Resolution canonicalizes the selected identity once and never searches ancestors,
 guesses `main.nct`, or invents a package.
 
+Build and run planning consumes only that normalized input plus parsed executable/output options.
+Package build without `--executable` or `-o` selects the complete executable set. A named target
+selects one executable and defaults its path to the authored name under the package root; `-o`
+selects one sole/named target and resolves relative to the invocation directory. File build always
+selects its discovery-owned executable and defaults to the source stem under the invocation
+directory. Run maps package input to sole/named selection and package-root working directory, while
+file run uses sole selection and the invocation directory. `--executable` is rejected for file
+input before compilation; target existence and sole-target cardinality remain session facts.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic
