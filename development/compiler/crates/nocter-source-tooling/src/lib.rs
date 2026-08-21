@@ -3,7 +3,7 @@
 //! This crate owns source-inspection snapshots and their versioned public projections. It does not
 //! discover packages, resolve names, select targets, or reconstruct a second syntax model.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Write;
 
@@ -15,6 +15,7 @@ use nocter_source::{SourceError, SourceFile, SourceMap, SourceName, TextRange};
 use nocter_syntax::{ExpectedSyntax, ParseGoal, SyntaxElement, SyntaxTree, TokenKind, parse};
 
 mod formatter;
+mod syntax_tokens;
 
 /// Formatting failure selected before any filesystem publication.
 #[derive(Debug)]
@@ -195,25 +196,7 @@ impl SourceInspection {
     pub fn render_ast_json(&self) -> Result<String, DiagnosticRenderError> {
         let source = self.source()?;
         let diagnostics = syntax_diagnostics(std::slice::from_ref(&self.syntax));
-        let mut syntax_tokens = Vec::new();
-        let mut seen_tokens = HashSet::new();
-        for (node_id, _) in self.syntax.nodes() {
-            for child in self.syntax.children(node_id) {
-                if let SyntaxElement::Token(token) = child
-                    && seen_tokens.insert(*token)
-                {
-                    syntax_tokens.push(*token);
-                }
-            }
-        }
-        syntax_tokens.sort_by_key(|token| {
-            (
-                token.range().start(),
-                token.range().end(),
-                token.lexical().index(),
-                token.kind().as_str(),
-            )
-        });
+        let syntax_tokens = syntax_tokens::ordered(&self.syntax);
         let token_ids = syntax_tokens
             .iter()
             .copied()

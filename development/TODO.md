@@ -21,12 +21,15 @@ implementation input.
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
    installation, package discovery, and target selection. `fmt` rejects syntax errors and comments,
    reparses its candidate output to prove concrete-syntax preservation, and publishes through a
-   same-directory synchronized temporary followed by rename; `--check` never writes. Its spacing,
-   indentation, top-level separation, delimiter, and idempotence foundation is closed against the
-   complete accepted grammar corpus and every public example. Structural normalization of
-   multi-line comma lists and the specification's explicit redundant-grouping rewrites remains
-   before formatting is complete. `tokens` and `ast` emit their specified flat version-1 JSON
-   envelopes even when their inspected stage diagnoses source.
+   same-directory synchronized temporary followed by rename; `--check` never writes. Its emitter
+   consumes parser-owned syntax tokens rather than lexer tokens, so subdivisions such as nested
+   generic `>>` use the same layout model as ordinary delimiters. Single-line and multi-line comma
+   lists, trailing commas, requirements, visibility/module paths, spacing, indentation, top-level
+   separation, and the specified redundant expression/type grouping rewrites are structurally
+   normalized and idempotent. The one remaining formatter decision is the exact line layout of a
+   multi-line closure capture segment whose required trailing comma precedes its `;` terminator.
+   `tokens` and `ast` emit their specified flat version-1 JSON envelopes even when their inspected
+   stage diagnoses source.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named

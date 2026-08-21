@@ -383,9 +383,15 @@ flat, ID-based JSON; they do not create a second AST. Lexer/parser diagnostics u
 projection functions as discovery.
 
 Formatting consumes that same snapshot as a concrete-syntax layout operation. It cannot resolve a
-name or inspect a semantic program. A candidate is parsed again under the identical root goal and
-must retain the same non-newline token text and syntax topology before it can leave the tooling
-crate. The command boundary compares original bytes for `--check` and otherwise writes a complete
+name or inspect a semantic program. One shared ordered-token projection returns every CST token
+once and retains parser-owned subdivisions of lexical tokens such as nested generic `>>`; AST JSON
+and the formatter therefore cannot disagree about their concrete token vocabulary. A CST-derived
+layout plan selects delimiter indentation, line breaks, joins, and optional trailing-comma edits
+before emission. The first candidate is parsed again under the identical root goal and must retain
+the same non-newline token text and syntax topology after normalizing only optional trailing
+commas. Specification-owned redundant grouping is then selected from that validated CST and a
+second parse proves that only the selected parenthesis tokens disappeared. The command boundary
+compares original bytes for `--check` and otherwise writes a complete
 same-directory temporary, preserves source permissions, synchronizes it, and performs one final
 rename. Syntax, comment-preservation, formatting-integrity, or publication failure therefore
 cannot expose a partially formatted source. The process adapter completes all three commands

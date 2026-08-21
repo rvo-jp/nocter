@@ -1,10 +1,18 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_source::{SourceFile, SourceMap, SourceName};
-use nocter_syntax::{Keyword, NodeKind, Punctuation, SyntaxElement, SyntaxTree, Token, TokenKind};
+use nocter_syntax::{
+    Keyword, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+};
 
-use crate::FormatError;
+use crate::{FormatError, syntax_tokens};
+
+mod equivalence;
+mod layout;
+mod rewrite;
+
+use layout::LayoutPlan;
 
 pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String, FormatError> {
     if syntax.has_errors() {
@@ -25,15 +33,44 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
         .into_boxed_slice()));
     }
     let formatted = Formatter::new(source, syntax).run();
-    validate_syntax(source, syntax, &formatted)?;
-    Ok(formatted)
+    let candidate = parse_candidate(source, syntax, &formatted)?;
+    if !equivalence::same_tree(source, syntax, candidate.source(), &candidate.syntax) {
+        return Err(FormatError::ChangedSyntax);
+    }
+    let rewrites = rewrite::RewritePlan::build(&candidate.syntax);
+    let Some(rewritten) = rewrites.apply(candidate.source()) else {
+        return Ok(formatted);
+    };
+    let rewritten_candidate = parse_candidate(candidate.source(), &candidate.syntax, &rewritten)?;
+    if !rewrites.preserves_tokens(
+        candidate.source(),
+        &candidate.syntax,
+        rewritten_candidate.source(),
+        &rewritten_candidate.syntax,
+    ) {
+        return Err(FormatError::ChangedSyntax);
+    }
+    Ok(rewritten)
 }
 
-fn validate_syntax(
+struct ParsedCandidate {
+    sources: SourceMap,
+    syntax: SyntaxTree,
+}
+
+impl ParsedCandidate {
+    fn source(&self) -> &SourceFile {
+        self.sources
+            .get(self.syntax.source())
+            .expect("candidate source remains in its source map")
+    }
+}
+
+fn parse_candidate(
     source: &SourceFile,
     original: &SyntaxTree,
     formatted: &str,
-) -> Result<(), FormatError> {
+) -> Result<ParsedCandidate, FormatError> {
     let mut sources = SourceMap::new();
     let formatted_id = sources
         .add_bytes(
@@ -50,101 +87,37 @@ fn validate_syntax(
         _ => return Err(FormatError::ChangedSyntax),
     };
     let formatted_tree = nocter_syntax::parse(formatted_source, goal);
-    if formatted_tree.has_errors()
-        || !same_tree(source, original, formatted_source, &formatted_tree)
-    {
+    if formatted_tree.has_errors() {
         return Err(FormatError::ChangedSyntax);
     }
-    Ok(())
-}
-
-fn same_tree(
-    left_source: &SourceFile,
-    left: &SyntaxTree,
-    right_source: &SourceFile,
-    right: &SyntaxTree,
-) -> bool {
-    let left_nodes = left.nodes().collect::<Vec<_>>();
-    let right_nodes = right.nodes().collect::<Vec<_>>();
-    if left.root_id().index() != right.root_id().index() || left_nodes.len() != right_nodes.len() {
-        return false;
-    }
-    left_nodes
-        .into_iter()
-        .zip(right_nodes)
-        .all(|((left_id, left_node), (right_id, right_node))| {
-            left_id.index() == right_id.index()
-                && left_node.kind() == right_node.kind()
-                && same_children(
-                    left_source,
-                    left.children(left_id),
-                    right_source,
-                    right.children(right_id),
-                )
-        })
-}
-
-fn same_children(
-    left_source: &SourceFile,
-    left: &[SyntaxElement],
-    right_source: &SourceFile,
-    right: &[SyntaxElement],
-) -> bool {
-    let left = significant_children(left).collect::<Vec<_>>();
-    let right = significant_children(right).collect::<Vec<_>>();
-    left.len() == right.len()
-        && left
-            .into_iter()
-            .zip(right)
-            .all(|(left, right)| same_element(left_source, left, right_source, right))
-}
-
-fn significant_children(children: &[SyntaxElement]) -> impl Iterator<Item = &SyntaxElement> {
-    children.iter().filter(|child| {
-        !matches!(
-            child,
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Newline
-        )
+    Ok(ParsedCandidate {
+        sources,
+        syntax: formatted_tree,
     })
-}
-
-fn same_element(
-    left_source: &SourceFile,
-    left: &SyntaxElement,
-    right_source: &SourceFile,
-    right: &SyntaxElement,
-) -> bool {
-    match (left, right) {
-        (SyntaxElement::Node(left), SyntaxElement::Node(right)) => left.index() == right.index(),
-        (SyntaxElement::Token(left), SyntaxElement::Token(right)) => {
-            left.kind() == right.kind()
-                && left_source.text_at(left.range()) == right_source.text_at(right.range())
-        }
-        (SyntaxElement::Missing(_), SyntaxElement::Missing(_)) => true,
-        _ => false,
-    }
 }
 
 struct Formatter<'syntax> {
     source: &'syntax SourceFile,
-    syntax: &'syntax SyntaxTree,
-    parent_kinds: Vec<Option<NodeKind>>,
+    tokens: Vec<SyntaxToken>,
+    parent_kinds: HashMap<SyntaxToken, NodeKind>,
     top_level_items: HashSet<u32>,
+    layout: LayoutPlan,
     output: String,
     delimiter_depth: usize,
     at_line_start: bool,
     pending_newlines: u8,
-    previous: Option<Token>,
+    previous: Option<SyntaxToken>,
     previous_parent: Option<NodeKind>,
 }
 
 impl<'syntax> Formatter<'syntax> {
     fn new(source: &'syntax SourceFile, syntax: &'syntax SyntaxTree) -> Self {
-        let mut parent_kinds = vec![None; syntax.lexed().tokens().len()];
+        let tokens = syntax_tokens::ordered(syntax);
+        let mut parent_kinds = HashMap::new();
         for (node_id, node) in syntax.nodes() {
             for child in syntax.children(node_id) {
                 if let SyntaxElement::Token(token) = child {
-                    parent_kinds[token.lexical().index()].get_or_insert(node.kind());
+                    parent_kinds.entry(*token).or_insert(node.kind());
                 }
             }
         }
@@ -164,9 +137,10 @@ impl<'syntax> Formatter<'syntax> {
             .collect();
         Self {
             source,
-            syntax,
+            tokens: tokens.clone(),
             parent_kinds,
             top_level_items,
+            layout: LayoutPlan::build(source, syntax, &tokens),
             output: String::new(),
             delimiter_depth: 0,
             at_line_start: true,
@@ -177,13 +151,17 @@ impl<'syntax> Formatter<'syntax> {
     }
 
     fn run(mut self) -> String {
-        for (index, token) in self.syntax.lexed().tokens().iter().copied().enumerate() {
+        let tokens = std::mem::take(&mut self.tokens);
+        for token in tokens {
+            if self.layout.omits(token) {
+                continue;
+            }
             match token.kind() {
                 TokenKind::Eof => break,
                 TokenKind::Newline => {
                     self.pending_newlines = self.pending_newlines.saturating_add(1).min(2);
                 }
-                _ => self.write_token(index, token),
+                _ => self.write_token(token),
             }
         }
         while self.output.ends_with([' ', '\n']) {
@@ -193,24 +171,32 @@ impl<'syntax> Formatter<'syntax> {
         self.output
     }
 
-    fn write_token(&mut self, index: usize, token: Token) {
+    fn write_token(&mut self, token: SyntaxToken) {
+        let forced_break = self.layout.breaks_before(token);
+        if self.layout.joins_before(token) {
+            self.pending_newlines = 0;
+        }
+        if self.layout.inserts_comma_before(token) {
+            self.output.push(',');
+            self.pending_newlines = 1;
+        }
+        if forced_break {
+            self.pending_newlines = 1;
+        }
         if self.pending_newlines != 0 {
-            if self.joins_previous_line(token) {
+            if !forced_break && self.joins_previous_line(token) {
                 if !self.output.is_empty()
                     && needs_space(
                         self.previous,
                         self.previous_parent,
                         token,
-                        self.parent(index),
+                        self.parent(token),
                     )
                 {
                     self.output.push(' ');
                 }
             } else if !self.output.is_empty() {
-                let line_count = if self
-                    .top_level_items
-                    .contains(&token.span().range().start().get())
-                {
+                let line_count = if self.top_level_items.contains(&token.range().start().get()) {
                     2
                 } else {
                     self.pending_newlines
@@ -224,14 +210,15 @@ impl<'syntax> Formatter<'syntax> {
                 self.previous,
                 self.previous_parent,
                 token,
-                self.parent(index),
+                self.parent(token),
             )
         {
             self.output.push(' ');
         }
 
         if self.at_line_start {
-            let leading_closes = usize::from(is_closing_delimiter(token.kind()));
+            let leading_closes = usize::from(is_closing_delimiter(token.kind()))
+                + self.layout.structural_closes(token);
             let indent = self.delimiter_depth.saturating_sub(leading_closes);
             self.output.push_str(&"    ".repeat(indent));
             self.at_line_start = false;
@@ -239,8 +226,8 @@ impl<'syntax> Formatter<'syntax> {
 
         let text = self
             .source
-            .text_at(token.span().range())
-            .expect("lexer token range remains in its source");
+            .text_at(token.range())
+            .expect("syntax token range remains in its source");
         self.output.push_str(text);
         match token.kind() {
             TokenKind::Punctuation(
@@ -251,14 +238,18 @@ impl<'syntax> Formatter<'syntax> {
             ) => self.delimiter_depth = self.delimiter_depth.saturating_sub(1),
             _ => {}
         }
+        self.delimiter_depth += self.layout.structural_opens(token);
+        self.delimiter_depth = self
+            .delimiter_depth
+            .saturating_sub(self.layout.structural_closes(token));
         self.previous = Some(token);
-        self.previous_parent = self.parent(index);
+        self.previous_parent = self.parent(token);
     }
 
-    fn joins_previous_line(&self, token: Token) -> bool {
+    fn joins_previous_line(&self, token: SyntaxToken) -> bool {
         matches!(token.kind(), TokenKind::Punctuation(Punctuation::LeftBrace))
             || matches!(
-                (self.previous.map(Token::kind), token.kind()),
+                (self.previous.map(SyntaxToken::kind), token.kind()),
                 (
                     Some(TokenKind::Punctuation(Punctuation::RightBrace)),
                     TokenKind::Keyword(Keyword::Else)
@@ -266,15 +257,15 @@ impl<'syntax> Formatter<'syntax> {
             )
     }
 
-    fn parent(&self, token: usize) -> Option<NodeKind> {
-        self.parent_kinds.get(token).copied().flatten()
+    fn parent(&self, token: SyntaxToken) -> Option<NodeKind> {
+        self.parent_kinds.get(&token).copied()
     }
 }
 
 fn needs_space(
-    previous: Option<Token>,
+    previous: Option<SyntaxToken>,
     previous_parent: Option<NodeKind>,
-    current: Token,
+    current: SyntaxToken,
     current_parent: Option<NodeKind>,
 ) -> bool {
     let Some(previous) = previous else {
@@ -348,7 +339,10 @@ fn space_before_punctuation(
         {
             false
         }
-        Punctuation::Slash if parent == Some(NodeKind::ModulePath) => false,
+        Punctuation::Slash if parent == Some(NodeKind::ModulePath) => {
+            previous == TokenKind::Keyword(Keyword::Use)
+        }
+        Punctuation::Slash if parent == Some(NodeKind::Visibility) => false,
         Punctuation::ReadWrite
         | Punctuation::Star
         | Punctuation::Ampersand
@@ -407,6 +401,7 @@ const fn is_attached_left_parenthesis(parent: Option<NodeKind>) -> bool {
         parent,
         Some(
             NodeKind::Parameters
+                | NodeKind::Visibility
                 | NodeKind::CallableParameters
                 | NodeKind::LiteralParameters
                 | NodeKind::EnumPayload
@@ -536,14 +531,14 @@ mod tests {
     use crate::{InspectionGoal, SourceInspection};
 
     fn format(source: &str) -> String {
-        SourceInspection::new(
-            SourceName::new("test.nct"),
-            source.as_bytes(),
-            InspectionGoal::ModuleSource,
-        )
-        .unwrap()
-        .format()
-        .unwrap()
+        format_with_goal(source, InspectionGoal::ModuleSource)
+    }
+
+    fn format_with_goal(source: &str, goal: InspectionGoal) -> String {
+        SourceInspection::new(SourceName::new("test.nct"), source.as_bytes(), goal)
+            .unwrap()
+            .format()
+            .unwrap()
     }
 
     #[test]
@@ -574,6 +569,78 @@ mod tests {
                 "drop Maybe<T>(&+self) {}\nfunc f(): void { let x=(move value?)?\nlet c=(&source; value:T):bool { true }\nif(Flags { ready:true }).ready { return }\n}\n"
             ),
             "drop Maybe<T>(&+self) {}\n\nfunc f(): void { let x = (move value?)?\n    let c = (&source; value: T): bool { true }\n    if (Flags { ready: true }).ready { return }\n}\n"
+        );
+    }
+
+    #[test]
+    fn keeps_scoped_visibility_and_root_module_paths_in_their_canonical_forms() {
+        assert_eq!(
+            format("pub (.. / .. /) use / parser.{First,Second,}\n"),
+            "pub(../../) use /parser.{First, Second}\n"
+        );
+    }
+
+    #[test]
+    fn canonicalizes_single_and_multiline_comma_lists_from_cst_ownership() {
+        assert_eq!(
+            format(
+                "func choose<T,U,>(\nleft:T, right:U\n):void { let values=[left,right,]\nreturn consume(left,right,)\n}\nfunc generic<\nT,U\n>():void {}\n"
+            ),
+            "func choose<T, U>(\n    left: T,\n    right: U,\n): void { let values = [left, right]\n    return consume(left, right)\n}\n\nfunc generic<\n    T,\n    U,\n>(): void {}\n"
+        );
+    }
+
+    #[test]
+    fn applies_the_same_list_model_to_package_data_imports_and_initializers() {
+        assert_eq!(
+            format_with_goal(
+                "#dependencies: { json:\"https://example.test/json\", http:\"https://example.test/http\"\n}\n",
+                InspectionGoal::PackageFile,
+            ),
+            "#dependencies: {\n    json: \"https://example.test/json\",\n    http: \"https://example.test/http\",\n}\n"
+        );
+        assert_eq!(
+            format(
+                "use ./values.{First,Second,}\nfunc f():void { let value=Pair { left:1, right:2, }\nreturn\n}\n"
+            ),
+            "use ./values.{First, Second}\n\nfunc f(): void { let value = Pair { left: 1, right: 2 }\n    return\n}\n"
+        );
+    }
+
+    #[test]
+    fn formats_nested_generic_lists_through_parser_owned_split_tokens() {
+        assert_eq!(
+            format("func nested(value:Outer<Inner<\nT\n>>):void {}\n"),
+            "func nested(\n    value: Outer<\n        Inner<\n            T,\n        >,\n    >,\n): void {}\n"
+        );
+    }
+
+    #[test]
+    fn removes_only_specification_owned_redundant_expression_grouping() {
+        let source = "func f():i32 { let negative=-(128)\nlet optional=(move maybe)?\nlet forced=(move result)!\nlet recovered=(move result) otherwise { return 0 }\nlet nested=(move layered?)?\nreturn negative\n}\n";
+        let expected = "func f(): i32 { let negative = -128\n    let optional = move maybe?\n    let forced = move result!\n    let recovered = move result otherwise { return 0 }\n    let nested = (move layered?)?\n    return negative\n}\n";
+        let formatted = format(source);
+        assert_eq!(formatted, expected,);
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn removes_optional_borrow_grouping_but_retains_a_prefix_over_an_outcome() {
+        let formatted = format("func f<T>(optional:(&T)?, borrowed:&(T?)):void {}\n");
+        assert_eq!(
+            formatted,
+            "func f<T>(optional: &T?, borrowed: &(T?)): void {}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn joins_requirements_and_removes_single_line_closure_segment_commas() {
+        assert_eq!(
+            format(
+                "func f<T>(value:T):void where copy T,\nT: Iterator { let closure=(&value,; item:T,):bool { true }\nreturn\n}\n"
+            ),
+            "func f<T>(value: T): void where copy T, T: Iterator { let closure = (&value; item: T): bool { true }\n    return\n}\n"
         );
     }
 
