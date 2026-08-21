@@ -7,7 +7,10 @@ use std::path::{Path, PathBuf};
 use nocter_model::PackageIdentity;
 
 use crate::graph::{PackageGraphBuilder, ResolvedPackageEdges, canonical_package_root};
-use crate::{DependencySource, PackageGraphError, PackageId, PackageIdError, ResolvedPackageGraph};
+use crate::{
+    DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
+    PackageLockOverlay, ResolvedPackageGraph,
+};
 
 /// Immutable policy controlling whether exact resolution may request lock or fetch authority.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -67,6 +70,7 @@ pub struct PackageResolutionRequest {
     nocter_home: PathBuf,
     standard: StandardPackage,
     policy: PackageResolutionPolicy,
+    lock_overlay: PackageLockOverlay,
 }
 
 impl PackageResolutionRequest {
@@ -82,7 +86,16 @@ impl PackageResolutionRequest {
             nocter_home: nocter_home.into(),
             standard,
             policy,
+            lock_overlay: PackageLockOverlay::new(),
         }
+    }
+
+    /// Supplies exact selections created by a package-state transaction but not yet committed to
+    /// package source.
+    #[must_use]
+    pub fn with_lock_overlay(mut self, lock_overlay: PackageLockOverlay) -> Self {
+        self.lock_overlay = lock_overlay;
+        self
     }
 }
 
@@ -130,13 +143,20 @@ impl ResolvedPackageSelection {
 pub fn resolve_package_selection(
     request: PackageResolutionRequest,
 ) -> Result<ResolvedPackageSelection, PackageResolutionError> {
-    let root = canonical_package_root(&request.root).map_err(PackageResolutionError::Graph)?;
+    let PackageResolutionRequest {
+        root: requested_root,
+        nocter_home,
+        standard,
+        policy,
+        lock_overlay,
+    } = request;
+    let root = canonical_package_root(&requested_root).map_err(PackageResolutionError::Graph)?;
     let root_id = PackageId::from_canonical_path(&root)
         .map_err(PackageResolutionError::PackageId)?
         .package_identity();
     let standard_root =
-        canonical_package_root(&request.standard.root).map_err(PackageResolutionError::Graph)?;
-    let standard_id = request.standard.identity;
+        canonical_package_root(&standard.root).map_err(PackageResolutionError::Graph)?;
+    let standard_id = standard.identity;
 
     let mut builder = PackageGraphBuilder::new();
     let mut roots = BTreeMap::new();
@@ -157,42 +177,44 @@ pub fn resolve_package_selection(
     )?;
 
     let local_store = root.join(".nocter").join("packages");
-    let home_store = request.nocter_home.join("packages");
+    let home_store = nocter_home.join("packages");
     let dependency_resolver = DependencyResolver {
         local_store: &local_store,
         home_store: &home_store,
-        policy: request.policy,
+        policy,
     };
     let mut edges = BTreeMap::new();
     while let Some((identity, package_root)) = pending.pop_first() {
         let declaration = builder.declaration(&identity).cloned();
-        let mut authored = BTreeMap::new();
-        if let Some(declaration) = declaration {
-            for (alias, dependency) in declaration.dependencies() {
-                let (target, target_root) = dependency_resolver.resolve(
-                    &identity,
-                    &package_root,
-                    alias,
-                    dependency.source(),
-                    declaration.locks().get(alias),
-                )?;
-                authored.insert(alias.clone(), target.clone());
-                if let Some(existing) = roots.get(&target) {
-                    if existing != &target_root {
-                        return Err(PackageResolutionError::IdentityRootConflict {
-                            package: target,
-                            first: existing.clone(),
-                            second: target_root,
-                        });
-                    }
-                } else {
-                    insert_package(&mut builder, &mut roots, &mut pending, target, target_root)?;
+        let resolved = resolve_package_edges(
+            &identity,
+            &package_root,
+            declaration.as_ref(),
+            &dependency_resolver,
+            &lock_overlay,
+            &standard_id,
+        );
+        let resolved = resolved?;
+        for dependency in resolved.pending {
+            if let Some(existing) = roots.get(&dependency.target) {
+                if existing != &dependency.root {
+                    return Err(PackageResolutionError::IdentityRootConflict {
+                        package: dependency.target,
+                        first: existing.clone(),
+                        second: dependency.root,
+                    });
                 }
+            } else {
+                insert_package(
+                    &mut builder,
+                    &mut roots,
+                    &mut pending,
+                    dependency.target,
+                    dependency.root,
+                )?;
             }
         }
-        let mut implicit = BTreeMap::new();
-        implicit.insert("std".into(), standard_id.clone());
-        edges.insert(identity, ResolvedPackageEdges { authored, implicit });
+        edges.insert(identity, resolved.edges);
     }
     let graph = builder
         .finish(edges)
@@ -201,6 +223,66 @@ pub fn resolve_package_selection(
         graph,
         root: root_id,
         standard: standard_id,
+    })
+}
+
+struct ResolvedPackageWork {
+    edges: ResolvedPackageEdges,
+    pending: Vec<ResolvedDependency>,
+}
+
+fn resolve_package_edges(
+    identity: &PackageIdentity,
+    package_root: &Path,
+    declaration: Option<&crate::PackageDeclaration>,
+    resolver: &DependencyResolver<'_>,
+    overlay: &PackageLockOverlay,
+    standard: &PackageIdentity,
+) -> Result<ResolvedPackageWork, PackageResolutionError> {
+    let mut authored = BTreeMap::new();
+    let mut locks = BTreeMap::new();
+    let mut pending = Vec::new();
+    if let Some(declaration) = declaration {
+        for (alias, dependency) in declaration.dependencies() {
+            let authored_lock = declaration
+                .locks()
+                .get(alias)
+                .map(crate::DependencyLock::exact);
+            let overlay_lock = overlay.get(identity, alias);
+            if authored_lock
+                .as_ref()
+                .zip(overlay_lock)
+                .is_some_and(|(authored, overlay)| authored != overlay)
+            {
+                return Err(PackageResolutionError::LockOverrideConflict {
+                    package: identity.clone(),
+                    alias: alias.clone(),
+                });
+            }
+            let effective_lock = overlay_lock.or(authored_lock.as_ref());
+            let mut selection = resolver.resolve(
+                identity,
+                package_root,
+                alias,
+                dependency.source(),
+                effective_lock,
+            )?;
+            authored.insert(alias.clone(), selection.target.clone());
+            if let Some(lock) = selection.lock.take() {
+                locks.insert(alias.clone(), lock);
+            }
+            pending.push(selection);
+        }
+    }
+    let mut implicit = BTreeMap::new();
+    implicit.insert("std".into(), standard.clone());
+    Ok(ResolvedPackageWork {
+        edges: ResolvedPackageEdges {
+            authored,
+            locks,
+            implicit,
+        },
+        pending,
     })
 }
 
@@ -263,6 +345,12 @@ struct DependencyResolver<'a> {
     policy: PackageResolutionPolicy,
 }
 
+struct ResolvedDependency {
+    target: PackageIdentity,
+    root: PathBuf,
+    lock: Option<ExactDependencyLock>,
+}
+
 impl DependencyResolver<'_> {
     fn resolve(
         &self,
@@ -270,15 +358,19 @@ impl DependencyResolver<'_> {
         package_root: &Path,
         alias: &str,
         source: &DependencySource,
-        lock: Option<&crate::DependencyLock>,
-    ) -> Result<(PackageIdentity, PathBuf), PackageResolutionError> {
+        lock: Option<&ExactDependencyLock>,
+    ) -> Result<ResolvedDependency, PackageResolutionError> {
         if let DependencySource::Path { path } = source {
             let root = canonical_package_root(&package_root.join(path.value()))
                 .map_err(PackageResolutionError::Graph)?;
-            let identity = PackageId::from_canonical_path(&root)
+            let target = PackageId::from_canonical_path(&root)
                 .map_err(PackageResolutionError::PackageId)?
                 .package_identity();
-            return Ok((identity, root));
+            return Ok(ResolvedDependency {
+                target,
+                root,
+                lock: None,
+            });
         }
 
         let Some(lock) = lock else {
@@ -296,17 +388,20 @@ impl DependencyResolver<'_> {
             }
             return Err(PackageResolutionError::LockRequired {
                 package: package.clone(),
+                package_root: package_root.into(),
                 alias: alias.into(),
-                source: source.clone(),
+                source: Box::new(source.clone()),
             });
         };
-        let package_id = PackageId::from_lock(lock).map_err(PackageResolutionError::PackageId)?;
+        let package_id =
+            PackageId::from_exact_lock(lock).map_err(PackageResolutionError::PackageId)?;
         let selected = self.select_installed(&package_id)?;
         if let Some(root) = selected {
-            return Ok((
-                package_id.into(),
-                canonical_package_root(&root).map_err(PackageResolutionError::Graph)?,
-            ));
+            return Ok(ResolvedDependency {
+                target: package_id.into(),
+                root: canonical_package_root(&root).map_err(PackageResolutionError::Graph)?,
+                lock: Some(lock.clone()),
+            });
         }
         if self.policy.offline() {
             return Err(PackageResolutionError::PackageUnavailableOffline {
@@ -319,7 +414,7 @@ impl DependencyResolver<'_> {
             package: package.clone(),
             alias: alias.into(),
             package_id,
-            source: source.clone(),
+            source: Box::new(source.clone()),
         })
     }
 
@@ -349,14 +444,15 @@ impl DependencyResolver<'_> {
 pub enum PackageResolutionError {
     LockRequired {
         package: PackageIdentity,
+        package_root: PathBuf,
         alias: Box<str>,
-        source: DependencySource,
+        source: Box<DependencySource>,
     },
     FetchRequired {
         package: PackageIdentity,
         alias: Box<str>,
         package_id: PackageId,
-        source: DependencySource,
+        source: Box<DependencySource>,
     },
     MissingLockLocked {
         package: PackageIdentity,
@@ -375,6 +471,10 @@ pub enum PackageResolutionError {
         package: PackageIdentity,
         first: PathBuf,
         second: PathBuf,
+    },
+    LockOverrideConflict {
+        package: PackageIdentity,
+        alias: Box<str>,
     },
     PackageId(PackageIdError),
     Graph(PackageGraphError),
@@ -435,6 +535,11 @@ impl fmt::Display for PackageResolutionError {
                 first.display(),
                 second.display()
             ),
+            Self::LockOverrideConflict { package, alias } => write!(
+                formatter,
+                "package {} dependency {alias} has conflicting authored and transaction locks",
+                package.as_str()
+            ),
             Self::PackageId(error) => error.fmt(formatter),
             Self::Graph(error) => error.fmt(formatter),
             Self::Filesystem {
@@ -457,7 +562,8 @@ impl std::error::Error for PackageResolutionError {
             | Self::MissingLockLocked { .. }
             | Self::MissingLockOffline { .. }
             | Self::PackageUnavailableOffline { .. }
-            | Self::IdentityRootConflict { .. } => None,
+            | Self::IdentityRootConflict { .. }
+            | Self::LockOverrideConflict { .. } => None,
         }
     }
 }
@@ -579,5 +685,41 @@ mod tests {
             resolve_package_graph(locked.request(PackageResolutionPolicy::new(false, true))),
             Err(PackageResolutionError::PackageUnavailableOffline { .. })
         ));
+    }
+
+    #[test]
+    fn resolves_with_a_provisional_lock_without_editing_the_manifest() {
+        let tree = base_tree(false);
+        let package_id = PackageId::from_git_commit(COMMIT).unwrap();
+        tree.source(
+            &format!("app/.nocter/packages/{}/nocter.nct", package_id.as_str()),
+            "#name: \"remote\"\n",
+        );
+        let manifest_path = tree.0.join("app/nocter.nct");
+        let before = fs::read(&manifest_path).unwrap();
+        let root = canonical_package_root(&tree.0.join("app")).unwrap();
+        let root_id = PackageId::from_canonical_path(&root)
+            .unwrap()
+            .package_identity();
+        let lock = ExactDependencyLock::git(COMMIT).unwrap();
+        let mut overlay = PackageLockOverlay::new();
+        overlay
+            .insert(root_id.clone(), "remote", lock.clone())
+            .unwrap();
+
+        let graph = resolve_package_graph(
+            tree.request(PackageResolutionPolicy::default())
+                .with_lock_overlay(overlay),
+        )
+        .unwrap();
+
+        let root = graph
+            .packages()
+            .iter()
+            .find(|package| package.identity() == &root_id)
+            .unwrap();
+        assert_eq!(root.locks().get("remote"), Some(&lock));
+        assert!(root.declaration().unwrap().locks().is_empty());
+        assert_eq!(fs::read(manifest_path).unwrap(), before);
     }
 }

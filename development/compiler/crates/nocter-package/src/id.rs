@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use nocter_hash::sha256;
 use nocter_model::PackageIdentity;
 
-use crate::DependencyLock;
+use crate::{DependencyLock, ExactDependencyLock, ExactDependencyLockKind};
 
 const GIT_PREFIX: &str = "git-";
 const ARCHIVE_PREFIX: &str = "sha256-";
@@ -25,19 +25,18 @@ impl PackageId {
     /// Returns an error if a lock was constructed outside the declaration decoder with malformed
     /// exact data.
     pub fn from_lock(lock: &DependencyLock) -> Result<Self, PackageIdError> {
-        match lock {
-            DependencyLock::Git(commit) => Self::from_git_commit(
-                commit
-                    .value()
-                    .strip_prefix("git:")
-                    .ok_or(PackageIdError::InvalidGitCommit)?,
-            ),
-            DependencyLock::Sha256(digest) => Self::from_archive_digest(
-                digest
-                    .value()
-                    .strip_prefix("sha256:")
-                    .ok_or(PackageIdError::InvalidArchiveDigest)?,
-            ),
+        Self::from_exact_lock(&lock.exact())
+    }
+
+    /// Creates the package identity selected by one source-independent exact lock.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only if an exact lock was constructed outside its validated constructors.
+    pub fn from_exact_lock(lock: &ExactDependencyLock) -> Result<Self, PackageIdError> {
+        match lock.kind() {
+            ExactDependencyLockKind::Git => Self::from_git_commit(lock.value()),
+            ExactDependencyLockKind::Sha256 => Self::from_archive_digest(lock.value()),
         }
     }
 

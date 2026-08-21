@@ -63,6 +63,23 @@ pub enum DependencyLock {
     Sha256(AuthoredString),
 }
 
+impl DependencyLock {
+    /// Removes syntax identity from an already validated authored lock.
+    #[must_use]
+    pub fn exact(&self) -> crate::ExactDependencyLock {
+        match self {
+            Self::Git(authored) => crate::ExactDependencyLock::validated(
+                crate::ExactDependencyLockKind::Git,
+                authored.value().trim_start_matches("git:"),
+            ),
+            Self::Sha256(authored) => crate::ExactDependencyLock::validated(
+                crate::ExactDependencyLockKind::Sha256,
+                authored.value().trim_start_matches("sha256:"),
+            ),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageTargetDeclaration {
     declaration: NodeId,

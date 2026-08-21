@@ -9,7 +9,8 @@ use nocter_source::{SourceError, SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use crate::{
-    DependencySource, PackageDeclaration, PackageDeclarationError, decode_package_declaration,
+    DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
+    PackageDeclarationError, decode_package_declaration,
 };
 
 /// One externally resolved package before its authored declaration is loaded and verified.
@@ -18,6 +19,7 @@ pub struct ResolvedPackageSpec {
     identity: PackageIdentity,
     root: PathBuf,
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    locks: BTreeMap<Box<str>, ExactDependencyLock>,
     implicit_dependencies: BTreeMap<Box<str>, PackageIdentity>,
 }
 
@@ -28,6 +30,7 @@ impl ResolvedPackageSpec {
             identity,
             root: root.into(),
             dependencies: BTreeMap::new(),
+            locks: BTreeMap::new(),
             implicit_dependencies: BTreeMap::new(),
         }
     }
@@ -35,6 +38,12 @@ impl ResolvedPackageSpec {
     #[must_use]
     pub fn with_dependency(mut self, alias: impl Into<Box<str>>, package: PackageIdentity) -> Self {
         self.dependencies.insert(alias.into(), package);
+        self
+    }
+
+    #[must_use]
+    pub fn with_lock(mut self, alias: impl Into<Box<str>>, lock: ExactDependencyLock) -> Self {
+        self.locks.insert(alias.into(), lock);
         self
     }
 
@@ -62,6 +71,7 @@ pub struct ResolvedPackageSnapshot {
     display_name: Box<str>,
     canonical_root: PathBuf,
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    locks: BTreeMap<Box<str>, ExactDependencyLock>,
     declaration_path: PathBuf,
     declaration_syntax: usize,
     declaration: Option<PackageDeclaration>,
@@ -86,6 +96,15 @@ impl ResolvedPackageSnapshot {
     #[must_use]
     pub fn dependencies(&self) -> &BTreeMap<Box<str>, PackageIdentity> {
         &self.dependencies
+    }
+
+    /// Returns the exact effective locks used for remote dependency edges.
+    ///
+    /// This may include transaction overlays that were validated before their generated source
+    /// block was committed.
+    #[must_use]
+    pub const fn locks(&self) -> &BTreeMap<Box<str>, ExactDependencyLock> {
+        &self.locks
     }
 
     #[must_use]
@@ -142,6 +161,7 @@ impl ResolvedPackageGraph {
                     identity.clone(),
                     ResolvedPackageEdges {
                         authored: spec.dependencies,
+                        locks: spec.locks,
                         implicit: spec.implicit_dependencies,
                     },
                 )
@@ -233,14 +253,15 @@ impl PackageGraphBuilder {
             let resolved = edges
                 .remove(&identity)
                 .ok_or_else(|| PackageGraphError::UnknownPackage(identity.clone()))?;
-            let dependencies = validate_edges(
+            let validated = validate_edges(
                 &identity,
                 package.declaration.as_ref(),
                 resolved.authored,
+                resolved.locks,
                 resolved.implicit,
                 &identities,
             )?;
-            packages.push(package.finish(identity, dependencies));
+            packages.push(package.finish(identity, validated.dependencies, validated.locks));
         }
         if let Some(identity) = edges.into_keys().next() {
             return Err(PackageGraphError::UnknownPackage(identity));
@@ -256,6 +277,7 @@ impl PackageGraphBuilder {
 
 pub(crate) struct ResolvedPackageEdges {
     pub(crate) authored: BTreeMap<Box<str>, PackageIdentity>,
+    pub(crate) locks: BTreeMap<Box<str>, ExactDependencyLock>,
     pub(crate) implicit: BTreeMap<Box<str>, PackageIdentity>,
 }
 
@@ -267,17 +289,24 @@ struct LoadedPackageSnapshot {
     declaration: Option<PackageDeclaration>,
 }
 
+struct ValidatedPackageEdges {
+    dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    locks: BTreeMap<Box<str>, ExactDependencyLock>,
+}
+
 impl LoadedPackageSnapshot {
     fn finish(
         self,
         identity: PackageIdentity,
         dependencies: BTreeMap<Box<str>, PackageIdentity>,
+        locks: BTreeMap<Box<str>, ExactDependencyLock>,
     ) -> ResolvedPackageSnapshot {
         ResolvedPackageSnapshot {
             identity,
             display_name: self.display_name,
             canonical_root: self.canonical_root,
             dependencies,
+            locks,
             declaration_path: self.declaration_path,
             declaration_syntax: self.declaration_syntax,
             declaration: self.declaration,
@@ -371,9 +400,10 @@ fn validate_edges(
     package: &PackageIdentity,
     declaration: Option<&PackageDeclaration>,
     authored_edges: BTreeMap<Box<str>, PackageIdentity>,
+    mut resolved_locks: BTreeMap<Box<str>, ExactDependencyLock>,
     implicit_edges: BTreeMap<Box<str>, PackageIdentity>,
     identities: &BTreeSet<PackageIdentity>,
-) -> Result<BTreeMap<Box<str>, PackageIdentity>, PackageGraphError> {
+) -> Result<ValidatedPackageEdges, PackageGraphError> {
     for dependency in authored_edges.values().chain(implicit_edges.values()) {
         if !identities.contains(dependency) {
             return Err(PackageGraphError::UnknownPackage(dependency.clone()));
@@ -394,17 +424,67 @@ fn validate_edges(
         }
         for (alias, dependency) in declaration.dependencies() {
             match dependency.source() {
-                DependencySource::Path { .. } => {}
-                DependencySource::Git { .. } | DependencySource::Archive { .. } => {
-                    if !declaration.locks().contains_key(alias) {
-                        return Err(PackageGraphError::MissingLock {
+                DependencySource::Path { .. } => {
+                    if resolved_locks.remove(alias).is_some() {
+                        return Err(PackageGraphError::UnexpectedResolvedLock {
                             package: package.clone(),
                             alias: alias.clone(),
                         });
                     }
                 }
+                DependencySource::Git { .. } | DependencySource::Archive { .. } => {
+                    let authored = declaration
+                        .locks()
+                        .get(alias)
+                        .map(crate::DependencyLock::exact);
+                    let selected = resolved_locks
+                        .get(alias)
+                        .cloned()
+                        .or_else(|| authored.clone());
+                    let Some(selected) = selected else {
+                        return Err(PackageGraphError::MissingLock {
+                            package: package.clone(),
+                            alias: alias.clone(),
+                        });
+                    };
+                    if authored
+                        .as_ref()
+                        .is_some_and(|authored| authored != &selected)
+                    {
+                        return Err(PackageGraphError::LockSelectionMismatch {
+                            package: package.clone(),
+                            alias: alias.clone(),
+                        });
+                    }
+                    let expected = match dependency.source() {
+                        DependencySource::Git { .. } => ExactDependencyLockKind::Git,
+                        DependencySource::Archive { .. } => ExactDependencyLockKind::Sha256,
+                        DependencySource::Path { .. } => unreachable!(),
+                    };
+                    if selected.kind() != expected {
+                        return Err(PackageGraphError::LockKindMismatch {
+                            package: package.clone(),
+                            alias: alias.clone(),
+                        });
+                    }
+                    resolved_locks.insert(alias.clone(), selected);
+                }
             }
         }
+        if let Some(alias) = resolved_locks
+            .keys()
+            .find(|alias| !declaration.dependencies().contains_key(*alias))
+        {
+            return Err(PackageGraphError::UnexpectedResolvedLock {
+                package: package.clone(),
+                alias: alias.clone(),
+            });
+        }
+    } else if let Some(alias) = resolved_locks.keys().next() {
+        return Err(PackageGraphError::UnexpectedResolvedLock {
+            package: package.clone(),
+            alias: alias.clone(),
+        });
     }
     let mut dependencies = authored_edges;
     for (alias, target) in implicit_edges {
@@ -415,7 +495,10 @@ fn validate_edges(
             });
         }
     }
-    Ok(dependencies)
+    Ok(ValidatedPackageEdges {
+        dependencies,
+        locks: resolved_locks,
+    })
 }
 
 fn validate_path_roots(packages: &[ResolvedPackageSnapshot]) -> Result<(), PackageGraphError> {
@@ -512,6 +595,18 @@ pub enum PackageGraphError {
         package: PackageIdentity,
         alias: Box<str>,
     },
+    UnexpectedResolvedLock {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    LockSelectionMismatch {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    LockKindMismatch {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
     InvalidPathDependency {
         package: PackageIdentity,
         alias: Box<str>,
@@ -576,6 +671,21 @@ impl fmt::Display for PackageGraphError {
                 "package {} has no exact lock for dependency {alias}",
                 package.as_str()
             ),
+            Self::UnexpectedResolvedLock { package, alias } => write!(
+                formatter,
+                "package {} has an exact lock for non-remote dependency {alias}",
+                package.as_str()
+            ),
+            Self::LockSelectionMismatch { package, alias } => write!(
+                formatter,
+                "package {} dependency {alias} has conflicting authored and resolved locks",
+                package.as_str()
+            ),
+            Self::LockKindMismatch { package, alias } => write!(
+                formatter,
+                "package {} dependency {alias} has an incompatible exact lock kind",
+                package.as_str()
+            ),
             Self::InvalidPathDependency {
                 package,
                 alias,
@@ -623,6 +733,9 @@ impl std::error::Error for PackageGraphError {
             | Self::DuplicateCanonicalRoot { .. }
             | Self::DependencyEdgeMismatch { .. }
             | Self::MissingLock { .. }
+            | Self::UnexpectedResolvedLock { .. }
+            | Self::LockSelectionMismatch { .. }
+            | Self::LockKindMismatch { .. }
             | Self::InvalidPathDependency { .. }
             | Self::InvalidImplicitDependency { .. }
             | Self::NonUnicodeCanonicalPath(_)
@@ -726,6 +839,59 @@ mod tests {
         assert!(matches!(
             extra_edge,
             PackageGraphError::DependencyEdgeMismatch { .. }
+        ));
+    }
+
+    #[test]
+    fn validates_and_retains_a_provisional_exact_lock() {
+        let tree = TempTree::new();
+        tree.source(
+            "app/nocter.nct",
+            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
+        );
+        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        let lock = ExactDependencyLock::git("7db21c1000000000000000000000000000000000").unwrap();
+
+        let graph = ResolvedPackageGraph::load(vec![
+            ResolvedPackageSpec::new(identity("app"), tree.0.join("app"))
+                .with_dependency("remote", identity("remote"))
+                .with_lock("remote", lock.clone()),
+            ResolvedPackageSpec::new(identity("remote"), tree.0.join("remote")),
+        ])
+        .unwrap();
+
+        assert_eq!(graph.packages()[0].locks().get("remote"), Some(&lock));
+        assert!(
+            graph.packages()[0]
+                .declaration()
+                .unwrap()
+                .locks()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn rejects_a_provisional_lock_that_changes_an_authored_selection() {
+        let tree = TempTree::new();
+        tree.source(
+            "app/nocter.nct",
+            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\n",
+        );
+        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        let replacement =
+            ExactDependencyLock::git("8db21c1000000000000000000000000000000000").unwrap();
+
+        let error = ResolvedPackageGraph::load(vec![
+            ResolvedPackageSpec::new(identity("app"), tree.0.join("app"))
+                .with_dependency("remote", identity("remote"))
+                .with_lock("remote", replacement),
+            ResolvedPackageSpec::new(identity("remote"), tree.0.join("remote")),
+        ])
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            PackageGraphError::LockSelectionMismatch { .. }
         ));
     }
 
