@@ -344,14 +344,19 @@ mutual-exclusion check, require the `.nct` extension and one regular file, and c
 `--root`. Resolution canonicalizes the selected identity once and never searches ancestors,
 guesses `main.nct`, or invents a package.
 
-Build and run planning consumes only that normalized input plus parsed executable/output options.
+Build, run, and check planning consume only that normalized input plus parsed
+executable/output options.
 Package build without `--executable` or `-o` selects the complete executable set. A named target
 selects one executable and defaults its path to the authored name under the package root; `-o`
 selects one sole/named target and resolves relative to the invocation directory. File build always
 selects its discovery-owned executable and defaults to the source stem under the invocation
 directory. Run maps package input to sole/named selection and package-root working directory, while
 file run uses sole selection and the invocation directory. `--executable` is rejected for file
-input before compilation; target existence and sole-target cardinality remain session facts.
+input before compilation; target existence and sole-target cardinality remain session facts. A
+package check without a name selects the root and every executable module; a named check selects
+the root and that exact executable module. A single-file check selects only its synthetic root.
+Unknown named targets are rejected at this graph-selection boundary rather than being mistaken for
+a successful root-only check.
 
 The public command argument boundary is a pure `OsString` parser. It receives arguments without
 reading process-global state, keeps positional and `--file` forms distinct, supports `--` without
@@ -363,7 +368,7 @@ Fetch uses the package-only projection of the same input authority, so a source-
 representable after parsing. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
 
-Prepared build and run commands now cross one production compiler-command adapter. Its explicit
+Prepared check, build, and run commands cross one production compiler-command adapter. Its explicit
 `CommandToolchain` contains the already selected target and a `CommandPackageContext` containing
 the Nocter home and standard package. Fetch receives only that package context, not compilation
 target authority. The adapter never reads process globals or reconstructs installation state. The
@@ -374,11 +379,12 @@ selection to `nocter-installation`, compares compiler-host and manifest-host ide
 the command toolchain from the validated manifest default target and standard package. Package mode invokes exact
 package selection, retains the resolver-owned command-root identity, selects the root module and
 only the executable modules required by the command, and then creates one ordinary declared
-discovery request. A named build does not open an unselected executable module. Package-set and
+discovery request. A named build or check does not open an unselected executable module. Package-set and
 sole-selection modes retain every executable root needed for their cardinality rules. Single-file
 mode loads only the self-contained standard package and creates the normal single-file discovery
 request. Both layouts then use the same session, artifact, and launch boundaries. There is no
-separate CLI compiler pipeline.
+separate CLI compiler pipeline. Check returns the session-owned `CompiledTarget` immediately after
+target validation and never gains executable-specialization, artifact, or launch authority.
 
 The process adapter attaches a spanless diagnostic code only when it owns the complete
 classification: command syntax, filesystem input selection, package-root selection, or Nocter-home

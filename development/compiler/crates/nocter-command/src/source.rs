@@ -19,7 +19,16 @@ use crate::{
 #[derive(Clone, Copy)]
 pub(crate) enum CommandCompileRoots<'a> {
     AllExecutables,
-    Selected(&'a ExecutableSelector),
+    NamedExecutable(&'a str),
+}
+
+impl<'a> CommandCompileRoots<'a> {
+    pub(crate) fn for_selector(selector: &'a ExecutableSelector) -> Self {
+        match selector {
+            ExecutableSelector::Only => Self::AllExecutables,
+            ExecutableSelector::Named(name) => Self::NamedExecutable(name),
+        }
+    }
 }
 
 /// Explicit installation and target facts used by command source preparation.
@@ -110,22 +119,29 @@ fn discover_declared(
         .iter()
         .find(|package| package.identity() == &root)
         .ok_or_else(|| CommandSourceError::MissingCommandRoot(root.clone()))?;
+    let mut selected_named_executable = false;
     if let Some(declaration) = package.declaration() {
         for target in declaration.targets().iter().filter(|target| {
             target.kind() == nocter_model::PackageTargetKind::Executable
                 && match compile_roots {
-                    CommandCompileRoots::AllExecutables
-                    | CommandCompileRoots::Selected(ExecutableSelector::Only) => true,
-                    CommandCompileRoots::Selected(ExecutableSelector::Named(name)) => {
-                        target.name().value() == name.as_ref()
-                    }
+                    CommandCompileRoots::AllExecutables => true,
+                    CommandCompileRoots::NamedExecutable(name) => target.name().value() == name,
                 }
         }) {
+            selected_named_executable = true;
             roots.insert(ModuleIdentity::new(
                 root.clone(),
                 target.module().iter().cloned(),
             ));
         }
+    }
+    if let CommandCompileRoots::NamedExecutable(name) = compile_roots
+        && !selected_named_executable
+    {
+        return Err(CommandSourceError::MissingCommandExecutable {
+            package: root,
+            name: name.into(),
+        });
     }
     let (packages, _, _) = selected.into_parts();
     discover(DiscoveryRequest::declared(
@@ -142,6 +158,10 @@ pub enum CommandSourceError {
     Package(CommandPackageStateError),
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
+    MissingCommandExecutable {
+        package: PackageIdentity,
+        name: Box<str>,
+    },
     Discovery(DiscoveryError),
 }
 
@@ -157,6 +177,11 @@ impl fmt::Display for CommandSourceError {
                 "resolved graph does not contain command-root package {}",
                 package.as_str()
             ),
+            Self::MissingCommandExecutable { package, name } => write!(
+                formatter,
+                "command-root package {} does not declare executable {name}",
+                package.as_str()
+            ),
             Self::Discovery(error) => write!(formatter, "source discovery failed: {error}"),
         }
     }
@@ -168,7 +193,7 @@ impl std::error::Error for CommandSourceError {
             Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
-            Self::MissingCommandRoot(_) => None,
+            Self::MissingCommandRoot(_) | Self::MissingCommandExecutable { .. } => None,
         }
     }
 }

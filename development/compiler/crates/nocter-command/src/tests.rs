@@ -579,6 +579,112 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
 }
 
 #[test]
+fn check_accepts_library_packages_and_single_files_without_emitting_artifacts() {
+    let directory = unique_test_directory("prepared-check");
+    let package_root = directory.join("library");
+    write_source(&package_root, "nocter.nct", "#name: \"library\"\n");
+    write_source(&package_root, "index.nct", "//! Library root.\n");
+    write_source(
+        &directory,
+        "application.nct",
+        "func main(): i32 { return 0 }\n",
+    );
+
+    let super::ParsedCommand::Check(package) = super::parse_command_arguments([
+        "check".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected check command");
+    };
+    super::execute_prepared_check(
+        package.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    let super::ParsedCommand::Check(file) =
+        super::parse_command_arguments(["check".into(), "application.nct".into()]).unwrap()
+    else {
+        panic!("expected check command");
+    };
+    super::execute_prepared_check(
+        file.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    let mut entries = fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    entries.sort();
+    assert_eq!(
+        entries,
+        [
+            std::ffi::OsString::from("application.nct"),
+            "library".into()
+        ]
+    );
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn named_check_selects_exactly_one_module_and_rejects_an_unknown_target() {
+    let directory = unique_test_directory("prepared-named-check");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"application\"\n#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
+    );
+    write_source(&package_root, "index.nct", "//! Package root.\n");
+    write_source(
+        &package_root,
+        "src/good/index.nct",
+        "func main(): void { return }\n",
+    );
+    write_source(&package_root, "src/broken/index.nct", "func main(");
+
+    let prepare = |name: &str| {
+        let super::ParsedCommand::Check(parsed) = super::parse_command_arguments([
+            "check".into(),
+            "--root".into(),
+            package_root.as_os_str().to_owned(),
+            "--executable".into(),
+            name.into(),
+        ])
+        .unwrap() else {
+            panic!("expected check command");
+        };
+        parsed.prepare(&directory).unwrap()
+    };
+
+    super::execute_prepared_check(
+        prepare("good"),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+    let error = super::execute_prepared_check(
+        prepare("missing"),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        super::CheckCommandExecutionError::Source(
+            super::CommandSourceError::MissingCommandExecutable { ref name, .. }
+        ) if name.as_ref() == "missing"
+    ));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn parsed_single_file_run_crosses_the_common_command_adapter() {
     let directory = unique_test_directory("prepared-file-run");
     write_source(&directory, "status.nct", "func main(): i32 { 9 }\n");

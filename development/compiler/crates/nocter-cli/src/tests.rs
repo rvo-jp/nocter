@@ -193,6 +193,51 @@ fn public_fetch_stops_after_the_shared_package_transaction() {
     );
 }
 
+#[test]
+fn public_check_uses_the_installed_standard_library_without_emitting_a_binary() {
+    let tree = TempTree::new("check");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("application.nct"),
+        "func main(): i32 { return 0 }\n",
+    )
+    .unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["check", "application.nct"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(outcome, InvocationOutcome::Check(_)));
+    assert!(!tree.0.join("application").exists());
+}
+
+#[test]
+fn public_check_failure_uses_the_common_source_diagnostic_snapshot() {
+    let tree = TempTree::new("check-diagnostic");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("invalid.nct"),
+        "func main(): i32 { return missing }\n",
+    )
+    .unwrap();
+
+    let error = execute_invocation(invocation(
+        ["check", "invalid.nct"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    let rendered = error.render_source_diagnostics().unwrap().unwrap();
+    assert!(rendered.starts_with("error[E0340]:"));
+    assert!(rendered.contains("invalid.nct:1:"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

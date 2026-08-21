@@ -3,9 +3,9 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    BuildCommandOptions, BuildCommandPlan, CommandPlanError, ProgramInputError,
-    ProgramInputOptions, RunCommandOptions, RunCommandPlan, resolve_package_input,
-    resolve_program_input,
+    BuildCommandOptions, BuildCommandPlan, CheckCommandOptions, CheckCommandPlan, CommandPlanError,
+    ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan,
+    resolve_package_input, resolve_program_input,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -29,8 +29,37 @@ impl ResolutionOptions {
 #[derive(Debug)]
 pub enum ParsedCommand {
     Fetch(ParsedFetchCommand),
+    Check(ParsedCheckCommand),
     Build(ParsedBuildCommand),
     Run(ParsedRunCommand),
+}
+
+#[derive(Debug)]
+pub struct ParsedCheckCommand {
+    input: ProgramInputOptions,
+    command: CheckCommandOptions,
+    resolution: ResolutionOptions,
+}
+
+impl ParsedCheckCommand {
+    /// Resolves filesystem identity and closes check selection after pure argument parsing.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact input-resolution or check-planning failure.
+    pub fn prepare(
+        self,
+        current_directory: impl AsRef<Path>,
+    ) -> Result<PreparedCheckCommand, PreparedCommandError> {
+        let input = resolve_program_input(current_directory, self.input)
+            .map_err(PreparedCommandError::Input)?;
+        let plan =
+            CheckCommandPlan::new(input, self.command).map_err(PreparedCommandError::Plan)?;
+        Ok(PreparedCheckCommand {
+            plan,
+            resolution: self.resolution,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -119,6 +148,28 @@ pub struct PreparedBuildCommand {
     resolution: ResolutionOptions,
 }
 
+#[derive(Debug)]
+pub struct PreparedCheckCommand {
+    plan: CheckCommandPlan,
+    resolution: ResolutionOptions,
+}
+
+impl PreparedCheckCommand {
+    #[must_use]
+    pub const fn plan(&self) -> &CheckCommandPlan {
+        &self.plan
+    }
+
+    #[must_use]
+    pub const fn resolution(&self) -> ResolutionOptions {
+        self.resolution
+    }
+
+    pub(crate) fn into_parts(self) -> (CheckCommandPlan, ResolutionOptions) {
+        (self.plan, self.resolution)
+    }
+}
+
 impl PreparedBuildCommand {
     #[must_use]
     pub const fn plan(&self) -> &BuildCommandPlan {
@@ -196,10 +247,29 @@ pub fn parse_command_arguments(
         .ok_or(CommandArgumentError::MissingCommand)?;
     match command.to_str() {
         Some("fetch") => parse_fetch(arguments).map(ParsedCommand::Fetch),
+        Some("check") => parse_check(arguments).map(ParsedCommand::Check),
         Some("build") => parse_build(arguments).map(ParsedCommand::Build),
         Some("run") => parse_run(arguments).map(ParsedCommand::Run),
         _ => Err(CommandArgumentError::UnknownCommand(command)),
     }
+}
+
+fn parse_check(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedCheckCommand, CommandArgumentError> {
+    let ParsedOptions {
+        root,
+        file,
+        positional,
+        executable,
+        output: _,
+        resolution,
+    } = parse_options(arguments, CommandShape::CHECK)?;
+    Ok(ParsedCheckCommand {
+        input: ProgramInputOptions::new(root, positional, file),
+        command: CheckCommandOptions::new(executable),
+        resolution,
+    })
 }
 
 fn parse_fetch(
@@ -288,6 +358,10 @@ impl CommandShape {
             | Self::EXECUTABLE
             | Self::OUTPUT
             | Self::RESOLUTION,
+    };
+    const CHECK: Self = Self {
+        name: "check",
+        accepted: Self::ROOT | Self::FILE | Self::POSITIONAL | Self::EXECUTABLE | Self::RESOLUTION,
     };
     const RUN: Self = Self {
         name: "run",
@@ -650,6 +724,44 @@ mod tests {
                 command: "fetch",
             }
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn check_prepares_package_and_file_selection_without_output_authority() {
+        let root = package_root();
+        let parsed = parse_command_arguments(arguments(&[
+            "check",
+            "--root=.",
+            "--executable",
+            "tool",
+            "--locked",
+        ]))
+        .unwrap();
+        let ParsedCommand::Check(parsed) = parsed else {
+            panic!("expected check command");
+        };
+        let prepared = parsed.prepare(&root).unwrap();
+        assert_eq!(prepared.plan().executable(), Some("tool"));
+        assert!(prepared.resolution().locked());
+        assert_eq!(
+            parse_command_arguments(arguments(&["check", "--output", "program"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--output",
+                command: "check",
+            }
+        );
+
+        fs::write(root.join("app.nct"), "func main(): void { return }\n").unwrap();
+        let ParsedCommand::Check(parsed) =
+            parse_command_arguments(arguments(&["check", "app.nct"])).unwrap()
+        else {
+            panic!("expected check command");
+        };
+        assert!(matches!(
+            parsed.prepare(&root).unwrap().plan().input(),
+            ResolvedProgramInput::SingleFile(_)
+        ));
         fs::remove_dir_all(root).unwrap();
     }
 

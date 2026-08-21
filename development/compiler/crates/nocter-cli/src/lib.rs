@@ -8,9 +8,10 @@ use std::fmt;
 use std::path::PathBuf;
 
 use nocter_command::{
-    BuildCommandExecutionError, BuildCommandResult, CommandArgumentError, CommandToolchain,
-    ExecutedProgram, FetchCommandExecutionError, FetchCommandResult, ParsedCommand,
-    PreparedCommandError, ProgramInputError, RunCommandExecutionError, execute_prepared_build,
+    BuildCommandExecutionError, BuildCommandResult, CheckCommandExecutionError, CheckCommandResult,
+    CommandArgumentError, CommandToolchain, ExecutedProgram, FetchCommandExecutionError,
+    FetchCommandResult, ParsedCommand, PreparedCommandError, ProgramInputError,
+    RunCommandExecutionError, execute_prepared_build, execute_prepared_check,
     execute_prepared_fetch, execute_prepared_run, parse_command_arguments,
 };
 use nocter_diagnostics::{DiagnosticRenderError, render_source_diagnostic};
@@ -57,6 +58,7 @@ impl Invocation {
 #[derive(Debug)]
 pub enum InvocationOutcome {
     Fetch(FetchCommandResult),
+    Check(Box<CheckCommandResult>),
     Build(BuildCommandResult),
     Run(ExecutedProgram),
 }
@@ -65,7 +67,7 @@ impl InvocationOutcome {
     #[must_use]
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::Fetch(_) | Self::Build(_) => 0,
+            Self::Fetch(_) | Self::Check(_) | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
         }
     }
@@ -112,6 +114,16 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
                 .map(InvocationOutcome::Fetch)
                 .map_err(|error| InvocationError::Fetch(Box::new(error)))
         }
+        ParsedCommand::Check(command) => {
+            let command = command
+                .prepare(current_directory)
+                .map_err(InvocationError::Preparation)?;
+            let mut acquisition = EmbeddedPackageAcquisition::new()
+                .map_err(InvocationError::AcquisitionInitialization)?;
+            execute_prepared_check(command, &toolchain, &mut acquisition)
+                .map(|result| InvocationOutcome::Check(Box::new(result)))
+                .map_err(|error| InvocationError::Check(Box::new(error)))
+        }
         ParsedCommand::Build(command) => {
             let command = command
                 .prepare(current_directory)
@@ -146,6 +158,7 @@ pub enum InvocationError {
     AcquisitionInitialization(PackageAcquisitionError),
     Preparation(PreparedCommandError),
     Fetch(Box<FetchCommandExecutionError>),
+    Check(Box<CheckCommandExecutionError>),
     Build(Box<BuildCommandExecutionError>),
     Run(Box<RunCommandExecutionError>),
 }
@@ -175,9 +188,11 @@ impl InvocationError {
                 | ProgramInputError::SourceNotFile(_)
                 | ProgramInputError::Filesystem { .. },
             )) => Some("E0702"),
-            Self::AcquisitionInitialization(_) | Self::Fetch(_) | Self::Build(_) | Self::Run(_) => {
-                None
-            }
+            Self::AcquisitionInitialization(_)
+            | Self::Fetch(_)
+            | Self::Check(_)
+            | Self::Build(_)
+            | Self::Run(_) => None,
         }
     }
 
@@ -192,6 +207,7 @@ impl InvocationError {
     pub fn render_source_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
         let context = match self {
             Self::Build(error) => error.source_diagnostics(),
+            Self::Check(error) => error.source_diagnostics(),
             Self::Run(error) => error.source_diagnostics(),
             Self::Arguments(_)
             | Self::Installation(_)
@@ -230,6 +246,7 @@ impl fmt::Display for InvocationError {
             }
             Self::Preparation(error) => error.fmt(formatter),
             Self::Fetch(error) => error.fmt(formatter),
+            Self::Check(error) => error.fmt(formatter),
             Self::Build(error) => error.fmt(formatter),
             Self::Run(error) => error.fmt(formatter),
         }
@@ -244,6 +261,7 @@ impl std::error::Error for InvocationError {
             Self::Preparation(error) => Some(error),
             Self::AcquisitionInitialization(error) => Some(error),
             Self::Fetch(error) => Some(error),
+            Self::Check(error) => Some(error),
             Self::Build(error) => Some(error),
             Self::Run(error) => Some(error),
             Self::HostMismatch { .. } => None,

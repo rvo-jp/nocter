@@ -34,7 +34,7 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
     let (input, operation) = plan.into_parts();
     let compile_roots = match &operation {
         BuildOperation::PackageSet { .. } => CommandCompileRoots::AllExecutables,
-        BuildOperation::Selected { selector, .. } => CommandCompileRoots::Selected(selector),
+        BuildOperation::Selected { selector, .. } => CommandCompileRoots::for_selector(selector),
     };
     let unit = discover_command_source(&input, resolution, toolchain, compile_roots, authority)
         .map_err(BuildCommandExecutionError::Source)?;
@@ -76,7 +76,7 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
         &input,
         resolution,
         toolchain,
-        CommandCompileRoots::Selected(&selector),
+        CommandCompileRoots::for_selector(&selector),
         authority,
     )
     .map_err(RunCommandExecutionError::Source)?;

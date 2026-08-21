@@ -15,11 +15,14 @@ implementation input.
 
 ## Immediate Work
 
-1. Add the public `check` command without creating a check-only acceptance pipeline.
-   `check` must consume the same package transaction, discovery, and target-validated session as
-   build/run, then stop before executable specialization and code generation. Library-only
-   packages remain valid check inputs. Its package/single-file and executable-selection rules must
-   be frozen in command-owned planning before discovery.
+1. Complete `check` with the specified machine-readable JSON envelope and process exit classes.
+   The human-diagnostic command path is closed: `check` consumes the same package transaction,
+   discovery, and target-validated session as build/run, then stops before executable
+   specialization and code generation. Library-only packages and single files are valid. A named
+   package check discovers only the selected executable module, rejects an unknown name instead of
+   silently checking the root, and emits no artifact. The remaining `--format json` work must
+   serialize the retained diagnostic snapshot without inspecting semantic error variants or
+   reopening source files.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

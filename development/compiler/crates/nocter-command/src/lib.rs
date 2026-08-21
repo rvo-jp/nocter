@@ -6,6 +6,7 @@
 mod arguments;
 mod artifact;
 mod build;
+mod check;
 mod execute;
 mod failure;
 mod fetch;
@@ -17,9 +18,10 @@ mod run;
 mod source;
 
 pub use arguments::{
-    CommandArgumentError, ParsedBuildCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand,
-    PreparedBuildCommand, PreparedCommandError, PreparedFetchCommand, PreparedRunCommand,
-    ResolutionOptions, parse_command_arguments,
+    CommandArgumentError, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
+    ParsedFetchCommand, ParsedRunCommand, PreparedBuildCommand, PreparedCheckCommand,
+    PreparedCommandError, PreparedFetchCommand, PreparedRunCommand, ResolutionOptions,
+    parse_command_arguments,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
@@ -29,6 +31,7 @@ pub use build::{
     BuildCommandError, BuildSetCommandError, BuiltExecutable, BuiltExecutableEntry,
     BuiltExecutableSet, build_executable, build_executables, build_selected_executable,
 };
+pub use check::{CheckCommandExecutionError, CheckCommandResult, execute_prepared_check};
 pub use execute::{
     BuildCommandExecutionError, BuildCommandResult, RunCommandExecutionError,
     execute_prepared_build, execute_prepared_run,
@@ -42,8 +45,8 @@ pub use input::{
 pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use package_state::{CommandPackageContext, CommandPackageStateError};
 pub use planning::{
-    BuildCommandOptions, BuildCommandPlan, BuildOperation, CommandPlanError, RunCommandOptions,
-    RunCommandPlan, SelectedBuildOutput,
+    BuildCommandOptions, BuildCommandPlan, BuildOperation, CheckCommandOptions, CheckCommandPlan,
+    CommandPlanError, RunCommandOptions, RunCommandPlan, SelectedBuildOutput,
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use source::{CommandSourceError, CommandToolchain};

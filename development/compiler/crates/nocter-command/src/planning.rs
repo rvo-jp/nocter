@@ -5,6 +5,66 @@ use nocter_session::ExecutableSelector;
 
 use crate::ResolvedProgramInput;
 
+/// Raw executable choice accepted by the check argument parser.
+#[derive(Debug, Default)]
+pub struct CheckCommandOptions {
+    executable: Option<Box<str>>,
+}
+
+impl CheckCommandOptions {
+    #[must_use]
+    pub fn new(executable: Option<Box<str>>) -> Self {
+        Self { executable }
+    }
+
+    #[must_use]
+    pub fn executable(name: impl Into<Box<str>>) -> Self {
+        Self::new(Some(name.into()))
+    }
+}
+
+/// Closed check selection after package/file input normalization.
+#[derive(Debug)]
+pub struct CheckCommandPlan {
+    input: ResolvedProgramInput,
+    executable: Option<Box<str>>,
+}
+
+impl CheckCommandPlan {
+    /// Applies check selection without inspecting semantic declarations.
+    ///
+    /// # Errors
+    ///
+    /// Rejects `--executable` in single-file mode. Package target existence remains a source-graph
+    /// selection responsibility.
+    pub fn new(
+        input: ResolvedProgramInput,
+        options: CheckCommandOptions,
+    ) -> Result<Self, CommandPlanError> {
+        if input.single_file().is_some() && options.executable.is_some() {
+            return Err(CommandPlanError::ExecutableWithSingleFile);
+        }
+        Ok(Self {
+            input,
+            executable: options.executable,
+        })
+    }
+
+    #[must_use]
+    pub const fn input(&self) -> &ResolvedProgramInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub fn executable(&self) -> Option<&str> {
+        self.executable.as_deref()
+    }
+
+    pub(crate) fn into_parts(self) -> (ResolvedProgramInput, Option<Box<str>>) {
+        (self.input, self.executable)
+    }
+}
+
 /// Raw executable/output choices accepted by the build argument parser.
 #[derive(Debug, Default)]
 pub struct BuildCommandOptions {
