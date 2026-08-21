@@ -1840,6 +1840,16 @@ name = "nocter-json"
 version = "0.0.0"
 
 [[package]]
+name = "nocter-language-server"
+version = "0.0.0"
+dependencies = [
+ "nocter-analysis",
+ "nocter-filesystem",
+ "nocter-json",
+ "nocter-lsp",
+]
+
+[[package]]
 name = "nocter-lsp"
 version = "0.0.0"
 dependencies = [

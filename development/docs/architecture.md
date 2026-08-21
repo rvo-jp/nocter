@@ -185,6 +185,13 @@ validation, query/fragment rejection, percent decoding, UTF-8 validation, and NU
 without filesystem access. The server layer receives a platform path but remains solely responsible
 for resolving that path against disk or a virtual open-document parent.
 
+`nocter-language-server` is that composition layer. An existing document resolves to its physical
+canonical file; a new unsaved document resolves through one existing canonical parent. The
+`DocumentWorkspace` freezes the resulting URI-to-path association only after open succeeds and
+reuses it for every change, save, and close. Later filesystem or symlink changes therefore cannot
+move an open document between compiler identities, and failed transitions cannot partially mutate
+the URI map or immutable source overlay.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected

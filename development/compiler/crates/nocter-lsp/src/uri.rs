@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 /// One non-empty URI retained exactly as authored by the LSP client.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DocumentUri(Box<str>);
 
 impl DocumentUri {

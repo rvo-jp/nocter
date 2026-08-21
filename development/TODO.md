@@ -42,8 +42,11 @@ implementation input.
    the full-sync change boundary rejects incremental ranges and multiple replacements rather than
    guessing their meaning. Local absolute `file:` URI decoding is now a pure protocol operation;
    remote authorities, queries/fragments, invalid escapes, non-UTF-8 paths, and NUL never reach the
-   filesystem. The next increment is initialize capability decoding, server-owned canonical path
-   policy, and the executable protocol loop above these gates.
+   filesystem. `nocter-language-server` now resolves existing files or virtual files under one
+   existing canonical parent and freezes that URI-to-path identity across open/change/save/close.
+   Each successful transition emits the existing immutable analysis generation, while stale changes
+   remain generation-neutral. The next increment is initialize capability decoding and the
+   executable protocol loop above these gates.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
