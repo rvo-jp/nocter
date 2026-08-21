@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{ExecutableCompileRequest, NativeImageSetCompileRequest};
 
 use crate::failure::command_compilation_failure;
@@ -24,9 +25,10 @@ pub enum BuildCommandResult {
 /// # Errors
 ///
 /// Returns the exact source, selected-executable, or package-set boundary that failed.
-pub fn execute_prepared_build(
+pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
     command: PreparedBuildCommand,
     toolchain: &CommandToolchain,
+    authority: &mut A,
 ) -> Result<BuildCommandResult, BuildCommandExecutionError> {
     let (plan, resolution) = command.into_parts();
     let (input, operation) = plan.into_parts();
@@ -34,7 +36,7 @@ pub fn execute_prepared_build(
         BuildOperation::PackageSet { .. } => CommandCompileRoots::AllExecutables,
         BuildOperation::Selected { selector, .. } => CommandCompileRoots::Selected(selector),
     };
-    let unit = discover_command_source(&input, resolution, toolchain, compile_roots)
+    let unit = discover_command_source(&input, resolution, toolchain, compile_roots, authority)
         .map_err(BuildCommandExecutionError::Source)?;
     match operation {
         BuildOperation::PackageSet { output_directory } => {
@@ -63,9 +65,10 @@ pub fn execute_prepared_build(
 /// # Errors
 ///
 /// Returns the exact source, compile, artifact, launch, or cleanup boundary that failed.
-pub fn execute_prepared_run(
+pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     command: PreparedRunCommand,
     toolchain: &CommandToolchain,
+    authority: &mut A,
 ) -> Result<ExecutedProgram, RunCommandExecutionError> {
     let (plan, resolution) = command.into_parts();
     let (input, selector, working_directory) = plan.into_parts();
@@ -74,6 +77,7 @@ pub fn execute_prepared_run(
         resolution,
         toolchain,
         CommandCompileRoots::Selected(&selector),
+        authority,
     )
     .map_err(RunCommandExecutionError::Source)?;
     match run_executable(

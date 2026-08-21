@@ -15,6 +15,7 @@ use nocter_command::{
 };
 use nocter_diagnostics::{DiagnosticRenderError, render_source_diagnostic};
 use nocter_installation::{NocterHome, NocterHomeError, NocterHomeRequest};
+use nocter_package_acquisition::{EmbeddedPackageAcquisition, PackageAcquisitionError};
 
 mod host;
 mod process;
@@ -104,7 +105,9 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
             let command = command
                 .prepare(current_directory)
                 .map_err(InvocationError::Preparation)?;
-            execute_prepared_build(command, &toolchain)
+            let mut acquisition = EmbeddedPackageAcquisition::new()
+                .map_err(InvocationError::AcquisitionInitialization)?;
+            execute_prepared_build(command, &toolchain, &mut acquisition)
                 .map(InvocationOutcome::Build)
                 .map_err(|error| InvocationError::Build(Box::new(error)))
         }
@@ -112,7 +115,9 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
             let command = command
                 .prepare(current_directory)
                 .map_err(InvocationError::Preparation)?;
-            execute_prepared_run(command, &toolchain)
+            let mut acquisition = EmbeddedPackageAcquisition::new()
+                .map_err(InvocationError::AcquisitionInitialization)?;
+            execute_prepared_run(command, &toolchain, &mut acquisition)
                 .map(InvocationOutcome::Run)
                 .map_err(|error| InvocationError::Run(Box::new(error)))
         }
@@ -127,6 +132,7 @@ pub enum InvocationError {
         compiler: Box<str>,
         installation: Box<str>,
     },
+    AcquisitionInitialization(PackageAcquisitionError),
     Preparation(PreparedCommandError),
     Build(Box<BuildCommandExecutionError>),
     Run(Box<RunCommandExecutionError>),
@@ -157,7 +163,7 @@ impl InvocationError {
                 | ProgramInputError::SourceNotFile(_)
                 | ProgramInputError::Filesystem { .. },
             )) => Some("E0702"),
-            Self::Build(_) | Self::Run(_) => None,
+            Self::AcquisitionInitialization(_) | Self::Build(_) | Self::Run(_) => None,
         }
     }
 
@@ -176,6 +182,7 @@ impl InvocationError {
             Self::Arguments(_)
             | Self::Installation(_)
             | Self::HostMismatch { .. }
+            | Self::AcquisitionInitialization(_)
             | Self::Preparation(_) => None,
         };
         let Some((diagnostics, sources)) =
@@ -203,6 +210,9 @@ impl fmt::Display for InvocationError {
                 formatter,
                 "Nocter home host `{installation}` does not match compiler host `{compiler}`"
             ),
+            Self::AcquisitionInitialization(error) => {
+                write!(formatter, "cannot initialize package acquisition: {error}")
+            }
             Self::Preparation(error) => error.fmt(formatter),
             Self::Build(error) => error.fmt(formatter),
             Self::Run(error) => error.fmt(formatter),
@@ -216,6 +226,7 @@ impl std::error::Error for InvocationError {
             Self::Arguments(error) => Some(error),
             Self::Installation(error) => Some(error),
             Self::Preparation(error) => Some(error),
+            Self::AcquisitionInitialization(error) => Some(error),
             Self::Build(error) => Some(error),
             Self::Run(error) => Some(error),
             Self::HostMismatch { .. } => None,

@@ -43,10 +43,12 @@ implementation input.
    retained source bytes. It rejects implicit lock generation below the selected root and cleans
    failed staging trees.
 
-   Next, define the concrete Git/HTTPS acquisition implementation from explicit platform and
-   trust inputs, then route `fetch` and the package-mode command preparation boundary through the
-   transaction. Do not let CLI parsing, `nocter-command`, or the read-only resolver execute a
-   transport, choose staging paths, or rewrite package source.
+   Concrete acquisition and package-mode build/run routing are now closed. The process adapter
+   selects `nocter-package-acquisition`; `nocter-command` passes only the abstract authority;
+   `nocter-package-state` still owns workspaces, publication, graph revalidation, and source commit.
+   Embedded public HTTPS/Git and bounded `.tar.gz` materialization invoke no helper executable and
+   reject authentication, links, submodules, and Git LFS. Next, add the standalone `fetch` command
+   without creating a second package-state path.
 
    The completed installation boundary remains:
    `nocter-installation` now selects exactly one canonical home from explicit process facts:
@@ -77,8 +79,8 @@ implementation input.
    and standard package, preserves the resolver-owned command-root identity, selects only the
    compile-root modules required by all/sole/named executable policy, and crosses the existing
    discovery, session, publication, and launch boundaries. Parsed `--locked` and `--offline`
-   values reach exact resolution unchanged. Concrete transport remains outside the command and
-   resolver authorities. Canonical
+   values reach exact resolution unchanged. Concrete transport remains selected only by the
+   process adapter and outside the command and resolver authorities. Canonical
    `PackageId` construction is closed: Git and archive locks normalize to Windows-safe exact IDs,
    path packages hash their canonical absolute UTF-8 path, and one dependency-free SHA-256
    implementation is shared with Mach-O emission. Build/run

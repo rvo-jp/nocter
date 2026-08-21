@@ -6,7 +6,11 @@ use nocter_compile_input::{ModuleIdentity, PackageIdentity};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
 use nocter_package::{
-    PackageResolutionError, ResolvedPackageGraph, ResolvedPackageSpec, StandardPackage,
+    ExactDependencyLock, PackageResolutionError, ResolvedPackageGraph, ResolvedPackageSpec,
+    StandardPackage,
+};
+use nocter_package_state::{
+    LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
 };
 use nocter_session::{
     ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
@@ -16,6 +20,59 @@ use nocter_session::{
 use super::artifact::persist_bytes;
 
 static TEST_ID: AtomicU64 = AtomicU64::new(0);
+
+struct NoRemoteAcquisition;
+
+const ARCHIVE_DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+#[derive(Default)]
+struct FixtureAcquisition {
+    lock_calls: usize,
+    fetch_calls: usize,
+}
+
+impl PackageAcquisitionAuthority for NoRemoteAcquisition {
+    type Error = std::io::Error;
+
+    fn resolve_lock(
+        &mut self,
+        _request: LockResolutionRequest<'_>,
+    ) -> Result<ExactDependencyLock, Self::Error> {
+        panic!("test does not authorize remote lock resolution")
+    }
+
+    fn fetch_package(&mut self, _request: PackageFetchRequest<'_>) -> Result<(), Self::Error> {
+        panic!("test does not authorize remote package fetching")
+    }
+}
+
+impl PackageAcquisitionAuthority for FixtureAcquisition {
+    type Error = std::io::Error;
+
+    fn resolve_lock(
+        &mut self,
+        request: LockResolutionRequest<'_>,
+    ) -> Result<ExactDependencyLock, Self::Error> {
+        assert!(request.workspace().is_dir());
+        self.lock_calls += 1;
+        ExactDependencyLock::sha256(ARCHIVE_DIGEST)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+    }
+
+    fn fetch_package(&mut self, request: PackageFetchRequest<'_>) -> Result<(), Self::Error> {
+        assert_eq!(request.lock().value(), ARCHIVE_DIGEST);
+        assert!(request.workspace().is_dir());
+        self.fetch_calls += 1;
+        fs::write(
+            request.destination().join("nocter.nct"),
+            "#name: \"remote\"\n",
+        )?;
+        fs::write(
+            request.destination().join("index.nct"),
+            "//! Remote package.\n",
+        )
+    }
+}
 
 #[test]
 fn persistent_bytes_replace_an_existing_artifact_atomically() {
@@ -332,7 +389,9 @@ fn parsed_package_build_crosses_exact_resolution_discovery_and_publication() {
     };
     let prepared = parsed.prepare(&directory).unwrap();
 
-    let result = super::execute_prepared_build(prepared, &command_toolchain()).unwrap();
+    let result =
+        super::execute_prepared_build(prepared, &command_toolchain(), &mut NoRemoteAcquisition)
+            .unwrap();
 
     let super::BuildCommandResult::PackageSet(result) = result else {
         panic!("default package build must produce the package set");
@@ -374,7 +433,9 @@ fn named_package_build_does_not_expand_an_unselected_target_module() {
     };
     let prepared = parsed.prepare(&directory).unwrap();
 
-    let result = super::execute_prepared_build(prepared, &command_toolchain()).unwrap();
+    let result =
+        super::execute_prepared_build(prepared, &command_toolchain(), &mut NoRemoteAcquisition)
+            .unwrap();
 
     let super::BuildCommandResult::Selected(result) = result else {
         panic!("named package build must produce one selected executable");
@@ -407,7 +468,9 @@ fn parsed_resolution_policy_reaches_the_exact_package_boundary() {
     };
     let prepared = parsed.prepare(&directory).unwrap();
 
-    let error = super::execute_prepared_build(prepared, &command_toolchain()).unwrap_err();
+    let error =
+        super::execute_prepared_build(prepared, &command_toolchain(), &mut NoRemoteAcquisition)
+            .unwrap_err();
 
     assert!(matches!(
         error,
@@ -417,6 +480,46 @@ fn parsed_resolution_policy_reaches_the_exact_package_boundary() {
             )
         ) if alias.as_ref() == "remote"
     ));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn package_build_commits_graph_validated_acquisition_before_discovery() {
+    let directory = unique_test_directory("prepared-package-acquisition");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"application\"\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n#executable: { name: \"hello\" }\n",
+    );
+    write_source(&package_root, "index.nct", "func main(): void { return }\n");
+    let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
+        "build".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected build command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+    let mut acquisition = FixtureAcquisition::default();
+
+    let result =
+        super::execute_prepared_build(prepared, &command_toolchain(), &mut acquisition).unwrap();
+
+    assert!(matches!(result, super::BuildCommandResult::PackageSet(_)));
+    assert_eq!(acquisition.lock_calls, 1);
+    assert_eq!(acquisition.fetch_calls, 1);
+    assert!(
+        package_root
+            .join(format!(
+                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/nocter.nct"
+            ))
+            .is_file()
+    );
+    let manifest = fs::read_to_string(package_root.join("nocter.nct")).unwrap();
+    assert!(manifest.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    assert!(package_root.join("hello").is_file());
     fs::remove_dir_all(directory).unwrap();
 }
 
@@ -431,7 +534,9 @@ fn parsed_single_file_run_crosses_the_common_command_adapter() {
     };
     let prepared = parsed.prepare(&directory).unwrap();
 
-    let executed = super::execute_prepared_run(prepared, &command_toolchain()).unwrap();
+    let executed =
+        super::execute_prepared_run(prepared, &command_toolchain(), &mut NoRemoteAcquisition)
+            .unwrap();
 
     assert_eq!(executed.status().code(), Some(9));
     fs::remove_dir_all(directory).unwrap();

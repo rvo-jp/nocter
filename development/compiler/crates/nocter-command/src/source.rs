@@ -7,8 +7,9 @@ use nocter_discovery::{DiscoveredUnit, DiscoveryError, DiscoveryRequest, discove
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{
     PackageGraphError, PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    ResolvedPackageSelection, StandardPackage, resolve_package_selection, resolve_standard_package,
+    ResolvedPackageSelection, StandardPackage, resolve_standard_package,
 };
+use nocter_package_state::{PackageAcquisitionAuthority, PackageStateError, resolve_package_state};
 use nocter_session::{ExecutableSelector, bundled_standard_toolchain};
 
 use crate::{ResolutionOptions, ResolvedProgramInput};
@@ -60,21 +61,25 @@ impl CommandToolchain {
     }
 }
 
-pub(crate) fn discover_command_source(
+pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
     input: &ResolvedProgramInput,
     resolution: ResolutionOptions,
     toolchain: &CommandToolchain,
     compile_roots: CommandCompileRoots<'_>,
+    authority: &mut A,
 ) -> Result<DiscoveredUnit, CommandSourceError> {
     match input {
         ResolvedProgramInput::Package(package) => {
-            let selected = resolve_package_selection(PackageResolutionRequest::new(
-                package.root(),
-                toolchain.nocter_home(),
-                toolchain.standard().clone(),
-                PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
-            ))
-            .map_err(CommandSourceError::PackageResolution)?;
+            let selected = resolve_package_state(
+                PackageResolutionRequest::new(
+                    package.root(),
+                    toolchain.nocter_home(),
+                    toolchain.standard().clone(),
+                    PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
+                ),
+                authority,
+            )
+            .map_err(command_package_state_error)?;
             discover_declared(selected, toolchain, compile_roots)
         }
         ResolvedProgramInput::SingleFile(source) => {
@@ -89,6 +94,16 @@ pub(crate) fn discover_command_source(
             ))
             .map_err(CommandSourceError::Discovery)
         }
+    }
+}
+
+fn command_package_state_error<E>(error: PackageStateError<E>) -> CommandSourceError
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    match error {
+        PackageStateError::Resolution(error) => CommandSourceError::PackageResolution(*error),
+        error => CommandSourceError::PackageState(Box::new(error)),
     }
 }
 
@@ -137,6 +152,7 @@ fn discover_declared(
 #[derive(Debug)]
 pub enum CommandSourceError {
     PackageResolution(PackageResolutionError),
+    PackageState(Box<dyn std::error::Error + Send + Sync>),
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
     Discovery(DiscoveryError),
@@ -146,6 +162,7 @@ impl fmt::Display for CommandSourceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::PackageResolution(error) => error.fmt(formatter),
+            Self::PackageState(error) => error.fmt(formatter),
             Self::StandardPackage(error) => {
                 write!(formatter, "standard package is invalid: {error}")
             }
@@ -163,6 +180,7 @@ impl std::error::Error for CommandSourceError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::PackageResolution(error) => Some(error),
+            Self::PackageState(error) => Some(&**error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
             Self::MissingCommandRoot(_) => None,
