@@ -2,7 +2,8 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed exact toolchain and checked-standard-library boundary.
+Continue v0.14.0 Phase 6 from the completed explicit single-file and checked-standard-library
+boundary.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -14,11 +15,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Add single-file discovery as an explicit layout alongside declared-package discovery, then pass
-   every public example through the same `nocter-session` target boundary. The session now owns
-   declaration lowering, checking, exact primitive-role resolution, toolchain selection, and target
-   validation; the next command layer must consume this boundary rather than assemble stages.
-   After example qualification, add executable-root selection and command request/result types.
+1. Resolve declared package target directives to exact module identities in discovery, qualify the
+   public package example through `nocter-session`, then add executable-root selection and command
+   request/result types. Explicit single-file discovery and every public single-file example now
+   cross the same immutable compile-unit and target-session boundary; the command layer must
+   consume that boundary rather than assemble stages.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

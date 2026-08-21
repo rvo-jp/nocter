@@ -4,8 +4,8 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageIdentity, PrimitiveRoleInput, StandardRoleInput,
-    ToolchainInput, UseResolutionInput, UseTargetInput,
+    ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode, PrimitiveRoleInput,
+    StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
@@ -14,17 +14,20 @@ use nocter_target_selection::TargetSelection;
 use crate::DiscoveryError;
 use crate::error::{ImportFailure, ToolchainDiscoveryError};
 use crate::request::{
-    DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator, ToolchainRequest,
+    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,
+    ToolchainRequest,
 };
 use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
 use crate::syntax::active_use_paths;
 
 #[derive(Debug)]
 struct PackageState {
-    package: ResolvedPackage,
+    identity: PackageIdentity,
+    display_name: Box<str>,
+    mode: PackageMode,
     canonical_root: PathBuf,
-    declaration_path: PathBuf,
-    declaration_syntax: usize,
+    dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    declaration: Option<(PathBuf, usize)>,
 }
 
 #[derive(Debug)]
@@ -37,6 +40,10 @@ struct LoadedPackages {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Work {
     Module(ModuleIdentity),
+    SingleFile {
+        module: ModuleIdentity,
+        path: PathBuf,
+    },
     Source {
         module: ModuleIdentity,
         path: PathBuf,
@@ -86,14 +93,31 @@ pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryEr
 
 impl Builder {
     fn new(request: DiscoveryRequest) -> Result<Self, DiscoveryError> {
-        let (target, package_specs, roots, toolchain) = request.into_parts();
-        let loaded = load_packages(package_specs)?;
-        let packages = loaded.states;
-        let sources = loaded.sources;
-        let syntax = loaded.syntax;
+        let (target, layout, toolchain) = request.into_parts();
+        let (loaded, roots, single_file) = match layout {
+            DiscoveryLayout::Declared { packages, roots } => {
+                (load_packages(packages)?, roots, None)
+            }
+            DiscoveryLayout::SingleFile {
+                source,
+                support_packages,
+            } => {
+                let mut loaded = load_packages(support_packages)?;
+                let single_file = load_single_file_package(&mut loaded, source, &toolchain)?;
+                (loaded, Vec::new(), Some(single_file))
+            }
+        };
+        let LoadedPackages {
+            states: packages,
+            sources,
+            syntax,
+        } = loaded;
         validate_package_dependencies(&packages)?;
         validate_toolchain(&packages, &toolchain)?;
-        let pending = initial_work(&packages, &roots, &toolchain)?;
+        let mut pending = initial_work(&packages, &roots, &toolchain)?;
+        if let Some((module, path)) = single_file {
+            pending.insert(Work::SingleFile { module, path });
+        }
 
         Ok(Self {
             target,
@@ -112,6 +136,9 @@ impl Builder {
         while let Some(work) = self.pending.pop_first() {
             match work {
                 Work::Module(module) => self.load_module(module)?,
+                Work::SingleFile { module, path } => {
+                    self.load_module_source(module, &path, ModuleSourceKind::SingleFile)?;
+                }
                 Work::Source { module, path } => {
                     self.load_module_source(module, &path, ModuleSourceKind::Implementation)?;
                 }
@@ -129,10 +156,13 @@ impl Builder {
             .into_values()
             .map(|state| {
                 Ok(DiscoveredPackage {
-                    identity: state.package.identity().clone(),
-                    display_name: state.package.display_name().into(),
-                    declaration_path: canonical_text(&state.declaration_path)?,
-                    syntax: state.declaration_syntax,
+                    identity: state.identity,
+                    display_name: state.display_name,
+                    mode: state.mode,
+                    declaration: state
+                        .declaration
+                        .map(|(path, syntax)| Ok((canonical_text(&path)?, syntax)))
+                        .transpose()?,
                 })
             })
             .collect::<Result<_, DiscoveryError>>()?;
@@ -303,6 +333,12 @@ impl Builder {
             .packages
             .get(module.package())
             .ok_or_else(|| DiscoveryError::UnknownPackage(module.package().clone()))?;
+        if package.mode == PackageMode::SingleFile {
+            return Err(DiscoveryError::MissingModuleRoot {
+                module,
+                path: package.canonical_root.join("index.nct"),
+            });
+        }
         let directory = join_module_path(&package.canonical_root, module.path());
         let root = directory.join("index.nct");
         if !regular_file(&root)? {
@@ -388,6 +424,18 @@ impl Builder {
         declaration: nocter_syntax::NodeId,
         authored: &str,
     ) -> Result<UseTargetInput, DiscoveryError> {
+        let package = self.package(importer.package())?;
+        if package.mode == PackageMode::SingleFile
+            && (authored.starts_with("./")
+                || authored.starts_with("../")
+                || authored.starts_with('/'))
+        {
+            return Err(import_error(
+                declaration,
+                authored,
+                ImportFailure::SingleFileLocalImport,
+            ));
+        }
         let segments: Vec<_> = authored.split('/').collect();
         let result = if authored.starts_with("./") || authored.starts_with("../") {
             self.resolve_relative(importer, source, authored)
@@ -395,8 +443,7 @@ impl Builder {
             self.resolve_module_candidate(importer.package(), &segments[1..])
         } else {
             let alias = segments[0];
-            let package = self.package(importer.package())?;
-            let Some(target_package) = package.package.dependencies().get(alias) else {
+            let Some(target_package) = package.dependencies.get(alias) else {
                 return Err(import_error(
                     declaration,
                     authored,
@@ -704,10 +751,12 @@ fn load_packages(
         packages.insert(
             identity,
             PackageState {
-                package,
+                identity: package.identity().clone(),
+                display_name: package.display_name().into(),
+                mode: PackageMode::Declared,
                 canonical_root,
-                declaration_path,
-                declaration_syntax,
+                dependencies: package.dependencies().clone(),
+                declaration: Some((declaration_path, declaration_syntax)),
             },
         );
     }
@@ -718,11 +767,61 @@ fn load_packages(
     })
 }
 
+fn load_single_file_package(
+    loaded: &mut LoadedPackages,
+    source: PathBuf,
+    toolchain: &ToolchainRequest,
+) -> Result<(ModuleIdentity, PathBuf), DiscoveryError> {
+    if source.extension().and_then(|extension| extension.to_str()) != Some("nct") {
+        return Err(DiscoveryError::InvalidSingleFileExtension(source));
+    }
+    let source = canonicalize("canonicalize single-file input", &source)?;
+    if !regular_file(&source)? {
+        return Err(DiscoveryError::Filesystem {
+            operation: "inspect single-file input",
+            path: source,
+            error: io::Error::new(io::ErrorKind::InvalidInput, "path is not a regular file"),
+        });
+    }
+    let canonical = canonical_text(&source)?;
+    let identity = PackageIdentity::new(format!("single:{canonical}"));
+    if loaded.states.contains_key(&identity) {
+        return Err(DiscoveryError::DuplicatePackage(identity));
+    }
+    let display_name = source
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| DiscoveryError::NonUnicodeCanonicalPath(source.clone()))?;
+    let canonical_root = source
+        .parent()
+        .ok_or_else(|| DiscoveryError::InvalidPackageRoot {
+            package: identity.clone(),
+            path: source.clone(),
+        })?
+        .to_path_buf();
+    let module = ModuleIdentity::new(identity.clone(), Vec::<&str>::new());
+    loaded.states.insert(
+        identity.clone(),
+        PackageState {
+            identity,
+            display_name: display_name.into(),
+            mode: PackageMode::SingleFile,
+            canonical_root,
+            dependencies: BTreeMap::from([(
+                Box::<str>::from("std"),
+                toolchain.standard_package().clone(),
+            )]),
+            declaration: None,
+        },
+    );
+    Ok((module, source))
+}
+
 fn validate_package_dependencies(
     packages: &BTreeMap<PackageIdentity, PackageState>,
 ) -> Result<(), DiscoveryError> {
     for state in packages.values() {
-        for dependency in state.package.dependencies().values() {
+        for dependency in state.dependencies.values() {
             if !packages.contains_key(dependency) {
                 return Err(DiscoveryError::UnknownPackage(dependency.clone()));
             }
@@ -776,8 +875,14 @@ fn initial_work(
     toolchain: &ToolchainRequest,
 ) -> Result<BTreeSet<Work>, DiscoveryError> {
     let mut pending = packages
-        .keys()
-        .map(|package| Work::Module(ModuleIdentity::new(package.clone(), Vec::<&str>::new())))
+        .values()
+        .filter(|package| package.mode == PackageMode::Declared)
+        .map(|package| {
+            Work::Module(ModuleIdentity::new(
+                package.identity.clone(),
+                Vec::<&str>::new(),
+            ))
+        })
         .collect::<BTreeSet<_>>();
     for root in roots {
         if !packages.contains_key(root.package()) {

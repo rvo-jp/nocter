@@ -323,18 +323,24 @@ impl BodyChecker<'_, '_> {
                 | FieldSelectionError::UnknownFieldSite(_)
                 | FieldSelectionError::AmbiguousField(_)
                 | FieldSelectionError::GenericArity(_)
-                | FieldSelectionError::Substitution(_),
+                | FieldSelectionError::Substitution(_)
+                | FieldSelectionError::UnknownBorrowType(_),
             ) => return Err(BodyCheckInternalError::FieldSelection.into()),
         };
-        if draft.access == PlaceAccess::Owned {
-            draft.partial_parents.push(selected.owner());
+        if draft.access == PlaceAccess::Owned
+            && let Some(owner) = selected.owner()
+        {
+            draft.partial_parents.push(owner);
         }
         let origin = SourceOrigin::from_token(self.tree(), field_token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-        draft.source_projections.push(NodeProjection {
-            entity: SemanticEntity::Field(selected.field()),
-            origin,
-        });
+        let entity = match selected.field() {
+            nocter_model::FieldIdentity::Declared(field) => SemanticEntity::Field(field),
+            nocter_model::FieldIdentity::Builtin(field) => SemanticEntity::BuiltinField(field),
+        };
+        draft
+            .source_projections
+            .push(NodeProjection { entity, origin });
         draft
             .projections
             .push(PlaceProjection::Field(selected.field()));

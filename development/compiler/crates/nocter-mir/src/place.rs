@@ -1,5 +1,5 @@
 use nocter_model::{
-    BorrowCapability, CaptureId, FieldId, MirLocalId, MirValueId, OpaqueTypeId, ParameterId,
+    BorrowCapability, CaptureId, FieldIdentity, MirLocalId, MirValueId, OpaqueTypeId, ParameterId,
     TypeId, VariantId,
 };
 
@@ -79,7 +79,7 @@ impl MirProjection {
 /// A backend-independent projection with no source-expression behavior left to recover.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirProjectionKind {
-    Field(FieldId),
+    Field(FieldIdentity),
     ClosureCapture(CaptureId),
     VariantPayload {
         variant: VariantId,

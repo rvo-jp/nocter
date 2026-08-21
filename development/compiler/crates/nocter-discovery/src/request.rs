@@ -16,6 +16,22 @@ pub struct ResolvedPackage {
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
 }
 
+/// The physical input shape selected by the command layer before source discovery.
+///
+/// Declared packages and explicit source files are different authored layouts. They converge on
+/// one discovered compile-unit graph, but discovery never guesses one layout from the other.
+#[derive(Debug)]
+pub enum DiscoveryLayout {
+    Declared {
+        packages: Vec<ResolvedPackage>,
+        roots: Vec<ModuleIdentity>,
+    },
+    SingleFile {
+        source: PathBuf,
+        support_packages: Vec<ResolvedPackage>,
+    },
+}
+
 /// One compiler-owned standard semantic role selected by exact module, declaration kind, and
 /// declaration name. Discovery resolves this locator to one syntax token before semantic lowering.
 #[derive(Clone, Debug)]
@@ -214,14 +230,13 @@ impl ResolvedPackage {
 #[derive(Debug)]
 pub struct DiscoveryRequest {
     target: CompilationTarget,
-    packages: Vec<ResolvedPackage>,
-    roots: Vec<ModuleIdentity>,
+    layout: DiscoveryLayout,
     toolchain: ToolchainRequest,
 }
 
 impl DiscoveryRequest {
     #[must_use]
-    pub fn new(
+    pub fn declared(
         target: CompilationTarget,
         packages: Vec<ResolvedPackage>,
         roots: Vec<ModuleIdentity>,
@@ -229,8 +244,24 @@ impl DiscoveryRequest {
     ) -> Self {
         Self {
             target,
-            packages,
-            roots,
+            layout: DiscoveryLayout::Declared { packages, roots },
+            toolchain,
+        }
+    }
+
+    #[must_use]
+    pub fn single_file(
+        target: CompilationTarget,
+        source: impl Into<PathBuf>,
+        support_packages: Vec<ResolvedPackage>,
+        toolchain: ToolchainRequest,
+    ) -> Self {
+        Self {
+            target,
+            layout: DiscoveryLayout::SingleFile {
+                source: source.into(),
+                support_packages,
+            },
             toolchain,
         }
     }
@@ -241,13 +272,8 @@ impl DiscoveryRequest {
     }
 
     #[must_use]
-    pub fn packages(&self) -> &[ResolvedPackage] {
-        &self.packages
-    }
-
-    #[must_use]
-    pub fn roots(&self) -> &[ModuleIdentity] {
-        &self.roots
+    pub const fn layout(&self) -> &DiscoveryLayout {
+        &self.layout
     }
 
     #[must_use]
@@ -255,14 +281,7 @@ impl DiscoveryRequest {
         &self.toolchain
     }
 
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        CompilationTarget,
-        Vec<ResolvedPackage>,
-        Vec<ModuleIdentity>,
-        ToolchainRequest,
-    ) {
-        (self.target, self.packages, self.roots, self.toolchain)
+    pub(crate) fn into_parts(self) -> (CompilationTarget, DiscoveryLayout, ToolchainRequest) {
+        (self.target, self.layout, self.toolchain)
     }
 }

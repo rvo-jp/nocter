@@ -54,6 +54,10 @@ be introduced to make an unresolved syntax choice.
   keys. An interface-owned `Self` has a canonical interface-identity placeholder distinct from
   explicit generic parameters and nominal applications; conformance specialization can therefore
   substitute it without inventing an implicit binder.
+  Source-selectable fields use one `FieldIdentity`: authored struct fields retain `FieldId`, while
+  the specified `error.code` and `error.message` members use a closed `BuiltinField` identity.
+  Built-in fields therefore cross checking, provenance, loans, MIR, and machine lowering without
+  synthetic declarations or name-based backend recovery.
 - `nocter-declarations` owns the immutable declaration-program spine: exact package-and-module
   identities, normalized visibility boundaries, package targets, imports, every declaration and
   member domain, generic requirements, bodies, opaque results, and the compile-unit type store. A
@@ -331,6 +335,8 @@ be introduced to make an unresolved syntax choice.
   mutable partial pipeline. Its result keeps target semantics and source projection as independent
   immutable values. Command and editor layers consume this boundary instead of assembling lower
   crates directly.
+  Declared-package and explicit single-file discovery converge before this boundary. Every public
+  single-file example is qualified through this exact session with the authored standard package.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

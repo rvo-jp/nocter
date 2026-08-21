@@ -44,7 +44,8 @@ impl MovePath {
             return None;
         }
         for projection in place.projections() {
-            let PlaceProjection::Field(field) = projection else {
+            let PlaceProjection::Field(nocter_model::FieldIdentity::Declared(field)) = projection
+            else {
                 return None;
             };
             path = path.field(*field);
@@ -59,8 +60,11 @@ impl MovePath {
         let mut path = Self::root(place.root());
         for projection in place.projections() {
             match projection {
-                PlaceProjection::Field(field) => path = path.field(*field),
-                PlaceProjection::BorrowDeref { .. }
+                PlaceProjection::Field(nocter_model::FieldIdentity::Declared(field)) => {
+                    path = path.field(*field);
+                }
+                PlaceProjection::Field(nocter_model::FieldIdentity::Builtin(_))
+                | PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }
                 | PlaceProjection::SelectedIndex { .. } => break,

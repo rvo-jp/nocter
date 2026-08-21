@@ -5,6 +5,7 @@
 //! source ranges, or rendered type spellings.
 
 mod arena;
+mod field;
 mod id;
 mod origin;
 mod symbol;
@@ -12,6 +13,7 @@ mod target;
 mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
+pub use field::{BuiltinField, FieldIdentity};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
     ConformanceId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,

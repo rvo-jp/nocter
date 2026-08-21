@@ -144,7 +144,7 @@ impl FunctionLowerer<'_> {
             .zip(path.projection_types().iter().copied())
         {
             lowered.push(
-                MirProjectionKind::Field(field),
+                MirProjectionKind::Field(field.into()),
                 self.concrete_type(source_ty)?,
             );
         }
@@ -199,7 +199,7 @@ impl FunctionLowerer<'_> {
                     let child = self.project_cleanup_place(
                         owner,
                         place,
-                        MirProjectionKind::Field(field.field()),
+                        MirProjectionKind::Field(field.field().into()),
                         field.plan().ty(),
                     )?;
                     self.lower_destruction(owner, child, field.plan())?;

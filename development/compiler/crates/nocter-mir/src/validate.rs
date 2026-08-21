@@ -21,8 +21,9 @@ use crate::{
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
 use nocter_model::{
-    BorrowCapability, BuiltinType, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId,
-    MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
+    BorrowCapability, BuiltinField, BuiltinType, ExecutableItemId, FieldId, FieldIdentity,
+    MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId,
+    TypeId, TypeKind, TypeStore,
 };
 
 /// Validates every body-local reference, type relation, CFG edge, and SSA use.
@@ -231,22 +232,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         result: TypeId,
     ) -> Result<(), MirValidationError> {
         match projection {
-            MirProjectionKind::Field(field) => {
-                let (definition, arguments) = nominal_application(self.types, source, place)?;
-                let declaration = self
-                    .environment
-                    .field(field)
-                    .ok_or(MirValidationError::UnknownField(field))?;
-                if declaration.owner() != definition
-                    || !matches_nominal_member(
-                        self.environment,
-                        self.types,
-                        definition,
-                        arguments,
-                        declaration.ty(),
-                        result,
-                    )
-                {
+            MirProjectionKind::Field(FieldIdentity::Declared(field)) => {
+                self.validate_declared_field_projection(place, source, field, result)?;
+            }
+            MirProjectionKind::Field(FieldIdentity::Builtin(field)) => {
+                if !builtin_field_projection_matches(self.types, source, field, result) {
                     return Err(MirValidationError::InvalidProjection { place });
                 }
             }
@@ -328,6 +318,34 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             }
         }
         Ok(())
+    }
+
+    fn validate_declared_field_projection(
+        &self,
+        place: MirPlaceId,
+        source: TypeId,
+        field: FieldId,
+        result: TypeId,
+    ) -> Result<(), MirValidationError> {
+        let (definition, arguments) = nominal_application(self.types, source, place)?;
+        let declaration = self
+            .environment
+            .field(field)
+            .ok_or(MirValidationError::UnknownField(field))?;
+        if declaration.owner() == definition
+            && matches_nominal_member(
+                self.environment,
+                self.types,
+                definition,
+                arguments,
+                declaration.ty(),
+                result,
+            )
+        {
+            Ok(())
+        } else {
+            Err(MirValidationError::InvalidProjection { place })
+        }
     }
 
     fn opaque_projection_matches(
@@ -1109,4 +1127,22 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             .get(block)
             .ok_or(MirValidationError::UnknownBlock(block))
     }
+}
+
+fn builtin_field_projection_matches(
+    types: &TypeStore,
+    source: TypeId,
+    field: BuiltinField,
+    result: TypeId,
+) -> bool {
+    let text = types.builtin(BuiltinType::Str);
+    types.get(source) == Some(&TypeKind::Builtin(BuiltinType::Error))
+        && matches!(field, BuiltinField::ErrorCode | BuiltinField::ErrorMessage)
+        && matches!(
+            types.get(result),
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent,
+            }) if *referent == text
+        )
 }

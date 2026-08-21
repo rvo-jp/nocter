@@ -20,6 +20,7 @@ pub enum ImportFailure {
     CrossesPackage { root: PathBuf },
     CrossesModule { module: ModuleIdentity },
     InvalidModuleDirectory,
+    SingleFileLocalImport,
 }
 
 #[derive(Debug)]
@@ -35,6 +36,7 @@ pub enum DiscoveryError {
         package: PackageIdentity,
         path: PathBuf,
     },
+    InvalidSingleFileExtension(PathBuf),
     DuplicateCanonicalRoot {
         first: PackageIdentity,
         second: PackageIdentity,
@@ -93,6 +95,11 @@ impl fmt::Display for DiscoveryError {
                 formatter,
                 "package {} has no package file at {}",
                 package.as_str(),
+                path.display()
+            ),
+            Self::InvalidSingleFileExtension(path) => write!(
+                formatter,
+                "single-file input must have the .nct extension: {}",
                 path.display()
             ),
             Self::DuplicateCanonicalRoot {
@@ -173,6 +180,7 @@ impl std::error::Error for DiscoveryError {
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }
             | Self::MissingPackageFile { .. }
+            | Self::InvalidSingleFileExtension(_)
             | Self::DuplicateCanonicalRoot { .. }
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }

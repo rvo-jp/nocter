@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, FieldId, ParameterId,
+    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, FieldIdentity, ParameterId,
     ParameterOrigin,
 };
 
@@ -41,7 +41,7 @@ pub enum LoanId {
 /// Canonical place projection used for borrow overlap.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LoanProjection {
-    Field(FieldId),
+    Field(FieldIdentity),
     /// An index, dereference, payload, or other projection that cannot prove disjointness.
     Opaque,
 }
@@ -210,8 +210,8 @@ mod tests {
         let _ = fields.finish();
         let root = LoanRoot::Place(PlaceRoot::Local(local));
         let whole = LoanPlace::new(root, []);
-        let left = LoanPlace::new(root, [LoanProjection::Field(left)]);
-        let right = LoanPlace::new(root, [LoanProjection::Field(right)]);
+        let left = LoanPlace::new(root, [LoanProjection::Field(left.into())]);
+        let right = LoanPlace::new(root, [LoanProjection::Field(right.into())]);
         let indexed = LoanPlace::new(root, [LoanProjection::Opaque]);
 
         assert!(whole.overlaps(&left));

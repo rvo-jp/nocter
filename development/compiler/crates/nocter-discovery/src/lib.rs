@@ -13,7 +13,8 @@ mod syntax;
 pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
 pub use graph::discover;
 pub use request::{
-    DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator, ToolchainRequest,
+    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,
+    ToolchainRequest,
 };
 pub use snapshot::{CompileInputError, DiscoveredModule, DiscoveredSource, DiscoveredUnit};
 

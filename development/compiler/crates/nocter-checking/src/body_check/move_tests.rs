@@ -97,6 +97,9 @@ fn generic_named_field_move_uses_the_substituted_field_type() {
         panic!("named field move must retain its semantic field projection");
     };
 
+    let nocter_model::FieldIdentity::Declared(field) = field else {
+        panic!("authored named field must retain its declaration identity");
+    };
     assert!(place.is_move_source());
     assert!(
         output

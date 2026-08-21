@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use nocter_model::{BodyNodeId, FieldId, LoopId};
+use nocter_model::{BodyNodeId, FieldIdentity, LoopId};
 
 use crate::{
     AggregateConstruction, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome,
@@ -10,11 +10,11 @@ use crate::{
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct LivePlace {
     root: PlaceRoot,
-    fields: Box<[FieldId]>,
+    fields: Box<[FieldIdentity]>,
 }
 
 impl LivePlace {
-    pub(super) fn from_parts(root: PlaceRoot, fields: Box<[FieldId]>) -> Self {
+    pub(super) fn from_parts(root: PlaceRoot, fields: Box<[FieldIdentity]>) -> Self {
         Self { root, fields }
     }
 
@@ -38,7 +38,7 @@ impl LivePlace {
         self.root
     }
 
-    pub(super) const fn fields(&self) -> &[FieldId] {
+    pub(super) const fn fields(&self) -> &[FieldIdentity] {
         &self.fields
     }
 
@@ -533,7 +533,10 @@ impl Analyzer<'_> {
                 let (ty, slot) = match action.target() {
                     CleanupTarget::Path(path) => (
                         path.ty(),
-                        LiveSlot::Place(LivePlace::from_parts(path.root(), path.fields().into())),
+                        LiveSlot::Place(LivePlace::from_parts(
+                            path.root(),
+                            path.fields().iter().copied().map(Into::into).collect(),
+                        )),
                     ),
                     CleanupTarget::Place { place, ty } => {
                         let place = self

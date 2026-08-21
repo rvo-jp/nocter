@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-20">
+    <meta property="article:modified_time" content="2026-08-21">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="New Nocter Compiler - Nocter">
     <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-20","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-21","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -149,7 +149,11 @@
   source spans, syntax nodes, and rendered type names cannot enter its identities or interning
   keys. An interface-owned <code>Self</code> has a canonical interface-identity placeholder distinct from
   explicit generic parameters and nominal applications; conformance specialization can therefore
-  substitute it without inventing an implicit binder.</li><li><code>nocter-declarations</code> owns the immutable declaration-program spine: exact package-and-module
+  substitute it without inventing an implicit binder.
+  Source-selectable fields use one <code>FieldIdentity</code>: authored struct fields retain <code>FieldId</code>, while
+  the specified <code>error.code</code> and <code>error.message</code> members use a closed <code>BuiltinField</code> identity.
+  Built-in fields therefore cross checking, provenance, loans, MIR, and machine lowering without
+  synthetic declarations or name-based backend recovery.</li><li><code>nocter-declarations</code> owns the immutable declaration-program spine: exact package-and-module
   identities, normalized visibility boundaries, package targets, imports, every declaration and
   member domain, generic requirements, bodies, opaque results, and the compile-unit type store. A
   two-pass reservation builder supports recursive headers, then validates every reference and
@@ -417,7 +421,9 @@
   resolution, target capability selection, and <code>TargetProgram</code> construction without exposing a
   mutable partial pipeline. Its result keeps target semantics and source projection as independent
   immutable values. Command and editor layers consume this boundary instead of assembling lower
-  crates directly.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
+  crates directly.
+  Declared-package and explicit single-file discovery converge before this boundary. Every public
+  single-file example is qualified through this exact session with the authored standard package.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body

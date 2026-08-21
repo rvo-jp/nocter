@@ -141,6 +141,13 @@ the snapshot cannot be borrowed as a semantic input until those errors are absen
 the shared `nocter-target-selection` inventory, so an inactive gated import never probes the
 filesystem and lowering cannot reinterpret target activity.
 
+The discovery request is an explicit sum of declared-package and single-file layouts. File mode
+requires one `.nct` path, derives its opaque package identity from the canonical source identity,
+adds only the selected standard package as a dependency, and rejects package-local imports that
+would silently turn the file into a directory graph. It then emits the same package, module,
+source, import-edge, and toolchain snapshot consumed by declaration lowering. There is no
+single-file semantic pipeline.
+
 `nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
 package has an opaque resolved identity distinct from its display name. A module has that package
 identity plus normalized directory segments. Physical package declarations, module roots,

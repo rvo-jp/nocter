@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
-    BuiltinAttachmentInput, ModuleIdentity, PackageIdentity, UseTargetInput,
+    BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode,
+    UseTargetInput,
 };
 use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
@@ -63,6 +64,74 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
 }
 
 #[test]
+fn explicit_single_file_converges_on_the_common_compile_unit() {
+    let tree = TempTree::new();
+    tree.source(
+        "app.nct",
+        "use std/value.Value\n\nfunc main(): void { return }\n",
+    );
+    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source("std/index.nct", "//! Standard root.\n");
+    tree.source("std/value/index.nct", "pub struct Value {}\n");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"));
+
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        tree.path().join("app.nct"),
+        vec![standard],
+        minimal_toolchain("toolchain:std"),
+    ))
+    .unwrap();
+    let input = unit.compile_input().unwrap();
+    let single = input
+        .packages()
+        .iter()
+        .find(|package| package.mode() == PackageMode::SingleFile)
+        .unwrap();
+    assert_eq!(single.display_name(), "app");
+    assert!(single.declaration().is_none());
+    let module = input
+        .modules()
+        .iter()
+        .find(|module| module.identity().package() == single.identity())
+        .unwrap();
+    assert!(module.identity().path().is_empty());
+    assert_eq!(module.sources().len(), 1);
+    assert_eq!(module.sources()[0].kind(), ModuleSourceKind::SingleFile);
+    assert!(matches!(
+        input.use_resolutions()[0].target(),
+        UseTargetInput::Module(module) if module.path() == [Box::<str>::from("value")]
+    ));
+
+    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    assert_eq!(lowered.program().package_targets().len(), 1);
+}
+
+#[test]
+fn single_file_cannot_open_a_parallel_local_source_graph() {
+    let tree = TempTree::new();
+    tree.source("app.nct", "use ./helper\n\nfunc main(): void { return }\n");
+    tree.source("helper.nct", "func helper(): void { return }\n");
+    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source("std/index.nct", "//! Standard root.\n");
+
+    let error = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        tree.path().join("app.nct"),
+        vec![package("toolchain:std", "std", &tree.path().join("std"))],
+        minimal_toolchain("toolchain:std"),
+    ))
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        DiscoveryError::Import {
+            failure: ImportFailure::SingleFileLocalImport,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn closes_source_folder_module_and_dependency_edges_once() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "#name: \"app\"\n");
@@ -82,7 +151,7 @@ fn closes_source_folder_module_and_dependency_edges_once() {
     let app = package("workspace:app", "app", &tree.path().join("app"))
         .with_dependency("dep", PackageIdentity::new("resolved:dep"));
     let dep = package("resolved:dep", "dep", &tree.path().join("dep"));
-    let unit = discover(DiscoveryRequest::new(
+    let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![app, dep],
         vec![module("workspace:app", &[])],
@@ -141,7 +210,7 @@ fn rejects_a_relative_path_with_both_source_and_module_candidates() {
         "pub func search(): void { return }\n",
     );
 
-    let error = discover(DiscoveryRequest::new(
+    let error = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![package("workspace:app", "app", &tree.path().join("app"))],
         Vec::new(),
@@ -167,7 +236,7 @@ fn inactive_target_imports_do_not_probe_the_filesystem() {
         "#target: \"x64-linux\"\nfunc inactive(): void {\n    use ./missing\n    return\n}\nfunc active(): void { return }\n",
     );
 
-    let unit = discover(DiscoveryRequest::new(
+    let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![package("workspace:app", "app", &tree.path().join("app"))],
         Vec::new(),
@@ -187,14 +256,14 @@ fn canonical_output_does_not_depend_on_request_order() {
     let a = package("workspace:a", "a", &tree.path().join("a"));
     let b = package("workspace:b", "b", &tree.path().join("b"));
 
-    let forward = discover(DiscoveryRequest::new(
+    let forward = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![a.clone(), b.clone()],
         vec![module("workspace:b", &[]), module("workspace:a", &[])],
         minimal_toolchain("workspace:a"),
     ))
     .unwrap();
-    let reverse = discover(DiscoveryRequest::new(
+    let reverse = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![b, a],
         vec![module("workspace:a", &[]), module("workspace:b", &[])],
@@ -231,7 +300,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         .map(|path| ModuleIdentity::new(standard_identity.clone(), path))
         .collect();
 
-    let unit = discover(DiscoveryRequest::new(
+    let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         vec![standard],
         roots,

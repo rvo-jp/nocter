@@ -71,8 +71,8 @@ impl DiscoveredModule {
 pub(crate) struct DiscoveredPackage {
     pub(crate) identity: PackageIdentity,
     pub(crate) display_name: Box<str>,
-    pub(crate) declaration_path: Box<str>,
-    pub(crate) syntax: usize,
+    pub(crate) mode: PackageMode,
+    pub(crate) declaration: Option<(Box<str>, usize)>,
 }
 
 #[derive(Debug)]
@@ -130,11 +130,10 @@ impl DiscoveredUnit {
                 PackageInput::new(
                     package.identity.clone(),
                     package.display_name.clone(),
-                    PackageMode::Declared,
-                    Some(PackageDeclarationInput::new(
-                        package.declaration_path.clone(),
-                        &self.syntax[package.syntax],
-                    )),
+                    package.mode,
+                    package.declaration.as_ref().map(|(path, syntax)| {
+                        PackageDeclarationInput::new(path.clone(), &self.syntax[*syntax])
+                    }),
                 )
             })
             .collect();

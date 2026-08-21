@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_declarations::{CallableProvenance, ProvenanceOrigin};
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, CallableId, CaptureId, ClosureId, FieldId, LocalBindingId,
+    Arena, BodyId, BodyNodeId, CallableId, CaptureId, ClosureId, FieldIdentity, LocalBindingId,
     ParameterId, ParameterOrigin, ResultProvenance, VariantId,
 };
 
@@ -33,7 +33,7 @@ pub enum ProvenanceSource {
 /// A semantic projection within a value that can carry storage independently of its siblings.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ProvenanceProjection {
-    Field(FieldId),
+    Field(FieldIdentity),
     VariantPayload {
         variant: VariantId,
         parameter: ParameterId,
@@ -390,17 +390,17 @@ mod tests {
         let _ = locals.finish();
         let mut aggregate = ValueProvenance::independent();
         aggregate.insert_projection(
-            ProvenanceProjection::Field(left),
+            ProvenanceProjection::Field(left.into()),
             ValueProvenance::from_source(ProvenanceSource::Local(first)),
         );
         aggregate.insert_projection(
-            ProvenanceProjection::Field(right),
+            ProvenanceProjection::Field(right.into()),
             ValueProvenance::from_source(ProvenanceSource::Local(second)),
         );
 
         assert_eq!(
             aggregate
-                .projected(ProvenanceProjection::Field(left))
+                .projected(ProvenanceProjection::Field(left.into()))
                 .all_sources(),
             std::collections::BTreeSet::from([ProvenanceSource::Local(first)])
         );
@@ -417,7 +417,7 @@ mod tests {
         let root = ValueProvenance::from_source(ProvenanceSource::Local(local));
 
         assert_eq!(
-            root.projected(ProvenanceProjection::Field(field))
+            root.projected(ProvenanceProjection::Field(field.into()))
                 .all_sources(),
             std::collections::BTreeSet::from([ProvenanceSource::Local(local)])
         );
@@ -432,7 +432,7 @@ mod tests {
         let local = locals.insert(());
         let _ = locals.finish();
         let projected = ValueProvenance::from_projection(
-            ProvenanceProjection::Field(field),
+            ProvenanceProjection::Field(field.into()),
             ValueProvenance::from_source(ProvenanceSource::Local(local)),
         );
 

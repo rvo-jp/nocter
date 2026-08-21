@@ -153,7 +153,10 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
     };
 
     assert_eq!(path.fields().len(), 1);
-    assert_ne!(path.fields()[0], moved_field);
+    assert_ne!(
+        nocter_model::FieldIdentity::Declared(path.fields()[0]),
+        moved_field
+    );
     assert_eq!(remaining.condition(), CleanupCondition::Always);
 }
 

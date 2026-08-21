@@ -1,11 +1,14 @@
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{FieldId, ModuleId, NominalTypeId, TypeId, TypeKind, TypeStore};
+use nocter_model::{
+    BorrowCapability, BuiltinField, BuiltinType, FieldId, FieldIdentity, ModuleId, NominalTypeId,
+    TypeId, TypeKind, TypeStore,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SelectedField {
-    owner: NominalTypeId,
-    field: FieldId,
+    owner: Option<NominalTypeId>,
+    field: FieldIdentity,
     ty: TypeId,
 }
 
@@ -26,11 +29,11 @@ impl SelectedStructuralField {
 }
 
 impl SelectedField {
-    pub(crate) const fn owner(self) -> NominalTypeId {
+    pub(crate) const fn owner(self) -> Option<NominalTypeId> {
         self.owner
     }
 
-    pub(crate) const fn field(self) -> FieldId {
+    pub(crate) const fn field(self) -> FieldIdentity {
         self.field
     }
 
@@ -52,6 +55,9 @@ pub(crate) fn select_field(
             definition,
             arguments,
         }) => (*definition, arguments.clone()),
+        Some(TypeKind::Builtin(BuiltinType::Error)) => {
+            return select_builtin_error_field(types, base, name);
+        }
         Some(_) => return Err(FieldSelectionError::NoFields(base)),
         None => return Err(FieldSelectionError::UnknownType(base)),
     };
@@ -77,7 +83,7 @@ pub(crate) fn select_field(
             return Err(FieldSelectionError::AmbiguousField(definition));
         }
     }
-    let field = selected.ok_or(FieldSelectionError::MissingField(definition))?;
+    let field = selected.ok_or(FieldSelectionError::MissingField(base))?;
     let declaration = graph
         .declarations()
         .fields()
@@ -106,8 +112,32 @@ pub(crate) fn select_field(
         .apply_type(types, declaration.ty())
         .map_err(FieldSelectionError::Substitution)?;
     Ok(SelectedField {
-        owner: definition,
-        field,
+        owner: Some(definition),
+        field: field.into(),
+        ty,
+    })
+}
+
+fn select_builtin_error_field(
+    types: &mut TypeStore,
+    base: TypeId,
+    name: &str,
+) -> Result<SelectedField, FieldSelectionError> {
+    let field = match name {
+        "code" => BuiltinField::ErrorCode,
+        "message" => BuiltinField::ErrorMessage,
+        _ => return Err(FieldSelectionError::MissingField(base)),
+    };
+    let text = types.builtin(BuiltinType::Str);
+    let ty = types
+        .intern(TypeKind::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent: text,
+        })
+        .map_err(FieldSelectionError::UnknownBorrowType)?;
+    Ok(SelectedField {
+        owner: None,
+        field: FieldIdentity::Builtin(field),
         ty,
     })
 }
@@ -150,9 +180,10 @@ pub(crate) enum FieldSelectionError {
     UnknownNominal(NominalTypeId),
     UnknownField(FieldId),
     UnknownFieldSite(FieldId),
-    MissingField(NominalTypeId),
+    MissingField(TypeId),
     AmbiguousField(NominalTypeId),
     InaccessibleField(FieldId),
     GenericArity(NominalTypeId),
     Substitution(SubstitutionError),
+    UnknownBorrowType(nocter_model::UnknownTypeId),
 }
