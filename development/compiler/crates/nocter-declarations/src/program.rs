@@ -65,6 +65,7 @@ pub struct DeclarationGraph {
     target: CompilationTarget,
     symbols: SymbolTable,
     packages: Arena<PackageId, Package>,
+    root_packages: Box<[PackageId]>,
     standard_library: Option<StandardLibrary>,
     modules: Arena<ModuleId, Module>,
     module_namespaces: Arena<ModuleId, ModuleNamespace>,
@@ -95,6 +96,12 @@ impl DeclarationGraph {
     #[must_use]
     pub const fn packages(&self) -> &Arena<PackageId, Package> {
         &self.packages
+    }
+
+    /// Returns the exact packages selected before dependency traversal.
+    #[must_use]
+    pub const fn root_packages(&self) -> &[PackageId] {
+        &self.root_packages
     }
 
     /// Returns the exact package selected to provide compiler-owned standard declarations.
@@ -218,6 +225,11 @@ impl DeclarationProgram {
     }
 
     #[must_use]
+    pub const fn root_packages(&self) -> &[PackageId] {
+        self.graph.root_packages()
+    }
+
+    #[must_use]
     pub const fn standard_package(&self) -> Option<PackageId> {
         self.graph.standard_package()
     }
@@ -304,6 +316,7 @@ pub struct DeclarationProgramBuilder {
     target: CompilationTarget,
     symbols: SymbolTable,
     packages: ArenaBuilder<PackageId, Package>,
+    root_packages: Vec<PackageId>,
     standard_library: Option<StandardLibrary>,
     modules: ArenaBuilder<ModuleId, Module>,
     module_namespaces: ArenaBuilder<ModuleId, Option<ModuleNamespace>>,
@@ -322,6 +335,7 @@ impl DeclarationProgramBuilder {
             target,
             symbols,
             packages: ArenaBuilder::new(),
+            root_packages: Vec::new(),
             standard_library: None,
             modules: ArenaBuilder::new(),
             module_namespaces: ArenaBuilder::new(),
@@ -351,6 +365,25 @@ impl DeclarationProgramBuilder {
     pub fn add_package(&mut self, display_name: Symbol) -> Result<PackageId, ProgramBuildError> {
         self.require_symbol(display_name)?;
         Ok(self.packages.insert(Package { display_name }))
+    }
+
+    /// Records packages selected as compile roots before dependency traversal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unknown package or a repeated root identity.
+    pub fn set_root_packages(
+        &mut self,
+        packages: impl IntoIterator<Item = PackageId>,
+    ) -> Result<(), ProgramBuildError> {
+        for package in packages {
+            self.require_package(package)?;
+            if self.root_packages.contains(&package) {
+                return Err(ProgramBuildError::DuplicateRootPackage(package));
+            }
+            self.root_packages.push(package);
+        }
+        Ok(())
     }
 
     /// Records the exact package selected by compilation setup as the standard library.
@@ -542,6 +575,7 @@ impl DeclarationProgramBuilder {
                 target: self.target,
                 symbols: self.symbols,
                 packages: self.packages.finish(),
+                root_packages: self.root_packages.into_boxed_slice(),
                 standard_library: self.standard_library,
                 modules: self.modules.finish(),
                 module_namespaces,
@@ -582,6 +616,7 @@ pub enum ProgramBuildError {
     UnknownPackage,
     UnknownModule,
     DuplicateModule(ModuleId),
+    DuplicateRootPackage(PackageId),
     MissingModuleNamespace(ModuleId),
     ModuleNamespaceAlreadyDefined(ModuleId),
     DuplicateModuleNamespaceName(Symbol),
@@ -604,6 +639,9 @@ impl fmt::Display for ProgramBuildError {
             Self::UnknownModule => formatter.write_str("module is not part of the program"),
             Self::DuplicateModule(existing) => {
                 write!(formatter, "module identity duplicates {existing:?}")
+            }
+            Self::DuplicateRootPackage(package) => {
+                write!(formatter, "compile root repeats package {package:?}")
             }
             Self::MissingModuleNamespace(module) => {
                 write!(formatter, "module {module:?} has no canonical namespace")
@@ -691,6 +729,35 @@ mod tests {
                 .unwrap_err(),
             ProgramBuildError::DuplicateModule(app_parser)
         );
+    }
+
+    #[test]
+    fn compile_roots_are_exact_validated_package_identities() {
+        let symbols = SymbolTable::from_spellings(["app", "dependency"]);
+        let app_name = symbols.get("app").unwrap();
+        let dependency_name = symbols.get("dependency").unwrap();
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+        let app = builder.add_package(app_name).unwrap();
+        let dependency = builder.add_package(dependency_name).unwrap();
+
+        builder.set_root_packages([app]).unwrap();
+        assert_eq!(
+            builder.set_root_packages([app]).unwrap_err(),
+            ProgramBuildError::DuplicateRootPackage(app)
+        );
+
+        let app_root = builder.add_module(app, ModulePath::root()).unwrap();
+        let dependency_root = builder.add_module(dependency, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(app_root, ModuleNamespace::default())
+            .unwrap();
+        builder
+            .define_module_namespace(dependency_root, ModuleNamespace::default())
+            .unwrap();
+        let program = builder.finish().unwrap();
+
+        assert_eq!(program.root_packages(), &[app]);
     }
 
     #[test]

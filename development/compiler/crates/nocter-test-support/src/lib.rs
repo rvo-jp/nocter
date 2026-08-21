@@ -525,6 +525,7 @@ impl CompilerFixture {
             modules,
             use_resolutions,
         )
+        .with_root_packages(vec![app_package.clone()])
         .with_toolchain(toolchain);
         if let Some(manifest) = &self.app_manifest {
             let declaration = manifest

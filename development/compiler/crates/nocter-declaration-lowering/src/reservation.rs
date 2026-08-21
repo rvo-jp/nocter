@@ -63,6 +63,7 @@ pub enum ReservationError {
     DuplicateSourceBinding(DuplicateSourceBinding),
     MissingSymbol(Box<str>),
     UnknownPackage(ModuleIdentity),
+    UnknownRootPackage(crate::PackageIdentity),
     UnknownModule(ModuleIdentity),
     InvalidOwner(SurfaceDeclarationId),
     InconsistentSurface(SurfaceDeclarationId),
@@ -82,6 +83,9 @@ impl fmt::Display for ReservationError {
             }
             Self::UnknownPackage(module) => {
                 write!(formatter, "module {module:?} belongs to an unknown package")
+            }
+            Self::UnknownRootPackage(package) => {
+                write!(formatter, "compile root names unknown package {package:?}")
             }
             Self::UnknownModule(module) => {
                 write!(formatter, "source belongs to unknown module {module:?}")
@@ -254,6 +258,7 @@ pub(crate) fn reserve_with_contracts(
         source_map,
         symbols,
         packages,
+        root_packages,
         modules,
         sources,
         imports,
@@ -263,6 +268,16 @@ pub(crate) fn reserve_with_contracts(
     let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = SourceIndexBuilder::new();
     let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
+    let semantic_roots = root_packages
+        .iter()
+        .map(|identity| {
+            package_ids
+                .get(identity)
+                .copied()
+                .ok_or_else(|| ReservationError::UnknownRootPackage(identity.clone()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    program.set_root_packages(semantic_roots)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
     reserve_single_file_targets(
         &packages,

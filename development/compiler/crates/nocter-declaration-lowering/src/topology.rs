@@ -264,6 +264,17 @@ pub fn lower_compile_unit_topology(
             )?;
         }
     }
+    let root_packages = input
+        .root_packages()
+        .iter()
+        .map(|identity| {
+            package_ids
+                .get(identity)
+                .copied()
+                .ok_or_else(|| LoweringError::UnknownPackage(identity.clone()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    program.set_root_packages(root_packages)?;
 
     for module in &prepared.modules {
         let package = *package_ids

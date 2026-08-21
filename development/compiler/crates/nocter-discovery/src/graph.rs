@@ -55,6 +55,7 @@ enum Work {
 struct Builder {
     target: nocter_model::CompilationTarget,
     packages: BTreeMap<PackageIdentity, PackageState>,
+    root_packages: Vec<PackageIdentity>,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
     modules: BTreeMap<ModuleIdentity, Vec<DiscoveredSource>>,
@@ -96,9 +97,15 @@ pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryEr
 impl Builder {
     fn new(request: DiscoveryRequest) -> Result<Self, DiscoveryError> {
         let (target, layout, toolchain) = request.into_parts();
-        let (loaded, roots, single_file) = match layout {
+        let (loaded, roots, single_file, root_packages) = match layout {
             DiscoveryLayout::Declared { packages, roots } => {
-                (load_packages(packages)?, roots, None)
+                let root_packages = roots
+                    .iter()
+                    .map(|root| root.package().clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect();
+                (load_packages(packages)?, roots, None, root_packages)
             }
             DiscoveryLayout::SingleFile {
                 source,
@@ -106,7 +113,8 @@ impl Builder {
             } => {
                 let mut loaded = load_packages(support_packages)?;
                 let single_file = load_single_file_package(&mut loaded, source, &toolchain)?;
-                (loaded, Vec::new(), Some(single_file))
+                let root_packages = vec![single_file.0.package().clone()];
+                (loaded, Vec::new(), Some(single_file), root_packages)
             }
         };
         let LoadedPackages {
@@ -126,6 +134,7 @@ impl Builder {
         Ok(Self {
             target,
             packages,
+            root_packages,
             sources,
             syntax,
             modules: BTreeMap::new(),
@@ -193,6 +202,7 @@ impl Builder {
             sources: self.sources,
             syntax: self.syntax,
             packages,
+            root_packages: self.root_packages,
             modules,
             use_resolutions: self.use_resolutions,
             package_target_resolutions: self.package_target_resolutions,

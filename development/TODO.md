@@ -18,9 +18,12 @@ implementation input.
 1. Add the public command-input and executable-set selection model above the completed command
    core. `nocter-command` now compiles one exact executable only through `nocter-session`, commits
    persistent images failure-atomically, and stages/runs/removes temporary images while preserving
-   child exit status. Package `build` still needs declaration-order all-target selection and output
-   policy; package `run` needs the specified sole/named selection policy. Neither may scan semantic
-   declarations or invoke compiler stages directly.
+   child exit status. Discovery, compile input, and the immutable declaration graph now preserve
+   exact command-root package identities separately from traversed dependencies, and one-target
+   session selection consumes only those roots. Package `build` still needs declaration-order
+   all-target selection and output policy; package `run` needs public argument mapping onto the
+   completed sole/named selection policy. Neither may scan semantic declarations or invoke compiler
+   stages directly.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

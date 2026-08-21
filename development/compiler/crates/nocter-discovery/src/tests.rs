@@ -88,6 +88,10 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         .iter()
         .find(|package| package.mode() == PackageMode::SingleFile)
         .unwrap();
+    assert_eq!(
+        input.root_packages(),
+        std::slice::from_ref(single.identity())
+    );
     assert_eq!(single.display_name(), "app");
     assert!(single.declaration().is_none());
     let module = input
@@ -104,6 +108,7 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
     ));
 
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    assert_eq!(lowered.program().root_packages().len(), 1);
     assert_eq!(lowered.program().package_targets().len(), 1);
 }
 
@@ -191,6 +196,10 @@ fn closes_source_folder_module_and_dependency_edges_once() {
     );
 
     let input = unit.compile_input().unwrap();
+    assert_eq!(
+        input.root_packages(),
+        &[PackageIdentity::new("workspace:app")]
+    );
     assert_eq!(input.use_resolutions().len(), 3);
     assert!(matches!(
         input.use_resolutions()[0].target(),
@@ -319,6 +328,12 @@ fn canonical_output_does_not_depend_on_request_order() {
             .collect::<Vec<_>>()
     };
     assert_eq!(shape(&forward), shape(&reverse));
+    let expected_roots = [
+        PackageIdentity::new("workspace:a"),
+        PackageIdentity::new("workspace:b"),
+    ];
+    assert_eq!(forward.root_packages(), expected_roots.as_slice());
+    assert_eq!(reverse.root_packages(), expected_roots.as_slice());
 }
 
 #[test]

@@ -363,6 +363,7 @@ pub struct CompileUnitInput<'syntax> {
     target: CompilationTarget,
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput<'syntax>>,
+    root_packages: Vec<PackageIdentity>,
     modules: Vec<ModuleInput<'syntax>>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
@@ -382,6 +383,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
             target,
             sources,
             packages,
+            root_packages: Vec::new(),
             modules,
             use_resolutions,
             package_target_resolutions: Vec::new(),
@@ -409,6 +411,13 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self
     }
 
+    /// Freezes the package roots selected by the command before dependency discovery.
+    #[must_use]
+    pub fn with_root_packages(mut self, packages: Vec<PackageIdentity>) -> Self {
+        self.root_packages = packages;
+        self
+    }
+
     #[must_use]
     pub fn with_toolchain(mut self, toolchain: ToolchainInput) -> Self {
         self.toolchain = Some(toolchain);
@@ -423,6 +432,11 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn packages(&self) -> &[PackageInput<'syntax>] {
         &self.packages
+    }
+
+    #[must_use]
+    pub fn root_packages(&self) -> &[PackageIdentity] {
+        &self.root_packages
     }
 
     #[must_use]

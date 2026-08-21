@@ -209,10 +209,13 @@ session retains the `TargetProgram` and `SourceIndex` as separate immutable valu
 projection never enters target semantic identity.
 
 Executable-producing session requests additionally own presentation-name selection. The request
-selects the sole executable or one declared name, resolves it to exactly one `PackageTargetId`, and
-consumes the target program into `ExecutableProgram`. Absence, multiplicity, unknown names, and
-cross-root ambiguity are closed selection errors. Build and run cannot repeat this lookup or call
-executable specialization directly.
+selects the sole executable or one declared name among the exact command-root packages, resolves it
+to exactly one `PackageTargetId`, and consumes the target program into `ExecutableProgram`.
+Discovery freezes command-root `PackageIdentity` values before dependency traversal; declaration
+lowering translates them once to `PackageId` values retained by `DeclarationGraph`. Session code
+therefore never infers root authority from package names, target presence, or dependency shape.
+Absence, multiplicity, unknown names, and cross-root ambiguity are closed selection errors. Build
+and run cannot repeat this lookup or call executable specialization directly.
 
 The native session consumes that executable result through MIR, machine lowering, ARM64 selection,
 and Mach-O construction and returns one immutable image beside the unchanged `SourceIndex`.

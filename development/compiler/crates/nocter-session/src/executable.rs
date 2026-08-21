@@ -67,10 +67,10 @@ fn select_executable(
     selector: &ExecutableSelector,
 ) -> Result<PackageTargetId, ExecutableSelectionError> {
     let graph = program.checked().graph();
-    let mut candidates = graph
-        .package_targets()
-        .iter()
-        .filter(|(_, target)| target.kind() == PackageTargetKind::Executable);
+    let root_packages = graph.root_packages();
+    let mut candidates = graph.package_targets().iter().filter(|(_, target)| {
+        target.kind() == PackageTargetKind::Executable && root_packages.contains(&target.package())
+    });
     match selector {
         ExecutableSelector::Only => {
             let Some((selected, _)) = candidates.next() else {

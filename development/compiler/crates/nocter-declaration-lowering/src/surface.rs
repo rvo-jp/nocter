@@ -188,6 +188,7 @@ pub struct DeclarationSurface<'syntax> {
     source_map: &'syntax SourceMap,
     symbols: SymbolTable,
     packages: Box<[PackageInput<'syntax>]>,
+    root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
     sources: Box<[SurfaceSource<'syntax>]>,
     imports: Box<[SurfaceImport]>,
@@ -242,6 +243,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             source_map: self.source_map,
             symbols: self.symbols,
             packages: self.packages,
+            root_packages: self.root_packages,
             modules: self.modules,
             sources: self.sources,
             imports: self.imports,
@@ -256,6 +258,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) source_map: &'syntax SourceMap,
     pub(crate) symbols: SymbolTable,
     pub(crate) packages: Box<[PackageInput<'syntax>]>,
+    pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) imports: Box<[SurfaceImport]>,
@@ -392,6 +395,7 @@ pub fn collect_declaration_surface<'syntax>(
             .cloned()
             .collect::<Vec<_>>()
             .into_boxed_slice(),
+        root_packages: input.root_packages().into(),
         modules: modules
             .into_iter()
             .map(|module| module.identity().clone())

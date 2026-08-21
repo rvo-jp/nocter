@@ -81,6 +81,7 @@ pub struct DiscoveredUnit {
     pub(crate) sources: SourceMap,
     pub(crate) syntax: Vec<SyntaxTree>,
     pub(crate) packages: Vec<DiscoveredPackage>,
+    pub(crate) root_packages: Vec<PackageIdentity>,
     pub(crate) modules: Vec<DiscoveredModule>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
@@ -106,6 +107,12 @@ impl DiscoveredUnit {
     #[must_use]
     pub fn modules(&self) -> &[DiscoveredModule] {
         &self.modules
+    }
+
+    /// Returns the exact packages selected before dependency traversal.
+    #[must_use]
+    pub fn root_packages(&self) -> &[PackageIdentity] {
+        &self.root_packages
     }
 
     #[must_use]
@@ -169,6 +176,7 @@ impl DiscoveredUnit {
             modules,
             self.use_resolutions.clone(),
         )
+        .with_root_packages(self.root_packages.clone())
         .with_package_target_resolutions(self.package_target_resolutions.clone())
         .with_toolchain(toolchain))
     }
