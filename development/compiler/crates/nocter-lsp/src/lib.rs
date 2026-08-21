@@ -3,11 +3,13 @@
 //! This crate contains no compiler semantics and performs no filesystem access. Validated
 //! messages cross this boundary before they may mutate editor documents or invoke analysis.
 
+mod coordinates;
 mod decode;
 mod hover;
 mod initialize;
 mod lifecycle;
 mod message;
+mod navigation;
 mod outbound;
 mod parameters;
 mod response;
@@ -17,13 +19,15 @@ mod transport;
 mod uri;
 mod watcher;
 
-pub use hover::{HoverParams, Position, Range, hover_result};
+pub use coordinates::{Position, Range, TextDocumentPositionParams};
+pub use hover::{HoverParams, hover_result};
 pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};
 pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState, LifecycleTransitionError};
 pub use message::{
     IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId, ResponseError,
     ResponseResult,
 };
+pub use navigation::{DefinitionParams, Location, ReferencesParams, locations_result};
 pub use outbound::{CompletedRequest, OutboundRequest, OutboundRequestError, OutboundRequests};
 pub use parameters::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,

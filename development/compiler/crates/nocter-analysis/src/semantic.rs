@@ -4,6 +4,31 @@ use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 use crate::AnalysisSnapshot;
 use crate::presentation::{SemanticPresentation, presentation};
 
+/// One exact interactive source occurrence selected independently of presentation or protocol.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SemanticSelection {
+    entity: SemanticEntity,
+    role: SourceRole,
+    range: TextRange,
+}
+
+impl SemanticSelection {
+    #[must_use]
+    pub const fn entity(self) -> SemanticEntity {
+        self.entity
+    }
+
+    #[must_use]
+    pub const fn role(self) -> SourceRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn range(self) -> TextRange {
+        self.range
+    }
+}
+
 /// Protocol-independent source selection for one resolved semantic identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SemanticSubject {
@@ -36,6 +61,25 @@ impl SemanticSubject {
 }
 
 impl AnalysisSnapshot {
+    /// Resolves one exact interactive semantic occurrence without rendering it.
+    #[must_use]
+    pub fn semantic_selection(
+        &self,
+        source: SourceId,
+        offset: ByteOffset,
+    ) -> Option<SemanticSelection> {
+        self.target()?;
+        self.source_index()?
+            .bindings_at(source, offset)
+            .filter(|binding| interactive_binding(binding))
+            .min_by_key(|binding| selection_key(binding))
+            .map(|binding| SemanticSelection {
+                entity: binding.entity(),
+                role: binding.role(),
+                range: binding.origin().span().range(),
+            })
+    }
+
     /// Resolves one exact source position through the current successful semantic snapshot.
     ///
     /// Failed generations deliberately answer no semantic query. When projections overlap, the
@@ -48,25 +92,41 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
     ) -> Option<SemanticSubject> {
         let checked = self.target()?.program().checked();
-        self.source_index()?
-            .bindings_at(source, offset)
-            .filter(|binding| interactive_binding(binding))
-            .filter_map(|binding| {
-                presentation(checked, binding.entity()).map(|presentation| (binding, presentation))
-            })
-            .min_by_key(|(binding, _)| selection_key(binding))
-            .map(|(binding, presentation)| SemanticSubject {
-                entity: binding.entity(),
-                role: binding.role(),
-                range: binding.origin().span().range(),
-                presentation,
-            })
+        let selection = self.semantic_selection(source, offset)?;
+        let presentation = presentation(checked, selection.entity())?;
+        Some(SemanticSubject {
+            entity: selection.entity(),
+            role: selection.role(),
+            range: selection.range(),
+            presentation,
+        })
     }
 }
 
 fn interactive_binding(binding: &SourceBinding) -> bool {
-    !matches!(binding.entity(), SemanticEntity::Module(_))
-        || binding.role() == SourceRole::Reference
+    interactive_entity(binding.entity())
+        && (!matches!(binding.entity(), SemanticEntity::Module(_))
+            || binding.role() == SourceRole::Reference)
+}
+
+const fn interactive_entity(entity: SemanticEntity) -> bool {
+    matches!(
+        entity,
+        SemanticEntity::Module(_)
+            | SemanticEntity::NominalType(_)
+            | SemanticEntity::TypeAlias(_)
+            | SemanticEntity::Interface(_)
+            | SemanticEntity::AssociatedType(_)
+            | SemanticEntity::Callable(_)
+            | SemanticEntity::Field(_)
+            | SemanticEntity::BuiltinField(_)
+            | SemanticEntity::Variant(_)
+            | SemanticEntity::GenericParameter(_)
+            | SemanticEntity::Parameter(_)
+            | SemanticEntity::Test(_)
+            | SemanticEntity::LocalBinding(..)
+            | SemanticEntity::Capture(..)
+    )
 }
 
 fn selection_key(binding: &SourceBinding) -> (u32, u8, u8) {

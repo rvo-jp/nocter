@@ -91,6 +91,12 @@ implementation input.
    anchors, eliminating the former whole-declaration operator projection. The LSP layer owns only
    legend mapping, UTF-16 projection, and delta encoding. Syntax-sized visibility, brace, and
    whitespace ranges are never substituted for semantic ranges.
+   Compiler-owned definition and references now share a presentation-independent
+   `SemanticSelection`. Definition chooses declaration identity before an implementation-only
+   fallback, module paths navigate as one namespace to their root source, and references enumerate
+   only exact identity bindings in the reached immutable graph. Neither request performs textual
+   search or ambient source discovery. Rename remains the next identity-based mutation boundary;
+   completion and signature help follow after it.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

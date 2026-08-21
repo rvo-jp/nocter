@@ -82,7 +82,9 @@ pub fn initialize_result(server_version: &str) -> Value {
                         ("save", object([("includeText", Value::Bool(true))])),
                     ]),
                 ),
+                ("definitionProvider", Value::Bool(true)),
                 ("hoverProvider", Value::Bool(true)),
+                ("referencesProvider", Value::Bool(true)),
                 (
                     "semanticTokensProvider",
                     object([
@@ -245,7 +247,8 @@ mod tests {
             concat!(
                 "{\"capabilities\":{\"positionEncoding\":\"utf-16\",",
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
-                "\"save\":{\"includeText\":true}},\"hoverProvider\":true,",
+                "\"save\":{\"includeText\":true}},\"definitionProvider\":true,",
+                "\"hoverProvider\":true,\"referencesProvider\":true,",
                 "\"semanticTokensProvider\":{\"legend\":{",
                 "\"tokenTypes\":[\"namespace\",\"type\",\"struct\",\"enum\",",
                 "\"interface\",\"typeParameter\",\"parameter\",\"variable\",",

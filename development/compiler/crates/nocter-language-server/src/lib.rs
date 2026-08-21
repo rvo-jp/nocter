@@ -7,6 +7,7 @@ mod analysis;
 mod diagnostics;
 mod documents;
 mod hover;
+mod navigation;
 mod paths;
 mod run;
 mod semantic_document;
@@ -22,6 +23,7 @@ pub use documents::{
     AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
 };
 pub use hover::HoverQueryError;
+pub use navigation::NavigationQueryError;
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
 pub use semantic_document::SemanticDocumentError;

@@ -16,6 +16,7 @@ use nocter_syntax::SyntaxTree;
 
 mod documents;
 mod highlights;
+mod navigation;
 mod presentation;
 mod semantic;
 
@@ -23,8 +24,9 @@ pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
 pub use highlights::{SemanticHighlight, SemanticHighlightKind};
+pub use navigation::SemanticLocation;
 pub use presentation::SemanticPresentation;
-pub use semantic::SemanticSubject;
+pub use semantic::{SemanticSelection, SemanticSubject};
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

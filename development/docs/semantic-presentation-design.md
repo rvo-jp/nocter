@@ -7,16 +7,18 @@ declaration from source.
 
 ## Query Boundary
 
-One query consumes a successful immutable `AnalysisSnapshot`, a `SourceId`, and a normalized byte
-offset. It follows exactly one direction:
+One positioned query consumes a successful immutable `AnalysisSnapshot`, a `SourceId`, and a
+normalized byte offset. Selection follows exactly one direction:
 
 ```text
 SourceId + byte offset
   -> SourceIndex binding
   -> semantic entity
-  -> checked declaration/type data
-  -> SemanticPresentation
+  -> SemanticSelection
 ```
+
+Hover then renders checked declaration/type data. Definition and references retain the selected
+semantic identity and project its existing `SourceIndex` bindings; they never search source text.
 
 Failed generations expose no semantic answer. A query never consults an older successful snapshot.
 The source index selects the smallest displayable binding under the cursor, with references before
@@ -71,9 +73,16 @@ their exact modifiers or category. Keyword, visibility, brace, whitespace, and s
 whole-file ranges cannot become interactive or colored merely because a broader compiler
 projection overlaps them.
 
-Both requests select one current successful snapshot through the shared semantic-document
+All semantic requests select one current successful snapshot through the shared semantic-document
 boundary. An unopened dependency source may therefore use the same package generation as its open
 root, while a failed current generation returns no stale semantics.
 
-Definition, references, rename, completion, and signature help must reuse the same source
-selection and presentation authority. None may add an editor-owned semantic model.
+Definition prefers an authored declaration binding and falls back to an implementation binding
+only when no separate declaration exists. A module path navigates as one contiguous namespace to
+the start of its root source. References return only exact bindings of the selected identity from
+reached package sources; `includeDeclaration` controls declaration and implementation sites.
+Local names, shadowed names, imports, interface dispatch, and associated projections therefore
+cannot be conflated by spelling.
+
+Rename, completion, and signature help must reuse the same source selection and presentation
+authority. None may add an editor-owned semantic model.

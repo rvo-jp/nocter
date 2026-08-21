@@ -40,7 +40,7 @@ impl ByteOffset {
 }
 
 /// Half-open byte range in normalized UTF-8 source text.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TextRange {
     start: ByteOffset,
     end: ByteOffset,

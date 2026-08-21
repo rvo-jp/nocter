@@ -12,6 +12,7 @@ use nocter_lsp::{
 };
 
 use crate::hover::HoverQueryError;
+use crate::navigation::NavigationQueryError;
 use crate::semantic_tokens::SemanticTokensQueryError;
 use crate::{
     AcceptedDocumentGeneration, DiagnosticPublicationError, DiagnosticPublisher, DocumentWorkspace,
@@ -228,6 +229,16 @@ impl LanguageServer {
             {
                 self.semantic_tokens(&id, params)
             }
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/definition" =>
+            {
+                self.definition(&id, params)
+            }
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/references" =>
+            {
+                self.references(&id, params)
+            }
             IncomingMessage::Request { id, .. } => ServerStep {
                 response: Some(render_error_response(
                     Some(&id),
@@ -418,6 +429,7 @@ pub enum ServerIssue {
     Diagnostics(DiagnosticPublicationError),
     Hover(HoverQueryError),
     SemanticTokens(SemanticTokensQueryError),
+    Navigation(NavigationQueryError),
     Outbound(OutboundRequestError),
     ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
@@ -432,6 +444,7 @@ impl fmt::Display for ServerIssue {
             Self::Diagnostics(error) => error.fmt(formatter),
             Self::Hover(error) => error.fmt(formatter),
             Self::SemanticTokens(error) => error.fmt(formatter),
+            Self::Navigation(error) => error.fmt(formatter),
             Self::Outbound(error) => error.fmt(formatter),
             Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
@@ -448,6 +461,7 @@ impl std::error::Error for ServerIssue {
             Self::Diagnostics(error) => Some(error),
             Self::Hover(error) => Some(error),
             Self::SemanticTokens(error) => Some(error),
+            Self::Navigation(error) => Some(error),
             Self::Outbound(error) => Some(error),
             Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),
@@ -934,7 +948,7 @@ mod tests {
         )
     }
 
-    fn semantic_server(root: &Path) -> LanguageServer {
+    pub(super) fn semantic_server(root: &Path) -> LanguageServer {
         let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
         LanguageServer::new(
             "dev",
@@ -949,10 +963,10 @@ mod tests {
         )
     }
 
-    struct TemporaryDirectory(PathBuf);
+    pub(super) struct TemporaryDirectory(PathBuf);
 
     impl TemporaryDirectory {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
                 "nocter-language-server-hover-{}-{id}",
@@ -962,7 +976,7 @@ mod tests {
             Self(path)
         }
 
-        fn path(&self) -> &Path {
+        pub(super) fn path(&self) -> &Path {
             &self.0
         }
     }
