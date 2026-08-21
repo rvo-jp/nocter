@@ -8,13 +8,17 @@ use std::fmt;
 use std::path::PathBuf;
 
 use nocter_command::{
-    BuildCommandExecutionError, BuildCommandResult, CheckCommandExecutionError, CheckCommandResult,
-    CommandArgumentError, CommandToolchain, ExecutedProgram, FetchCommandExecutionError,
-    FetchCommandResult, ParsedCommand, PreparedCommandError, ProgramInputError,
-    RunCommandExecutionError, execute_prepared_build, execute_prepared_check,
-    execute_prepared_fetch, execute_prepared_run, parse_command_arguments,
+    BuildCommandExecutionError, BuildCommandResult, CheckCommandExecutionError,
+    CheckCommandPresentation, CheckCommandResult, CommandArgumentError, CommandToolchain,
+    DiagnosticFormat, ExecutedProgram, FetchCommandExecutionError, FetchCommandResult,
+    ParsedCommand, PreparedCommandError, ProgramInputError, RunCommandExecutionError,
+    execute_prepared_build, execute_prepared_check, execute_prepared_fetch, execute_prepared_run,
+    parse_command_arguments,
 };
-use nocter_diagnostics::{DiagnosticRenderError, render_source_diagnostic};
+use nocter_diagnostics::{
+    DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostic,
+    render_source_diagnostics_json,
+};
 use nocter_installation::{NocterHome, NocterHomeError, NocterHomeRequest};
 use nocter_package_acquisition::{EmbeddedPackageAcquisition, PackageAcquisitionError};
 
@@ -69,6 +73,25 @@ impl InvocationOutcome {
         match self {
             Self::Fetch(_) | Self::Check(_) | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
+        }
+    }
+
+    /// Renders successful machine-readable output when selected by the command.
+    ///
+    /// # Errors
+    ///
+    /// Returns a presentation-integrity failure for a non-Unicode root path.
+    pub fn render_json_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
+        match self {
+            Self::Check(result) if result.format() == DiagnosticFormat::Json => {
+                render_source_diagnostics_json(
+                    check_json_context(result.presentation())?,
+                    &[],
+                    &nocter_source::SourceMap::new(),
+                )
+                .map(Some)
+            }
+            Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => Ok(None),
         }
     }
 }
@@ -227,6 +250,44 @@ impl InvocationError {
         }
         Ok(Some(output))
     }
+
+    /// Renders a failed JSON-formatted check from its retained diagnostic snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source/range or root-path presentation-integrity failure.
+    pub fn render_json_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
+        let Self::Check(error) = self else {
+            return Ok(None);
+        };
+        if error.format() != DiagnosticFormat::Json {
+            return Ok(None);
+        }
+        let Some((diagnostics, sources)) = error.source_diagnostics() else {
+            return Ok(None);
+        };
+        render_source_diagnostics_json(
+            check_json_context(error.presentation())?,
+            diagnostics,
+            sources,
+        )
+        .map(Some)
+    }
+}
+
+fn check_json_context(
+    presentation: &CheckCommandPresentation,
+) -> Result<DiagnosticJsonContext<'_>, DiagnosticRenderError> {
+    let root = presentation
+        .root()
+        .to_str()
+        .ok_or(DiagnosticRenderError::NonUnicodePath)?;
+    Ok(DiagnosticJsonContext::new(
+        "check",
+        Some(presentation.target().name()),
+        Some(root),
+        Some(root),
+    ))
 }
 
 impl fmt::Display for InvocationError {

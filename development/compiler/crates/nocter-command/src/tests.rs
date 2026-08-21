@@ -677,9 +677,10 @@ fn named_check_selects_exactly_one_module_and_rejects_an_unknown_target() {
     .unwrap_err();
     assert!(matches!(
         error,
-        super::CheckCommandExecutionError::Source(
-            super::CommandSourceError::MissingCommandExecutable { ref name, .. }
-        ) if name.as_ref() == "missing"
+        super::CheckCommandExecutionError::Source {
+            error,
+            ..
+        } if matches!(*error, super::CommandSourceError::MissingCommandExecutable { ref name, .. } if name.as_ref() == "missing")
     ));
     fs::remove_dir_all(directory).unwrap();
 }

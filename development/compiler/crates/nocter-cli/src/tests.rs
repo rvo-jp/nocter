@@ -238,6 +238,62 @@ fn public_check_failure_uses_the_common_source_diagnostic_snapshot() {
     assert!(rendered.contains("invalid.nct:1:"));
 }
 
+#[test]
+fn json_check_success_renders_one_empty_versioned_envelope() {
+    let tree = TempTree::new("check-json-success");
+    let home = tree.installation("arm64-darwin", true);
+    let source = tree.0.join("application.nct");
+    fs::write(&source, "func main(): i32 { return 0 }\n").unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["check", "application.nct", "--format", "json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let rendered = outcome.render_json_diagnostics().unwrap().unwrap();
+    let root = fs::canonicalize(source).unwrap();
+
+    assert_eq!(
+        rendered,
+        format!(
+            "{{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":true,\"command\":\"check\",\"target\":\"arm64-darwin\",\"root\":\"{}\",\"root_absolute_path\":\"{}\",\"diagnostics\":[]}}\n",
+            root.display(),
+            root.display()
+        )
+    );
+}
+
+#[test]
+fn json_check_failure_renders_retained_source_diagnostics_without_human_text() {
+    let tree = TempTree::new("check-json-failure");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("invalid.nct"),
+        "func main(): i32 { return missing }\n",
+    )
+    .unwrap();
+
+    let error = execute_invocation(invocation(
+        ["check", "invalid.nct", "--format=json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert!(rendered.starts_with(
+        "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":false,\"command\":\"check\",\"target\":\"arm64-darwin\""
+    ));
+    assert!(rendered.contains("\"code\":\"E0340\""));
+    assert!(rendered.contains("\"severity\":\"error\""));
+    assert!(rendered.contains("\"primary_span\":{"));
+    assert!(!rendered.contains("error[E0340]"));
+    assert!(rendered.ends_with("]}\n"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

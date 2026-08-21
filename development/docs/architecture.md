@@ -393,6 +393,17 @@ diagnostic with a generic CLI code. Failed compilation retains the invocation `S
 the phase-selected `SourceDiagnostic` values. The common renderer consumes that snapshot directly;
 the process adapter neither reopens files nor classifies semantic errors.
 
+Machine-readable source diagnostics use the same validated origin projection. The projection
+checks source identity, range bounds, and UTF-8 boundaries once, then exposes exclusive byte
+offsets and one-based byte line/column coordinates to the versioned JSON renderer. JSON escaping,
+notes, help, nullable absolute paths, and the `nocter.diagnostics` envelope belong to
+`nocter-diagnostics`, not the CLI. A prepared check retains its selected format, compilation
+target, and canonical root independently from success or failure. Successful JSON checks emit one
+empty envelope; source-diagnostic failures serialize the already retained diagnostic and
+`SourceMap` snapshot. The process entry selects JSON before human rendering, so stdout never mixes
+the two formats. Spanless command and preparation failures still require a typed partial
+presentation context before the public JSON contract is complete.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

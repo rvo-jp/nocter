@@ -15,14 +15,18 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete `check` with the specified machine-readable JSON envelope and process exit classes.
+1. Complete spanless `check --format json` failures and process exit classes.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
    package check discovers only the selected executable module, rejects an unknown name instead of
-   silently checking the root, and emits no artifact. The remaining `--format json` work must
-   serialize the retained diagnostic snapshot without inspecting semantic error variants or
-   reopening source files.
+   silently checking the root, and emits no artifact. `nocter-diagnostics` now owns one shared
+   byte-coordinate projection, exact JSON escaping, and the `nocter.diagnostics` version-1
+   renderer. Successful checks and source-diagnostic failures retain command/target/root/format
+   presentation facts and produce exactly one JSON envelope without human text. The remaining JSON
+   work is spanless argument, input-preparation, installation, package-state, and target-selection
+   failures; their codes and partial root/target context must be retained without reparsing argv or
+   matching display strings.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

@@ -57,6 +57,20 @@ impl CurrentProcessError {
             }
         }
     }
+
+    /// Renders the invocation's selected machine-readable diagnostic response, when any.
+    ///
+    /// # Errors
+    ///
+    /// Returns a presentation-integrity failure from the retained invocation snapshot.
+    pub fn render_json_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
+        match self {
+            Self::Invocation(error) => error.render_json_diagnostics(),
+            Self::CurrentDirectory(_) | Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => {
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl fmt::Display for CurrentProcessError {

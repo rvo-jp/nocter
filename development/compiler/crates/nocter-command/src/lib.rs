@@ -18,7 +18,7 @@ mod run;
 mod source;
 
 pub use arguments::{
-    CommandArgumentError, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
+    CommandArgumentError, DiagnosticFormat, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
     ParsedFetchCommand, ParsedRunCommand, PreparedBuildCommand, PreparedCheckCommand,
     PreparedCommandError, PreparedFetchCommand, PreparedRunCommand, ResolutionOptions,
     parse_command_arguments,
@@ -31,7 +31,10 @@ pub use build::{
     BuildCommandError, BuildSetCommandError, BuiltExecutable, BuiltExecutableEntry,
     BuiltExecutableSet, build_executable, build_executables, build_selected_executable,
 };
-pub use check::{CheckCommandExecutionError, CheckCommandResult, execute_prepared_check};
+pub use check::{
+    CheckCommandExecutionError, CheckCommandPresentation, CheckCommandResult,
+    execute_prepared_check,
+};
 pub use execute::{
     BuildCommandExecutionError, BuildCommandResult, RunCommandExecutionError,
     execute_prepared_build, execute_prepared_run,

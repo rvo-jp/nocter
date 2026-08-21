@@ -1,18 +1,22 @@
 use std::fmt;
+use std::path::{Path, PathBuf};
 
+use nocter_model::CompilationTarget;
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{CompileSessionError, CompiledTarget, compile_target};
 
 use crate::failure::command_compilation_failure;
 use crate::source::{CommandCompileRoots, discover_command_source};
 use crate::{
-    CommandCompilationFailure, CommandSourceError, CommandToolchain, PreparedCheckCommand,
+    CommandCompilationFailure, CommandSourceError, CommandToolchain, DiagnosticFormat,
+    PreparedCheckCommand,
 };
 
 /// Target-validated result of one check command.
 #[derive(Debug)]
 pub struct CheckCommandResult {
     target: CompiledTarget,
+    presentation: CheckCommandPresentation,
 }
 
 impl CheckCommandResult {
@@ -22,8 +26,51 @@ impl CheckCommandResult {
     }
 
     #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.presentation.format()
+    }
+
+    #[must_use]
+    pub const fn presentation(&self) -> &CheckCommandPresentation {
+        &self.presentation
+    }
+
+    #[must_use]
     pub fn into_target(self) -> CompiledTarget {
         self.target
+    }
+}
+
+/// Stable presentation facts retained independently from successful or failed checking.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckCommandPresentation {
+    format: DiagnosticFormat,
+    target: CompilationTarget,
+    root: PathBuf,
+}
+
+impl CheckCommandPresentation {
+    fn new(format: DiagnosticFormat, target: CompilationTarget, root: PathBuf) -> Self {
+        Self {
+            format,
+            target,
+            root,
+        }
+    }
+
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 }
 
@@ -37,29 +84,60 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     authority: &mut A,
 ) -> Result<CheckCommandResult, CheckCommandExecutionError> {
-    let (plan, resolution) = command.into_parts();
+    let (plan, resolution, format) = command.into_parts();
     let (input, executable) = plan.into_parts();
+    let root = match &input {
+        crate::ResolvedProgramInput::Package(package) => package.declaration(),
+        crate::ResolvedProgramInput::SingleFile(source) => source.source(),
+    };
+    let presentation = CheckCommandPresentation::new(format, toolchain.target(), root.into());
     let roots = executable.as_deref().map_or(
         CommandCompileRoots::AllExecutables,
         CommandCompileRoots::NamedExecutable,
     );
-    let unit = discover_command_source(&input, resolution, toolchain, roots, authority)
-        .map_err(CheckCommandExecutionError::Source)?;
+    let unit = discover_command_source(&input, resolution, toolchain, roots, authority).map_err(
+        |error| CheckCommandExecutionError::Source {
+            presentation: presentation.clone(),
+            error: Box::new(error),
+        },
+    )?;
     match compile_target(&unit) {
-        Ok(target) => Ok(CheckCommandResult { target }),
-        Err(error) => Err(CheckCommandExecutionError::Check(Box::new(
-            command_compilation_failure(error, unit),
-        ))),
+        Ok(target) => Ok(CheckCommandResult {
+            target,
+            presentation,
+        }),
+        Err(error) => Err(CheckCommandExecutionError::Check {
+            presentation,
+            failure: Box::new(command_compilation_failure(error, unit)),
+        }),
     }
 }
 
 #[derive(Debug)]
 pub enum CheckCommandExecutionError {
-    Source(CommandSourceError),
-    Check(Box<CommandCompilationFailure<CompileSessionError>>),
+    Source {
+        presentation: CheckCommandPresentation,
+        error: Box<CommandSourceError>,
+    },
+    Check {
+        presentation: CheckCommandPresentation,
+        failure: Box<CommandCompilationFailure<CompileSessionError>>,
+    },
 }
 
 impl CheckCommandExecutionError {
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.presentation().format()
+    }
+
+    #[must_use]
+    pub const fn presentation(&self) -> &CheckCommandPresentation {
+        match self {
+            Self::Source { presentation, .. } | Self::Check { presentation, .. } => presentation,
+        }
+    }
+
     #[must_use]
     pub fn source_diagnostics(
         &self,
@@ -68,8 +146,8 @@ impl CheckCommandExecutionError {
         &nocter_source::SourceMap,
     )> {
         match self {
-            Self::Source(_) => None,
-            Self::Check(failure) => Some((failure.diagnostics(), failure.sources())),
+            Self::Source { .. } => None,
+            Self::Check { failure, .. } => Some((failure.diagnostics(), failure.sources())),
         }
     }
 }
@@ -77,8 +155,8 @@ impl CheckCommandExecutionError {
 impl fmt::Display for CheckCommandExecutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Source(error) => write!(formatter, "check input failed: {error}"),
-            Self::Check(error) => error.fmt(formatter),
+            Self::Source { error, .. } => write!(formatter, "check input failed: {error}"),
+            Self::Check { failure, .. } => failure.fmt(formatter),
         }
     }
 }
@@ -86,8 +164,8 @@ impl fmt::Display for CheckCommandExecutionError {
 impl std::error::Error for CheckCommandExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Source(error) => Some(error),
-            Self::Check(error) => Some(error),
+            Self::Source { error, .. } => Some(error),
+            Self::Check { failure, .. } => Some(failure),
         }
     }
 }

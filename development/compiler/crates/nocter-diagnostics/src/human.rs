@@ -2,6 +2,7 @@ use std::fmt::{self, Write};
 
 use nocter_source::{ByteOffset, SourceFile, SourceId, SourceMap, TextRange};
 
+use crate::projection::project_origin;
 use crate::{DiagnosticOrigin, SourceDiagnostic};
 
 /// Renders one phase-owned source diagnostic without inspecting its semantic error type.
@@ -42,19 +43,10 @@ fn render_origin(
     origin: DiagnosticOrigin,
     sources: &SourceMap,
 ) -> Result<(), DiagnosticRenderError> {
-    let source = sources
-        .get(origin.source())
-        .ok_or(DiagnosticRenderError::UnknownSource(origin.source()))?;
-    let range = origin.span().range();
-    validate_range(source, range)?;
-    let start =
-        source
-            .lines()
-            .line_column(range.start())
-            .ok_or(DiagnosticRenderError::InvalidRange {
-                source: origin.source(),
-                range,
-            })?;
+    let projected = project_origin(origin, sources)?;
+    let source = projected.source;
+    let range = projected.range;
+    let start = projected.start;
     let start_line = start.line();
     let start_column = character_column(source, start_line, range.start())?;
     writeln!(
@@ -141,25 +133,6 @@ fn render_line(
     Ok(())
 }
 
-fn validate_range(source: &SourceFile, range: TextRange) -> Result<(), DiagnosticRenderError> {
-    if range.end() > source.len() {
-        return Err(DiagnosticRenderError::InvalidRange {
-            source: source.id(),
-            range,
-        });
-    }
-    for offset in [range.start(), range.end()] {
-        let index = usize::try_from(offset.get()).expect("source offsets fit usize");
-        if !source.text().is_char_boundary(index) {
-            return Err(DiagnosticRenderError::InvalidUtf8Boundary {
-                source: source.id(),
-                offset,
-            });
-        }
-    }
-    Ok(())
-}
-
 fn selected_end_line(source: &SourceFile, range: TextRange) -> Result<u32, DiagnosticRenderError> {
     let end = if range.is_empty() {
         range.end()
@@ -230,6 +203,7 @@ fn decimal_width(value: u32) -> usize {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DiagnosticRenderError {
+    NonUnicodePath,
     UnknownSource(SourceId),
     InvalidRange {
         source: SourceId,
@@ -244,6 +218,7 @@ pub enum DiagnosticRenderError {
 impl fmt::Display for DiagnosticRenderError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NonUnicodePath => formatter.write_str("diagnostic path is not Unicode"),
             Self::UnknownSource(source) => {
                 write!(formatter, "diagnostic refers to unknown {source}")
             }

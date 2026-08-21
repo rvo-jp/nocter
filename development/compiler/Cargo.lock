@@ -1678,6 +1678,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-installation",
  "nocter-package-acquisition",
+ "nocter-source",
 ]
 
 [[package]]

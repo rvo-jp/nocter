@@ -9,8 +9,11 @@ use nocter_source_index::{SourceOrigin, SyntaxOrigin};
 use nocter_syntax::{NodeId, SyntaxToken};
 
 mod human;
+mod json;
+mod projection;
 
 pub use human::{DiagnosticRenderError, render_source_diagnostic};
+pub use json::{DiagnosticJsonContext, render_source_diagnostics_json};
 
 /// Exact source subject selected by the phase that owns a diagnostic rule.
 ///

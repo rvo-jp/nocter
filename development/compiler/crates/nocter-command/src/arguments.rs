@@ -9,6 +9,13 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DiagnosticFormat {
+    #[default]
+    Human,
+    Json,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ResolutionOptions {
     locked: bool,
     offline: bool,
@@ -39,9 +46,15 @@ pub struct ParsedCheckCommand {
     input: ProgramInputOptions,
     command: CheckCommandOptions,
     resolution: ResolutionOptions,
+    format: DiagnosticFormat,
 }
 
 impl ParsedCheckCommand {
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
     /// Resolves filesystem identity and closes check selection after pure argument parsing.
     ///
     /// # Errors
@@ -58,6 +71,7 @@ impl ParsedCheckCommand {
         Ok(PreparedCheckCommand {
             plan,
             resolution: self.resolution,
+            format: self.format,
         })
     }
 }
@@ -152,6 +166,7 @@ pub struct PreparedBuildCommand {
 pub struct PreparedCheckCommand {
     plan: CheckCommandPlan,
     resolution: ResolutionOptions,
+    format: DiagnosticFormat,
 }
 
 impl PreparedCheckCommand {
@@ -165,8 +180,13 @@ impl PreparedCheckCommand {
         self.resolution
     }
 
-    pub(crate) fn into_parts(self) -> (CheckCommandPlan, ResolutionOptions) {
-        (self.plan, self.resolution)
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
+    pub(crate) fn into_parts(self) -> (CheckCommandPlan, ResolutionOptions, DiagnosticFormat) {
+        (self.plan, self.resolution, self.format)
     }
 }
 
@@ -264,11 +284,13 @@ fn parse_check(
         executable,
         output: _,
         resolution,
+        format,
     } = parse_options(arguments, CommandShape::CHECK)?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: CheckCommandOptions::new(executable),
         resolution,
+        format: format.unwrap_or_default(),
     })
 }
 
@@ -282,6 +304,7 @@ fn parse_fetch(
         executable: _,
         output: _,
         resolution,
+        format: _,
     } = parse_options(arguments, CommandShape::FETCH)?;
     Ok(ParsedFetchCommand { root, resolution })
 }
@@ -296,6 +319,7 @@ fn parse_build(
         executable,
         output,
         resolution,
+        format: _,
     } = parse_options(arguments, CommandShape::BUILD)?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -314,6 +338,7 @@ fn parse_run(
         executable,
         output: _,
         resolution,
+        format: _,
     } = parse_options(arguments, CommandShape::RUN)?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -330,6 +355,7 @@ struct ParsedOptions {
     executable: Option<Box<str>>,
     output: Option<PathBuf>,
     resolution: ResolutionOptions,
+    format: Option<DiagnosticFormat>,
 }
 
 #[derive(Clone, Copy)]
@@ -345,6 +371,7 @@ impl CommandShape {
     const EXECUTABLE: u32 = 1 << 3;
     const OUTPUT: u32 = 1 << 4;
     const RESOLUTION: u32 = 1 << 5;
+    const FORMAT: u32 = 1 << 6;
 
     const FETCH: Self = Self {
         name: "fetch",
@@ -361,7 +388,12 @@ impl CommandShape {
     };
     const CHECK: Self = Self {
         name: "check",
-        accepted: Self::ROOT | Self::FILE | Self::POSITIONAL | Self::EXECUTABLE | Self::RESOLUTION,
+        accepted: Self::ROOT
+            | Self::FILE
+            | Self::POSITIONAL
+            | Self::EXECUTABLE
+            | Self::RESOLUTION
+            | Self::FORMAT,
     };
     const RUN: Self = Self {
         name: "run",
@@ -375,6 +407,7 @@ impl CommandShape {
             "--executable" => Self::EXECUTABLE,
             "--output" => Self::OUTPUT,
             "--locked" | "--offline" => Self::RESOLUTION,
+            "--format" => Self::FORMAT,
             _ => return false,
         };
         self.accepted & capability != 0
@@ -407,7 +440,7 @@ fn parse_options(
             }
             if let Some(name) = argument.to_str().filter(|value| value.starts_with('-')) {
                 match name {
-                    "--root" | "--file" | "--executable" | "--output" | "-o" => {
+                    "--root" | "--file" | "--executable" | "--output" | "--format" | "-o" => {
                         parse_valued_option(&mut parsed, name, None, &mut arguments, shape)?;
                     }
                     "--locked" | "--offline" if !shape.accepts_resolution() => {
@@ -462,6 +495,7 @@ fn parse_valued_option(
         "--file" => "--file",
         "--executable" => "--executable",
         "--output" | "-o" => "--output",
+        "--format" => "--format",
         _ => return Err(CommandArgumentError::UnknownOption(name.into())),
     };
     if !shape.accepts(canonical_name) {
@@ -492,6 +526,16 @@ fn parse_valued_option(
             set_value(&mut parsed.executable, value.into(), "--executable")
         }
         "--output" | "-o" => set_path(&mut parsed.output, value, "--output"),
+        "--format" => {
+            let value = value
+                .into_string()
+                .map_err(CommandArgumentError::NonUnicodeFormat)?;
+            let format = match value.as_str() {
+                "json" => DiagnosticFormat::Json,
+                _ => return Err(CommandArgumentError::UnsupportedFormat(value.into())),
+            };
+            set_value(&mut parsed.format, format, "--format")
+        }
         _ => Err(CommandArgumentError::UnknownOption(name.into())),
     }
 }
@@ -565,6 +609,8 @@ pub enum CommandArgumentError {
         argument: OsString,
     },
     NonUnicodeExecutable(OsString),
+    NonUnicodeFormat(OsString),
+    UnsupportedFormat(Box<str>),
     EmptyExecutable,
 }
 
@@ -600,6 +646,14 @@ impl fmt::Display for CommandArgumentError {
                 "executable name is not Unicode: {}",
                 name.to_string_lossy()
             ),
+            Self::NonUnicodeFormat(format) => write!(
+                formatter,
+                "diagnostic format is not Unicode: {}",
+                format.to_string_lossy()
+            ),
+            Self::UnsupportedFormat(format) => {
+                write!(formatter, "unsupported diagnostic format {format}")
+            }
             Self::EmptyExecutable => formatter.write_str("executable name cannot be empty"),
         }
     }
@@ -736,6 +790,7 @@ mod tests {
             "--executable",
             "tool",
             "--locked",
+            "--format=json",
         ]))
         .unwrap();
         let ParsedCommand::Check(parsed) = parsed else {
@@ -744,11 +799,23 @@ mod tests {
         let prepared = parsed.prepare(&root).unwrap();
         assert_eq!(prepared.plan().executable(), Some("tool"));
         assert!(prepared.resolution().locked());
+        assert_eq!(prepared.format(), DiagnosticFormat::Json);
         assert_eq!(
             parse_command_arguments(arguments(&["check", "--output", "program"])).unwrap_err(),
             CommandArgumentError::OptionNotAccepted {
                 option: "--output",
                 command: "check",
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["check", "--format", "xml"])).unwrap_err(),
+            CommandArgumentError::UnsupportedFormat("xml".into())
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["build", "--format", "json"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--format",
+                command: "build",
             }
         );
 
