@@ -37,6 +37,7 @@ impl AnalysisScope {
 pub struct WorkspaceAnalysisGeneration {
     document: PathBuf,
     scope: Option<AnalysisScope>,
+    invalidated: Box<[AnalysisScope]>,
     generation: GenerationId,
     state: WorkspaceAnalysisState,
 }
@@ -50,6 +51,11 @@ impl WorkspaceAnalysisGeneration {
     #[must_use]
     pub const fn scope(&self) -> Option<&AnalysisScope> {
         self.scope.as_ref()
+    }
+
+    #[must_use]
+    pub const fn invalidated_scopes(&self) -> &[AnalysisScope] {
+        &self.invalidated
     }
 
     #[must_use]
@@ -153,17 +159,20 @@ impl WorkspaceAnalyses {
                 },
             ),
         };
+        let mut invalidated = Vec::new();
+        if let Some(previous) = self.document_scopes.remove(&document)
+            && scope.as_ref() != Some(&previous)
+        {
+            self.latest.remove(&previous);
+            invalidated.push(previous);
+        }
         let result = Arc::new(WorkspaceAnalysisGeneration {
             document,
             scope: scope.clone(),
+            invalidated: invalidated.into_boxed_slice(),
             generation,
             state,
         });
-        if let Some(previous) = self.document_scopes.remove(&result.document)
-            && result.scope.as_ref() != Some(&previous)
-        {
-            self.latest.remove(&previous);
-        }
         self.unscoped.remove(&result.document);
         match scope {
             Some(scope) => {
@@ -338,6 +347,20 @@ pub enum WorkspaceAnalysisError {
         path: PathBuf,
         error: io::Error,
     },
+}
+
+impl WorkspaceAnalysisError {
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> &'static str {
+        match self {
+            Self::OutsideWorkspace(_) | Self::UnsupportedSource(_) | Self::Filesystem { .. } => {
+                "E0702"
+            }
+            Self::Package(_) => "E0800",
+            Self::StandardPackage(_) => "E0703",
+            Self::MissingRootPackage(_) => "E0900",
+        }
+    }
 }
 
 impl From<PackageResolutionError> for WorkspaceAnalysisError {

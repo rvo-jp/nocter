@@ -64,10 +64,15 @@ implementation input.
    same overlay through `AnalysisSnapshot`. Latest results are immutable and scope-owned; topology
    changes remove the previous scope before exposing a new result, preventing stale semantic
    fallback. Package-preparation failures retain their accepted overlay separately from reached
-   compiler snapshots. The next increment publishes versioned UTF-16 diagnostics from these exact
-   results and gives preparation failures a source-backed presentation boundary. Outbound
-   correlation and watcher registration follow only after watched changes can trigger the same
-   analysis and publication path.
+   compiler snapshots. Source diagnostics now publish from their exact snapshot-owned primary and
+   related spans after source-owned UTF-16 conversion. Canonical paths use one protocol-owned
+   percent-encoding policy, open documents carry the accepted version, and scope-owned publication
+   history clears diagnostics absent from the next complete result. Spanless package-preparation
+   failures use `window/showMessage` rather than an invented zero-width diagnostic. The next
+   increment adds outbound response correlation and dynamically registers the specified watcher;
+   watched changes must enter this same analysis and publication path. Package preparation should
+   subsequently retain reached manifest source/syntax on failure so authored package errors can
+   become exact source diagnostics rather than process messages.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

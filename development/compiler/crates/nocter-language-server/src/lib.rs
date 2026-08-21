@@ -4,6 +4,7 @@
 //! document URI through the filesystem and mutate accepted workspace document state.
 
 mod analysis;
+mod diagnostics;
 mod documents;
 mod paths;
 mod run;
@@ -13,6 +14,7 @@ mod workspace;
 pub use analysis::{
     AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
 };
+pub use diagnostics::{DiagnosticPublicationError, DiagnosticPublisher};
 pub use documents::{
     AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
 };

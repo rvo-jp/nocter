@@ -1846,6 +1846,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-analysis",
  "nocter-compile-input",
+ "nocter-diagnostics",
  "nocter-discovery",
  "nocter-filesystem",
  "nocter-json",
@@ -1853,6 +1854,7 @@ dependencies = [
  "nocter-model",
  "nocter-package",
  "nocter-session",
+ "nocter-source",
 ]
 
 [[package]]

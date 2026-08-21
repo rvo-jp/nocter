@@ -48,6 +48,17 @@ pub fn render_success_response(id: &RequestId, result: &Value) -> String {
     output
 }
 
+/// Renders one JSON-RPC notification with an already typed method and parameter value.
+#[must_use]
+pub fn render_notification(method: &str, params: &Value) -> String {
+    let mut output = String::from("{\"jsonrpc\":\"2.0\",\"method\":");
+    write_string(&mut output, method);
+    output.push_str(",\"params\":");
+    write_value(&mut output, params);
+    output.push('}');
+    output
+}
+
 #[must_use]
 pub fn render_error_response(
     id: Option<&RequestId>,
@@ -105,6 +116,14 @@ mod tests {
                 Some(&Value::String("duplicate id".into())),
             ),
             r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Invalid Request","data":"duplicate id"}}"#
+        );
+    }
+
+    #[test]
+    fn renders_notifications_without_request_identity() {
+        assert_eq!(
+            render_notification("workspace/example", &Value::Bool(true)),
+            r#"{"jsonrpc":"2.0","method":"workspace/example","params":true}"#
         );
     }
 }

@@ -184,6 +184,11 @@ versions, empty URIs, and missing text are explicit parameter failures.
 validation, query/fragment rejection, percent decoding, UTF-8 validation, and NUL rejection happen
 without filesystem access. The server layer receives a platform path but remains solely responsible
 for resolving that path against disk or a virtual open-document parent.
+The inverse conversion accepts only absolute UTF-8 platform paths and percent-encodes path bytes
+into one canonical local `file:` URI. Compiler source identities therefore reach diagnostics and
+future semantic locations through the same protocol-owned URI policy rather than ad hoc string
+prefixes. The common JSON-RPC renderer also owns server notifications; feature layers supply only a
+method and typed JSON parameters.
 
 `nocter-language-server` is that composition layer. An existing document resolves to its physical
 canonical file; a new unsaved document resolves through one existing canonical parent. The
@@ -229,6 +234,15 @@ overlay through discovery and `AnalysisSnapshot` target checking. Latest results
 package or standalone-file scope and shared with request/publication outputs through immutable
 ownership. If a document changes scope, its prior scoped result is removed before the new result is
 visible, so a successful stale program cannot answer queries after package topology changes.
+
+`DiagnosticPublisher` projects only compiler-owned `SourceDiagnostic` values. Primary and related
+origins resolve through the snapshot's own `SourceMap`, and normalized byte spans convert through
+the source-owned UTF-16 index. Each open-document publication includes the accepted version.
+Published URI sets are retained by analysis scope, so a later complete generation emits empty sets
+for every document whose diagnostics disappeared, including documents invalidated by a scope
+change. Preparation failures without compiler-owned source spans are not attached to an invented
+zero-width location; they use a separate error message notification until package preparation owns
+a source-backed failure snapshot.
 
 `nocter lsp` is part of the same declarative command schema as every other public command and has
 an empty argument surface. Argument validation precedes installation access; a launch retains the

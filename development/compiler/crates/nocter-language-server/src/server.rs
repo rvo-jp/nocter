@@ -10,15 +10,16 @@ use nocter_lsp::{
 };
 
 use crate::{
-    AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
-    LanguageServerEnvironment, WorkspaceAnalyses, WorkspaceAnalysisGeneration,
-    WorkspaceConfiguration, WorkspaceConfigurationError,
+    AcceptedDocumentGeneration, DiagnosticPublicationError, DiagnosticPublisher, DocumentWorkspace,
+    DocumentWorkspaceChange, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceAnalyses,
+    WorkspaceAnalysisGeneration, WorkspaceConfiguration, WorkspaceConfigurationError,
 };
 
 /// One fully validated protocol and document-state transition.
 #[derive(Debug, Default)]
 pub struct ServerStep {
     response: Option<String>,
+    notifications: Box<[String]>,
     analysis: Option<Arc<WorkspaceAnalysisGeneration>>,
     issue: Option<ServerIssue>,
     exit_code: Option<i32>,
@@ -28,6 +29,11 @@ impl ServerStep {
     #[must_use]
     pub fn response(&self) -> Option<&str> {
         self.response.as_deref()
+    }
+
+    #[must_use]
+    pub const fn notifications(&self) -> &[String] {
+        &self.notifications
     }
 
     #[must_use]
@@ -61,6 +67,7 @@ pub struct LanguageServer {
     initialization: Option<InitializeParams>,
     workspace: Option<WorkspaceConfiguration>,
     analyses: Option<WorkspaceAnalyses>,
+    diagnostics: DiagnosticPublisher,
 }
 
 impl LanguageServer {
@@ -77,6 +84,7 @@ impl LanguageServer {
             initialization: None,
             workspace: None,
             analyses: None,
+            diagnostics: DiagnosticPublisher::new(),
         }
     }
 
@@ -211,9 +219,17 @@ impl LanguageServer {
                     .as_mut()
                     .expect("initialized server owns workspace analyses")
                     .analyze(generation);
-                ServerStep {
-                    analysis: Some(analysis),
-                    ..ServerStep::default()
+                match self.diagnostics.publish(&analysis) {
+                    Ok(notifications) => ServerStep {
+                        notifications,
+                        analysis: Some(analysis),
+                        ..ServerStep::default()
+                    },
+                    Err(error) => ServerStep {
+                        analysis: Some(analysis),
+                        issue: Some(ServerIssue::Diagnostics(error)),
+                        ..ServerStep::default()
+                    },
                 }
             }
             Ok(None) => ServerStep::default(),
@@ -242,6 +258,7 @@ fn internal_transition_error(id: &RequestId, error: LifecycleTransitionError) ->
 pub enum ServerIssue {
     Parameters(ParameterError),
     Documents(DocumentWorkspaceError),
+    Diagnostics(DiagnosticPublicationError),
     Workspace(WorkspaceConfigurationError),
     Lifecycle(LifecycleTransitionError),
 }
@@ -251,6 +268,7 @@ impl fmt::Display for ServerIssue {
         match self {
             Self::Parameters(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
+            Self::Diagnostics(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
             Self::Lifecycle(error) => error.fmt(formatter),
         }
@@ -262,6 +280,7 @@ impl std::error::Error for ServerIssue {
         match self {
             Self::Parameters(error) => Some(error),
             Self::Documents(error) => Some(error),
+            Self::Diagnostics(error) => Some(error),
             Self::Workspace(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
         }
@@ -331,6 +350,8 @@ mod tests {
             opened.generation().unwrap().generation(),
             GenerationId::new(1)
         );
+        assert_eq!(opened.notifications().len(), 1);
+        assert!(opened.notifications()[0].contains("window/showMessage"));
 
         let stale = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":1}},\"contentChanges\":[{{\"text\":\"stale\"}}]}}}}"

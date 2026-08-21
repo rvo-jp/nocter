@@ -10,12 +10,14 @@ publish = false
 nocter-analysis = { path = "../nocter-analysis" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-discovery = { path = "../nocter-discovery" }
+nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-json = { path = "../nocter-json" }
 nocter-lsp = { path = "../nocter-lsp" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 nocter-session = { path = "../nocter-session" }
+nocter-source = { path = "../nocter-source" }
 
 [lints]
 workspace = true

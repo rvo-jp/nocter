@@ -25,6 +25,35 @@ impl DocumentUri {
         &self.0
     }
 
+    /// Encodes one absolute UTF-8 platform path as a local `file:` URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a relative or non-UTF-8 path.
+    pub fn from_file_path(path: &std::path::Path) -> Result<Self, DocumentUriError> {
+        if !path.is_absolute() {
+            return Err(DocumentUriError::new(DocumentUriErrorKind::NonAbsolutePath));
+        }
+        let path = path
+            .to_str()
+            .ok_or_else(|| DocumentUriError::new(DocumentUriErrorKind::NonUtf8Path))?;
+        let path = platform_uri_path(path);
+        let mut encoded = String::from("file://");
+        for byte in path.bytes() {
+            if byte.is_ascii_alphanumeric()
+                || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/' | b':')
+            {
+                encoded.push(char::from(byte));
+            } else {
+                const HEX: &[u8; 16] = b"0123456789ABCDEF";
+                encoded.push('%');
+                encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+                encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+        }
+        Ok(Self(encoded.into_boxed_str()))
+    }
+
     /// Decodes a local absolute `file:` URI into a platform path.
     ///
     /// This operation performs no filesystem access and does not claim the result is canonical.
@@ -73,6 +102,20 @@ impl DocumentUri {
         }
         Ok(path)
     }
+}
+
+#[cfg(not(windows))]
+fn platform_uri_path(path: &str) -> String {
+    path.to_owned()
+}
+
+#[cfg(windows)]
+fn platform_uri_path(path: &str) -> String {
+    let mut path = path.replace('\\', "/");
+    if !path.starts_with('/') {
+        path.insert(0, '/');
+    }
+    path
 }
 
 #[cfg(not(windows))]
@@ -136,6 +179,7 @@ pub enum DocumentUriErrorKind {
     RemoteAuthority,
     QueryOrFragment,
     MissingAbsolutePath,
+    NonAbsolutePath,
     InvalidPercentEscape,
     NulPath,
     NonUtf8Path,
@@ -168,6 +212,7 @@ impl fmt::Display for DocumentUriError {
                 "document file URI contains a query or fragment"
             }
             DocumentUriErrorKind::MissingAbsolutePath => "document file URI has no absolute path",
+            DocumentUriErrorKind::NonAbsolutePath => "file URI source path is not absolute",
             DocumentUriErrorKind::InvalidPercentEscape => {
                 "document file URI contains an invalid percent escape"
             }
@@ -223,5 +268,19 @@ mod tests {
             };
             assert_eq!(error.kind(), expected, "unexpected result for {source}");
         }
+    }
+
+    #[test]
+    fn encodes_absolute_file_paths_and_round_trips_utf8() {
+        let path = Path::new("/tmp/Nocter β/a#b.nct");
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        assert_eq!(uri.as_str(), "file:///tmp/Nocter%20%CE%B2/a%23b.nct");
+        assert_eq!(uri.file_path().unwrap(), path);
+        assert_eq!(
+            DocumentUri::from_file_path(Path::new("relative.nct"))
+                .unwrap_err()
+                .kind(),
+            DocumentUriErrorKind::NonAbsolutePath
+        );
     }
 }

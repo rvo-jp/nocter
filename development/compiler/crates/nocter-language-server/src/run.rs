@@ -46,6 +46,9 @@ pub fn run_language_server(
         if let Some(response) = step.response() {
             write_frame(&mut output, response).map_err(LanguageServerRunError::Output)?;
         }
+        for notification in step.notifications() {
+            write_frame(&mut output, notification).map_err(LanguageServerRunError::Output)?;
+        }
         if let Some(issue) = step.issue() {
             report_issue(issue);
         }
