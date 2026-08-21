@@ -79,6 +79,16 @@ impl SourceOverlay {
         self.documents.get(canonical_path)
     }
 
+    /// Iterates the complete accepted document set in canonical path order.
+    ///
+    /// This is used to derive speculative read-only overlays without mutating the accepted editor
+    /// generation or falling back to disk for another open document.
+    pub fn documents(&self) -> impl Iterator<Item = (&Path, &OpenDocument)> {
+        self.documents
+            .iter()
+            .map(|(path, document)| (path.as_path(), document))
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.documents.len()

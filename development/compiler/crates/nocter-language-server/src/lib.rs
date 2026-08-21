@@ -9,6 +9,7 @@ mod documents;
 mod hover;
 mod navigation;
 mod paths;
+mod rename;
 mod run;
 mod semantic_document;
 mod semantic_tokens;
@@ -25,6 +26,7 @@ pub use documents::{
 pub use hover::HoverQueryError;
 pub use navigation::NavigationQueryError;
 pub use paths::{DocumentPathError, DocumentPathResolver};
+pub use rename::RenameQueryError;
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
 pub use semantic_document::SemanticDocumentError;
 pub use semantic_tokens::SemanticTokensQueryError;

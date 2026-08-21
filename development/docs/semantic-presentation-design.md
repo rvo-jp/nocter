@@ -84,5 +84,16 @@ reached package sources; `includeDeclaration` controls declaration and implement
 Local names, shadowed names, imports, interface dispatch, and associated projections therefore
 cannot be conflated by spelling.
 
-Rename, completion, and signature help must reuse the same source selection and presentation
-authority. None may add an editor-owned semantic model.
+Rename consumes that same identity instead of searching text. The compiler rejects non-name
+anchors and any plan containing an occurrence outside a selected root package. The server derives
+a speculative overlay from every reached source in the immutable generation, applies all edits,
+and runs normal package resolution, discovery, lowering, name resolution, and checking without
+publishing the candidate. The transaction is returned only when every edited occurrence resolves
+back to the same semantic identity. This rejects declaration collisions and subtler shadowing or
+capture changes rather than treating a parseable replacement as sufficient. The resulting atomic
+workspace edit carries the accepted version for open documents and a null version for closed
+documents. Explicit closure captures form a compiler-owned rename family with their source
+binding, so a rename crosses the capture boundary without conflating unrelated equal spellings.
+
+Completion and signature help must reuse the same source selection and presentation authority.
+Neither may add an editor-owned semantic model.

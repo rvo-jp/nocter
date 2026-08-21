@@ -222,6 +222,22 @@ impl WorkspaceAnalyses {
         }
         result
     }
+
+    /// Compiles a speculative overlay without publishing or replacing an accepted generation.
+    ///
+    /// Mutation features use this as a transaction preflight. The candidate travels through the
+    /// same package resolution, discovery, and compiler pipeline as accepted editor state.
+    pub(crate) fn compile_candidate(
+        &self,
+        scope: &AnalysisScope,
+        generation: GenerationId,
+        source_overlay: SourceOverlay,
+    ) -> Option<Box<AnalysisSnapshot>> {
+        match compile_scope(&self.configuration, scope, generation, source_overlay) {
+            WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
+            WorkspaceAnalysisState::PreparationFailed { .. } => None,
+        }
+    }
 }
 
 fn select_scope(

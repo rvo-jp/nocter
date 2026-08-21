@@ -85,6 +85,7 @@ pub fn initialize_result(server_version: &str) -> Value {
                 ("definitionProvider", Value::Bool(true)),
                 ("hoverProvider", Value::Bool(true)),
                 ("referencesProvider", Value::Bool(true)),
+                ("renameProvider", Value::Bool(true)),
                 (
                     "semanticTokensProvider",
                     object([
@@ -249,6 +250,7 @@ mod tests {
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
                 "\"save\":{\"includeText\":true}},\"definitionProvider\":true,",
                 "\"hoverProvider\":true,\"referencesProvider\":true,",
+                "\"renameProvider\":true,",
                 "\"semanticTokensProvider\":{\"legend\":{",
                 "\"tokenTypes\":[\"namespace\",\"type\",\"struct\",\"enum\",",
                 "\"interface\",\"typeParameter\",\"parameter\",\"variable\",",

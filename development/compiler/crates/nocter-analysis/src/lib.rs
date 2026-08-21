@@ -18,6 +18,7 @@ mod documents;
 mod highlights;
 mod navigation;
 mod presentation;
+mod rename;
 mod semantic;
 
 pub use documents::{
@@ -26,6 +27,7 @@ pub use documents::{
 pub use highlights::{SemanticHighlight, SemanticHighlightKind};
 pub use navigation::SemanticLocation;
 pub use presentation::SemanticPresentation;
+pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
 pub use semantic::{SemanticSelection, SemanticSubject};
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
@@ -76,6 +78,15 @@ pub struct AnalysisSnapshot {
 }
 
 impl AnalysisSnapshot {
+    fn discovered_unit(&self) -> Option<&DiscoveredUnit> {
+        match &self.state {
+            AnalysisState::Complete { unit, .. } => Some(unit),
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::CompilationFailed { .. } => None,
+        }
+    }
+
     /// Retains a failed discovery rather than falling back to an older source graph.
     #[must_use]
     pub fn from_discovery_failure(generation: GenerationId, failure: DiscoveryFailure) -> Self {

@@ -1,26 +1,25 @@
 use std::collections::BTreeSet;
-use std::fmt;
 use std::sync::Arc;
 
 use nocter_json::Value;
 use nocter_lsp::{
     DidChangeParams, DidChangeWatchedFilesParams, DidCloseParams, DidOpenParams, DidSaveParams,
-    IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
-    OutboundRequests, ParameterError, ProtocolEvent, ProtocolSession, RequestId, ResponseError,
-    ResponseErrorCode, ResponseResult, initialize_result, render_error_response,
-    render_success_response, watched_files_registration,
+    IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequests, ProtocolEvent,
+    ProtocolSession, RequestId, ResponseErrorCode, ResponseResult, initialize_result,
+    render_error_response, render_success_response, watched_files_registration,
 };
 
-use crate::hover::HoverQueryError;
-use crate::navigation::NavigationQueryError;
-use crate::semantic_tokens::SemanticTokensQueryError;
 use crate::{
-    AcceptedDocumentGeneration, DiagnosticPublicationError, DiagnosticPublisher, DocumentWorkspace,
-    DocumentWorkspaceChange, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceAnalyses,
-    WorkspaceAnalysisGeneration, WorkspaceConfiguration, WorkspaceConfigurationError,
+    AcceptedDocumentGeneration, DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange,
+    LanguageServerEnvironment, WorkspaceAnalyses, WorkspaceAnalysisGeneration,
+    WorkspaceConfiguration,
 };
 
+mod issues;
 mod semantic_requests;
+
+use issues::InitializeFailure;
+pub use issues::{ClientResponseError, ServerIssue};
 
 /// One fully validated protocol and document-state transition.
 #[derive(Debug, Default)]
@@ -239,6 +238,11 @@ impl LanguageServer {
             {
                 self.references(&id, params)
             }
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/rename" =>
+            {
+                self.rename(&id, params)
+            }
             IncomingMessage::Request { id, .. } => ServerStep {
                 response: Some(render_error_response(
                     Some(&id),
@@ -422,120 +426,12 @@ fn internal_transition_error(id: &RequestId, error: LifecycleTransitionError) ->
     }
 }
 
-#[derive(Debug)]
-pub enum ServerIssue {
-    Parameters(ParameterError),
-    Documents(DocumentWorkspaceError),
-    Diagnostics(DiagnosticPublicationError),
-    Hover(HoverQueryError),
-    SemanticTokens(SemanticTokensQueryError),
-    Navigation(NavigationQueryError),
-    Outbound(OutboundRequestError),
-    ClientResponse(ClientResponseError),
-    Workspace(WorkspaceConfigurationError),
-    Lifecycle(LifecycleTransitionError),
-}
-
-impl fmt::Display for ServerIssue {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Parameters(error) => error.fmt(formatter),
-            Self::Documents(error) => error.fmt(formatter),
-            Self::Diagnostics(error) => error.fmt(formatter),
-            Self::Hover(error) => error.fmt(formatter),
-            Self::SemanticTokens(error) => error.fmt(formatter),
-            Self::Navigation(error) => error.fmt(formatter),
-            Self::Outbound(error) => error.fmt(formatter),
-            Self::ClientResponse(error) => error.fmt(formatter),
-            Self::Workspace(error) => error.fmt(formatter),
-            Self::Lifecycle(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for ServerIssue {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Parameters(error) => Some(error),
-            Self::Documents(error) => Some(error),
-            Self::Diagnostics(error) => Some(error),
-            Self::Hover(error) => Some(error),
-            Self::SemanticTokens(error) => Some(error),
-            Self::Navigation(error) => Some(error),
-            Self::Outbound(error) => Some(error),
-            Self::ClientResponse(error) => Some(error),
-            Self::Workspace(error) => Some(error),
-            Self::Lifecycle(error) => Some(error),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WatcherState {
     Unavailable,
     Registering,
     Registered,
     Failed,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ClientResponseError {
-    InvalidRegistrationResult,
-    RegistrationRejected(ResponseError),
-    WatcherNotRegistered,
-}
-
-impl fmt::Display for ClientResponseError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidRegistrationResult => {
-                formatter.write_str("watched-file registration response result is not null")
-            }
-            Self::RegistrationRejected(error) => error.fmt(formatter),
-            Self::WatcherNotRegistered => {
-                formatter.write_str("client sent watched-file changes before registration")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ClientResponseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::RegistrationRejected(error) => Some(error),
-            Self::InvalidRegistrationResult | Self::WatcherNotRegistered => None,
-        }
-    }
-}
-
-#[derive(Debug)]
-enum InitializeFailure {
-    Parameters(ParameterError),
-    Workspace(WorkspaceConfigurationError),
-}
-
-impl InitializeFailure {
-    fn into_server_issue(self) -> Option<ServerIssue> {
-        match self {
-            Self::Parameters(_) => None,
-            Self::Workspace(error) => Some(ServerIssue::Workspace(error)),
-        }
-    }
-}
-
-impl From<ParameterError> for InitializeFailure {
-    fn from(error: ParameterError) -> Self {
-        Self::Parameters(error)
-    }
-}
-
-impl fmt::Display for InitializeFailure {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Parameters(error) => error.fmt(formatter),
-            Self::Workspace(error) => error.fmt(formatter),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -545,7 +441,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use nocter_analysis::{GenerationId, SemanticHighlightKind};
-    use nocter_lsp::DocumentUri;
+    use nocter_lsp::{DocumentUri, OutboundRequestError};
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 

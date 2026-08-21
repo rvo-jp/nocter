@@ -1,11 +1,12 @@
 use nocter_json::Value;
 use nocter_lsp::{
-    DefinitionParams, HoverParams, ReferencesParams, RequestId, ResponseErrorCode,
+    DefinitionParams, HoverParams, ReferencesParams, RenameParams, RequestId, ResponseErrorCode,
     SemanticTokensParams, render_error_response, render_success_response,
 };
 
 use crate::hover::query_hover;
 use crate::navigation::{NavigationQueryError, query_definition, query_references};
+use crate::rename::query_rename;
 use crate::semantic_tokens::{SemanticTokensQueryError, query_semantic_tokens};
 
 use super::{LanguageServer, ServerIssue, ServerStep};
@@ -131,6 +132,38 @@ impl LanguageServer {
         )
     }
 
+    pub(super) fn rename(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match RenameParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        match query_rename(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        ) {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                let code = if error.is_request_error() {
+                    ResponseErrorCode::InvalidParams
+                } else {
+                    ResponseErrorCode::InternalError
+                };
+                ServerStep {
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
+                    issues: vec![ServerIssue::Rename(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+        }
+    }
+
     fn navigation_result(
         id: &RequestId,
         result: Result<Value, NavigationQueryError>,
@@ -205,9 +238,12 @@ mod tests {
         let opened = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
         ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
-            opened.analysis().unwrap().snapshot().unwrap().status(),
-            nocter_analysis::AnalysisStatus::Complete
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
         );
 
         let definition = server.receive(&format!(
@@ -243,6 +279,185 @@ mod tests {
         assert!(response.contains("\"line\":0,\"character\":5"));
         assert!(response.contains("\"line\":2,\"character\":17"));
         assert!(declarations.issue().is_none());
+    }
+
+    #[test]
+    fn rename_recompiles_the_candidate_and_returns_one_versioned_workspace_edit() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func helper(): i32 { return 1 }\n",
+            "func main(): void {\n",
+            "    let value = helper()\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":7,\"text\":{text_json}}}}}}}"
+        ));
+
+        let renamed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}},\"newName\":\"calculate\"}}}}"
+        ));
+        let response = renamed.response().unwrap();
+        assert!(response.contains("\"documentChanges\""));
+        assert!(response.contains("\"version\":7"));
+        assert_eq!(response.matches("\"newText\":\"calculate\"").count(), 2);
+        assert!(response.contains("\"line\":0,\"character\":5"));
+        assert!(response.contains("\"line\":2,\"character\":16"));
+        assert!(renamed.issue().is_none());
+
+        let collision = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":7}},\"newName\":\"main\"}}}}"
+        ));
+        assert!(collision.response().unwrap().contains("\"code\":-32602"));
+        assert!(
+            collision
+                .response()
+                .unwrap()
+                .contains("would collide with or rebind")
+        );
+
+        let invalid = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":7}},\"newName\":\"two words\"}}}}"
+        ));
+        assert!(invalid.response().unwrap().contains("\"code\":-32602"));
+    }
+
+    #[test]
+    fn rename_versions_open_sources_and_leaves_closed_sources_unversioned() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let source = temporary.path().join("index.nct");
+        let helper = temporary.path().join("helper.nct");
+        std::fs::write(
+            &source,
+            concat!(
+                "use ./helper\n",
+                "func main(): void {\n",
+                "    let value = answer()\n",
+                "    return\n",
+                "}\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(&helper, "func answer(): i32 { return 1 }\n").unwrap();
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = std::fs::read_to_string(&source).unwrap();
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, &text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":3,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let renamed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}},\"newName\":\"result\"}}}}"
+        ));
+        let response = renamed.response().unwrap();
+        assert!(response.contains("\"version\":3"));
+        assert!(response.contains("\"version\":null"));
+        assert!(response.contains("helper.nct"));
+        assert_eq!(response.matches("\"newText\":\"result\"").count(), 2);
+        assert!(renamed.issue().is_none(), "{:?}", renamed.issue());
+    }
+
+    #[test]
+    fn rename_rejects_standard_library_occurrences_as_one_readonly_plan() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+        let text = std::fs::read_to_string(&standard).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method &self.len(): usize"))
+            .unwrap();
+        let character = source_line.find("len").unwrap();
+        let rejected = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}},\"newName\":\"size\"}}}}",
+            standard.display()
+        ));
+        assert!(rejected.response().unwrap().contains("\"code\":-32602"));
+        assert!(
+            rejected
+                .response()
+                .unwrap()
+                .contains("dependency or standard source")
+        );
+    }
+
+    #[test]
+    fn rename_preserves_the_binding_family_across_explicit_closure_captures() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "struct Box { value: i32 }\n",
+            "func main(): void {\n",
+            "    let value = Box { value: 1 }\n",
+            "    let closure = (move value;): i32 { value.value }\n",
+            "    let result = closure()\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":2,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let renamed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":9}},\"newName\":\"number\"}}}}"
+        ));
+        let response = renamed.response().unwrap();
+        assert_eq!(response.matches("\"newText\":\"number\"").count(), 3);
+        assert!(renamed.issue().is_none(), "{:?}", renamed.issue());
     }
 
     #[test]

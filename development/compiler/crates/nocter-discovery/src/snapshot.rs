@@ -122,6 +122,28 @@ impl DiscoveredUnit {
         &self.root_packages
     }
 
+    /// Reports whether one discovered source is authored by a selected root package.
+    ///
+    /// Package declarations and module sources share this ownership boundary. Consumers do not
+    /// need to reconstruct it from filesystem ancestry, which would misclassify dependencies or
+    /// nested package roots.
+    #[must_use]
+    pub fn is_root_package_source(&self, canonical_path: &str) -> bool {
+        self.packages.iter().any(|package| {
+            self.root_packages.contains(&package.identity)
+                && package
+                    .declaration
+                    .as_ref()
+                    .is_some_and(|(path, _)| path.as_ref() == canonical_path)
+        }) || self.modules.iter().any(|module| {
+            self.root_packages.contains(module.identity().package())
+                && module
+                    .sources()
+                    .iter()
+                    .any(|source| source.canonical_path() == canonical_path)
+        })
+    }
+
     #[must_use]
     pub fn has_syntax_errors(&self) -> bool {
         self.syntax.iter().any(SyntaxTree::has_errors)

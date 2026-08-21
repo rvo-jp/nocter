@@ -95,8 +95,13 @@ implementation input.
    `SemanticSelection`. Definition chooses declaration identity before an implementation-only
    fallback, module paths navigate as one namespace to their root source, and references enumerate
    only exact identity bindings in the reached immutable graph. Neither request performs textual
-   search or ambient source discovery. Rename remains the next identity-based mutation boundary;
-   completion and signature help follow after it.
+   search or ambient source discovery. Rename now plans every edit from that same identity, rejects
+   dependency and standard-library occurrences through discovery-owned package ownership, and
+   recompiles a frozen speculative overlay before returning one atomic workspace edit. Candidate
+   bindings must preserve the original identity, so collisions, shadowing, and capture changes are
+   rejected. Open sources carry accepted versions and closed sources remain unversioned.
+   Compiler-owned binding families also carry local and parameter renames through explicit closure
+   captures. Completion and signature help are the next semantic editor boundaries.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

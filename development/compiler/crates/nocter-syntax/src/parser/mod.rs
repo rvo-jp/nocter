@@ -17,7 +17,7 @@ use nocter_source::{SourceFile, Span, TextRange};
 use crate::tree::{Event, build_tree, missing};
 use crate::{
     ExpectedSyntax, Keyword, NodeKind, ParseDiagnostic, ParseDiagnosticKind, Punctuation,
-    SyntaxToken, SyntaxTree, Token, TokenId, TokenKind, lex,
+    SyntaxToken, SyntaxTree, Token, TokenId, TokenKind, is_valid_name, lex,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -280,7 +280,7 @@ impl<'source> Parser<'source> {
     }
 
     fn expect_name(&mut self) -> bool {
-        if self.at(TokenKind::Identifier) && !matches!(self.current_text(), "_" | "Self") {
+        if self.at(TokenKind::Identifier) && is_valid_name(self.current_text()) {
             self.bump();
             true
         } else if self.at(TokenKind::Identifier) {

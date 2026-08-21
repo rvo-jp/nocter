@@ -5,15 +5,23 @@ use nocter_analysis::AnalysisSnapshot;
 use nocter_lsp::DocumentUri;
 use nocter_source::SourceFile;
 
-use crate::{DocumentPathError, DocumentPathResolver, DocumentWorkspace, WorkspaceAnalyses};
+use crate::{
+    DocumentPathError, DocumentPathResolver, DocumentWorkspace, WorkspaceAnalyses,
+    WorkspaceAnalysisGeneration,
+};
 
 /// One current successful analysis paired with the exact source requested by an editor query.
 pub(crate) struct SemanticDocument<'a> {
+    analysis: &'a WorkspaceAnalysisGeneration,
     snapshot: &'a AnalysisSnapshot,
     source: &'a SourceFile,
 }
 
 impl<'a> SemanticDocument<'a> {
+    pub(crate) const fn analysis(&self) -> &'a WorkspaceAnalysisGeneration {
+        self.analysis
+    }
+
     pub(crate) const fn snapshot(&self) -> &'a AnalysisSnapshot {
         self.snapshot
     }
@@ -35,10 +43,10 @@ pub(crate) fn semantic_document<'a>(
             .resolve(uri)
             .map_err(SemanticDocumentError::Path)?,
     };
-    let Some(snapshot) = analyses
-        .latest_for_document(&path)
-        .and_then(crate::WorkspaceAnalysisGeneration::snapshot)
-    else {
+    let Some(generation) = analyses.latest_for_document(&path) else {
+        return Ok(None);
+    };
+    let Some(snapshot) = generation.snapshot() else {
         return Ok(None);
     };
     let name = path
@@ -47,7 +55,11 @@ pub(crate) fn semantic_document<'a>(
     Ok(snapshot
         .sources()
         .find_by_name(name)
-        .map(|source| SemanticDocument { snapshot, source }))
+        .map(|source| SemanticDocument {
+            analysis: generation,
+            snapshot,
+            source,
+        }))
 }
 
 #[derive(Debug)]

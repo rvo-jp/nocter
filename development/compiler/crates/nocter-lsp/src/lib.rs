@@ -12,6 +12,7 @@ mod message;
 mod navigation;
 mod outbound;
 mod parameters;
+mod rename;
 mod response;
 mod semantic_tokens;
 mod session;
@@ -33,6 +34,7 @@ pub use parameters::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,
     ParameterErrorKind,
 };
+pub use rename::{DocumentEdit, RenameParams, TextEdit, workspace_edit_result};
 pub use response::{
     ResponseErrorCode, render_error_response, render_notification, render_request,
     render_success_response,
