@@ -1,6 +1,7 @@
 use std::fmt;
 
 use nocter_diagnostics::SourceDiagnostic;
+use nocter_filesystem::SourceOverlay;
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
 
@@ -11,31 +12,41 @@ use crate::diagnostic::discovery_diagnostics;
 #[derive(Debug)]
 pub struct DiscoveryFailure {
     error: Box<DiscoveryError>,
+    source_overlay: SourceOverlay,
     sources: Box<SourceMap>,
+    syntax: Box<[SyntaxTree]>,
     diagnostics: Box<[SourceDiagnostic]>,
 }
 
 impl DiscoveryFailure {
-    pub(crate) fn before_source_snapshot(error: DiscoveryError) -> Self {
+    pub(crate) fn before_source_snapshot(
+        error: DiscoveryError,
+        source_overlay: SourceOverlay,
+    ) -> Self {
         Self {
             error: Box::new(error),
+            source_overlay,
             sources: Box::new(SourceMap::new()),
+            syntax: Box::new([]),
             diagnostics: Box::new([]),
         }
     }
 
     pub(crate) fn from_snapshot(
         error: DiscoveryError,
+        source_overlay: SourceOverlay,
         sources: SourceMap,
-        syntax: &[SyntaxTree],
+        syntax: Vec<SyntaxTree>,
     ) -> Self {
-        let (error, diagnostics) = match discovery_diagnostics(&error, syntax) {
+        let (error, diagnostics) = match discovery_diagnostics(&error, &syntax) {
             Ok(diagnostics) => (error, diagnostics),
             Err(projection_error) => (projection_error, Vec::new().into_boxed_slice()),
         };
         Self {
             error: Box::new(error),
+            source_overlay,
             sources: Box::new(sources),
+            syntax: syntax.into_boxed_slice(),
             diagnostics,
         }
     }
@@ -48,6 +59,16 @@ impl DiscoveryFailure {
     #[must_use]
     pub const fn sources(&self) -> &SourceMap {
         &self.sources
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        &self.source_overlay
+    }
+
+    #[must_use]
+    pub const fn syntax_trees(&self) -> &[SyntaxTree] {
+        &self.syntax
     }
 
     #[must_use]

@@ -92,8 +92,9 @@ impl From<DiscoveryError> for ResolveError {
 /// Returns a filesystem or topology error when an exact package, module, source, or active import
 /// cannot be selected unambiguously.
 pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
+    let source_overlay = request.source_overlay().clone();
     Builder::new(request)
-        .map_err(DiscoveryFailure::before_source_snapshot)?
+        .map_err(|error| DiscoveryFailure::before_source_snapshot(error, source_overlay))?
         .run()
 }
 
@@ -235,7 +236,7 @@ impl Builder {
     }
 
     fn into_failure(self, error: DiscoveryError) -> DiscoveryFailure {
-        DiscoveryFailure::from_snapshot(error, self.sources, &self.syntax)
+        DiscoveryFailure::from_snapshot(error, self.source_overlay, self.sources, self.syntax)
     }
 
     fn resolve_toolchain(&self) -> Result<ToolchainInput, DiscoveryError> {

@@ -139,6 +139,14 @@ decoding and module analysis therefore cannot observe different content for one 
 Overlay-aware resolution is a separate read-only entry point; package-state transactions accept
 only the disk-backed request type and cannot mistake editor bytes for persistent package source.
 
+`nocter-analysis` is the protocol-independent owner of one editor generation. Its immutable
+`AnalysisSnapshot` retains the accepted generation identity, source overlay, reached source and
+syntax snapshots, diagnostics, and exactly one status: discovery failure, syntax failure, compiler
+failure, or target-validated success. Only the success state exposes a `SourceIndex` and checked
+target; a failed current generation never exposes an older successful semantic program. Discovery
+failures retain their reached syntax trees as well as sources, so invalidation and syntax-aware
+recovery do not require reopening files.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected

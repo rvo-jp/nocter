@@ -1682,6 +1682,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-analysis"
+version = "0.0.0"
+dependencies = [
+ "nocter-compile-input",
+ "nocter-diagnostics",
+ "nocter-discovery",
+ "nocter-filesystem",
+ "nocter-model",
+ "nocter-package",
+ "nocter-session",
+ "nocter-source",
+ "nocter-source-index",
+ "nocter-syntax",
+]
+
+[[package]]
 name = "nocter-arm64"
 version = "0.0.0"
 dependencies = [

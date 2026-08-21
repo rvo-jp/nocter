@@ -20,9 +20,12 @@ implementation input.
    one immutable read-only overlay. Package resolution retains that overlay in its exact graph and
    discovery uses the same value for manifests, module candidates, imports, and source loading.
    Overlay-aware resolution is separate from package-state requests, so fetch and lock mutation
-   cannot consume editor bytes. The next boundary is a generation-numbered analysis snapshot that
-   owns this source view together with either the reached compiler failure or checked semantic
-   program and source index.
+   cannot consume editor bytes. `nocter-analysis` now binds that source view to a monotonic
+   generation identity and exactly one discovery-failed, syntax-failed, compiler-failed, or
+   target-validated state. Every state retains its reached sources, syntax, and diagnostics; only a
+   successful current generation exposes the checked program and `SourceIndex`, so stale semantic
+   fallback is impossible. The next boundary is the protocol lifecycle and version gate above this
+   snapshot, followed by compiler-owned semantic presentation queries.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
 use nocter_declarations::{PrimitiveRole, StandardDeclarationRole};
+use nocter_filesystem::SourceOverlay;
 use nocter_model::CompilationTarget;
 use nocter_package::ResolvedPackageGraph;
 use nocter_syntax::NodeKind;
@@ -227,6 +228,17 @@ impl DiscoveryRequest {
     #[must_use]
     pub const fn toolchain(&self) -> &ToolchainRequest {
         &self.toolchain
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        match &self.layout {
+            DiscoveryLayout::Declared { packages, .. }
+            | DiscoveryLayout::SingleFile {
+                support_packages: packages,
+                ..
+            } => packages.source_overlay(),
+        }
     }
 
     pub(crate) fn into_parts(self) -> (CompilationTarget, DiscoveryLayout, ToolchainRequest) {
