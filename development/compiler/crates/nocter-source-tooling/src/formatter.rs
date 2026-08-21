@@ -645,6 +645,16 @@ mod tests {
     }
 
     #[test]
+    fn canonicalizes_multiline_closure_segments() {
+        let source = "func f():void { let callback=(\n&source,move prefix,\n;value,index\n):bool { true }\nreturn\n}\n";
+        let expected = "func f(): void { let callback = (\n        &source,\n        move prefix;\n        value,\n        index,\n    ): bool { true }\n    return\n}\n";
+        let formatted = format(source);
+
+        assert_eq!(formatted, expected);
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn rejects_comments_without_rewriting_their_text() {
         let inspection = SourceInspection::new(
             SourceName::new("test.nct"),

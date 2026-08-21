@@ -89,8 +89,20 @@ The complete capture, parameter, result, and grouping boundary is defined under
 [Closure Expressions](25-syntactic-grammar.md#closure-expressions).
 
 Closure parameters and explicit captures are comma-delimited segments and accept one trailing comma
-before their `)` or `;` terminator on any layout. The formatter removes a single-line trailing
-comma.
+before their `)` or `;` terminator on any authored layout. In canonical output, the semicolon is
+the capture-segment terminator and replaces a trailing capture comma. The formatter removes a
+single-line parameter trailing comma and retains a multi-line parameter trailing comma:
+
+```nct
+let callback = (
+    &source,
+    move prefix;
+    value,
+    index,
+): bool {
+    ...
+}
+```
 
 Parameter and result types are inferred from an expected callable contract when that contract is
 unambiguous. An annotation may state a parameter or result type when inference needs it:

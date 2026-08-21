@@ -13,6 +13,12 @@ pub(super) struct LayoutPlan {
     structural_closes: HashMap<SyntaxToken, usize>,
 }
 
+struct SyntaxIndex<'a> {
+    syntax: &'a SyntaxTree,
+    token_at_offset: &'a HashMap<u32, SyntaxToken>,
+    tokens: &'a [SyntaxToken],
+}
+
 impl LayoutPlan {
     pub(super) fn build(source: &SourceFile, syntax: &SyntaxTree, tokens: &[SyntaxToken]) -> Self {
         let mut plan = Self {
@@ -28,6 +34,11 @@ impl LayoutPlan {
             .copied()
             .map(|token| (token.range().start().get(), token))
             .collect::<HashMap<_, _>>();
+        let index = SyntaxIndex {
+            syntax,
+            token_at_offset: &token_at_offset,
+            tokens,
+        };
         for (node_id, node) in syntax.nodes() {
             if node.kind() == NodeKind::WhereClause {
                 plan_where_clause(
@@ -43,13 +54,13 @@ impl LayoutPlan {
                 node.kind(),
                 NodeKind::ClosureCaptures | NodeKind::ClosureParameters
             ) {
-                plan_single_line_segment(
+                plan_closure_segment(
                     &mut plan,
                     source,
-                    syntax,
-                    &token_at_offset,
+                    &index,
                     syntax.children(node_id),
                     node.range(),
+                    node.kind(),
                 );
                 continue;
             }
@@ -161,27 +172,90 @@ fn plan_where_clause(
     }
 }
 
-fn plan_single_line_segment(
+fn plan_closure_segment(
     plan: &mut LayoutPlan,
     source: &SourceFile,
-    syntax: &SyntaxTree,
-    token_at_offset: &HashMap<u32, SyntaxToken>,
+    index: &SyntaxIndex<'_>,
     children: &[SyntaxElement],
     range: nocter_source::TextRange,
+    kind: NodeKind,
 ) {
-    if source
+    let multiline = source
         .text_at(range)
-        .is_some_and(|text| text.contains('\n'))
-    {
-        return;
-    }
-    let Some(last) = children.iter().rposition(|child| !is_newline(child)) else {
-        return;
-    };
-    if is_comma(&children[last])
-        && let Some(token) = first_token_index(syntax, token_at_offset, &children[last])
+        .is_some_and(|text| text.contains('\n'));
+    let comma_positions = children
+        .iter()
+        .enumerate()
+        .filter_map(|(position, child)| is_comma(child).then_some(position))
+        .collect::<Vec<_>>();
+    let trailing_comma = comma_positions
+        .last()
+        .copied()
+        .filter(|position| children[*position + 1..].iter().all(is_newline));
+    let terminator = index.tokens.iter().copied().find(|token| {
+        token.range().start() >= range.end()
+            && token.kind()
+                == TokenKind::Punctuation(match kind {
+                    NodeKind::ClosureCaptures => Punctuation::Semicolon,
+                    NodeKind::ClosureParameters => Punctuation::RightParen,
+                    _ => unreachable!("only closure segments reach the closure layout planner"),
+                })
+    });
+
+    if let Some(position) = trailing_comma
+        && (kind == NodeKind::ClosureCaptures || !multiline)
+        && let Some(token) =
+            first_token_index(index.syntax, index.token_at_offset, &children[position])
     {
         plan.omitted_tokens.insert(token);
+    }
+    if !multiline {
+        return;
+    }
+
+    if let Some(first) = next_lexical_token(
+        index.syntax,
+        index.token_at_offset,
+        children,
+        0,
+        children.len(),
+    ) {
+        plan.line_break_before.insert(first);
+    }
+    for comma in comma_positions {
+        if Some(comma) == trailing_comma {
+            continue;
+        }
+        if let Some(next) = next_lexical_token(
+            index.syntax,
+            index.token_at_offset,
+            children,
+            comma + 1,
+            children.len(),
+        ) {
+            plan.line_break_before.insert(next);
+        }
+    }
+
+    let Some(terminator) = terminator else {
+        return;
+    };
+    if kind == NodeKind::ClosureCaptures {
+        plan.join_before.insert(terminator);
+    } else {
+        if trailing_comma.is_none()
+            && next_lexical_token(
+                index.syntax,
+                index.token_at_offset,
+                children,
+                0,
+                children.len(),
+            )
+            .is_some()
+        {
+            plan.comma_before.insert(terminator);
+        }
+        plan.line_break_before.insert(terminator);
     }
 }
 

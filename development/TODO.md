@@ -15,7 +15,7 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete the remaining structural formatter rules, then begin immutable editor snapshots.
+1. Begin immutable editor snapshots on the completed structural formatter boundary.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
@@ -26,8 +26,9 @@ implementation input.
    generic `>>` use the same layout model as ordinary delimiters. Single-line and multi-line comma
    lists, trailing commas, requirements, visibility/module paths, spacing, indentation, top-level
    separation, and the specified redundant expression/type grouping rewrites are structurally
-   normalized and idempotent. The one remaining formatter decision is the exact line layout of a
-   multi-line closure capture segment whose required trailing comma precedes its `;` terminator.
+   normalized and idempotent. Closure capture and parameter segments use the same CST layout plan:
+   `;` replaces a capture trailing comma, while a multi-line parameter segment retains its trailing
+   comma before `)`. The formatter portion of Phase 6 is closed.
    `tokens` and `ast` emit their specified flat version-1 JSON envelopes even when their inspected
    stage diagnoses source.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
