@@ -237,6 +237,29 @@ does not partially rewrite `nocter.nct`.
 - Path dependencies use their authored canonical directories directly and are not copied into an
   exact-package store.
 
+### Acquisition Protocols
+
+Nocter performs remote package acquisition inside the `nocter` process. It does not invoke `git`,
+`curl`, or another downloader. The supported v0.14.0 remote sources are deliberately narrow:
+
+- Git repositories fetched from a public `https://` URL
+- `.tar.gz` archives fetched from a public `https://` URL
+
+SSH Git URLs, local Git repositories, private repositories, interactive authentication, custom
+certificate authorities, Git submodules, and Git LFS are unsupported. HTTPS uses normal server
+certificate and hostname verification. At most five redirects may be followed, and every URL in
+the redirect chain must remain HTTPS and contain no credentials.
+
+An archive lock hashes the compressed `.tar.gz` response bytes. Nocter verifies that SHA-256 digest
+before decompression or extraction. The archive root itself is the package root and must directly
+contain `nocter.nct`; Nocter never removes an enclosing directory automatically.
+
+Archive extraction accepts regular files and directories only. It rejects symbolic links, hard
+links, device nodes, FIFOs, absolute paths, parent-directory traversal, and duplicate destination
+paths. A compressed archive may contain at most 256 MiB, 100,000 entries, 1 GiB of expanded regular
+file data, and 64 path components per entry. A rejected or interrupted acquisition never publishes
+a partial exact package.
+
 ## Run
 
 `run` builds a temporary native executable, launches it, forwards standard streams, removes the
