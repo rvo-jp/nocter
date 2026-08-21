@@ -3,13 +3,19 @@
 //! Protocol decoding remains in `nocter-lsp`; this crate is the first layer allowed to resolve a
 //! document URI through the filesystem and mutate accepted workspace document state.
 
+mod analysis;
 mod documents;
 mod paths;
 mod run;
 mod server;
 mod workspace;
 
-pub use documents::{DocumentWorkspace, DocumentWorkspaceError};
+pub use analysis::{
+    AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
+};
+pub use documents::{
+    AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
+};
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
 pub use server::{LanguageServer, ServerIssue, ServerStep};

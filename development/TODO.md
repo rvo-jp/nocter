@@ -58,9 +58,16 @@ implementation input.
    language-server environment. Initialize resolves workspace folders, the fallback root URI, or cwd
    in that order, canonicalizes directories once, collapses physical aliases, and assigns nested
    documents to the deepest root. Root validation participates in the transactional initialize
-   commit. The next increment binds accepted document generations to locked/offline package or
-   single-file analysis and publishes diagnostics from those exact snapshots. Outbound correlation
-   and watcher registration follow only after watched changes can trigger the same analysis path.
+   commit. Accepted transitions now retain their triggering canonical document. The workspace
+   selects its nearest bounded package declaration or exact single-file scope, resolves package
+   graphs as locked/offline/read-only, discovers the root and every declared target, and runs the
+   same overlay through `AnalysisSnapshot`. Latest results are immutable and scope-owned; topology
+   changes remove the previous scope before exposing a new result, preventing stale semantic
+   fallback. Package-preparation failures retain their accepted overlay separately from reached
+   compiler snapshots. The next increment publishes versioned UTF-16 diagnostics from these exact
+   results and gives preparation failures a source-backed presentation boundary. Outbound
+   correlation and watcher registration follow only after watched changes can trigger the same
+   analysis and publication path.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

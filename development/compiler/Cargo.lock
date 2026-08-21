@@ -1845,11 +1845,14 @@ name = "nocter-language-server"
 version = "0.0.0"
 dependencies = [
  "nocter-analysis",
+ "nocter-compile-input",
+ "nocter-discovery",
  "nocter-filesystem",
  "nocter-json",
  "nocter-lsp",
  "nocter-model",
  "nocter-package",
+ "nocter-session",
 ]
 
 [[package]]

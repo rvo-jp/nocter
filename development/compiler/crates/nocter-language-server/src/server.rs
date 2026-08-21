@@ -1,6 +1,6 @@
 use std::fmt;
+use std::sync::Arc;
 
-use nocter_analysis::{AcceptedSourceGeneration, DocumentChange};
 use nocter_json::Value;
 use nocter_lsp::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, IncomingMessage,
@@ -10,15 +10,16 @@ use nocter_lsp::{
 };
 
 use crate::{
-    DocumentWorkspace, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceConfiguration,
-    WorkspaceConfigurationError,
+    AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
+    LanguageServerEnvironment, WorkspaceAnalyses, WorkspaceAnalysisGeneration,
+    WorkspaceConfiguration, WorkspaceConfigurationError,
 };
 
 /// One fully validated protocol and document-state transition.
 #[derive(Debug, Default)]
 pub struct ServerStep {
     response: Option<String>,
-    generation: Option<AcceptedSourceGeneration>,
+    analysis: Option<Arc<WorkspaceAnalysisGeneration>>,
     issue: Option<ServerIssue>,
     exit_code: Option<i32>,
 }
@@ -30,8 +31,13 @@ impl ServerStep {
     }
 
     #[must_use]
-    pub const fn generation(&self) -> Option<&AcceptedSourceGeneration> {
-        self.generation.as_ref()
+    pub fn generation(&self) -> Option<&WorkspaceAnalysisGeneration> {
+        self.analysis.as_deref()
+    }
+
+    #[must_use]
+    pub fn analysis(&self) -> Option<&WorkspaceAnalysisGeneration> {
+        self.analysis.as_deref()
     }
 
     #[must_use]
@@ -54,6 +60,7 @@ pub struct LanguageServer {
     environment: LanguageServerEnvironment,
     initialization: Option<InitializeParams>,
     workspace: Option<WorkspaceConfiguration>,
+    analyses: Option<WorkspaceAnalyses>,
 }
 
 impl LanguageServer {
@@ -69,6 +76,7 @@ impl LanguageServer {
             environment,
             initialization: None,
             workspace: None,
+            analyses: None,
         }
     }
 
@@ -123,6 +131,7 @@ impl LanguageServer {
                     return internal_transition_error(id, error);
                 }
                 self.initialization = Some(params);
+                self.analyses = Some(WorkspaceAnalyses::new(workspace.clone()));
                 self.workspace = Some(workspace);
                 ServerStep {
                     response: Some(render_success_response(
@@ -165,7 +174,7 @@ impl LanguageServer {
     }
 
     fn notification(&mut self, method: &str, params: Option<Value>) -> ServerStep {
-        let generation = match method {
+        let generation: Result<Option<AcceptedDocumentGeneration>, ServerIssue> = match method {
             "textDocument/didOpen" => DidOpenParams::decode(params)
                 .map_err(ServerIssue::Parameters)
                 .and_then(|params| self.documents.open(&params).map_err(ServerIssue::Documents))
@@ -177,8 +186,8 @@ impl LanguageServer {
                         .change(&params)
                         .map_err(ServerIssue::Documents)
                         .map(|change| match change {
-                            DocumentChange::Accepted(generation) => Some(generation),
-                            DocumentChange::IgnoredStale { .. } => None,
+                            DocumentWorkspaceChange::Accepted(generation) => Some(generation),
+                            DocumentWorkspaceChange::IgnoredStale { .. } => None,
                         })
                 }),
             "textDocument/didSave" => DidSaveParams::decode(params)
@@ -196,10 +205,18 @@ impl LanguageServer {
             _ => return ServerStep::default(),
         };
         match generation {
-            Ok(generation) => ServerStep {
-                generation,
-                ..ServerStep::default()
-            },
+            Ok(Some(generation)) => {
+                let analysis = self
+                    .analyses
+                    .as_mut()
+                    .expect("initialized server owns workspace analyses")
+                    .analyze(generation);
+                ServerStep {
+                    analysis: Some(analysis),
+                    ..ServerStep::default()
+                }
+            }
+            Ok(None) => ServerStep::default(),
             Err(issue) => ServerStep {
                 issue: Some(issue),
                 ..ServerStep::default()

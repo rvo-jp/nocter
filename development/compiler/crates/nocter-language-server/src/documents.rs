@@ -11,6 +11,46 @@ use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, 
 
 use crate::{DocumentPathError, DocumentPathResolver};
 
+/// One accepted source generation paired with the stable document identity that triggered it.
+#[derive(Clone, Debug)]
+pub struct AcceptedDocumentGeneration {
+    path: PathBuf,
+    source: AcceptedSourceGeneration,
+}
+
+impl AcceptedDocumentGeneration {
+    fn new(path: PathBuf, source: AcceptedSourceGeneration) -> Self {
+        Self { path, source }
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    #[must_use]
+    pub const fn generation(&self) -> nocter_analysis::GenerationId {
+        self.source.generation()
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &nocter_filesystem::SourceOverlay {
+        self.source.source_overlay()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (PathBuf, AcceptedSourceGeneration) {
+        (self.path, self.source)
+    }
+}
+
+/// A document change either advances analysis or is ignored by the version gate.
+#[derive(Clone, Debug)]
+pub enum DocumentWorkspaceChange {
+    Accepted(AcceptedDocumentGeneration),
+    IgnoredStale { current: DocumentVersion },
+}
+
 /// Owns stable URI-to-path identities and accepted document generations for one server process.
 #[derive(Debug, Default)]
 pub struct DocumentWorkspace {
@@ -37,7 +77,7 @@ impl DocumentWorkspace {
     pub fn open(
         &mut self,
         params: &DidOpenParams,
-    ) -> Result<AcceptedSourceGeneration, DocumentWorkspaceError> {
+    ) -> Result<AcceptedDocumentGeneration, DocumentWorkspaceError> {
         if self.paths.contains_key(params.uri()) {
             return Err(DocumentWorkspaceError::AlreadyOpenUri(params.uri().clone()));
         }
@@ -52,8 +92,8 @@ impl DocumentWorkspace {
                 Arc::<[u8]>::from(params.text().as_bytes()),
             )
             .map_err(DocumentWorkspaceError::State)?;
-        self.paths.insert(params.uri().clone(), path);
-        Ok(generation)
+        self.paths.insert(params.uri().clone(), path.clone());
+        Ok(AcceptedDocumentGeneration::new(path, generation))
     }
 
     /// Applies one strictly newer full-document replacement to the open URI identity.
@@ -64,7 +104,7 @@ impl DocumentWorkspace {
     pub fn change(
         &mut self,
         params: &DidChangeParams,
-    ) -> Result<DocumentChange, DocumentWorkspaceError> {
+    ) -> Result<DocumentWorkspaceChange, DocumentWorkspaceError> {
         let path = self.require_path(params.uri())?.to_path_buf();
         self.documents
             .change(
@@ -72,6 +112,14 @@ impl DocumentWorkspace {
                 DocumentVersion::new(params.version()),
                 Arc::<[u8]>::from(params.text().as_bytes()),
             )
+            .map(|change| match change {
+                DocumentChange::Accepted(source) => {
+                    DocumentWorkspaceChange::Accepted(AcceptedDocumentGeneration::new(path, source))
+                }
+                DocumentChange::IgnoredStale { current } => {
+                    DocumentWorkspaceChange::IgnoredStale { current }
+                }
+            })
             .map_err(DocumentWorkspaceError::State)
     }
 
@@ -83,11 +131,12 @@ impl DocumentWorkspace {
     pub fn save(
         &mut self,
         params: &DidSaveParams,
-    ) -> Result<AcceptedSourceGeneration, DocumentWorkspaceError> {
+    ) -> Result<AcceptedDocumentGeneration, DocumentWorkspaceError> {
         let path = self.require_path(params.uri())?.to_path_buf();
         let bytes = params.text().map(|text| Arc::<[u8]>::from(text.as_bytes()));
         self.documents
             .save(&path, bytes)
+            .map(|source| AcceptedDocumentGeneration::new(path, source))
             .map_err(DocumentWorkspaceError::State)
     }
 
@@ -99,14 +148,14 @@ impl DocumentWorkspace {
     pub fn close(
         &mut self,
         params: &DidCloseParams,
-    ) -> Result<AcceptedSourceGeneration, DocumentWorkspaceError> {
+    ) -> Result<AcceptedDocumentGeneration, DocumentWorkspaceError> {
         let path = self.require_path(params.uri())?.to_path_buf();
         let generation = self
             .documents
             .close(&path)
             .map_err(DocumentWorkspaceError::State)?;
         self.paths.remove(params.uri());
-        Ok(generation)
+        Ok(AcceptedDocumentGeneration::new(path, generation))
     }
 
     fn require_path(&self, uri: &DocumentUri) -> Result<&Path, DocumentWorkspaceError> {
@@ -183,9 +232,12 @@ mod tests {
         );
 
         let stale = workspace.change(&change_params(&uri, 1, "stale")).unwrap();
-        assert!(matches!(stale, DocumentChange::IgnoredStale { .. }));
+        assert!(matches!(
+            stale,
+            DocumentWorkspaceChange::IgnoredStale { .. }
+        ));
         let changed = workspace.change(&change_params(&uri, 2, "second")).unwrap();
-        let DocumentChange::Accepted(changed) = changed else {
+        let DocumentWorkspaceChange::Accepted(changed) = changed else {
             panic!("newer version must be accepted")
         };
         assert_eq!(changed.generation(), GenerationId::new(2));

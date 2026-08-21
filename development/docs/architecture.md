@@ -217,8 +217,18 @@ The language-server service composes each validated protocol event with document
 without an implemented handler receive the standard method-not-found response; malformed
 notifications produce no protocol response but remain typed server issues. Initialize and shutdown
 responses preserve request identity, and clean versus premature exit produces an explicit process
-status. The transport loop writes only framed JSON-RPC messages to its output and exposes accepted
-document generations for the next analysis increment rather than reading source independently.
+status. The transport loop writes only framed JSON-RPC messages to its output.
+
+Every accepted document transition now retains the canonical document that triggered its immutable
+source generation. `WorkspaceAnalyses` selects the deepest `nocter.nct` ancestor bounded by the
+owning initialized root; that declaration selects package mode, while a `.nct` file without such an
+ancestor selects single-file mode. Package mode resolves the complete exact graph under mandatory
+locked/offline policy and discovers the package root plus every declared executable and test module.
+Single-file mode resolves only the toolchain standard package. Both routes pass the same source
+overlay through discovery and `AnalysisSnapshot` target checking. Latest results are stored by
+package or standalone-file scope and shared with request/publication outputs through immutable
+ownership. If a document changes scope, its prior scoped result is removed before the new result is
+visible, so a successful stale program cannot answer queries after package topology changes.
 
 `nocter lsp` is part of the same declarative command schema as every other public command and has
 an empty argument surface. Argument validation precedes installation access; a launch retains the
