@@ -171,7 +171,9 @@ lifecycle state machine. It accepts only bounded `Content-Length` frames with CR
 UTF-8 bodies. Initialization, the `initialized` notification, shutdown, and exit form explicit
 states; invalid requests are rejected before document state or compiler analysis can observe them.
 The crate contains no filesystem or language-semantic policy, so protocol transport cannot become
-a second compiler front end.
+a second compiler front end. One response renderer preserves integer or string request identity and
+owns the standard JSON-RPC error vocabulary; feature handlers supply typed results rather than
+assembling envelopes or error objects themselves.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot

@@ -5,8 +5,10 @@
 
 mod lifecycle;
 mod message;
+mod response;
 mod transport;
 
-pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleErrorCode, LifecycleState};
+pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState};
 pub use message::{IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId};
+pub use response::{ResponseErrorCode, render_error_response, render_success_response};
 pub use transport::{FrameError, FrameReader, write_frame};

@@ -1,6 +1,6 @@
 use nocter_json::Value;
 
-use crate::{IncomingMessage, RequestId};
+use crate::{IncomingMessage, RequestId, ResponseErrorCode};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum LifecycleState {
@@ -10,22 +10,6 @@ pub enum LifecycleState {
     Running,
     Shutdown,
     Exited,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LifecycleErrorCode {
-    ServerNotInitialized,
-    InvalidRequest,
-}
-
-impl LifecycleErrorCode {
-    #[must_use]
-    pub const fn json_rpc_code(self) -> i32 {
-        match self {
-            Self::ServerNotInitialized => -32002,
-            Self::InvalidRequest => -32600,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,7 +28,7 @@ pub enum LifecycleAction {
     },
     Reject {
         id: RequestId,
-        code: LifecycleErrorCode,
+        code: ResponseErrorCode,
     },
     IgnoreNotification,
     IgnoreAfterExit,
@@ -96,7 +80,7 @@ impl Lifecycle {
             }
             IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
                 id,
-                code: LifecycleErrorCode::ServerNotInitialized,
+                code: ResponseErrorCode::ServerNotInitialized,
             },
             IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
         }
@@ -111,12 +95,12 @@ impl Lifecycle {
             IncomingMessage::Request { id, method, .. } if method.as_ref() == "initialize" => {
                 LifecycleAction::Reject {
                     id,
-                    code: LifecycleErrorCode::InvalidRequest,
+                    code: ResponseErrorCode::InvalidRequest,
                 }
             }
             IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
                 id,
-                code: LifecycleErrorCode::ServerNotInitialized,
+                code: ResponseErrorCode::ServerNotInitialized,
             },
             IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
         }
@@ -127,7 +111,7 @@ impl Lifecycle {
             IncomingMessage::Request { id, method, .. } if method.as_ref() == "initialize" => {
                 LifecycleAction::Reject {
                     id,
-                    code: LifecycleErrorCode::InvalidRequest,
+                    code: ResponseErrorCode::InvalidRequest,
                 }
             }
             IncomingMessage::Request { id, method, .. } if method.as_ref() == "shutdown" => {
@@ -150,7 +134,7 @@ fn reject_or_ignore(message: IncomingMessage) -> LifecycleAction {
     match message {
         IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
             id,
-            code: LifecycleErrorCode::InvalidRequest,
+            code: ResponseErrorCode::InvalidRequest,
         },
         IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
     }
@@ -217,7 +201,7 @@ mod tests {
             lifecycle.accept(request(1, "hover")),
             LifecycleAction::Reject {
                 id: RequestId::Integer(1),
-                code: LifecycleErrorCode::ServerNotInitialized,
+                code: ResponseErrorCode::ServerNotInitialized,
             }
         );
         lifecycle.accept(request(2, "initialize"));
@@ -225,7 +209,7 @@ mod tests {
             lifecycle.accept(request(3, "initialize")),
             LifecycleAction::Reject {
                 id: RequestId::Integer(3),
-                code: LifecycleErrorCode::InvalidRequest,
+                code: ResponseErrorCode::InvalidRequest,
             }
         );
         lifecycle.accept(notification("initialized"));
@@ -233,7 +217,7 @@ mod tests {
             lifecycle.accept(request(4, "initialize")),
             LifecycleAction::Reject {
                 id: RequestId::Integer(4),
-                code: LifecycleErrorCode::InvalidRequest,
+                code: ResponseErrorCode::InvalidRequest,
             }
         );
         lifecycle.accept(request(5, "shutdown"));
@@ -241,7 +225,7 @@ mod tests {
             lifecycle.accept(request(6, "hover")),
             LifecycleAction::Reject {
                 id: RequestId::Integer(6),
-                code: LifecycleErrorCode::InvalidRequest,
+                code: ResponseErrorCode::InvalidRequest,
             }
         );
     }
