@@ -38,8 +38,10 @@ implementation input.
    uninitialized/awaiting-initialized/running/shutdown/exited lifecycle. Its single response
    renderer owns success identity preservation and the standard JSON-RPC error vocabulary. The next
    `ProtocolSession` composition now yields exactly one immediate protocol error or one typed
-   lifecycle event for each body. The next increment is the executable protocol loop and exact
-   initialize/document parameter schemas above these gates.
+   lifecycle event for each body. Open/change/save/close parameters now have exact typed decoders;
+   the full-sync change boundary rejects incremental ranges and multiple replacements rather than
+   guessing their meaning. The next increment is initialize capability decoding, URI-to-canonical
+   path policy, and the executable protocol loop above these gates.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

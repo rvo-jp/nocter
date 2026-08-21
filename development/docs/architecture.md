@@ -176,7 +176,10 @@ owns the standard JSON-RPC error vocabulary; feature handlers supply typed resul
 assembling envelopes or error objects themselves. `ProtocolSession` composes envelope validation
 and lifecycle validation into either one immediate protocol response or one typed event. Invalid
 input can never be delivered beside an event, and notifications outside their legal lifecycle
-produce no response.
+produce no response. Document synchronization parameters are decoded into distinct open, change,
+save, and close values before they reach workspace state. Full synchronization accepts exactly one
+unranged content replacement; incremental ranges, duplicate recognized fields, non-integer
+versions, empty URIs, and missing text are explicit parameter failures.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
