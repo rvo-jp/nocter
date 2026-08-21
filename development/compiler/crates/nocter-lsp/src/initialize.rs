@@ -80,6 +80,7 @@ pub fn initialize_result(server_version: &str) -> Value {
                         ("save", object([("includeText", Value::Bool(true))])),
                     ]),
                 ),
+                ("hoverProvider", Value::Bool(true)),
             ]),
         ),
         (
@@ -220,11 +221,11 @@ mod tests {
             concat!(
                 "{\"capabilities\":{\"positionEncoding\":\"utf-16\",",
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
-                "\"save\":{\"includeText\":true}}},",
+                "\"save\":{\"includeText\":true}},\"hoverProvider\":true},",
                 "\"serverInfo\":{\"name\":\"Nocter\",\"version\":\"0.14.0-dev\"}}"
             )
         );
-        assert!(!rendered.contains("hoverProvider"));
+        assert!(rendered.contains("\"hoverProvider\":true"));
         assert!(!rendered.contains("semanticTokensProvider"));
     }
 }

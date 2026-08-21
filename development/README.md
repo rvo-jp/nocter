@@ -15,6 +15,7 @@ tooling contract can be implemented without guessing.
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
 - [Declaration diagnostic boundary](docs/declaration-diagnostic-boundary.md)
+- [Semantic presentation design](docs/semantic-presentation-design.md)
 - [Grammar conformance plan](docs/grammar-conformance.md)
 - [Rewrite maintenance policy](docs/maintenance.md)
 - [New compiler boundary](compiler/README.md)

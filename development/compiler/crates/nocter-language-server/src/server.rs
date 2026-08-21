@@ -5,12 +5,13 @@ use std::sync::Arc;
 use nocter_json::Value;
 use nocter_lsp::{
     DidChangeParams, DidChangeWatchedFilesParams, DidCloseParams, DidOpenParams, DidSaveParams,
-    IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
+    HoverParams, IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
     OutboundRequests, ParameterError, ProtocolEvent, ProtocolSession, RequestId, ResponseError,
     ResponseErrorCode, ResponseResult, initialize_result, render_error_response,
     render_success_response, watched_files_registration,
 };
 
+use crate::hover::{HoverQueryError, query_hover};
 use crate::{
     AcceptedDocumentGeneration, DiagnosticPublicationError, DiagnosticPublisher, DocumentWorkspace,
     DocumentWorkspaceChange, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceAnalyses,
@@ -214,6 +215,11 @@ impl LanguageServer {
 
     fn message(&mut self, message: IncomingMessage) -> ServerStep {
         match message {
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/hover" =>
+            {
+                self.hover(&id, params)
+            }
             IncomingMessage::Request { id, .. } => ServerStep {
                 response: Some(render_error_response(
                     Some(&id),
@@ -224,6 +230,48 @@ impl LanguageServer {
             },
             IncomingMessage::Notification { method, params } => self.notification(&method, params),
             IncomingMessage::Response { id, result } => self.client_response(id, result),
+        }
+    }
+
+    fn hover(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match HoverParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                return ServerStep {
+                    response: Some(render_error_response(
+                        Some(id),
+                        ResponseErrorCode::InvalidParams,
+                        Some(&detail),
+                    )),
+                    ..ServerStep::default()
+                };
+            }
+        };
+        let result = query_hover(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        );
+        match result {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                ServerStep {
+                    response: Some(render_error_response(
+                        Some(id),
+                        ResponseErrorCode::InvalidParams,
+                        Some(&detail),
+                    )),
+                    issues: vec![ServerIssue::Hover(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
         }
     }
 
@@ -402,6 +450,7 @@ pub enum ServerIssue {
     Parameters(ParameterError),
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
+    Hover(HoverQueryError),
     Outbound(OutboundRequestError),
     ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
@@ -414,6 +463,7 @@ impl fmt::Display for ServerIssue {
             Self::Parameters(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
+            Self::Hover(error) => error.fmt(formatter),
             Self::Outbound(error) => error.fmt(formatter),
             Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
@@ -428,6 +478,7 @@ impl std::error::Error for ServerIssue {
             Self::Parameters(error) => Some(error),
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
+            Self::Hover(error) => Some(error),
             Self::Outbound(error) => Some(error),
             Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),
@@ -506,11 +557,17 @@ impl fmt::Display for InitializeFailure {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use nocter_analysis::GenerationId;
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
     use super::*;
+
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
     #[test]
     fn invalid_initialize_can_retry_before_document_generations_begin() {
@@ -616,6 +673,131 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn hover_uses_normalized_checked_presentation_and_exact_name_range() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func  main( ): void {{ return }}\\n\"}}}}}}"
+        ));
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":7}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("```nocter\\nfunc main(): void\\n```"));
+        assert!(response.contains("\"start\":{\"line\":0,\"character\":6}"));
+        assert!(response.contains("\"end\":{\"line\":0,\"character\":10}"));
+
+        let keyword = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":1}}}}}}"
+        ));
+        assert_eq!(
+            keyword.response(),
+            Some(r#"{"jsonrpc":"2.0","id":3,"result":null}"#)
+        );
+    }
+
+    #[test]
+    fn hover_rejects_positions_outside_the_current_source() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":9,\"character\":0}}}}}}"
+        ));
+        assert!(hover.response().unwrap().contains("\"code\":-32602"));
+        assert!(matches!(hover.issue(), Some(ServerIssue::Hover(_))));
+    }
+
+    #[test]
+    fn hover_normalizes_method_self_to_its_semantic_owner() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+        let text = fs::read_to_string(&standard).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method &self.len(): usize"))
+            .unwrap();
+        let character = source_line.find("len").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("```nocter\\npub method &str.len(): usize\\n```"));
+        assert!(response.contains(&format!(
+            "\"start\":{{\"line\":{line},\"character\":{character}}}"
+        )));
+
+        let vec_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/vec/index.nct");
+        let text = fs::read_to_string(&vec_source).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub func from_exact_iter<I>"))
+            .unwrap();
+        let character = source_line.find("from_exact_iter").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            vec_source.display()
+        ));
+        assert!(hover.response().unwrap().contains(concat!(
+            "pub func Vec<T>.from_exact_iter<I>(iterator: I): Vec<T> where ",
+            "I: Iterator + ExactSizeIterator, I.Item = T"
+        )));
+
+        let iter_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/iter/index.nct");
+        let text = fs::read_to_string(&iter_source).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method &+self.next(): Self.Item?"))
+            .unwrap();
+        let character = source_line.find("next").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            iter_source.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub method &+Iterator.next(): Iterator.Item?"));
+        assert!(!response.contains(" from self"));
+    }
+
     fn server(version: &str) -> LanguageServer {
         let root = std::env::temp_dir();
         LanguageServer::new(
@@ -629,5 +811,44 @@ mod tests {
                 ),
             ),
         )
+    }
+
+    fn semantic_server(root: &Path) -> LanguageServer {
+        let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+        LanguageServer::new(
+            "dev",
+            LanguageServerEnvironment::new(
+                root,
+                crate::LanguageServerToolchain::new(
+                    CompilationTarget::Arm64Darwin,
+                    root,
+                    StandardPackage::new(PackageIdentity::new("toolchain:std"), standard_root),
+                ),
+            ),
+        )
+    }
+
+    struct TemporaryDirectory(PathBuf);
+
+    impl TemporaryDirectory {
+        fn new() -> Self {
+            let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "nocter-language-server-hover-{}-{id}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TemporaryDirectory {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).unwrap();
+        }
     }
 }

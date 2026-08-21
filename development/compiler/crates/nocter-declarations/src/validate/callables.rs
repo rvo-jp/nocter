@@ -2,7 +2,7 @@ use nocter_model::CallableId;
 
 use crate::{
     BodyOwner, CallableKind, CallableOwner, DeclarationProgram, ParameterOwner, ParameterRole,
-    ProvenanceOrigin,
+    ProvenanceAnnotation, ProvenanceOrigin,
 };
 
 use super::{
@@ -21,6 +21,15 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
         unique(callable.parameters(), DeclarationDomain::Callable)?;
         unique(callable.requirements(), DeclarationDomain::Callable)?;
         validate_shape(callable)?;
+        if matches!(
+            callable.provenance_annotation(),
+            ProvenanceAnnotation::Explicit { .. }
+        ) && matches!(
+            callable.provenance(),
+            crate::CallableProvenanceContract::Inferred
+        ) {
+            return Err(ProgramIntegrityError::InvalidCallableShape);
+        }
         validate_owner(program, id, callable.owner())?;
         if let Some(receiver) = callable.receiver() {
             let parameter = require(

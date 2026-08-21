@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use nocter_declarations::{
-    CallableKind, CallableProvenance, CallableProvenanceContract, ProvenanceOrigin,
+    CallableKind, CallableProvenance, CallableProvenanceContract, ProvenanceAnnotation,
+    ProvenanceOrigin,
 };
 use nocter_model::{BodyId, ParameterId, TypeId};
 use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
@@ -22,9 +23,12 @@ pub(super) fn contract(
     parameters: &[ParameterId],
     result: TypeId,
     body: Option<BodyId>,
-) -> Result<CallableProvenanceContract, HeaderDefinitionError> {
-    if let Some(origins) = explicit(types, declaration, receiver, parameters)? {
-        return Ok(CallableProvenanceContract::declared(origins));
+) -> Result<(CallableProvenanceContract, ProvenanceAnnotation), HeaderDefinitionError> {
+    if let Some((origins, includes_static)) = explicit(types, declaration, receiver, parameters)? {
+        return Ok((
+            CallableProvenanceContract::declared(origins),
+            ProvenanceAnnotation::Explicit { includes_static },
+        ));
     }
     if !types
         .namespaces
@@ -36,17 +40,22 @@ pub(super) fn contract(
         .types()
         .may_carry_storage(result)
     {
-        return Ok(CallableProvenanceContract::declared(
-            CallableProvenance::empty(),
+        return Ok((
+            CallableProvenanceContract::declared(CallableProvenance::empty()),
+            ProvenanceAnnotation::Elided,
         ));
     }
     if kind == CallableKind::Coercion {
         let receiver = receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
         let _ = receiver;
-        return declared([ProvenanceOrigin::Receiver], declaration);
+        return declared([ProvenanceOrigin::Receiver], declaration)
+            .map(|contract| (contract, ProvenanceAnnotation::Elided));
     }
     if body.is_some() {
-        return Ok(CallableProvenanceContract::inferred());
+        return Ok((
+            CallableProvenanceContract::inferred(),
+            ProvenanceAnnotation::Elided,
+        ));
     }
     let store = types
         .namespaces
@@ -82,7 +91,8 @@ pub(super) fn contract(
         }
     }
     match candidates.as_slice() {
-        [] | [_] => declared(candidates, declaration),
+        [] | [_] => declared(candidates, declaration)
+            .map(|contract| (contract, ProvenanceAnnotation::Elided)),
         [_, _, ..] => Err(DefinitionViolation::new(
             DefinitionRule::AmbiguousBodylessResultProvenance,
             result_origin(types, declaration)?,
@@ -96,7 +106,7 @@ fn explicit(
     declaration: SurfaceDeclarationId,
     receiver: Option<ParameterId>,
     parameters: &[ParameterId],
-) -> Result<Option<CallableProvenance>, HeaderDefinitionError> {
+) -> Result<Option<(CallableProvenance, bool)>, HeaderDefinitionError> {
     let tree = projection::tree(types, declaration)?;
     let root = surface_node(types, declaration)?;
     // A callable type inside `where` owns its own provenance clause. Declaration provenance is
@@ -120,6 +130,7 @@ fn explicit(
         .collect();
     let mut seen = HashMap::new();
     let mut origins = Vec::new();
+    let mut includes_static = false;
     for token in tokens {
         let symbol = projection::symbol(types, declaration, token)?;
         if let Some(first) = seen.insert(symbol, token) {
@@ -132,6 +143,7 @@ fn explicit(
         }
         let spelling = token_spelling(types, token)?;
         if spelling == "static" {
+            includes_static = true;
             continue;
         }
         if spelling == "self" {
@@ -182,7 +194,7 @@ fn explicit(
         )?;
     }
     CallableProvenance::from_origins(origins)
-        .map(Some)
+        .map(|origins| Some((origins, includes_static)))
         .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
 }
 

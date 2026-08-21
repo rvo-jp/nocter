@@ -263,6 +263,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
                 CallableProvenanceContract::declared(
                     CallableProvenance::from_origins([ProvenanceOrigin::Receiver]).unwrap(),
                 ),
+                crate::ProvenanceAnnotation::Elided,
                 [],
                 Some(body),
                 None,

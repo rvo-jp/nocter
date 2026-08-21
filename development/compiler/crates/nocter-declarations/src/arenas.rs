@@ -422,6 +422,7 @@ mod tests {
                 [],
                 result,
                 CallableProvenanceContract::declared(CallableProvenance::empty()),
+                crate::ProvenanceAnnotation::Elided,
                 [],
                 None,
                 None,

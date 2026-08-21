@@ -31,7 +31,7 @@ pub(super) fn define(
         .copied()
         .flatten()
         .ok_or(HeaderDefinitionError::MissingCallableResult(declaration))?;
-    let contract = provenance::contract(
+    let (contract, provenance_annotation) = provenance::contract(
         types,
         declaration,
         kind,
@@ -50,6 +50,7 @@ pub(super) fn define(
         allocated.parameters[declaration.index()].clone(),
         result,
         contract,
+        provenance_annotation,
         allocated.requirements[declaration.index()].clone(),
         allocated.bodies[declaration.index()],
         target::gate(types, declaration)?,

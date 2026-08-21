@@ -46,6 +46,13 @@ into its duplicate-checking builder, adds exact projections, and freezes both de
 orders again. It does not create a phase-specific parallel source index. Canonical semantic
 programs never depend on this projection value.
 
+Editor descriptions follow the separate
+[semantic presentation boundary](semantic-presentation-design.md). A successful immutable analysis
+selects an exact interactive `SourceBinding` and renders its semantic identity from the checked
+declaration graph and type store. Protocol code performs URI and coordinate conversion only. It
+does not slice declaration text or recreate type, owner, visibility, requirement, or provenance
+rules.
+
 `SourceProgram` owns normalized UTF-8, source identities, lexical tokens, byte spans, newline
 tokens, and each token's joint-to-next fact. String starts, text segments, interpolation boundaries,
 and string ends are ordinary lexical tokens in that same stream. `SyntaxProgram` consumes those

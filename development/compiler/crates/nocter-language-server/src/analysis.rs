@@ -157,6 +157,17 @@ impl WorkspaceAnalyses {
             .get(document)
             .and_then(|scope| self.latest.get(scope))
             .or_else(|| self.unscoped.get(document))
+            .or_else(|| {
+                let name = document.to_str()?;
+                self.latest
+                    .values()
+                    .filter(|generation| {
+                        generation
+                            .reached_sources()
+                            .is_some_and(|sources| sources.find_by_name(name).is_some())
+                    })
+                    .max_by_key(|generation| generation.generation())
+            })
             .map(Arc::as_ref)
     }
 

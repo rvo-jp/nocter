@@ -139,6 +139,17 @@ impl CallableProvenanceContract {
     }
 }
 
+/// Whether a callable's result provenance was authored in its public signature.
+///
+/// This fact never participates in provenance checking. It is retained solely so source-facing
+/// presentation can omit compiler-inferred contracts and preserve an explicit `from static` whose
+/// external-origin set is intentionally empty.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ProvenanceAnnotation {
+    Elided,
+    Explicit { includes_static: bool },
+}
+
 /// One callable contract after header resolution and before body checking.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallableDeclaration {
@@ -151,6 +162,7 @@ pub struct CallableDeclaration {
     parameters: Box<[ParameterId]>,
     result: TypeId,
     provenance: CallableProvenanceContract,
+    provenance_annotation: ProvenanceAnnotation,
     requirements: Box<[RequirementId]>,
     body: Option<BodyId>,
     target_gate: Option<Symbol>,
@@ -169,6 +181,7 @@ impl CallableDeclaration {
         parameters: impl Into<Box<[ParameterId]>>,
         result: TypeId,
         provenance: CallableProvenanceContract,
+        provenance_annotation: ProvenanceAnnotation,
         requirements: impl Into<Box<[RequirementId]>>,
         body: Option<BodyId>,
         target_gate: Option<Symbol>,
@@ -183,6 +196,7 @@ impl CallableDeclaration {
             parameters: parameters.into(),
             result,
             provenance,
+            provenance_annotation,
             requirements: requirements.into(),
             body,
             target_gate,
@@ -232,6 +246,11 @@ impl CallableDeclaration {
     #[must_use]
     pub const fn provenance(&self) -> &CallableProvenanceContract {
         &self.provenance
+    }
+
+    #[must_use]
+    pub const fn provenance_annotation(&self) -> ProvenanceAnnotation {
+        self.provenance_annotation
     }
 
     #[must_use]

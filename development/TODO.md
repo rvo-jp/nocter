@@ -77,9 +77,14 @@ implementation input.
    Package resolution failures now retain their exact overlay, reached manifest `SourceMap`, and
    every reached syntax tree. Manifest trees enter the snapshot before declaration decoding, so a
    semantic declaration failure retains the node that owns its subject and publishes source-backed
-   `E0800`; inherently spanless lock/store policy failures remain process messages. The next
-   increment opens compiler-owned hover and semantic-token queries over successful current
-   snapshots without adding an editor-side semantic model.
+   `E0800`; inherently spanless lock/store policy failures remain process messages. Compiler-owned
+   hover now resolves exact interactive `SourceBinding` ranges only in the current successful
+   snapshot and renders normalized declaration, type, owner, requirement, and explicit provenance
+   facts from checked semantics. It does not slice source text, expose synthetic package/target or
+   whole-file module projections, or surface compiler-inferred `from` clauses. `from static` and
+   authored-versus-elided provenance survive declaration lowering as presentation-only facts that
+   do not affect semantic provenance. The next increment adds compiler-resolved semantic tokens
+   over the same selection authority without an editor-side semantic model.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

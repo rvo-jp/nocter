@@ -200,6 +200,18 @@ impl SourceMap {
         self.files.get(id.index() as usize)
     }
 
+    /// Resolves one exact source display name without assigning a second identity to it.
+    ///
+    /// Source names are unique within a compiler invocation. Editor adapters use this lookup to
+    /// cross from a canonical filesystem path into the invocation-owned source identity before
+    /// performing coordinate conversion.
+    #[must_use]
+    pub fn find_by_name(&self, name: &str) -> Option<&SourceFile> {
+        self.files
+            .iter()
+            .find(|source| source.name().as_str() == name)
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.files.len()
@@ -263,6 +275,23 @@ mod tests {
 
         assert_eq!(id.index(), 0);
         assert_eq!(sources.get(id).unwrap().text(), "first\nsecond\n");
+    }
+
+    #[test]
+    fn resolves_an_exact_source_name_without_reinterpreting_it() {
+        let mut sources = SourceMap::new();
+        let first = sources
+            .add_bytes(SourceName::new("/workspace/a.nct"), b"first")
+            .unwrap();
+        sources
+            .add_bytes(SourceName::new("/workspace/b.nct"), b"second")
+            .unwrap();
+
+        assert_eq!(
+            sources.find_by_name("/workspace/a.nct").map(SourceFile::id),
+            Some(first)
+        );
+        assert!(sources.find_by_name("workspace/a.nct").is_none());
     }
 
     #[test]

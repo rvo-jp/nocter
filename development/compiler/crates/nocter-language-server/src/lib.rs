@@ -6,6 +6,7 @@
 mod analysis;
 mod diagnostics;
 mod documents;
+mod hover;
 mod paths;
 mod run;
 mod server;
@@ -18,6 +19,7 @@ pub use diagnostics::{DiagnosticPublicationError, DiagnosticPublisher};
 pub use documents::{
     AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
 };
+pub use hover::HoverQueryError;
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
 pub use server::{ClientResponseError, LanguageServer, ServerIssue, ServerStep};

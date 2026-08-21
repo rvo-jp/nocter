@@ -4,6 +4,7 @@
 //! messages cross this boundary before they may mutate editor documents or invoke analysis.
 
 mod decode;
+mod hover;
 mod initialize;
 mod lifecycle;
 mod message;
@@ -15,6 +16,7 @@ mod transport;
 mod uri;
 mod watcher;
 
+pub use hover::{HoverParams, Position, Range, hover_result};
 pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};
 pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState, LifecycleTransitionError};
 pub use message::{

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/string/search.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/string/search.nct.">
+    <title>Semantic Presentation Design - Nocter</title>
+    <meta name="description" content="Compiler-owned semantic presentation is the sole authority for editor text that describes a resolved program entity. Protocol adapters may wrap that text i">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/string/search/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/semantic-presentation-design/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/string/search.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/string/search.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/string/search/">
+    <meta property="og:title" content="Semantic Presentation Design - Nocter">
+    <meta property="og:description" content="Compiler-owned semantic presentation is the sole authority for editor text that describes a resolved program entity. Protocol adapters may wrap that text i">
+    <meta property="og:url" content="https://nocter.dev/development/docs/semantic-presentation-design/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-21">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/string/search.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/string/search.nct.">
+    <meta name="twitter:title" content="Semantic Presentation Design - Nocter">
+    <meta name="twitter:description" content="Compiler-owned semantic presentation is the sole authority for editor text that describes a resolved program entity. Protocol adapters may wrap that text i">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/string/search.nct - Nocter","description":"Nocter source code for development/std/string/search.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/string/search/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"String","item":"https://nocter.dev/development/std/string/"},{"@type":"ListItem","position":5,"name":"Search","item":"https://nocter.dev/development/std/string/search/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Semantic Presentation Design - Nocter","description":"Compiler-owned semantic presentation is the sole authority for editor text that describes a resolved program entity. Protocol adapters may wrap that text i","url":"https://nocter.dev/development/docs/semantic-presentation-design/","mainEntityOfPage":"https://nocter.dev/development/docs/semantic-presentation-design/","dateModified":"2026-08-21","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Semantic Presentation Design","item":"https://nocter.dev/development/docs/semantic-presentation-design/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,56 +120,32 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">v0.14.0 rewrite milestone</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">New compiler architecture</a></li>
-                <li><a href="../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../../../docs/target-program-design/index.html#content">Target and executable program design</a></li>
-                <li><a href="../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
-                <li><a href="../../../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
-                <li><a href="../../../docs/maintenance/index.html#content">Rewrite maintenance policy</a></li>
-                <li><a href="../../../compiler/index.html#content">New compiler boundary</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../architecture/index.html#content">Compiler Rewrite Architecture</a></li>
+                <li><a href="../checked-program-design/index.html#content">Checked Program Design</a></li>
+                <li><a href="../target-program-design/index.html#content">Target and Executable Program Design</a></li>
+                <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Design</a></li>
+                <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
+                <li><a href="../grammar-audit/index.html#content">Grammar Closure Audit</a></li>
+                <li><a href="../grammar-conformance/index.html#content">Grammar Conformance Plan</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../../milestones/v0.14.0/index.html#content">v0.14.0 Rewrite Milestone</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/string/search.nct</span>
+                <span class="markdown-path-text">/development/docs/semantic-presentation-design.md</span>
             </div>
             <div class="markdown-body">
-                <h1>search.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Shared allocation-free byte search for UTF-8 string modules.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Matching operates on bytes, but every successful match of a non-empty,</span>
-<span class="token-comment">//! well-formed UTF-8 needle begins at a UTF-8 boundary in the haystack.</span>
-
-<span class="token-comment">/// Returns the first byte offset of `needle` at or after `start`.</span>
-<span class="token-keyword">func</span> <span class="token-function">find_from_bytes</span><span class="token-operator">(</span>
-    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> start <span class="token-operator">&gt;</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> start <span class="token-operator">}</span>
-    <span class="token-keyword">var</span> candidate<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> start
-    <span class="token-keyword">while</span> candidate <span class="token-operator">+</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span><span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> matched<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">var</span> equal<span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">=</span> <span class="token-keyword">true</span>
-        <span class="token-keyword">while</span> matched <span class="token-operator">&lt;</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> actual<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> text<span class="token-operator">[</span>candidate <span class="token-operator">+</span> matched<span class="token-operator">]</span>
-            <span class="token-keyword">let</span> expected<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> needle<span class="token-operator">[</span>matched<span class="token-operator">]</span>
-            <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-                equal <span class="token-operator">=</span> <span class="token-keyword">false</span>
-            <span class="token-operator">}</span>
-            matched <span class="token-operator">=</span> matched <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> equal <span class="token-operator">{</span> <span class="token-keyword">return</span> candidate <span class="token-operator">}</span>
-        candidate <span class="token-operator">=</span> candidate <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="semantic-presentation-design">Semantic Presentation Design</h1><p>Compiler-owned semantic presentation is the sole authority for editor text that describes a resolved program entity. Protocol adapters may wrap that text in LSP or another transport, but they do not inspect declarations, reconstruct types, qualify names, or slice an authored declaration from source.</p><h2 id="query-boundary">Query Boundary</h2><p>One query consumes a successful immutable <code>AnalysisSnapshot</code>, a <code>SourceId</code>, and a normalized byte offset. It follows exactly one direction:</p><pre><code class="language-text">SourceId + byte offset
+  -&gt; SourceIndex binding
+  -&gt; semantic entity
+  -&gt; checked declaration/type data
+  -&gt; SemanticPresentation
+</code></pre><p>Failed generations expose no semantic answer. A query never consults an older successful snapshot. The source index selects the smallest displayable binding under the cursor, with references before declarations and implementation sites when ranges tie. Synthetic package, target, and whole-file module projections are not interactive. An authored module-path reference remains interactive and keeps its complete contiguous path range.</p><p><code>SourceMap</code> owns the exact source-name lookup and every UTF-8/UTF-16 conversion. The LSP adapter resolves a URI to its stable canonical path, finds that path in the selected snapshot, converts the request position, and wraps the returned presentation and range. Invalid coordinates are invalid request parameters; an unanalysed document or failed current generation returns <code>null</code>.</p><h2 id="canonical-rendering">Canonical Rendering</h2><p>Presentation reads the immutable <code>DeclarationGraph</code>, <code>TypeStore</code>, and checked body facts. It never copies raw declaration text. Authored whitespace and line breaks therefore cannot leak into hover text, module and package implementation identities cannot appear as internal debug paths, and member names have one owner-qualified form.</p><p>The renderer owns:</p><ul><li>declaration visibility and kind;</li><li>owner-qualified fields, variants, construction members, methods, coercions, and operators;</li><li>complete generic parameter, parameter, result, and <code>where</code> contracts;</li><li>canonical structural type spelling and required grouping;</li><li>explicit result-provenance clauses only.</li></ul><p>Structural callable types erase parameter names for equality. When an explicit structural provenance needs names, presentation creates stable positional names such as <code>p0</code> and uses those same names in <code>from</code>. This changes no type identity.</p><p>Callable declarations retain a separate <code>ProvenanceAnnotation</code>. <code>Elided</code> means the compiler may infer a storage origin but presentation must omit it. <code>Explicit</code> preserves whether the source named <code>static</code>; semantic provenance continues to store only caller-managed origins. The annotation never participates in checking, dispatch, ownership, or code generation.</p><h2 id="protocol-surface">Protocol Surface</h2><p>The server advertises hover only after this complete path is active. Hover returns Markdown Nocter code and the exact semantic binding range. Keyword, visibility, brace, whitespace, and synthetic whole-file ranges do not become hover targets merely because a broader compiler projection overlaps the cursor.</p><p>Semantic tokens, definition, references, rename, completion, and signature help must reuse the same source selection and presentation authority. None may add an editor-owned semantic model.</p>
             </div>
         </main>
     </div>
@@ -185,6 +161,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

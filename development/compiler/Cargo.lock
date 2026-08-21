@@ -1686,7 +1686,9 @@ dependencies = [
 name = "nocter-analysis"
 version = "0.0.0"
 dependencies = [
+ "nocter-checking",
  "nocter-compile-input",
+ "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
  "nocter-filesystem",

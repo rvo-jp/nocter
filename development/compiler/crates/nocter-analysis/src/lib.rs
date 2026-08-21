@@ -15,10 +15,14 @@ use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
 mod documents;
+mod presentation;
+mod semantic;
 
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
+pub use presentation::SemanticPresentation;
+pub use semantic::SemanticSubject;
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

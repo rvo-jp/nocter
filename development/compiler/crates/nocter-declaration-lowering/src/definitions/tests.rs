@@ -1,5 +1,6 @@
 use nocter_declarations::{
     CallableKind, CallableProvenanceContract, DeclarationRule, ExportedEntity, NominalShape,
+    ProvenanceAnnotation,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -22,6 +23,7 @@ type Alias<T> = Box<T> where copy T
 pub interface Source<T> where copy T {
     pub type Item
     pub method &self.get(index: usize): &T from self
+    pub method &self.static_view(): &str from static
 }
 
 construct Box<T> {
@@ -42,6 +44,7 @@ instance Box<T> where copy T {
 conform Source<T> for Box<T> where copy T {
     type Item = T
     method &self.get(index: usize): &T from self { return }
+    method &self.static_view(): &str from static { return }
 }
 
 func values<T>(value: &T): some Source<T, Item = &T> from value { return }
@@ -289,7 +292,23 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
                 CallableProvenanceContract::Declared(_)
             )
     }));
+    assert_provenance_annotations(declarations);
     assert!(lowered.source_index().len() > declarations.callables().len());
+}
+
+fn assert_provenance_annotations(declarations: &nocter_declarations::DeclarationArenas) {
+    assert!(declarations.callables().iter().any(|(_, callable)| {
+        matches!(
+            callable.provenance_annotation(),
+            ProvenanceAnnotation::Explicit {
+                includes_static: true
+            }
+        )
+    }));
+    assert!(declarations.callables().iter().any(|(_, callable)| {
+        callable.kind() == CallableKind::ConstructionFunction
+            && callable.provenance_annotation() == ProvenanceAnnotation::Elided
+    }));
 }
 
 #[test]
