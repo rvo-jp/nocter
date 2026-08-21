@@ -101,7 +101,10 @@ implementation input.
    bindings must preserve the original identity, so collisions, shadowing, and capture changes are
    rejected. Open sources carry accepted versions and closed sources remain unversioned.
    Compiler-owned binding families also carry local and parameter renames through explicit closure
-   captures. Completion and signature help are the next semantic editor boundaries.
+   captures. Signature help now selects checked call nodes and dispatch, retains selected generic
+   arguments, renders static, structural-callable, and closure signatures through the canonical
+   presentation authority, and projects renderer-owned parameter ranges to UTF-16 only in the
+   protocol adapter. Completion is the next semantic editor boundary.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

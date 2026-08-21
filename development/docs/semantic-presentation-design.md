@@ -95,5 +95,11 @@ workspace edit carries the accepted version for open documents and a null versio
 documents. Explicit closure captures form a compiler-owned rename family with their source
 binding, so a rename crosses the capture boundary without conflating unrelated equal spellings.
 
-Completion and signature help must reuse the same source selection and presentation authority.
-Neither may add an editor-owned semantic model.
+Signature help selects the innermost checked call node rather than inferring a callee from nearby
+tokens. Static dispatch renders its selected generic arguments; callable requirements and concrete
+closures render their checked structural signatures. The compiler records parameter-label byte
+ranges while it renders the normalized signature, and the protocol adapter converts only those
+offsets to UTF-16. Authored argument-node ranges determine the active parameter.
+
+Completion must reuse the same source selection and presentation authority. It may not add an
+editor-owned semantic model.

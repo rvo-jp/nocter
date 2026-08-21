@@ -14,6 +14,7 @@ mod run;
 mod semantic_document;
 mod semantic_tokens;
 mod server;
+mod signature;
 mod workspace;
 
 pub use analysis::{
@@ -31,6 +32,7 @@ pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
 pub use semantic_document::SemanticDocumentError;
 pub use semantic_tokens::SemanticTokensQueryError;
 pub use server::{ClientResponseError, LanguageServer, ServerIssue, ServerStep};
+pub use signature::SignatureQueryError;
 pub use workspace::{
     LanguageServerEnvironment, LanguageServerToolchain, WorkspaceConfiguration,
     WorkspaceConfigurationError,

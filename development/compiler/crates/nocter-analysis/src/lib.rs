@@ -20,6 +20,7 @@ mod navigation;
 mod presentation;
 mod rename;
 mod semantic;
+mod signature;
 
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
@@ -29,6 +30,7 @@ pub use navigation::SemanticLocation;
 pub use presentation::SemanticPresentation;
 pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
 pub use semantic::{SemanticSelection, SemanticSubject};
+pub use signature::{SemanticParameterLabel, SemanticSignatureHelp};
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

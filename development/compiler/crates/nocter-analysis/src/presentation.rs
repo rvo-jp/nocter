@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use nocter_checking::CheckedProgram;
+use nocter_checking::{CheckedProgram, GenericArguments};
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, NominalShape,
     ParameterRole, RequirementKind, RequirementSubject, StructuralCapability, Visibility,
@@ -9,6 +9,10 @@ use nocter_model::{
     BorrowCapability, BuiltinType, CallableCapability, Symbol, TypeId, TypeKind, TypeStore,
 };
 use nocter_source_index::SemanticEntity;
+
+mod signature;
+
+pub(super) use signature::{closure_signature_presentation, static_signature_presentation};
 
 /// Canonical source-language presentation derived from checked semantics, never source slicing.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,10 +39,13 @@ pub(super) fn presentation(
     })
 }
 
-struct Renderer<'a> {
+pub(super) struct Renderer<'a> {
     graph: &'a DeclarationGraph,
     types: &'a TypeStore,
     output: String,
+    generics: Option<&'a GenericArguments>,
+    record_parameters: bool,
+    parameter_ranges: Vec<(usize, usize)>,
 }
 
 impl<'a> Renderer<'a> {
@@ -47,6 +54,9 @@ impl<'a> Renderer<'a> {
             graph,
             types,
             output: String::new(),
+            generics: None,
+            record_parameters: false,
+            parameter_ranges: Vec::new(),
         }
     }
 
@@ -409,8 +419,12 @@ impl<'a> Renderer<'a> {
             if index != 0 {
                 self.output.push_str(", ");
             }
-            let parameter = self.graph.declarations().generic_parameters().get(id)?;
-            self.output.push_str(self.symbol(parameter.name())?);
+            if let Some(argument) = self.generics.and_then(|arguments| arguments.get(id)) {
+                self.ty(argument)?;
+            } else {
+                let parameter = self.graph.declarations().generic_parameters().get(id)?;
+                self.output.push_str(self.symbol(parameter.name())?);
+            }
         }
         self.output.push('>');
         Some(())
@@ -422,7 +436,9 @@ impl<'a> Renderer<'a> {
             if index != 0 {
                 self.output.push_str(", ");
             }
+            let start = self.output.len();
             self.parameter(id)?;
+            self.record_parameter(start);
         }
         self.output.push(')');
         Some(())
@@ -660,17 +676,26 @@ impl<'a> Renderer<'a> {
     }
 
     fn generic_parameter(&mut self, id: nocter_model::GenericParameterId) -> Option<()> {
+        if let Some(argument) = self.generics.and_then(|arguments| arguments.get(id)) {
+            return self.ty(argument);
+        }
         let parameter = self.graph.declarations().generic_parameters().get(id)?;
         self.output.push_str(self.symbol(parameter.name())?);
         Some(())
     }
 
-    fn ty(&mut self, id: TypeId) -> Option<()> {
-        match self.types.get(id)? {
+    fn ty(&mut self, ty: TypeId) -> Option<()> {
+        match self.types.get(ty)? {
             TypeKind::Builtin(builtin) => self.output.push_str(builtin_spelling(*builtin)),
             TypeKind::GenericParameter(id) => {
-                let parameter = self.graph.declarations().generic_parameters().get(*id)?;
-                self.output.push_str(self.symbol(parameter.name())?);
+                if let Some(argument) = self.generics.and_then(|arguments| arguments.get(*id))
+                    && argument != ty
+                {
+                    self.ty(argument)?;
+                } else {
+                    let parameter = self.graph.declarations().generic_parameters().get(*id)?;
+                    self.output.push_str(self.symbol(parameter.name())?);
+                }
             }
             TypeKind::InterfaceSelf(id) => {
                 let declaration = self.graph.declarations().interfaces().get(*id)?;
@@ -760,10 +785,12 @@ impl<'a> Renderer<'a> {
             if index != 0 {
                 self.output.push_str(", ");
             }
+            let start = self.output.len();
             if named {
                 write!(self.output, "p{index}: ").ok()?;
             }
             self.ty(parameter)?;
+            self.record_parameter(start);
         }
         self.output.push_str("): ");
         self.ty(contract.result())?;
@@ -777,6 +804,12 @@ impl<'a> Renderer<'a> {
             }
         }
         Some(())
+    }
+
+    fn record_parameter(&mut self, start: usize) {
+        if self.record_parameters {
+            self.parameter_ranges.push((start, self.output.len()));
+        }
     }
 
     fn prefix_type(&mut self, id: TypeId) -> Option<()> {

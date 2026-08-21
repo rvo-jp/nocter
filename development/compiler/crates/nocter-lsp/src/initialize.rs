@@ -87,6 +87,18 @@ pub fn initialize_result(server_version: &str) -> Value {
                 ("referencesProvider", Value::Bool(true)),
                 ("renameProvider", Value::Bool(true)),
                 (
+                    "signatureHelpProvider",
+                    object([(
+                        "triggerCharacters",
+                        Value::Array(
+                            ["(", ","]
+                                .into_iter()
+                                .map(|value| Value::String(value.into()))
+                                .collect(),
+                        ),
+                    )]),
+                ),
+                (
                     "semanticTokensProvider",
                     object([
                         (
@@ -251,6 +263,7 @@ mod tests {
                 "\"save\":{\"includeText\":true}},\"definitionProvider\":true,",
                 "\"hoverProvider\":true,\"referencesProvider\":true,",
                 "\"renameProvider\":true,",
+                "\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]},",
                 "\"semanticTokensProvider\":{\"legend\":{",
                 "\"tokenTypes\":[\"namespace\",\"type\",\"struct\",\"enum\",",
                 "\"interface\",\"typeParameter\",\"parameter\",\"variable\",",

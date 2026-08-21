@@ -1,13 +1,14 @@
 use nocter_json::Value;
 use nocter_lsp::{
     DefinitionParams, HoverParams, ReferencesParams, RenameParams, RequestId, ResponseErrorCode,
-    SemanticTokensParams, render_error_response, render_success_response,
+    SemanticTokensParams, SignatureHelpParams, render_error_response, render_success_response,
 };
 
 use crate::hover::query_hover;
 use crate::navigation::{NavigationQueryError, query_definition, query_references};
 use crate::rename::query_rename;
 use crate::semantic_tokens::{SemanticTokensQueryError, query_semantic_tokens};
+use crate::signature::query_signature_help;
 
 use super::{LanguageServer, ServerIssue, ServerStep};
 
@@ -158,6 +159,37 @@ impl LanguageServer {
                 ServerStep {
                     response: Some(render_error_response(Some(id), code, Some(&detail))),
                     issues: vec![ServerIssue::Rename(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+        }
+    }
+
+    pub(super) fn signature_help(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match SignatureHelpParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        match query_signature_help(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        ) {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                ServerStep {
+                    response: Some(render_error_response(
+                        Some(id),
+                        ResponseErrorCode::InvalidParams,
+                        Some(&detail),
+                    )),
+                    issues: vec![ServerIssue::Signature(error)].into_boxed_slice(),
                     ..ServerStep::default()
                 }
             }
@@ -458,6 +490,57 @@ mod tests {
         let response = renamed.response().unwrap();
         assert_eq!(response.matches("\"newText\":\"number\"").count(), 3);
         assert!(renamed.issue().is_none(), "{:?}", renamed.issue());
+    }
+
+    #[test]
+    fn signature_help_uses_the_checked_specialization_and_active_argument() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func choose<T>(left: T, right: T): T { move left }\n",
+            "func main(): void {\n",
+            "    let value = choose(1, 2)\n",
+            "    let double = (number: i32): i32 { number * 2 }\n",
+            "    let doubled = double(4)\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let help = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":26}}}}}}"
+        ));
+        let response = help.response().unwrap();
+        assert!(response.contains("func choose<i32>(left: i32, right: i32): i32"));
+        assert!(response.contains("\"parameters\":[{\"label\":[17,26]"));
+        assert!(response.contains("\"activeParameter\":1"));
+        assert!(help.issue().is_none(), "{:?}", help.issue());
+
+        let closure = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":26}}}}}}"
+        ));
+        let response = closure.response().unwrap();
+        assert!(response.contains("&func(i32): i32"));
+        assert!(response.contains("\"activeParameter\":0"));
+        assert!(closure.issue().is_none(), "{:?}", closure.issue());
     }
 
     #[test]

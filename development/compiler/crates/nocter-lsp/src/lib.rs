@@ -16,6 +16,7 @@ mod rename;
 mod response;
 mod semantic_tokens;
 mod session;
+mod signature;
 mod transport;
 mod uri;
 mod watcher;
@@ -44,6 +45,7 @@ pub use semantic_tokens::{
     SemanticTokenType, SemanticTokensParams, semantic_tokens_result,
 };
 pub use session::{ProtocolEvent, ProtocolReception, ProtocolSession};
+pub use signature::{SignatureHelpParams, SignatureParameter, signature_help_result};
 pub use transport::{FrameError, FrameReader, write_frame};
 pub use uri::{DocumentUri, DocumentUriError, DocumentUriErrorKind};
 pub use watcher::{

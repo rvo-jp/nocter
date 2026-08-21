@@ -6,6 +6,7 @@ use crate::hover::HoverQueryError;
 use crate::navigation::NavigationQueryError;
 use crate::rename::RenameQueryError;
 use crate::semantic_tokens::SemanticTokensQueryError;
+use crate::signature::SignatureQueryError;
 use crate::{DiagnosticPublicationError, DocumentWorkspaceError, WorkspaceConfigurationError};
 
 #[derive(Debug)]
@@ -17,6 +18,7 @@ pub enum ServerIssue {
     SemanticTokens(SemanticTokensQueryError),
     Navigation(NavigationQueryError),
     Rename(RenameQueryError),
+    Signature(SignatureQueryError),
     Outbound(OutboundRequestError),
     ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
@@ -33,6 +35,7 @@ impl fmt::Display for ServerIssue {
             Self::SemanticTokens(error) => error.fmt(formatter),
             Self::Navigation(error) => error.fmt(formatter),
             Self::Rename(error) => error.fmt(formatter),
+            Self::Signature(error) => error.fmt(formatter),
             Self::Outbound(error) => error.fmt(formatter),
             Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
@@ -51,6 +54,7 @@ impl std::error::Error for ServerIssue {
             Self::SemanticTokens(error) => Some(error),
             Self::Navigation(error) => Some(error),
             Self::Rename(error) => Some(error),
+            Self::Signature(error) => Some(error),
             Self::Outbound(error) => Some(error),
             Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),

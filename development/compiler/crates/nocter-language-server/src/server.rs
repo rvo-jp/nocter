@@ -243,6 +243,11 @@ impl LanguageServer {
             {
                 self.rename(&id, params)
             }
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/signatureHelp" =>
+            {
+                self.signature_help(&id, params)
+            }
             IncomingMessage::Request { id, .. } => ServerStep {
                 response: Some(render_error_response(
                     Some(&id),
