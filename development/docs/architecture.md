@@ -168,6 +168,17 @@ The production selection result retains command-root and standard `PackageIdenti
 the graph, so command discovery never recovers either role from a path or display name. A graph-only
 projection remains available only for consumers that genuinely do not need those roles.
 
+`nocter-installation` owns deterministic selection and physical validation of the active Nocter
+home. It accepts the configured-home value and executable candidate as explicit process facts; it
+does not read environment variables, the current executable, the working directory, or user-home
+state. A nonempty configured home has priority. Otherwise, the canonical executable's parent is
+the only candidate. The selected root and its required entries are canonical, physically typed,
+and contained within that root, so a required symlink cannot substitute state outside the
+installation. `VERSION` is decoded once as one nonempty UTF-8 line, and the resulting release owns
+the standard-package identity and canonical `std/` root. Strict `MANIFEST.json` schema decoding is
+a following installation-metadata boundary; no command or compiler stage may inspect that JSON
+independently.
+
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
 lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
 once, distinguishes
@@ -316,7 +327,9 @@ resolution policy; they never alter executable or output selection.
 
 Prepared build and run commands now cross one production command adapter. Its explicit
 `CommandToolchain` contains the already selected target, Nocter home, and standard package; the
-adapter never reads process globals or reconstructs installation state. Package mode invokes exact
+adapter never reads process globals or reconstructs installation state. A future process entry
+reads `NOCTER_HOME` and the real executable once, delegates selection to `nocter-installation`, and
+constructs this value only after manifest validation. Package mode invokes exact
 package selection, retains the resolver-owned command-root identity, selects the root module and
 only the executable modules required by the command, and then creates one ordinary declared
 discovery request. A named build does not open an unselected executable module. Package-set and

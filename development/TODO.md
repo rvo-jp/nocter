@@ -2,8 +2,8 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed explicit single-file and checked-standard-library
-boundary.
+Continue v0.14.0 Phase 6 from the completed exact command adapter and deterministic physical
+Nocter-home boundary.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -15,8 +15,21 @@ implementation input.
 
 ## Immediate Work
 
-1. Connect the completed command plans to package graph resolution and public argument parsing.
-   `nocter-package` now owns the only structured interpretation of `nocter.nct`, including
+1. Complete installation metadata and then add the single public process entry.
+   `nocter-installation` now selects exactly one canonical home from explicit process facts:
+   nonempty configured `NOCTER_HOME` first, otherwise the real executable's parent. It validates
+   contained physical `VERSION`, `MANIFEST.json`, `nocter`, `std/`, and `std/nocter.nct` entries,
+   decodes `VERSION` once, and derives the release-owned standard-package identity. It does not
+   read process globals or search the working or user directory. The next boundary is a strict,
+   duplicate-preserving JSON parser and exact `nocter.manifest` v1 decoder. That decoder must
+   validate `VERSION` equality, license paths, host/default/implemented targets, compiler/std
+   paths, archive metadata, and required contained files before producing an immutable installation
+   profile. Only then may the public executable read environment, current-executable, and
+   current-directory facts once and compose `CommandToolchain`; it must reuse the existing argument
+   parser and execution adapter.
+
+   The completed command connection remains: `nocter-package` owns the only structured
+   interpretation of `nocter.nct`, including
    presentation metadata, disjoint git/archive/path dependency declarations, exact locks, and
    target name/kind/order/module facts with syntax origins. Discovery and declaration lowering no
    longer decode separate subsets of target directive text. `ResolvedPackageGraph` now loads every
