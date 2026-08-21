@@ -331,7 +331,9 @@ identity, top-level diagnostics, `runs`, and summary counts. Each run records se
 nullable source-level `test` identity, outcome (`passed`, `failed`, `compile_failed`, or
 `runner_failed`), exit code or signal, captured stdout/stderr, and diagnostics. Accepted native
 runs carry the exact declaration name. Target-wide failures use `test: null`; identity is never
-encoded into a display string. The command exits zero only when every selected run passes.
+encoded into a display string. Captured streams use the lossless UTF-8/base64 representation
+defined by [Native Testing](20-native-testing.md#ci-result-contract). The command exits zero only
+when every selected run passes.
 
 ## Check
 

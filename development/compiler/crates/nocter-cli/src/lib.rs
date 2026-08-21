@@ -22,6 +22,7 @@ mod host;
 mod presentation;
 mod process;
 mod report;
+mod test_report;
 
 pub use error::{InvocationError, InvocationErrorKind, InvocationFailureClass};
 pub use host::build_host;
@@ -69,6 +70,7 @@ pub enum InvocationOutcome {
     Check(Box<CheckCommandResult>),
     Build(BuildCommandResult),
     Run(ExecutedProgram),
+    Test(Box<nocter_command::TestCommandResult>),
 }
 
 impl InvocationOutcome {
@@ -82,6 +84,7 @@ impl InvocationOutcome {
             | Self::Check(_)
             | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
+            Self::Test(result) => i32::from(!result.succeeded()),
         }
     }
 
@@ -92,6 +95,7 @@ impl InvocationOutcome {
             Self::Help(request) => Some(request.render()),
             Self::Version(report) => Some(report.render()),
             Self::Doctor(report) => Some(report.render()),
+            Self::Test(result) => test_report::render_test_human(result),
             Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => None,
         }
     }
@@ -111,13 +115,17 @@ impl InvocationOutcome {
                 )
                 .map(Some)
             }
+            Self::Test(result) if result.presentation().format() == DiagnosticFormat::Json => {
+                Ok(Some(test_report::render_test_json(result)))
+            }
             Self::Help(_)
             | Self::Version(_)
             | Self::Doctor(_)
             | Self::Fetch(_)
             | Self::Check(_)
             | Self::Build(_)
-            | Self::Run(_) => Ok(None),
+            | Self::Run(_)
+            | Self::Test(_) => Ok(None),
         }
     }
 }
@@ -161,7 +169,12 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         )
     })?;
     if let Some(presentation) = presentation.as_mut() {
-        presentation.target = Some(installation.manifest().default_target().name());
+        presentation.target = Some(
+            command
+                .requested_target()
+                .unwrap_or(installation.manifest().default_target())
+                .name(),
+        );
     }
     let toolchain = CommandToolchain::new(
         installation.manifest().default_target(),

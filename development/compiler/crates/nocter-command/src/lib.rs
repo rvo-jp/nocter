@@ -17,12 +17,14 @@ mod package_state;
 mod planning;
 mod run;
 mod source;
+mod test;
 
 pub use arguments::{
     CommandArgumentError, CommandArgumentFailure, DiagnosticFormat, ParsedBuildCommand,
-    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand, PreparedBuildCommand,
-    PreparedCheckCommand, PreparedCommandError, PreparedFetchCommand, PreparedRunCommand,
-    ResolutionOptions, parse_command_arguments, parse_command_invocation,
+    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand, ParsedTestCommand,
+    PreparedBuildCommand, PreparedCheckCommand, PreparedCommandError, PreparedFetchCommand,
+    PreparedRunCommand, PreparedTestCommand, ResolutionOptions, parse_command_arguments,
+    parse_command_invocation,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
@@ -51,10 +53,16 @@ pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use package_state::{CommandPackageContext, CommandPackageStateError};
 pub use planning::{
     BuildCommandOptions, BuildCommandPlan, BuildOperation, CheckCommandOptions, CheckCommandPlan,
-    CommandPlanError, RunCommandOptions, RunCommandPlan, SelectedBuildOutput,
+    CommandPlanError, RunCommandOptions, RunCommandPlan, SelectedBuildOutput, TestCommandOptions,
+    TestCommandPlan,
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use source::{CommandSourceError, CommandToolchain};
+pub use test::{
+    TestCommandExecutionError, TestCommandIntegrityError, TestCommandPresentation,
+    TestCommandResult, TestRunDiagnostic, TestRunOutcome, TestRunResult, TestSummary,
+    execute_prepared_test,
+};
 
 #[cfg(test)]
 mod tests;

@@ -9,6 +9,11 @@ failed counts. Success exits with status 0; any compile, runner, assertion, erro
 failure exits with status 1; command-line misuse exits with status 2; serialization/internal
 failure exits with status 3. JSON output does not use terminal color or progress text.
 
+Captured output is lossless. Each `stdout` and `stderr` value is an object with `encoding` and
+`text`. Valid UTF-8 uses `{"encoding":"utf-8","text":"..."}`. Any other byte sequence uses
+`{"encoding":"base64","text":"..."}` with RFC 4648 base64 and `=` padding. Consumers must not
+infer an encoding from test outcome or target identity.
+
 This chapter specifies native source-test declarations, visibility, execution, and reporting.
 
 ## Declarations

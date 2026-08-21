@@ -15,8 +15,9 @@ pub(crate) struct InvocationDiagnosticPresentation {
 
 impl InvocationDiagnosticPresentation {
     pub(crate) fn from_argument_failure(failure: &CommandArgumentFailure) -> Option<Self> {
-        (failure.command() == Some("check")).then_some(Self {
-            command: "check",
+        let command = failure.command()?;
+        matches!(command, "check" | "test").then_some(Self {
+            command,
             format: failure.format(),
             target: None,
             root: failure.root_hint().map(PathBuf::from),
@@ -31,6 +32,13 @@ impl InvocationDiagnosticPresentation {
                 format: command.format(),
                 target: None,
                 root: command.root_hint(),
+                root_absolute_path: None,
+            }),
+            ParsedCommand::Test(command) => Some(Self {
+                command: "test",
+                format: command.format(),
+                target: None,
+                root: Some(command.root_hint()),
                 root_absolute_path: None,
             }),
             ParsedCommand::Help(_)

@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_command::{
     BuildCommandExecutionError, CheckCommandExecutionError, CommandArgumentFailure,
     DiagnosticFormat, FetchCommandExecutionError, PreparedCommandError, ProgramInputError,
-    RunCommandExecutionError,
+    RunCommandExecutionError, TestCommandExecutionError,
 };
 use nocter_diagnostics::{
     DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
@@ -31,6 +31,7 @@ pub enum InvocationErrorKind {
     Check(Box<CheckCommandExecutionError>),
     Build(Box<BuildCommandExecutionError>),
     Run(Box<RunCommandExecutionError>),
+    Test(Box<TestCommandExecutionError>),
 }
 
 /// Process-level failure class independent from diagnostic presentation and error code.
@@ -101,6 +102,7 @@ impl InvocationError {
             InvocationErrorKind::Fetch(error) => Some(error.diagnostic_code()),
             InvocationErrorKind::Build(error) => error.diagnostic_code(),
             InvocationErrorKind::Run(error) => error.diagnostic_code(),
+            InvocationErrorKind::Test(error) => error.diagnostic_code(),
             InvocationErrorKind::AcquisitionInitialization(_) => None,
         }
     }
@@ -134,6 +136,22 @@ impl InvocationError {
         };
         if presentation.format != DiagnosticFormat::Json {
             return Ok(None);
+        }
+        if presentation.command == "test" {
+            if let Some((diagnostics, sources)) = self.source_diagnostics() {
+                return crate::test_report::render_test_source_failure_json(
+                    presentation.target,
+                    diagnostics,
+                    sources,
+                )
+                .map(Some);
+            }
+            let code = self.diagnostic_code().unwrap_or("E0900");
+            return Ok(Some(crate::test_report::render_test_spanless_failure_json(
+                presentation.target,
+                code,
+                &self.to_string(),
+            )));
         }
         if let Some((diagnostics, sources)) = self.source_diagnostics() {
             return render_source_diagnostics_json(
@@ -174,6 +192,7 @@ impl InvocationError {
             InvocationErrorKind::Check(error) => error.is_user_failure(),
             InvocationErrorKind::Build(error) => error.is_user_failure(),
             InvocationErrorKind::Run(error) => error.is_user_failure(),
+            InvocationErrorKind::Test(error) => error.is_user_failure(),
             InvocationErrorKind::AcquisitionInitialization(_) => false,
         };
         if user {
@@ -193,6 +212,7 @@ impl InvocationError {
             InvocationErrorKind::Build(error) => error.source_diagnostics(),
             InvocationErrorKind::Check(error) => error.source_diagnostics(),
             InvocationErrorKind::Run(error) => error.source_diagnostics(),
+            InvocationErrorKind::Test(error) => error.source_diagnostics(),
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
@@ -218,6 +238,7 @@ impl fmt::Display for InvocationError {
             InvocationErrorKind::Check(error) => error.fmt(formatter),
             InvocationErrorKind::Build(error) => error.fmt(formatter),
             InvocationErrorKind::Run(error) => error.fmt(formatter),
+            InvocationErrorKind::Test(error) => error.fmt(formatter),
         }
     }
 }
@@ -234,6 +255,7 @@ impl std::error::Error for InvocationError {
             InvocationErrorKind::Check(error) => Some(error),
             InvocationErrorKind::Build(error) => Some(error),
             InvocationErrorKind::Run(error) => Some(error),
+            InvocationErrorKind::Test(error) => Some(error),
         }
     }
 }

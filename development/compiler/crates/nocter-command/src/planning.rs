@@ -1,9 +1,9 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use nocter_session::ExecutableSelector;
+use nocter_session::{ExecutableSelector, TestTargetSelector};
 
-use crate::ResolvedProgramInput;
+use crate::{PackageCommandInput, ResolvedProgramInput};
 
 /// Raw executable choice accepted by the check argument parser.
 #[derive(Debug, Default)]
@@ -185,6 +185,88 @@ pub enum SelectedBuildOutput {
     TargetNameIn(PathBuf),
 }
 
+/// Raw package test and case choices accepted by the test argument parser.
+#[derive(Debug, Default)]
+pub struct TestCommandOptions {
+    test: Option<Box<str>>,
+    case: Option<Box<str>>,
+}
+
+impl TestCommandOptions {
+    #[must_use]
+    pub fn new(test: Option<Box<str>>, case: Option<Box<str>>) -> Self {
+        Self { test, case }
+    }
+}
+
+/// Closed package-only test selection and process working-directory policy.
+#[derive(Debug)]
+pub struct TestCommandPlan {
+    input: PackageCommandInput,
+    selector: TestTargetSelector,
+    case: Option<Box<str>>,
+    working_directory: PathBuf,
+}
+
+impl TestCommandPlan {
+    /// Closes test selection without inspecting source or semantic declarations.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an exact case without the distinct test-target identity required to scope it.
+    pub fn new(
+        input: PackageCommandInput,
+        options: TestCommandOptions,
+    ) -> Result<Self, CommandPlanError> {
+        let TestCommandOptions { test, case } = options;
+        if case.is_some() && test.is_none() {
+            return Err(CommandPlanError::CaseWithoutTest);
+        }
+        let selector = match test {
+            Some(name) => TestTargetSelector::Named(name),
+            None => TestTargetSelector::All,
+        };
+        let working_directory = input.root().to_path_buf();
+        Ok(Self {
+            input,
+            selector,
+            case,
+            working_directory,
+        })
+    }
+
+    #[must_use]
+    pub const fn input(&self) -> &PackageCommandInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub const fn selector(&self) -> &TestTargetSelector {
+        &self.selector
+    }
+
+    #[must_use]
+    pub fn case(&self) -> Option<&str> {
+        self.case.as_deref()
+    }
+
+    #[must_use]
+    pub fn working_directory(&self) -> &Path {
+        &self.working_directory
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        PackageCommandInput,
+        TestTargetSelector,
+        Option<Box<str>>,
+        PathBuf,
+    ) {
+        (self.input, self.selector, self.case, self.working_directory)
+    }
+}
+
 /// Raw executable choice accepted by the run argument parser.
 #[derive(Debug, Default)]
 pub struct RunCommandOptions {
@@ -276,6 +358,7 @@ fn resolve_output(invocation_directory: &Path, output: &Path) -> PathBuf {
 pub enum CommandPlanError {
     ExecutableWithSingleFile,
     InvalidSingleFileIdentity,
+    CaseWithoutTest,
 }
 
 impl fmt::Display for CommandPlanError {
@@ -287,6 +370,7 @@ impl fmt::Display for CommandPlanError {
             Self::InvalidSingleFileIdentity => {
                 formatter.write_str("resolved single-file input has no output stem")
             }
+            Self::CaseWithoutTest => formatter.write_str("--case requires --test"),
         }
     }
 }

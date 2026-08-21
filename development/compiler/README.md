@@ -371,9 +371,13 @@ be introduced to make an unresolved syntax choice.
   single `.nct` source. It validates conflicting input forms before filesystem access and never
   searches ancestors, guesses a source entry, or reads process-global current-directory state.
   Separate build/run plans then map normalized package/file input to all-target or sole/named
-  session selection, implicit or explicit output policy, and an exact working directory. These
-  plans reject file-mode `--executable` without consulting declarations; target existence and
-  cardinality stay in the session boundary.
+  session selection, implicit or explicit output policy, and an exact working directory. The
+  package-only test plan keeps target and case names in distinct domains. The session converts them
+  to exact package-target and source-test identities before executable closure, then emits one
+  independently launchable image per case. The command runner stages, captures, and cleans each
+  case independently and derives human and JSON reports from one ordered result. These plans reject
+  invalid file-mode or test-mode combinations without consulting declarations; target existence
+  and cardinality stay in the session boundary.
 - `nocter-installation` selects one canonical Nocter home from explicit configured-home and
   executable facts. It validates contained physical entries, decodes one exact `VERSION`, and uses
   a bounded duplicate-preserving JSON parser plus an exact `nocter.manifest` v1 decoder to freeze
@@ -381,8 +385,8 @@ be introduced to make an unresolved syntax choice.
   or searches unrelated directories.
 - `nocter` is the sole public process adapter. It reads argv, `NOCTER_HOME`, the current executable,
   and cwd once; checks compiler-host agreement; constructs `CommandToolchain` from the validated
-  installation; and delegates build/run parsing, preparation, compilation, publication, and launch
-  to the existing boundaries. It contains no second option table or compiler pipeline.
+  installation; and delegates build/run/test parsing, preparation, compilation, publication, and
+  launch to the existing boundaries. It contains no second option table or compiler pipeline.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

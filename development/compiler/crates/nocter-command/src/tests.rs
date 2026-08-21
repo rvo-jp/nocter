@@ -704,6 +704,98 @@ fn parsed_single_file_run_crosses_the_common_command_adapter() {
     fs::remove_dir_all(directory).unwrap();
 }
 
+#[test]
+fn parsed_package_test_runs_every_case_independently_and_preserves_failures() {
+    let directory = unique_test_directory("prepared-test");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"tested\"\n#test: { name: \"unit\", module: \".\" }\n",
+    );
+    write_source(
+        &package_root,
+        "index.nct",
+        "test passes { return }\ntest fails { return error.new(\"tested.failure\", \"failed\") }\n",
+    );
+    let super::ParsedCommand::Test(case_without_target) = super::parse_command_arguments([
+        "test".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+        "--case".into(),
+        "passes".into(),
+    ])
+    .unwrap() else {
+        panic!("expected test command");
+    };
+    assert!(matches!(
+        case_without_target.prepare(&directory),
+        Err(super::PreparedCommandError::Plan(
+            super::CommandPlanError::CaseWithoutTest
+        ))
+    ));
+    let super::ParsedCommand::Test(parsed) = super::parse_command_arguments([
+        "test".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected test command");
+    };
+
+    let result = super::execute_prepared_test(
+        parsed.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    assert!(!result.succeeded());
+    assert_eq!(result.summary().passed(), 1);
+    assert_eq!(result.summary().failed(), 1);
+    assert_eq!(
+        result
+            .runs()
+            .iter()
+            .map(|run| (
+                run.target().name(),
+                run.test().unwrap().name(),
+                run.outcome(),
+                run.exit_code(),
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("unit", "passes", super::TestRunOutcome::Passed, Some(0)),
+            ("unit", "fails", super::TestRunOutcome::Failed, Some(1)),
+        ]
+    );
+    assert_eq!(result.runs()[1].stdout(), b"");
+    assert_eq!(result.runs()[1].stderr(), b"tested.failure: failed\n");
+
+    let super::ParsedCommand::Test(parsed) = super::parse_command_arguments([
+        "test".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+        "--test".into(),
+        "unit".into(),
+        "--case".into(),
+        "passes".into(),
+    ])
+    .unwrap() else {
+        panic!("expected test command");
+    };
+    let selected = super::execute_prepared_test(
+        parsed.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+    assert_eq!(selected.runs().len(), 1);
+    assert_eq!(selected.runs()[0].test().unwrap().name(), "passes");
+    assert!(selected.succeeded());
+    fs::remove_dir_all(directory).unwrap();
+}
+
 fn command_toolchain() -> super::CommandToolchain {
     let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     super::CommandToolchain::new(

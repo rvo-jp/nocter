@@ -15,8 +15,10 @@ implementation input.
 
 ## Immediate Work
 
-1. Add the public `test` command through the existing declared-test target and native test-root
-   boundaries.
+1. Add public source tooling through syntax-owned, filesystem-independent `fmt`, `tokens`, and
+   `ast` plans. Formatting must remain a concrete-syntax transformation rather than a semantic
+   pretty-printer; inspection commands must consume the same lexer/parser snapshot without package
+   discovery or target selection.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
@@ -49,11 +51,14 @@ implementation input.
    consume those identities. `--help`, `help`, `help <command>`, and `<command> --help` converge on
    one typed report before installation selection and source preparation.
 
-   `test` must reuse package input, exact dependency state, discovery, target validation, MIR,
-   machine lowering, and native execution. It must select only declared package test targets and
-   direct cases; it may not translate tests into executables, scan names after semantic selection,
-   or let one case terminate the runner. Human and JSON summaries must consume one ordered typed
-   result, and orchestration failure must remain distinct from a user test failure (status 1).
+   The public `test` command is closed through package-only planning, exact dependency state,
+   test-target discovery, semantic target/case selection, MIR, machine lowering, ARM64, Mach-O, and
+   independent child processes. Each case uses a unique private artifact and package-root working
+   directory; launch, exit, captured streams, and cleanup become one ordered typed run result.
+   Human and `nocter.tests` version-1 JSON reports consume that result, preserve raw output through
+   UTF-8/base64 encoding, and return status 1 for test failures without converting them into
+   orchestration errors. The shared argument schema now owns `test`, `--test`, `--case`, and the
+   specified `--target` surface for check/build/run/test.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

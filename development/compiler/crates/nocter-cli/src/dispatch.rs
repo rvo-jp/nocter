@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use nocter_command::{
     CommandToolchain, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand,
-    ParsedRunCommand, ResolvedProgramInput, execute_prepared_build, execute_prepared_check,
-    execute_prepared_fetch, execute_prepared_run,
+    ParsedRunCommand, ParsedTestCommand, ResolvedProgramInput, execute_prepared_build,
+    execute_prepared_check, execute_prepared_fetch, execute_prepared_run, execute_prepared_test,
 };
 use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
@@ -37,6 +37,9 @@ pub(crate) fn execute_parsed_command(
         }
         ParsedCommand::Run(command) => {
             execute_run(command, current_directory, toolchain, presentation)
+        }
+        ParsedCommand::Test(command) => {
+            execute_test(command, current_directory, toolchain, presentation)
         }
     }
 }
@@ -126,6 +129,31 @@ fn execute_run(
         .map(InvocationOutcome::Run)
         .map_err(|error| {
             InvocationError::new(InvocationErrorKind::Run(Box::new(error)), presentation)
+        })
+}
+
+fn execute_test(
+    command: ParsedTestCommand,
+    current_directory: &Path,
+    toolchain: &CommandToolchain,
+    mut presentation: Option<InvocationDiagnosticPresentation>,
+) -> Result<InvocationOutcome, InvocationError> {
+    let command = command.prepare(current_directory).map_err(|error| {
+        InvocationError::new(
+            InvocationErrorKind::Preparation(error),
+            presentation.clone(),
+        )
+    })?;
+    if let Some(presentation) = presentation.as_mut() {
+        let root: PathBuf = command.plan().input().declaration().into();
+        presentation.root = Some(root.clone());
+        presentation.root_absolute_path = Some(root);
+    }
+    let mut acquisition = initialize_acquisition(presentation.as_ref())?;
+    execute_prepared_test(command, toolchain, &mut acquisition)
+        .map(|result| InvocationOutcome::Test(Box::new(result)))
+        .map_err(|error| {
+            InvocationError::new(InvocationErrorKind::Test(Box::new(error)), presentation)
         })
 }
 

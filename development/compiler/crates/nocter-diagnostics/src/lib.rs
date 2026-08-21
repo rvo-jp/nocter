@@ -15,7 +15,8 @@ mod projection;
 pub use human::{DiagnosticRenderError, render_source_diagnostic};
 pub use json::{
     DiagnosticJsonContext, SpanlessDiagnostic, render_source_diagnostics_json,
-    render_spanless_diagnostic_json,
+    render_spanless_diagnostic_json, write_json_string, write_source_diagnostic_items_json,
+    write_spanless_diagnostic_json,
 };
 
 /// Exact source subject selected by the phase that owns a diagnostic rule.

@@ -11,7 +11,7 @@ use nocter_package::{
     PackageGraphError, ResolvedPackageSelection, StandardPackage, resolve_standard_package,
 };
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::{ExecutableSelector, bundled_standard_toolchain};
+use nocter_session::{ExecutableSelector, TestTargetSelector, bundled_standard_toolchain};
 
 use crate::package_state::resolve_command_package_state;
 use crate::{
@@ -22,6 +22,8 @@ use crate::{
 pub(crate) enum CommandCompileRoots<'a> {
     AllExecutables,
     NamedExecutable(&'a str),
+    AllTests,
+    NamedTest(&'a str),
 }
 
 impl<'a> CommandCompileRoots<'a> {
@@ -29,6 +31,13 @@ impl<'a> CommandCompileRoots<'a> {
         match selector {
             ExecutableSelector::Only => Self::AllExecutables,
             ExecutableSelector::Named(name) => Self::NamedExecutable(name),
+        }
+    }
+
+    pub(crate) fn for_test_selector(selector: &'a TestTargetSelector) -> Self {
+        match selector {
+            TestTargetSelector::All => Self::AllTests,
+            TestTargetSelector::Named(name) => Self::NamedTest(name),
         }
     }
 }
@@ -74,6 +83,14 @@ impl CommandToolchain {
     #[must_use]
     pub const fn packages(&self) -> &CommandPackageContext {
         &self.packages
+    }
+
+    #[must_use]
+    pub fn for_requested_target(&self, target: Option<CompilationTarget>) -> Self {
+        Self {
+            target: target.unwrap_or(self.target),
+            packages: self.packages.clone(),
+        }
     }
 }
 
@@ -121,29 +138,51 @@ fn discover_declared(
         .iter()
         .find(|package| package.identity() == &root)
         .ok_or_else(|| CommandSourceError::MissingCommandRoot(root.clone()))?;
-    let mut selected_named_executable = false;
+    let mut selected_named_target = false;
     if let Some(declaration) = package.declaration() {
-        for target in declaration.targets().iter().filter(|target| {
-            target.kind() == nocter_model::PackageTargetKind::Executable
-                && match compile_roots {
-                    CommandCompileRoots::AllExecutables => true,
-                    CommandCompileRoots::NamedExecutable(name) => target.name().value() == name,
+        for target in declaration
+            .targets()
+            .iter()
+            .filter(|target| match compile_roots {
+                CommandCompileRoots::AllExecutables => {
+                    target.kind() == nocter_model::PackageTargetKind::Executable
                 }
-        }) {
-            selected_named_executable = true;
+                CommandCompileRoots::NamedExecutable(name) => {
+                    target.kind() == nocter_model::PackageTargetKind::Executable
+                        && target.name().value() == name
+                }
+                CommandCompileRoots::AllTests => {
+                    target.kind() == nocter_model::PackageTargetKind::Test
+                }
+                CommandCompileRoots::NamedTest(name) => {
+                    target.kind() == nocter_model::PackageTargetKind::Test
+                        && target.name().value() == name
+                }
+            })
+        {
+            selected_named_target = true;
             roots.insert(ModuleIdentity::new(
                 root.clone(),
                 target.module().iter().cloned(),
             ));
         }
     }
-    if let CommandCompileRoots::NamedExecutable(name) = compile_roots
-        && !selected_named_executable
-    {
-        return Err(CommandSourceError::MissingCommandExecutable {
-            package: root,
-            name: name.into(),
-        });
+    if !selected_named_target {
+        match compile_roots {
+            CommandCompileRoots::NamedExecutable(name) => {
+                return Err(CommandSourceError::MissingCommandExecutable {
+                    package: root,
+                    name: name.into(),
+                });
+            }
+            CommandCompileRoots::NamedTest(name) => {
+                return Err(CommandSourceError::MissingCommandTest {
+                    package: root,
+                    name: name.into(),
+                });
+            }
+            CommandCompileRoots::AllExecutables | CommandCompileRoots::AllTests => {}
+        }
     }
     let (packages, _, _) = selected.into_parts();
     discover(DiscoveryRequest::declared(
@@ -161,6 +200,10 @@ pub enum CommandSourceError {
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
     MissingCommandExecutable {
+        package: PackageIdentity,
+        name: Box<str>,
+    },
+    MissingCommandTest {
         package: PackageIdentity,
         name: Box<str>,
     },
@@ -184,6 +227,11 @@ impl fmt::Display for CommandSourceError {
                 "command-root package {} does not declare executable {name}",
                 package.as_str()
             ),
+            Self::MissingCommandTest { package, name } => write!(
+                formatter,
+                "command-root package {} does not declare test target {name}",
+                package.as_str()
+            ),
             Self::Discovery(error) => write!(formatter, "source discovery failed: {error}"),
         }
     }
@@ -195,7 +243,9 @@ impl std::error::Error for CommandSourceError {
             Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
-            Self::MissingCommandRoot(_) | Self::MissingCommandExecutable { .. } => None,
+            Self::MissingCommandRoot(_)
+            | Self::MissingCommandExecutable { .. }
+            | Self::MissingCommandTest { .. } => None,
         }
     }
 }
@@ -216,6 +266,7 @@ impl CommandSourceError {
             | Self::StandardPackage(_)
             | Self::MissingCommandRoot(_)
             | Self::MissingCommandExecutable { .. }
+            | Self::MissingCommandTest { .. }
             | Self::Discovery(_) => None,
         }
     }
@@ -231,7 +282,9 @@ impl CommandSourceError {
             Self::Discovery(failure) if matches!(failure.error(), DiscoveryError::Toolchain(_)) => {
                 Some("E0703")
             }
-            Self::MissingCommandExecutable { .. } => Some("E0800"),
+            Self::MissingCommandExecutable { .. } | Self::MissingCommandTest { .. } => {
+                Some("E0800")
+            }
             Self::Discovery(failure)
                 if matches!(failure.error(), DiscoveryError::TargetSelection(_)) =>
             {
@@ -259,9 +312,10 @@ impl CommandSourceError {
     #[must_use]
     pub const fn is_user_failure(&self) -> bool {
         match self {
-            Self::Package(_) | Self::StandardPackage(_) | Self::MissingCommandExecutable { .. } => {
-                true
-            }
+            Self::Package(_)
+            | Self::StandardPackage(_)
+            | Self::MissingCommandExecutable { .. }
+            | Self::MissingCommandTest { .. } => true,
             Self::Discovery(failure) => !matches!(
                 failure.error(),
                 DiscoveryError::DuplicatePackage(_)

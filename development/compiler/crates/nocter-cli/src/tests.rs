@@ -530,6 +530,79 @@ fn json_discovery_failure_uses_the_authored_module_path() {
     assert!(rendered.contains("single-file mode cannot load a local source graph"));
 }
 
+#[test]
+fn public_test_reports_independent_runs_from_one_typed_result() {
+    let tree = TempTree::new("test-report");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("nocter.nct"),
+        "#name: \"tested\"\n#test: { name: \"unit\", module: \".\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        tree.0.join("index.nct"),
+        "test passes { return }\ntest fails { return error.new(\"tested.failure\", \"failed\") }\n",
+    )
+    .unwrap();
+
+    let human = execute_invocation(invocation(["test"], &tree.0, &home, "arm64-darwin")).unwrap();
+    assert_eq!(human.exit_code(), 1);
+    let rendered = human.render_standard_output().unwrap();
+    assert!(rendered.contains("PASS unit :: passes (exit 0)"));
+    assert!(rendered.contains("FAIL unit :: fails (exit 1)"));
+    assert!(rendered.contains("tested.failure: failed"));
+    assert!(rendered.ends_with("1 passed; 1 failed\n"));
+
+    let json = execute_invocation(invocation(
+        ["test", "--format=json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert_eq!(json.exit_code(), 1);
+    assert_eq!(json.render_standard_output(), None);
+    let rendered = json.render_json_diagnostics().unwrap().unwrap();
+    assert!(rendered.starts_with(
+        "{\"schema\":\"nocter.tests\",\"version\":1,\"ok\":false,\"package\":\"path-"
+    ));
+    assert!(rendered.contains("\"target\":\"arm64-darwin\",\"diagnostics\":[]"));
+    assert!(rendered.contains(
+        "\"target\":\"unit\",\"test\":\"passes\",\"outcome\":\"passed\",\"exit_code\":0"
+    ));
+    assert!(
+        rendered.contains(
+            "\"target\":\"unit\",\"test\":\"fails\",\"outcome\":\"failed\",\"exit_code\":1"
+        )
+    );
+    assert!(
+        rendered
+            .contains("\"stderr\":{\"encoding\":\"utf-8\",\"text\":\"tested.failure: failed\\n\"}")
+    );
+    assert!(rendered.ends_with("\"summary\":{\"passed\":1,\"failed\":1}}\n"));
+}
+
+#[test]
+fn json_test_argument_failure_uses_the_test_result_envelope() {
+    let tree = TempTree::new("test-json-argument");
+    let missing = tree.0.join("missing-home");
+    let error = execute_invocation(invocation(
+        ["test", "--unknown", "--format=json"],
+        &tree.0,
+        &missing,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.exit_code(), 2);
+    assert!(rendered.starts_with(
+        "{\"schema\":\"nocter.tests\",\"version\":1,\"ok\":false,\"package\":null,\"target\":null"
+    ));
+    assert!(rendered.contains("\"code\":\"E0700\""));
+    assert!(rendered.ends_with("],\"runs\":[],\"summary\":{\"passed\":0,\"failed\":1}}\n"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

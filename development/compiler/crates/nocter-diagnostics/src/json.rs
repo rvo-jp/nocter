@@ -61,14 +61,30 @@ pub fn render_source_diagnostics_json(
     sources: &SourceMap,
 ) -> Result<String, DiagnosticRenderError> {
     render_diagnostics_json(context, diagnostics.is_empty(), |output| {
-        for (index, diagnostic) in diagnostics.iter().enumerate() {
-            if index != 0 {
-                output.push(',');
-            }
-            write_diagnostic(output, diagnostic, sources)?;
-        }
-        Ok(())
+        write_source_diagnostic_items_json(output, diagnostics, sources)
     })
+}
+
+/// Appends comma-separated source diagnostic objects without an enclosing JSON array.
+///
+/// This is the shared projection boundary for versioned envelopes that embed ordinary compiler
+/// diagnostics beside domain-specific result data.
+///
+/// # Errors
+///
+/// Returns a source/range integrity failure.
+pub fn write_source_diagnostic_items_json(
+    output: &mut String,
+    diagnostics: &[SourceDiagnostic],
+    sources: &SourceMap,
+) -> Result<(), DiagnosticRenderError> {
+    for (index, diagnostic) in diagnostics.iter().enumerate() {
+        if index != 0 {
+            output.push(',');
+        }
+        write_diagnostic(output, diagnostic, sources)?;
+    }
+    Ok(())
 }
 
 /// Renders one spanless failure in a complete `nocter.diagnostics` version-1 envelope.
@@ -82,15 +98,20 @@ pub fn render_spanless_diagnostic_json(
     diagnostic: SpanlessDiagnostic<'_>,
 ) -> Result<String, DiagnosticRenderError> {
     render_diagnostics_json(context, false, |output| {
-        output.push_str("{\"code\":");
-        write_json_string(output, diagnostic.code);
-        output.push_str(",\"severity\":\"error\",\"message\":");
-        write_json_string(output, diagnostic.message);
-        output.push_str(",\"primary_span\":null,\"notes\":[],\"help\":");
-        write_optional_string(output, diagnostic.help);
-        output.push('}');
+        write_spanless_diagnostic_json(output, diagnostic);
         Ok(())
     })
+}
+
+/// Appends one spanless diagnostic object for a domain-specific versioned envelope.
+pub fn write_spanless_diagnostic_json(output: &mut String, diagnostic: SpanlessDiagnostic<'_>) {
+    output.push_str("{\"code\":");
+    write_json_string(output, diagnostic.code);
+    output.push_str(",\"severity\":\"error\",\"message\":");
+    write_json_string(output, diagnostic.message);
+    output.push_str(",\"primary_span\":null,\"notes\":[],\"help\":");
+    write_optional_string(output, diagnostic.help);
+    output.push('}');
 }
 
 fn render_diagnostics_json(
@@ -175,7 +196,8 @@ fn write_optional_string(output: &mut String, value: Option<&str>) {
     }
 }
 
-fn write_json_string(output: &mut String, value: &str) {
+/// Appends one exactly escaped JSON string.
+pub fn write_json_string(output: &mut String, value: &str) {
     output.push('"');
     for character in value.chars() {
         match character {

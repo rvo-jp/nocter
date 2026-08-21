@@ -3,7 +3,7 @@ use nocter_discovery::DiscoveredUnit;
 use nocter_source::SourceMap;
 
 use crate::{BuildCommandError, BuildSetCommandError, RunCommandError};
-use nocter_session::CompileSessionError;
+use nocter_session::{CompileSessionError, NativeTestSessionError};
 
 pub(crate) trait CommandDiagnosticError {
     fn source_diagnostic(&self) -> Option<&SourceDiagnostic>;
@@ -30,6 +30,12 @@ impl CommandDiagnosticError for RunCommandError {
 impl CommandDiagnosticError for CompileSessionError {
     fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         CompileSessionError::source_diagnostic(self)
+    }
+}
+
+impl CommandDiagnosticError for NativeTestSessionError {
+    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        NativeTestSessionError::source_diagnostic(self)
     }
 }
 

@@ -2,11 +2,13 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use nocter_model::CompilationTarget;
+
 use crate::command_schema::{CommandKind, CommandOption, CommandSchema, option_schema};
 use crate::{
     BuildCommandOptions, BuildCommandPlan, CheckCommandOptions, CheckCommandPlan, CommandPlanError,
-    ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan,
-    resolve_package_input, resolve_program_input,
+    ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan, TestCommandOptions,
+    TestCommandPlan, resolve_package_input, resolve_program_input,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -43,6 +45,64 @@ pub enum ParsedCommand {
     Check(ParsedCheckCommand),
     Build(ParsedBuildCommand),
     Run(ParsedRunCommand),
+    Test(ParsedTestCommand),
+}
+
+impl ParsedCommand {
+    #[must_use]
+    pub const fn requested_target(&self) -> Option<CompilationTarget> {
+        match self {
+            Self::Check(command) => command.target,
+            Self::Build(command) => command.target,
+            Self::Run(command) => command.target,
+            Self::Test(command) => command.target,
+            Self::Help(_) | Self::Version | Self::Doctor | Self::Fetch(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ParsedTestCommand {
+    root: Option<PathBuf>,
+    command: TestCommandOptions,
+    resolution: ResolutionOptions,
+    format: DiagnosticFormat,
+    target: Option<CompilationTarget>,
+}
+
+impl ParsedTestCommand {
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
+    #[must_use]
+    pub fn root_hint(&self) -> PathBuf {
+        self.root.as_deref().map_or_else(
+            || PathBuf::from("nocter.nct"),
+            |root| root.join("nocter.nct"),
+        )
+    }
+
+    /// Resolves one exact package and closes semantic test selection policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns package input or test-plan validation failure.
+    pub fn prepare(
+        self,
+        current_directory: impl AsRef<Path>,
+    ) -> Result<PreparedTestCommand, PreparedCommandError> {
+        let input = resolve_package_input(current_directory, self.root.as_deref())
+            .map_err(PreparedCommandError::Input)?;
+        let plan = TestCommandPlan::new(input, self.command).map_err(PreparedCommandError::Plan)?;
+        Ok(PreparedTestCommand {
+            plan,
+            resolution: self.resolution,
+            format: self.format,
+            target: self.target,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -51,6 +111,7 @@ pub struct ParsedCheckCommand {
     command: CheckCommandOptions,
     resolution: ResolutionOptions,
     format: DiagnosticFormat,
+    target: Option<CompilationTarget>,
 }
 
 impl ParsedCheckCommand {
@@ -81,6 +142,7 @@ impl ParsedCheckCommand {
             plan,
             resolution: self.resolution,
             format: self.format,
+            target: self.target,
         })
     }
 }
@@ -115,6 +177,7 @@ pub struct ParsedBuildCommand {
     input: ProgramInputOptions,
     command: BuildCommandOptions,
     resolution: ResolutionOptions,
+    target: Option<CompilationTarget>,
 }
 
 impl ParsedBuildCommand {
@@ -134,6 +197,7 @@ impl ParsedBuildCommand {
         Ok(PreparedBuildCommand {
             plan,
             resolution: self.resolution,
+            target: self.target,
         })
     }
 }
@@ -143,6 +207,7 @@ pub struct ParsedRunCommand {
     input: ProgramInputOptions,
     command: RunCommandOptions,
     resolution: ResolutionOptions,
+    target: Option<CompilationTarget>,
 }
 
 impl ParsedRunCommand {
@@ -161,6 +226,7 @@ impl ParsedRunCommand {
         Ok(PreparedRunCommand {
             plan,
             resolution: self.resolution,
+            target: self.target,
         })
     }
 }
@@ -169,6 +235,7 @@ impl ParsedRunCommand {
 pub struct PreparedBuildCommand {
     plan: BuildCommandPlan,
     resolution: ResolutionOptions,
+    target: Option<CompilationTarget>,
 }
 
 #[derive(Debug)]
@@ -176,6 +243,38 @@ pub struct PreparedCheckCommand {
     plan: CheckCommandPlan,
     resolution: ResolutionOptions,
     format: DiagnosticFormat,
+    target: Option<CompilationTarget>,
+}
+
+#[derive(Debug)]
+pub struct PreparedTestCommand {
+    plan: TestCommandPlan,
+    resolution: ResolutionOptions,
+    format: DiagnosticFormat,
+    target: Option<CompilationTarget>,
+}
+
+impl PreparedTestCommand {
+    #[must_use]
+    pub const fn plan(&self) -> &TestCommandPlan {
+        &self.plan
+    }
+
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        TestCommandPlan,
+        ResolutionOptions,
+        DiagnosticFormat,
+        Option<CompilationTarget>,
+    ) {
+        (self.plan, self.resolution, self.format, self.target)
+    }
 }
 
 impl PreparedCheckCommand {
@@ -194,8 +293,15 @@ impl PreparedCheckCommand {
         self.format
     }
 
-    pub(crate) fn into_parts(self) -> (CheckCommandPlan, ResolutionOptions, DiagnosticFormat) {
-        (self.plan, self.resolution, self.format)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        CheckCommandPlan,
+        ResolutionOptions,
+        DiagnosticFormat,
+        Option<CompilationTarget>,
+    ) {
+        (self.plan, self.resolution, self.format, self.target)
     }
 }
 
@@ -210,8 +316,14 @@ impl PreparedBuildCommand {
         self.resolution
     }
 
-    pub(crate) fn into_parts(self) -> (BuildCommandPlan, ResolutionOptions) {
-        (self.plan, self.resolution)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        BuildCommandPlan,
+        ResolutionOptions,
+        Option<CompilationTarget>,
+    ) {
+        (self.plan, self.resolution, self.target)
     }
 }
 
@@ -219,6 +331,7 @@ impl PreparedBuildCommand {
 pub struct PreparedRunCommand {
     plan: RunCommandPlan,
     resolution: ResolutionOptions,
+    target: Option<CompilationTarget>,
 }
 
 #[derive(Debug)]
@@ -254,8 +367,10 @@ impl PreparedRunCommand {
         self.resolution
     }
 
-    pub(crate) fn into_parts(self) -> (RunCommandPlan, ResolutionOptions) {
-        (self.plan, self.resolution)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (RunCommandPlan, ResolutionOptions, Option<CompilationTarget>) {
+        (self.plan, self.resolution, self.target)
     }
 }
 
@@ -343,6 +458,9 @@ pub fn parse_command_invocation(
         CommandKind::Run => parse_run(arguments.into_iter())
             .map(ParsedCommand::Run)
             .map_err(|failure| failure.for_command("run")),
+        CommandKind::Test => parse_test(arguments.into_iter())
+            .map(ParsedCommand::Test)
+            .map_err(|failure| failure.for_command("test")),
     }
 }
 
@@ -383,12 +501,16 @@ fn parse_check(
         output: _,
         resolution,
         format,
+        target,
+        test: _,
+        case: _,
     } = parse_options(arguments, CommandKind::Check.schema())?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: CheckCommandOptions::new(executable),
         resolution,
         format: format.unwrap_or_default(),
+        target,
     })
 }
 
@@ -403,6 +525,9 @@ fn parse_fetch(
         output: _,
         resolution,
         format: _,
+        target: _,
+        test: _,
+        case: _,
     } = parse_options(arguments, CommandKind::Fetch.schema())?;
     Ok(ParsedFetchCommand { root, resolution })
 }
@@ -418,11 +543,15 @@ fn parse_build(
         output,
         resolution,
         format: _,
+        target,
+        test: _,
+        case: _,
     } = parse_options(arguments, CommandKind::Build.schema())?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: BuildCommandOptions::new(executable, output),
         resolution,
+        target,
     })
 }
 
@@ -437,11 +566,39 @@ fn parse_run(
         output: _,
         resolution,
         format: _,
+        target,
+        test: _,
+        case: _,
     } = parse_options(arguments, CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: RunCommandOptions::new(executable),
         resolution,
+        target,
+    })
+}
+
+fn parse_test(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedTestCommand, OptionsParseFailure> {
+    let ParsedOptions {
+        root,
+        file: _,
+        positional: _,
+        executable: _,
+        output: _,
+        resolution,
+        format,
+        target,
+        test,
+        case,
+    } = parse_options(arguments, CommandKind::Test.schema())?;
+    Ok(ParsedTestCommand {
+        root,
+        command: TestCommandOptions::new(test, case),
+        resolution,
+        format: format.unwrap_or_default(),
+        target,
     })
 }
 
@@ -454,6 +611,9 @@ struct ParsedOptions {
     output: Option<PathBuf>,
     resolution: ResolutionOptions,
     format: Option<DiagnosticFormat>,
+    target: Option<CompilationTarget>,
+    test: Option<Box<str>>,
+    case: Option<Box<str>>,
 }
 
 fn parse_options(
@@ -554,7 +714,7 @@ impl OptionsParseFailure {
     }
 
     fn for_command(self, command: &'static str) -> CommandArgumentFailure {
-        let root_hint = if command == "check" {
+        let root_hint = if matches!(command, "check" | "test") {
             self.root_hint
         } else {
             None
@@ -626,6 +786,28 @@ fn parse_valued_option(
             };
             set_value(&mut parsed.format, format, schema.canonical_name())
         }
+        CommandOption::Target => {
+            let value = value
+                .into_string()
+                .map_err(CommandArgumentError::NonUnicodeTarget)?;
+            let target = CompilationTarget::from_name(&value)
+                .ok_or_else(|| CommandArgumentError::UnknownTarget(value.into()))?;
+            set_value(&mut parsed.target, target, schema.canonical_name())
+        }
+        CommandOption::Test => set_name(
+            &mut parsed.test,
+            value,
+            schema.canonical_name(),
+            CommandArgumentError::NonUnicodeTest,
+            CommandArgumentError::EmptyTest,
+        ),
+        CommandOption::Case => set_name(
+            &mut parsed.case,
+            value,
+            schema.canonical_name(),
+            CommandArgumentError::NonUnicodeCase,
+            CommandArgumentError::EmptyCase,
+        ),
         CommandOption::Help | CommandOption::Locked | CommandOption::Offline => {
             unreachable!("flag option passed the valued-option boundary")
         }
@@ -651,7 +833,10 @@ fn parse_flag_option(
         | CommandOption::File
         | CommandOption::Executable
         | CommandOption::Output
-        | CommandOption::Format => unreachable!("valued option passed the flag-option boundary"),
+        | CommandOption::Format
+        | CommandOption::Target
+        | CommandOption::Test
+        | CommandOption::Case => unreachable!("valued option passed the flag-option boundary"),
     }
 }
 
@@ -661,6 +846,20 @@ fn set_path(
     name: &'static str,
 ) -> Result<(), CommandArgumentError> {
     set_value(slot, PathBuf::from(value), name)
+}
+
+fn set_name(
+    slot: &mut Option<Box<str>>,
+    value: OsString,
+    option: &'static str,
+    non_unicode: fn(OsString) -> CommandArgumentError,
+    empty: CommandArgumentError,
+) -> Result<(), CommandArgumentError> {
+    let value = value.into_string().map_err(non_unicode)?;
+    if value.is_empty() {
+        return Err(empty);
+    }
+    set_value(slot, value.into(), option)
 }
 
 fn set_value<T>(
@@ -731,6 +930,12 @@ pub enum CommandArgumentError {
     NonUnicodeFormat(OsString),
     UnsupportedFormat(Box<str>),
     EmptyExecutable,
+    NonUnicodeTarget(OsString),
+    UnknownTarget(Box<str>),
+    NonUnicodeTest(OsString),
+    EmptyTest,
+    NonUnicodeCase(OsString),
+    EmptyCase,
 }
 
 /// A pure argument failure plus the output selection completed by the same parse.
@@ -850,6 +1055,26 @@ impl fmt::Display for CommandArgumentError {
                 write!(formatter, "unsupported diagnostic format {format}")
             }
             Self::EmptyExecutable => formatter.write_str("executable name cannot be empty"),
+            Self::NonUnicodeTarget(target) => write!(
+                formatter,
+                "compilation target is not Unicode: {}",
+                target.to_string_lossy()
+            ),
+            Self::UnknownTarget(target) => {
+                write!(formatter, "unknown compilation target {target}")
+            }
+            Self::NonUnicodeTest(name) => write!(
+                formatter,
+                "test target name is not Unicode: {}",
+                name.to_string_lossy()
+            ),
+            Self::EmptyTest => formatter.write_str("test target name cannot be empty"),
+            Self::NonUnicodeCase(name) => write!(
+                formatter,
+                "test case name is not Unicode: {}",
+                name.to_string_lossy()
+            ),
+            Self::EmptyCase => formatter.write_str("test case name cannot be empty"),
         }
     }
 }
@@ -896,6 +1121,45 @@ mod tests {
                 command: "doctor",
             }
         );
+    }
+
+    #[test]
+    fn target_and_test_options_keep_distinct_typed_namespaces() {
+        let parsed = parse_command_arguments(arguments(&[
+            "test",
+            "--test",
+            "unit",
+            "--case",
+            "pushes",
+            "--target",
+            "arm64-darwin",
+            "--format",
+            "json",
+        ]))
+        .unwrap();
+        assert_eq!(
+            parsed.requested_target(),
+            Some(CompilationTarget::Arm64Darwin)
+        );
+        assert!(matches!(parsed, ParsedCommand::Test(_)));
+        assert_eq!(
+            parse_command_arguments(arguments(&["test", "source.nct"])).unwrap_err(),
+            CommandArgumentError::PositionalNotAccepted {
+                command: "test",
+                argument: "source.nct".into(),
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["test", "--file", "source.nct"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--file",
+                command: "test",
+            }
+        );
+        assert!(matches!(
+            parse_command_arguments(arguments(&["check", "--target", "mips-templeos"])),
+            Err(CommandArgumentError::UnknownTarget(target)) if target.as_ref() == "mips-templeos"
+        ));
     }
 
     #[test]

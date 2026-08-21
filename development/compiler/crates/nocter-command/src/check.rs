@@ -84,7 +84,8 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     authority: &mut A,
 ) -> Result<CheckCommandResult, CheckCommandExecutionError> {
-    let (plan, resolution, format) = command.into_parts();
+    let (plan, resolution, format, target) = command.into_parts();
+    let toolchain = toolchain.for_requested_target(target);
     let (input, executable) = plan.into_parts();
     let root = match &input {
         crate::ResolvedProgramInput::Package(package) => package.declaration(),
@@ -95,7 +96,7 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
         CommandCompileRoots::AllExecutables,
         CommandCompileRoots::NamedExecutable,
     );
-    let unit = discover_command_source(&input, resolution, toolchain, roots, authority).map_err(
+    let unit = discover_command_source(&input, resolution, &toolchain, roots, authority).map_err(
         |error| CheckCommandExecutionError::Source {
             presentation: presentation.clone(),
             error: Box::new(error),

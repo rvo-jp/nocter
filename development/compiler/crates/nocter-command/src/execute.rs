@@ -30,13 +30,14 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     authority: &mut A,
 ) -> Result<BuildCommandResult, BuildCommandExecutionError> {
-    let (plan, resolution) = command.into_parts();
+    let (plan, resolution, target) = command.into_parts();
+    let toolchain = toolchain.for_requested_target(target);
     let (input, operation) = plan.into_parts();
     let compile_roots = match &operation {
         BuildOperation::PackageSet { .. } => CommandCompileRoots::AllExecutables,
         BuildOperation::Selected { selector, .. } => CommandCompileRoots::for_selector(selector),
     };
-    let unit = discover_command_source(&input, resolution, toolchain, compile_roots, authority)
+    let unit = discover_command_source(&input, resolution, &toolchain, compile_roots, authority)
         .map_err(BuildCommandExecutionError::Source)?;
     match operation {
         BuildOperation::PackageSet { output_directory } => {
@@ -70,12 +71,13 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     authority: &mut A,
 ) -> Result<ExecutedProgram, RunCommandExecutionError> {
-    let (plan, resolution) = command.into_parts();
+    let (plan, resolution, target) = command.into_parts();
+    let toolchain = toolchain.for_requested_target(target);
     let (input, selector, working_directory) = plan.into_parts();
     let unit = discover_command_source(
         &input,
         resolution,
-        toolchain,
+        &toolchain,
         CommandCompileRoots::for_selector(&selector),
         authority,
     )

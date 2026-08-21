@@ -10,6 +10,7 @@ pub(crate) enum CommandKind {
     Check,
     Build,
     Run,
+    Test,
 }
 
 impl CommandKind {
@@ -39,6 +40,9 @@ pub(crate) enum CommandOption {
     Locked,
     Offline,
     Format,
+    Target,
+    Test,
+    Case,
 }
 
 impl CommandOption {
@@ -139,7 +143,7 @@ const RESOLUTION_OPTIONS: u16 = CommandOption::Locked.bit() | CommandOption::Off
 const INPUT_OPTIONS: u16 =
     CommandOption::Root.bit() | CommandOption::File.bit() | CommandOption::Executable.bit();
 
-const OPTIONS: [OptionSchema; 8] = [
+const OPTIONS: [OptionSchema; 11] = [
     OptionSchema {
         option: CommandOption::Help,
         long: "--help",
@@ -196,6 +200,27 @@ const OPTIONS: [OptionSchema; 8] = [
         value: Some("FORMAT"),
         description: "Use JSON diagnostic output (json).",
     },
+    OptionSchema {
+        option: CommandOption::Target,
+        long: "--target",
+        short: None,
+        value: Some("TARGET"),
+        description: "Select the compilation target.",
+    },
+    OptionSchema {
+        option: CommandOption::Test,
+        long: "--test",
+        short: None,
+        value: Some("NAME"),
+        description: "Select the named package test target.",
+    },
+    OptionSchema {
+        option: CommandOption::Case,
+        long: "--case",
+        short: None,
+        value: Some("NAME"),
+        description: "Select one exact case in the named test target.",
+    },
 ];
 
 const SOURCE: PositionalSchema = PositionalSchema {
@@ -249,7 +274,11 @@ const CHECK: CommandSchema = CommandSchema {
     name: "check",
     form: CommandForm::Subcommand,
     summary: "Check one package or standalone source without emitting an executable.",
-    accepted: HELP_OPTION | INPUT_OPTIONS | RESOLUTION_OPTIONS | CommandOption::Format.bit(),
+    accepted: HELP_OPTION
+        | INPUT_OPTIONS
+        | RESOLUTION_OPTIONS
+        | CommandOption::Format.bit()
+        | CommandOption::Target.bit(),
     positional: Some(SOURCE),
 };
 
@@ -258,7 +287,11 @@ const BUILD: CommandSchema = CommandSchema {
     name: "build",
     form: CommandForm::Subcommand,
     summary: "Build one package or standalone source.",
-    accepted: HELP_OPTION | INPUT_OPTIONS | CommandOption::Output.bit() | RESOLUTION_OPTIONS,
+    accepted: HELP_OPTION
+        | INPUT_OPTIONS
+        | CommandOption::Output.bit()
+        | RESOLUTION_OPTIONS
+        | CommandOption::Target.bit(),
     positional: Some(SOURCE),
 };
 
@@ -267,11 +300,26 @@ const RUN: CommandSchema = CommandSchema {
     name: "run",
     form: CommandForm::Subcommand,
     summary: "Build and run one selected executable or standalone source.",
-    accepted: HELP_OPTION | INPUT_OPTIONS | RESOLUTION_OPTIONS,
+    accepted: HELP_OPTION | INPUT_OPTIONS | RESOLUTION_OPTIONS | CommandOption::Target.bit(),
     positional: Some(SOURCE),
 };
 
-const COMMANDS: [CommandSchema; 7] = [HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN];
+const TEST: CommandSchema = CommandSchema {
+    kind: CommandKind::Test,
+    name: "test",
+    form: CommandForm::Subcommand,
+    summary: "Compile and run declared package test targets.",
+    accepted: HELP_OPTION
+        | CommandOption::Root.bit()
+        | CommandOption::Test.bit()
+        | CommandOption::Case.bit()
+        | CommandOption::Target.bit()
+        | RESOLUTION_OPTIONS
+        | CommandOption::Format.bit(),
+    positional: None,
+};
+
+const COMMANDS: [CommandSchema; 8] = [HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST];
 
 /// One pure help selection produced by the public argument parser.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -356,7 +404,7 @@ fn render_command_help(schema: CommandSchema) -> String {
 mod tests {
     use super::*;
 
-    const KINDS: [CommandKind; 7] = [
+    const KINDS: [CommandKind; 8] = [
         CommandKind::Help,
         CommandKind::Version,
         CommandKind::Doctor,
@@ -364,6 +412,7 @@ mod tests {
         CommandKind::Check,
         CommandKind::Build,
         CommandKind::Run,
+        CommandKind::Test,
     ];
 
     #[test]
@@ -403,7 +452,7 @@ mod tests {
             assert!(rendered.contains(schema.name));
         }
         assert!(rendered.contains("--help"));
-        assert!(!rendered.contains("nocter test"));
+        assert!(rendered.contains("test"));
         assert!(!rendered.contains("nocter fmt"));
         assert!(!rendered.contains("nocter lsp"));
     }
