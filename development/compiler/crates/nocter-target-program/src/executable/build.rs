@@ -55,6 +55,13 @@ pub(super) fn build_tests(
     selected: nocter_model::PackageTargetId,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
     let selection = select_test_target(&target, selected)?;
+    build_selected_tests(target, &selection)
+}
+
+pub(super) fn build_selected_tests(
+    target: Arc<TargetProgram>,
+    selection: &crate::SelectedTestTarget,
+) -> Result<ExecutableProgram, ExecutableProgramError> {
     let roots = selection
         .tests()
         .iter()
@@ -81,7 +88,7 @@ pub(super) fn build_tests(
         closure_layouts: frozen.closure_layouts,
         type_representations: frozen.type_representations,
         root: ExecutableRoot::Tests {
-            target: selected,
+            target: selection.target(),
             cases: cases.into_boxed_slice(),
         },
     })

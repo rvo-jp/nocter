@@ -9,6 +9,7 @@ mod executable;
 mod native;
 mod output;
 mod profile;
+mod test;
 
 pub use error::CompileSessionError;
 pub use executable::{
@@ -24,6 +25,11 @@ pub use output::{
     NativeImageEntry,
 };
 pub use profile::bundled_standard_toolchain;
+pub use test::{
+    CompiledNativeTestSet, NativeTestCompileRequest, NativeTestImage, NativeTestSessionError,
+    NativeTestTargetCompilation, NativeTestTargetOutcome, TestCaseIdentity, TestTargetIdentity,
+    TestTargetSelectionError, TestTargetSelector, compile_native_tests,
+};
 
 use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;

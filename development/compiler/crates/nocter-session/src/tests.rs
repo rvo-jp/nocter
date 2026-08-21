@@ -9,8 +9,9 @@ use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_target_program::PrimitiveRole;
 
 use super::{
-    ExecutableCompileRequest, NativeImageSetCompileRequest, bundled_standard_toolchain,
-    compile_native_image, compile_native_images, compile_target,
+    ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,
+    NativeTestTargetOutcome, bundled_standard_toolchain, compile_native_image,
+    compile_native_images, compile_native_tests, compile_target,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -77,9 +78,9 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 
 #[test]
 fn every_public_single_file_example_crosses_the_complete_target_session() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler.join("../std");
-    let examples = compiler.join("../../examples");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let examples = compiler_root.join("../../examples");
     let package = PackageIdentity::new("toolchain:std");
     let mut sources = fs::read_dir(&examples)
         .unwrap()
@@ -184,6 +185,84 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
             .iter()
             .all(|entry| entry.image().bytes().starts_with(&[0xcf, 0xfa, 0xed, 0xfe]))
     );
+}
+
+#[test]
+fn native_test_set_preserves_target_and_case_declaration_identity() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "nocter.nct",
+        "#name: \"tests\"\n#test: { name: \"unit\", module: \"./unit\" }\n#test: { name: \"integration\", module: \"./integration\" }\n",
+    );
+    package_root.source("index.nct", "//! Test package.\n");
+    package_root.source(
+        "unit/index.nct",
+        "test first { return }\ntest second { return }\n",
+    );
+    package_root.source("integration/index.nct", "test external { return }\n");
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let package = PackageIdentity::new("workspace:tests");
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![
+            resolved,
+            resolved_standard(&standard_root, &standard_package),
+        ]),
+        vec![
+            ModuleIdentity::new(package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(package.clone(), ["unit"]),
+            ModuleIdentity::new(package.clone(), ["integration"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(&unit)).unwrap();
+    assert_eq!(
+        compiled
+            .targets()
+            .iter()
+            .map(|target| target.identity().name())
+            .collect::<Vec<_>>(),
+        ["unit", "integration"]
+    );
+    assert_eq!(
+        compiled
+            .targets()
+            .iter()
+            .map(|target| match target.outcome() {
+                NativeTestTargetOutcome::Compiled(cases) => cases
+                    .iter()
+                    .map(|case| case.identity().name())
+                    .collect::<Vec<_>>(),
+                NativeTestTargetOutcome::CompileFailed(error) => {
+                    panic!("test target failed native compilation: {error}")
+                }
+            })
+            .collect::<Vec<_>>(),
+        [vec!["first", "second"], vec!["external"]]
+    );
+    assert!(compiled.targets().iter().all(|target| {
+        target.identity().package() == &package
+            && match target.outcome() {
+                NativeTestTargetOutcome::Compiled(cases) => cases
+                    .iter()
+                    .all(|case| case.image().bytes().starts_with(&[0xcf, 0xfa, 0xed, 0xfe])),
+                NativeTestTargetOutcome::CompileFailed(_) => false,
+            }
+    }));
+
+    let selected =
+        compile_native_tests(NativeTestCompileRequest::case(&unit, "unit", "second")).unwrap();
+    let NativeTestTargetOutcome::Compiled(cases) = selected.targets()[0].outcome() else {
+        panic!("selected case failed native compilation")
+    };
+    assert_eq!(cases.len(), 1);
+    assert_eq!(cases[0].identity().name(), "second");
 }
 
 fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackageSpec {

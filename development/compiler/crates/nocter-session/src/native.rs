@@ -95,6 +95,7 @@ pub enum NativeImageError {
     Machine(MachineProgramError),
     Arm64(Arm64LoweringError),
     Image(MachOError),
+    Integrity(Box<str>),
 }
 
 impl fmt::Display for NativeImageError {
@@ -105,6 +106,9 @@ impl fmt::Display for NativeImageError {
             Self::Machine(error) => write!(formatter, "machine lowering failed: {error}"),
             Self::Arm64(error) => write!(formatter, "ARM64 lowering failed: {error}"),
             Self::Image(error) => write!(formatter, "Mach-O construction failed: {error}"),
+            Self::Integrity(message) => {
+                write!(formatter, "native image integrity failed: {message}")
+            }
         }
     }
 }
@@ -117,6 +121,7 @@ impl std::error::Error for NativeImageError {
             Self::Machine(error) => Some(error),
             Self::Arm64(error) => Some(error),
             Self::Image(error) => Some(error),
+            Self::Integrity(_) => None,
         }
     }
 }

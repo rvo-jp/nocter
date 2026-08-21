@@ -52,4 +52,7 @@ pub use primitive_registry::{
 };
 pub use program::{TargetProgram, TargetProgramError};
 pub use snapshot::ToolchainSnapshot;
-pub use test_entry::{SelectedTest, SelectedTestTarget, TestSelectionError, select_test_target};
+pub use test_entry::{
+    SelectedTest, SelectedTestTarget, TestCaseSelectionError, TestSelectionError, select_test_case,
+    select_test_target,
+};

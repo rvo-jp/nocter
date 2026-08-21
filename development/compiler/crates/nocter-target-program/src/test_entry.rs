@@ -69,6 +69,30 @@ pub enum TestSelectionError {
     InvalidTestDeclaration(TestId),
 }
 
+/// Failure to select one exact source-declared case from a test target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TestCaseSelectionError {
+    UnknownCase,
+    AmbiguousCase,
+    InvalidTestName(TestId),
+}
+
+impl fmt::Display for TestCaseSelectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownCase => formatter.write_str("selected test target has no matching case"),
+            Self::AmbiguousCase => {
+                formatter.write_str("selected test target has multiple matching cases")
+            }
+            Self::InvalidTestName(_) => {
+                formatter.write_str("selected test declaration has no valid source name")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TestCaseSelectionError {}
+
 impl fmt::Display for TestSelectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -131,5 +155,45 @@ pub fn select_test_target(
         package: target.package(),
         module: target.module(),
         tests: tests.into_boxed_slice(),
+    })
+}
+
+/// Narrows one compiler-owned test target to an exact source declaration name.
+///
+/// The selection consumes the semantic test set and retains its declaration identity. Later
+/// compilation layers therefore never need to inspect source text or recover a test from a
+/// display name.
+///
+/// # Errors
+///
+/// Returns a missing, ambiguous, or invalid semantic case identity.
+pub fn select_test_case(
+    program: &TargetProgram,
+    selected: &SelectedTestTarget,
+    name: &str,
+) -> Result<SelectedTestTarget, TestCaseSelectionError> {
+    let mut matching = Vec::new();
+    for test in selected.tests.iter().copied() {
+        let spelling = program
+            .checked()
+            .graph()
+            .symbols()
+            .spelling(test.name())
+            .ok_or(TestCaseSelectionError::InvalidTestName(test.declaration()))?;
+        if spelling == name {
+            matching.push(test);
+        }
+    }
+    let Some(test) = matching.first().copied() else {
+        return Err(TestCaseSelectionError::UnknownCase);
+    };
+    if matching.len() != 1 {
+        return Err(TestCaseSelectionError::AmbiguousCase);
+    }
+    Ok(SelectedTestTarget {
+        target: selected.target,
+        package: selected.package,
+        module: selected.module,
+        tests: Box::new([test]),
     })
 }

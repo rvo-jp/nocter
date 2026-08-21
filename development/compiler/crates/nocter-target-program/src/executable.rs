@@ -468,6 +468,18 @@ impl ExecutableProgram {
         build::build_tests(target.into(), selected)
     }
 
+    /// Closes an already selected semantic test set.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first executable-closure invariant failure.
+    pub fn for_selected_tests(
+        target: impl Into<Arc<TargetProgram>>,
+        selected: &crate::SelectedTestTarget,
+    ) -> Result<Self, ExecutableProgramError> {
+        build::build_selected_tests(target.into(), selected)
+    }
+
     #[must_use]
     pub fn target(&self) -> &TargetProgram {
         self.target.as_ref()
