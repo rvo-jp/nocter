@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 nocter-command = { path = "../nocter-command" }
+nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-installation = { path = "../nocter-installation" }
 
 [lints]

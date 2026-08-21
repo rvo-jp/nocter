@@ -13,6 +13,7 @@ use nocter_command::{
     RunCommandExecutionError, execute_prepared_build, execute_prepared_run,
     parse_command_arguments,
 };
+use nocter_diagnostics::{DiagnosticRenderError, render_source_diagnostic};
 use nocter_installation::{NocterHome, NocterHomeError, NocterHomeRequest};
 
 mod host;
@@ -158,6 +159,35 @@ impl InvocationError {
             )) => Some("E0702"),
             Self::Build(_) | Self::Run(_) => None,
         }
+    }
+
+    /// Renders diagnostics already selected by source-processing phases.
+    ///
+    /// The process boundary does not inspect compiler error variants or reopen source files.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity failure when a retained diagnostic does not belong to its invocation
+    /// source snapshot.
+    pub fn render_source_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
+        let context = match self {
+            Self::Build(error) => error.source_diagnostics(),
+            Self::Run(error) => error.source_diagnostics(),
+            Self::Arguments(_)
+            | Self::Installation(_)
+            | Self::HostMismatch { .. }
+            | Self::Preparation(_) => None,
+        };
+        let Some((diagnostics, sources)) =
+            context.filter(|(diagnostics, _)| !diagnostics.is_empty())
+        else {
+            return Ok(None);
+        };
+        let mut output = String::new();
+        for diagnostic in diagnostics {
+            output.push_str(&render_source_diagnostic(diagnostic, sources)?);
+        }
+        Ok(Some(output))
     }
 }
 

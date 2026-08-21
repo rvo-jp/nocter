@@ -4,6 +4,7 @@ use nocter_declarations::{DeclarationRule, DeclarationViolation};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use crate::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::DiagnosticOrigin;
 
 /// One source-backed declaration-rule diagnostic produced at the freeze boundary.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,12 +68,12 @@ impl DeclarationDiagnostic {
     }
 
     #[must_use]
-    pub const fn primary(&self) -> SourceOrigin {
+    pub const fn primary(&self) -> DiagnosticOrigin {
         self.source.primary()
     }
 
     #[must_use]
-    pub fn related(&self) -> Option<SourceOrigin> {
+    pub fn related(&self) -> Option<DiagnosticOrigin> {
         self.source.notes().first().map(DiagnosticNote::origin)
     }
 

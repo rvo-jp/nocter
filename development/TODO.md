@@ -24,14 +24,19 @@ implementation input.
    argument, filesystem, package-root, and home failures receive only their specification-owned
    codes. Compiler failures deliberately receive no invented CLI code.
 
-   The phase-neutral human renderer now consumes only `SourceDiagnostic` and the invocation
-   `SourceMap`. It validates source/range/UTF-8 identity and renders normalized paths, one-based
-   character coordinates with four-column tab expansion, every intersected line, related notes, and help without semantic matching
-   or filesystem access. The next boundary must carry the discovery source map, final source index
-   when available, and phase-owned diagnostic through failed sessions into this renderer. Syntax
-   diagnostics need the same envelope. Internal compiler failures remain visibly distinct and
-   never receive a source rule code. After this presentation boundary is closed, add the
-   package-state transaction that fulfills typed
+   The public diagnostic boundary is now closed. The common origin retains either an exact semantic
+   syntax subject or the normalized span owned by lexer/parser recovery. Discovery projects lexer
+   and parser failures into the same `SourceDiagnostic` envelope in source order. A failed command
+   compilation owns its phase-selected envelopes and immutable invocation `SourceMap`; wrapper
+   errors only forward an existing semantic envelope, and the process adapter invokes the common
+   renderer without semantic matching or filesystem access. The renderer validates
+   source/range/UTF-8 identity and renders normalized paths, one-based character coordinates with
+   four-column tab expansion, every intersected line, related notes, and help. `SourceIndex`
+   remains an independent success-side semantic projection rather than a presentation lookup that
+   could reconstruct a phase-selected span. Internal compiler failures remain visibly distinct and
+   never receive a source rule code.
+
+   Next, add the package-state transaction that fulfills typed
    `LockRequired`/`FetchRequired` results and reruns exact resolution; do not make the resolver or
    command adapter mutate locks or stores.
 

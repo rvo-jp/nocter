@@ -1,28 +1,95 @@
 //! Phase-neutral source diagnostic values.
 //!
 //! This crate owns only the common diagnostic envelope. Each compiler phase remains responsible
-//! for deciding which language rule failed and for projecting its retained syntax subject into a
-//! [`SourceOrigin`].
+//! for deciding which language rule failed and for projecting its exact source subject into a
+//! [`DiagnosticOrigin`].
 
-use nocter_source_index::SourceOrigin;
+use nocter_source::{SourceId, Span};
+use nocter_source_index::{SourceOrigin, SyntaxOrigin};
+use nocter_syntax::{NodeId, SyntaxToken};
 
 mod human;
 
 pub use human::{DiagnosticRenderError, render_source_diagnostic};
 
+/// Exact source subject selected by the phase that owns a diagnostic rule.
+///
+/// Semantic phases retain their syntax identity while lexer and parser failures use the span they
+/// own before a complete syntax subject exists. Presentation consumes the common source and span
+/// projection and never reconstructs either form.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DiagnosticOrigin {
+    Syntax(SourceOrigin),
+    Span(Span),
+}
+
+impl DiagnosticOrigin {
+    #[must_use]
+    pub const fn source(self) -> SourceId {
+        match self {
+            Self::Syntax(origin) => origin.source(),
+            Self::Span(span) => span.source(),
+        }
+    }
+
+    #[must_use]
+    pub const fn span(self) -> Span {
+        match self {
+            Self::Syntax(origin) => origin.span(),
+            Self::Span(span) => span,
+        }
+    }
+
+    #[must_use]
+    pub const fn syntax(self) -> Option<SyntaxOrigin> {
+        match self {
+            Self::Syntax(origin) => Some(origin.syntax()),
+            Self::Span(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn node(self) -> Option<NodeId> {
+        match self {
+            Self::Syntax(origin) => origin.node(),
+            Self::Span(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn token(self) -> Option<SyntaxToken> {
+        match self {
+            Self::Syntax(origin) => origin.token(),
+            Self::Span(_) => None,
+        }
+    }
+}
+
+impl From<SourceOrigin> for DiagnosticOrigin {
+    fn from(origin: SourceOrigin) -> Self {
+        Self::Syntax(origin)
+    }
+}
+
+impl From<Span> for DiagnosticOrigin {
+    fn from(span: Span) -> Self {
+        Self::Span(span)
+    }
+}
+
 /// One source-backed note related to a primary diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiagnosticNote {
     message: Box<str>,
-    origin: SourceOrigin,
+    origin: DiagnosticOrigin,
 }
 
 impl DiagnosticNote {
     #[must_use]
-    pub fn new(message: impl Into<Box<str>>, origin: SourceOrigin) -> Self {
+    pub fn new(message: impl Into<Box<str>>, origin: impl Into<DiagnosticOrigin>) -> Self {
         Self {
             message: message.into(),
-            origin,
+            origin: origin.into(),
         }
     }
 
@@ -32,7 +99,7 @@ impl DiagnosticNote {
     }
 
     #[must_use]
-    pub const fn origin(&self) -> SourceOrigin {
+    pub const fn origin(&self) -> DiagnosticOrigin {
         self.origin
     }
 }
@@ -42,7 +109,7 @@ impl DiagnosticNote {
 pub struct SourceDiagnostic {
     code: Box<str>,
     message: Box<str>,
-    primary: SourceOrigin,
+    primary: DiagnosticOrigin,
     notes: Box<[DiagnosticNote]>,
     help: Option<Box<str>>,
 }
@@ -52,14 +119,14 @@ impl SourceDiagnostic {
     pub fn new(
         code: impl Into<Box<str>>,
         message: impl Into<Box<str>>,
-        primary: SourceOrigin,
+        primary: impl Into<DiagnosticOrigin>,
         notes: impl Into<Box<[DiagnosticNote]>>,
         help: Option<impl Into<Box<str>>>,
     ) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
-            primary,
+            primary: primary.into(),
             notes: notes.into(),
             help: help.map(Into::into),
         }
@@ -76,7 +143,7 @@ impl SourceDiagnostic {
     }
 
     #[must_use]
-    pub const fn primary(&self) -> SourceOrigin {
+    pub const fn primary(&self) -> DiagnosticOrigin {
         self.primary
     }
 

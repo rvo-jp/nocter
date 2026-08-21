@@ -1,9 +1,8 @@
 use std::fmt::{self, Write};
 
 use nocter_source::{ByteOffset, SourceFile, SourceId, SourceMap, TextRange};
-use nocter_source_index::SourceOrigin;
 
-use crate::SourceDiagnostic;
+use crate::{DiagnosticOrigin, SourceDiagnostic};
 
 /// Renders one phase-owned source diagnostic without inspecting its semantic error type.
 ///
@@ -40,7 +39,7 @@ pub fn render_source_diagnostic(
 
 fn render_origin(
     output: &mut String,
-    origin: SourceOrigin,
+    origin: DiagnosticOrigin,
     sources: &SourceMap,
 ) -> Result<(), DiagnosticRenderError> {
     let source = sources

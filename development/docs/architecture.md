@@ -515,10 +515,18 @@ literal, or coercion entry has its own `E0254` rule rather than being rendered a
 a contract that does not exist.
 One phase-neutral human renderer consumes only this envelope and the invocation `SourceMap`. It
 projects normalized source names, one-based character coordinates with four-column tab expansion,
-every line intersected by the exact primary or related range, related messages, and help. It validates source identity, range
-bounds, and UTF-8 boundaries; it does not inspect a semantic error enum, search syntax, or reopen a
-file. Session failures must retain these two inputs rather than reconstruct presentation after the
-source snapshot has been discarded.
+every line intersected by the exact primary or related range, related messages, and help. It
+validates source identity, range bounds, and UTF-8 boundaries; it does not inspect a semantic error
+enum, search syntax, or reopen a file. Session failures must retain these two inputs rather than
+reconstruct presentation after the source snapshot has been discarded.
+The envelope origin is either an exact semantic `SourceOrigin` or a lexer/parser-owned normalized
+`Span`; both project the same source identity and range to presentation. Discovery orders lexical
+and parse envelopes without interpreting them. A command compilation failure then owns the
+immutable invocation sources and the phase-selected envelopes. Error wrappers expose only the
+existing envelope, and the public process adapter invokes the common renderer instead of matching
+compiler error variants. `SourceIndex` remains an independent semantic-to-source projection for
+successful compiler clients; human error rendering must not use it to reconstruct a span already
+selected by the rejecting phase.
 Freeze-time validation projects semantic declaration-site subjects through
 the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
 that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler

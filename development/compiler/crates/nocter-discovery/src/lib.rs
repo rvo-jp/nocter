@@ -4,6 +4,7 @@
 //! roots. Its immutable result retains exact physical ownership and one selected edge for every
 //! active authored `use`; semantic consumers never reopen a path.
 
+mod diagnostic;
 mod error;
 mod graph;
 mod request;

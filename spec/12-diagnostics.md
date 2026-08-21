@@ -61,6 +61,34 @@ Spanless CLI diagnostic codes:
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
 - `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
 
+Source-backed lexical diagnostics:
+
+- `E0100`: an unexpected character appears outside the lexical grammar.
+- `E0101`: a block comment is not terminated.
+- `E0102`: an integer literal has invalid digits or separator placement.
+- `E0103`: a floating-point literal is used even though floating-point literals are not supported.
+- `E0104`: a string literal is not terminated.
+- `E0105`: a single-line string contains a newline.
+- `E0106`: multiline string content begins on the opening-delimiter line.
+- `E0107`: a string or byte literal contains an invalid escape sequence.
+- `E0108`: a string escape does not encode valid UTF-8.
+- `E0109`: multiline string indentation is inconsistent with its closing delimiter.
+- `E0110`: a byte literal is not terminated.
+- `E0111`: a byte literal contains a newline.
+- `E0112`: a byte literal does not encode exactly one byte.
+- `E0113`: a plain single-quoted literal is used instead of a string or `b'…'` byte literal.
+- `E0114`: a string interpolation is not terminated.
+
+Source-backed syntactic diagnostics:
+
+- `E0120`: required syntax is missing at the parser's committed position.
+- `E0121`: a module `use` declaration appears after the first item.
+- `E0122`: source nesting exceeds the compiler's supported nesting limit.
+
+Lexer and parser errors enter the same source-diagnostic envelope as later language-rule errors.
+Their primary origin is the normalized span selected by the syntax phase; no later layer searches
+tokens or source text to reconstruct it.
+
 Source-backed module-surface diagnostics:
 
 - `E0230`: an implementation source declares non-private visibility.

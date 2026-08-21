@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_session::{ExecutableCompileRequest, NativeSessionError, compile_native_image};
 use nocter_source_index::SourceIndex;
 
@@ -83,6 +84,19 @@ pub enum RunCommandError {
         source: io::Error,
         cleanup: ArtifactError,
     },
+}
+
+impl RunCommandError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Compile(error) => error.source_diagnostic(),
+            Self::Artifact(_)
+            | Self::Launch { .. }
+            | Self::Cleanup(_)
+            | Self::LaunchAndCleanup { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for RunCommandError {

@@ -7,6 +7,7 @@ mod arguments;
 mod artifact;
 mod build;
 mod execute;
+mod failure;
 mod input;
 mod output_plan;
 mod planning;
@@ -30,6 +31,7 @@ pub use execute::{
     BuildCommandExecutionError, BuildCommandResult, RunCommandExecutionError,
     execute_prepared_build, execute_prepared_run,
 };
+pub use failure::CommandCompilationFailure;
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
     ResolvedProgramInput, SingleFileCommandInput, resolve_program_input,

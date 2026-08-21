@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::{Arm64LoweringError, Arm64Program};
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_machine::{MachineProgram, MachineProgramError};
 use nocter_macho::{MachOError, MachOImage};
 use nocter_mir::{MirLoweringError, lower_executable};
@@ -130,6 +131,16 @@ pub enum NativeImageSetError {
     },
 }
 
+impl NativeImageSetError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Compile(error) => error.source_diagnostic(),
+            Self::NoExecutable | Self::Image { .. } => None,
+        }
+    }
+}
+
 impl fmt::Display for NativeImageSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -165,6 +176,16 @@ impl From<CompileSessionError> for NativeImageSetError {
 pub enum NativeSessionError {
     Executable(ExecutableSessionError),
     Image(NativeImageError),
+}
+
+impl NativeSessionError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Executable(error) => error.source_diagnostic(),
+            Self::Image(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for NativeSessionError {

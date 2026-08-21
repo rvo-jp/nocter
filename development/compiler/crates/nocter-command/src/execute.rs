@@ -2,12 +2,13 @@ use std::fmt;
 
 use nocter_session::{ExecutableCompileRequest, NativeImageSetCompileRequest};
 
+use crate::failure::command_compilation_failure;
 use crate::source::{CommandCompileRoots, discover_command_source};
 use crate::{
     BuildCommandError, BuildOperation, BuildSetCommandError, BuiltExecutable, BuiltExecutableSet,
-    CommandSourceError, CommandToolchain, ExecutedProgram, PreparedBuildCommand,
-    PreparedRunCommand, RunCommandError, build_executables, build_selected_executable,
-    run_executable,
+    CommandCompilationFailure, CommandSourceError, CommandToolchain, ExecutedProgram,
+    PreparedBuildCommand, PreparedRunCommand, RunCommandError, build_executables,
+    build_selected_executable, run_executable,
 };
 
 /// Complete successful output of one prepared build command.
@@ -37,14 +38,21 @@ pub fn execute_prepared_build(
         .map_err(BuildCommandExecutionError::Source)?;
     match operation {
         BuildOperation::PackageSet { output_directory } => {
-            build_executables(NativeImageSetCompileRequest::all(&unit), output_directory)
-                .map(BuildCommandResult::PackageSet)
-                .map_err(BuildCommandExecutionError::PackageSet)
+            match build_executables(NativeImageSetCompileRequest::all(&unit), output_directory) {
+                Ok(built) => Ok(BuildCommandResult::PackageSet(built)),
+                Err(error) => Err(BuildCommandExecutionError::PackageSet(Box::new(
+                    command_compilation_failure(error, unit),
+                ))),
+            }
         }
         BuildOperation::Selected { selector, output } => {
-            build_selected_executable(ExecutableCompileRequest::new(&unit, selector), output)
-                .map(BuildCommandResult::Selected)
-                .map_err(BuildCommandExecutionError::Selected)
+            match build_selected_executable(ExecutableCompileRequest::new(&unit, selector), output)
+            {
+                Ok(built) => Ok(BuildCommandResult::Selected(built)),
+                Err(error) => Err(BuildCommandExecutionError::Selected(Box::new(
+                    command_compilation_failure(error, unit),
+                ))),
+            }
         }
     }
 }
@@ -68,18 +76,38 @@ pub fn execute_prepared_run(
         CommandCompileRoots::Selected(&selector),
     )
     .map_err(RunCommandExecutionError::Source)?;
-    run_executable(
+    match run_executable(
         ExecutableCompileRequest::new(&unit, selector),
         working_directory,
-    )
-    .map_err(RunCommandExecutionError::Run)
+    ) {
+        Ok(executed) => Ok(executed),
+        Err(error) => Err(RunCommandExecutionError::Run(Box::new(
+            command_compilation_failure(error, unit),
+        ))),
+    }
 }
 
 #[derive(Debug)]
 pub enum BuildCommandExecutionError {
     Source(CommandSourceError),
-    Selected(BuildCommandError),
-    PackageSet(BuildSetCommandError),
+    Selected(Box<CommandCompilationFailure<BuildCommandError>>),
+    PackageSet(Box<CommandCompilationFailure<BuildSetCommandError>>),
+}
+
+impl BuildCommandExecutionError {
+    #[must_use]
+    pub fn source_diagnostics(
+        &self,
+    ) -> Option<(
+        &[nocter_diagnostics::SourceDiagnostic],
+        &nocter_source::SourceMap,
+    )> {
+        match self {
+            Self::Source(_) => None,
+            Self::Selected(failure) => Some((failure.diagnostics(), failure.sources())),
+            Self::PackageSet(failure) => Some((failure.diagnostics(), failure.sources())),
+        }
+    }
 }
 
 impl fmt::Display for BuildCommandExecutionError {
@@ -105,7 +133,22 @@ impl std::error::Error for BuildCommandExecutionError {
 #[derive(Debug)]
 pub enum RunCommandExecutionError {
     Source(CommandSourceError),
-    Run(RunCommandError),
+    Run(Box<CommandCompilationFailure<RunCommandError>>),
+}
+
+impl RunCommandExecutionError {
+    #[must_use]
+    pub fn source_diagnostics(
+        &self,
+    ) -> Option<(
+        &[nocter_diagnostics::SourceDiagnostic],
+        &nocter_source::SourceMap,
+    )> {
+        match self {
+            Self::Source(_) => None,
+            Self::Run(failure) => Some((failure.diagnostics(), failure.sources())),
+        }
+    }
 }
 
 impl fmt::Display for RunCommandExecutionError {

@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_declarations::PackageTargetKind;
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveredUnit;
 use nocter_model::{PackageIdentity, PackageTargetId};
 use nocter_target_program::{ExecutableProgram, ExecutableProgramError, TargetProgram};
@@ -182,6 +183,16 @@ pub enum ExecutableSessionError {
     Compile(CompileSessionError),
     Selection(ExecutableSelectionError),
     Executable(ExecutableProgramError),
+}
+
+impl ExecutableSessionError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Compile(error) => error.source_diagnostic(),
+            Self::Selection(_) | Self::Executable(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for ExecutableSessionError {

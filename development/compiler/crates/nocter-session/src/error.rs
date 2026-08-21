@@ -1,5 +1,7 @@
 use std::fmt;
 
+use nocter_diagnostics::SourceDiagnostic;
+
 /// A failure at one owned compilation-session boundary.
 #[derive(Debug)]
 pub enum CompileSessionError {
@@ -12,6 +14,25 @@ pub enum CompileSessionError {
     Primitive(nocter_target_program::PrimitiveResolutionError),
     TargetUnavailable(nocter_target_program::TargetUnavailable),
     Target(nocter_target_program::TargetProgramError),
+}
+
+impl CompileSessionError {
+    /// Returns the diagnostic already selected by the phase that rejected authored source.
+    /// Internal consistency, toolchain, and target failures deliberately return `None`.
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Declaration(error) => error.source_diagnostic(),
+            Self::Preparation(error) => error.source_diagnostic(),
+            Self::Checking(error) => error.source_diagnostic(),
+            Self::CompileInput(_)
+            | Self::MissingToolchainProfile
+            | Self::MissingStandardPackage
+            | Self::Primitive(_)
+            | Self::TargetUnavailable(_)
+            | Self::Target(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for CompileSessionError {

@@ -120,6 +120,23 @@ impl DiscoveredUnit {
         self.syntax.iter().any(SyntaxTree::has_errors)
     }
 
+    /// Projects lexer and parser failures into the common source-diagnostic envelope.
+    ///
+    /// Diagnostics are ordered by source identity and normalized source position. This projection
+    /// is performed only after a syntax-invalid snapshot is rejected; later phases never inspect
+    /// lexer or parser error variants.
+    #[must_use]
+    pub fn syntax_diagnostics(&self) -> Box<[nocter_diagnostics::SourceDiagnostic]> {
+        crate::diagnostic::syntax_diagnostics(&self.syntax)
+    }
+
+    /// Consumes the discovery snapshot and retains its immutable normalized sources for
+    /// presentation after a failed compiler session.
+    #[must_use]
+    pub fn into_sources(self) -> SourceMap {
+        self.sources
+    }
+
     /// Borrows this immutable discovery snapshot as the sole declaration-lowering input.
     ///
     /// # Errors

@@ -2,6 +2,8 @@ use std::env;
 use std::fmt;
 use std::io;
 
+use nocter_diagnostics::DiagnosticRenderError;
+
 use crate::{Invocation, InvocationError, InvocationOutcome, build_host, execute_invocation};
 
 /// Captures process-global command facts once and crosses the pure invocation boundary.
@@ -39,6 +41,20 @@ impl CurrentProcessError {
             Self::CurrentDirectory(_) => Some("E0702"),
             Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => Some("E0703"),
             Self::Invocation(error) => error.diagnostic_code(),
+        }
+    }
+
+    /// Renders retained source diagnostics without classifying the nested compiler failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity failure when a diagnostic and its invocation source snapshot disagree.
+    pub fn render_source_diagnostics(&self) -> Result<Option<String>, DiagnosticRenderError> {
+        match self {
+            Self::Invocation(error) => error.render_source_diagnostics(),
+            Self::CurrentDirectory(_) | Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => {
+                Ok(None)
+            }
         }
     }
 }

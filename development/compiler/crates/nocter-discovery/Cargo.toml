@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-declarations = { path = "../nocter-declarations" }
+nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 nocter-source = { path = "../nocter-source" }

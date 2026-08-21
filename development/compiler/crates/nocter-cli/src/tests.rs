@@ -127,6 +127,48 @@ fn compiler_host_is_checked_before_user_source_preparation() {
     assert_eq!(error.diagnostic_code(), Some("E0703"));
 }
 
+#[test]
+fn source_failures_render_from_the_retained_invocation_snapshot() {
+    let tree = TempTree::new("source-diagnostic");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(tree.0.join("invalid.nct"), "@\n").unwrap();
+    let error = execute_invocation(invocation(
+        ["build", "invalid.nct"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.diagnostic_code(), None);
+    let rendered = error.render_source_diagnostics().unwrap().unwrap();
+    assert!(rendered.starts_with("error[E0100]: unexpected character\n"));
+    assert!(rendered.contains("invalid.nct:1:1\n"));
+    assert!(rendered.contains("1 | @\n  | ^\n"));
+}
+
+#[test]
+fn semantic_failures_cross_the_same_process_diagnostic_boundary() {
+    let tree = TempTree::new("semantic-diagnostic");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("invalid.nct"),
+        "enum Empty {}\nfunc main(): i32 { 0 }\n",
+    )
+    .unwrap();
+    let error = execute_invocation(invocation(
+        ["build", "invalid.nct"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    let rendered = error.render_source_diagnostics().unwrap().unwrap();
+    assert!(rendered.starts_with("error[E0200]: enum must declare at least one variant\n"));
+    assert!(rendered.contains("invalid.nct:1:1\n"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

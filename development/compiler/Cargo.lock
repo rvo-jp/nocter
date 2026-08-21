@@ -7,6 +7,7 @@ name = "nocter"
 version = "0.0.0"
 dependencies = [
  "nocter-command",
+ "nocter-diagnostics",
  "nocter-installation",
 ]
 
@@ -42,11 +43,13 @@ name = "nocter-command"
 version = "0.0.0"
 dependencies = [
  "nocter-compile-input",
+ "nocter-diagnostics",
  "nocter-discovery",
  "nocter-macho",
  "nocter-model",
  "nocter-package",
  "nocter-session",
+ "nocter-source",
  "nocter-source-index",
 ]
 
@@ -115,6 +118,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-diagnostics",
  "nocter-model",
  "nocter-package",
  "nocter-source",
@@ -191,6 +195,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-diagnostics",
  "nocter-discovery",
  "nocter-machine",
  "nocter-macho",

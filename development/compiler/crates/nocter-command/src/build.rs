@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_session::{
     ExecutableCompileRequest, ExecutableIdentity, NativeImageSetCompileRequest,
     NativeImageSetError, NativeSessionError, compile_native_image, compile_native_images,
@@ -159,6 +160,16 @@ pub enum BuildSetCommandError {
     },
 }
 
+impl BuildSetCommandError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Compile(error) => error.source_diagnostic(),
+            Self::Plan(_) | Self::Artifact { .. } => None,
+        }
+    }
+}
+
 impl fmt::Display for BuildSetCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -201,6 +212,16 @@ pub enum BuildCommandError {
     Compile(NativeSessionError),
     Plan(OutputPlanError),
     Artifact(ArtifactError),
+}
+
+impl BuildCommandError {
+    #[must_use]
+    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+        match self {
+            Self::Compile(error) => error.source_diagnostic(),
+            Self::Plan(_) | Self::Artifact(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for BuildCommandError {
