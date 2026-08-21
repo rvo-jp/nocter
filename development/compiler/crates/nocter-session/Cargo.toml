@@ -21,5 +21,8 @@ nocter-machine = { path = "../nocter-machine" }
 nocter-macho = { path = "../nocter-macho" }
 nocter-mir = { path = "../nocter-mir" }
 
+[dev-dependencies]
+nocter-package = { path = "../nocter-package" }
+
 [lints]
 workspace = true

@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
-use nocter_discovery::{DiscoveryRequest, ResolvedPackage, discover};
+use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
+use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_target_program::PrimitiveRole;
 
 use super::{
@@ -51,7 +52,7 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
         .collect();
     let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
-        vec![resolved],
+        package_graph(vec![resolved]),
         roots,
         bundled_standard_toolchain(&package),
     ))
@@ -92,7 +93,7 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
         let unit = discover(DiscoveryRequest::single_file(
             CompilationTarget::Arm64Darwin,
             &source,
-            vec![resolved_standard(&standard_root, &package)],
+            package_graph(vec![resolved_standard(&standard_root, &package)]),
             bundled_standard_toolchain(&package),
         ))
         .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", source.display()));
@@ -108,14 +109,14 @@ fn public_package_example_crosses_the_complete_target_session() {
     let example_root = compiler.join("../../examples/file-summary");
     let standard_package = PackageIdentity::new("toolchain:std");
     let example_package = PackageIdentity::new("workspace:file-summary");
-    let example = ResolvedPackage::new(example_package.clone(), "file-summary", &example_root)
-        .with_dependency("std", standard_package.clone());
+    let example = ResolvedPackageSpec::new(example_package.clone(), &example_root)
+        .with_standard_dependency(standard_package.clone());
     let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
-        vec![
+        package_graph(vec![
             example,
             resolved_standard(&standard_root, &standard_package),
-        ],
+        ]),
         vec![ModuleIdentity::new(
             example_package.clone(),
             Vec::<&str>::new(),
@@ -145,14 +146,14 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
     package_root.source("second/index.nct", "func main(): void { return }\n");
     let standard_package = PackageIdentity::new("toolchain:std");
     let package = PackageIdentity::new("workspace:multi");
-    let resolved = ResolvedPackage::new(package.clone(), "multi", &package_root.0)
-        .with_dependency("std", standard_package.clone());
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
     let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
-        vec![
+        package_graph(vec![
             resolved,
             resolved_standard(&standard_root, &standard_package),
-        ],
+        ]),
         vec![
             ModuleIdentity::new(package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(package.clone(), ["first"]),
@@ -185,8 +186,12 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
     );
 }
 
-fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackage {
-    ResolvedPackage::new(package.clone(), "std", root).with_dependency("std", package.clone())
+fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackageSpec {
+    ResolvedPackageSpec::new(package.clone(), root).with_standard_dependency(package.clone())
+}
+
+fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load(packages).unwrap()
 }
 
 fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {

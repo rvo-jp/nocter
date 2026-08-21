@@ -1,20 +1,10 @@
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
 use nocter_declarations::{PrimitiveRole, StandardDeclarationRole};
 use nocter_model::CompilationTarget;
+use nocter_package::ResolvedPackageGraph;
 use nocter_syntax::NodeKind;
-
-/// One package whose exact identity, physical root, and dependency aliases were resolved before
-/// source discovery.
-#[derive(Clone, Debug)]
-pub struct ResolvedPackage {
-    identity: PackageIdentity,
-    display_name: Box<str>,
-    root: PathBuf,
-    dependencies: BTreeMap<Box<str>, PackageIdentity>,
-}
 
 /// The physical input shape selected by the command layer before source discovery.
 ///
@@ -23,12 +13,12 @@ pub struct ResolvedPackage {
 #[derive(Debug)]
 pub enum DiscoveryLayout {
     Declared {
-        packages: Vec<ResolvedPackage>,
+        packages: ResolvedPackageGraph,
         roots: Vec<ModuleIdentity>,
     },
     SingleFile {
         source: PathBuf,
-        support_packages: Vec<ResolvedPackage>,
+        support_packages: ResolvedPackageGraph,
     },
 }
 
@@ -184,48 +174,6 @@ impl ToolchainRequest {
     }
 }
 
-impl ResolvedPackage {
-    #[must_use]
-    pub fn new(
-        identity: PackageIdentity,
-        display_name: impl Into<Box<str>>,
-        root: impl Into<PathBuf>,
-    ) -> Self {
-        Self {
-            identity,
-            display_name: display_name.into(),
-            root: root.into(),
-            dependencies: BTreeMap::new(),
-        }
-    }
-
-    #[must_use]
-    pub fn with_dependency(mut self, alias: impl Into<Box<str>>, package: PackageIdentity) -> Self {
-        self.dependencies.insert(alias.into(), package);
-        self
-    }
-
-    #[must_use]
-    pub const fn identity(&self) -> &PackageIdentity {
-        &self.identity
-    }
-
-    #[must_use]
-    pub const fn display_name(&self) -> &str {
-        &self.display_name
-    }
-
-    #[must_use]
-    pub fn root(&self) -> &Path {
-        &self.root
-    }
-
-    #[must_use]
-    pub fn dependencies(&self) -> &BTreeMap<Box<str>, PackageIdentity> {
-        &self.dependencies
-    }
-}
-
 /// Closed package graph and initial directory modules selected for one compile unit.
 #[derive(Debug)]
 pub struct DiscoveryRequest {
@@ -238,7 +186,7 @@ impl DiscoveryRequest {
     #[must_use]
     pub fn declared(
         target: CompilationTarget,
-        packages: Vec<ResolvedPackage>,
+        packages: ResolvedPackageGraph,
         roots: Vec<ModuleIdentity>,
         toolchain: ToolchainRequest,
     ) -> Self {
@@ -253,7 +201,7 @@ impl DiscoveryRequest {
     pub fn single_file(
         target: CompilationTarget,
         source: impl Into<PathBuf>,
-        support_packages: Vec<ResolvedPackage>,
+        support_packages: ResolvedPackageGraph,
         toolchain: ToolchainRequest,
     ) -> Self {
         Self {

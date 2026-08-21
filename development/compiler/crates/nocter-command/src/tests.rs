@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
-use nocter_discovery::{DiscoveryRequest, ResolvedPackage, discover};
+use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
+use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::{
     ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
     bundled_standard_toolchain,
@@ -322,19 +323,19 @@ fn discover_single_file(source: &Path) -> nocter_discovery::DiscoveredUnit {
     discover(DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
         source,
-        vec![resolved_standard(&standard_root, &package)],
+        package_graph(vec![resolved_standard(&standard_root, &package)]),
         bundled_standard_toolchain(&package),
     ))
     .unwrap()
 }
 
-fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackage {
-    ResolvedPackage::new(package.clone(), "std", root).with_dependency("std", package.clone())
+fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackageSpec {
+    ResolvedPackageSpec::new(package.clone(), root).with_standard_dependency(package.clone())
 }
 
-fn package(identity: &str, name: &str, root: &Path) -> ResolvedPackage {
-    ResolvedPackage::new(PackageIdentity::new(identity), name, root)
-        .with_dependency("std", PackageIdentity::new("toolchain:std"))
+fn package(identity: &str, _name: &str, root: &Path) -> ResolvedPackageSpec {
+    ResolvedPackageSpec::new(PackageIdentity::new(identity), root)
+        .with_standard_dependency(PackageIdentity::new("toolchain:std"))
 }
 
 fn module(package: &str, path: &[&str]) -> ModuleIdentity {
@@ -342,7 +343,7 @@ fn module(package: &str, path: &[&str]) -> ModuleIdentity {
 }
 
 fn discover_package(
-    mut packages: Vec<ResolvedPackage>,
+    mut packages: Vec<ResolvedPackageSpec>,
     roots: Vec<ModuleIdentity>,
 ) -> nocter_discovery::DiscoveredUnit {
     let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -351,11 +352,15 @@ fn discover_package(
     packages.push(resolved_standard(&standard_root, &standard));
     discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
-        packages,
+        package_graph(packages),
         roots,
         bundled_standard_toolchain(&standard),
     ))
     .unwrap()
+}
+
+fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load(packages).unwrap()
 }
 
 fn write_source(root: &Path, relative: &str, text: &str) {

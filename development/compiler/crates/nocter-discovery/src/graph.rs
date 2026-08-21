@@ -13,10 +13,8 @@ use nocter_target_selection::TargetSelection;
 
 use crate::DiscoveryError;
 use crate::error::{ImportFailure, ToolchainDiscoveryError};
-use crate::package_targets::authored_package_targets;
 use crate::request::{
-    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,
-    ToolchainRequest,
+    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
 use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
 use crate::syntax::active_use_paths;
@@ -29,6 +27,7 @@ struct PackageState {
     canonical_root: PathBuf,
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
     declaration: Option<(PathBuf, usize)>,
+    package_declaration: Option<nocter_package::PackageDeclaration>,
 }
 
 #[derive(Debug)]
@@ -105,13 +104,13 @@ impl Builder {
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect();
-                (load_packages(packages)?, roots, None, root_packages)
+                (loaded_package_graph(packages), roots, None, root_packages)
             }
             DiscoveryLayout::SingleFile {
                 source,
                 support_packages,
             } => {
-                let mut loaded = load_packages(support_packages)?;
+                let mut loaded = loaded_package_graph(support_packages);
                 let single_file = load_single_file_package(&mut loaded, source, &toolchain)?;
                 let root_packages = vec![single_file.0.package().clone()];
                 (loaded, Vec::new(), Some(single_file), root_packages)
@@ -124,8 +123,7 @@ impl Builder {
         } = loaded;
         validate_package_dependencies(&packages)?;
         validate_toolchain(&packages, &toolchain)?;
-        let package_target_resolutions =
-            discover_package_targets(&packages, &sources, &syntax, &roots)?;
+        let package_target_resolutions = discover_package_targets(&packages, &roots);
         let mut pending = initial_work(&packages, &roots, &toolchain)?;
         if let Some((module, path)) = single_file {
             pending.insert(Work::SingleFile { module, path });
@@ -684,24 +682,14 @@ impl Builder {
 
 fn discover_package_targets(
     packages: &BTreeMap<PackageIdentity, PackageState>,
-    sources: &SourceMap,
-    syntax: &[SyntaxTree],
     roots: &[ModuleIdentity],
-) -> Result<Vec<PackageTargetResolutionInput>, DiscoveryError> {
+) -> Vec<PackageTargetResolutionInput> {
     let selected = roots.iter().collect::<BTreeSet<_>>();
     let mut resolutions = Vec::new();
     for package in packages.values() {
-        let Some((_, syntax_index)) = package.declaration.as_ref() else {
+        let Some(declaration) = package.package_declaration.as_ref() else {
             continue;
         };
-        let tree = &syntax[*syntax_index];
-        if tree.has_errors() {
-            continue;
-        }
-        let source = sources
-            .get(tree.source())
-            .ok_or(DiscoveryError::InconsistentSyntax(tree.root_id()))?;
-        let declaration = authored_package_targets(source, tree)?;
         for target in declaration.targets() {
             let module = ModuleIdentity::new(
                 package.identity.clone(),
@@ -723,7 +711,7 @@ fn discover_package_targets(
         let declaration = resolution.declaration();
         (declaration.source(), declaration.index())
     });
-    Ok(resolutions)
+    resolutions
 }
 
 fn load_source(
@@ -761,70 +749,34 @@ fn join_module_path(root: &Path, path: &[Box<str>]) -> PathBuf {
     })
 }
 
-fn load_packages(
-    mut package_specs: Vec<ResolvedPackage>,
-) -> Result<LoadedPackages, DiscoveryError> {
-    package_specs.sort_unstable_by(|left, right| left.identity().cmp(right.identity()));
-    let mut packages = BTreeMap::new();
-    let mut root_owners = BTreeMap::new();
-    let mut sources = SourceMap::new();
-    let mut syntax = Vec::new();
-    for package in package_specs {
-        let identity = package.identity().clone();
-        if packages.contains_key(&identity) {
-            return Err(DiscoveryError::DuplicatePackage(identity));
-        }
-        let canonical_root = canonicalize("canonicalize package root", package.root())?;
-        if !canonical_root.is_dir() {
-            return Err(DiscoveryError::InvalidPackageRoot {
-                package: identity,
-                path: canonical_root,
-            });
-        }
-        if let Some(first) = root_owners.insert(canonical_root.clone(), identity.clone()) {
-            return Err(DiscoveryError::DuplicateCanonicalRoot {
-                first,
-                second: identity,
-                path: canonical_root,
-            });
-        }
-        let declaration_path = canonical_root.join("nocter.nct");
-        if !regular_file(&declaration_path)? {
-            return Err(DiscoveryError::MissingPackageFile {
-                package: identity,
-                path: declaration_path,
-            });
-        }
-        let declaration_path = canonicalize("canonicalize package file", &declaration_path)?;
-        if !declaration_path.starts_with(&canonical_root) {
-            return Err(DiscoveryError::InvalidPackageRoot {
-                package: identity,
-                path: declaration_path,
-            });
-        }
-        let declaration_syntax = load_source(
-            &mut sources,
-            &mut syntax,
-            &declaration_path,
-            ParseGoal::PackageFile,
-        )?;
-        packages.insert(
-            identity,
-            PackageState {
-                identity: package.identity().clone(),
-                display_name: package.display_name().into(),
-                mode: PackageMode::Declared,
-                canonical_root,
-                dependencies: package.dependencies().clone(),
-                declaration: Some((declaration_path, declaration_syntax)),
-            },
-        );
-    }
-    Ok(LoadedPackages {
-        states: packages,
+fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPackages {
+    let (sources, syntax, packages) = graph.into_parts();
+    let states = packages
+        .into_iter()
+        .map(|package| {
+            let identity = package.identity().clone();
+            (
+                identity.clone(),
+                PackageState {
+                    identity,
+                    display_name: package.display_name().into(),
+                    mode: PackageMode::Declared,
+                    canonical_root: package.root().to_path_buf(),
+                    dependencies: package.dependencies().clone(),
+                    declaration: Some((
+                        package.declaration_path().to_path_buf(),
+                        package.declaration_syntax(),
+                    )),
+                    package_declaration: package.declaration().cloned(),
+                },
+            )
+        })
+        .collect();
+    LoadedPackages {
+        states,
         sources,
         syntax,
-    })
+    }
 }
 
 fn load_single_file_package(
@@ -872,6 +824,7 @@ fn load_single_file_package(
                 toolchain.standard_package().clone(),
             )]),
             declaration: None,
+            package_declaration: None,
         },
     );
     Ok((module, source))

@@ -6,7 +6,6 @@
 
 mod error;
 mod graph;
-mod package_targets;
 mod request;
 mod snapshot;
 mod syntax;
@@ -14,8 +13,7 @@ mod syntax;
 pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
 pub use graph::discover;
 pub use request::{
-    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, ResolvedPackage, StandardRoleLocator,
-    ToolchainRequest,
+    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
 pub use snapshot::{CompileInputError, DiscoveredModule, DiscoveredSource, DiscoveredUnit};
 

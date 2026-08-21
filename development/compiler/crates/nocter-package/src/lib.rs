@@ -5,9 +5,13 @@
 //! directive fields independently.
 
 mod declaration;
+mod graph;
 
 pub use declaration::{
     AuthoredString, DependencyDeclaration, DependencyLock, DependencySource, PackageDeclaration,
     PackageDeclarationError, PackageDeclarationRule, PackageTargetDeclaration,
     decode_package_declaration,
+};
+pub use graph::{
+    PackageGraphError, ResolvedPackageGraph, ResolvedPackageSnapshot, ResolvedPackageSpec,
 };

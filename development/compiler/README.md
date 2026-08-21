@@ -45,7 +45,9 @@ be introduced to make an unresolved syntax choice.
   projection.
 - `nocter-package` owns the structured interpretation of `nocter.nct`: presentation metadata,
   disjoint dependency source forms, exact lock values, and package targets with their exact syntax
-  origins. Later stages consume these facts and cannot reinterpret directive text.
+  origins. Its `ResolvedPackageGraph` also owns the loaded manifest source/syntax universe and
+  validates exact alias, lock, and canonical path edges before discovery. Later stages consume
+  these facts and cannot reopen or reinterpret directive text.
 - `nocter-syntax` owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
   lossless syntax tree. Its parser covers the complete normative grammar, including token-only

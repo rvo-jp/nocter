@@ -1,0 +1,641 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use nocter_model::PackageIdentity;
+use nocter_source::{SourceError, SourceMap, SourceName};
+use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+
+use crate::{
+    DependencySource, PackageDeclaration, PackageDeclarationError, decode_package_declaration,
+};
+
+/// One externally resolved package before its authored declaration is loaded and verified.
+#[derive(Clone, Debug)]
+pub struct ResolvedPackageSpec {
+    identity: PackageIdentity,
+    root: PathBuf,
+    dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    implicit_dependencies: BTreeMap<Box<str>, PackageIdentity>,
+}
+
+impl ResolvedPackageSpec {
+    #[must_use]
+    pub fn new(identity: PackageIdentity, root: impl Into<PathBuf>) -> Self {
+        Self {
+            identity,
+            root: root.into(),
+            dependencies: BTreeMap::new(),
+            implicit_dependencies: BTreeMap::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_dependency(mut self, alias: impl Into<Box<str>>, package: PackageIdentity) -> Self {
+        self.dependencies.insert(alias.into(), package);
+        self
+    }
+
+    #[must_use]
+    pub fn with_standard_dependency(mut self, package: PackageIdentity) -> Self {
+        self.implicit_dependencies.insert("std".into(), package);
+        self
+    }
+
+    #[must_use]
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+}
+
+/// One loaded package whose manifest facts and exact dependency edges have been closed.
+#[derive(Debug)]
+pub struct ResolvedPackageSnapshot {
+    identity: PackageIdentity,
+    display_name: Box<str>,
+    canonical_root: PathBuf,
+    dependencies: BTreeMap<Box<str>, PackageIdentity>,
+    declaration_path: PathBuf,
+    declaration_syntax: usize,
+    declaration: Option<PackageDeclaration>,
+}
+
+impl ResolvedPackageSnapshot {
+    #[must_use]
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+
+    #[must_use]
+    pub const fn display_name(&self) -> &str {
+        &self.display_name
+    }
+
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.canonical_root
+    }
+
+    #[must_use]
+    pub fn dependencies(&self) -> &BTreeMap<Box<str>, PackageIdentity> {
+        &self.dependencies
+    }
+
+    #[must_use]
+    pub fn declaration_path(&self) -> &Path {
+        &self.declaration_path
+    }
+
+    #[must_use]
+    pub const fn declaration_syntax(&self) -> usize {
+        self.declaration_syntax
+    }
+
+    #[must_use]
+    pub const fn declaration(&self) -> Option<&PackageDeclaration> {
+        self.declaration.as_ref()
+    }
+}
+
+/// Immutable, syntax-owning exact package graph input for source discovery.
+#[derive(Debug)]
+pub struct ResolvedPackageGraph {
+    sources: SourceMap,
+    syntax: Vec<SyntaxTree>,
+    packages: Vec<ResolvedPackageSnapshot>,
+}
+
+impl ResolvedPackageGraph {
+    /// Loads and validates all exact packages without reopening a manifest in later stages.
+    ///
+    /// Syntax-invalid manifests remain in the snapshot so the normal diagnostic pipeline can
+    /// project them. Every syntax-clean manifest must have dependency edges matching its authored
+    /// aliases, remote dependencies must have exact locks, and path edges must select the authored
+    /// canonical directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for filesystem failures, invalid package data, duplicate identities or
+    /// roots, unknown dependency identities, or an inconsistent resolved edge.
+    pub fn load(mut specs: Vec<ResolvedPackageSpec>) -> Result<Self, PackageGraphError> {
+        specs.sort_unstable_by(|left, right| left.identity.cmp(&right.identity));
+        let mut identities = BTreeSet::new();
+        for spec in &specs {
+            if !identities.insert(spec.identity.clone()) {
+                return Err(PackageGraphError::DuplicatePackage(spec.identity.clone()));
+            }
+        }
+
+        let mut sources = SourceMap::new();
+        let mut syntax = Vec::new();
+        let mut packages = Vec::new();
+        let mut roots = BTreeMap::new();
+        for spec in specs {
+            packages.push(load_package(
+                spec,
+                &identities,
+                &mut roots,
+                &mut sources,
+                &mut syntax,
+            )?);
+        }
+        validate_path_roots(&packages)?;
+        Ok(Self {
+            sources,
+            syntax,
+            packages,
+        })
+    }
+
+    #[must_use]
+    pub const fn sources(&self) -> &SourceMap {
+        &self.sources
+    }
+
+    #[must_use]
+    pub fn syntax_trees(&self) -> &[SyntaxTree] {
+        &self.syntax
+    }
+
+    #[must_use]
+    pub fn packages(&self) -> &[ResolvedPackageSnapshot] {
+        &self.packages
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (SourceMap, Vec<SyntaxTree>, Vec<ResolvedPackageSnapshot>) {
+        (self.sources, self.syntax, self.packages)
+    }
+}
+
+fn load_package(
+    spec: ResolvedPackageSpec,
+    identities: &BTreeSet<PackageIdentity>,
+    roots: &mut BTreeMap<PathBuf, PackageIdentity>,
+    sources: &mut SourceMap,
+    syntax: &mut Vec<SyntaxTree>,
+) -> Result<ResolvedPackageSnapshot, PackageGraphError> {
+    let canonical_root = canonicalize("canonicalize package root", &spec.root)?;
+    if !canonical_root.is_dir() {
+        return Err(PackageGraphError::InvalidPackageRoot {
+            package: spec.identity,
+            path: canonical_root,
+        });
+    }
+    if let Some(first) = roots.insert(canonical_root.clone(), spec.identity.clone()) {
+        return Err(PackageGraphError::DuplicateCanonicalRoot {
+            first,
+            second: spec.identity,
+            path: canonical_root,
+        });
+    }
+    let declaration_path = canonical_root.join("nocter.nct");
+    if !regular_file(&declaration_path)? {
+        return Err(PackageGraphError::MissingPackageFile {
+            package: spec.identity,
+            path: declaration_path,
+        });
+    }
+    let declaration_path = canonicalize("canonicalize package file", &declaration_path)?;
+    if !declaration_path.starts_with(&canonical_root) {
+        return Err(PackageGraphError::InvalidPackageRoot {
+            package: spec.identity,
+            path: declaration_path,
+        });
+    }
+    let bytes = fs::read(&declaration_path).map_err(|error| PackageGraphError::Filesystem {
+        operation: "read",
+        path: declaration_path.clone(),
+        error,
+    })?;
+    let canonical_name = canonical_text(&declaration_path)?;
+    let source_id = sources
+        .add_bytes(SourceName::new(canonical_name.as_ref()), &bytes)
+        .map_err(|error| PackageGraphError::Source {
+            path: declaration_path.clone(),
+            error,
+        })?;
+    let tree = parse(
+        sources
+            .get(source_id)
+            .expect("new package source remains in the source map"),
+        ParseGoal::PackageFile,
+    );
+    let declaration = if tree.has_errors() {
+        None
+    } else {
+        let source = sources
+            .get(source_id)
+            .expect("parsed package source remains in the source map");
+        Some(decode_package_declaration(source, &tree).map_err(PackageGraphError::Declaration)?)
+    };
+    let display_name = declaration
+        .as_ref()
+        .and_then(PackageDeclaration::name)
+        .map_or_else(
+            || directory_name(&canonical_root),
+            |name| Ok(Box::<str>::from(name.value())),
+        )?;
+    let dependencies = validate_edges(
+        &spec.identity,
+        declaration.as_ref(),
+        spec.dependencies,
+        spec.implicit_dependencies,
+        identities,
+    )?;
+    let declaration_syntax = syntax.len();
+    syntax.push(tree);
+    Ok(ResolvedPackageSnapshot {
+        identity: spec.identity,
+        display_name,
+        canonical_root,
+        dependencies,
+        declaration_path,
+        declaration_syntax,
+        declaration,
+    })
+}
+
+fn validate_edges(
+    package: &PackageIdentity,
+    declaration: Option<&PackageDeclaration>,
+    authored_edges: BTreeMap<Box<str>, PackageIdentity>,
+    implicit_edges: BTreeMap<Box<str>, PackageIdentity>,
+    identities: &BTreeSet<PackageIdentity>,
+) -> Result<BTreeMap<Box<str>, PackageIdentity>, PackageGraphError> {
+    for dependency in authored_edges.values().chain(implicit_edges.values()) {
+        if !identities.contains(dependency) {
+            return Err(PackageGraphError::UnknownPackage(dependency.clone()));
+        }
+    }
+    if let Some(declaration) = declaration {
+        let declared = declaration.dependencies().keys().collect::<BTreeSet<_>>();
+        let resolved = authored_edges.keys().collect::<BTreeSet<_>>();
+        if declared != resolved {
+            let alias = declared
+                .symmetric_difference(&resolved)
+                .next()
+                .expect("unequal alias sets have a difference");
+            return Err(PackageGraphError::DependencyEdgeMismatch {
+                package: package.clone(),
+                alias: (*alias).clone(),
+            });
+        }
+        for (alias, dependency) in declaration.dependencies() {
+            match dependency.source() {
+                DependencySource::Path { .. } => {}
+                DependencySource::Git { .. } | DependencySource::Archive { .. } => {
+                    if !declaration.locks().contains_key(alias) {
+                        return Err(PackageGraphError::MissingLock {
+                            package: package.clone(),
+                            alias: alias.clone(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    let mut dependencies = authored_edges;
+    for (alias, target) in implicit_edges {
+        if alias.as_ref() != "std" || dependencies.insert(alias.clone(), target).is_some() {
+            return Err(PackageGraphError::InvalidImplicitDependency {
+                package: package.clone(),
+                alias,
+            });
+        }
+    }
+    Ok(dependencies)
+}
+
+fn validate_path_roots(packages: &[ResolvedPackageSnapshot]) -> Result<(), PackageGraphError> {
+    let roots = packages
+        .iter()
+        .map(|package| (package.identity(), package.root()))
+        .collect::<BTreeMap<_, _>>();
+    for package in packages {
+        let Some(declaration) = package.declaration() else {
+            continue;
+        };
+        for (alias, dependency) in declaration.dependencies() {
+            let DependencySource::Path { path } = dependency.source() else {
+                continue;
+            };
+            let expected = canonicalize(
+                "canonicalize path dependency",
+                &package.root().join(path.value()),
+            )?;
+            let target = package
+                .dependencies()
+                .get(alias)
+                .expect("validated authored alias has a resolved edge");
+            let actual = roots
+                .get(target)
+                .expect("validated dependency identity has a loaded root");
+            if expected != **actual {
+                return Err(PackageGraphError::InvalidPathDependency {
+                    package: package.identity().clone(),
+                    alias: alias.clone(),
+                    path: expected,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn canonicalize(operation: &'static str, path: &Path) -> Result<PathBuf, PackageGraphError> {
+    fs::canonicalize(path).map_err(|error| PackageGraphError::Filesystem {
+        operation,
+        path: path.into(),
+        error,
+    })
+}
+
+fn regular_file(path: &Path) -> Result<bool, PackageGraphError> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(PackageGraphError::Filesystem {
+            operation: "inspect",
+            path: path.into(),
+            error,
+        }),
+    }
+}
+
+fn canonical_text(path: &Path) -> Result<Box<str>, PackageGraphError> {
+    path.to_str()
+        .map(Into::into)
+        .ok_or_else(|| PackageGraphError::NonUnicodeCanonicalPath(path.into()))
+}
+
+fn directory_name(path: &Path) -> Result<Box<str>, PackageGraphError> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(Into::into)
+        .ok_or_else(|| PackageGraphError::NonUnicodeCanonicalPath(path.into()))
+}
+
+#[derive(Debug)]
+pub enum PackageGraphError {
+    DuplicatePackage(PackageIdentity),
+    UnknownPackage(PackageIdentity),
+    InvalidPackageRoot {
+        package: PackageIdentity,
+        path: PathBuf,
+    },
+    MissingPackageFile {
+        package: PackageIdentity,
+        path: PathBuf,
+    },
+    DuplicateCanonicalRoot {
+        first: PackageIdentity,
+        second: PackageIdentity,
+        path: PathBuf,
+    },
+    DependencyEdgeMismatch {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    MissingLock {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    InvalidPathDependency {
+        package: PackageIdentity,
+        alias: Box<str>,
+        path: PathBuf,
+    },
+    InvalidImplicitDependency {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    NonUnicodeCanonicalPath(PathBuf),
+    Declaration(PackageDeclarationError),
+    Filesystem {
+        operation: &'static str,
+        path: PathBuf,
+        error: io::Error,
+    },
+    Source {
+        path: PathBuf,
+        error: SourceError,
+    },
+}
+
+impl fmt::Display for PackageGraphError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicatePackage(package) => {
+                write!(formatter, "duplicate resolved package {}", package.as_str())
+            }
+            Self::UnknownPackage(package) => {
+                write!(formatter, "unknown resolved package {}", package.as_str())
+            }
+            Self::InvalidPackageRoot { package, path } => write!(
+                formatter,
+                "package {} has invalid root {}",
+                package.as_str(),
+                path.display()
+            ),
+            Self::MissingPackageFile { package, path } => write!(
+                formatter,
+                "package {} has no package file at {}",
+                package.as_str(),
+                path.display()
+            ),
+            Self::DuplicateCanonicalRoot {
+                first,
+                second,
+                path,
+            } => write!(
+                formatter,
+                "packages {} and {} share canonical root {}",
+                first.as_str(),
+                second.as_str(),
+                path.display()
+            ),
+            Self::DependencyEdgeMismatch { package, alias } => write!(
+                formatter,
+                "package {} has no exact resolved edge for dependency {alias}",
+                package.as_str()
+            ),
+            Self::MissingLock { package, alias } => write!(
+                formatter,
+                "package {} has no exact lock for dependency {alias}",
+                package.as_str()
+            ),
+            Self::InvalidPathDependency {
+                package,
+                alias,
+                path,
+            } => write!(
+                formatter,
+                "package {} path dependency {alias} has invalid root {}",
+                package.as_str(),
+                path.display()
+            ),
+            Self::InvalidImplicitDependency { package, alias } => write!(
+                formatter,
+                "package {} has invalid implicit dependency {alias}",
+                package.as_str()
+            ),
+            Self::NonUnicodeCanonicalPath(path) => {
+                write!(
+                    formatter,
+                    "canonical path is not Unicode: {}",
+                    path.display()
+                )
+            }
+            Self::Declaration(error) => error.fmt(formatter),
+            Self::Filesystem {
+                operation,
+                path,
+                error,
+            } => write!(formatter, "cannot {operation} {}: {error}", path.display()),
+            Self::Source { path, error } => {
+                write!(formatter, "cannot ingest {}: {error:?}", path.display())
+            }
+        }
+    }
+}
+
+impl std::error::Error for PackageGraphError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Declaration(error) => Some(error),
+            Self::Filesystem { error, .. } => Some(error),
+            Self::DuplicatePackage(_)
+            | Self::UnknownPackage(_)
+            | Self::InvalidPackageRoot { .. }
+            | Self::MissingPackageFile { .. }
+            | Self::DuplicateCanonicalRoot { .. }
+            | Self::DependencyEdgeMismatch { .. }
+            | Self::MissingLock { .. }
+            | Self::InvalidPathDependency { .. }
+            | Self::InvalidImplicitDependency { .. }
+            | Self::NonUnicodeCanonicalPath(_)
+            | Self::Source { .. } => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::*;
+
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+    struct TempTree(PathBuf);
+
+    impl TempTree {
+        fn new() -> Self {
+            let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "nocter-package-graph-{}-{serial}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn source(&self, relative: &str, text: &str) {
+            let path = self.0.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        }
+    }
+
+    impl Drop for TempTree {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    fn identity(value: &str) -> PackageIdentity {
+        PackageIdentity::new(value)
+    }
+
+    #[test]
+    fn loads_manifest_sources_and_closes_exact_path_edges() {
+        let tree = TempTree::new();
+        tree.source(
+            "app/nocter.nct",
+            "#name: \"application\"\n#dependencies: { util: { path: \"../util\", }, }\n#executable: { name: \"app\", }\n",
+        );
+        tree.source("util/nocter.nct", "#name: \"utility\"\n");
+        let graph = ResolvedPackageGraph::load(vec![
+            ResolvedPackageSpec::new(identity("root"), tree.0.join("app"))
+                .with_dependency("util", identity("util")),
+            ResolvedPackageSpec::new(identity("util"), tree.0.join("util")),
+        ])
+        .unwrap();
+
+        assert_eq!(graph.sources().len(), 2);
+        assert_eq!(graph.syntax_trees().len(), 2);
+        assert_eq!(graph.packages()[0].display_name(), "application");
+        assert_eq!(
+            graph.packages()[0].declaration().unwrap().targets().len(),
+            1
+        );
+        assert_eq!(
+            graph.packages()[0].dependencies().get("util"),
+            Some(&identity("util"))
+        );
+    }
+
+    #[test]
+    fn rejects_edges_that_disagree_with_authored_dependencies_and_locks() {
+        let tree = TempTree::new();
+        tree.source(
+            "app/nocter.nct",
+            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
+        );
+        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        let missing_lock = ResolvedPackageGraph::load(vec![
+            ResolvedPackageSpec::new(identity("app"), tree.0.join("app"))
+                .with_dependency("remote", identity("remote")),
+            ResolvedPackageSpec::new(identity("remote"), tree.0.join("remote")),
+        ])
+        .unwrap_err();
+        assert!(matches!(
+            missing_lock,
+            PackageGraphError::MissingLock { .. }
+        ));
+
+        tree.source("empty/nocter.nct", "#name: \"empty\"\n");
+        let extra_edge = ResolvedPackageGraph::load(vec![
+            ResolvedPackageSpec::new(identity("empty"), tree.0.join("empty"))
+                .with_dependency("remote", identity("remote")),
+            ResolvedPackageSpec::new(identity("remote"), tree.0.join("remote")),
+        ])
+        .unwrap_err();
+        assert!(matches!(
+            extra_edge,
+            PackageGraphError::DependencyEdgeMismatch { .. }
+        ));
+    }
+
+    #[test]
+    fn retains_syntax_invalid_manifests_for_normal_diagnostic_projection() {
+        let tree = TempTree::new();
+        tree.source("app/nocter.nct", "#name: { nested: \"app\"\n");
+        let graph = ResolvedPackageGraph::load(vec![ResolvedPackageSpec::new(
+            identity("app"),
+            tree.0.join("app"),
+        )])
+        .unwrap();
+
+        assert!(graph.syntax_trees()[0].has_errors());
+        assert!(graph.packages()[0].declaration().is_none());
+    }
+}

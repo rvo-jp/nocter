@@ -142,7 +142,9 @@
 </code></pre><p>Later stages cannot import syntax representations to reconstruct earlier decisions. Source ranges remain outside semantic identity, and runtime linkage is a one-way output projection.</p><p>The Cargo workspace must begin with source and syntax responsibilities only. Its parser fixtures derive from the <a href="../docs/grammar-conformance/index.html#content">grammar conformance plan</a>; semantic crates cannot be introduced to make an unresolved syntax choice.</p><h2 id="current-crates">Current Crates</h2><ul><li><code>nocter-source</code> owns source identities, CRLF normalization, normalized byte spans, and line
   projection.</li><li><code>nocter-package</code> owns the structured interpretation of <code>nocter.nct</code>: presentation metadata,
   disjoint dependency source forms, exact lock values, and package targets with their exact syntax
-  origins. Later stages consume these facts and cannot reinterpret directive text.</li><li><code>nocter-syntax</code> owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
+  origins. Its <code>ResolvedPackageGraph</code> also owns the loaded manifest source/syntax universe and
+  validates exact alias, lock, and canonical path edges before discovery. Later stages consume
+  these facts and cannot reopen or reinterpret directive text.</li><li><code>nocter-syntax</code> owns lexical tokens, exact reserved keywords and punctuation, comment metadata,
   joint-token facts, string/interpolation boundaries, lexical and parse diagnostics, and the
   lossless syntax tree. Its parser covers the complete normative grammar, including token-only
   ambiguity decisions, continuation-newline ownership, body-result classification, control-header

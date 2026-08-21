@@ -15,6 +15,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-discovery = { path = "../nocter-discovery" }
 nocter-model = { path = "../nocter-model" }
+nocter-package = { path = "../nocter-package" }
 
 [lints]
 workspace = true

@@ -3,7 +3,6 @@ use std::io;
 use std::path::PathBuf;
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
-use nocter_package::PackageDeclarationError;
 use nocter_source::SourceError;
 use nocter_syntax::NodeId;
 use nocter_target_selection::TargetSelectionError;
@@ -33,16 +32,7 @@ pub enum DiscoveryError {
         package: PackageIdentity,
         path: PathBuf,
     },
-    MissingPackageFile {
-        package: PackageIdentity,
-        path: PathBuf,
-    },
     InvalidSingleFileExtension(PathBuf),
-    DuplicateCanonicalRoot {
-        first: PackageIdentity,
-        second: PackageIdentity,
-        path: PathBuf,
-    },
     MissingModuleRoot {
         module: ModuleIdentity,
         path: PathBuf,
@@ -57,7 +47,6 @@ pub enum DiscoveryError {
         path: Box<str>,
         failure: ImportFailure,
     },
-    PackageDeclaration(PackageDeclarationError),
     ConflictingSourceOwner {
         path: PathBuf,
         first: ModuleIdentity,
@@ -93,26 +82,9 @@ impl fmt::Display for DiscoveryError {
                 package.as_str(),
                 path.display()
             ),
-            Self::MissingPackageFile { package, path } => write!(
-                formatter,
-                "package {} has no package file at {}",
-                package.as_str(),
-                path.display()
-            ),
             Self::InvalidSingleFileExtension(path) => write!(
                 formatter,
                 "single-file input must have the .nct extension: {}",
-                path.display()
-            ),
-            Self::DuplicateCanonicalRoot {
-                first,
-                second,
-                path,
-            } => write!(
-                formatter,
-                "packages {} and {} share canonical root {}",
-                first.as_str(),
-                second.as_str(),
                 path.display()
             ),
             Self::MissingModuleRoot { module, path } => {
@@ -139,7 +111,6 @@ impl fmt::Display for DiscoveryError {
                 formatter,
                 "use {declaration:?} cannot resolve {path}: {failure:?}"
             ),
-            Self::PackageDeclaration(error) => error.fmt(formatter),
             Self::ConflictingSourceOwner {
                 path,
                 first,
@@ -179,13 +150,10 @@ impl std::error::Error for DiscoveryError {
         match self {
             Self::Filesystem { error, .. } => Some(error),
             Self::Toolchain(error) => Some(error),
-            Self::PackageDeclaration(error) => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }
-            | Self::MissingPackageFile { .. }
             | Self::InvalidSingleFileExtension(_)
-            | Self::DuplicateCanonicalRoot { .. }
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }
             | Self::Import { .. }

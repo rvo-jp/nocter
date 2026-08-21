@@ -37,6 +37,7 @@ dependencies = [
  "nocter-discovery",
  "nocter-macho",
  "nocter-model",
+ "nocter-package",
  "nocter-session",
  "nocter-source-index",
 ]
@@ -173,6 +174,7 @@ dependencies = [
  "nocter-macho",
  "nocter-mir",
  "nocter-model",
+ "nocter-package",
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",

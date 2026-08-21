@@ -138,9 +138,17 @@ as an authored dependency or lock; lock kind is validated against its declared s
 target name, kind, declaration order, and normalized module path cross the later pipeline as facts.
 Discovery and declaration lowering do not decode those fields again.
 
+The same crate closes externally selected identities and roots into one `ResolvedPackageGraph`.
+That graph owns the manifest `SourceMap`, syntax trees, decoded declarations, presentation names,
+and exact alias edges. It rejects duplicate identities or canonical roots, unknown edge targets,
+authored/resolved alias disagreement, missing remote locks, and path dependencies whose canonical
+directory differs from the resolved target package. Syntax-invalid manifests remain owned by the
+snapshot for ordinary diagnostic projection. Discovery consumes the graph by ownership and appends
+module sources to its existing source universe; it never opens or parses a manifest again.
+
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
-lowering. `nocter-discovery` canonicalizes exact resolved package roots, loads package declarations
-and reachable module sources once, distinguishes
+lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
+once, distinguishes
 same-module source edges from directory-module edges, rejects ambiguous physical candidates and
 nested-package or cross-module escapes, and retains one edge for every active authored `use`.
 Lexically or syntactically invalid sources remain in the snapshot for diagnostic projection, but
