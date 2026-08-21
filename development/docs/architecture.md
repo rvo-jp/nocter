@@ -159,6 +159,13 @@ ASCII conversion constant-time while rejecting UTF-8 interior offsets, UTF-16 su
 out-of-line positions, and reversed ranges. CRLF normalization changes byte offsets but not the
 line-and-character positions observed by an editor.
 
+`nocter-json` is the dependency-free JSON syntax boundary shared by installation metadata,
+machine-readable compiler output, and editor protocols. Its bounded parser preserves object member
+order and duplicates so each consuming schema can enforce its own exact-member policy; it does not
+silently collapse malformed inputs. The same crate owns JSON string escaping. Installation and LSP
+code therefore depend on a neutral format layer instead of depending on each other or maintaining
+divergent parsers.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected

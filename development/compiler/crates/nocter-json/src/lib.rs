@@ -1,9 +1,12 @@
+//! Bounded JSON syntax and exact rendering shared by compiler protocol boundaries.
+
 use std::fmt;
+use std::fmt::Write;
 
 const MAX_NESTING: usize = 128;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Value {
+pub enum Value {
     Null,
     Bool(bool),
     Number(Box<str>),
@@ -13,12 +16,17 @@ pub(crate) enum Value {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Member {
-    pub(crate) name: Box<str>,
-    pub(crate) value: Value,
+pub struct Member {
+    pub name: Box<str>,
+    pub value: Value,
 }
 
-pub(crate) fn parse(input: &str) -> Result<Value, JsonError> {
+/// Parses one complete JSON value while retaining object member order and duplicates.
+///
+/// # Errors
+///
+/// Returns a byte-positioned syntax error or a bounded-nesting failure.
+pub fn parse(input: &str) -> Result<Value, JsonError> {
     let mut parser = Parser {
         input,
         bytes: input.as_bytes(),
@@ -31,6 +39,28 @@ pub(crate) fn parse(input: &str) -> Result<Value, JsonError> {
         return Err(parser.error(JsonErrorKind::TrailingData));
     }
     Ok(value)
+}
+
+/// Appends one exactly escaped JSON string.
+pub fn write_string(output: &mut String, value: &str) {
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character <= '\u{1f}' => {
+                write!(output, "\\u{:04x}", u32::from(character))
+                    .expect("writing to String cannot fail");
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
 }
 
 struct Parser<'a> {
@@ -288,7 +318,7 @@ impl Parser<'_> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum JsonErrorKind {
+pub enum JsonErrorKind {
     UnexpectedEnd,
     ExpectedValue,
     ExpectedArraySeparator,
@@ -304,14 +334,20 @@ pub(crate) enum JsonErrorKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct JsonError {
+pub struct JsonError {
     offset: usize,
     kind: JsonErrorKind,
 }
 
 impl JsonError {
-    pub(crate) const fn offset(self) -> usize {
+    #[must_use]
+    pub const fn offset(self) -> usize {
         self.offset
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> JsonErrorKind {
+        self.kind
     }
 }
 
@@ -370,12 +406,16 @@ mod tests {
             "[".repeat(MAX_NESTING + 1),
             "]".repeat(MAX_NESTING + 1)
         );
-        assert!(matches!(
-            parse(&source),
-            Err(JsonError {
-                kind: JsonErrorKind::NestingLimit,
-                ..
-            })
-        ));
+        assert_eq!(
+            parse(&source).unwrap_err().kind(),
+            JsonErrorKind::NestingLimit
+        );
+    }
+
+    #[test]
+    fn renders_every_json_string_escape_exactly() {
+        let mut output = String::new();
+        write_string(&mut output, "\"\\\u{08}\u{0c}\n\r\t\u{01}β");
+        assert_eq!(output, r#""\"\\\b\f\n\r\t\u0001β""#);
     }
 }

@@ -30,7 +30,10 @@ implementation input.
    JSON-RPC/LSP lifecycle above this state, followed by compiler-owned semantic presentation
    queries. `nocter-source` now owns exact normalized-byte/UTF-16 position and range conversion;
    non-ASCII scalar differences are indexed once, and invalid bytes, surrogate interiors,
-   out-of-line positions, and reversed ranges cannot reach an analysis query.
+   out-of-line positions, and reversed ranges cannot reach an analysis query. The bounded JSON
+   parser and exact string renderer have moved from installation/diagnostic ownership into neutral
+   `nocter-json`; the LSP protocol layer can now decode JSON-RPC without duplicating parsing or
+   reversing a dependency on installation policy.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

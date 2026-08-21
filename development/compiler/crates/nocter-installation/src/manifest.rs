@@ -2,9 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::PathBuf;
 
+use nocter_json::{self as json, Member, Value};
 use nocter_model::CompilationTarget;
-
-use crate::json::{self, Member, Value};
 
 const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
 

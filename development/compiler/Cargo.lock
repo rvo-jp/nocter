@@ -1793,6 +1793,7 @@ dependencies = [
 name = "nocter-diagnostics"
 version = "0.0.0"
 dependencies = [
+ "nocter-json",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
@@ -1829,9 +1830,14 @@ version = "0.0.0"
 name = "nocter-installation"
 version = "0.0.0"
 dependencies = [
+ "nocter-json",
  "nocter-model",
  "nocter-package",
 ]
+
+[[package]]
+name = "nocter-json"
+version = "0.0.0"
 
 [[package]]
 name = "nocter-machine"

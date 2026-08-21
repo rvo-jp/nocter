@@ -13,7 +13,6 @@ use nocter_model::PackageIdentity;
 use nocter_package::StandardPackage;
 
 mod compatibility;
-mod json;
 mod manifest;
 
 pub use compatibility::{CompilerInstallation, InstallationCompatibilityError};
