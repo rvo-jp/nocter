@@ -19,6 +19,7 @@ pub(crate) fn execute_parsed_command(
     presentation: Option<InvocationDiagnosticPresentation>,
 ) -> Result<InvocationOutcome, InvocationError> {
     match command {
+        ParsedCommand::Help(request) => Ok(InvocationOutcome::Help(request)),
         ParsedCommand::Version => Ok(InvocationOutcome::Version(
             VersionReport::from_installation(installation),
         )),

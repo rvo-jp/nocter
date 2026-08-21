@@ -2,6 +2,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use crate::command_schema::{CommandKind, CommandOption, CommandSchema, option_schema};
 use crate::{
     BuildCommandOptions, BuildCommandPlan, CheckCommandOptions, CheckCommandPlan, CommandPlanError,
     ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan,
@@ -35,6 +36,7 @@ impl ResolutionOptions {
 
 #[derive(Debug)]
 pub enum ParsedCommand {
+    Help(crate::HelpRequest),
     Version,
     Doctor,
     Fetch(ParsedFetchCommand),
@@ -293,39 +295,81 @@ pub fn parse_command_invocation(
             None,
         ));
     };
-    match command.to_str() {
-        Some("--version") => parse_empty_command(arguments, "--version")
-            .map(|()| ParsedCommand::Version)
-            .map_err(|failure| failure.for_command("--version")),
-        Some("doctor") => parse_empty_command(arguments, "doctor")
-            .map(|()| ParsedCommand::Doctor)
-            .map_err(|failure| failure.for_command("doctor")),
-        Some("fetch") => parse_fetch(arguments)
-            .map(ParsedCommand::Fetch)
-            .map_err(|failure| failure.for_command("fetch")),
-        Some("check") => parse_check(arguments)
-            .map(ParsedCommand::Check)
-            .map_err(|failure| failure.for_command("check")),
-        Some("build") => parse_build(arguments)
-            .map(ParsedCommand::Build)
-            .map_err(|failure| failure.for_command("build")),
-        Some("run") => parse_run(arguments)
-            .map(ParsedCommand::Run)
-            .map_err(|failure| failure.for_command("run")),
-        _ => Err(CommandArgumentFailure::new(
+    let arguments = arguments.collect::<Vec<_>>();
+    if command == OsStr::new("--help") {
+        return match arguments.into_iter().next() {
+            Some(_) => Err(CommandArgumentFailure::new(
+                CommandArgumentError::HelpMustBeUsedAlone("--help"),
+                Some("--help"),
+                DiagnosticFormat::Human,
+                None,
+            )),
+            None => Ok(ParsedCommand::Help(crate::HelpRequest::overview())),
+        };
+    }
+    let Some(kind) = CommandKind::from_invocation(&command) else {
+        return Err(CommandArgumentFailure::new(
             CommandArgumentError::UnknownCommand(command),
             None,
             DiagnosticFormat::Human,
             None,
-        )),
+        ));
+    };
+    if arguments.len() == 1
+        && arguments[0] == OsStr::new("--help")
+        && kind.schema().accepts(CommandOption::Help)
+    {
+        return Ok(ParsedCommand::Help(crate::HelpRequest::command(kind)));
+    }
+    match kind {
+        CommandKind::Help => parse_help(arguments.into_iter())
+            .map(ParsedCommand::Help)
+            .map_err(|failure| failure.for_command("help")),
+        CommandKind::Version => parse_empty_command(arguments.into_iter(), kind.schema())
+            .map(|()| ParsedCommand::Version)
+            .map_err(|failure| failure.for_command("--version")),
+        CommandKind::Doctor => parse_empty_command(arguments.into_iter(), kind.schema())
+            .map(|()| ParsedCommand::Doctor)
+            .map_err(|failure| failure.for_command("doctor")),
+        CommandKind::Fetch => parse_fetch(arguments.into_iter())
+            .map(ParsedCommand::Fetch)
+            .map_err(|failure| failure.for_command("fetch")),
+        CommandKind::Check => parse_check(arguments.into_iter())
+            .map(ParsedCommand::Check)
+            .map_err(|failure| failure.for_command("check")),
+        CommandKind::Build => parse_build(arguments.into_iter())
+            .map(ParsedCommand::Build)
+            .map_err(|failure| failure.for_command("build")),
+        CommandKind::Run => parse_run(arguments.into_iter())
+            .map(ParsedCommand::Run)
+            .map_err(|failure| failure.for_command("run")),
     }
 }
 
 fn parse_empty_command(
     arguments: impl Iterator<Item = OsString>,
-    name: &'static str,
+    schema: &'static CommandSchema,
 ) -> Result<(), OptionsParseFailure> {
-    parse_options(arguments, CommandShape { name, accepted: 0 }).map(|_| ())
+    parse_options(arguments, schema).map(|_| ())
+}
+
+fn parse_help(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<crate::HelpRequest, OptionsParseFailure> {
+    let Some(topic) = arguments.next() else {
+        return Ok(crate::HelpRequest::overview());
+    };
+    let Some(command) = CommandKind::from_invocation(&topic) else {
+        return Err(OptionsParseFailure::plain(
+            CommandArgumentError::UnknownHelpTopic(topic),
+        ));
+    };
+    if let Some(extra) = arguments.next() {
+        return Err(OptionsParseFailure::plain(
+            CommandArgumentError::MultipleHelpTopics(extra),
+        ));
+    }
+    Ok(crate::HelpRequest::command(command))
 }
 
 fn parse_check(
@@ -339,7 +383,7 @@ fn parse_check(
         output: _,
         resolution,
         format,
-    } = parse_options(arguments, CommandShape::CHECK)?;
+    } = parse_options(arguments, CommandKind::Check.schema())?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: CheckCommandOptions::new(executable),
@@ -359,7 +403,7 @@ fn parse_fetch(
         output: _,
         resolution,
         format: _,
-    } = parse_options(arguments, CommandShape::FETCH)?;
+    } = parse_options(arguments, CommandKind::Fetch.schema())?;
     Ok(ParsedFetchCommand { root, resolution })
 }
 
@@ -374,7 +418,7 @@ fn parse_build(
         output,
         resolution,
         format: _,
-    } = parse_options(arguments, CommandShape::BUILD)?;
+    } = parse_options(arguments, CommandKind::Build.schema())?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: BuildCommandOptions::new(executable, output),
@@ -393,7 +437,7 @@ fn parse_run(
         output: _,
         resolution,
         format: _,
-    } = parse_options(arguments, CommandShape::RUN)?;
+    } = parse_options(arguments, CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: RunCommandOptions::new(executable),
@@ -412,73 +456,9 @@ struct ParsedOptions {
     format: Option<DiagnosticFormat>,
 }
 
-#[derive(Clone, Copy)]
-struct CommandShape {
-    name: &'static str,
-    accepted: u32,
-}
-
-impl CommandShape {
-    const ROOT: u32 = 1 << 0;
-    const FILE: u32 = 1 << 1;
-    const POSITIONAL: u32 = 1 << 2;
-    const EXECUTABLE: u32 = 1 << 3;
-    const OUTPUT: u32 = 1 << 4;
-    const RESOLUTION: u32 = 1 << 5;
-    const FORMAT: u32 = 1 << 6;
-
-    const FETCH: Self = Self {
-        name: "fetch",
-        accepted: Self::ROOT | Self::RESOLUTION,
-    };
-    const BUILD: Self = Self {
-        name: "build",
-        accepted: Self::ROOT
-            | Self::FILE
-            | Self::POSITIONAL
-            | Self::EXECUTABLE
-            | Self::OUTPUT
-            | Self::RESOLUTION,
-    };
-    const CHECK: Self = Self {
-        name: "check",
-        accepted: Self::ROOT
-            | Self::FILE
-            | Self::POSITIONAL
-            | Self::EXECUTABLE
-            | Self::RESOLUTION
-            | Self::FORMAT,
-    };
-    const RUN: Self = Self {
-        name: "run",
-        accepted: Self::ROOT | Self::FILE | Self::POSITIONAL | Self::EXECUTABLE | Self::RESOLUTION,
-    };
-
-    fn accepts(self, option: &'static str) -> bool {
-        let capability = match option {
-            "--root" => Self::ROOT,
-            "--file" => Self::FILE,
-            "--executable" => Self::EXECUTABLE,
-            "--output" => Self::OUTPUT,
-            "--locked" | "--offline" => Self::RESOLUTION,
-            "--format" => Self::FORMAT,
-            _ => return false,
-        };
-        self.accepted & capability != 0
-    }
-
-    const fn accepts_positional(self) -> bool {
-        self.accepted & Self::POSITIONAL != 0
-    }
-
-    const fn accepts_resolution(self) -> bool {
-        self.accepted & Self::RESOLUTION != 0
-    }
-}
-
 fn parse_options(
     mut arguments: impl Iterator<Item = OsString>,
-    shape: CommandShape,
+    schema: &'static CommandSchema,
 ) -> Result<ParsedOptions, OptionsParseFailure> {
     let mut parsed = ParsedOptions::default();
     let mut first_error = None;
@@ -492,46 +472,32 @@ fn parse_options(
             if let Some((name, value)) = split_long_option(&argument) {
                 retain_first_error(
                     &mut first_error,
-                    parse_valued_option(&mut parsed, name, Some(value), &mut arguments, shape),
+                    parse_valued_option(&mut parsed, name, Some(value), &mut arguments, schema),
                 );
                 continue;
             }
             if let Some(name) = argument.to_str().filter(|value| value.starts_with('-')) {
-                match name {
-                    "--root" | "--file" | "--executable" | "--output" | "--format" | "-o" => {
+                match option_schema(name).copied() {
+                    Some(option) if option.takes_value() => {
                         retain_first_error(
                             &mut first_error,
-                            parse_valued_option(&mut parsed, name, None, &mut arguments, shape),
+                            parse_valued_option(&mut parsed, name, None, &mut arguments, schema),
                         );
                     }
-                    "--locked" | "--offline" if !shape.accepts_resolution() => {
-                        first_error.get_or_insert(CommandArgumentError::OptionNotAccepted {
-                            option: if name == "--locked" {
-                                "--locked"
-                            } else {
-                                "--offline"
-                            },
-                            command: shape.name,
-                        });
-                    }
-                    "--locked" => retain_first_error(
+                    Some(option) => retain_first_error(
                         &mut first_error,
-                        set_flag(&mut parsed.resolution.locked, "--locked"),
+                        parse_flag_option(&mut parsed, option, schema),
                     ),
-                    "--offline" => retain_first_error(
-                        &mut first_error,
-                        set_flag(&mut parsed.resolution.offline, "--offline"),
-                    ),
-                    _ => {
+                    None => {
                         first_error.get_or_insert(CommandArgumentError::UnknownOption(argument));
                     }
                 }
                 continue;
             }
         }
-        if !shape.accepts_positional() {
+        if !schema.accepts_positional() {
             first_error.get_or_insert(CommandArgumentError::PositionalNotAccepted {
-                command: shape.name,
+                command: schema.name(),
                 argument,
             });
             continue;
@@ -579,6 +545,14 @@ struct OptionsParseFailure {
 }
 
 impl OptionsParseFailure {
+    fn plain(error: CommandArgumentError) -> Self {
+        Self {
+            error,
+            format: DiagnosticFormat::Human,
+            root_hint: None,
+        }
+    }
+
     fn for_command(self, command: &'static str) -> CommandArgumentFailure {
         let root_hint = if command == "check" {
             self.root_hint
@@ -600,21 +574,21 @@ fn parse_valued_option(
     name: &str,
     inline_value: Option<&OsStr>,
     arguments: &mut impl Iterator<Item = OsString>,
-    shape: CommandShape,
+    command: &'static CommandSchema,
 ) -> Result<(), CommandArgumentError> {
-    let canonical_name = match name {
-        "--root" => "--root",
-        "--file" => "--file",
-        "--executable" => "--executable",
-        "--output" | "-o" => "--output",
-        "--format" => "--format",
-        _ => return Err(CommandArgumentError::UnknownOption(name.into())),
+    let Some(schema) = option_schema(name).copied() else {
+        return Err(CommandArgumentError::UnknownOption(name.into()));
     };
-    if !shape.accepts(canonical_name) {
+    if !command.accepts(schema.option()) {
         return Err(CommandArgumentError::OptionNotAccepted {
-            option: canonical_name,
-            command: shape.name,
+            option: schema.canonical_name(),
+            command: command.name(),
         });
+    }
+    if !schema.takes_value() {
+        return Err(CommandArgumentError::OptionDoesNotTakeValue(
+            schema.canonical_name(),
+        ));
     }
     let value = match inline_value {
         Some(value) if value.is_empty() => {
@@ -625,20 +599,24 @@ fn parse_valued_option(
             .next()
             .ok_or_else(|| CommandArgumentError::MissingValue(name.into()))?,
     };
-    match name {
-        "--root" => set_path(&mut parsed.root, value, "--root"),
-        "--file" => set_path(&mut parsed.file, value, "--file"),
-        "--executable" => {
+    match schema.option() {
+        CommandOption::Root => set_path(&mut parsed.root, value, schema.canonical_name()),
+        CommandOption::File => set_path(&mut parsed.file, value, schema.canonical_name()),
+        CommandOption::Executable => {
             let value = value
                 .into_string()
                 .map_err(CommandArgumentError::NonUnicodeExecutable)?;
             if value.is_empty() {
                 return Err(CommandArgumentError::EmptyExecutable);
             }
-            set_value(&mut parsed.executable, value.into(), "--executable")
+            set_value(
+                &mut parsed.executable,
+                value.into(),
+                schema.canonical_name(),
+            )
         }
-        "--output" | "-o" => set_path(&mut parsed.output, value, "--output"),
-        "--format" => {
+        CommandOption::Output => set_path(&mut parsed.output, value, schema.canonical_name()),
+        CommandOption::Format => {
             let value = value
                 .into_string()
                 .map_err(CommandArgumentError::NonUnicodeFormat)?;
@@ -646,9 +624,34 @@ fn parse_valued_option(
                 "json" => DiagnosticFormat::Json,
                 _ => return Err(CommandArgumentError::UnsupportedFormat(value.into())),
             };
-            set_value(&mut parsed.format, format, "--format")
+            set_value(&mut parsed.format, format, schema.canonical_name())
         }
-        _ => Err(CommandArgumentError::UnknownOption(name.into())),
+        CommandOption::Help | CommandOption::Locked | CommandOption::Offline => {
+            unreachable!("flag option passed the valued-option boundary")
+        }
+    }
+}
+
+fn parse_flag_option(
+    parsed: &mut ParsedOptions,
+    option: crate::command_schema::OptionSchema,
+    command: &'static CommandSchema,
+) -> Result<(), CommandArgumentError> {
+    if !command.accepts(option.option()) {
+        return Err(CommandArgumentError::OptionNotAccepted {
+            option: option.canonical_name(),
+            command: command.name(),
+        });
+    }
+    match option.option() {
+        CommandOption::Help => Err(CommandArgumentError::HelpMustBeUsedAlone(command.name())),
+        CommandOption::Locked => set_flag(&mut parsed.resolution.locked, option.canonical_name()),
+        CommandOption::Offline => set_flag(&mut parsed.resolution.offline, option.canonical_name()),
+        CommandOption::Root
+        | CommandOption::File
+        | CommandOption::Executable
+        | CommandOption::Output
+        | CommandOption::Format => unreachable!("valued option passed the flag-option boundary"),
     }
 }
 
@@ -709,12 +712,16 @@ pub enum CommandArgumentError {
     MissingCommand,
     UnknownCommand(OsString),
     UnknownOption(OsString),
+    UnknownHelpTopic(OsString),
+    MultipleHelpTopics(OsString),
     OptionNotAccepted {
         option: &'static str,
         command: &'static str,
     },
     MissingValue(Box<str>),
+    OptionDoesNotTakeValue(&'static str),
     DuplicateOption(&'static str),
+    HelpMustBeUsedAlone(&'static str),
     MultiplePositionalSources(OsString),
     PositionalNotAccepted {
         command: &'static str,
@@ -798,12 +805,26 @@ impl fmt::Display for CommandArgumentError {
             Self::UnknownOption(option) => {
                 write!(formatter, "unknown option {}", option.to_string_lossy())
             }
+            Self::UnknownHelpTopic(topic) => {
+                write!(formatter, "unknown help topic {}", topic.to_string_lossy())
+            }
+            Self::MultipleHelpTopics(topic) => write!(
+                formatter,
+                "help accepts at most one command; unexpected {}",
+                topic.to_string_lossy()
+            ),
             Self::OptionNotAccepted { option, command } => {
                 write!(formatter, "{option} is not accepted by {command}")
             }
             Self::MissingValue(option) => write!(formatter, "{option} requires a value"),
+            Self::OptionDoesNotTakeValue(option) => {
+                write!(formatter, "{option} does not accept a value")
+            }
             Self::DuplicateOption(option) => {
                 write!(formatter, "{option} was provided more than once")
+            }
+            Self::HelpMustBeUsedAlone(command) => {
+                write!(formatter, "--help must be used alone after {command}")
             }
             Self::MultiplePositionalSources(source) => write!(
                 formatter,
@@ -874,6 +895,61 @@ mod tests {
                 option: "--offline",
                 command: "doctor",
             }
+        );
+    }
+
+    #[test]
+    fn every_help_spelling_converges_on_the_schema_owned_report() {
+        let ParsedCommand::Help(global_option) =
+            parse_command_arguments(arguments(&["--help"])).unwrap()
+        else {
+            panic!("expected help command");
+        };
+        let ParsedCommand::Help(help_command) =
+            parse_command_arguments(arguments(&["help"])).unwrap()
+        else {
+            panic!("expected help command");
+        };
+        assert_eq!(global_option, help_command);
+
+        let ParsedCommand::Help(selected_form) =
+            parse_command_arguments(arguments(&["help", "check"])).unwrap()
+        else {
+            panic!("expected selected help command");
+        };
+        let ParsedCommand::Help(option_form) =
+            parse_command_arguments(arguments(&["check", "--help"])).unwrap()
+        else {
+            panic!("expected selected help command");
+        };
+        assert_eq!(selected_form, option_form);
+        assert!(
+            selected_form
+                .render()
+                .contains("nocter check [OPTIONS] [SOURCE]")
+        );
+        assert!(selected_form.render().contains("--format <FORMAT>"));
+        assert!(!selected_form.render().contains("--output"));
+
+        assert!(matches!(
+            parse_command_arguments(arguments(&["help", "missing"])),
+            Err(CommandArgumentError::UnknownHelpTopic(_))
+        ));
+        assert!(matches!(
+            parse_command_arguments(arguments(&["help", "check", "build"])),
+            Err(CommandArgumentError::MultipleHelpTopics(_))
+        ));
+        assert_eq!(
+            parse_command_arguments(arguments(&["check", "--help", "app.nct"])).unwrap_err(),
+            CommandArgumentError::HelpMustBeUsedAlone("check")
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["--help", "check"])).unwrap_err(),
+            CommandArgumentError::HelpMustBeUsedAlone("--help")
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["fetch", "--locked=true"])).unwrap_err(),
+            CommandArgumentError::OptionDoesNotTakeValue("--locked")
         );
     }
 

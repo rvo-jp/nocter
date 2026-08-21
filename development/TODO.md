@@ -15,8 +15,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Add top-level and command-specific `help` from one declarative command schema before implementing
-   the remaining tooling commands.
+1. Add the public `test` command through the existing declared-test target and native test-root
+   boundaries.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
@@ -43,10 +43,17 @@ implementation input.
    consume that profile, write successful text to stdout, retain typed status-2 failures, and never
    prepare user source or initialize package acquisition.
 
-   Help must not add a handwritten second flag table. Extend the existing declarative command shape
-   so parsing, applicability errors, usage text, and command summaries consume the same immutable
-   option vocabulary. `nocter help`, `nocter help <command>`, and `nocter <command> --help` must
-   converge on one typed report and must not require a valid Nocter home or current package.
+   Help is now closed without a handwritten second flag table. One immutable `CommandSchema` and
+   `OptionSchema` vocabulary owns implemented command tokens, summaries, positional forms, option
+   names/aliases, value requirements, applicability, and descriptions. Parsing and rendering both
+   consume those identities. `--help`, `help`, `help <command>`, and `<command> --help` converge on
+   one typed report before installation selection and source preparation.
+
+   `test` must reuse package input, exact dependency state, discovery, target validation, MIR,
+   machine lowering, and native execution. It must select only declared package test targets and
+   direct cases; it may not translate tests into executables, scan names after semantic selection,
+   or let one case terminate the runner. Human and JSON summaries must consume one ordered typed
+   result, and orchestration failure must remain distinct from a user test failure (status 1).
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

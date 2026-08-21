@@ -362,7 +362,13 @@ The public command argument boundary is a pure `OsString` parser. It receives ar
 reading process-global state, keeps positional and `--file` forms distinct, supports `--` without
 forcing paths through Unicode, and rejects unknown, duplicate, missing-value, or command-inapplicable
 options before filesystem access. A declarative command shape controls which options and positional
-inputs each command accepts instead of scattering command-name conditionals through parsing.
+inputs each command accepts instead of scattering command-name conditionals through parsing. That
+shape is now the single `CommandSchema`: it owns each implemented command token, summary,
+positional form, and accepted `OptionSchema` identities. Option schemas own canonical/short names,
+value requirements, and descriptions. Parsing resolves tokens to those identities, while overview
+and command-specific help project the same tables. `--help`, `help`, `help <command>`, and
+`<command> --help` therefore cannot drift into a second flag vocabulary. Help exits from the pure
+parse result before installation selection, source preparation, or package acquisition.
 Preparation then invokes the existing input resolver and command planner in that fixed order.
 Fetch uses the package-only projection of the same input authority, so a source-file mode is not
 representable after parsing. `--locked` and `--offline` survive as a separate immutable package

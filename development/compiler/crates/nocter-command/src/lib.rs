@@ -7,6 +7,7 @@ mod arguments;
 mod artifact;
 mod build;
 mod check;
+mod command_schema;
 mod execute;
 mod failure;
 mod fetch;
@@ -35,6 +36,7 @@ pub use check::{
     CheckCommandExecutionError, CheckCommandPresentation, CheckCommandResult,
     execute_prepared_check,
 };
+pub use command_schema::HelpRequest;
 pub use execute::{
     BuildCommandExecutionError, BuildCommandResult, RunCommandExecutionError,
     execute_prepared_build, execute_prepared_run,

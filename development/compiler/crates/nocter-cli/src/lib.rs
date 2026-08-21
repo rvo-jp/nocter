@@ -8,7 +8,8 @@ use std::path::PathBuf;
 
 use nocter_command::{
     BuildCommandResult, CheckCommandPresentation, CheckCommandResult, CommandToolchain,
-    DiagnosticFormat, ExecutedProgram, FetchCommandResult, parse_command_invocation,
+    DiagnosticFormat, ExecutedProgram, FetchCommandResult, HelpRequest, ParsedCommand,
+    parse_command_invocation,
 };
 use nocter_diagnostics::{
     DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostics_json,
@@ -61,6 +62,7 @@ impl Invocation {
 /// success.
 #[derive(Debug)]
 pub enum InvocationOutcome {
+    Help(HelpRequest),
     Version(VersionReport),
     Doctor(DoctorReport),
     Fetch(FetchCommandResult),
@@ -73,7 +75,8 @@ impl InvocationOutcome {
     #[must_use]
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::Version(_)
+            Self::Help(_)
+            | Self::Version(_)
             | Self::Doctor(_)
             | Self::Fetch(_)
             | Self::Check(_)
@@ -86,6 +89,7 @@ impl InvocationOutcome {
     #[must_use]
     pub fn render_standard_output(&self) -> Option<String> {
         match self {
+            Self::Help(request) => Some(request.render()),
             Self::Version(report) => Some(report.render()),
             Self::Doctor(report) => Some(report.render()),
             Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => None,
@@ -107,7 +111,8 @@ impl InvocationOutcome {
                 )
                 .map(Some)
             }
-            Self::Version(_)
+            Self::Help(_)
+            | Self::Version(_)
             | Self::Doctor(_)
             | Self::Fetch(_)
             | Self::Check(_)
@@ -137,6 +142,9 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         let presentation = InvocationDiagnosticPresentation::from_argument_failure(&failure);
         InvocationError::new(InvocationErrorKind::Arguments(failure), presentation)
     })?;
+    if let ParsedCommand::Help(request) = &command {
+        return Ok(InvocationOutcome::Help(*request));
+    }
     let mut presentation = InvocationDiagnosticPresentation::from_command(&command);
     let home = NocterHome::resolve(NocterHomeRequest::new(configured_home, executable)).map_err(
         |error| {

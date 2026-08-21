@@ -26,6 +26,10 @@ never guesses that `main.nct` is an executable. Explicit single-file operation r
 for scripts and isolated experiments.
 
 ```sh
+nocter --help
+nocter help
+nocter help check
+nocter check --help
 nocter --version
 nocter doctor
 nocter fetch
@@ -54,6 +58,17 @@ nocter lsp
 
 A bare source such as `nocter app.nct` is not a command. Use `nocter run app.nct` when single-file
 execution is intended.
+
+## Help
+
+`nocter --help` and `nocter help` produce the same overview. `nocter help <command>` and
+`nocter <command> --help` produce the same command-specific report. The report lists only commands
+implemented by that compiler and only options accepted by the selected command. Command names,
+option spellings and aliases, value requirements, applicability, usage, and help descriptions come
+from one compiler-owned command schema.
+
+The `--help` option must be the only argument after a selected command. Help returns status 0 and
+writes to stdout without selecting a Nocter home, resolving a package, or reading source.
 
 ## Package and File Inputs
 
@@ -437,7 +452,7 @@ Compiler-owned exit statuses are:
 
 After a program starts, `run` returns that program's exit status. `test` converts every failed test
 outcome into compiler status 1 so that one target cannot terminate the runner. Human diagnostics
-and command errors go to stderr. `--version` and successful `doctor` output go to stdout.
+and command errors go to stderr. Help, `--version`, and successful `doctor` output go to stdout.
 
 ## Current Command Non-goals
 

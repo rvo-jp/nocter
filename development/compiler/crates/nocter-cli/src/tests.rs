@@ -114,6 +114,42 @@ fn argument_structure_precedes_installation_filesystem_access() {
 }
 
 #[test]
+fn help_does_not_select_an_installation_or_prepare_source() {
+    let tree = TempTree::new("help");
+    let missing_home = tree.0.join("missing-home");
+    let missing_directory = tree.0.join("missing-directory");
+    let overview = execute_invocation(invocation(
+        ["--help"],
+        &missing_directory,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let selected = execute_invocation(invocation(
+        ["check", "--help"],
+        &missing_directory,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(overview, InvocationOutcome::Help(_)));
+    assert!(
+        overview
+            .render_standard_output()
+            .unwrap()
+            .contains("Nocter compiler")
+    );
+    assert!(matches!(selected, InvocationOutcome::Help(_)));
+    assert!(
+        selected
+            .render_standard_output()
+            .unwrap()
+            .contains("nocter check [OPTIONS] [SOURCE]")
+    );
+}
+
+#[test]
 fn compiler_host_is_checked_before_user_source_preparation() {
     let tree = TempTree::new("host");
     let home = tree.installation("arm64-darwin", false);
