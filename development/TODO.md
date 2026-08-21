@@ -24,8 +24,11 @@ implementation input.
    generation identity and exactly one discovery-failed, syntax-failed, compiler-failed, or
    target-validated state. Every state retains its reached sources, syntax, and diagnostics; only a
    successful current generation exposes the checked program and `SourceIndex`, so stale semantic
-   fallback is impossible. The next boundary is the protocol lifecycle and version gate above this
-   snapshot, followed by compiler-owned semantic presentation queries.
+   fallback is impossible. `WorkspaceDocuments` now owns the mutable acceptance gate: changes must
+   increase the document version, stale changes do not advance generation, included save text is
+   frozen before analysis, and close emits a new disk-fallback overlay. The next boundary is the
+   JSON-RPC/LSP lifecycle above this state, followed by compiler-owned semantic presentation
+   queries.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

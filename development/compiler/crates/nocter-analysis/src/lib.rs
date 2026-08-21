@@ -14,6 +14,12 @@ use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
+mod documents;
+
+pub use documents::{
+    AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
+};
+
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GenerationId(u64);

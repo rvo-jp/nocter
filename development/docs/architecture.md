@@ -145,7 +145,11 @@ syntax snapshots, diagnostics, and exactly one status: discovery failure, syntax
 failure, or target-validated success. Only the success state exposes a `SourceIndex` and checked
 target; a failed current generation never exposes an older successful semantic program. Discovery
 failures retain their reached syntax trees as well as sources, so invalidation and syntax-aware
-recovery do not require reopening files.
+recovery do not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable
+accepted-document boundary. It requires strictly increasing change versions, ignores stale changes
+without advancing generation, applies included save text before analysis, and freezes a new complete
+overlay for every accepted open, change, save, or close. Previously emitted overlays never observe
+later document mutations.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
