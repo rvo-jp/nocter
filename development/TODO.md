@@ -54,8 +54,13 @@ implementation input.
    clean/premature exit without writing non-protocol stdout. Accepted document generations remain
    explicit outputs. The public `nocter lsp` entry now belongs to the shared command schema, accepts
    no positional or operational options, validates the installation once, and enters its stdio loop
-   before ordinary CLI rendering. The next increment is outbound request correlation for dynamic
-   watcher registration, then root-bound analysis and diagnostics.
+   before ordinary CLI rendering. Its validated installation and captured cwd now form one immutable
+   language-server environment. Initialize resolves workspace folders, the fallback root URI, or cwd
+   in that order, canonicalizes directories once, collapses physical aliases, and assigns nested
+   documents to the deepest root. Root validation participates in the transactional initialize
+   commit. The next increment binds accepted document generations to locked/offline package or
+   single-file analysis and publishes diagnostics from those exact snapshots. Outbound correlation
+   and watcher registration follow only after watched changes can trigger the same analysis path.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

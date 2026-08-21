@@ -11,6 +11,8 @@ nocter-analysis = { path = "../nocter-analysis" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-json = { path = "../nocter-json" }
 nocter-lsp = { path = "../nocter-lsp" }
+nocter-model = { path = "../nocter-model" }
+nocter-package = { path = "../nocter-package" }
 
 [lints]
 workspace = true

@@ -9,7 +9,10 @@ use nocter_lsp::{
     render_success_response,
 };
 
-use crate::{DocumentWorkspace, DocumentWorkspaceError};
+use crate::{
+    DocumentWorkspace, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceConfiguration,
+    WorkspaceConfigurationError,
+};
 
 /// One fully validated protocol and document-state transition.
 #[derive(Debug, Default)]
@@ -48,23 +51,35 @@ pub struct LanguageServer {
     protocol: ProtocolSession,
     documents: DocumentWorkspace,
     server_version: Box<str>,
+    environment: LanguageServerEnvironment,
     initialization: Option<InitializeParams>,
+    workspace: Option<WorkspaceConfiguration>,
 }
 
 impl LanguageServer {
     #[must_use]
-    pub fn new(server_version: impl Into<Box<str>>) -> Self {
+    pub fn new(
+        server_version: impl Into<Box<str>>,
+        environment: LanguageServerEnvironment,
+    ) -> Self {
         Self {
             protocol: ProtocolSession::new(),
             documents: DocumentWorkspace::new(),
             server_version: server_version.into(),
+            environment,
             initialization: None,
+            workspace: None,
         }
     }
 
     #[must_use]
     pub const fn initialization(&self) -> Option<&InitializeParams> {
         self.initialization.as_ref()
+    }
+
+    #[must_use]
+    pub const fn workspace(&self) -> Option<&WorkspaceConfiguration> {
+        self.workspace.as_ref()
     }
 
     /// Processes one unframed JSON body into at most one response and one accepted generation.
@@ -96,12 +111,19 @@ impl LanguageServer {
     }
 
     fn initialize(&mut self, id: &RequestId, params: Option<Value>) -> ServerStep {
-        match InitializeParams::decode(params) {
-            Ok(params) => {
+        match InitializeParams::decode(params)
+            .map_err(InitializeFailure::Parameters)
+            .and_then(|params| {
+                WorkspaceConfiguration::resolve(&self.environment, &params)
+                    .map(|workspace| (params, workspace))
+                    .map_err(InitializeFailure::Workspace)
+            }) {
+            Ok((params, workspace)) => {
                 if let Err(error) = self.protocol.complete_initialize(true) {
                     return internal_transition_error(id, error);
                 }
                 self.initialization = Some(params);
+                self.workspace = Some(workspace);
                 ServerStep {
                     response: Some(render_success_response(
                         id,
@@ -121,6 +143,7 @@ impl LanguageServer {
                         ResponseErrorCode::InvalidParams,
                         Some(&detail),
                     )),
+                    issue: error.into_server_issue(),
                     ..ServerStep::default()
                 }
             }
@@ -202,6 +225,7 @@ fn internal_transition_error(id: &RequestId, error: LifecycleTransitionError) ->
 pub enum ServerIssue {
     Parameters(ParameterError),
     Documents(DocumentWorkspaceError),
+    Workspace(WorkspaceConfigurationError),
     Lifecycle(LifecycleTransitionError),
 }
 
@@ -210,6 +234,7 @@ impl fmt::Display for ServerIssue {
         match self {
             Self::Parameters(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
+            Self::Workspace(error) => error.fmt(formatter),
             Self::Lifecycle(error) => error.fmt(formatter),
         }
     }
@@ -220,7 +245,38 @@ impl std::error::Error for ServerIssue {
         match self {
             Self::Parameters(error) => Some(error),
             Self::Documents(error) => Some(error),
+            Self::Workspace(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum InitializeFailure {
+    Parameters(ParameterError),
+    Workspace(WorkspaceConfigurationError),
+}
+
+impl InitializeFailure {
+    fn into_server_issue(self) -> Option<ServerIssue> {
+        match self {
+            Self::Parameters(_) => None,
+            Self::Workspace(error) => Some(ServerIssue::Workspace(error)),
+        }
+    }
+}
+
+impl From<ParameterError> for InitializeFailure {
+    fn from(error: ParameterError) -> Self {
+        Self::Parameters(error)
+    }
+}
+
+impl fmt::Display for InitializeFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Parameters(error) => error.fmt(formatter),
+            Self::Workspace(error) => error.fmt(formatter),
         }
     }
 }
@@ -228,12 +284,14 @@ impl std::error::Error for ServerIssue {
 #[cfg(test)]
 mod tests {
     use nocter_analysis::GenerationId;
+    use nocter_model::{CompilationTarget, PackageIdentity};
+    use nocter_package::StandardPackage;
 
     use super::*;
 
     #[test]
     fn invalid_initialize_can_retry_before_document_generations_begin() {
-        let mut server = LanguageServer::new("0.14.0-dev");
+        let mut server = server("0.14.0-dev");
         let invalid =
             server.receive(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
         assert!(invalid.response().unwrap().contains("\"code\":-32602"));
@@ -278,7 +336,7 @@ mod tests {
 
     #[test]
     fn malformed_document_notification_is_reported_without_a_protocol_response() {
-        let mut server = LanguageServer::new("dev");
+        let mut server = server("dev");
         server.receive(
             r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#,
         );
@@ -287,5 +345,20 @@ mod tests {
             server.receive(r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{}}"#);
         assert!(step.response().is_none());
         assert!(matches!(step.issue(), Some(ServerIssue::Parameters(_))));
+    }
+
+    fn server(version: &str) -> LanguageServer {
+        let root = std::env::temp_dir();
+        LanguageServer::new(
+            version,
+            LanguageServerEnvironment::new(
+                &root,
+                crate::LanguageServerToolchain::new(
+                    CompilationTarget::Arm64Darwin,
+                    &root,
+                    StandardPackage::new(PackageIdentity::new("toolchain:std"), &root),
+                ),
+            ),
+        )
     }
 }

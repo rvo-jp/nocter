@@ -2,7 +2,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use nocter_installation::CompilerInstallation;
-use nocter_language_server::{LanguageServerExit, LanguageServerRunError, run_language_server};
+use nocter_language_server::{
+    LanguageServerEnvironment, LanguageServerExit, LanguageServerRunError, LanguageServerToolchain,
+    run_language_server,
+};
 
 /// Validated process facts retained until the binary enters its dedicated protocol loop.
 #[derive(Clone, Debug)]
@@ -47,10 +50,19 @@ pub fn run_language_server_stdio(
 ) -> Result<LanguageServerExit, LanguageServerRunError> {
     let input = io::stdin();
     let output = io::stdout();
+    let environment = LanguageServerEnvironment::new(
+        launch.current_directory(),
+        LanguageServerToolchain::new(
+            launch.installation().manifest().default_target(),
+            launch.installation().root(),
+            launch.installation().standard_package(),
+        ),
+    );
     run_language_server(
         input.lock(),
         output.lock(),
         launch.installation.release(),
+        environment,
         |issue| eprintln!("language server: {issue}"),
     )
 }

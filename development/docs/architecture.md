@@ -203,6 +203,16 @@ transition only after parameter validation and returns to `Uninitialized` on fai
 corrected request without reconstructing process state. No document or semantic notification can
 cross the pending-validation interval.
 
+The validated executable supplies one immutable `LanguageServerEnvironment`: invocation directory,
+native compilation target, Nocter home, and exact standard package. Successful initialization
+resolves workspace folders before the legacy root URI and falls back to the captured invocation
+directory only when neither exists. Every selected root must be a physical directory and is
+canonicalized exactly once; aliases of the same directory collapse in authored order. A canonical
+document belongs to the deepest containing root, so nested workspace folders have deterministic
+ownership independent of client ordering. URI decoding, root filesystem validation, and lifecycle
+commit are one transaction. A bad root therefore restores the uninitialized protocol state rather
+than leaving compiler configuration partially visible.
+
 The language-server service composes each validated protocol event with document state. Requests
 without an implemented handler receive the standard method-not-found response; malformed
 notifications produce no protocol response but remain typed server issues. Initialize and shutdown

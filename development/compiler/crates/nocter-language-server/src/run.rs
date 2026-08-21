@@ -3,7 +3,7 @@ use std::io::{self, BufRead, Write};
 
 use nocter_lsp::{FrameError, FrameReader, write_frame};
 
-use crate::{LanguageServer, ServerIssue};
+use crate::{LanguageServer, LanguageServerEnvironment, ServerIssue};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanguageServerExit {
@@ -33,10 +33,11 @@ pub fn run_language_server(
     input: impl BufRead,
     mut output: impl Write,
     server_version: &str,
+    environment: LanguageServerEnvironment,
     mut report_issue: impl FnMut(&ServerIssue),
 ) -> Result<LanguageServerExit, LanguageServerRunError> {
     let mut frames = FrameReader::new(input);
-    let mut server = LanguageServer::new(server_version);
+    let mut server = LanguageServer::new(server_version, environment);
     loop {
         let Some(body) = frames.read().map_err(LanguageServerRunError::Frame)? else {
             return Ok(LanguageServerExit::EndOfInput);
@@ -83,6 +84,8 @@ mod tests {
     use std::io::Cursor;
 
     use nocter_lsp::FrameReader;
+    use nocter_model::{CompilationTarget, PackageIdentity};
+    use nocter_package::StandardPackage;
 
     use super::*;
 
@@ -100,9 +103,22 @@ mod tests {
         }
         let mut output = Vec::new();
         let mut issues = Vec::new();
-        let exit = run_language_server(Cursor::new(input), &mut output, "dev", |issue| {
-            issues.push(issue.to_string());
-        })
+        let root = std::env::temp_dir();
+        let environment = LanguageServerEnvironment::new(
+            &root,
+            crate::LanguageServerToolchain::new(
+                CompilationTarget::Arm64Darwin,
+                &root,
+                StandardPackage::new(PackageIdentity::new("toolchain:std"), &root),
+            ),
+        );
+        let exit = run_language_server(
+            Cursor::new(input),
+            &mut output,
+            "dev",
+            environment,
+            |issue| issues.push(issue.to_string()),
+        )
         .unwrap();
         assert_eq!(exit, LanguageServerExit::Protocol(0));
         assert!(issues.is_empty());
