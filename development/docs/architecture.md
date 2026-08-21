@@ -285,6 +285,13 @@ directory. Run maps package input to sole/named selection and package-root worki
 file run uses sole selection and the invocation directory. `--executable` is rejected for file
 input before compilation; target existence and sole-target cardinality remain session facts.
 
+The public build/run argument boundary is a pure `OsString` parser. It receives arguments without
+reading process-global state, keeps positional and `--file` forms distinct, supports `--` without
+forcing paths through Unicode, and rejects unknown, duplicate, missing-value, or command-inapplicable
+options before filesystem access. Preparation then invokes the existing input resolver and command
+planner in that fixed order. `--locked` and `--offline` survive as a separate immutable package
+resolution policy; they never alter executable or output selection.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

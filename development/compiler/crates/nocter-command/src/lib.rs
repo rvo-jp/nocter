@@ -3,6 +3,7 @@
 //! This crate may persist or launch a completed native image. It never assembles semantic or
 //! backend compiler stages and never reopens source or target identity.
 
+mod arguments;
 mod artifact;
 mod build;
 mod input;
@@ -10,6 +11,11 @@ mod output_plan;
 mod planning;
 mod run;
 
+pub use arguments::{
+    CommandArgumentError, ParsedBuildCommand, ParsedCommand, ParsedRunCommand,
+    PreparedBuildCommand, PreparedCommandError, PreparedRunCommand, ResolutionOptions,
+    parse_command_arguments,
+};
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
     stage_temporary_image,
