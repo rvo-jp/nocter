@@ -1,6 +1,8 @@
 use std::fmt;
 
-use crate::{ByteOffset, LineIndex, SourceId, Span, TextRange};
+use crate::{
+    ByteOffset, CoordinateError, LineIndex, SourceId, Span, TextRange, Utf16Position, Utf16Range,
+};
 
 /// Display and diagnostic name of a source input.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -65,6 +67,52 @@ impl SourceFile {
     #[must_use]
     pub const fn lines(&self) -> &LineIndex {
         &self.lines
+    }
+
+    /// Converts a normalized UTF-8 byte offset to a zero-based UTF-16 position.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the offset is outside this source or splits a UTF-8 scalar.
+    pub fn utf16_position(&self, offset: ByteOffset) -> Result<Utf16Position, CoordinateError> {
+        self.lines.utf16_position(&self.text, offset)
+    }
+
+    /// Converts a zero-based UTF-16 position to a normalized UTF-8 byte offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the line or character is outside this source or the position splits
+    /// a surrogate pair.
+    pub fn byte_offset(&self, position: Utf16Position) -> Result<ByteOffset, CoordinateError> {
+        self.lines.byte_offset(position)
+    }
+
+    /// Converts a normalized byte range to a UTF-16 range.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either boundary is invalid for this source.
+    pub fn utf16_range(&self, range: TextRange) -> Result<Utf16Range, CoordinateError> {
+        Ok(Utf16Range::new(
+            self.utf16_position(range.start())?,
+            self.utf16_position(range.end())?,
+        ))
+    }
+
+    /// Converts a UTF-16 range to a normalized byte range.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for reversed or invalid boundaries.
+    pub fn text_range(&self, range: Utf16Range) -> Result<TextRange, CoordinateError> {
+        if range.start() > range.end() {
+            return Err(CoordinateError::ReversedRange { range });
+        }
+        Ok(TextRange::new(
+            self.byte_offset(range.start())?,
+            self.byte_offset(range.end())?,
+        ))
     }
 
     /// Creates a source span after checking it against this file.
@@ -271,6 +319,89 @@ mod tests {
         assert_eq!(
             source.text_at(TextRange::new(ByteOffset::new(3), ByteOffset::new(4))),
             None
+        );
+    }
+
+    #[test]
+    fn converts_utf16_positions_without_splitting_scalars() {
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_bytes(
+                SourceName::new("unicode.nct"),
+                "a😀βe\u{301}\nplain\n".as_bytes(),
+            )
+            .unwrap();
+        let source = sources.get(id).unwrap();
+
+        let boundaries = [
+            (0, Utf16Position::new(0, 0)),
+            (1, Utf16Position::new(0, 1)),
+            (5, Utf16Position::new(0, 3)),
+            (7, Utf16Position::new(0, 4)),
+            (8, Utf16Position::new(0, 5)),
+            (10, Utf16Position::new(0, 6)),
+            (11, Utf16Position::new(1, 0)),
+            (16, Utf16Position::new(1, 5)),
+            (17, Utf16Position::new(2, 0)),
+        ];
+        for (byte, position) in boundaries {
+            assert_eq!(source.utf16_position(ByteOffset::new(byte)), Ok(position));
+            assert_eq!(source.byte_offset(position), Ok(ByteOffset::new(byte)));
+        }
+
+        assert_eq!(
+            source.utf16_position(ByteOffset::new(2)),
+            Err(CoordinateError::NotUtf8Boundary {
+                offset: ByteOffset::new(2),
+            })
+        );
+        assert_eq!(
+            source.byte_offset(Utf16Position::new(0, 2)),
+            Err(CoordinateError::SplitUtf16Scalar {
+                position: Utf16Position::new(0, 2),
+            })
+        );
+    }
+
+    #[test]
+    fn validates_utf16_lines_characters_and_ranges() {
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_bytes(SourceName::new("ranges.nct"), b"one\r\ntwo")
+            .unwrap();
+        let source = sources.get(id).unwrap();
+
+        assert_eq!(
+            source.byte_offset(Utf16Position::new(0, 4)),
+            Err(CoordinateError::CharacterOutOfBounds {
+                position: Utf16Position::new(0, 4),
+                line_utf16_len: 3,
+            })
+        );
+        assert_eq!(
+            source.byte_offset(Utf16Position::new(2, 0)),
+            Err(CoordinateError::LineOutOfBounds {
+                line: 2,
+                line_count: 2,
+            })
+        );
+        assert_eq!(
+            source.utf16_position(ByteOffset::new(8)),
+            Err(CoordinateError::ByteOutOfBounds {
+                offset: ByteOffset::new(8),
+                source_len: ByteOffset::new(7),
+            })
+        );
+
+        let utf16 = Utf16Range::new(Utf16Position::new(0, 1), Utf16Position::new(1, 2));
+        let bytes = TextRange::new(ByteOffset::new(1), ByteOffset::new(6));
+        assert_eq!(source.text_range(utf16), Ok(bytes));
+        assert_eq!(source.utf16_range(bytes), Ok(utf16));
+
+        let reversed = Utf16Range::new(Utf16Position::new(1, 0), Utf16Position::new(0, 0));
+        assert_eq!(
+            source.text_range(reversed),
+            Err(CoordinateError::ReversedRange { range: reversed })
         );
     }
 }

@@ -28,7 +28,9 @@ implementation input.
    increase the document version, stale changes do not advance generation, included save text is
    frozen before analysis, and close emits a new disk-fallback overlay. The next boundary is the
    JSON-RPC/LSP lifecycle above this state, followed by compiler-owned semantic presentation
-   queries.
+   queries. `nocter-source` now owns exact normalized-byte/UTF-16 position and range conversion;
+   non-ASCII scalar differences are indexed once, and invalid bytes, surrogate interiors,
+   out-of-line positions, and reversed ranges cannot reach an analysis query.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

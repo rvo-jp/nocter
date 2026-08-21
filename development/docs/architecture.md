@@ -151,6 +151,14 @@ without advancing generation, applies included save text before analysis, and fr
 overlay for every accepted open, change, save, or close. Previously emitted overlays never observe
 later document mutations.
 
+`nocter-source` is the sole coordinate-conversion authority. Compiler phases retain normalized
+UTF-8 byte offsets and never store editor positions. Each immutable `SourceFile` converts those
+offsets and ranges to zero-based UTF-16 positions, and validates the reverse conversion before an
+editor request reaches analysis. The line index records only non-ASCII scalar differences, keeping
+ASCII conversion constant-time while rejecting UTF-8 interior offsets, UTF-16 surrogate interiors,
+out-of-line positions, and reversed ranges. CRLF normalization changes byte offsets but not the
+line-and-character positions observed by an editor.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
