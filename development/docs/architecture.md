@@ -179,6 +179,18 @@ CRLF convention. Missing locks below the selected root are rejected because an e
 package and a separately selected path package are not implicit mutation targets. Failed staging
 removes its private transaction tree, and individually published exact packages remain valid cache
 entries even if a later source commit fails.
+
+`nocter-package-acquisition` is the concrete v0.14.0 transport authority. It embeds public HTTPS,
+Git smart protocol, SHA-256 verification, gzip decoding, and tar interpretation; it never invokes
+`git`, `curl`, a credential helper, or a checkout filter. The crate validates URL and redirect
+policy before transport, resolves branch/tag selections to exact commits, and materializes Git
+trees without repository metadata. Archive bytes and provisional bare repositories live only in
+the coordinator-provided transaction workspace, so lock resolution can feed exact fetching without
+an ambient cache or a duplicate download. Archive extraction and Git materialization share bounded
+entry, path-depth, and expanded-data budgets and reject link-like entries before graph validation.
+`nocter-command` receives only the abstract acquisition capability; the public process adapter is
+the composition root that selects this concrete authority.
+
 The production selection result retains command-root and standard `PackageIdentity` values beside
 the graph, so command discovery never recovers either role from a path or display name. A graph-only
 projection remains available only for consumers that genuinely do not need those roles.

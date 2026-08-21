@@ -250,6 +250,17 @@ certificate authorities, Git submodules, and Git LFS are unsupported. HTTPS uses
 certificate and hostname verification. At most five redirects may be followed, and every URL in
 the redirect chain must remain HTTPS and contain no credentials.
 
+A Git `revision` is one of a full 40-digit commit ID, `refs/heads/<name>`, `refs/tags/<name>`, or a
+short branch-or-tag name. A short name must identify exactly one advertised branch or tag; a name
+present in both namespaces is ambiguous. Revision-expression syntax and other reference namespaces
+are unsupported. Lock generation peels the selected reference to a commit and records that exact
+commit ID.
+
+Nocter materializes the locked Git tree directly from the embedded object database, without a Git
+working tree or checkout filters. It accepts regular and executable blobs plus directories. It
+rejects symbolic links, submodules, and Git LFS pointer blobs. A materialized tree has the same
+100,000-entry, 1-GiB regular-file-data, and 64-component path limits as an archive.
+
 An archive lock hashes the compressed `.tar.gz` response bytes. Nocter verifies that SHA-256 digest
 before decompression or extraction. The archive root itself is the package root and must directly
 contain `nocter.nct`; Nocter never removes an enclosing directory automatically.
