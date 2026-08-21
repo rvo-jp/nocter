@@ -166,6 +166,7 @@ const fn entity_rank(entity: SemanticEntity) -> u8 {
         | SemanticEntity::Test(_)
         | SemanticEntity::Requirement(_)
         | SemanticEntity::Body(_)
+        | SemanticEntity::BodyScope(..)
         | SemanticEntity::BodyNode(..)
         | SemanticEntity::OpaqueType(_) => 5,
     }

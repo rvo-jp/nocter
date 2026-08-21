@@ -224,6 +224,11 @@ impl LanguageServer {
                 self.hover(&id, params)
             }
             IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/completion" =>
+            {
+                self.completion(&id, params)
+            }
+            IncomingMessage::Request { id, method, params }
                 if method.as_ref() == "textDocument/semanticTokens/full" =>
             {
                 self.semantic_tokens(&id, params)

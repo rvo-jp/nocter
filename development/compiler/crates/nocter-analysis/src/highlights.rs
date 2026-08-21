@@ -162,6 +162,7 @@ fn classify(
         | SemanticEntity::Drop(_)
         | SemanticEntity::Requirement(_)
         | SemanticEntity::Body(_)
+        | SemanticEntity::BodyScope(..)
         | SemanticEntity::BodyNode(..) => return None,
     };
     Some((kind, false))

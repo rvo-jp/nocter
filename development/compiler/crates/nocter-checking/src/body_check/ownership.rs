@@ -802,7 +802,6 @@ impl OwnershipAnalyzer<'_> {
             .body
             .scopes()
             .get(scope)
-            .copied()
             .ok_or(BodyCheckInternalError::CleanupPlanning)?
             .parent();
         if actual_parent != expected_parent {

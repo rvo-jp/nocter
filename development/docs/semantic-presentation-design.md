@@ -101,5 +101,13 @@ closures render their checked structural signatures. The compiler records parame
 ranges while it renders the normalized signature, and the protocol adapter converts only those
 offsets to UTF-16. Authored argument-node ranges determine the active parameter.
 
-Completion must reuse the same source selection and presentation authority. It may not add an
-editor-owned semantic model.
+Name completion retains each checked lexical scope's resolved bindings and gives the scope itself
+an exact block projection in `SourceIndex`. The compiler selects the innermost containing scope,
+walks only its parent chain, excludes sequential locals declared after the cursor, and overlays
+those names on the module's authored and prelude-fallback namespace. Explicit closure roots have
+no parent edge, so only declared captures cross the closure boundary. Completion details reuse the
+canonical presentation renderer; the protocol layer assigns only LSP item categories.
+
+Receiver-member completion and completion in a syntax- or semantic-invalid generation remain open.
+They require compiler-owned candidate selection and explicit invalid-node snapshots respectively;
+neither may be approximated by editor-side token, spelling, or stale-snapshot lookup.

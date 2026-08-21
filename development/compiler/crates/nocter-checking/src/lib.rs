@@ -93,7 +93,7 @@ pub use instance_operations::{
 };
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
-    NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
+    NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,
     resolve_body_names,
 };
 pub use ownership::{DropTable, DropTableError};

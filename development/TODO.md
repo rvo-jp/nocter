@@ -104,7 +104,11 @@ implementation input.
    captures. Signature help now selects checked call nodes and dispatch, retains selected generic
    arguments, renders static, structural-callable, and closure signatures through the canonical
    presentation authority, and projects renderer-owned parameter ranges to UTF-16 only in the
-   protocol adapter. Completion is the next semantic editor boundary.
+   protocol adapter. Checked lexical scopes now retain their resolved bindings and exact block
+   projections. Name completion follows those scope parents, respects declaration order and
+   explicit closure capture boundaries, overlays the canonical module namespace, and reuses
+   compiler-rendered details. Receiver-member completion and completion from explicit invalid
+   syntax/semantic nodes remain; neither may use token guesses or a stale successful snapshot.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

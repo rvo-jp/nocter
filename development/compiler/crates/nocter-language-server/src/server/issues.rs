@@ -2,6 +2,7 @@ use std::fmt;
 
 use nocter_lsp::{LifecycleTransitionError, OutboundRequestError, ParameterError, ResponseError};
 
+use crate::completion::CompletionQueryError;
 use crate::hover::HoverQueryError;
 use crate::navigation::NavigationQueryError;
 use crate::rename::RenameQueryError;
@@ -12,6 +13,7 @@ use crate::{DiagnosticPublicationError, DocumentWorkspaceError, WorkspaceConfigu
 #[derive(Debug)]
 pub enum ServerIssue {
     Parameters(ParameterError),
+    Completion(CompletionQueryError),
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
     Hover(HoverQueryError),
@@ -29,6 +31,7 @@ impl fmt::Display for ServerIssue {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Parameters(error) => error.fmt(formatter),
+            Self::Completion(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
             Self::Hover(error) => error.fmt(formatter),
@@ -48,6 +51,7 @@ impl std::error::Error for ServerIssue {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Parameters(error) => Some(error),
+            Self::Completion(error) => Some(error),
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
             Self::Hover(error) => Some(error),

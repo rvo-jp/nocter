@@ -88,6 +88,7 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::Drop(_)
             | SemanticEntity::Requirement(_)
             | SemanticEntity::Body(_)
+            | SemanticEntity::BodyScope(..)
             | SemanticEntity::BodyNode(..)
             | SemanticEntity::OpaqueType(_) => return None,
         }

@@ -14,6 +14,7 @@ use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
+mod completion;
 mod documents;
 mod highlights;
 mod navigation;
@@ -22,6 +23,7 @@ mod rename;
 mod semantic;
 mod signature;
 
+pub use completion::{SemanticCompletion, SemanticCompletionKind};
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };

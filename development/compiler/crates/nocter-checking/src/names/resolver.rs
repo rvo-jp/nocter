@@ -13,7 +13,7 @@ use nocter_syntax::{
 use super::diagnostic;
 use super::model::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget, ResolvedBodyNames,
-    ResolvedNameUse,
+    ResolvedNameUse, ScopeBinding,
 };
 use super::{NameResolutionError, NameResolutionInternalError, Projection};
 use crate::BodySource;
@@ -411,6 +411,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     origin: Some(origin),
                 },
             );
+            self.record_scope_binding(scope, name, NameTarget::Capture(id))?;
             self.projections.push(Projection::new(
                 SemanticEntity::Capture(self.source.body(), id),
                 SourceRole::Declaration,
@@ -582,6 +583,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 origin: Some(origin),
             },
         );
+        self.record_scope_binding(scope, name, NameTarget::Local(id))?;
         self.projections.push(Projection::new(
             SemanticEntity::LocalBinding(self.source.body(), id),
             SourceRole::Declaration,
@@ -609,6 +611,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         capture_collision: bool,
     ) -> Result<(), NameResolutionError> {
         self.check_collision(name, origin, capture_collision)?;
+        let scope = self.active.last().map(|scope| scope.id).ok_or(
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+        )?;
         self.current_names_mut()?.insert(
             name,
             ActiveBinding {
@@ -616,6 +621,22 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 origin: Some(origin),
             },
         );
+        self.record_scope_binding(scope, name, target)?;
+        Ok(())
+    }
+
+    fn record_scope_binding(
+        &mut self,
+        scope: BodyScopeId,
+        name: Symbol,
+        target: NameTarget,
+    ) -> Result<(), NameResolutionInternalError> {
+        self.scopes
+            .get_mut(scope)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(
+                self.source.block(),
+            ))?
+            .add_binding(ScopeBinding::new(name, target));
         Ok(())
     }
 
@@ -794,6 +815,13 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         if self.block_scopes.insert(block, scope).is_some() {
             return Err(NameResolutionInternalError::InvalidSyntaxNode(block));
         }
+        self.projections.push(Projection::new(
+            SemanticEntity::BodyScope(self.source.body(), scope),
+            SourceRole::Implementation,
+            SourceOrigin::from_node(self.tree(), block).map_err(|_| {
+                NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Node(block))
+            })?,
+        ));
         Ok(())
     }
 

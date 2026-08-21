@@ -159,7 +159,7 @@ impl Analyzer<'_, '_> {
                 .body
                 .scopes()
                 .get(scope)
-                .and_then(|scope| scope.parent())
+                .and_then(crate::BodyScope::parent)
             else {
                 return false;
             };

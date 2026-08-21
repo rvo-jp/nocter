@@ -24,7 +24,7 @@ use imports::block_import_targets;
 pub use diagnostic::NameRule;
 pub use model::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget, ResolvedBodyNames,
-    ResolvedNameUse,
+    ResolvedNameUse, ScopeBinding,
 };
 use resolver::BodyNameResolver;
 

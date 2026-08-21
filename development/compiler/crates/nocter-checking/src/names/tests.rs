@@ -47,6 +47,32 @@ fn lexical_identities_cover_scopes_and_explicit_capture_projection() {
             .iter()
             .any(|usage| usage.target() == NameTarget::Capture(capture))
     );
+    assert!(body.scopes().iter().any(|(_, scope)| {
+        scope
+            .bindings()
+            .iter()
+            .any(|binding| matches!(binding.target(), NameTarget::Parameter(_)))
+    }));
+    assert!(body.scopes().iter().any(|(_, scope)| {
+        scope
+            .bindings()
+            .iter()
+            .any(|binding| matches!(binding.target(), NameTarget::Local(_)))
+    }));
+    assert!(body.scopes().iter().any(|(_, scope)| {
+        scope
+            .bindings()
+            .iter()
+            .any(|binding| binding.target() == NameTarget::Capture(capture))
+    }));
+    for (scope, _) in body.scopes().iter() {
+        let projections = resolution
+            .source_index()
+            .bindings_for(SemanticEntity::BodyScope(body.body(), scope));
+        assert_eq!(projections.len(), 1);
+        assert_eq!(projections[0].role(), SourceRole::Implementation);
+        assert!(projections[0].origin().node().is_some());
+    }
 
     let capture_bindings = resolution
         .source_index()
@@ -168,6 +194,12 @@ fn block_import_resolves_to_export_without_creating_local_storage() {
             .iter()
             .any(|usage| matches!(usage.target(), NameTarget::Exported(_)))
     );
+    assert!(body.scopes().iter().any(|(_, scope)| {
+        scope
+            .bindings()
+            .iter()
+            .any(|binding| matches!(binding.target(), NameTarget::Exported(_)))
+    }));
 }
 
 #[test]

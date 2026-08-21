@@ -1,9 +1,11 @@
 use nocter_json::Value;
 use nocter_lsp::{
-    DefinitionParams, HoverParams, ReferencesParams, RenameParams, RequestId, ResponseErrorCode,
-    SemanticTokensParams, SignatureHelpParams, render_error_response, render_success_response,
+    CompletionParams, DefinitionParams, HoverParams, ReferencesParams, RenameParams, RequestId,
+    ResponseErrorCode, SemanticTokensParams, SignatureHelpParams, render_error_response,
+    render_success_response,
 };
 
+use crate::completion::query_completion;
 use crate::hover::query_hover;
 use crate::navigation::{NavigationQueryError, query_definition, query_references};
 use crate::rename::query_rename;
@@ -13,6 +15,37 @@ use crate::signature::query_signature_help;
 use super::{LanguageServer, ServerIssue, ServerStep};
 
 impl LanguageServer {
+    pub(super) fn completion(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match CompletionParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        match query_completion(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        ) {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                ServerStep {
+                    response: Some(render_error_response(
+                        Some(id),
+                        ResponseErrorCode::InvalidParams,
+                        Some(&detail),
+                    )),
+                    issues: vec![ServerIssue::Completion(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+        }
+    }
+
     pub(super) fn hover(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
         let params = match HoverParams::decode(params) {
             Ok(params) => params,
@@ -540,6 +573,63 @@ mod tests {
         let response = closure.response().unwrap();
         assert!(response.contains("&func(i32): i32"));
         assert!(response.contains("\"activeParameter\":0"));
+        assert!(closure.issue().is_none(), "{:?}", closure.issue());
+    }
+
+    #[test]
+    fn completion_uses_checked_module_and_lexical_scope_identity() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func helper(): i32 { 1 }\n",
+            "func main(input: i32): void {\n",
+            "    let before = input\n",
+            "\n",
+            "    let after = input\n",
+            "    let closure = (&before; inner: i32): i32 {\n",
+            "        inner\n",
+            "    }\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let body = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":0}}}}}}"
+        ));
+        let response = body.response().unwrap();
+        assert!(response.contains("\"label\":\"helper\""), "{response}");
+        assert!(response.contains("\"label\":\"input\""));
+        assert!(response.contains("\"label\":\"before\""));
+        assert!(!response.contains("\"label\":\"after\""));
+        assert!(body.issue().is_none(), "{:?}", body.issue());
+
+        let closure = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":6,\"character\":10}}}}}}"
+        ));
+        let response = closure.response().unwrap();
+        assert!(response.contains("\"label\":\"before\""));
+        assert!(response.contains("\"label\":\"inner\""));
+        assert!(!response.contains("\"label\":\"input\""));
+        assert!(!response.contains("\"label\":\"after\""));
         assert!(closure.issue().is_none(), "{:?}", closure.issue());
     }
 

@@ -4,6 +4,7 @@
 //! document URI through the filesystem and mutate accepted workspace document state.
 
 mod analysis;
+mod completion;
 mod diagnostics;
 mod documents;
 mod hover;
@@ -20,6 +21,7 @@ mod workspace;
 pub use analysis::{
     AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
 };
+pub use completion::CompletionQueryError;
 pub use diagnostics::{DiagnosticPublicationError, DiagnosticPublisher};
 pub use documents::{
     AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,

@@ -117,18 +117,53 @@ impl Capture {
 
 /// One lexical scope. Closure roots deliberately have no parent lookup edge.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScopeBinding {
+    name: Symbol,
+    target: NameTarget,
+}
+
+impl ScopeBinding {
+    pub(super) const fn new(name: Symbol, target: NameTarget) -> Self {
+        Self { name, target }
+    }
+
+    #[must_use]
+    pub const fn name(self) -> Symbol {
+        self.name
+    }
+
+    #[must_use]
+    pub const fn target(self) -> NameTarget {
+        self.target
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BodyScope {
     parent: Option<BodyScopeId>,
+    bindings: Vec<ScopeBinding>,
 }
 
 impl BodyScope {
     pub(super) const fn new(parent: Option<BodyScopeId>) -> Self {
-        Self { parent }
+        Self {
+            parent,
+            bindings: Vec::new(),
+        }
     }
 
     #[must_use]
-    pub const fn parent(self) -> Option<BodyScopeId> {
+    pub const fn parent(&self) -> Option<BodyScopeId> {
         self.parent
+    }
+
+    #[must_use]
+    pub fn bindings(&self) -> &[ScopeBinding] {
+        &self.bindings
+    }
+
+    pub(super) fn add_binding(&mut self, binding: ScopeBinding) {
+        self.bindings.push(binding);
     }
 }
 
