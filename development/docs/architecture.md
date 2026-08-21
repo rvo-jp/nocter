@@ -173,7 +173,10 @@ states; invalid requests are rejected before document state or compiler analysis
 The crate contains no filesystem or language-semantic policy, so protocol transport cannot become
 a second compiler front end. One response renderer preserves integer or string request identity and
 owns the standard JSON-RPC error vocabulary; feature handlers supply typed results rather than
-assembling envelopes or error objects themselves.
+assembling envelopes or error objects themselves. `ProtocolSession` composes envelope validation
+and lifecycle validation into either one immediate protocol response or one typed event. Invalid
+input can never be delivered beside an event, and notifications outside their legal lifecycle
+produce no response.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
