@@ -10,6 +10,7 @@ mod id;
 mod lock;
 mod lock_overlay;
 mod resolution;
+mod store_overlay;
 
 pub use declaration::{
     AuthoredString, DependencyDeclaration, DependencyLock, DependencySource, PackageDeclaration,
@@ -27,3 +28,4 @@ pub use resolution::{
     ResolvedPackageSelection, StandardPackage, resolve_package_graph, resolve_package_selection,
     resolve_standard_package,
 };
+pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

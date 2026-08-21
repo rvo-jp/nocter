@@ -9,7 +9,7 @@ use nocter_model::PackageIdentity;
 use crate::graph::{PackageGraphBuilder, ResolvedPackageEdges, canonical_package_root};
 use crate::{
     DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
-    PackageLockOverlay, ResolvedPackageGraph,
+    PackageLockOverlay, PackageStoreOverlay, ResolvedPackageGraph,
 };
 
 /// Immutable policy controlling whether exact resolution may request lock or fetch authority.
@@ -71,6 +71,7 @@ pub struct PackageResolutionRequest {
     standard: StandardPackage,
     policy: PackageResolutionPolicy,
     lock_overlay: PackageLockOverlay,
+    store_overlay: PackageStoreOverlay,
 }
 
 impl PackageResolutionRequest {
@@ -87,6 +88,7 @@ impl PackageResolutionRequest {
             standard,
             policy,
             lock_overlay: PackageLockOverlay::new(),
+            store_overlay: PackageStoreOverlay::new(),
         }
     }
 
@@ -95,6 +97,14 @@ impl PackageResolutionRequest {
     #[must_use]
     pub fn with_lock_overlay(mut self, lock_overlay: PackageLockOverlay) -> Self {
         self.lock_overlay = lock_overlay;
+        self
+    }
+
+    /// Supplies exact package roots staged by a package-state transaction but not yet published
+    /// to a persistent store.
+    #[must_use]
+    pub fn with_store_overlay(mut self, store_overlay: PackageStoreOverlay) -> Self {
+        self.store_overlay = store_overlay;
         self
     }
 }
@@ -149,6 +159,7 @@ pub fn resolve_package_selection(
         standard,
         policy,
         lock_overlay,
+        store_overlay,
     } = request;
     let root = canonical_package_root(&requested_root).map_err(PackageResolutionError::Graph)?;
     let root_id = PackageId::from_canonical_path(&root)
@@ -182,6 +193,7 @@ pub fn resolve_package_selection(
         local_store: &local_store,
         home_store: &home_store,
         policy,
+        store_overlay: &store_overlay,
     };
     let mut edges = BTreeMap::new();
     while let Some((identity, package_root)) = pending.pop_first() {
@@ -343,6 +355,7 @@ struct DependencyResolver<'a> {
     local_store: &'a Path,
     home_store: &'a Path,
     policy: PackageResolutionPolicy,
+    store_overlay: &'a PackageStoreOverlay,
 }
 
 struct ResolvedDependency {
@@ -422,6 +435,9 @@ impl DependencyResolver<'_> {
         &self,
         package: &PackageId,
     ) -> Result<Option<PathBuf>, PackageResolutionError> {
+        if let Some(root) = self.store_overlay.get(package) {
+            return Ok(Some(root.into()));
+        }
         for store in [self.local_store, self.home_store] {
             let candidate = store.join(package.as_str());
             match fs::metadata(&candidate) {
@@ -721,5 +737,29 @@ mod tests {
         assert_eq!(root.locks().get("remote"), Some(&lock));
         assert!(root.declaration().unwrap().locks().is_empty());
         assert_eq!(fs::read(manifest_path).unwrap(), before);
+    }
+
+    #[test]
+    fn resolves_a_staged_package_without_publishing_it_to_a_store() {
+        let tree = base_tree(true);
+        let package_id = PackageId::from_git_commit(COMMIT).unwrap();
+        let staged = tree.0.join("staging/remote");
+        tree.source("staging/remote/nocter.nct", "#name: \"staged-remote\"\n");
+        let mut overlay = PackageStoreOverlay::new();
+        overlay.insert(package_id.clone(), &staged).unwrap();
+
+        let graph = resolve_package_graph(
+            tree.request(PackageResolutionPolicy::default())
+                .with_store_overlay(overlay),
+        )
+        .unwrap();
+
+        let remote = graph
+            .packages()
+            .iter()
+            .find(|package| package.identity() == &package_id.package_identity())
+            .unwrap();
+        assert_eq!(remote.root(), canonical_package_root(&staged).unwrap());
+        assert!(!tree.0.join("app/.nocter/packages").exists());
     }
 }
