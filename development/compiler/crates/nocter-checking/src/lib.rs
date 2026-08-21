@@ -35,7 +35,10 @@ mod type_validity;
 #[cfg(test)]
 mod test_support;
 
-pub use body_check::{BodyCheckError, BodyCheckInternalError, BodyRule, check_prepared_program};
+pub use body_check::{
+    BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, check_prepared_program,
+    check_prepared_program_recovering,
+};
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence,
@@ -97,7 +100,9 @@ pub use names::{
     resolve_body_names,
 };
 pub use ownership::{DropTable, DropTableError};
-pub use preparation::{PreparationError, PreparedChecking, prepare_program_checking};
+pub use preparation::{
+    PreparationError, PreparedChecking, PreparedSemanticProgram, prepare_program_checking,
+};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use type_relations::{TypeSubstitution, is_concrete_type};
 pub use type_validity::{

@@ -108,6 +108,13 @@ those names on the module's authored and prelude-fallback namespace. Explicit cl
 no parent edge, so only declared captures cross the closure boundary. Completion details reuse the
 canonical presentation renderer; the protocol layer assigns only LSP item categories.
 
-Receiver-member completion and completion in a syntax- or semantic-invalid generation remain open.
-They require compiler-owned candidate selection and explicit invalid-node snapshots respectively;
+The production session also has an analysis result that retains the completed, syntax-independent
+pre-body semantic stage when typed-body checking rejects the current generation. This is not a
+partial checked program: it contains declarations, normalized program-wide authorities, resolved
+body names, scopes, and their source index, but no checked nodes, local types, dispatch, ownership,
+or provenance. Name completion may consume that exact failed-generation stage. Ordinary command
+compilation uses the non-retaining path and does not clone the type or copyability stores.
+
+Receiver-member completion and completion after syntax or name-resolution failure remain open.
+They require compiler-owned member candidate selection and explicit invalid-node snapshots;
 neither may be approximated by editor-side token, spelling, or stale-snapshot lookup.

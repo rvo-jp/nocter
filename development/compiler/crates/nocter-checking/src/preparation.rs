@@ -36,6 +36,77 @@ pub struct PreparedChecking<'syntax> {
     source_index: SourceIndex,
 }
 
+/// Syntax-independent semantic state completed before typed body construction.
+///
+/// A tooling snapshot may retain this value when body checking rejects authored source. It is not
+/// a partial [`crate::CheckedProgram`]: checked nodes, local types, dispatch, ownership, and
+/// provenance are deliberately absent.
+#[derive(Debug)]
+pub struct PreparedSemanticProgram {
+    graph: DeclarationGraph,
+    types: TypeStore,
+    conformances: ConformanceTable,
+    construction_surfaces: ConstructionSurfaceTable,
+    instance_operations: InstanceOperationTable,
+    copyabilities: CopyabilityTable,
+    drops: DropTable,
+    standard_semantics: StandardSemanticTable,
+    body_names: Arena<BodyId, ResolvedBodyNames>,
+    source_index: SourceIndex,
+}
+
+impl PreparedSemanticProgram {
+    #[must_use]
+    pub const fn graph(&self) -> &DeclarationGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        &self.types
+    }
+
+    #[must_use]
+    pub const fn conformances(&self) -> &ConformanceTable {
+        &self.conformances
+    }
+
+    #[must_use]
+    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+        &self.construction_surfaces
+    }
+
+    #[must_use]
+    pub const fn instance_operations(&self) -> &InstanceOperationTable {
+        &self.instance_operations
+    }
+
+    #[must_use]
+    pub const fn copyabilities(&self) -> &CopyabilityTable {
+        &self.copyabilities
+    }
+
+    #[must_use]
+    pub const fn drops(&self) -> &DropTable {
+        &self.drops
+    }
+
+    #[must_use]
+    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+        &self.standard_semantics
+    }
+
+    #[must_use]
+    pub const fn body_names(&self) -> &Arena<BodyId, ResolvedBodyNames> {
+        &self.body_names
+    }
+
+    #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
+    }
+}
+
 impl<'syntax> PreparedChecking<'syntax> {
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
@@ -121,6 +192,23 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_index: SourceIndex,
+}
+
+impl PreparedCheckingParts<'_> {
+    pub(crate) fn into_semantic_program(self) -> PreparedSemanticProgram {
+        PreparedSemanticProgram {
+            graph: self.graph,
+            types: self.types,
+            conformances: self.conformances,
+            construction_surfaces: self.construction_surfaces,
+            instance_operations: self.instance_operations,
+            copyabilities: self.copyabilities,
+            drops: self.drops,
+            standard_semantics: self.standard_semantics,
+            body_names: self.body_names,
+            source_index: self.source_index,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -11,6 +11,43 @@ use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;
 use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget, TypeValidityRule};
 
+/// A typed-body failure with the deepest current-generation semantic state that remains valid.
+#[derive(Debug)]
+pub struct BodyCheckFailure {
+    error: BodyCheckError,
+    prepared: Option<Box<crate::PreparedSemanticProgram>>,
+}
+
+impl BodyCheckFailure {
+    pub(crate) fn new(
+        error: BodyCheckError,
+        prepared: Option<crate::PreparedSemanticProgram>,
+    ) -> Self {
+        Self {
+            error,
+            prepared: prepared.map(Box::new),
+        }
+    }
+
+    #[must_use]
+    pub const fn error(&self) -> &BodyCheckError {
+        &self.error
+    }
+
+    #[must_use]
+    pub fn prepared(&self) -> Option<&crate::PreparedSemanticProgram> {
+        match &self.prepared {
+            Some(prepared) => Some(prepared.as_ref()),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (BodyCheckError, Option<crate::PreparedSemanticProgram>) {
+        (self.error, self.prepared.map(|prepared| *prepared))
+    }
+}
+
 #[derive(Debug)]
 pub enum BodyCheckError {
     Rule {

@@ -9,7 +9,7 @@ use std::path::Path;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
-use nocter_session::{CompileSessionError, CompiledTarget, compile_target};
+use nocter_session::{CompileSessionError, CompiledTarget, analyze_target};
 use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
@@ -66,6 +66,7 @@ enum AnalysisState {
     CompilationFailed {
         unit: DiscoveredUnit,
         error: CompileSessionError,
+        prepared: Option<Box<nocter_checking::PreparedSemanticProgram>>,
     },
     Complete {
         unit: DiscoveredUnit,
@@ -111,7 +112,7 @@ impl AnalysisSnapshot {
                 state: AnalysisState::SyntaxFailed(unit),
             };
         }
-        match compile_target(&unit) {
+        match analyze_target(&unit) {
             Ok(target) => Self {
                 generation,
                 diagnostics: Box::new([]),
@@ -120,7 +121,8 @@ impl AnalysisSnapshot {
                     target: Box::new(target),
                 },
             },
-            Err(error) => {
+            Err(failure) => {
+                let (error, prepared) = (*failure).into_parts();
                 let diagnostics = error
                     .source_diagnostic()
                     .cloned()
@@ -130,7 +132,11 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics,
-                    state: AnalysisState::CompilationFailed { unit, error },
+                    state: AnalysisState::CompilationFailed {
+                        unit,
+                        error,
+                        prepared: prepared.map(Box::new),
+                    },
                 }
             }
         }
@@ -210,6 +216,18 @@ impl AnalysisSnapshot {
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::SyntaxFailed(_)
             | AnalysisState::CompilationFailed { .. } => None,
+        }
+    }
+
+    pub(crate) fn prepared_semantics(&self) -> Option<&nocter_checking::PreparedSemanticProgram> {
+        match &self.state {
+            AnalysisState::CompilationFailed { prepared, .. } => match prepared {
+                Some(prepared) => Some(prepared.as_ref()),
+                None => None,
+            },
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::Complete { .. } => None,
         }
     }
 

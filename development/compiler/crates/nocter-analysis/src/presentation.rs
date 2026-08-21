@@ -33,7 +33,18 @@ pub(super) fn presentation(
 ) -> Option<SemanticPresentation> {
     let graph = checked.graph();
     let mut renderer = Renderer::new(graph, checked.types());
-    renderer.entity(checked, entity)?;
+    renderer.entity(Some(checked), entity)?;
+    Some(SemanticPresentation {
+        code: renderer.output.into_boxed_str(),
+    })
+}
+
+pub(super) fn prepared_presentation(
+    prepared: &nocter_checking::PreparedSemanticProgram,
+    entity: SemanticEntity,
+) -> Option<SemanticPresentation> {
+    let mut renderer = Renderer::new(prepared.graph(), prepared.types());
+    renderer.entity(None, entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
     })
@@ -60,7 +71,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    fn entity(&mut self, checked: &CheckedProgram, entity: SemanticEntity) -> Option<()> {
+    fn entity(&mut self, checked: Option<&CheckedProgram>, entity: SemanticEntity) -> Option<()> {
         match entity {
             SemanticEntity::Module(_) => {
                 self.workspace_entity(entity)?;
@@ -199,7 +210,11 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
-    fn value_entity(&mut self, checked: &CheckedProgram, entity: SemanticEntity) -> Option<()> {
+    fn value_entity(
+        &mut self,
+        checked: Option<&CheckedProgram>,
+        entity: SemanticEntity,
+    ) -> Option<()> {
         let declarations = self.graph.declarations();
         match entity {
             SemanticEntity::GenericParameter(id) => {
@@ -222,6 +237,7 @@ impl<'a> Renderer<'a> {
                 self.ty(parameter.ty())?;
             }
             SemanticEntity::LocalBinding(body, id) => {
+                let checked = checked?;
                 let local = checked.bodies().get(body)?.locals().get(id)?;
                 write!(
                     self.output,
@@ -232,6 +248,7 @@ impl<'a> Renderer<'a> {
                 self.ty(local.ty())?;
             }
             SemanticEntity::Capture(body, id) => {
+                let checked = checked?;
                 let capture = checked.bodies().get(body)?.captures().get(id)?;
                 write!(
                     self.output,

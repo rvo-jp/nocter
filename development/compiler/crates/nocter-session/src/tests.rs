@@ -10,7 +10,7 @@ use nocter_target_program::PrimitiveRole;
 
 use super::{
     ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,
-    NativeTestTargetOutcome, bundled_standard_toolchain, compile_native_image,
+    NativeTestTargetOutcome, analyze_target, bundled_standard_toolchain, compile_native_image,
     compile_native_images, compile_native_tests, compile_target,
 };
 
@@ -74,6 +74,32 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
             .bodies()
             .len()
     );
+}
+
+#[test]
+fn body_failure_retains_only_the_completed_pre_body_semantics() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "func helper(): i32 { 1 }\nfunc main(input: i32): void {\n    input.missing()\n    return\n}\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let failure = analyze_target(&unit).unwrap_err();
+    assert!(failure.error().source_diagnostic().is_some());
+    let prepared = failure.prepared().unwrap();
+    assert!(!prepared.graph().declarations().callables().is_empty());
+    assert!(!prepared.body_names().is_empty());
+    assert!(!prepared.source_index().is_empty());
 }
 
 #[test]

@@ -4,8 +4,8 @@ use nocter_declaration_lowering::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
-    Arena, ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, CaptureId,
-    LocalBindingId, NominalTypeId, PlaceId, TypeId, TypeKind, TypeStore,
+    BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
+    TypeId, TypeKind, TypeStore,
 };
 use nocter_source_index::{
     SemanticEntity, SourceAccess, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin,
@@ -19,24 +19,17 @@ use super::context::{BodyProgramFacts, body_generic_domain, body_result_type};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::literal::{fits_integer, integer_type, parse_integer};
-use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
-use crate::checked::{
-    CheckedBodyBuilder, CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput,
-    ClosureTableBuilder,
-};
+use crate::checked::{CheckedBodyBuilder, ClosureTableBuilder};
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
-use crate::loans::{LoanBodyInput, analyze_program_loans};
-use crate::preparation::PreparedCheckingParts;
-use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
 use crate::syntax::{
     direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
     is_transparent_expression, token_text,
 };
 use crate::{
-    BodySource, BodySourceCatalog, CheckedBody, CheckedControl, CheckedOperation, ConstantValue,
-    DropTable, ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, PreparedChecking,
-    ResolvedBodyNames, plan_expected_type,
+    BodySource, CheckedBody, CheckedControl, CheckedOperation, ConstantValue, DropTable,
+    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames,
+    plan_expected_type,
 };
 
 mod aggregates;
@@ -70,10 +63,10 @@ mod value_planning;
 use loops::LoopConstruction;
 use opaque_witness::OpaqueResultState;
 
-struct NodeProjection {
-    entity: SemanticEntity,
-    origin: SourceOrigin,
-    access: Option<SourceAccess>,
+pub(super) struct NodeProjection {
+    pub(super) entity: SemanticEntity,
+    pub(super) origin: SourceOrigin,
+    pub(super) access: Option<SourceAccess>,
 }
 
 impl NodeProjection {
@@ -116,300 +109,21 @@ enum BlockExpectation {
     Value(Option<TypeId>),
 }
 
-/// Consumes a fully prepared Phase 3 input and constructs its immutable checked program.
-///
-/// The current construction slice accepts blocks, scalar literals, named places and field moves,
-/// readonly/readwrite borrows, built-in and selected index places, primitive and selected
-/// comparisons, primitive operators, direct static calls, inferred and annotated bindings,
-/// conditionals, short-circuit logic, while/infinite/range/collection loops, loop control,
-/// expression statements, body results, and returns. Other valid syntax is reported as an internal
-/// incomplete-implementation boundary; no partial checked program escapes.
-///
-/// # Errors
-///
-/// Returns one source-backed body rule or an internal consistency/incomplete-implementation error.
-pub fn check_prepared_program<'syntax>(
-    input: &'syntax CompileUnitInput<'syntax>,
-    prepared: PreparedChecking<'syntax>,
-) -> Result<CheckedProgramOutput, BodyCheckError> {
-    let PreparedCheckingParts {
-        graph,
-        mut types,
-        conformances,
-        construction_surfaces,
-        instance_operations,
-        mut copyabilities,
-        drops,
-        standard_semantics,
-        body_sources,
-        body_names,
-        source_index,
-    } = prepared.into_parts();
-    let mut closures = ClosureTableBuilder::new();
-    let facts = BodyProgramFacts::new(
-        &graph,
-        &drops,
-        &conformances,
-        &construction_surfaces,
-        &instance_operations,
-        &standard_semantics,
-        &source_index,
-    );
-
-    let CheckedBodiesOutput {
-        bodies: mut checked_bodies,
-        projections,
-        opaque_witnesses,
-    } = check_declared_bodies(
-        input,
-        facts,
-        &mut types,
-        &mut copyabilities,
-        &mut closures,
-        &body_sources,
-        &body_names,
-    )?;
-
-    let closures = closures.finish()?;
-    let opaque_witnesses = crate::OpaqueWitnessTable::build(&graph, opaque_witnesses)
-        .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)?;
-    attach_body_cleanups(
-        facts,
-        &mut types,
-        &mut copyabilities,
-        &closures,
-        &body_sources,
-        &mut checked_bodies,
-    )?;
-
-    let (provenance, loans) = analyze_checked_body_relations(
-        &graph,
-        &types,
-        &drops,
-        &conformances,
-        &closures,
-        &body_sources,
-        &checked_bodies,
-    )?;
-
-    let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
-    for (body, checked) in checked_bodies {
-        let actual = bodies.insert(checked.body);
-        if actual != body {
-            return Err(BodyCheckInternalError::NonCanonicalBody(body).into());
-        }
-    }
-
-    let source_index = extend_source_index(source_index, projections)?;
-    copyabilities
-        .complete(&graph, &mut types)
-        .map_err(BodyCheckInternalError::Copyability)?;
-    Ok(CheckedProgramOutput::new(
-        CheckedProgram::new(
-            graph,
-            types,
-            CheckedProgramAuthorities {
-                conformances,
-                construction_surfaces,
-                instance_operations,
-                copyabilities,
-                drops,
-                standard_semantics,
-                provenance,
-                loans,
-                closures,
-                opaque_witnesses,
-            },
-            bodies.finish(),
-        ),
-        source_index,
-    ))
+pub(super) struct CheckedBodyOutput {
+    pub(super) body: CheckedBody,
+    pub(super) projections: Vec<NodeProjection>,
+    pub(super) node_origins: HashMap<BodyNodeId, SourceOrigin>,
+    pub(super) opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
+    pub(super) copy_proofs: CopyProofs,
 }
 
-fn extend_source_index(
-    source_index: SourceIndex,
-    projections: Vec<NodeProjection>,
-) -> Result<SourceIndex, BodyCheckInternalError> {
-    let mut source_index = source_index.into_builder();
-    for projection in projections {
-        match projection.access {
-            Some(access) => source_index.insert_with_access(
-                projection.entity,
-                SourceRole::Reference,
-                projection.origin,
-                access,
-            ),
-            None => {
-                source_index.insert(projection.entity, SourceRole::Reference, projection.origin)
-            }
-        }?;
-    }
-    Ok(source_index.finish())
+pub(super) struct BodyUnitInput<'input, 'syntax> {
+    pub(super) source: BodySource<'syntax>,
+    pub(super) names: &'input ResolvedBodyNames,
+    pub(super) closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
 }
 
-fn attach_body_cleanups(
-    facts: BodyProgramFacts<'_>,
-    types: &mut TypeStore,
-    copyabilities: &mut CopyabilityTable,
-    closures: &crate::ClosureTable,
-    body_sources: &BodySourceCatalog<'_>,
-    checked_bodies: &mut [(BodyId, CheckedBodyOutput)],
-) -> Result<(), BodyCheckError> {
-    for (body, checked) in checked_bodies {
-        let source = body_sources
-            .get(*body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-        let cleanups = analyze_body_ownership(
-            facts.graph(),
-            types,
-            copyabilities,
-            facts.drops(),
-            closures,
-            OwnershipBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-                &checked.copy_proofs,
-            ),
-        )?;
-        checked.body.attach_cleanups(cleanups)?;
-    }
-    Ok(())
-}
-
-fn check_declared_bodies<'input, 'syntax>(
-    input: &'input CompileUnitInput<'syntax>,
-    facts: BodyProgramFacts<'input>,
-    types: &'input mut TypeStore,
-    copyabilities: &'input mut CopyabilityTable,
-    closures: &'input mut ClosureTableBuilder,
-    body_sources: &BodySourceCatalog<'syntax>,
-    body_names: &'input Arena<BodyId, ResolvedBodyNames>,
-) -> Result<CheckedBodiesOutput, BodyCheckError> {
-    let mut checked_bodies = Vec::new();
-    let mut projections = Vec::new();
-    let mut opaque_witnesses = Vec::new();
-    for (body, _) in facts.graph().declarations().bodies().iter() {
-        let source = body_sources
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-        let names = body_names
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodyNames(body))?;
-        if names.body() != body {
-            return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
-        }
-        let unit = BodyUnitInput {
-            source,
-            names,
-            closure_ids: reserve_body_closures(closures, source),
-        };
-        let mut checked =
-            BodyChecker::new(input, facts, types, copyabilities, closures, unit)?.check()?;
-        projections.append(&mut checked.projections);
-        if let Some(witness) = checked.opaque_witness {
-            opaque_witnesses.push(witness);
-        }
-        checked_bodies.push((body, checked));
-    }
-    Ok(CheckedBodiesOutput {
-        bodies: checked_bodies,
-        projections,
-        opaque_witnesses,
-    })
-}
-
-struct CheckedBodiesOutput {
-    bodies: Vec<(BodyId, CheckedBodyOutput)>,
-    projections: Vec<NodeProjection>,
-    opaque_witnesses: Vec<(nocter_model::OpaqueTypeId, TypeId)>,
-}
-
-fn reserve_body_closures(
-    closures: &mut ClosureTableBuilder,
-    source: BodySource<'_>,
-) -> HashMap<NodeId, nocter_model::ClosureId> {
-    let mut reserved = HashMap::new();
-    let mut pending = vec![source.block()];
-    while let Some(node) = pending.pop() {
-        if source
-            .syntax()
-            .node(node)
-            .is_some_and(|syntax| syntax.kind() == NodeKind::ClosureExpression)
-        {
-            reserved.insert(node, closures.reserve(source.body()));
-        }
-        pending.extend(
-            source
-                .syntax()
-                .children(node)
-                .iter()
-                .rev()
-                .filter_map(|element| match element {
-                    SyntaxElement::Node(child) => Some(*child),
-                    SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-                }),
-        );
-    }
-    reserved
-}
-
-fn analyze_checked_body_relations(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
-    drops: &DropTable,
-    conformances: &crate::ConformanceTable,
-    closures: &crate::ClosureTable,
-    body_sources: &crate::BodySourceCatalog<'_>,
-    checked_bodies: &[(BodyId, CheckedBodyOutput)],
-) -> Result<(crate::ProvenanceTable, crate::LoanTable), BodyCheckError> {
-    let provenance_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(ProvenanceBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let provenance =
-        analyze_program_provenance(graph, types, conformances, closures, &provenance_inputs)?;
-    let loan_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(LoanBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let loans = analyze_program_loans(graph, types, drops, &provenance, closures, &loan_inputs)?;
-    Ok((provenance, loans))
-}
-
-struct CheckedBodyOutput {
-    body: CheckedBody,
-    projections: Vec<NodeProjection>,
-    node_origins: HashMap<BodyNodeId, SourceOrigin>,
-    opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
-    copy_proofs: CopyProofs,
-}
-
-struct BodyUnitInput<'input, 'syntax> {
-    source: BodySource<'syntax>,
-    names: &'input ResolvedBodyNames,
-    closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
-}
-
-struct BodyChecker<'input, 'syntax> {
+pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
     types: &'input mut TypeStore,
@@ -458,7 +172,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         )
     }
 
-    fn new(
+    pub(super) fn new(
         input: &'input CompileUnitInput<'syntax>,
         facts: BodyProgramFacts<'input>,
         types: &'input mut TypeStore,
@@ -557,7 +271,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         })
     }
 
-    fn check(mut self) -> Result<CheckedBodyOutput, BodyCheckError> {
+    pub(super) fn check(mut self) -> Result<CheckedBodyOutput, BodyCheckError> {
         let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
         if self.consumed_uses.len() != self.names.uses().len() {
             return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());

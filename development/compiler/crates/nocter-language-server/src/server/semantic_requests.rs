@@ -631,6 +631,37 @@ mod tests {
         assert!(!response.contains("\"label\":\"input\""));
         assert!(!response.contains("\"label\":\"after\""));
         assert!(closure.issue().is_none(), "{:?}", closure.issue());
+
+        let failed_text = concat!(
+            "func replacement(): i32 { 1 }\n",
+            "func main(current: i32): void {\n",
+            "    let local = current\n",
+            "    local.missing()\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut failed_json = String::new();
+        nocter_json::write_string(&mut failed_json, failed_text);
+        let changed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":2}},\"contentChanges\":[{{\"text\":{failed_json}}}]}}}}"
+        ));
+        let snapshot = changed.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+
+        let failed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":10}}}}}}"
+        ));
+        let response = failed.response().unwrap();
+        assert!(response.contains("\"label\":\"replacement\""));
+        assert!(response.contains("\"label\":\"current\""));
+        assert!(response.contains("\"label\":\"local\""));
+        assert!(!response.contains("\"label\":\"helper\""));
+        assert!(!response.contains("\"label\":\"input\""));
+        assert!(!response.contains("\"label\":\"before\""));
+        assert!(failed.issue().is_none(), "{:?}", failed.issue());
     }
 
     #[test]

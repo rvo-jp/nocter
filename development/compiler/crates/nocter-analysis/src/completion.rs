@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use nocter_checking::{CheckedProgram, NameTarget};
-use nocter_declarations::{ExportedEntity, NominalShape};
+use nocter_checking::{BodyScope, CheckedProgram, NameTarget, PreparedSemanticProgram};
+use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, Symbol};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::presentation::presentation;
+use crate::presentation::{prepared_presentation, presentation};
 
 /// One compiler-selected name visible at an exact source position.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,6 +53,45 @@ struct Candidate {
     kind: SemanticCompletionKind,
 }
 
+enum CompletionProgram<'a> {
+    Checked {
+        program: &'a CheckedProgram,
+        index: &'a SourceIndex,
+    },
+    Prepared(&'a PreparedSemanticProgram),
+}
+
+impl<'a> CompletionProgram<'a> {
+    const fn graph(&self) -> &'a DeclarationGraph {
+        match self {
+            Self::Checked { program, .. } => program.graph(),
+            Self::Prepared(program) => program.graph(),
+        }
+    }
+
+    const fn index(&self) -> &'a SourceIndex {
+        match self {
+            Self::Checked { index, .. } => index,
+            Self::Prepared(program) => program.source_index(),
+        }
+    }
+
+    fn scope(&self, body: BodyId, scope: BodyScopeId) -> Option<&'a BodyScope> {
+        match self {
+            Self::Checked { program, .. } => program.bodies().get(body)?.scopes().get(scope),
+            Self::Prepared(program) => program.body_names().get(body)?.scopes().get(scope),
+        }
+    }
+
+    fn detail(&self, entity: SemanticEntity) -> Option<Box<str>> {
+        match self {
+            Self::Checked { program, .. } => presentation(program, entity),
+            Self::Prepared(program) => prepared_presentation(program, entity),
+        }
+        .map(|presentation| Box::<str>::from(presentation.code()))
+    }
+}
+
 impl AnalysisSnapshot {
     /// Enumerates names visible in the checked lexical and module scopes at `offset`.
     ///
@@ -65,31 +104,41 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Box<[SemanticCompletion]> {
-        let Some(target) = self.target() else {
+        let program = if let Some(target) = self.target() {
+            CompletionProgram::Checked {
+                program: target.program().checked(),
+                index: target.source_index(),
+            }
+        } else if let Some(prepared) = self.prepared_semantics() {
+            CompletionProgram::Prepared(prepared)
+        } else {
             return Box::new([]);
         };
-        let checked = target.program().checked();
-        let Some(index) = self.source_index() else {
-            return Box::new([]);
-        };
+        let index = program.index();
         let Some(module) = containing_module(index, source, offset) else {
             return Box::new([]);
         };
         let mut candidates = BTreeMap::new();
-        add_module_candidates(checked, module, &mut candidates);
+        add_module_candidates(program.graph(), module, &mut candidates);
         if let Some((body, scope)) = containing_scope(index, source, offset) {
-            add_scope_candidates(checked, index, source, offset, body, scope, &mut candidates);
+            add_scope_candidates(
+                &program,
+                index,
+                source,
+                offset,
+                body,
+                scope,
+                &mut candidates,
+            );
         }
         candidates
             .into_iter()
             .filter_map(|(name, candidate)| {
-                let label = checked.graph().symbols().spelling(name)?;
-                let detail = presentation(checked, candidate.entity)
-                    .map(|presentation| Box::<str>::from(presentation.code()));
+                let label = program.graph().symbols().spelling(name)?;
                 Some(SemanticCompletion {
                     label: label.into(),
                     kind: candidate.kind,
-                    detail,
+                    detail: program.detail(candidate.entity),
                 })
             })
             .collect::<Vec<_>>()
@@ -139,27 +188,27 @@ fn containing_scope(
 }
 
 fn add_module_candidates(
-    checked: &CheckedProgram,
+    graph: &DeclarationGraph,
     module: nocter_model::ModuleId,
     candidates: &mut BTreeMap<Symbol, Candidate>,
 ) {
-    let Some(namespace) = checked.graph().module_namespaces().get(module) else {
+    let Some(namespace) = graph.module_namespaces().get(module) else {
         return;
     };
     for entry in namespace.fallback() {
-        if let Some(candidate) = exported_candidate(checked, entry.target()) {
+        if let Some(candidate) = exported_candidate(graph, entry.target()) {
             candidates.insert(entry.name(), candidate);
         }
     }
     for entry in namespace.authored() {
-        if let Some(candidate) = exported_candidate(checked, entry.target()) {
+        if let Some(candidate) = exported_candidate(graph, entry.target()) {
             candidates.insert(entry.name(), candidate);
         }
     }
 }
 
 fn add_scope_candidates(
-    checked: &CheckedProgram,
+    program: &CompletionProgram<'_>,
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
@@ -167,12 +216,9 @@ fn add_scope_candidates(
     mut scope: BodyScopeId,
     candidates: &mut BTreeMap<Symbol, Candidate>,
 ) {
-    let Some(checked_body) = checked.bodies().get(body) else {
-        return;
-    };
     let mut chain = Vec::new();
     loop {
-        let Some(current) = checked_body.scopes().get(scope) else {
+        let Some(current) = program.scope(body, scope) else {
             return;
         };
         chain.push(scope);
@@ -182,11 +228,11 @@ fn add_scope_candidates(
         scope = parent;
     }
     for scope in chain.into_iter().rev() {
-        let Some(scope) = checked_body.scopes().get(scope) else {
+        let Some(scope) = program.scope(body, scope) else {
             continue;
         };
         for binding in scope.bindings() {
-            let Some(candidate) = name_candidate(checked, body, binding.target()) else {
+            let Some(candidate) = name_candidate(program.graph(), body, binding.target()) else {
                 continue;
             };
             if local_is_available(index, source, offset, candidate.entity) {
@@ -214,7 +260,7 @@ fn local_is_available(
         .any(|binding| binding.origin().span().range().end() <= offset)
 }
 
-fn name_candidate(checked: &CheckedProgram, body: BodyId, target: NameTarget) -> Option<Candidate> {
+fn name_candidate(graph: &DeclarationGraph, body: BodyId, target: NameTarget) -> Option<Candidate> {
     match target {
         NameTarget::Parameter(parameter) => Some(Candidate {
             entity: SemanticEntity::Parameter(parameter),
@@ -228,13 +274,13 @@ fn name_candidate(checked: &CheckedProgram, body: BodyId, target: NameTarget) ->
             entity: SemanticEntity::Capture(body, capture),
             kind: SemanticCompletionKind::Variable,
         }),
-        NameTarget::Exported(exported) => exported_candidate(checked, exported),
+        NameTarget::Exported(exported) => exported_candidate(graph, exported),
         NameTarget::Builtin(_) => None,
     }
 }
 
-fn exported_candidate(checked: &CheckedProgram, exported: ExportedEntity) -> Option<Candidate> {
-    let declarations = checked.graph().declarations();
+fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Option<Candidate> {
+    let declarations = graph.declarations();
     let (entity, kind) = match exported {
         ExportedEntity::Module(module) => (
             SemanticEntity::Module(module),

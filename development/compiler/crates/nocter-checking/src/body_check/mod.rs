@@ -5,6 +5,7 @@ mod diagnostic;
 mod error;
 mod literal;
 mod ownership;
+mod pipeline;
 
 #[cfg(test)]
 mod aggregate_tests;
@@ -64,7 +65,7 @@ mod region_tests;
 mod typed_literal_tests;
 
 pub use diagnostic::BodyRule;
-pub use error::{BodyCheckError, BodyCheckInternalError};
+pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 
-pub use checker::check_prepared_program;
+pub use pipeline::{check_prepared_program, check_prepared_program_recovering};
 mod assumptions;

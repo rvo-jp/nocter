@@ -107,8 +107,12 @@ implementation input.
    protocol adapter. Checked lexical scopes now retain their resolved bindings and exact block
    projections. Name completion follows those scope parents, respects declaration order and
    explicit closure capture boundaries, overlays the canonical module namespace, and reuses
-   compiler-rendered details. Receiver-member completion and completion from explicit invalid
-   syntax/semantic nodes remain; neither may use token guesses or a stale successful snapshot.
+   compiler-rendered details. A typed-body failure now retains the current generation's completed
+   pre-body semantic program, so name completion survives an unknown member or another body rule
+   without falling back to stale state. The retained value explicitly has no checked nodes, local
+   types, dispatch, ownership, or provenance; ordinary command compilation uses a non-retaining
+   path. Receiver-member completion and completion after syntax or name-resolution failure remain;
+   neither may use token guesses or a stale successful snapshot.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
