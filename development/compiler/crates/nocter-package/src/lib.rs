@@ -27,7 +27,9 @@ pub use lock_overlay::{PackageLockOverlay, PackageLockOverlayError};
 pub use lock_source::{PackageLockSourceError, PackageLockSourceUpdate};
 pub use resolution::{
     PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    ResolvedPackageSelection, StandardPackage, resolve_package_graph, resolve_package_selection,
-    resolve_standard_package,
+    ResolvedPackageSelection, StandardPackage, resolve_package_graph,
+    resolve_package_graph_with_source_overlay, resolve_package_selection,
+    resolve_package_selection_with_source_overlay, resolve_standard_package,
+    resolve_standard_package_with_source_overlay,
 };
 pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

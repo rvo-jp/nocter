@@ -7,6 +7,7 @@ use nocter_compile_input::{
     UseTargetInput,
 };
 use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
+use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::CompilationTarget;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_syntax::NodeKind;
@@ -54,6 +55,13 @@ fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
     ResolvedPackageGraph::load(packages).unwrap()
 }
 
+fn package_graph_with_overlay(
+    packages: Vec<ResolvedPackageSpec>,
+    overlay: SourceOverlay,
+) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load_with_source_overlay(packages, overlay).unwrap()
+}
+
 fn module(package: &str, path: &[&str]) -> ModuleIdentity {
     ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied())
 }
@@ -66,6 +74,66 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
         Vec::new(),
         Vec::new(),
     )
+}
+
+#[test]
+fn one_open_document_overlay_flows_from_package_data_through_module_discovery() {
+    let tree = TempTree::new();
+    tree.source("app/nocter.nct", "#name: \"disk-name\"\n");
+    tree.source("app/index.nct", "func disk_version(): void { return }\n");
+    let manifest = fs::canonicalize(tree.path().join("app/nocter.nct")).unwrap();
+    let root_source = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert(
+            manifest.clone(),
+            OpenDocument::new(DocumentVersion::new(4), &b"#name: \"editor-name\"\n"[..]),
+        )
+        .unwrap();
+    overlay
+        .insert(
+            root_source.clone(),
+            OpenDocument::new(
+                DocumentVersion::new(9),
+                &b"func editor_version(): void { return }\n"[..],
+            ),
+        )
+        .unwrap();
+    let overlay = overlay.finish();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![package("workspace:app", "app", &tree.path().join("app"))],
+            overlay,
+        ),
+        vec![module("workspace:app", &[])],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+
+    assert_eq!(
+        unit.source_overlay().document(&manifest).unwrap().version(),
+        DocumentVersion::new(4)
+    );
+    assert_eq!(
+        unit.source_overlay()
+            .document(&root_source)
+            .unwrap()
+            .version(),
+        DocumentVersion::new(9)
+    );
+    let input = unit.compile_input().unwrap();
+    assert_eq!(input.packages()[0].display_name(), "editor-name");
+    let root = input
+        .modules()
+        .iter()
+        .find(|candidate| candidate.identity() == &module("workspace:app", &[]))
+        .unwrap();
+    let source = unit
+        .sources()
+        .get(root.sources()[0].syntax().source())
+        .unwrap();
+    assert_eq!(source.text(), "func editor_version(): void { return }\n");
 }
 
 #[test]

@@ -131,6 +131,14 @@ implementations, and references remain explicit roles. Structural `TypeId` value
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.
 
+`nocter-filesystem` owns one immutable map from canonical absolute paths to accepted open-document
+bytes and versions. Reads select that map before disk, while writes, fetches, lock generation, and
+publication have no API in the crate. Package resolution retains the exact map in its resolved
+graph, and discovery consumes and retains that same value while loading module sources. Manifest
+decoding and module analysis therefore cannot observe different content for one editor generation.
+Overlay-aware resolution is a separate read-only entry point; package-state transactions accept
+only the disk-backed request type and cannot mistake editor bytes for persistent package source.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
@@ -1051,4 +1059,6 @@ is not evidence that a responsibility has been designed.
 Editor analysis may retain explicit invalid syntax and error semantic nodes in an immutable
 snapshot. It never converts incomplete source into a second successful semantic model. Hover,
 completion, navigation, rename, tokens, diagnostics, and code actions consume the same checked IDs
-when they exist and use syntax-only recovery only when no semantic fact is available.
+when they exist and use syntax-only recovery only when no semantic fact is available. Every
+generation first freezes its complete open-document overlay; package resolution, discovery, syntax,
+and semantic analysis all consume that one value.

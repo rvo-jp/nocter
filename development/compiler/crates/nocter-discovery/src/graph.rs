@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
@@ -7,6 +6,7 @@ use nocter_compile_input::{
     ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode, PackageTargetResolutionInput,
     PrimitiveRoleInput, StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
 };
+use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;
@@ -33,6 +33,7 @@ struct PackageState {
 #[derive(Debug)]
 struct LoadedPackages {
     states: BTreeMap<PackageIdentity, PackageState>,
+    source_overlay: SourceOverlay,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
 }
@@ -54,6 +55,7 @@ enum Work {
 struct Builder {
     target: nocter_model::CompilationTarget,
     packages: BTreeMap<PackageIdentity, PackageState>,
+    source_overlay: SourceOverlay,
     root_packages: Vec<PackageIdentity>,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
@@ -120,6 +122,7 @@ impl Builder {
         };
         let LoadedPackages {
             states: packages,
+            source_overlay,
             sources,
             syntax,
         } = loaded;
@@ -134,6 +137,7 @@ impl Builder {
         Ok(Self {
             target,
             packages,
+            source_overlay,
             root_packages,
             sources,
             syntax,
@@ -218,6 +222,7 @@ impl Builder {
         });
         Ok(DiscoveredUnit {
             target: self.target,
+            source_overlay: self.source_overlay,
             sources: self.sources,
             syntax: self.syntax,
             packages,
@@ -380,10 +385,10 @@ impl Builder {
         }
         let directory = join_module_path(&package.canonical_root, module.path());
         let root = directory.join("index.nct");
-        if !regular_file(&root)? {
+        if !regular_file(&self.source_overlay, &root)? {
             return Err(DiscoveryError::MissingModuleRoot { module, path: root });
         }
-        let root = canonicalize("canonicalize module root", &root)?;
+        let root = canonicalize(&self.source_overlay, "canonicalize module root", &root)?;
         self.validate_inside_package(module.package(), &root, None)?;
         self.load_module_source(module, &root, ModuleSourceKind::Root)
     }
@@ -394,7 +399,7 @@ impl Builder {
         path: &Path,
         kind: ModuleSourceKind,
     ) -> Result<(), DiscoveryError> {
-        let path = canonicalize("canonicalize module source", path)?;
+        let path = canonicalize(&self.source_overlay, "canonicalize module source", path)?;
         if let Some(owner) = self.source_owners.get(&path) {
             if owner != &module {
                 return Err(DiscoveryError::ConflictingSourceOwner {
@@ -411,6 +416,7 @@ impl Builder {
             (kind == ModuleSourceKind::Root).then_some(&module),
         )?;
         let syntax_index = load_source(
+            &self.source_overlay,
             &mut self.sources,
             &mut self.syntax,
             &path,
@@ -531,8 +537,8 @@ impl Builder {
         let mut source_candidate = base.clone();
         source_candidate.set_extension("nct");
         let module_candidate = base.join("index.nct");
-        let has_source = regular_file(&source_candidate)?;
-        let has_module = regular_file(&module_candidate)?;
+        let has_source = regular_file(&self.source_overlay, &source_candidate)?;
+        let has_module = regular_file(&self.source_overlay, &module_candidate)?;
         match (has_source, has_module) {
             (true, true) => Err(ImportFailure::Ambiguous {
                 source: source_candidate,
@@ -542,7 +548,8 @@ impl Builder {
             (false, false) => Err(ImportFailure::NotFound.into()),
             (false, true) => self.resolve_existing_module(importer.package(), &module_candidate),
             (true, false) => {
-                let source_candidate = canonicalize_import(&source_candidate)?;
+                let source_candidate =
+                    canonicalize_import(&self.source_overlay, &source_candidate)?;
                 self.validate_import_path(importer.package(), &source_candidate)?;
                 let owner = self.nearest_module(importer.package(), &source_candidate)?;
                 if &owner != importer {
@@ -568,7 +575,7 @@ impl Builder {
                 path.join(segment)
             })
             .join("index.nct");
-        if !regular_file(&root)? {
+        if !regular_file(&self.source_overlay, &root)? {
             return Err(ImportFailure::NotFound.into());
         }
         self.resolve_existing_module(package, &root)
@@ -579,7 +586,7 @@ impl Builder {
         package: &PackageIdentity,
         root: &Path,
     ) -> Result<UseTargetInput, ResolveError> {
-        let root = canonicalize_import(root)?;
+        let root = canonicalize_import(&self.source_overlay, root)?;
         self.validate_import_path(package, &root)?;
         let state = self
             .packages
@@ -607,7 +614,7 @@ impl Builder {
             .ok_or(ImportFailure::OutsidePackage)?;
         let mut directory = source.parent().ok_or(ImportFailure::OutsidePackage)?;
         loop {
-            if regular_file(&directory.join("index.nct"))? {
+            if regular_file(&self.source_overlay, &directory.join("index.nct"))? {
                 let relative = directory
                     .strip_prefix(&state.canonical_root)
                     .map_err(|_| ImportFailure::OutsidePackage)?;
@@ -693,7 +700,7 @@ impl Builder {
         let mut directory = path.parent().ok_or(ImportFailure::OutsidePackage)?;
         while directory != state.canonical_root {
             let nested = directory.join("nocter.nct");
-            if regular_file(&nested)? {
+            if regular_file(&self.source_overlay, &nested)? {
                 return Err(ImportFailure::CrossesPackage {
                     root: directory.into(),
                 }
@@ -740,16 +747,19 @@ fn discover_package_targets(
 }
 
 fn load_source(
+    source_overlay: &SourceOverlay,
     sources: &mut SourceMap,
     syntax: &mut Vec<SyntaxTree>,
     path: &Path,
     goal: ParseGoal,
 ) -> Result<usize, DiscoveryError> {
-    let bytes = fs::read(path).map_err(|error| DiscoveryError::Filesystem {
-        operation: "read",
-        path: path.into(),
-        error,
-    })?;
+    let bytes = source_overlay
+        .read(path)
+        .map_err(|error| DiscoveryError::Filesystem {
+            operation: "read",
+            path: path.into(),
+            error,
+        })?;
     let name = canonical_text(path)?;
     let source = sources
         .add_bytes(SourceName::new(name.as_ref()), &bytes)
@@ -775,7 +785,7 @@ fn join_module_path(root: &Path, path: &[Box<str>]) -> PathBuf {
 }
 
 fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPackages {
-    let (sources, syntax, packages) = graph.into_parts();
+    let (source_overlay, sources, syntax, packages) = graph.into_parts();
     let states = packages
         .into_iter()
         .map(|package| {
@@ -799,6 +809,7 @@ fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPa
         .collect();
     LoadedPackages {
         states,
+        source_overlay,
         sources,
         syntax,
     }
@@ -812,8 +823,12 @@ fn load_single_file_package(
     if source.extension().and_then(|extension| extension.to_str()) != Some("nct") {
         return Err(DiscoveryError::InvalidSingleFileExtension(source));
     }
-    let source = canonicalize("canonicalize single-file input", &source)?;
-    if !regular_file(&source)? {
+    let source = canonicalize(
+        &loaded.source_overlay,
+        "canonicalize single-file input",
+        &source,
+    )?;
+    if !regular_file(&loaded.source_overlay, &source)? {
         return Err(DiscoveryError::Filesystem {
             operation: "inspect single-file input",
             path: source,
@@ -978,10 +993,9 @@ fn normalized_components(path: &Path) -> Result<Vec<Box<str>>, ImportFailure> {
         .collect()
 }
 
-fn regular_file(path: &Path) -> Result<bool, DiscoveryError> {
-    match fs::metadata(path) {
-        Ok(metadata) => Ok(metadata.is_file()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+fn regular_file(source_overlay: &SourceOverlay, path: &Path) -> Result<bool, DiscoveryError> {
+    match source_overlay.is_file(path) {
+        Ok(is_file) => Ok(is_file),
         Err(error) => Err(DiscoveryError::Filesystem {
             operation: "inspect",
             path: path.into(),
@@ -990,16 +1004,25 @@ fn regular_file(path: &Path) -> Result<bool, DiscoveryError> {
     }
 }
 
-fn canonicalize(operation: &'static str, path: &Path) -> Result<PathBuf, DiscoveryError> {
-    fs::canonicalize(path).map_err(|error| DiscoveryError::Filesystem {
-        operation,
-        path: path.into(),
-        error,
-    })
+fn canonicalize(
+    source_overlay: &SourceOverlay,
+    operation: &'static str,
+    path: &Path,
+) -> Result<PathBuf, DiscoveryError> {
+    source_overlay
+        .canonicalize(path)
+        .map_err(|error| DiscoveryError::Filesystem {
+            operation,
+            path: path.into(),
+            error,
+        })
 }
 
-fn canonicalize_import(path: &Path) -> Result<PathBuf, DiscoveryError> {
-    canonicalize("canonicalize import target", path)
+fn canonicalize_import(
+    source_overlay: &SourceOverlay,
+    path: &Path,
+) -> Result<PathBuf, DiscoveryError> {
+    canonicalize(source_overlay, "canonicalize import target", path)
 }
 
 fn canonical_text(path: &Path) -> Result<Box<str>, DiscoveryError> {

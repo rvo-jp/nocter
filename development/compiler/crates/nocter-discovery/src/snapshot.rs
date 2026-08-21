@@ -6,6 +6,7 @@ use nocter_compile_input::{
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
     PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
 };
+use nocter_filesystem::SourceOverlay;
 use nocter_model::CompilationTarget;
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
@@ -78,6 +79,7 @@ pub(crate) struct DiscoveredPackage {
 #[derive(Debug)]
 pub struct DiscoveredUnit {
     pub(crate) target: CompilationTarget,
+    pub(crate) source_overlay: SourceOverlay,
     pub(crate) sources: SourceMap,
     pub(crate) syntax: Vec<SyntaxTree>,
     pub(crate) packages: Vec<DiscoveredPackage>,
@@ -92,6 +94,11 @@ impl DiscoveredUnit {
     #[must_use]
     pub const fn target(&self) -> CompilationTarget {
         self.target
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        &self.source_overlay
     }
 
     #[must_use]

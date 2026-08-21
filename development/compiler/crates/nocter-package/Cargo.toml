@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-hash = { path = "../nocter-hash" }
 nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }

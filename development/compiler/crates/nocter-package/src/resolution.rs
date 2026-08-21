@@ -4,9 +4,14 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 
-use crate::graph::{PackageGraphBuilder, ResolvedPackageEdges, canonical_package_root};
+#[cfg(test)]
+use crate::graph::canonical_package_root;
+use crate::graph::{
+    PackageGraphBuilder, ResolvedPackageEdges, canonical_package_root_with_overlay,
+};
 use crate::{
     DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
     PackageLockOverlay, PackageStoreOverlay, ResolvedPackageGraph,
@@ -173,6 +178,22 @@ impl ResolvedPackageSelection {
 pub fn resolve_package_selection(
     request: PackageResolutionRequest,
 ) -> Result<ResolvedPackageSelection, PackageResolutionError> {
+    resolve_package_selection_with_source_overlay(request, SourceOverlay::empty())
+}
+
+/// Resolves through an immutable open-document view without granting package mutation authority.
+///
+/// The returned graph retains `source_overlay` for later module discovery. Package-state
+/// transactions deliberately accept only [`PackageResolutionRequest`], so editor bytes cannot be
+/// mistaken for disk bytes during lock generation or publication.
+///
+/// # Errors
+///
+/// Returns the same exact resolution errors as [`resolve_package_selection`].
+pub fn resolve_package_selection_with_source_overlay(
+    request: PackageResolutionRequest,
+    source_overlay: SourceOverlay,
+) -> Result<ResolvedPackageSelection, PackageResolutionError> {
     let PackageResolutionRequest {
         root: requested_root,
         nocter_home,
@@ -181,15 +202,17 @@ pub fn resolve_package_selection(
         lock_overlay,
         store_overlay,
     } = request;
-    let root = canonical_package_root(&requested_root).map_err(PackageResolutionError::Graph)?;
+    let root = canonical_package_root_with_overlay(&source_overlay, &requested_root)
+        .map_err(PackageResolutionError::Graph)?;
     let root_id = PackageId::from_canonical_path(&root)
         .map_err(PackageResolutionError::PackageId)?
         .package_identity();
-    let standard_root =
-        canonical_package_root(&standard.root).map_err(PackageResolutionError::Graph)?;
+    let standard_root = canonical_package_root_with_overlay(&source_overlay, &standard.root)
+        .map_err(PackageResolutionError::Graph)?;
     let standard_id = standard.identity;
 
-    let mut builder = PackageGraphBuilder::new();
+    let source_overlay_for_resolution = source_overlay.clone();
+    let mut builder = PackageGraphBuilder::new(source_overlay);
     let mut roots = BTreeMap::new();
     let mut pending = BTreeMap::new();
     insert_package(
@@ -214,6 +237,7 @@ pub fn resolve_package_selection(
         home_store: &home_store,
         policy,
         store_overlay: &store_overlay,
+        source_overlay: &source_overlay_for_resolution,
     };
     let mut edges = BTreeMap::new();
     while let Some((identity, package_root)) = pending.pop_first() {
@@ -333,6 +357,20 @@ pub fn resolve_package_graph(
     Ok(graph)
 }
 
+/// Resolves one exact package graph through an immutable open-document view.
+///
+/// # Errors
+///
+/// Returns the same exact resolution errors as [`resolve_package_graph`].
+pub fn resolve_package_graph_with_source_overlay(
+    request: PackageResolutionRequest,
+    source_overlay: SourceOverlay,
+) -> Result<ResolvedPackageGraph, PackageResolutionError> {
+    let (graph, _, _) =
+        resolve_package_selection_with_source_overlay(request, source_overlay)?.into_parts();
+    Ok(graph)
+}
+
 /// Loads the self-contained standard package selected by a toolchain for single-file mode.
 ///
 /// # Errors
@@ -342,11 +380,27 @@ pub fn resolve_package_graph(
 pub fn resolve_standard_package(
     standard: StandardPackage,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
+    resolve_standard_package_with_source_overlay(standard, SourceOverlay::empty())
+}
+
+/// Loads the self-contained standard package through the same immutable source view as a
+/// single-file editor generation.
+///
+/// # Errors
+///
+/// Returns the same graph errors as [`resolve_standard_package`].
+pub fn resolve_standard_package_with_source_overlay(
+    standard: StandardPackage,
+    source_overlay: SourceOverlay,
+) -> Result<ResolvedPackageGraph, PackageGraphError> {
     let identity = standard.identity;
-    ResolvedPackageGraph::load(vec![
-        crate::ResolvedPackageSpec::new(identity.clone(), standard.root)
-            .with_standard_dependency(identity),
-    ])
+    ResolvedPackageGraph::load_with_source_overlay(
+        vec![
+            crate::ResolvedPackageSpec::new(identity.clone(), standard.root)
+                .with_standard_dependency(identity),
+        ],
+        source_overlay,
+    )
 }
 
 fn insert_package(
@@ -376,6 +430,7 @@ struct DependencyResolver<'a> {
     home_store: &'a Path,
     policy: PackageResolutionPolicy,
     store_overlay: &'a PackageStoreOverlay,
+    source_overlay: &'a SourceOverlay,
 }
 
 struct ResolvedDependency {
@@ -394,8 +449,11 @@ impl DependencyResolver<'_> {
         lock: Option<&ExactDependencyLock>,
     ) -> Result<ResolvedDependency, PackageResolutionError> {
         if let DependencySource::Path { path } = source {
-            let root = canonical_package_root(&package_root.join(path.value()))
-                .map_err(PackageResolutionError::Graph)?;
+            let root = canonical_package_root_with_overlay(
+                self.source_overlay,
+                &package_root.join(path.value()),
+            )
+            .map_err(PackageResolutionError::Graph)?;
             let target = PackageId::from_canonical_path(&root)
                 .map_err(PackageResolutionError::PackageId)?
                 .package_identity();
@@ -432,7 +490,8 @@ impl DependencyResolver<'_> {
         if let Some(root) = selected {
             return Ok(ResolvedDependency {
                 target: package_id.into(),
-                root: canonical_package_root(&root).map_err(PackageResolutionError::Graph)?,
+                root: canonical_package_root_with_overlay(self.source_overlay, &root)
+                    .map_err(PackageResolutionError::Graph)?,
                 lock: Some(lock.clone()),
             });
         }
@@ -610,6 +669,8 @@ impl std::error::Error for PackageResolutionError {
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
+
     use super::*;
 
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -700,6 +761,50 @@ mod tests {
         for package in graph.packages() {
             assert!(package.dependencies().contains_key("std"));
         }
+    }
+
+    #[test]
+    fn package_resolution_retains_the_exact_open_manifest_overlay() {
+        let tree = base_tree(true);
+        let package_id = PackageId::from_git_commit(COMMIT).unwrap();
+        tree.source(
+            &format!("app/.nocter/packages/{}/nocter.nct", package_id.as_str()),
+            "#name: \"remote\"\n",
+        );
+        let manifest = fs::canonicalize(tree.0.join("app/nocter.nct")).unwrap();
+        let mut overlay = SourceOverlay::builder();
+        overlay
+            .insert(
+                manifest.clone(),
+                OpenDocument::new(
+                    DocumentVersion::new(12),
+                    root_manifest(true)
+                        .replace("#name: \"app\"", "#name: \"editor-app\"")
+                        .into_bytes(),
+                ),
+            )
+            .unwrap();
+
+        let graph = resolve_package_graph_with_source_overlay(
+            tree.request(PackageResolutionPolicy::default()),
+            overlay.finish(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            graph
+                .source_overlay()
+                .document(&manifest)
+                .unwrap()
+                .version(),
+            DocumentVersion::new(12)
+        );
+        assert!(
+            graph
+                .packages()
+                .iter()
+                .any(|package| package.display_name() == "editor-app")
+        );
     }
 
     #[test]

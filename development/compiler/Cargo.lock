@@ -1791,6 +1791,7 @@ dependencies = [
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
+ "nocter-filesystem",
  "nocter-model",
  "nocter-package",
  "nocter-source",
@@ -1799,6 +1800,10 @@ dependencies = [
  "nocter-target-program",
  "nocter-target-selection",
 ]
+
+[[package]]
+name = "nocter-filesystem"
+version = "0.0.0"
 
 [[package]]
 name = "nocter-hash"
@@ -1853,6 +1858,7 @@ version = "0.0.0"
 name = "nocter-package"
 version = "0.0.0"
 dependencies = [
+ "nocter-filesystem",
  "nocter-hash",
  "nocter-model",
  "nocter-source",

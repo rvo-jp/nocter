@@ -16,6 +16,13 @@ implementation input.
 ## Immediate Work
 
 1. Begin immutable editor snapshots on the completed structural formatter boundary.
+   `nocter-filesystem` now freezes canonical open-document paths, accepted versions, and bytes into
+   one immutable read-only overlay. Package resolution retains that overlay in its exact graph and
+   discovery uses the same value for manifests, module candidates, imports, and source loading.
+   Overlay-aware resolution is separate from package-state requests, so fetch and lock mutation
+   cannot consume editor bytes. The next boundary is a generation-numbered analysis snapshot that
+   owns this source view together with either the reached compiler failure or checked semantic
+   program and source index.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
