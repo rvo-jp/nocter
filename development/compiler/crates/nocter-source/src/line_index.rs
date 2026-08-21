@@ -20,7 +20,7 @@ impl LineColumn {
 }
 
 /// Immutable line-start index over one normalized source.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LineIndex {
     starts: Vec<ByteOffset>,
     source_len: ByteOffset,

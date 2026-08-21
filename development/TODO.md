@@ -57,7 +57,9 @@ implementation input.
    directory; launch, exit, captured streams, and cleanup become one ordered typed run result.
    Human and `nocter.tests` version-1 JSON reports consume that result, preserve raw output through
    UTF-8/base64 encoding, and return status 1 for test failures without converting them into
-   orchestration errors. The shared argument schema now owns `test`, `--test`, `--case`, and the
+   orchestration errors. Package state resolves once and immutable manifest snapshots fork into
+   target-local discovery/session inputs, so a source or semantic failure becomes that target's
+   `compile_failed` run and later targets continue. The shared argument schema now owns `test`, `--test`, `--case`, and the
    specified `--target` surface for check/build/run/test.
 
    The public build/run/fetch and diagnostic boundaries are now closed.

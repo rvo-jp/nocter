@@ -79,6 +79,11 @@ impl<E> CommandCompilationFailure<E> {
     pub const fn diagnostics(&self) -> &[SourceDiagnostic] {
         &self.diagnostics
     }
+
+    #[must_use]
+    pub fn into_parts(self) -> (E, SourceMap, Box<[SourceDiagnostic]>) {
+        (self.error, self.sources, self.diagnostics)
+    }
 }
 
 impl<E: std::fmt::Display> std::fmt::Display for CommandCompilationFailure<E> {

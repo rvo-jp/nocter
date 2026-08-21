@@ -603,6 +603,39 @@ fn json_test_argument_failure_uses_the_test_result_envelope() {
     assert!(rendered.ends_with("],\"runs\":[],\"summary\":{\"passed\":0,\"failed\":1}}\n"));
 }
 
+#[test]
+fn json_test_keeps_target_local_source_failure_beside_later_runs() {
+    let tree = TempTree::new("test-json-isolation");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("nocter.nct"),
+        "#name: \"isolated\"\n#test: { name: \"broken\", module: \"./broken\" }\n#test: { name: \"good\", module: \"./good\" }\n",
+    )
+    .unwrap();
+    fs::write(tree.0.join("index.nct"), "//! Isolated package.\n").unwrap();
+    fs::create_dir(tree.0.join("broken")).unwrap();
+    fs::write(tree.0.join("broken/index.nct"), "test incomplete {").unwrap();
+    fs::create_dir(tree.0.join("good")).unwrap();
+    fs::write(tree.0.join("good/index.nct"), "test passes { return }\n").unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["test", "--format=json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let rendered = outcome.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(outcome.exit_code(), 1);
+    assert!(
+        rendered.contains("\"target\":\"broken\",\"test\":null,\"outcome\":\"compile_failed\"")
+    );
+    assert!(rendered.contains("\"primary_span\":{"));
+    assert!(rendered.contains("\"target\":\"good\",\"test\":\"passes\",\"outcome\":\"passed\""));
+    assert!(rendered.ends_with("\"summary\":{\"passed\":1,\"failed\":1}}\n"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

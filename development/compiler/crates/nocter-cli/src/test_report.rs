@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use nocter_command::{DiagnosticFormat, TestCommandResult, TestRunOutcome, TestRunResult};
 use nocter_diagnostics::{
-    DiagnosticRenderError, SpanlessDiagnostic, write_json_string,
+    DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic, write_json_string,
     write_source_diagnostic_items_json, write_spanless_diagnostic_json,
 };
 
@@ -39,6 +39,24 @@ pub(crate) fn render_test_human(result: &TestCommandResult) -> Option<String> {
             )
             .expect("writing to String cannot fail");
         }
+        if !run.source_diagnostics().is_empty() {
+            match run.sources() {
+                Some(sources) => {
+                    for diagnostic in run.source_diagnostics() {
+                        match render_source_diagnostic(diagnostic, sources) {
+                            Ok(rendered) => output.push_str(&rendered),
+                            Err(error) => writeln!(
+                                output,
+                                "  error[E0900]: cannot render test diagnostic: {error}"
+                            )
+                            .expect("writing to String cannot fail"),
+                        }
+                    }
+                }
+                None => output
+                    .push_str("  error[E0900]: test run lost its diagnostic source snapshot\n"),
+            }
+        }
     }
     writeln!(
         output,
@@ -60,7 +78,9 @@ fn append_stream(output: &mut String, name: &str, bytes: &[u8]) {
     }
 }
 
-pub(crate) fn render_test_json(result: &TestCommandResult) -> String {
+pub(crate) fn render_test_json(
+    result: &TestCommandResult,
+) -> Result<String, DiagnosticRenderError> {
     let mut output = String::new();
     write_envelope_start(
         &mut output,
@@ -73,7 +93,7 @@ pub(crate) fn render_test_json(result: &TestCommandResult) -> String {
         if index != 0 {
             output.push(',');
         }
-        write_run(&mut output, run);
+        write_run(&mut output, run)?;
     }
     writeln!(
         output,
@@ -82,7 +102,7 @@ pub(crate) fn render_test_json(result: &TestCommandResult) -> String {
         result.summary().failed()
     )
     .expect("writing to String cannot fail");
-    output
+    Ok(output)
 }
 
 pub(crate) fn render_test_source_failure_json(
@@ -124,7 +144,7 @@ fn write_envelope_start(
     output.push_str(",\"diagnostics\":[");
 }
 
-fn write_run(output: &mut String, run: &TestRunResult) {
+fn write_run(output: &mut String, run: &TestRunResult) -> Result<(), DiagnosticRenderError> {
     output.push_str("{\"target\":");
     write_json_string(output, run.target().name());
     output.push_str(",\"test\":");
@@ -140,8 +160,22 @@ fn write_run(output: &mut String, run: &TestRunResult) {
     output.push_str(",\"stderr\":");
     write_captured_output(output, run.stderr());
     output.push_str(",\"diagnostics\":[");
+    if !run.source_diagnostics().is_empty() {
+        if let Some(sources) = run.sources() {
+            write_source_diagnostic_items_json(output, run.source_diagnostics(), sources)?;
+        } else {
+            write_spanless_diagnostic_json(
+                output,
+                SpanlessDiagnostic::new(
+                    "E0900",
+                    "test run lost its diagnostic source snapshot",
+                    None,
+                ),
+            );
+        }
+    }
     for (index, diagnostic) in run.diagnostics().iter().enumerate() {
-        if index != 0 {
+        if index != 0 || !run.source_diagnostics().is_empty() {
             output.push(',');
         }
         write_spanless_diagnostic_json(
@@ -150,6 +184,7 @@ fn write_run(output: &mut String, run: &TestRunResult) {
         );
     }
     output.push_str("]}");
+    Ok(())
 }
 
 fn write_captured_output(output: &mut String, bytes: &[u8]) {

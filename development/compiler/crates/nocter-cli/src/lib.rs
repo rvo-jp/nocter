@@ -116,7 +116,7 @@ impl InvocationOutcome {
                 .map(Some)
             }
             Self::Test(result) if result.presentation().format() == DiagnosticFormat::Json => {
-                Ok(Some(test_report::render_test_json(result)))
+                test_report::render_test_json(result).map(Some)
             }
             Self::Help(_)
             | Self::Version(_)

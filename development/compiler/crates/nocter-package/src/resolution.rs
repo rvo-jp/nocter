@@ -130,7 +130,7 @@ impl PackageResolutionRequest {
 }
 
 /// One complete graph with its non-inferable command-root and toolchain identities.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ResolvedPackageSelection {
     graph: ResolvedPackageGraph,
     root: PackageIdentity,

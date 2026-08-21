@@ -66,7 +66,7 @@ impl ResolvedPackageSpec {
 }
 
 /// One loaded package whose manifest facts and exact dependency edges have been closed.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ResolvedPackageSnapshot {
     identity: PackageIdentity,
     display_name: Box<str>,
@@ -126,7 +126,7 @@ impl ResolvedPackageSnapshot {
 }
 
 /// Immutable, syntax-owning exact package graph input for source discovery.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ResolvedPackageGraph {
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,

@@ -374,10 +374,12 @@ be introduced to make an unresolved syntax choice.
   session selection, implicit or explicit output policy, and an exact working directory. The
   package-only test plan keeps target and case names in distinct domains. The session converts them
   to exact package-target and source-test identities before executable closure, then emits one
-  independently launchable image per case. The command runner stages, captures, and cleans each
-  case independently and derives human and JSON reports from one ordered result. These plans reject
-  invalid file-mode or test-mode combinations without consulting declarations; target existence
-  and cardinality stay in the session boundary.
+  independently launchable image per case. Package state is resolved once; its immutable manifest
+  snapshot is then forked into one discovery and compiler session per selected test target. A
+  target-local syntax, semantic, or backend failure therefore cannot suppress a later target. The
+  command runner stages, captures, and cleans each case independently and derives human and JSON
+  reports from one ordered result. These plans reject invalid file-mode or test-mode combinations
+  without consulting declarations; target existence and cardinality stay in the session boundary.
 - `nocter-installation` selects one canonical Nocter home from explicit configured-home and
   executable facts. It validates contained physical entries, decodes one exact `VERSION`, and uses
   a bounded duplicate-preserving JSON parser plus an exact `nocter.manifest` v1 decoder to freeze

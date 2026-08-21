@@ -287,7 +287,7 @@ impl SyntaxNode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SyntaxTree {
     lexed: LexedFile,
     nodes: Vec<SyntaxNode>,

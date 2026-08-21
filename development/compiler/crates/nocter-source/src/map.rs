@@ -25,7 +25,7 @@ impl fmt::Display for SourceName {
 }
 
 /// One immutable normalized UTF-8 source.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SourceFile {
     id: SourceId,
     name: SourceName,
@@ -89,7 +89,7 @@ pub enum SourceError {
 }
 
 /// Owns source identities and normalized text for one compiler invocation.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
 }

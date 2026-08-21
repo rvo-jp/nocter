@@ -796,6 +796,50 @@ fn parsed_package_test_runs_every_case_independently_and_preserves_failures() {
     fs::remove_dir_all(directory).unwrap();
 }
 
+#[test]
+fn one_invalid_test_target_does_not_suppress_later_target_sessions() {
+    let directory = unique_test_directory("isolated-test-targets");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"isolated\"\n#test: { name: \"broken\", module: \"./broken\" }\n#test: { name: \"good\", module: \"./good\" }\n",
+    );
+    write_source(&package_root, "index.nct", "//! Isolated tests.\n");
+    write_source(&package_root, "broken/index.nct", "test incomplete {");
+    write_source(&package_root, "good/index.nct", "test passes { return }\n");
+    let super::ParsedCommand::Test(parsed) = super::parse_command_arguments([
+        "test".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected test command");
+    };
+
+    let result = super::execute_prepared_test(
+        parsed.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    assert_eq!(result.summary().passed(), 1);
+    assert_eq!(result.summary().failed(), 1);
+    assert_eq!(result.runs()[0].target().name(), "broken");
+    assert_eq!(result.runs()[0].test(), None);
+    assert_eq!(
+        result.runs()[0].outcome(),
+        super::TestRunOutcome::CompileFailed
+    );
+    assert!(!result.runs()[0].source_diagnostics().is_empty());
+    assert!(result.runs()[0].sources().is_some());
+    assert_eq!(result.runs()[1].target().name(), "good");
+    assert_eq!(result.runs()[1].test_name(), Some("passes"));
+    assert_eq!(result.runs()[1].outcome(), super::TestRunOutcome::Passed);
+    fs::remove_dir_all(directory).unwrap();
+}
+
 fn command_toolchain() -> super::CommandToolchain {
     let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     super::CommandToolchain::new(

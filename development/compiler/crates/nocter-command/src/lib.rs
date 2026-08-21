@@ -60,8 +60,8 @@ pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use source::{CommandSourceError, CommandToolchain};
 pub use test::{
     TestCommandExecutionError, TestCommandIntegrityError, TestCommandPresentation,
-    TestCommandResult, TestRunDiagnostic, TestRunOutcome, TestRunResult, TestSummary,
-    execute_prepared_test,
+    TestCommandResult, TestRunDiagnostic, TestRunOutcome, TestRunResult, TestRunTarget,
+    TestSummary, execute_prepared_test,
 };
 
 #[cfg(test)]

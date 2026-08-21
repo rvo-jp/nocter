@@ -66,7 +66,7 @@ impl LexDiagnostic {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LexedFile {
     source: SourceId,
     tokens: Vec<Token>,

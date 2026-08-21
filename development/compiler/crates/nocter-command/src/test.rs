@@ -3,18 +3,20 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use nocter_diagnostics::SourceDiagnostic;
+use nocter_discovery::DiscoveryFailure;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{
     NativeTestCompileRequest, NativeTestSessionError, NativeTestTargetOutcome, TestCaseIdentity,
-    TestTargetIdentity, compile_native_tests,
+    compile_native_tests,
 };
+use nocter_source::SourceMap;
 
 use crate::failure::command_compilation_failure;
-use crate::source::{CommandCompileRoots, discover_command_source};
+use crate::source::discover_command_tests;
 use crate::{
     CommandCompilationFailure, CommandSourceError, CommandToolchain, DiagnosticFormat,
-    PreparedTestCommand, ResolvedProgramInput, stage_temporary_image,
+    PreparedTestCommand, stage_temporary_image,
 };
 
 /// Stable presentation facts for both successful and failed test commands.
@@ -78,6 +80,29 @@ pub struct TestRunDiagnostic {
     message: Box<str>,
 }
 
+/// Resolver-stable package identity and authored name of one command-selected test target.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TestRunTarget {
+    package: PackageIdentity,
+    name: Box<str>,
+}
+
+impl TestRunTarget {
+    fn new(package: PackageIdentity, name: Box<str>) -> Self {
+        Self { package, name }
+    }
+
+    #[must_use]
+    pub const fn package(&self) -> &PackageIdentity {
+        &self.package
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 impl TestRunDiagnostic {
     fn new(code: &'static str, message: impl Into<Box<str>>) -> Self {
         Self {
@@ -100,7 +125,7 @@ impl TestRunDiagnostic {
 /// Ordered result for one target-wide failure or one exact source test declaration.
 #[derive(Debug)]
 pub struct TestRunResult {
-    target: TestTargetIdentity,
+    target: TestRunTarget,
     test: Option<TestCaseIdentity>,
     outcome: TestRunOutcome,
     exit_code: Option<i32>,
@@ -108,11 +133,13 @@ pub struct TestRunResult {
     stdout: Box<[u8]>,
     stderr: Box<[u8]>,
     diagnostics: Box<[TestRunDiagnostic]>,
+    source_diagnostics: Box<[SourceDiagnostic]>,
+    sources: Option<SourceMap>,
 }
 
 impl TestRunResult {
     #[must_use]
-    pub const fn target(&self) -> &TestTargetIdentity {
+    pub const fn target(&self) -> &TestRunTarget {
         &self.target
     }
 
@@ -154,6 +181,16 @@ impl TestRunResult {
     #[must_use]
     pub const fn diagnostics(&self) -> &[TestRunDiagnostic] {
         &self.diagnostics
+    }
+
+    #[must_use]
+    pub const fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        &self.source_diagnostics
+    }
+
+    #[must_use]
+    pub const fn sources(&self) -> Option<&SourceMap> {
+        self.sources.as_ref()
     }
 }
 
@@ -228,52 +265,89 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
     let (input, selector, case, working_directory) = plan.into_parts();
     let presentation =
         TestCommandPresentation::new(format, toolchain.target(), input.declaration().into());
-    let roots = CommandCompileRoots::for_test_selector(&selector);
-    let unit = discover_command_source(
-        &ResolvedProgramInput::Package(input),
-        resolution,
-        &toolchain,
-        roots,
-        authority,
-    )
-    .map_err(|error| TestCommandExecutionError::Source {
-        presentation: presentation.clone(),
-        error: Box::new(error),
-    })?;
-    let request = NativeTestCompileRequest::new(&unit, selector, case);
-    let compiled =
-        compile_native_tests(request).map_err(|error| TestCommandExecutionError::Compile {
+    let sources = discover_command_tests(&input, resolution, &toolchain, &selector, authority)
+        .map_err(|error| TestCommandExecutionError::Source {
             presentation: presentation.clone(),
-            failure: Box::new(command_compilation_failure(error, unit)),
+            error: Box::new(error),
         })?;
-    run_compiled_tests(compiled, presentation, &working_directory)
-        .map_err(TestCommandExecutionError::Integrity)
+    let mut package = None;
+    let mut runs = Vec::new();
+    for source in sources {
+        let (source_package, target_name, discovery) = source.into_parts();
+        if let Some(package) = &package {
+            if package != &source_package {
+                return Err(TestCommandExecutionError::Integrity(
+                    TestCommandIntegrityError::MultiplePackages,
+                ));
+            }
+        } else {
+            package = Some(source_package.clone());
+        }
+        let target = TestRunTarget::new(source_package, target_name);
+        let unit = match discovery {
+            Ok(unit) => unit,
+            Err(failure) => {
+                let wrapped = CommandSourceError::Discovery(failure);
+                let diagnostic_code = wrapped.diagnostic_code().unwrap_or("E0900");
+                let CommandSourceError::Discovery(failure) = wrapped else {
+                    unreachable!("constructed discovery error retains its variant")
+                };
+                runs.push(discovery_failure(target, &failure, diagnostic_code));
+                continue;
+            }
+        };
+        let request = NativeTestCompileRequest::new(
+            &unit,
+            nocter_session::TestTargetSelector::Named(target.name().into()),
+            case.clone(),
+        );
+        match compile_native_tests(request) {
+            Ok(compiled) => runs.extend(
+                run_compiled_target(compiled, &target, &working_directory)
+                    .map_err(TestCommandExecutionError::Integrity)?,
+            ),
+            Err(error @ NativeTestSessionError::Selection(_)) => {
+                return Err(TestCommandExecutionError::Compile {
+                    presentation: presentation.clone(),
+                    failure: Box::new(command_compilation_failure(error, unit)),
+                });
+            }
+            Err(error) => {
+                let code = error.diagnostic_code().unwrap_or("E0900");
+                let message = error.to_string();
+                let (_, sources, diagnostics) =
+                    command_compilation_failure(error, unit).into_parts();
+                runs.push(compile_failure(target, code, message, diagnostics, sources));
+            }
+        }
+    }
+    let package = package.ok_or(TestCommandExecutionError::Integrity(
+        TestCommandIntegrityError::EmptyCompilation,
+    ))?;
+    Ok(finish_test_result(package, presentation, runs))
 }
 
-fn run_compiled_tests(
+fn run_compiled_target(
     compiled: nocter_session::CompiledNativeTestSet,
-    presentation: TestCommandPresentation,
+    target: &TestRunTarget,
     working_directory: &Path,
-) -> Result<TestCommandResult, TestCommandIntegrityError> {
+) -> Result<Vec<TestRunResult>, TestCommandIntegrityError> {
     let (targets, _) = compiled.into_parts();
-    let package = targets
-        .first()
-        .ok_or(TestCommandIntegrityError::EmptyCompilation)?
-        .identity()
-        .package()
-        .clone();
+    if targets.len() != 1 {
+        return Err(TestCommandIntegrityError::UnexpectedTargetCount);
+    }
     let mut runs = Vec::new();
-    for target in targets {
-        let (identity, outcome) = target.into_parts();
-        if identity.package() != &package {
-            return Err(TestCommandIntegrityError::MultiplePackages);
+    for compilation in targets {
+        let (identity, outcome) = compilation.into_parts();
+        if identity.package() != target.package() || identity.name() != target.name() {
+            return Err(TestCommandIntegrityError::MismatchedTarget);
         }
         match outcome {
             NativeTestTargetOutcome::Compiled(cases) => {
                 for case in cases {
                     let (test, image) = case.into_parts();
                     runs.push(run_test_case(
-                        identity.clone(),
+                        target.clone(),
                         test,
                         &image,
                         working_directory,
@@ -281,7 +355,7 @@ fn run_compiled_tests(
                 }
             }
             NativeTestTargetOutcome::CompileFailed(error) => runs.push(TestRunResult {
-                target: identity,
+                target: target.clone(),
                 test: None,
                 outcome: TestRunOutcome::CompileFailed,
                 exit_code: None,
@@ -289,9 +363,72 @@ fn run_compiled_tests(
                 stdout: Box::new([]),
                 stderr: Box::new([]),
                 diagnostics: Box::new([TestRunDiagnostic::new("E0900", error.to_string())]),
+                source_diagnostics: Box::new([]),
+                sources: None,
             }),
         }
     }
+    Ok(runs)
+}
+
+fn discovery_failure(
+    target: TestRunTarget,
+    failure: &DiscoveryFailure,
+    code: &'static str,
+) -> TestRunResult {
+    let message = failure.to_string();
+    let source_diagnostics = failure.diagnostics().to_vec().into_boxed_slice();
+    let sources = failure.sources().clone();
+    let diagnostics: Box<[TestRunDiagnostic]> = if source_diagnostics.is_empty() {
+        vec![TestRunDiagnostic::new(code, message)].into_boxed_slice()
+    } else {
+        Box::new([])
+    };
+    TestRunResult {
+        target,
+        test: None,
+        outcome: TestRunOutcome::CompileFailed,
+        exit_code: None,
+        signal: None,
+        stdout: Box::new([]),
+        stderr: Box::new([]),
+        diagnostics,
+        source_diagnostics,
+        sources: Some(sources),
+    }
+}
+
+fn compile_failure(
+    target: TestRunTarget,
+    code: &'static str,
+    message: String,
+    source_diagnostics: Box<[SourceDiagnostic]>,
+    sources: SourceMap,
+) -> TestRunResult {
+    let diagnostics: Box<[TestRunDiagnostic]> = if source_diagnostics.is_empty() {
+        vec![TestRunDiagnostic::new(code, message)].into_boxed_slice()
+    } else {
+        Box::new([])
+    };
+    TestRunResult {
+        target,
+        test: None,
+        outcome: TestRunOutcome::CompileFailed,
+        exit_code: None,
+        signal: None,
+        stdout: Box::new([]),
+        stderr: Box::new([]),
+        diagnostics,
+        source_diagnostics,
+        sources: Some(sources),
+    }
+}
+
+fn finish_test_result(
+    package: PackageIdentity,
+    presentation: TestCommandPresentation,
+    runs: Vec<TestRunResult>,
+) -> TestCommandResult {
     let summary = TestSummary {
         passed: runs
             .iter()
@@ -302,16 +439,16 @@ fn run_compiled_tests(
             .filter(|run| run.outcome != TestRunOutcome::Passed)
             .count(),
     };
-    Ok(TestCommandResult {
+    TestCommandResult {
         package,
         presentation,
         runs: runs.into_boxed_slice(),
         summary,
-    })
+    }
 }
 
 fn run_test_case(
-    target: TestTargetIdentity,
+    target: TestRunTarget,
     test: TestCaseIdentity,
     image: &nocter_macho::MachOImage,
     working_directory: &Path,
@@ -342,6 +479,8 @@ fn run_test_case(
                 stdout: output.stdout.into_boxed_slice(),
                 stderr: output.stderr.into_boxed_slice(),
                 diagnostics: Box::new([]),
+                source_diagnostics: Box::new([]),
+                sources: None,
             }
         }
         (Err(source), Ok(())) => runner_failure(
@@ -361,6 +500,8 @@ fn run_test_case(
                 "E0704",
                 format!("temporary executable cleanup failed: {cleanup}"),
             )]),
+            source_diagnostics: Box::new([]),
+            sources: None,
         },
         (Err(source), Err(cleanup)) => runner_failure(
             target,
@@ -374,7 +515,7 @@ fn run_test_case(
 }
 
 fn runner_failure(
-    target: TestTargetIdentity,
+    target: TestRunTarget,
     test: TestCaseIdentity,
     message: impl Into<Box<str>>,
 ) -> TestRunResult {
@@ -387,6 +528,8 @@ fn runner_failure(
         stdout: Box::new([]),
         stderr: Box::new([]),
         diagnostics: Box::new([TestRunDiagnostic::new("E0704", message)]),
+        source_diagnostics: Box::new([]),
+        sources: None,
     }
 }
 
@@ -479,6 +622,8 @@ impl std::error::Error for TestCommandExecutionError {
 pub enum TestCommandIntegrityError {
     EmptyCompilation,
     MultiplePackages,
+    UnexpectedTargetCount,
+    MismatchedTarget,
 }
 
 impl fmt::Display for TestCommandIntegrityError {
@@ -487,6 +632,12 @@ impl fmt::Display for TestCommandIntegrityError {
             Self::EmptyCompilation => formatter.write_str("test compilation returned no target"),
             Self::MultiplePackages => {
                 formatter.write_str("test compilation crossed command-root package identity")
+            }
+            Self::UnexpectedTargetCount => {
+                formatter.write_str("one test discovery did not produce exactly one target")
+            }
+            Self::MismatchedTarget => {
+                formatter.write_str("compiled test target does not match command selection")
             }
         }
     }
