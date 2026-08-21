@@ -5,11 +5,16 @@
 //! decisions owned by lower layers.
 
 mod error;
+mod executable;
 mod output;
 mod profile;
 
 pub use error::CompileSessionError;
-pub use output::CompiledTarget;
+pub use executable::{
+    ExecutableCompileRequest, ExecutableSelectionError, ExecutableSelector, ExecutableSessionError,
+    compile_executable,
+};
+pub use output::{CompiledExecutable, CompiledTarget};
 pub use profile::bundled_standard_toolchain;
 
 use nocter_checking::{check_prepared_program, prepare_program_checking};

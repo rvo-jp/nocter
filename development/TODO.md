@@ -15,10 +15,11 @@ implementation input.
 
 ## Immediate Work
 
-1. Add executable-root selection and command request/result types on top of `nocter-session`.
+1. Add command orchestration on top of the completed executable-session request/result boundary.
    Explicit single-file discovery, selected declared package targets, and every public example now
-   cross the same immutable compile-unit and target-session boundary; the command layer must
-   consume that boundary rather than assemble stages or reopen a target by source name.
+   close an exact `ExecutableProgram` through the same immutable session. Build and run must next
+   consume this result through MIR, machine, ARM64, and Mach-O boundaries without reopening target
+   names or assembling semantic stages.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

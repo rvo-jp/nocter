@@ -427,7 +427,10 @@
   immutable values. Command and editor layers consume this boundary instead of assembling lower
   crates directly.
   Declared-package and explicit single-file discovery converge before this boundary. Every public
-  single-file example is qualified through this exact session with the authored standard package.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
+  single-file example is qualified through this exact session with the authored standard package.
+  Its executable request then resolves the sole target or one authored target name to an exact
+  <code>PackageTargetId</code> and consumes the target program into <code>ExecutableProgram</code>. Selection and
+  executable closure are typed session failures; command layers never rescan semantic names.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body

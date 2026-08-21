@@ -6,7 +6,9 @@ use nocter_discovery::{DiscoveryRequest, ResolvedPackage, discover};
 use nocter_model::CompilationTarget;
 use nocter_target_program::PrimitiveRole;
 
-use super::{bundled_standard_toolchain, compile_target};
+use super::{
+    ExecutableCompileRequest, bundled_standard_toolchain, compile_executable, compile_target,
+};
 
 #[test]
 fn bundled_standard_library_crosses_the_complete_target_session() {
@@ -64,7 +66,7 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
             bundled_standard_toolchain(&package),
         ))
         .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", source.display()));
-        compile_target(&unit)
+        compile_executable(ExecutableCompileRequest::only(&unit))
             .unwrap_or_else(|error| panic!("{} failed compilation: {error:?}", source.display()));
     }
 }
@@ -88,10 +90,17 @@ fn public_package_example_crosses_the_complete_target_session() {
         bundled_standard_toolchain(&standard_package),
     ))
     .unwrap();
-    let target = compile_target(&unit).unwrap();
+    let target =
+        compile_executable(ExecutableCompileRequest::named(&unit, "file-summary")).unwrap();
 
     assert_eq!(
-        target.program().checked().graph().package_targets().len(),
+        target
+            .program()
+            .target()
+            .checked()
+            .graph()
+            .package_targets()
+            .len(),
         1
     );
 }

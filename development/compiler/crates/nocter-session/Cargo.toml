@@ -15,8 +15,6 @@ nocter-discovery = { path = "../nocter-discovery" }
 nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-program = { path = "../nocter-target-program" }
-
-[dev-dependencies]
 nocter-model = { path = "../nocter-model" }
 
 [lints]

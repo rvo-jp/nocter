@@ -341,6 +341,9 @@ be introduced to make an unresolved syntax choice.
   crates directly.
   Declared-package and explicit single-file discovery converge before this boundary. Every public
   single-file example is qualified through this exact session with the authored standard package.
+  Its executable request then resolves the sole target or one authored target name to an exact
+  `PackageTargetId` and consumes the target program into `ExecutableProgram`. Selection and
+  executable closure are typed session failures; command layers never rescan semantic names.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

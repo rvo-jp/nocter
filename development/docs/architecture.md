@@ -208,6 +208,12 @@ testable, but a command must not publish success from one of those partial bound
 session retains the `TargetProgram` and `SourceIndex` as separate immutable values; source
 projection never enters target semantic identity.
 
+Executable-producing session requests additionally own presentation-name selection. The request
+selects the sole executable or one declared name, resolves it to exactly one `PackageTargetId`, and
+consumes the target program into `ExecutableProgram`. Absence, multiplicity, unknown names, and
+cross-root ambiguity are closed selection errors. Build and run cannot repeat this lookup or call
+executable specialization directly.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic
