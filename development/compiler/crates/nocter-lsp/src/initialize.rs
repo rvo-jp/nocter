@@ -1,7 +1,9 @@
 use nocter_json::{Member, Value};
 
 use crate::decode::{Object, array, boolean, required, string};
-use crate::{DocumentUri, ParameterError, ParameterErrorKind};
+use crate::{
+    DocumentUri, ParameterError, ParameterErrorKind, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkspaceFolder {
@@ -81,6 +83,19 @@ pub fn initialize_result(server_version: &str) -> Value {
                     ]),
                 ),
                 ("hoverProvider", Value::Bool(true)),
+                (
+                    "semanticTokensProvider",
+                    object([
+                        (
+                            "legend",
+                            object([
+                                ("tokenTypes", string_array(SEMANTIC_TOKEN_TYPES)),
+                                ("tokenModifiers", string_array(SEMANTIC_TOKEN_MODIFIERS)),
+                            ]),
+                        ),
+                        ("full", Value::Bool(true)),
+                    ]),
+                ),
             ]),
         ),
         (
@@ -101,6 +116,15 @@ fn object<const N: usize>(members: [(&str, Value); N]) -> Value {
                 name: name.into(),
                 value,
             })
+            .collect(),
+    )
+}
+
+fn string_array(values: &[&str]) -> Value {
+    Value::Array(
+        values
+            .iter()
+            .map(|value| Value::String((*value).into()))
             .collect(),
     )
 }
@@ -221,11 +245,16 @@ mod tests {
             concat!(
                 "{\"capabilities\":{\"positionEncoding\":\"utf-16\",",
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
-                "\"save\":{\"includeText\":true}},\"hoverProvider\":true},",
+                "\"save\":{\"includeText\":true}},\"hoverProvider\":true,",
+                "\"semanticTokensProvider\":{\"legend\":{",
+                "\"tokenTypes\":[\"namespace\",\"type\",\"struct\",\"enum\",",
+                "\"interface\",\"typeParameter\",\"parameter\",\"variable\",",
+                "\"property\",\"enumMember\",\"function\",\"method\",\"keyword\"],",
+                "\"tokenModifiers\":[\"declaration\",\"readonly\"]},\"full\":true}},",
                 "\"serverInfo\":{\"name\":\"Nocter\",\"version\":\"0.14.0-dev\"}}"
             )
         );
         assert!(rendered.contains("\"hoverProvider\":true"));
-        assert!(!rendered.contains("semanticTokensProvider"));
+        assert!(rendered.contains("semanticTokensProvider"));
     }
 }

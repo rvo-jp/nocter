@@ -473,7 +473,7 @@ impl BodyChecker<'_, '_> {
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;
         self.projections
-            .push(super::NodeProjection { entity, origin });
+            .push(super::NodeProjection::new(entity, origin));
         Ok(())
     }
 }

@@ -1,5 +1,5 @@
 use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
-use nocter_source_index::{SemanticEntity, SourceOrigin, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
 use super::{BodyChecker, NodeProjection, ResolvedPlace};
@@ -340,7 +340,7 @@ impl BodyChecker<'_, '_> {
         };
         draft
             .source_projections
-            .push(NodeProjection { entity, origin });
+            .push(NodeProjection::new(entity, origin));
         draft
             .projections
             .push(PlaceProjection::Field(selected.field()));
@@ -471,7 +471,17 @@ impl BodyChecker<'_, '_> {
     }
 
     fn finish_place(&mut self, draft: PlaceDraft) -> ResolvedPlace {
-        self.projections.extend(draft.source_projections);
+        let access = if draft.writable {
+            SourceAccess::Writable
+        } else {
+            SourceAccess::Readonly
+        };
+        self.projections.extend(
+            draft
+                .source_projections
+                .into_iter()
+                .map(|projection| projection.with_access(access)),
+        );
         ResolvedPlace {
             id: self.builder.add_place(
                 draft.root,

@@ -5,7 +5,9 @@ use std::fmt;
 use nocter_declarations::{ProgramBuildError, Visibility};
 use nocter_model::{DeclarationSiteId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
+use nocter_source_index::{
+    DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin,
+};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
@@ -144,7 +146,7 @@ pub fn prepare_declaration_headers(
         resolved_visibility[index] = Some(visibility);
         project_site(&mut reserved, id, site)?;
     }
-    project_entities(&mut reserved, &names)?;
+    project_entities(&mut reserved)?;
 
     Ok(PreparedHeaders {
         reserved,
@@ -221,7 +223,7 @@ fn project_site(
     declaration: SurfaceDeclarationId,
     site: DeclarationSiteId,
 ) -> Result<(), HeaderError> {
-    let origin = declaration_origin(reserved, declaration, false)?;
+    let origin = declaration_site_origin(reserved, declaration)?;
     reserved.source_index.insert(
         SemanticEntity::DeclarationSite(site),
         SourceRole::Declaration,
@@ -230,11 +232,8 @@ fn project_site(
     Ok(())
 }
 
-fn project_entities(
-    reserved: &mut ReservedDeclarations<'_>,
-    names: &[Option<Symbol>],
-) -> Result<(), HeaderError> {
-    for (index, name) in names.iter().enumerate() {
+fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), HeaderError> {
+    for index in 0..reserved.declarations.len() {
         let id = SurfaceDeclarationId::from_index(index);
         let Some(entity) = reserved.entities[index] else {
             continue;
@@ -244,7 +243,7 @@ fn project_entities(
         } else {
             SourceRole::Declaration
         };
-        let origin = declaration_origin(reserved, id, name.is_some())?;
+        let origin = entity_origin(reserved, id)?;
         reserved
             .source_index
             .insert(entity.semantic_entity(), role, origin)?;
@@ -252,23 +251,33 @@ fn project_entities(
     Ok(())
 }
 
-fn declaration_origin(
+fn declaration_site_origin(
     reserved: &ReservedDeclarations<'_>,
     id: SurfaceDeclarationId,
-    named: bool,
 ) -> Result<SourceOrigin, HeaderError> {
     let declaration = reserved.declarations[id.index()];
     let source = reserved
         .sources
         .get(declaration.source().index())
         .ok_or(HeaderError::MissingSource(declaration.source()))?;
-    if named {
-        let token = declaration.name().ok_or(HeaderError::MissingName(id))?;
-        SourceOrigin::from_token(source.syntax(), token)
-            .map_err(|_| HeaderError::InconsistentSource(source.syntax().source()))
-    } else {
-        SourceOrigin::from_node(source.syntax(), declaration.node())
-            .map_err(|_| HeaderError::InconsistentSource(source.syntax().source()))
+    SourceOrigin::from_node(source.syntax(), declaration.node())
+        .map_err(|_| HeaderError::InconsistentSource(source.syntax().source()))
+}
+
+fn entity_origin(
+    reserved: &ReservedDeclarations<'_>,
+    id: SurfaceDeclarationId,
+) -> Result<SourceOrigin, HeaderError> {
+    let declaration = reserved.declarations[id.index()];
+    let source = reserved
+        .sources
+        .get(declaration.source().index())
+        .ok_or(HeaderError::MissingSource(declaration.source()))?;
+    match declaration.entity_origin() {
+        SyntaxOrigin::Node(node) => SourceOrigin::from_node(source.syntax(), node)
+            .map_err(|_| HeaderError::InconsistentSource(source.syntax().source())),
+        SyntaxOrigin::Token(token) => SourceOrigin::from_token(source.syntax(), token)
+            .map_err(|_| HeaderError::InconsistentSource(source.syntax().source())),
     }
 }
 

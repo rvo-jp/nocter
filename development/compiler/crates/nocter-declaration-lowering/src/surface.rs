@@ -3,6 +3,7 @@ use std::fmt;
 
 use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, declaration_name_token,
 };
@@ -137,6 +138,7 @@ pub struct SurfaceDeclaration {
     kind: SurfaceDeclarationKind,
     owner: Option<SurfaceDeclarationId>,
     name: Option<SyntaxToken>,
+    entity_origin: SyntaxOrigin,
     visibility: Option<NodeId>,
     target_gate: Option<NodeId>,
 }
@@ -165,6 +167,12 @@ impl SurfaceDeclaration {
     #[must_use]
     pub const fn name(self) -> Option<SyntaxToken> {
         self.name
+    }
+
+    /// Returns the exact syntax carrying this declaration's semantic identity.
+    #[must_use]
+    pub const fn entity_origin(self) -> SyntaxOrigin {
+        self.entity_origin
     }
 
     #[must_use]
@@ -519,13 +527,18 @@ fn append_declaration(
             .ok_or(SurfaceError::InvalidItemShape(node))?
             .kind();
         let kind = declaration_kind(syntax_kind).ok_or(SurfaceError::InvalidItemShape(node))?;
+        let name = declaration_name_token(tree, node);
+        let entity_origin =
+            crate::surface_origin::declaration_entity_origin(tree, node, kind, name)
+                .ok_or(SurfaceError::InvalidItemShape(node))?;
         let id = SurfaceDeclarationId(declarations.len());
         declarations.push(SurfaceDeclaration {
             source,
             node,
             kind,
             owner,
-            name: declaration_name_token(tree, node),
+            name,
+            entity_origin,
             visibility: direct_child(tree, node, NodeKind::Visibility),
             target_gate,
         });

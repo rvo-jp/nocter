@@ -1,6 +1,6 @@
 use nocter_json::{Member, Value};
 
-use crate::decode::{Object, integer, required, string};
+use crate::decode::{Object, required, string, unsigned};
 use crate::{DocumentUri, ParameterError, ParameterErrorKind};
 
 /// One zero-based editor position measured in the negotiated UTF-16 encoding.
@@ -72,8 +72,8 @@ impl HoverParams {
                 ParameterError::new(ParameterErrorKind::EmptyUri, "params.textDocument.uri")
             })?;
         let mut position = Object::new(root.take("position")?, "params.position")?;
-        let line = nonnegative(position.take("line")?, "params.position.line")?;
-        let character = nonnegative(position.take("character")?, "params.position.character")?;
+        let line = unsigned(position.take("line")?, "params.position.line")?;
+        let character = unsigned(position.take("character")?, "params.position.character")?;
         Ok(Self {
             uri,
             position: Position::new(line, character),
@@ -113,12 +113,6 @@ pub fn hover_result(code: &str, range: Range) -> Value {
             ]),
         ),
     ])
-}
-
-fn nonnegative(value: Value, path: &str) -> Result<u32, ParameterError> {
-    let value = integer(value, path)?;
-    u32::try_from(value)
-        .map_err(|_| ParameterError::new(ParameterErrorKind::ExpectedNonnegativeInteger, path))
 }
 
 fn position(position: Position) -> Value {

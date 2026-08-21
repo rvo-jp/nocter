@@ -15,12 +15,14 @@ use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
 mod documents;
+mod highlights;
 mod presentation;
 mod semantic;
 
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
+pub use highlights::{SemanticHighlight, SemanticHighlightKind};
 pub use presentation::SemanticPresentation;
 pub use semantic::SemanticSubject;
 

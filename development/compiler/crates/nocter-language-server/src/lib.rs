@@ -9,6 +9,8 @@ mod documents;
 mod hover;
 mod paths;
 mod run;
+mod semantic_document;
+mod semantic_tokens;
 mod server;
 mod workspace;
 
@@ -22,6 +24,8 @@ pub use documents::{
 pub use hover::HoverQueryError;
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
+pub use semantic_document::SemanticDocumentError;
+pub use semantic_tokens::SemanticTokensQueryError;
 pub use server::{ClientResponseError, LanguageServer, ServerIssue, ServerStep};
 pub use workspace::{
     LanguageServerEnvironment, LanguageServerToolchain, WorkspaceConfiguration,

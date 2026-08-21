@@ -212,6 +212,11 @@ impl SourceMap {
             .find(|source| source.name().as_str() == name)
     }
 
+    /// Iterates every source in stable identity order.
+    pub fn iter(&self) -> impl Iterator<Item = &SourceFile> {
+        self.files.iter()
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.files.len()

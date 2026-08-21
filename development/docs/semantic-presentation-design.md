@@ -44,6 +44,11 @@ The renderer owns:
 - canonical structural type spelling and required grouping;
 - explicit result-provenance clauses only.
 
+Declaration lowering also owns the exact interactive anchor for every declaration identity. Named
+declarations use their name token; coercions use `as`; equality and ordering use `==` and `<`;
+indexing uses `[`; expansion uses `...`; literal declarations use their compact literal shape; and
+opaque results use `some`. Unnamed callables are never projected over their declaration body.
+
 Structural callable types erase parameter names for equality. When an explicit structural
 provenance needs names, presentation creates stable positional names such as `p0` and uses those
 same names in `from`. This changes no type identity.
@@ -55,10 +60,20 @@ participates in checking, dispatch, ownership, or code generation.
 
 ## Protocol Surface
 
-The server advertises hover only after this complete path is active. Hover returns Markdown Nocter
-code and the exact semantic binding range. Keyword, visibility, brace, whitespace, and synthetic
-whole-file ranges do not become hover targets merely because a broader compiler projection overlaps
-the cursor.
+The server advertises hover and full-document semantic tokens only after their complete paths are
+active. Hover returns Markdown Nocter code and the exact semantic binding range. Semantic tokens
+classify the same exact source-index bindings through protocol-independent compiler categories;
+the protocol adapter only converts source coordinates, maps the fixed legend, and delta-encodes
+the result. Source bindings retain occurrence-specific assignment capability where checking proves
+it, so readonly and writable field paths do not have to be reconstructed from syntax. Immutable
+parameters and bindings, readonly receivers, readonly field paths, and contextual `some` receive
+their exact modifiers or category. Keyword, visibility, brace, whitespace, and synthetic
+whole-file ranges cannot become interactive or colored merely because a broader compiler
+projection overlaps them.
 
-Semantic tokens, definition, references, rename, completion, and signature help must reuse the
-same source selection and presentation authority. None may add an editor-owned semantic model.
+Both requests select one current successful snapshot through the shared semantic-document
+boundary. An unopened dependency source may therefore use the same package generation as its open
+root, while a failed current generation returns no stale semantics.
+
+Definition, references, rename, completion, and signature help must reuse the same source
+selection and presentation authority. None may add an editor-owned semantic model.

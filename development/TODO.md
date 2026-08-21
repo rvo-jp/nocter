@@ -83,8 +83,14 @@ implementation input.
    facts from checked semantics. It does not slice source text, expose synthetic package/target or
    whole-file module projections, or surface compiler-inferred `from` clauses. `from static` and
    authored-versus-elided provenance survive declaration lowering as presentation-only facts that
-   do not affect semantic provenance. The next increment adds compiler-resolved semantic tokens
-   over the same selection authority without an editor-side semantic model.
+   do not affect semantic provenance. Compiler-resolved full-document semantic tokens now use the
+   same source-selection boundary and exact `SourceIndex` bindings. Protocol-independent compiler
+   categories distinguish types, members, callables, binders, and readonly receiver parameters;
+   checker-owned occurrence access distinguishes readonly and writable field paths. Declaration
+   lowering now gives unnamed literals, coercions, operators, and opaque results exact semantic
+   anchors, eliminating the former whole-declaration operator projection. The LSP layer owns only
+   legend mapping, UTF-16 projection, and delta encoding. Syntax-sized visibility, brace, and
+   whitespace ranges are never substituted for semantic ranges.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

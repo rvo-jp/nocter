@@ -11,6 +11,7 @@ mod message;
 mod outbound;
 mod parameters;
 mod response;
+mod semantic_tokens;
 mod session;
 mod transport;
 mod uri;
@@ -31,6 +32,10 @@ pub use parameters::{
 pub use response::{
     ResponseErrorCode, render_error_response, render_notification, render_request,
     render_success_response,
+};
+pub use semantic_tokens::{
+    SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, SemanticToken, SemanticTokenEncodingError,
+    SemanticTokenType, SemanticTokensParams, semantic_tokens_result,
 };
 pub use session::{ProtocolEvent, ProtocolReception, ProtocolSession};
 pub use transport::{FrameError, FrameReader, write_frame};

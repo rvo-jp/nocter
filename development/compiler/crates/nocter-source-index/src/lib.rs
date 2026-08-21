@@ -10,6 +10,7 @@ mod origin;
 
 pub use entity::SemanticEntity;
 pub use index::{
-    DuplicateSourceBinding, SourceBinding, SourceIndex, SourceIndexBuilder, SourceRole,
+    DuplicateSourceBinding, SourceAccess, SourceBinding, SourceIndex, SourceIndexBuilder,
+    SourceRole,
 };
 pub use origin::{SourceOrigin, SyntaxOrigin, UnknownNodeId, UnknownTokenId};

@@ -7,7 +7,9 @@ use nocter_model::{
     Arena, ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, BuiltinType, CaptureId,
     LocalBindingId, NominalTypeId, PlaceId, TypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin};
+use nocter_source_index::{
+    SemanticEntity, SourceAccess, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin,
+};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
@@ -71,6 +73,22 @@ use opaque_witness::OpaqueResultState;
 struct NodeProjection {
     entity: SemanticEntity,
     origin: SourceOrigin,
+    access: Option<SourceAccess>,
+}
+
+impl NodeProjection {
+    const fn new(entity: SemanticEntity, origin: SourceOrigin) -> Self {
+        Self {
+            entity,
+            origin,
+            access: None,
+        }
+    }
+
+    const fn with_access(mut self, access: SourceAccess) -> Self {
+        self.access = Some(access);
+        self
+    }
 }
 
 struct ResolvedPlace {
@@ -182,12 +200,7 @@ pub fn check_prepared_program<'syntax>(
         }
     }
 
-    let mut source_index = source_index.into_builder();
-    for projection in projections {
-        source_index
-            .insert(projection.entity, SourceRole::Reference, projection.origin)
-            .map_err(BodyCheckInternalError::from)?;
-    }
+    let source_index = extend_source_index(source_index, projections)?;
     copyabilities
         .complete(&graph, &mut types)
         .map_err(BodyCheckInternalError::Copyability)?;
@@ -209,8 +222,29 @@ pub fn check_prepared_program<'syntax>(
             },
             bodies.finish(),
         ),
-        source_index.finish(),
+        source_index,
     ))
+}
+
+fn extend_source_index(
+    source_index: SourceIndex,
+    projections: Vec<NodeProjection>,
+) -> Result<SourceIndex, BodyCheckInternalError> {
+    let mut source_index = source_index.into_builder();
+    for projection in projections {
+        match projection.access {
+            Some(access) => source_index.insert_with_access(
+                projection.entity,
+                SourceRole::Reference,
+                projection.origin,
+                access,
+            ),
+            None => {
+                source_index.insert(projection.entity, SourceRole::Reference, projection.origin)
+            }
+        }?;
+    }
+    Ok(source_index.finish())
 }
 
 fn attach_body_cleanups(
@@ -1158,10 +1192,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let node = self.builder.add_node(ty, operation);
         let origin = SourceOrigin::from_node(self.tree(), syntax)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;
-        self.projections.push(NodeProjection {
-            entity: SemanticEntity::BodyNode(self.source.body(), node),
+        self.projections.push(NodeProjection::new(
+            SemanticEntity::BodyNode(self.source.body(), node),
             origin,
-        });
+        ));
         if self.node_origins.insert(node, origin).is_some() {
             return Err(BodyCheckInternalError::DuplicateNodeOrigin(node).into());
         }

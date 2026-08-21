@@ -344,10 +344,10 @@ impl BodyChecker<'_, '_> {
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
-        self.projections.push(super::NodeProjection {
-            entity: SemanticEntity::Callable(callable),
+        self.projections.push(super::NodeProjection::new(
+            SemanticEntity::Callable(callable),
             origin,
-        });
+        ));
         Ok(())
     }
 }

@@ -294,6 +294,41 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     }));
     assert_provenance_annotations(declarations);
     assert!(lowered.source_index().len() > declarations.callables().len());
+    assert_exact_unnamed_origins(&sources, &lowered);
+}
+
+fn assert_exact_unnamed_origins(sources: &SourceMap, lowered: &crate::LoweredDeclarations) {
+    let declarations = lowered.program().declarations();
+    let mut unnamed_origins = declarations
+        .callables()
+        .iter()
+        .filter(|(_, callable)| callable.name().is_none())
+        .map(|(id, _)| {
+            let binding = lowered
+                .source_index()
+                .bindings_for(nocter_source_index::SemanticEntity::Callable(id))[0];
+            sources
+                .get(binding.origin().source())
+                .unwrap()
+                .text_at(binding.origin().span().range())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    unnamed_origins.sort_unstable();
+    assert_eq!(unnamed_origins, ["\"\"", "...", "<", "==", "[", "[]", "as"]);
+
+    let (opaque, _) = declarations.opaque_types().iter().next().unwrap();
+    let opaque_origin = lowered
+        .source_index()
+        .bindings_for(nocter_source_index::SemanticEntity::OpaqueType(opaque))[0]
+        .origin();
+    assert_eq!(
+        sources
+            .get(opaque_origin.source())
+            .unwrap()
+            .text_at(opaque_origin.span().range()),
+        Some("some")
+    );
 }
 
 fn assert_provenance_annotations(declarations: &nocter_declarations::DeclarationArenas) {

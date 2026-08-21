@@ -21,6 +21,7 @@ mod pipeline;
 mod reservation;
 mod surface;
 mod surface_diagnostic;
+mod surface_origin;
 mod topology;
 mod topology_diagnostic;
 mod topology_violation;

@@ -28,6 +28,18 @@ pub(crate) fn integer(value: Value, path: &str) -> Result<i32, ParameterError> {
     }
 }
 
+pub(crate) fn unsigned(value: Value, path: &str) -> Result<u32, ParameterError> {
+    match value {
+        Value::Number(value) => value
+            .parse()
+            .map_err(|_| ParameterError::new(ParameterErrorKind::ExpectedNonnegativeInteger, path)),
+        _ => Err(ParameterError::new(
+            ParameterErrorKind::ExpectedNonnegativeInteger,
+            path,
+        )),
+    }
+}
+
 pub(crate) fn boolean(value: &Value, path: &str) -> Result<bool, ParameterError> {
     match value {
         Value::Bool(value) => Ok(*value),

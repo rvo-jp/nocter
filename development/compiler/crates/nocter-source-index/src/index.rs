@@ -13,11 +13,19 @@ pub enum SourceRole {
     Reference,
 }
 
+/// Assignment capability known for one exact semantic occurrence.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum SourceAccess {
+    Readonly,
+    Writable,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SourceBinding {
     entity: SemanticEntity,
     role: SourceRole,
     origin: SourceOrigin,
+    access: Option<SourceAccess>,
 }
 
 impl SourceBinding {
@@ -34,6 +42,11 @@ impl SourceBinding {
     #[must_use]
     pub const fn origin(self) -> SourceOrigin {
         self.origin
+    }
+
+    #[must_use]
+    pub const fn access(self) -> Option<SourceAccess> {
+        self.access
     }
 }
 
@@ -76,6 +89,17 @@ impl SourceIndex {
         })
     }
 
+    /// Returns every binding projected into one source in deterministic range order.
+    pub fn bindings_in(&self, source: SourceId) -> impl Iterator<Item = &SourceBinding> {
+        let start = self
+            .by_source
+            .partition_point(|binding| binding.origin.source() < source);
+        let end = self
+            .by_source
+            .partition_point(|binding| binding.origin.source() <= source);
+        self.by_source[start..end].iter()
+    }
+
     #[must_use]
     pub const fn len(&self) -> usize {
         self.by_entity.len()
@@ -94,7 +118,10 @@ impl SourceIndex {
     #[must_use]
     pub fn into_builder(self) -> SourceIndexBuilder {
         let bindings = self.by_entity.into_vec();
-        let unique = bindings.iter().copied().collect();
+        let unique = bindings
+            .iter()
+            .map(|binding| (binding.entity, binding.role, binding.origin))
+            .collect();
         SourceIndexBuilder { bindings, unique }
     }
 }
@@ -102,7 +129,7 @@ impl SourceIndex {
 #[derive(Debug, Default)]
 pub struct SourceIndexBuilder {
     bindings: Vec<SourceBinding>,
-    unique: HashSet<SourceBinding>,
+    unique: HashSet<(SemanticEntity, SourceRole, SourceOrigin)>,
 }
 
 impl SourceIndexBuilder {
@@ -137,12 +164,38 @@ impl SourceIndexBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) -> Result<(), DuplicateSourceBinding> {
+        self.insert_binding(entity, role, origin, None)
+    }
+
+    /// Records one projection with occurrence-specific assignment capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateSourceBinding`] when the exact projection was already recorded.
+    pub fn insert_with_access(
+        &mut self,
+        entity: SemanticEntity,
+        role: SourceRole,
+        origin: SourceOrigin,
+        access: SourceAccess,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.insert_binding(entity, role, origin, Some(access))
+    }
+
+    fn insert_binding(
+        &mut self,
+        entity: SemanticEntity,
+        role: SourceRole,
+        origin: SourceOrigin,
+        access: Option<SourceAccess>,
+    ) -> Result<(), DuplicateSourceBinding> {
         let binding = SourceBinding {
             entity,
             role,
             origin,
+            access,
         };
-        if !self.unique.insert(binding) {
+        if !self.unique.insert((entity, role, origin)) {
             return Err(DuplicateSourceBinding(binding));
         }
         self.bindings.push(binding);
@@ -240,7 +293,7 @@ mod tests {
     use nocter_source::{ByteOffset, SourceFile, SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxToken, SyntaxTree, parse};
 
-    use super::{SourceIndexBuilder, SourceRole};
+    use super::{SourceAccess, SourceIndexBuilder, SourceRole};
     use crate::{SemanticEntity, SourceOrigin};
 
     #[test]
@@ -285,6 +338,7 @@ mod tests {
         assert_eq!(index.bindings_at(source, ByteOffset::new(1)).count(), 1);
         assert_eq!(index.bindings_at(source, ByteOffset::new(6)).count(), 2);
         assert_eq!(index.bindings_at(source, ByteOffset::new(31)).count(), 0);
+        assert_eq!(index.bindings_in(source).count(), 2);
     }
 
     #[test]
@@ -312,6 +366,47 @@ mod tests {
             builder
                 .insert(entity, SourceRole::Declaration, origin)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn occurrence_access_is_retained_without_weakening_projection_identity() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("index.nct"),
+                b"func main(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let (_, site) = declaration_ids();
+        let entity = SemanticEntity::DeclarationSite(site);
+        let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
+        let mut builder = SourceIndexBuilder::new();
+
+        builder
+            .insert_with_access(
+                entity,
+                SourceRole::Reference,
+                origin,
+                SourceAccess::Readonly,
+            )
+            .unwrap();
+        assert!(
+            builder
+                .insert_with_access(
+                    entity,
+                    SourceRole::Reference,
+                    origin,
+                    SourceAccess::Writable,
+                )
+                .is_err(),
+            "one semantic occurrence cannot carry contradictory access facts"
+        );
+        let index = builder.finish();
+        assert_eq!(
+            index.bindings_for(entity)[0].access(),
+            Some(SourceAccess::Readonly)
         );
     }
 

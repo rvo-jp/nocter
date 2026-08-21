@@ -5,18 +5,21 @@ use std::sync::Arc;
 use nocter_json::Value;
 use nocter_lsp::{
     DidChangeParams, DidChangeWatchedFilesParams, DidCloseParams, DidOpenParams, DidSaveParams,
-    HoverParams, IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
+    IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
     OutboundRequests, ParameterError, ProtocolEvent, ProtocolSession, RequestId, ResponseError,
     ResponseErrorCode, ResponseResult, initialize_result, render_error_response,
     render_success_response, watched_files_registration,
 };
 
-use crate::hover::{HoverQueryError, query_hover};
+use crate::hover::HoverQueryError;
+use crate::semantic_tokens::SemanticTokensQueryError;
 use crate::{
     AcceptedDocumentGeneration, DiagnosticPublicationError, DiagnosticPublisher, DocumentWorkspace,
     DocumentWorkspaceChange, DocumentWorkspaceError, LanguageServerEnvironment, WorkspaceAnalyses,
     WorkspaceAnalysisGeneration, WorkspaceConfiguration, WorkspaceConfigurationError,
 };
+
+mod semantic_requests;
 
 /// One fully validated protocol and document-state transition.
 #[derive(Debug, Default)]
@@ -220,6 +223,11 @@ impl LanguageServer {
             {
                 self.hover(&id, params)
             }
+            IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/semanticTokens/full" =>
+            {
+                self.semantic_tokens(&id, params)
+            }
             IncomingMessage::Request { id, .. } => ServerStep {
                 response: Some(render_error_response(
                     Some(&id),
@@ -230,48 +238,6 @@ impl LanguageServer {
             },
             IncomingMessage::Notification { method, params } => self.notification(&method, params),
             IncomingMessage::Response { id, result } => self.client_response(id, result),
-        }
-    }
-
-    fn hover(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
-        let params = match HoverParams::decode(params) {
-            Ok(params) => params,
-            Err(error) => {
-                let detail = Value::String(error.to_string().into_boxed_str());
-                return ServerStep {
-                    response: Some(render_error_response(
-                        Some(id),
-                        ResponseErrorCode::InvalidParams,
-                        Some(&detail),
-                    )),
-                    ..ServerStep::default()
-                };
-            }
-        };
-        let result = query_hover(
-            &self.documents,
-            self.analyses
-                .as_ref()
-                .expect("initialized server owns workspace analyses"),
-            &params,
-        );
-        match result {
-            Ok(result) => ServerStep {
-                response: Some(render_success_response(id, &result)),
-                ..ServerStep::default()
-            },
-            Err(error) => {
-                let detail = Value::String(error.to_string().into_boxed_str());
-                ServerStep {
-                    response: Some(render_error_response(
-                        Some(id),
-                        ResponseErrorCode::InvalidParams,
-                        Some(&detail),
-                    )),
-                    issues: vec![ServerIssue::Hover(error)].into_boxed_slice(),
-                    ..ServerStep::default()
-                }
-            }
         }
     }
 
@@ -451,6 +417,7 @@ pub enum ServerIssue {
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
     Hover(HoverQueryError),
+    SemanticTokens(SemanticTokensQueryError),
     Outbound(OutboundRequestError),
     ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
@@ -464,6 +431,7 @@ impl fmt::Display for ServerIssue {
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
             Self::Hover(error) => error.fmt(formatter),
+            Self::SemanticTokens(error) => error.fmt(formatter),
             Self::Outbound(error) => error.fmt(formatter),
             Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
@@ -479,6 +447,7 @@ impl std::error::Error for ServerIssue {
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
             Self::Hover(error) => Some(error),
+            Self::SemanticTokens(error) => Some(error),
             Self::Outbound(error) => Some(error),
             Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),
@@ -561,7 +530,8 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::GenerationId;
+    use nocter_analysis::{GenerationId, SemanticHighlightKind};
+    use nocter_lsp::DocumentUri;
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
@@ -707,6 +677,157 @@ mod tests {
             keyword.response(),
             Some(r#"{"jsonrpc":"2.0","id":3,"result":null}"#)
         );
+    }
+
+    #[test]
+    fn semantic_tokens_use_exact_compiler_bindings_instead_of_syntax_ranges() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func  main( ): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert_eq!(
+            tokens.response(),
+            Some(r#"{"jsonrpc":"2.0","id":2,"result":{"data":[0,6,4,10,1]}}"#)
+        );
+        assert!(tokens.issue().is_none());
+
+        let memory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/mem/index.nct");
+        let memory_uri = DocumentUri::new(format!("file://{}", memory.display())).unwrap();
+        let memory = crate::semantic_document::semantic_document(
+            &server.documents,
+            server.analyses.as_ref().unwrap(),
+            &memory_uri,
+        )
+        .unwrap()
+        .unwrap();
+        let field_starts = memory
+            .source()
+            .text()
+            .match_indices("if len > buffer.len")
+            .map(|(start, _)| u32::try_from(start + "if len > buffer.".len()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(field_starts.len(), 2);
+        let highlights = memory.snapshot().semantic_highlights(memory.source().id());
+        let readonly = highlights
+            .iter()
+            .find(|highlight| highlight.range().start().get() == field_starts[0])
+            .unwrap();
+        let writable = highlights
+            .iter()
+            .find(|highlight| highlight.range().start().get() == field_starts[1])
+            .unwrap();
+        assert_eq!(readonly.kind(), SemanticHighlightKind::Property);
+        assert!(readonly.is_readonly());
+        assert_eq!(writable.kind(), SemanticHighlightKind::Property);
+        assert!(!writable.is_readonly());
+    }
+
+    #[test]
+    fn semantic_tokens_classify_readonly_receiver_as_a_parameter() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+        let standard_uri = DocumentUri::new(format!("file://{}", standard.display())).unwrap();
+        let document = crate::semantic_document::semantic_document(
+            &server.documents,
+            server.analyses.as_ref().unwrap(),
+            &standard_uri,
+        )
+        .unwrap()
+        .unwrap();
+        let receiver_start = document
+            .source()
+            .text()
+            .find("pub method &self.len(): usize")
+            .unwrap()
+            + "pub method &".len();
+        let receiver_start = u32::try_from(receiver_start).unwrap();
+        let receiver = document
+            .snapshot()
+            .semantic_highlights(document.source().id())
+            .iter()
+            .find(|highlight| highlight.range().start().get() == receiver_start)
+            .copied()
+            .unwrap();
+        assert_eq!(receiver.kind(), SemanticHighlightKind::Parameter);
+        assert!(receiver.is_declaration());
+        assert!(receiver.is_readonly());
+        assert_eq!(document.source().text_at(receiver.range()), Some("self"));
+        let some_start = u32::try_from(
+            document
+                .source()
+                .text()
+                .find("some Iterator<Item = &str>")
+                .unwrap(),
+        )
+        .unwrap();
+        let opaque = document
+            .snapshot()
+            .semantic_highlights(document.source().id())
+            .iter()
+            .find(|highlight| highlight.range().start().get() == some_start)
+            .copied()
+            .unwrap();
+        assert_eq!(opaque.kind(), SemanticHighlightKind::Keyword);
+        assert_eq!(document.source().text_at(opaque.range()), Some("some"));
+
+        for source in document.snapshot().sources().iter() {
+            let highlights = document.snapshot().semantic_highlights(source.id());
+            for highlight in &highlights {
+                let range = source.utf16_range(highlight.range()).unwrap();
+                assert_eq!(
+                    range.start().line(),
+                    range.end().line(),
+                    "multiline semantic range in {}: {:?}",
+                    source.name(),
+                    source.text_at(highlight.range())
+                );
+            }
+            for pair in highlights.windows(2) {
+                assert!(
+                    pair[0].range().end() <= pair[1].range().start(),
+                    "overlapping semantic ranges in {}: {:?} and {:?}",
+                    source.name(),
+                    source.text_at(pair[0].range()),
+                    source.text_at(pair[1].range())
+                );
+            }
+        }
+
+        let standard_uri = standard_uri.as_str();
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{standard_uri}\"}}}}}}"
+        ));
+        let response = tokens.response().unwrap();
+        assert!(
+            response.contains("\"result\":{\"data\":["),
+            "unexpected response {response:?} with issue {:?}",
+            tokens.issue()
+        );
+        assert!(tokens.issue().is_none());
     }
 
     #[test]
