@@ -45,6 +45,15 @@ pub enum FetchCommandExecutionError {
     Package(CommandPackageStateError),
 }
 
+impl FetchCommandExecutionError {
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> &'static str {
+        match self {
+            Self::Package(error) => error.diagnostic_code(),
+        }
+    }
+}
+
 impl fmt::Display for FetchCommandExecutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

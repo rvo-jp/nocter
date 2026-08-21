@@ -33,6 +33,22 @@ impl CompileSessionError {
             | Self::Target(_) => None,
         }
     }
+
+    /// Returns a spanless public code for a user-selectable target failure.
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::TargetUnavailable(_) => Some("E0701"),
+            Self::CompileInput(_)
+            | Self::Declaration(_)
+            | Self::Preparation(_)
+            | Self::Checking(_)
+            | Self::MissingToolchainProfile
+            | Self::MissingStandardPackage
+            | Self::Primitive(_)
+            | Self::Target(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for CompileSessionError {

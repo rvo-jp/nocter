@@ -55,6 +55,11 @@ impl ParsedCheckCommand {
         self.format
     }
 
+    #[must_use]
+    pub fn root_hint(&self) -> Option<PathBuf> {
+        self.input.selected_root_hint()
+    }
+
     /// Resolves filesystem identity and closes check selection after pure argument parsing.
     ///
     /// # Errors
@@ -261,22 +266,56 @@ impl PreparedRunCommand {
 pub fn parse_command_arguments(
     arguments: impl IntoIterator<Item = OsString>,
 ) -> Result<ParsedCommand, CommandArgumentError> {
+    parse_command_invocation(arguments).map_err(CommandArgumentFailure::into_error)
+}
+
+/// Parses public command arguments while retaining any successfully selected presentation mode
+/// beside a failure.
+///
+/// This is the process-adapter entry point. Unlike [`parse_command_arguments`], its error keeps
+/// enough information to honor `check --format json` without inspecting argv a second time.
+///
+/// # Errors
+///
+/// Returns the first structural argument error and the presentation state reached by the same
+/// parse.
+pub fn parse_command_invocation(
+    arguments: impl IntoIterator<Item = OsString>,
+) -> Result<ParsedCommand, CommandArgumentFailure> {
     let mut arguments = arguments.into_iter();
-    let command = arguments
-        .next()
-        .ok_or(CommandArgumentError::MissingCommand)?;
+    let Some(command) = arguments.next() else {
+        return Err(CommandArgumentFailure::new(
+            CommandArgumentError::MissingCommand,
+            None,
+            DiagnosticFormat::Human,
+            None,
+        ));
+    };
     match command.to_str() {
-        Some("fetch") => parse_fetch(arguments).map(ParsedCommand::Fetch),
-        Some("check") => parse_check(arguments).map(ParsedCommand::Check),
-        Some("build") => parse_build(arguments).map(ParsedCommand::Build),
-        Some("run") => parse_run(arguments).map(ParsedCommand::Run),
-        _ => Err(CommandArgumentError::UnknownCommand(command)),
+        Some("fetch") => parse_fetch(arguments)
+            .map(ParsedCommand::Fetch)
+            .map_err(|failure| failure.for_command("fetch")),
+        Some("check") => parse_check(arguments)
+            .map(ParsedCommand::Check)
+            .map_err(|failure| failure.for_command("check")),
+        Some("build") => parse_build(arguments)
+            .map(ParsedCommand::Build)
+            .map_err(|failure| failure.for_command("build")),
+        Some("run") => parse_run(arguments)
+            .map(ParsedCommand::Run)
+            .map_err(|failure| failure.for_command("run")),
+        _ => Err(CommandArgumentFailure::new(
+            CommandArgumentError::UnknownCommand(command),
+            None,
+            DiagnosticFormat::Human,
+            None,
+        )),
     }
 }
 
 fn parse_check(
     arguments: impl Iterator<Item = OsString>,
-) -> Result<ParsedCheckCommand, CommandArgumentError> {
+) -> Result<ParsedCheckCommand, OptionsParseFailure> {
     let ParsedOptions {
         root,
         file,
@@ -296,7 +335,7 @@ fn parse_check(
 
 fn parse_fetch(
     arguments: impl Iterator<Item = OsString>,
-) -> Result<ParsedFetchCommand, CommandArgumentError> {
+) -> Result<ParsedFetchCommand, OptionsParseFailure> {
     let ParsedOptions {
         root,
         file: _,
@@ -311,7 +350,7 @@ fn parse_fetch(
 
 fn parse_build(
     arguments: impl Iterator<Item = OsString>,
-) -> Result<ParsedBuildCommand, CommandArgumentError> {
+) -> Result<ParsedBuildCommand, OptionsParseFailure> {
     let ParsedOptions {
         root,
         file,
@@ -330,7 +369,7 @@ fn parse_build(
 
 fn parse_run(
     arguments: impl Iterator<Item = OsString>,
-) -> Result<ParsedRunCommand, CommandArgumentError> {
+) -> Result<ParsedRunCommand, OptionsParseFailure> {
     let ParsedOptions {
         root,
         file,
@@ -425,8 +464,9 @@ impl CommandShape {
 fn parse_options(
     mut arguments: impl Iterator<Item = OsString>,
     shape: CommandShape,
-) -> Result<ParsedOptions, CommandArgumentError> {
+) -> Result<ParsedOptions, OptionsParseFailure> {
     let mut parsed = ParsedOptions::default();
+    let mut first_error = None;
     let mut positional_only = false;
     while let Some(argument) = arguments.next() {
         if !positional_only && argument == OsStr::new("--") {
@@ -435,16 +475,22 @@ fn parse_options(
         }
         if !positional_only {
             if let Some((name, value)) = split_long_option(&argument) {
-                parse_valued_option(&mut parsed, name, Some(value), &mut arguments, shape)?;
+                retain_first_error(
+                    &mut first_error,
+                    parse_valued_option(&mut parsed, name, Some(value), &mut arguments, shape),
+                );
                 continue;
             }
             if let Some(name) = argument.to_str().filter(|value| value.starts_with('-')) {
                 match name {
                     "--root" | "--file" | "--executable" | "--output" | "--format" | "-o" => {
-                        parse_valued_option(&mut parsed, name, None, &mut arguments, shape)?;
+                        retain_first_error(
+                            &mut first_error,
+                            parse_valued_option(&mut parsed, name, None, &mut arguments, shape),
+                        );
                     }
                     "--locked" | "--offline" if !shape.accepts_resolution() => {
-                        return Err(CommandArgumentError::OptionNotAccepted {
+                        first_error.get_or_insert(CommandArgumentError::OptionNotAccepted {
                             option: if name == "--locked" {
                                 "--locked"
                             } else {
@@ -453,28 +499,79 @@ fn parse_options(
                             command: shape.name,
                         });
                     }
-                    "--locked" => set_flag(&mut parsed.resolution.locked, "--locked")?,
-                    "--offline" => set_flag(&mut parsed.resolution.offline, "--offline")?,
-                    _ => return Err(CommandArgumentError::UnknownOption(argument)),
+                    "--locked" => retain_first_error(
+                        &mut first_error,
+                        set_flag(&mut parsed.resolution.locked, "--locked"),
+                    ),
+                    "--offline" => retain_first_error(
+                        &mut first_error,
+                        set_flag(&mut parsed.resolution.offline, "--offline"),
+                    ),
+                    _ => {
+                        first_error.get_or_insert(CommandArgumentError::UnknownOption(argument));
+                    }
                 }
                 continue;
             }
         }
         if !shape.accepts_positional() {
-            return Err(CommandArgumentError::PositionalNotAccepted {
+            first_error.get_or_insert(CommandArgumentError::PositionalNotAccepted {
                 command: shape.name,
                 argument,
             });
+            continue;
         }
         if parsed
             .positional
             .replace(PathBuf::from(&argument))
             .is_some()
         {
-            return Err(CommandArgumentError::MultiplePositionalSources(argument));
+            first_error.get_or_insert(CommandArgumentError::MultiplePositionalSources(argument));
         }
     }
-    Ok(parsed)
+    match first_error {
+        Some(error) => {
+            let format = parsed.format.unwrap_or_default();
+            let root_hint = ProgramInputOptions::new(
+                parsed.root.clone(),
+                parsed.positional.clone(),
+                parsed.file.clone(),
+            )
+            .selected_root_hint();
+            Err(OptionsParseFailure {
+                error,
+                format,
+                root_hint,
+            })
+        }
+        None => Ok(parsed),
+    }
+}
+
+fn retain_first_error(
+    first_error: &mut Option<CommandArgumentError>,
+    result: Result<(), CommandArgumentError>,
+) {
+    if let Err(error) = result {
+        first_error.get_or_insert(error);
+    }
+}
+
+struct OptionsParseFailure {
+    error: CommandArgumentError,
+    format: DiagnosticFormat,
+    root_hint: Option<PathBuf>,
+}
+
+impl OptionsParseFailure {
+    fn for_command(self, command: &'static str) -> CommandArgumentFailure {
+        let root_hint = if command == "check" {
+            self.root_hint
+        } else {
+            None
+        };
+        CommandArgumentFailure::new(self.error, Some(command), self.format, root_hint)
+    }
 }
 
 fn split_long_option(argument: &OsStr) -> Option<(&str, &OsStr)> {
@@ -612,6 +709,68 @@ pub enum CommandArgumentError {
     NonUnicodeFormat(OsString),
     UnsupportedFormat(Box<str>),
     EmptyExecutable,
+}
+
+/// A pure argument failure plus the output selection completed by the same parse.
+#[derive(Debug, Eq, PartialEq)]
+pub struct CommandArgumentFailure {
+    error: CommandArgumentError,
+    command: Option<&'static str>,
+    format: DiagnosticFormat,
+    root_hint: Option<PathBuf>,
+}
+
+impl CommandArgumentFailure {
+    fn new(
+        error: CommandArgumentError,
+        command: Option<&'static str>,
+        format: DiagnosticFormat,
+        root_hint: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            error,
+            command,
+            format,
+            root_hint,
+        }
+    }
+
+    #[must_use]
+    pub const fn error(&self) -> &CommandArgumentError {
+        &self.error
+    }
+
+    #[must_use]
+    pub const fn command(&self) -> Option<&'static str> {
+        self.command
+    }
+
+    #[must_use]
+    pub const fn format(&self) -> DiagnosticFormat {
+        self.format
+    }
+
+    #[must_use]
+    pub fn root_hint(&self) -> Option<&Path> {
+        self.root_hint.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_error(self) -> CommandArgumentError {
+        self.error
+    }
+}
+
+impl fmt::Display for CommandArgumentFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(formatter)
+    }
+}
+
+impl std::error::Error for CommandArgumentFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
 }
 
 impl fmt::Display for CommandArgumentError {

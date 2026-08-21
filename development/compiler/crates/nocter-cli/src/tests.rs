@@ -3,6 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use nocter_package_acquisition::PackageAcquisitionError;
+
 use super::*;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -107,7 +109,7 @@ fn argument_structure_precedes_installation_filesystem_access() {
     ))
     .unwrap_err();
 
-    assert!(matches!(error, InvocationError::Arguments(_)));
+    assert!(matches!(error.kind(), InvocationErrorKind::Arguments(_)));
     assert_eq!(error.diagnostic_code(), Some("E0700"));
 }
 
@@ -123,7 +125,10 @@ fn compiler_host_is_checked_before_user_source_preparation() {
     ))
     .unwrap_err();
 
-    assert!(matches!(error, InvocationError::HostMismatch { .. }));
+    assert!(matches!(
+        error.kind(),
+        InvocationErrorKind::HostMismatch { .. }
+    ));
     assert_eq!(error.diagnostic_code(), Some("E0703"));
 }
 
@@ -292,6 +297,93 @@ fn json_check_failure_renders_retained_source_diagnostics_without_human_text() {
     assert!(rendered.contains("\"primary_span\":{"));
     assert!(!rendered.contains("error[E0340]"));
     assert!(rendered.ends_with("]}\n"));
+    assert_eq!(error.exit_code(), 1);
+}
+
+#[test]
+fn json_argument_failure_retains_format_selected_after_the_first_error() {
+    let tree = TempTree::new("check-json-argument");
+    let missing = tree.0.join("missing-home");
+    let error = execute_invocation(invocation(
+        ["check", "--unknown", "--format=json"],
+        &tree.0,
+        &missing,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.exit_code(), 2);
+    assert_eq!(
+        rendered,
+        concat!(
+            "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":false,",
+            "\"command\":\"check\",\"target\":null,\"root\":\"nocter.nct\",",
+            "\"root_absolute_path\":null,\"diagnostics\":[{\"code\":\"E0700\",",
+            "\"severity\":\"error\",\"message\":\"unknown option --unknown\",",
+            "\"primary_span\":null,\"notes\":[],\"help\":null}]}\n"
+        )
+    );
+}
+
+#[test]
+fn json_installation_failure_has_partial_null_context() {
+    let tree = TempTree::new("check-json-installation");
+    let missing = tree.0.join("missing-home");
+    let error = execute_invocation(invocation(
+        ["check", "--format=json"],
+        &tree.0,
+        &missing,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.exit_code(), 2);
+    assert!(rendered.contains("\"code\":\"E0703\""));
+    assert!(rendered.contains("\"target\":null,\"root\":\"nocter.nct\""));
+}
+
+#[test]
+fn json_input_failure_retains_the_validated_target() {
+    let tree = TempTree::new("check-json-input");
+    let home = tree.installation("arm64-darwin", false);
+    let error = execute_invocation(invocation(
+        ["check", "missing.nct", "--format=json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.exit_code(), 2);
+    assert!(rendered.contains("\"code\":\"E0702\""));
+    assert!(rendered.contains(
+        "\"target\":\"arm64-darwin\",\"root\":\"missing.nct\",\"root_absolute_path\":null"
+    ));
+}
+
+#[test]
+fn internal_json_failure_keeps_code_and_status_independent() {
+    let error = InvocationError::new(
+        InvocationErrorKind::AcquisitionInitialization(PackageAcquisitionError::Unsupported(
+            "TLS backend invariant".into(),
+        )),
+        Some(InvocationDiagnosticPresentation {
+            command: "check",
+            format: DiagnosticFormat::Json,
+            target: Some("arm64-darwin"),
+            root: Some("app.nct".into()),
+            root_absolute_path: None,
+        }),
+    );
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.failure_class(), InvocationFailureClass::Internal);
+    assert_eq!(error.exit_code(), 3);
+    assert!(rendered.contains("\"code\":\"E0900\""));
+    assert!(rendered.contains("\"ok\":false"));
 }
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]

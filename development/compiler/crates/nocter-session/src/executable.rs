@@ -193,6 +193,15 @@ impl ExecutableSessionError {
             Self::Selection(_) | Self::Executable(_) => None,
         }
     }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Compile(error) => error.diagnostic_code(),
+            Self::Selection(_) => Some("E0800"),
+            Self::Executable(_) => None,
+        }
+    }
 }
 
 impl fmt::Display for ExecutableSessionError {

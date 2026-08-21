@@ -386,10 +386,11 @@ request. Both layouts then use the same session, artifact, and launch boundaries
 separate CLI compiler pipeline. Check returns the session-owned `CompiledTarget` immediately after
 target validation and never gains executable-specialization, artifact, or launch authority.
 
-The process adapter attaches a spanless diagnostic code only when it owns the complete
-classification: command syntax, filesystem input selection, package-root selection, or Nocter-home
-validation. It leaves compiler-stage failures unclassified rather than replacing a source-backed
-diagnostic with a generic CLI code. Failed compilation retains the invocation `SourceMap` beside
+The process adapter attaches a spanless diagnostic code only when a command boundary owns the
+complete classification: command syntax, filesystem input selection, package-root selection,
+Nocter-home validation, package state, or target selection. It leaves authored compiler-stage
+failures unclassified rather than replacing a source-backed diagnostic with a generic CLI code.
+Failed compilation retains the invocation `SourceMap` beside
 the phase-selected `SourceDiagnostic` values. The common renderer consumes that snapshot directly;
 the process adapter neither reopens files nor classifies semantic errors.
 
@@ -397,12 +398,15 @@ Machine-readable source diagnostics use the same validated origin projection. Th
 checks source identity, range bounds, and UTF-8 boundaries once, then exposes exclusive byte
 offsets and one-based byte line/column coordinates to the versioned JSON renderer. JSON escaping,
 notes, help, nullable absolute paths, and the `nocter.diagnostics` envelope belong to
-`nocter-diagnostics`, not the CLI. A prepared check retains its selected format, compilation
-target, and canonical root independently from success or failure. Successful JSON checks emit one
-empty envelope; source-diagnostic failures serialize the already retained diagnostic and
-`SourceMap` snapshot. The process entry selects JSON before human rendering, so stdout never mixes
-the two formats. Spanless command and preparation failures still require a typed partial
-presentation context before the public JSON contract is complete.
+`nocter-diagnostics`, not the CLI. A check invocation owns one progressive presentation snapshot
+independently from its failure. Argument parsing records the first structural error but continues
+its pure token pass to retain a later `--format=json`; the process adapter never reparses argv. The
+snapshot starts with an authored root hint, adds target identity after installation validation,
+and replaces the hint with canonical root identity after input preparation. Successful checks emit
+one empty envelope; source-backed and spanless failures use the same versioned renderer without
+mixing human text into stdout. Source, user/environment, and internal failure classes select
+statuses 1, 2, and 3 independently from diagnostic codes, so an `E0900` JSON object cannot turn an
+internal failure into status 2.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by

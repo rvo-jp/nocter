@@ -197,3 +197,54 @@ impl std::error::Error for CommandSourceError {
         }
     }
 }
+
+impl CommandSourceError {
+    /// Returns a spanless code only for source-preparation failures whose public family is fixed.
+    /// Authored import failures and internal graph inconsistencies remain unclassified until their
+    /// source-backed diagnostic boundary selects an exact rule.
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Package(error) => Some(error.diagnostic_code()),
+            Self::StandardPackage(_) | Self::Discovery(DiscoveryError::Toolchain(_)) => {
+                Some("E0703")
+            }
+            Self::MissingCommandExecutable { .. } => Some("E0800"),
+            Self::Discovery(DiscoveryError::TargetSelection(_)) => Some("E0701"),
+            Self::Discovery(
+                DiscoveryError::InvalidPackageRoot { .. }
+                | DiscoveryError::InvalidSingleFileExtension(_)
+                | DiscoveryError::MissingModuleRoot { .. }
+                | DiscoveryError::InvalidModulePath { .. }
+                | DiscoveryError::NonUnicodeCanonicalPath(_)
+                | DiscoveryError::Filesystem { .. }
+                | DiscoveryError::Source { .. },
+            ) => Some("E0702"),
+            Self::MissingCommandRoot(_)
+            | Self::Discovery(
+                DiscoveryError::DuplicatePackage(_)
+                | DiscoveryError::UnknownPackage(_)
+                | DiscoveryError::Import { .. }
+                | DiscoveryError::ConflictingSourceOwner { .. }
+                | DiscoveryError::InconsistentSyntax(_),
+            ) => None,
+        }
+    }
+
+    /// Distinguishes authored/environment failures from compiler consistency failures.
+    #[must_use]
+    pub const fn is_user_failure(&self) -> bool {
+        match self {
+            Self::Package(_) | Self::StandardPackage(_) | Self::MissingCommandExecutable { .. } => {
+                true
+            }
+            Self::Discovery(error) => !matches!(
+                error,
+                DiscoveryError::DuplicatePackage(_)
+                    | DiscoveryError::UnknownPackage(_)
+                    | DiscoveryError::InconsistentSyntax(_)
+            ),
+            Self::MissingCommandRoot(_) => false,
+        }
+    }
+}

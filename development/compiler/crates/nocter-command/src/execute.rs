@@ -112,6 +112,29 @@ impl BuildCommandExecutionError {
             Self::PackageSet(failure) => Some((failure.diagnostics(), failure.sources())),
         }
     }
+
+    #[must_use]
+    pub fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Source(error) => error.diagnostic_code(),
+            Self::Selected(failure) if failure.diagnostics().is_empty() => {
+                failure.error().diagnostic_code()
+            }
+            Self::PackageSet(failure) if failure.diagnostics().is_empty() => {
+                failure.error().diagnostic_code()
+            }
+            Self::Selected(_) | Self::PackageSet(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_user_failure(&self) -> bool {
+        match self {
+            Self::Source(error) => error.is_user_failure(),
+            Self::Selected(failure) => failure.error().diagnostic_code().is_some(),
+            Self::PackageSet(failure) => failure.error().diagnostic_code().is_some(),
+        }
+    }
 }
 
 impl fmt::Display for BuildCommandExecutionError {
@@ -151,6 +174,25 @@ impl RunCommandExecutionError {
         match self {
             Self::Source(_) => None,
             Self::Run(failure) => Some((failure.diagnostics(), failure.sources())),
+        }
+    }
+
+    #[must_use]
+    pub fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Source(error) => error.diagnostic_code(),
+            Self::Run(failure) if failure.diagnostics().is_empty() => {
+                failure.error().diagnostic_code()
+            }
+            Self::Run(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_user_failure(&self) -> bool {
+        match self {
+            Self::Source(error) => error.is_user_failure(),
+            Self::Run(failure) => failure.error().diagnostic_code().is_some(),
         }
     }
 }

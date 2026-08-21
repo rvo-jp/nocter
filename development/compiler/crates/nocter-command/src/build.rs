@@ -168,6 +168,15 @@ impl BuildSetCommandError {
             Self::Plan(_) | Self::Artifact { .. } => None,
         }
     }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Compile(error) => error.diagnostic_code(),
+            Self::Plan(_) => Some("E0800"),
+            Self::Artifact { .. } => Some("E0702"),
+        }
+    }
 }
 
 impl fmt::Display for BuildSetCommandError {
@@ -220,6 +229,15 @@ impl BuildCommandError {
         match self {
             Self::Compile(error) => error.source_diagnostic(),
             Self::Plan(_) | Self::Artifact(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Compile(error) => error.diagnostic_code(),
+            Self::Plan(_) => Some("E0800"),
+            Self::Artifact(_) => Some("E0702"),
         }
     }
 }

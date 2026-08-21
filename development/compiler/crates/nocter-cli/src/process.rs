@@ -36,11 +36,22 @@ pub enum CurrentProcessError {
 
 impl CurrentProcessError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
             Self::CurrentDirectory(_) => Some("E0702"),
             Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => Some("E0703"),
             Self::Invocation(error) => error.diagnostic_code(),
+        }
+    }
+
+    /// Returns the compiler-owned process status for this typed failure.
+    #[must_use]
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            Self::CurrentDirectory(_) | Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => {
+                2
+            }
+            Self::Invocation(error) => error.exit_code(),
         }
     }
 

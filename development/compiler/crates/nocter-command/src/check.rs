@@ -150,6 +150,26 @@ impl CheckCommandExecutionError {
             Self::Check { failure, .. } => Some((failure.diagnostics(), failure.sources())),
         }
     }
+
+    /// Returns a spanless code when checking failed outside authored source diagnostics.
+    #[must_use]
+    pub fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Source { error, .. } => error.diagnostic_code(),
+            Self::Check { failure, .. } if failure.diagnostics().is_empty() => {
+                failure.error().diagnostic_code()
+            }
+            Self::Check { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_user_failure(&self) -> bool {
+        match self {
+            Self::Source { error, .. } => error.is_user_failure(),
+            Self::Check { failure, .. } => failure.error().diagnostic_code().is_some(),
+        }
+    }
 }
 
 impl fmt::Display for CheckCommandExecutionError {

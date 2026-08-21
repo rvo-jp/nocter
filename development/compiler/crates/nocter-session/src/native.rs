@@ -139,6 +139,15 @@ impl NativeImageSetError {
             Self::NoExecutable | Self::Image { .. } => None,
         }
     }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Compile(error) => error.diagnostic_code(),
+            Self::NoExecutable => Some("E0800"),
+            Self::Image { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for NativeImageSetError {
@@ -183,6 +192,14 @@ impl NativeSessionError {
     pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
             Self::Executable(error) => error.source_diagnostic(),
+            Self::Image(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Executable(error) => error.diagnostic_code(),
             Self::Image(_) => None,
         }
     }

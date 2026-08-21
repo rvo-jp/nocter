@@ -60,6 +60,7 @@ Spanless CLI diagnostic codes:
 - `E0703`: Nocter home resolution or validation failed.
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
 - `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
+- `E0900`: an internal compiler consistency or lowering failure occurred.
 
 Source-backed lexical diagnostics:
 
@@ -503,7 +504,7 @@ Example for a command-line or filesystem diagnostic:
   "root_absolute_path": null,
   "diagnostics": [
     {
-      "code": "E0002",
+      "code": "E0702",
       "severity": "error",
       "message": "root file `missing.nct` was not found",
       "primary_span": null,

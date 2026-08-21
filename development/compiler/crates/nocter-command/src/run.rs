@@ -97,6 +97,17 @@ impl RunCommandError {
             | Self::LaunchAndCleanup { .. } => None,
         }
     }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Compile(error) => error.diagnostic_code(),
+            Self::Artifact(_)
+            | Self::Launch { .. }
+            | Self::Cleanup(_)
+            | Self::LaunchAndCleanup { .. } => Some("E0704"),
+        }
+    }
 }
 
 impl fmt::Display for RunCommandError {

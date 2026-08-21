@@ -42,6 +42,27 @@ impl ProgramInputOptions {
     pub fn explicit_file(source: impl Into<PathBuf>) -> Self {
         Self::new(None, None, Some(source.into()))
     }
+
+    /// Returns the authored root/file spelling when the options select one unambiguous input.
+    ///
+    /// The hint is presentation-only: it is never used for filesystem identity or compilation.
+    #[must_use]
+    pub fn selected_root_hint(&self) -> Option<PathBuf> {
+        if self.positional_file.is_some() && self.explicit_file.is_some()
+            || self.root.is_some()
+                && (self.positional_file.is_some() || self.explicit_file.is_some())
+        {
+            return None;
+        }
+        self.positional_file
+            .as_ref()
+            .or(self.explicit_file.as_ref())
+            .cloned()
+            .or_else(|| match self.root.as_deref() {
+                Some(root) => Some(root.join("nocter.nct")),
+                None => Some(PathBuf::from("nocter.nct")),
+            })
+    }
 }
 
 /// One canonical package or explicit single-file input.

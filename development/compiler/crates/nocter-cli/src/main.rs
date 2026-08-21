@@ -17,7 +17,7 @@ fn main() {
             match error.render_json_diagnostics() {
                 Ok(Some(rendered)) => {
                     print!("{rendered}");
-                    process::exit(1);
+                    process::exit(error.exit_code());
                 }
                 Ok(None) => {}
                 Err(render_error) => {
@@ -38,7 +38,7 @@ fn main() {
                     eprintln!("error: cannot render source diagnostic: {render_error}; {error}");
                 }
             }
-            process::exit(1);
+            process::exit(error.exit_code());
         }
     }
 }

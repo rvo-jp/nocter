@@ -31,6 +31,25 @@ impl<'a> DiagnosticJsonContext<'a> {
     }
 }
 
+/// One diagnostic whose failure boundary has no useful source location.
+#[derive(Clone, Copy, Debug)]
+pub struct SpanlessDiagnostic<'a> {
+    code: &'a str,
+    message: &'a str,
+    help: Option<&'a str>,
+}
+
+impl<'a> SpanlessDiagnostic<'a> {
+    #[must_use]
+    pub const fn new(code: &'a str, message: &'a str, help: Option<&'a str>) -> Self {
+        Self {
+            code,
+            message,
+            help,
+        }
+    }
+}
+
 /// Renders one complete `nocter.diagnostics` version-1 JSON envelope.
 ///
 /// # Errors
@@ -41,13 +60,47 @@ pub fn render_source_diagnostics_json(
     diagnostics: &[SourceDiagnostic],
     sources: &SourceMap,
 ) -> Result<String, DiagnosticRenderError> {
+    render_diagnostics_json(context, diagnostics.is_empty(), |output| {
+        for (index, diagnostic) in diagnostics.iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            write_diagnostic(output, diagnostic, sources)?;
+        }
+        Ok(())
+    })
+}
+
+/// Renders one spanless failure in a complete `nocter.diagnostics` version-1 envelope.
+///
+/// # Errors
+///
+/// This renderer currently performs no fallible source projection, but shares the result type of
+/// source-backed rendering so callers can keep one presentation path.
+pub fn render_spanless_diagnostic_json(
+    context: DiagnosticJsonContext<'_>,
+    diagnostic: SpanlessDiagnostic<'_>,
+) -> Result<String, DiagnosticRenderError> {
+    render_diagnostics_json(context, false, |output| {
+        output.push_str("{\"code\":");
+        write_json_string(output, diagnostic.code);
+        output.push_str(",\"severity\":\"error\",\"message\":");
+        write_json_string(output, diagnostic.message);
+        output.push_str(",\"primary_span\":null,\"notes\":[],\"help\":");
+        write_optional_string(output, diagnostic.help);
+        output.push('}');
+        Ok(())
+    })
+}
+
+fn render_diagnostics_json(
+    context: DiagnosticJsonContext<'_>,
+    ok: bool,
+    write_diagnostics: impl FnOnce(&mut String) -> Result<(), DiagnosticRenderError>,
+) -> Result<String, DiagnosticRenderError> {
     let mut output = String::new();
     output.push_str("{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":");
-    output.push_str(if diagnostics.is_empty() {
-        "true"
-    } else {
-        "false"
-    });
+    output.push_str(if ok { "true" } else { "false" });
     output.push_str(",\"command\":");
     write_json_string(&mut output, context.command);
     output.push_str(",\"target\":");
@@ -57,12 +110,7 @@ pub fn render_source_diagnostics_json(
     output.push_str(",\"root_absolute_path\":");
     write_optional_string(&mut output, context.root_absolute_path);
     output.push_str(",\"diagnostics\":[");
-    for (index, diagnostic) in diagnostics.iter().enumerate() {
-        if index != 0 {
-            output.push(',');
-        }
-        write_diagnostic(&mut output, diagnostic, sources)?;
-    }
+    write_diagnostics(&mut output)?;
     output.push_str("]}\n");
     Ok(output)
 }
@@ -207,6 +255,24 @@ mod tests {
             )
             .unwrap(),
             "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":true,\"command\":\"check\",\"target\":null,\"root\":null,\"root_absolute_path\":null,\"diagnostics\":[]}\n"
+        );
+    }
+
+    #[test]
+    fn renders_spanless_failure_through_the_same_envelope() {
+        assert_eq!(
+            render_spanless_diagnostic_json(
+                DiagnosticJsonContext::new("check", None, Some("missing.nct"), None),
+                SpanlessDiagnostic::new("E0702", "cannot read missing.nct", None),
+            )
+            .unwrap(),
+            concat!(
+                "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":false,",
+                "\"command\":\"check\",\"target\":null,\"root\":\"missing.nct\",",
+                "\"root_absolute_path\":null,\"diagnostics\":[{\"code\":\"E0702\",",
+                "\"severity\":\"error\",\"message\":\"cannot read missing.nct\",",
+                "\"primary_span\":null,\"notes\":[],\"help\":null}]}\n"
+            )
         );
     }
 }

@@ -89,3 +89,14 @@ impl std::error::Error for CommandPackageStateError {
         }
     }
 }
+
+impl CommandPackageStateError {
+    /// Returns the public spanless diagnostic family owned by package-state orchestration.
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> &'static str {
+        match self {
+            Self::Resolution(PackageResolutionError::Filesystem { .. }) => "E0702",
+            Self::Resolution(_) | Self::Transaction(_) => "E0800",
+        }
+    }
+}

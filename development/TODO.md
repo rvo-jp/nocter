@@ -15,7 +15,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete spanless `check --format json` failures and process exit classes.
+1. Project authored discovery failures into source diagnostics before expanding the public command
+   set.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
@@ -23,10 +24,17 @@ implementation input.
    silently checking the root, and emits no artifact. `nocter-diagnostics` now owns one shared
    byte-coordinate projection, exact JSON escaping, and the `nocter.diagnostics` version-1
    renderer. Successful checks and source-diagnostic failures retain command/target/root/format
-   presentation facts and produce exactly one JSON envelope without human text. The remaining JSON
-   work is spanless argument, input-preparation, installation, package-state, and target-selection
-   failures; their codes and partial root/target context must be retained without reparsing argv or
-   matching display strings.
+   presentation facts and produce exactly one JSON envelope without human text. Spanless argument,
+   input-preparation, installation, package-state, and target-selection failures now use the same
+   envelope. Pure argument parsing retains the first error while completing presentation selection,
+   so option order cannot force an argv rescan. One progressive presentation snapshot preserves an
+   authored root hint, canonical root identity, and selected target only when each becomes known.
+   Source, user/environment, and internal failure classes select exit statuses independently from
+   diagnostic codes; internal JSON failures use `E0900` and status 3.
+
+   Discovery still leaves authored import/module failures spanless because it has not selected
+   syntax origins for them. Move those rules into discovery-owned `SourceDiagnostic` values rather
+   than assigning broader CLI codes. Internal graph/syntax inconsistencies must remain `E0900`.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses

@@ -18,10 +18,10 @@ mod run;
 mod source;
 
 pub use arguments::{
-    CommandArgumentError, DiagnosticFormat, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
-    ParsedFetchCommand, ParsedRunCommand, PreparedBuildCommand, PreparedCheckCommand,
-    PreparedCommandError, PreparedFetchCommand, PreparedRunCommand, ResolutionOptions,
-    parse_command_arguments,
+    CommandArgumentError, CommandArgumentFailure, DiagnosticFormat, ParsedBuildCommand,
+    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand, PreparedBuildCommand,
+    PreparedCheckCommand, PreparedCommandError, PreparedFetchCommand, PreparedRunCommand,
+    ResolutionOptions, parse_command_arguments, parse_command_invocation,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
