@@ -190,6 +190,12 @@ future semantic locations through the same protocol-owned URI policy rather than
 prefixes. The common JSON-RPC renderer also owns server notifications; feature layers supply only a
 method and typed JSON parameters.
 
+Server-to-client requests use a separate monotonic identity allocator and pending-method table.
+The JSON-RPC decoder distinguishes requests, notifications, success responses, and structured error
+responses before lifecycle dispatch. A response completes exactly one retained request; unknown or
+repeated identities and invalid result shapes remain typed protocol issues rather than being
+mistaken for client requests.
+
 `nocter-language-server` is that composition layer. An existing document resolves to its physical
 canonical file; a new unsaved document resolves through one existing canonical parent. The
 `DocumentWorkspace` freezes the resulting URI-to-path association only after open succeeds and
@@ -243,6 +249,14 @@ for every document whose diagnostics disappeared, including documents invalidate
 change. Preparation failures without compiler-owned source spans are not attached to an invented
 zero-width location; they use a separate error message notification until package preparation owns
 a source-backed failure snapshot.
+
+When the client supports dynamic watched-file registration, the server sends one correlated
+`client/registerCapability` request after `initialized`. Its `**/*.nct` watcher covers create,
+change, and delete events and becomes active only after a successful null response. Watched changes
+resolve through the same canonical document-path boundary, advance the workspace generation without
+replacing any accepted open-document bytes, and enter the same analysis and diagnostic publication
+pipeline. A batched notification continues past path-local failures and suppresses duplicate URIs;
+all resulting issues and immutable snapshots remain explicit outputs of that server step.
 
 `nocter lsp` is part of the same declarative command schema as every other public command and has
 an empty argument surface. Argument validation precedes installation access; a launch retains the

@@ -189,6 +189,7 @@ pub enum ParameterErrorKind {
     EmptyUri,
     ExpectedOneFullChange,
     IncrementalChangeUnsupported,
+    ExpectedWatchedFileChangeType,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -240,6 +241,7 @@ impl ParameterErrorKind {
             Self::EmptyUri => "empty document URI",
             Self::ExpectedOneFullChange => "full-document change count",
             Self::IncrementalChangeUnsupported => "incremental document change",
+            Self::ExpectedWatchedFileChangeType => "watched-file change type 1, 2, or 3",
         }
     }
 }

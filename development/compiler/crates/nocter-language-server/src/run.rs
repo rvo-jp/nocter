@@ -46,10 +46,10 @@ pub fn run_language_server(
         if let Some(response) = step.response() {
             write_frame(&mut output, response).map_err(LanguageServerRunError::Output)?;
         }
-        for notification in step.notifications() {
-            write_frame(&mut output, notification).map_err(LanguageServerRunError::Output)?;
+        for message in step.outbound_messages() {
+            write_frame(&mut output, message).map_err(LanguageServerRunError::Output)?;
         }
-        if let Some(issue) = step.issue() {
+        for issue in step.issues() {
             report_issue(issue);
         }
         if let Some(code) = step.exit_code() {

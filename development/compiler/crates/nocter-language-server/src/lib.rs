@@ -20,7 +20,7 @@ pub use documents::{
 };
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};
-pub use server::{LanguageServer, ServerIssue, ServerStep};
+pub use server::{ClientResponseError, LanguageServer, ServerIssue, ServerStep};
 pub use workspace::{
     LanguageServerEnvironment, LanguageServerToolchain, WorkspaceConfiguration,
     WorkspaceConfigurationError,

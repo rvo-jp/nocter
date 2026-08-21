@@ -58,7 +58,7 @@ impl Lifecycle {
         if self.state == LifecycleState::Exited {
             return LifecycleAction::IgnoreAfterExit;
         }
-        if message.method() == "exit" && !message.is_request() {
+        if message.method() == Some("exit") && !message.is_request() {
             let clean = self.state == LifecycleState::Shutdown;
             self.state = LifecycleState::Exited;
             return LifecycleAction::Exit { clean };
@@ -84,7 +84,9 @@ impl Lifecycle {
                 id,
                 code: ResponseErrorCode::ServerNotInitialized,
             },
-            IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
+            IncomingMessage::Notification { .. } | IncomingMessage::Response { .. } => {
+                LifecycleAction::IgnoreNotification
+            }
         }
     }
 
@@ -121,7 +123,9 @@ impl Lifecycle {
                 id,
                 code: ResponseErrorCode::ServerNotInitialized,
             },
-            IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
+            IncomingMessage::Notification { .. } | IncomingMessage::Response { .. } => {
+                LifecycleAction::IgnoreNotification
+            }
         }
     }
 
@@ -161,7 +165,9 @@ fn reject_during_initialization(message: IncomingMessage) -> LifecycleAction {
             id,
             code: ResponseErrorCode::ServerNotInitialized,
         },
-        IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
+        IncomingMessage::Notification { .. } | IncomingMessage::Response { .. } => {
+            LifecycleAction::IgnoreNotification
+        }
     }
 }
 
@@ -195,7 +201,9 @@ fn reject_or_ignore(message: IncomingMessage) -> LifecycleAction {
             id,
             code: ResponseErrorCode::InvalidRequest,
         },
-        IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
+        IncomingMessage::Notification { .. } | IncomingMessage::Response { .. } => {
+            LifecycleAction::IgnoreNotification
+        }
     }
 }
 

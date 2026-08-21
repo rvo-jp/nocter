@@ -68,11 +68,15 @@ implementation input.
    related spans after source-owned UTF-16 conversion. Canonical paths use one protocol-owned
    percent-encoding policy, open documents carry the accepted version, and scope-owned publication
    history clears diagnostics absent from the next complete result. Spanless package-preparation
-   failures use `window/showMessage` rather than an invented zero-width diagnostic. The next
-   increment adds outbound response correlation and dynamically registers the specified watcher;
-   watched changes must enter this same analysis and publication path. Package preparation should
-   subsequently retain reached manifest source/syntax on failure so authored package errors can
-   become exact source diagnostics rather than process messages.
+   failures use `window/showMessage` rather than an invented zero-width diagnostic. JSON-RPC now
+   distinguishes and validates client responses. Monotonic server request identities retain their
+   pending methods and complete once. A capable client receives the correlated `**/*.nct` dynamic
+   registration after `initialized`; registration success enables ordered create/change/delete
+   batches. Each distinct URI advances an overlay-preserving external-change generation and enters
+   the same analysis/publication path, while path-local failures do not suppress later changes. The
+   next increment makes package preparation retain reached manifest source/syntax on failure so
+   authored package errors become exact source diagnostics rather than process messages, then opens
+   compiler-owned hover and semantic-token queries over successful current snapshots.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

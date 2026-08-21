@@ -59,6 +59,19 @@ pub fn render_notification(method: &str, params: &Value) -> String {
     output
 }
 
+/// Renders one JSON-RPC request with its server-owned identity.
+#[must_use]
+pub fn render_request(id: &RequestId, method: &str, params: &Value) -> String {
+    let mut output = String::from("{\"jsonrpc\":\"2.0\",\"id\":");
+    write_request_id(&mut output, id);
+    output.push_str(",\"method\":");
+    write_string(&mut output, method);
+    output.push_str(",\"params\":");
+    write_value(&mut output, params);
+    output.push('}');
+    output
+}
+
 #[must_use]
 pub fn render_error_response(
     id: Option<&RequestId>,
@@ -124,6 +137,21 @@ mod tests {
         assert_eq!(
             render_notification("workspace/example", &Value::Bool(true)),
             r#"{"jsonrpc":"2.0","method":"workspace/example","params":true}"#
+        );
+    }
+
+    #[test]
+    fn renders_server_requests_with_identity_method_and_params() {
+        assert_eq!(
+            render_request(
+                &RequestId::Integer(4),
+                "client/registerCapability",
+                &Value::Array(Vec::new()),
+            ),
+            concat!(
+                "{\"jsonrpc\":\"2.0\",\"id\":4,",
+                "\"method\":\"client/registerCapability\",\"params\":[]}"
+            )
         );
     }
 }

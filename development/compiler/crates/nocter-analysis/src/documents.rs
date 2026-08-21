@@ -154,6 +154,16 @@ impl WorkspaceDocuments {
         self.accept(candidate)
     }
 
+    /// Emits a new generation for an external filesystem change while preserving every accepted
+    /// open-document override.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the generation identity space is exhausted.
+    pub fn refresh(&mut self) -> Result<AcceptedSourceGeneration, DocumentStateError> {
+        self.accept(self.documents.clone())
+    }
+
     fn accept(
         &mut self,
         candidate: BTreeMap<PathBuf, OpenDocument>,
@@ -307,5 +317,25 @@ mod tests {
         ));
         assert_eq!(documents.current_generation(), GenerationId::new(0));
         assert!(documents.document(Path::new("relative.nct")).is_none());
+    }
+
+    #[test]
+    fn external_refresh_advances_generation_without_replacing_open_bytes() {
+        let mut documents = WorkspaceDocuments::new();
+        documents
+            .open(PATH, DocumentVersion::new(1), &b"editor"[..])
+            .unwrap();
+
+        let refreshed = documents.refresh().unwrap();
+
+        assert_eq!(refreshed.generation(), GenerationId::new(2));
+        assert_eq!(
+            refreshed
+                .source_overlay()
+                .document(Path::new(PATH))
+                .unwrap()
+                .bytes(),
+            b"editor"
+        );
     }
 }

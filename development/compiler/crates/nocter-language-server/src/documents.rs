@@ -158,6 +158,28 @@ impl DocumentWorkspace {
         Ok(AcceptedDocumentGeneration::new(path, generation))
     }
 
+    /// Resolves one watched URI and emits a disk-refresh generation without changing accepted open
+    /// document contents.
+    ///
+    /// # Errors
+    ///
+    /// Returns URI/path resolution or generation-state failure.
+    pub fn refresh(
+        &mut self,
+        uri: &DocumentUri,
+    ) -> Result<AcceptedDocumentGeneration, DocumentWorkspaceError> {
+        let path = match self.path(uri) {
+            Some(path) => path.to_path_buf(),
+            None => DocumentPathResolver::new()
+                .resolve(uri)
+                .map_err(DocumentWorkspaceError::Path)?,
+        };
+        self.documents
+            .refresh()
+            .map(|source| AcceptedDocumentGeneration::new(path, source))
+            .map_err(DocumentWorkspaceError::State)
+    }
+
     fn require_path(&self, uri: &DocumentUri) -> Result<&Path, DocumentWorkspaceError> {
         self.path(uri)
             .ok_or_else(|| DocumentWorkspaceError::UnknownUri(uri.clone()))

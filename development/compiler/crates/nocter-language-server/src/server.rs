@@ -1,12 +1,14 @@
+use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Arc;
 
 use nocter_json::Value;
 use nocter_lsp::{
-    DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, IncomingMessage,
-    InitializeParams, LifecycleTransitionError, ParameterError, ProtocolEvent, ProtocolSession,
-    RequestId, ResponseErrorCode, initialize_result, render_error_response,
-    render_success_response,
+    DidChangeParams, DidChangeWatchedFilesParams, DidCloseParams, DidOpenParams, DidSaveParams,
+    IncomingMessage, InitializeParams, LifecycleTransitionError, OutboundRequestError,
+    OutboundRequests, ParameterError, ProtocolEvent, ProtocolSession, RequestId, ResponseError,
+    ResponseErrorCode, ResponseResult, initialize_result, render_error_response,
+    render_success_response, watched_files_registration,
 };
 
 use crate::{
@@ -19,9 +21,9 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct ServerStep {
     response: Option<String>,
-    notifications: Box<[String]>,
-    analysis: Option<Arc<WorkspaceAnalysisGeneration>>,
-    issue: Option<ServerIssue>,
+    outbound: Box<[String]>,
+    analyses: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+    issues: Box<[ServerIssue]>,
     exit_code: Option<i32>,
 }
 
@@ -32,23 +34,32 @@ impl ServerStep {
     }
 
     #[must_use]
-    pub const fn notifications(&self) -> &[String] {
-        &self.notifications
+    pub const fn outbound_messages(&self) -> &[String] {
+        &self.outbound
     }
 
     #[must_use]
     pub fn generation(&self) -> Option<&WorkspaceAnalysisGeneration> {
-        self.analysis.as_deref()
+        self.analyses.first().map(Arc::as_ref)
     }
 
     #[must_use]
     pub fn analysis(&self) -> Option<&WorkspaceAnalysisGeneration> {
-        self.analysis.as_deref()
+        self.generation()
+    }
+
+    pub fn analyses(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
+        self.analyses.iter().map(Arc::as_ref)
     }
 
     #[must_use]
     pub const fn issue(&self) -> Option<&ServerIssue> {
-        self.issue.as_ref()
+        self.issues.first()
+    }
+
+    #[must_use]
+    pub const fn issues(&self) -> &[ServerIssue] {
+        &self.issues
     }
 
     #[must_use]
@@ -68,6 +79,8 @@ pub struct LanguageServer {
     workspace: Option<WorkspaceConfiguration>,
     analyses: Option<WorkspaceAnalyses>,
     diagnostics: DiagnosticPublisher,
+    outbound_requests: OutboundRequests,
+    watcher: WatcherState,
 }
 
 impl LanguageServer {
@@ -85,6 +98,8 @@ impl LanguageServer {
             workspace: None,
             analyses: None,
             diagnostics: DiagnosticPublisher::new(),
+            outbound_requests: OutboundRequests::new(),
+            watcher: WatcherState::Unavailable,
         }
     }
 
@@ -113,7 +128,7 @@ impl LanguageServer {
         };
         match event {
             ProtocolEvent::Initialize { id, params } => self.initialize(&id, params),
-            ProtocolEvent::Initialized => ServerStep::default(),
+            ProtocolEvent::Initialized => self.initialized(),
             ProtocolEvent::Message(message) => self.message(message),
             ProtocolEvent::Shutdown { id } => ServerStep {
                 response: Some(render_success_response(&id, &Value::Null)),
@@ -160,10 +175,40 @@ impl LanguageServer {
                         ResponseErrorCode::InvalidParams,
                         Some(&detail),
                     )),
-                    issue: error.into_server_issue(),
+                    issues: error
+                        .into_server_issue()
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     ..ServerStep::default()
                 }
             }
+        }
+    }
+
+    fn initialized(&mut self) -> ServerStep {
+        if !self
+            .initialization
+            .as_ref()
+            .is_some_and(InitializeParams::supports_dynamic_watched_files)
+        {
+            return ServerStep::default();
+        }
+        match self
+            .outbound_requests
+            .begin("client/registerCapability", &watched_files_registration())
+        {
+            Ok(request) => {
+                self.watcher = WatcherState::Registering;
+                ServerStep {
+                    outbound: vec![request.body().to_owned()].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+            Err(error) => ServerStep {
+                issues: vec![ServerIssue::Outbound(error)].into_boxed_slice(),
+                ..ServerStep::default()
+            },
         }
     }
 
@@ -178,10 +223,55 @@ impl LanguageServer {
                 ..ServerStep::default()
             },
             IncomingMessage::Notification { method, params } => self.notification(&method, params),
+            IncomingMessage::Response { id, result } => self.client_response(id, result),
+        }
+    }
+
+    fn client_response(&mut self, id: RequestId, result: ResponseResult) -> ServerStep {
+        let completed = match self.outbound_requests.complete(id, result) {
+            Ok(completed) => completed,
+            Err(error) => {
+                return ServerStep {
+                    issues: vec![ServerIssue::Outbound(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                };
+            }
+        };
+        if completed.method() != "client/registerCapability" {
+            return ServerStep::default();
+        }
+        match completed.result() {
+            ResponseResult::Success(Value::Null) => {
+                self.watcher = WatcherState::Registered;
+                ServerStep::default()
+            }
+            ResponseResult::Success(_) => {
+                self.watcher = WatcherState::Failed;
+                ServerStep {
+                    issues: vec![ServerIssue::ClientResponse(
+                        ClientResponseError::InvalidRegistrationResult,
+                    )]
+                    .into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+            ResponseResult::Error(error) => {
+                self.watcher = WatcherState::Failed;
+                ServerStep {
+                    issues: vec![ServerIssue::ClientResponse(
+                        ClientResponseError::RegistrationRejected(error.clone()),
+                    )]
+                    .into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
         }
     }
 
     fn notification(&mut self, method: &str, params: Option<Value>) -> ServerStep {
+        if method == "workspace/didChangeWatchedFiles" {
+            return self.watched_files(params);
+        }
         let generation: Result<Option<AcceptedDocumentGeneration>, ServerIssue> = match method {
             "textDocument/didOpen" => DidOpenParams::decode(params)
                 .map_err(ServerIssue::Parameters)
@@ -220,23 +310,76 @@ impl LanguageServer {
                     .expect("initialized server owns workspace analyses")
                     .analyze(generation);
                 match self.diagnostics.publish(&analysis) {
-                    Ok(notifications) => ServerStep {
-                        notifications,
-                        analysis: Some(analysis),
+                    Ok(outbound) => ServerStep {
+                        outbound,
+                        analyses: vec![analysis].into_boxed_slice(),
                         ..ServerStep::default()
                     },
                     Err(error) => ServerStep {
-                        analysis: Some(analysis),
-                        issue: Some(ServerIssue::Diagnostics(error)),
+                        analyses: vec![analysis].into_boxed_slice(),
+                        issues: vec![ServerIssue::Diagnostics(error)].into_boxed_slice(),
                         ..ServerStep::default()
                     },
                 }
             }
             Ok(None) => ServerStep::default(),
             Err(issue) => ServerStep {
-                issue: Some(issue),
+                issues: vec![issue].into_boxed_slice(),
                 ..ServerStep::default()
             },
+        }
+    }
+
+    fn watched_files(&mut self, params: Option<Value>) -> ServerStep {
+        if self.watcher != WatcherState::Registered {
+            return ServerStep {
+                issues: vec![ServerIssue::ClientResponse(
+                    ClientResponseError::WatcherNotRegistered,
+                )]
+                .into_boxed_slice(),
+                ..ServerStep::default()
+            };
+        }
+        let params = match DidChangeWatchedFilesParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => {
+                return ServerStep {
+                    issues: vec![ServerIssue::Parameters(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                };
+            }
+        };
+        let mut snapshots = Vec::new();
+        let mut outbound = Vec::new();
+        let mut issues = Vec::new();
+        let mut seen = BTreeSet::new();
+        for change in params.changes() {
+            if !seen.insert(change.uri().clone()) {
+                continue;
+            }
+            let generation = match self.documents.refresh(change.uri()) {
+                Ok(generation) => generation,
+                Err(error) => {
+                    issues.push(ServerIssue::Documents(error));
+                    continue;
+                }
+            };
+            let analysis = self
+                .analyses
+                .as_mut()
+                .expect("initialized server owns workspace analyses")
+                .analyze(generation);
+            match self.diagnostics.publish(&analysis) {
+                Ok(messages) => outbound.extend(messages.into_vec()),
+                Err(error) => issues.push(ServerIssue::Diagnostics(error)),
+            }
+            snapshots.push(analysis);
+        }
+        ServerStep {
+            outbound: outbound.into_boxed_slice(),
+            analyses: snapshots.into_boxed_slice(),
+            issues: issues.into_boxed_slice(),
+            ..ServerStep::default()
         }
     }
 }
@@ -249,7 +392,7 @@ fn internal_transition_error(id: &RequestId, error: LifecycleTransitionError) ->
             ResponseErrorCode::InternalError,
             Some(&detail),
         )),
-        issue: Some(ServerIssue::Lifecycle(error)),
+        issues: vec![ServerIssue::Lifecycle(error)].into_boxed_slice(),
         ..ServerStep::default()
     }
 }
@@ -259,6 +402,8 @@ pub enum ServerIssue {
     Parameters(ParameterError),
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
+    Outbound(OutboundRequestError),
+    ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
     Lifecycle(LifecycleTransitionError),
 }
@@ -269,6 +414,8 @@ impl fmt::Display for ServerIssue {
             Self::Parameters(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
+            Self::Outbound(error) => error.fmt(formatter),
+            Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
             Self::Lifecycle(error) => error.fmt(formatter),
         }
@@ -281,8 +428,48 @@ impl std::error::Error for ServerIssue {
             Self::Parameters(error) => Some(error),
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
+            Self::Outbound(error) => Some(error),
+            Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WatcherState {
+    Unavailable,
+    Registering,
+    Registered,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClientResponseError {
+    InvalidRegistrationResult,
+    RegistrationRejected(ResponseError),
+    WatcherNotRegistered,
+}
+
+impl fmt::Display for ClientResponseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRegistrationResult => {
+                formatter.write_str("watched-file registration response result is not null")
+            }
+            Self::RegistrationRejected(error) => error.fmt(formatter),
+            Self::WatcherNotRegistered => {
+                formatter.write_str("client sent watched-file changes before registration")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ClientResponseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RegistrationRejected(error) => Some(error),
+            Self::InvalidRegistrationResult | Self::WatcherNotRegistered => None,
         }
     }
 }
@@ -350,8 +537,8 @@ mod tests {
             opened.generation().unwrap().generation(),
             GenerationId::new(1)
         );
-        assert_eq!(opened.notifications().len(), 1);
-        assert!(opened.notifications()[0].contains("window/showMessage"));
+        assert_eq!(opened.outbound_messages().len(), 1);
+        assert!(opened.outbound_messages()[0].contains("window/showMessage"));
 
         let stale = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":1}},\"contentChanges\":[{{\"text\":\"stale\"}}]}}}}"
@@ -383,6 +570,50 @@ mod tests {
             server.receive(r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{}}"#);
         assert!(step.response().is_none());
         assert!(matches!(step.issue(), Some(ServerIssue::Parameters(_))));
+    }
+
+    #[test]
+    fn correlates_dynamic_watcher_registration_before_accepting_disk_changes() {
+        let mut server = server("dev");
+        server.receive(concat!(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",",
+            "\"params\":{\"capabilities\":{\"workspace\":{",
+            "\"didChangeWatchedFiles\":{\"dynamicRegistration\":true}}}}}"
+        ));
+        let initialized = server.receive(r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#);
+        assert_eq!(initialized.outbound_messages().len(), 1);
+        assert!(initialized.outbound_messages()[0].contains("client/registerCapability"));
+        assert!(initialized.outbound_messages()[0].contains("**/*.nct"));
+
+        let uri = format!("file:///tmp/nocter-watched-{}.nct", std::process::id());
+        let watched = format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{{\"changes\":[{{\"uri\":\"{uri}\",\"type\":2}}]}}}}"
+        );
+        let premature = server.receive(&watched);
+        assert!(matches!(
+            premature.issue(),
+            Some(ServerIssue::ClientResponse(
+                ClientResponseError::WatcherNotRegistered
+            ))
+        ));
+
+        let registered = server.receive(r#"{"jsonrpc":"2.0","id":1,"result":null}"#);
+        assert!(registered.issue().is_none());
+        let refreshed = server.receive(&watched);
+        assert_eq!(refreshed.analyses().count(), 1);
+        assert_eq!(
+            refreshed.generation().unwrap().generation(),
+            GenerationId::new(1)
+        );
+        assert!(refreshed.issue().is_none());
+
+        let unknown = server.receive(r#"{"jsonrpc":"2.0","id":99,"result":null}"#);
+        assert!(matches!(
+            unknown.issue(),
+            Some(ServerIssue::Outbound(
+                OutboundRequestError::UnknownResponse(RequestId::Integer(99))
+            ))
+        ));
     }
 
     fn server(version: &str) -> LanguageServer {
