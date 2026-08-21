@@ -41,6 +41,9 @@ pub(crate) fn execute_parsed_command(
         ParsedCommand::Test(command) => {
             execute_test(command, current_directory, toolchain, presentation)
         }
+        ParsedCommand::SourceInspection(_) => {
+            unreachable!("source inspection executes before installation selection")
+        }
     }
 }
 

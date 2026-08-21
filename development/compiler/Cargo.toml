@@ -22,6 +22,7 @@ members = [
     "crates/nocter-session",
     "crates/nocter-source",
     "crates/nocter-source-index",
+    "crates/nocter-source-tooling",
     "crates/nocter-syntax",
     "crates/nocter-target-program",
     "crates/nocter-target-selection",

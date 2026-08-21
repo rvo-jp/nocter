@@ -1722,6 +1722,7 @@ dependencies = [
  "nocter-session",
  "nocter-source",
  "nocter-source-index",
+ "nocter-source-tooling",
 ]
 
 [[package]]
@@ -1911,6 +1912,15 @@ version = "0.0.0"
 dependencies = [
  "nocter-declarations",
  "nocter-model",
+ "nocter-source",
+ "nocter-syntax",
+]
+
+[[package]]
+name = "nocter-source-tooling"
+version = "0.0.0"
+dependencies = [
+ "nocter-diagnostics",
  "nocter-source",
  "nocter-syntax",
 ]

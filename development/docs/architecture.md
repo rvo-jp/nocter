@@ -374,16 +374,26 @@ Fetch uses the package-only projection of the same input authority, so a source-
 representable after parsing. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
 
+`tokens` and `ast` are source-only commands with their own exact-one-file parse result. They reuse
+the common single-file path resolver, then cross `nocter-source-tooling`: one filesystem-independent
+snapshot owns normalized source, lexer output, and its concrete syntax tree. The `nocter.tokens`
+and `nocter.ast` version-1 renderers project that snapshot directly into flat, ID-based JSON; they
+do not create a second AST. Lexer/parser diagnostics use the same projection functions as discovery.
+The process adapter completes these commands before installation selection because package,
+standard-library, host, and target state cannot affect lexical or syntactic inspection.
+
 Prepared check, build, and run commands cross one production compiler-command adapter. Its explicit
 `CommandToolchain` contains the already selected target and a `CommandPackageContext` containing
 the Nocter home and standard package. Fetch receives only that package context, not compilation
 target authority. The adapter never reads process globals or reconstructs installation state. The
 sole `nocter` process
 entry reads arguments, `NOCTER_HOME`, the real executable, and the current directory once. It
-validates argument structure before installation or source access, delegates installation
-selection to `nocter-installation`, then creates `CompilerInstallation` only after the manifest
+validates argument structure before installation or source access. Source-only inspection then
+exits through its independent boundary. Remaining non-help commands delegate installation
+selection to `nocter-installation`, then create `CompilerInstallation` only after the manifest
 host and native default target both match the running compiler host. This wrapper makes the
-compatibility relationship a prerequisite for every command instead of a repeated CLI condition.
+compatibility relationship a prerequisite for every installation-dependent command instead of a
+repeated CLI condition.
 The process adapter creates the command toolchain from its default target and standard package.
 `--version` and `doctor` render only this validated profile; they do not prepare source or
 initialize package acquisition. Package mode invokes exact

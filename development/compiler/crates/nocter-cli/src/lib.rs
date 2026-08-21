@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use nocter_command::{
     BuildCommandResult, CheckCommandPresentation, CheckCommandResult, CommandToolchain,
     DiagnosticFormat, ExecutedProgram, FetchCommandResult, HelpRequest, ParsedCommand,
-    parse_command_invocation,
+    SourceInspectionCommandResult, execute_source_inspection, parse_command_invocation,
 };
 use nocter_diagnostics::{
     DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostics_json,
@@ -71,6 +71,7 @@ pub enum InvocationOutcome {
     Build(BuildCommandResult),
     Run(ExecutedProgram),
     Test(Box<nocter_command::TestCommandResult>),
+    SourceInspection(SourceInspectionCommandResult),
 }
 
 impl InvocationOutcome {
@@ -85,6 +86,7 @@ impl InvocationOutcome {
             | Self::Build(_) => 0,
             Self::Run(executed) => executed.status().code().unwrap_or(1),
             Self::Test(result) => i32::from(!result.succeeded()),
+            Self::SourceInspection(result) => i32::from(!result.succeeded()),
         }
     }
 
@@ -96,6 +98,7 @@ impl InvocationOutcome {
             Self::Version(report) => Some(report.render()),
             Self::Doctor(report) => Some(report.render()),
             Self::Test(result) => test_report::render_test_human(result),
+            Self::SourceInspection(result) => Some(result.json().to_owned()),
             Self::Fetch(_) | Self::Check(_) | Self::Build(_) | Self::Run(_) => None,
         }
     }
@@ -125,7 +128,8 @@ impl InvocationOutcome {
             | Self::Check(_)
             | Self::Build(_)
             | Self::Run(_)
-            | Self::Test(_) => Ok(None),
+            | Self::Test(_)
+            | Self::SourceInspection(_) => Ok(None),
         }
     }
 }
@@ -152,6 +156,16 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
     })?;
     if let ParsedCommand::Help(request) = &command {
         return Ok(InvocationOutcome::Help(*request));
+    }
+    if let ParsedCommand::SourceInspection(_) = &command {
+        let ParsedCommand::SourceInspection(command) = command else {
+            unreachable!()
+        };
+        return execute_source_inspection(command, &current_directory)
+            .map(InvocationOutcome::SourceInspection)
+            .map_err(|error| {
+                InvocationError::new(InvocationErrorKind::SourceInspection(error), None)
+            });
     }
     let mut presentation = InvocationDiagnosticPresentation::from_command(&command);
     let home = NocterHome::resolve(NocterHomeRequest::new(configured_home, executable)).map_err(

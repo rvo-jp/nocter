@@ -114,6 +114,27 @@ pub enum TokenKind {
     Eof,
 }
 
+impl TokenKind {
+    /// Stable category spelling used by compiler-owned tooling protocols.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Identifier => "identifier",
+            Self::Keyword(_) => "keyword",
+            Self::IntegerLiteral => "integer_literal",
+            Self::ByteLiteral => "byte_literal",
+            Self::StringStart(_) => "string_start",
+            Self::StringText => "string_text",
+            Self::InterpolationStart => "interpolation_start",
+            Self::InterpolationEnd => "interpolation_end",
+            Self::StringEnd(_) => "string_end",
+            Self::Newline => "newline",
+            Self::Punctuation(_) => "punctuation",
+            Self::Eof => "eof",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Token {
     kind: TokenKind,

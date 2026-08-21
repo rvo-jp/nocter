@@ -11,6 +11,8 @@ pub(crate) enum CommandKind {
     Build,
     Run,
     Test,
+    Tokens,
+    Ast,
 }
 
 impl CommandKind {
@@ -198,7 +200,7 @@ const OPTIONS: [OptionSchema; 11] = [
         long: "--format",
         short: None,
         value: Some("FORMAT"),
-        description: "Use JSON diagnostic output (json).",
+        description: "Use JSON output (json).",
     },
     OptionSchema {
         option: CommandOption::Target,
@@ -319,7 +321,27 @@ const TEST: CommandSchema = CommandSchema {
     positional: None,
 };
 
-const COMMANDS: [CommandSchema; 8] = [HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST];
+const TOKENS: CommandSchema = CommandSchema {
+    kind: CommandKind::Tokens,
+    name: "tokens",
+    form: CommandForm::Subcommand,
+    summary: "Inspect one source file as a versioned lexical JSON envelope.",
+    accepted: HELP_OPTION | CommandOption::Format.bit(),
+    positional: Some(SOURCE),
+};
+
+const AST: CommandSchema = CommandSchema {
+    kind: CommandKind::Ast,
+    name: "ast",
+    form: CommandForm::Subcommand,
+    summary: "Inspect one source file as a versioned concrete-syntax JSON envelope.",
+    accepted: HELP_OPTION | CommandOption::Format.bit(),
+    positional: Some(SOURCE),
+};
+
+const COMMANDS: [CommandSchema; 10] = [
+    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST,
+];
 
 /// One pure help selection produced by the public argument parser.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -404,7 +426,7 @@ fn render_command_help(schema: CommandSchema) -> String {
 mod tests {
     use super::*;
 
-    const KINDS: [CommandKind; 8] = [
+    const KINDS: [CommandKind; 10] = [
         CommandKind::Help,
         CommandKind::Version,
         CommandKind::Doctor,
@@ -413,6 +435,8 @@ mod tests {
         CommandKind::Build,
         CommandKind::Run,
         CommandKind::Test,
+        CommandKind::Tokens,
+        CommandKind::Ast,
     ];
 
     #[test]

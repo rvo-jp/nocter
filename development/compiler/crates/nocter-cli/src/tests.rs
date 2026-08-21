@@ -150,6 +150,60 @@ fn help_does_not_select_an_installation_or_prepare_source() {
 }
 
 #[test]
+fn source_inspection_bypasses_installation_and_package_selection() {
+    let tree = TempTree::new("source-inspection");
+    let missing_home = tree.0.join("missing-home");
+    fs::write(tree.0.join("app.nct"), "func main(): void { return }\n").unwrap();
+
+    let tokens = execute_invocation(invocation(
+        ["tokens", "app.nct", "--format", "json"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let ast = execute_invocation(invocation(
+        ["ast", "app.nct", "--format", "json"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert_eq!(tokens.exit_code(), 0);
+    assert!(
+        tokens
+            .render_standard_output()
+            .unwrap()
+            .starts_with("{\"schema\":\"nocter.tokens\",\"version\":1,\"ok\":true")
+    );
+    assert_eq!(ast.exit_code(), 0);
+    let ast = ast.render_standard_output().unwrap();
+    assert!(ast.starts_with("{\"schema\":\"nocter.ast\",\"version\":1,\"ok\":true"));
+    assert!(ast.contains("\"kind\":\"module_source\""));
+}
+
+#[test]
+fn source_inspection_diagnostics_remain_in_the_inspection_envelope() {
+    let tree = TempTree::new("source-inspection-diagnostic");
+    let missing_home = tree.0.join("missing-home");
+    fs::write(tree.0.join("bad.nct"), "@\n").unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["tokens", "bad.nct"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert_eq!(outcome.exit_code(), 1);
+    let json = outcome.render_standard_output().unwrap();
+    assert!(json.starts_with("{\"schema\":\"nocter.tokens\",\"version\":1,\"ok\":false"));
+    assert!(json.contains("\"code\":\"E0100\""));
+}
+
+#[test]
 fn compiler_host_is_checked_before_user_source_preparation() {
     let tree = TempTree::new("host");
     let home = tree.installation("arm64-darwin", false);

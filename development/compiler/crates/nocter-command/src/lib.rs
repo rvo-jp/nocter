@@ -12,6 +12,7 @@ mod execute;
 mod failure;
 mod fetch;
 mod input;
+mod inspection;
 mod output_plan;
 mod package_state;
 mod planning;
@@ -21,10 +22,10 @@ mod test;
 
 pub use arguments::{
     CommandArgumentError, CommandArgumentFailure, DiagnosticFormat, ParsedBuildCommand,
-    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand, ParsedTestCommand,
-    PreparedBuildCommand, PreparedCheckCommand, PreparedCommandError, PreparedFetchCommand,
-    PreparedRunCommand, PreparedTestCommand, ResolutionOptions, parse_command_arguments,
-    parse_command_invocation,
+    ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedRunCommand,
+    ParsedSourceInspectionCommand, ParsedTestCommand, PreparedBuildCommand, PreparedCheckCommand,
+    PreparedCommandError, PreparedFetchCommand, PreparedRunCommand, PreparedTestCommand,
+    ResolutionOptions, SourceInspectionKind, parse_command_arguments, parse_command_invocation,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
@@ -48,6 +49,9 @@ pub use fetch::{FetchCommandExecutionError, FetchCommandResult, execute_prepared
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
     ResolvedProgramInput, SingleFileCommandInput, resolve_package_input, resolve_program_input,
+};
+pub use inspection::{
+    SourceInspectionCommandError, SourceInspectionCommandResult, execute_source_inspection,
 };
 pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use package_state::{CommandPackageContext, CommandPackageStateError};

@@ -46,7 +46,8 @@ impl InvocationDiagnosticPresentation {
             | ParsedCommand::Doctor
             | ParsedCommand::Fetch(_)
             | ParsedCommand::Build(_)
-            | ParsedCommand::Run(_) => None,
+            | ParsedCommand::Run(_)
+            | ParsedCommand::SourceInspection(_) => None,
         }
     }
 

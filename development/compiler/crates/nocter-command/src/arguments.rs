@@ -46,6 +46,7 @@ pub enum ParsedCommand {
     Build(ParsedBuildCommand),
     Run(ParsedRunCommand),
     Test(ParsedTestCommand),
+    SourceInspection(ParsedSourceInspectionCommand),
 }
 
 impl ParsedCommand {
@@ -56,8 +57,42 @@ impl ParsedCommand {
             Self::Build(command) => command.target,
             Self::Run(command) => command.target,
             Self::Test(command) => command.target,
-            Self::Help(_) | Self::Version | Self::Doctor | Self::Fetch(_) => None,
+            Self::Help(_)
+            | Self::Version
+            | Self::Doctor
+            | Self::Fetch(_)
+            | Self::SourceInspection(_) => None,
         }
+    }
+}
+
+/// Compiler-owned projection selected for one standalone source.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceInspectionKind {
+    Tokens,
+    Ast,
+}
+
+/// Pure argument result for one package-independent source inspection.
+#[derive(Debug)]
+pub struct ParsedSourceInspectionCommand {
+    source: PathBuf,
+    kind: SourceInspectionKind,
+}
+
+impl ParsedSourceInspectionCommand {
+    #[must_use]
+    pub fn source(&self) -> &Path {
+        &self.source
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> SourceInspectionKind {
+        self.kind
+    }
+
+    pub(crate) fn into_parts(self) -> (PathBuf, SourceInspectionKind) {
+        (self.source, self.kind)
     }
 }
 
@@ -461,7 +496,35 @@ pub fn parse_command_invocation(
         CommandKind::Test => parse_test(arguments.into_iter())
             .map(ParsedCommand::Test)
             .map_err(|failure| failure.for_command("test")),
+        CommandKind::Tokens => parse_source_inspection(
+            arguments.into_iter(),
+            CommandKind::Tokens.schema(),
+            SourceInspectionKind::Tokens,
+        )
+        .map(ParsedCommand::SourceInspection)
+        .map_err(|failure| failure.for_command("tokens")),
+        CommandKind::Ast => parse_source_inspection(
+            arguments.into_iter(),
+            CommandKind::Ast.schema(),
+            SourceInspectionKind::Ast,
+        )
+        .map(ParsedCommand::SourceInspection)
+        .map_err(|failure| failure.for_command("ast")),
     }
+}
+
+fn parse_source_inspection(
+    arguments: impl Iterator<Item = OsString>,
+    schema: &'static CommandSchema,
+    kind: SourceInspectionKind,
+) -> Result<ParsedSourceInspectionCommand, OptionsParseFailure> {
+    let parsed = parse_options(arguments, schema)?;
+    let Some(source) = parsed.positional else {
+        return Err(OptionsParseFailure::plain(
+            CommandArgumentError::MissingSource(schema.name()),
+        ));
+    };
+    Ok(ParsedSourceInspectionCommand { source, kind })
 }
 
 fn parse_empty_command(
@@ -922,6 +985,7 @@ pub enum CommandArgumentError {
     DuplicateOption(&'static str),
     HelpMustBeUsedAlone(&'static str),
     MultiplePositionalSources(OsString),
+    MissingSource(&'static str),
     PositionalNotAccepted {
         command: &'static str,
         argument: OsString,
@@ -1036,6 +1100,9 @@ impl fmt::Display for CommandArgumentError {
                 "more than one positional source was provided; unexpected {}",
                 source.to_string_lossy()
             ),
+            Self::MissingSource(command) => {
+                write!(formatter, "{command} requires one source file")
+            }
             Self::PositionalNotAccepted { command, argument } => write!(
                 formatter,
                 "{command} does not accept a source path; unexpected {}",
@@ -1119,6 +1186,45 @@ mod tests {
             CommandArgumentError::OptionNotAccepted {
                 option: "--offline",
                 command: "doctor",
+            }
+        );
+    }
+
+    #[test]
+    fn source_inspection_requires_one_source_and_accepts_only_json_format() {
+        let parsed =
+            parse_command_arguments(arguments(&["tokens", "app.nct", "--format", "json"])).unwrap();
+        let ParsedCommand::SourceInspection(parsed) = parsed else {
+            panic!("expected source inspection")
+        };
+        assert_eq!(parsed.kind(), SourceInspectionKind::Tokens);
+        assert_eq!(parsed.source(), Path::new("app.nct"));
+
+        let parsed = parse_command_arguments(arguments(&["ast", "nocter.nct"])).unwrap();
+        assert!(matches!(
+            parsed,
+            ParsedCommand::SourceInspection(ref command)
+                if command.kind() == SourceInspectionKind::Ast
+        ));
+        assert_eq!(
+            parse_command_arguments(arguments(&["tokens"])).unwrap_err(),
+            CommandArgumentError::MissingSource("tokens")
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["ast", "app.nct", "extra.nct"])).unwrap_err(),
+            CommandArgumentError::MultiplePositionalSources("extra.nct".into())
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&[
+                "tokens",
+                "app.nct",
+                "--target",
+                "arm64-darwin"
+            ]))
+            .unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--target",
+                command: "tokens",
             }
         );
     }

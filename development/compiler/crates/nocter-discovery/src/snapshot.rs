@@ -127,7 +127,7 @@ impl DiscoveredUnit {
     /// lexer or parser error variants.
     #[must_use]
     pub fn syntax_diagnostics(&self) -> Box<[nocter_diagnostics::SourceDiagnostic]> {
-        crate::diagnostic::syntax_diagnostics(&self.syntax)
+        nocter_diagnostics::syntax_diagnostics(&self.syntax)
     }
 
     /// Consumes the discovery snapshot and retains its immutable normalized sources for

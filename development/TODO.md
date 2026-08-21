@@ -15,10 +15,13 @@ implementation input.
 
 ## Immediate Work
 
-1. Add public source tooling through syntax-owned, filesystem-independent `fmt`, `tokens`, and
-   `ast` plans. Formatting must remain a concrete-syntax transformation rather than a semantic
-   pretty-printer; inspection commands must consume the same lexer/parser snapshot without package
-   discovery or target selection.
+1. Complete public source tooling with syntax-owned, filesystem-independent `fmt`. `tokens` and
+   `ast` are closed: one `nocter-source-tooling` snapshot owns normalized input, lexer output, and
+   the parser tree; both commands bypass installation, package discovery, and target selection and
+   emit their specified flat version-1 JSON envelopes even when their inspected stage diagnoses
+   source. Formatting must remain a concrete-syntax transformation rather than a semantic
+   pretty-printer, must reject comments until it can preserve them, and must publish a rewrite only
+   after complete parse and formatting success.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named

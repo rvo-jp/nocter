@@ -11,6 +11,7 @@ use nocter_syntax::{NodeId, SyntaxToken};
 mod human;
 mod json;
 mod projection;
+mod syntax;
 
 pub use human::{DiagnosticRenderError, render_source_diagnostic};
 pub use json::{
@@ -18,6 +19,7 @@ pub use json::{
     render_spanless_diagnostic_json, write_json_string, write_source_diagnostic_items_json,
     write_spanless_diagnostic_json,
 };
+pub use syntax::{lexical_diagnostic, parse_diagnostic, syntax_diagnostics};
 
 /// Exact source subject selected by the phase that owns a diagnostic rule.
 ///

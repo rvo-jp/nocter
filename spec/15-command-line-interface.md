@@ -377,6 +377,61 @@ nocter ast app.nct --format json
   includes package directives when present.
 - These commands do not resolve dependencies, type-check, lower, emit, or execute code.
 
+### Source-inspection JSON
+
+`tokens` and `ast` each emit exactly one UTF-8 JSON object followed by LF. Their version-1
+envelopes begin with the same fields:
+
+```json
+{
+  "schema": "nocter.tokens",
+  "version": 1,
+  "ok": true,
+  "source": {
+    "path": "/absolute/path/app.nct",
+    "byte_length": 18
+  },
+  "diagnostics": []
+}
+```
+
+`source.path` is the canonical absolute path used to read the file. Byte offsets address the
+normalized UTF-8 source seen by the lexer: CRLF is normalized to LF before offsets are assigned.
+`ok` is false exactly when the command's inspected stage emitted an error diagnostic. Diagnostics
+use the objects specified in [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
+An inspection envelope is still emitted when lexical or syntactic diagnostics exist.
+
+The `nocter.tokens` envelope adds ordered `tokens` and `comments` arrays. Token IDs and comment
+IDs are zero-based positions in those arrays. Every token object has `id`, `kind`, exact `text`,
+`start_byte`, `end_byte`, and `joint_to_next`. EOF has empty text, an empty range at end of input,
+and `joint_to_next: false`. Keyword and punctuation spellings remain in `text`; `kind` names the
+stable lexical category rather than creating one category per spelling. Every comment object has
+`id`, `kind`, exact `text`, `start_byte`, and `end_byte`. Comments remain separate from tokens.
+
+The `nocter.ast` envelope adds `root`, `nodes`, and `tokens`. It is a flat concrete-syntax graph,
+not recursive JSON. `root` is a node ID. Each node has `id`, `kind`, `start_byte`, `end_byte`, and
+an ordered `children` array. Each child is exactly one of:
+
+```json
+{ "kind": "node", "id": 4 }
+{ "kind": "token", "id": 9 }
+{
+  "kind": "missing",
+  "expected": { "kind": "punctuation", "text": "}" },
+  "start_byte": 18,
+  "end_byte": 18
+}
+```
+
+AST token IDs index the envelope's source-ordered syntax-token array. A syntax token records `id`,
+`lexical_id`, `kind`, exact `text`, `start_byte`, and `end_byte`. This distinct array preserves
+parser-owned token subdivision such as two generic closers derived from one lexical `>>` token. A
+missing child has no invented token identity. Node and token IDs are deterministic identities
+within one immutable syntax snapshot; consumers must not treat an ID from one envelope as an
+identity in another envelope. Array and child order are part of the versioned format. New fields
+may be added in a future version only by increasing `version` when an existing version-1 consumer
+could not safely ignore the change.
+
 ## LSP
 
 `nocter lsp` speaks the Language Server Protocol over stdin and stdout. Protocol messages are the

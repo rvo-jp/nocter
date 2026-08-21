@@ -154,6 +154,166 @@ pub enum NodeKind {
     Error,
 }
 
+impl NodeKind {
+    /// Stable lower-snake-case spelling used by compiler-owned tooling protocols.
+    // Keeping this exhaustive protocol vocabulary in one match makes a newly added syntax kind a
+    // compile error here instead of silently omitting or deriving a public spelling.
+    #[allow(clippy::too_many_lines)]
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PackageFile => "package_file",
+            Self::ModuleSource => "module_source",
+            Self::PackageDirective => "package_directive",
+            Self::DirectiveValue => "directive_value",
+            Self::DirectiveRecord => "directive_record",
+            Self::DirectiveField => "directive_field",
+            Self::StringLiteral => "string_literal",
+            Self::UseDeclaration => "use_declaration",
+            Self::Visibility => "visibility",
+            Self::ModulePath => "module_path",
+            Self::ImportSelection => "import_selection",
+            Self::SelectedName => "selected_name",
+            Self::Item => "item",
+            Self::TargetDirective => "target_directive",
+            Self::FunctionDeclaration => "function_declaration",
+            Self::PrimitiveDeclaration => "primitive_declaration",
+            Self::TypeAliasDeclaration => "type_alias_declaration",
+            Self::StructDeclaration => "struct_declaration",
+            Self::StructField => "struct_field",
+            Self::EnumDeclaration => "enum_declaration",
+            Self::EnumVariant => "enum_variant",
+            Self::EnumPayload => "enum_payload",
+            Self::InterfaceDeclaration => "interface_declaration",
+            Self::AssociatedTypeDeclaration => "associated_type_declaration",
+            Self::InterfaceBounds => "interface_bounds",
+            Self::InterfaceMethod => "interface_method",
+            Self::ConstructDeclaration => "construct_declaration",
+            Self::ConstructionFunction => "construction_function",
+            Self::LiteralDeclaration => "literal_declaration",
+            Self::LiteralShape => "literal_shape",
+            Self::LiteralParameters => "literal_parameters",
+            Self::InstanceDeclaration => "instance_declaration",
+            Self::InherentMethod => "inherent_method",
+            Self::MethodSignature => "method_signature",
+            Self::Receiver => "receiver",
+            Self::CoercionDeclaration => "coercion_declaration",
+            Self::CoercionProvenance => "coercion_provenance",
+            Self::EqualityOperator => "equality_operator",
+            Self::OrderingOperator => "ordering_operator",
+            Self::IndexOperator => "index_operator",
+            Self::ExpansionOperator => "expansion_operator",
+            Self::ConformDeclaration => "conform_declaration",
+            Self::AssociatedTypeBinding => "associated_type_binding",
+            Self::ConformMethod => "conform_method",
+            Self::DropDeclaration => "drop_declaration",
+            Self::TestDeclaration => "test_declaration",
+            Self::GenericParameters => "generic_parameters",
+            Self::Parameters => "parameters",
+            Self::Parameter => "parameter",
+            Self::CallableTail => "callable_tail",
+            Self::ProvenanceClause => "provenance_clause",
+            Self::Block => "block",
+            Self::BlockUseDeclaration => "block_use_declaration",
+            Self::ExecutableSequence => "executable_sequence",
+            Self::ExpressionStatement => "expression_statement",
+            Self::BodyResult => "body_result",
+            Self::BindingStatement => "binding_statement",
+            Self::BindingTarget => "binding_target",
+            Self::TypeAnnotation => "type_annotation",
+            Self::AssignmentStatement => "assignment_statement",
+            Self::AssignmentTarget => "assignment_target",
+            Self::ReturnStatement => "return_statement",
+            Self::BreakStatement => "break_statement",
+            Self::ContinueStatement => "continue_statement",
+            Self::DropStatement => "drop_statement",
+            Self::WhileStatement => "while_statement",
+            Self::LoopStatement => "loop_statement",
+            Self::ForStatement => "for_statement",
+            Self::ForSource => "for_source",
+            Self::RegionStatement => "region_statement",
+            Self::NamedPlace => "named_place",
+            Self::AllocatorPlace => "allocator_place",
+            Self::Expression => "expression",
+            Self::RecoveryExpression => "recovery_expression",
+            Self::RecoveryClause => "recovery_clause",
+            Self::LogicalOrExpression => "logical_or_expression",
+            Self::LogicalAndExpression => "logical_and_expression",
+            Self::EqualityExpression => "equality_expression",
+            Self::OrderingExpression => "ordering_expression",
+            Self::ShiftExpression => "shift_expression",
+            Self::AdditiveExpression => "additive_expression",
+            Self::MultiplicativeExpression => "multiplicative_expression",
+            Self::ConversionExpression => "conversion_expression",
+            Self::UnaryExpression => "unary_expression",
+            Self::MoveExpression => "move_expression",
+            Self::OutcomeExpression => "outcome_expression",
+            Self::PostfixExpression => "postfix_expression",
+            Self::CallSuffix => "call_suffix",
+            Self::MemberSuffix => "member_suffix",
+            Self::IndexSuffix => "index_suffix",
+            Self::IfExpression => "if_expression",
+            Self::IfCondition => "if_condition",
+            Self::ElseClause => "else_clause",
+            Self::MatchExpression => "match_expression",
+            Self::MatchArm => "match_arm",
+            Self::EnumPattern => "enum_pattern",
+            Self::EnumPatternPayload => "enum_pattern_payload",
+            Self::PayloadSlot => "payload_slot",
+            Self::ClosureExpression => "closure_expression",
+            Self::ClosureHead => "closure_head",
+            Self::ClosureCaptures => "closure_captures",
+            Self::ClosureCapture => "closure_capture",
+            Self::ClosureParameters => "closure_parameters",
+            Self::ClosureParameter => "closure_parameter",
+            Self::ClosureResult => "closure_result",
+            Self::StructLiteral => "struct_literal",
+            Self::StructInitializer => "struct_initializer",
+            Self::FieldInitializer => "field_initializer",
+            Self::TypedSequenceLiteral => "typed_sequence_literal",
+            Self::SequenceBody => "sequence_body",
+            Self::SequenceElement => "sequence_element",
+            Self::SpreadExpression => "spread_expression",
+            Self::TypedStringLiteral => "typed_string_literal",
+            Self::AllocationOverride => "allocation_override",
+            Self::ArrayLiteral => "array_literal",
+            Self::StringExpression => "string_expression",
+            Self::StringPart => "string_part",
+            Self::GenericOwnerMember => "generic_owner_member",
+            Self::ReferenceExpression => "reference_expression",
+            Self::GroupedExpression => "grouped_expression",
+            Self::ScalarLiteral => "scalar_literal",
+            Self::Type => "type",
+            Self::BuiltinType => "builtin_type",
+            Self::SelfType => "self_type",
+            Self::PointerType => "pointer_type",
+            Self::BorrowType => "borrow_type",
+            Self::CallableType => "callable_type",
+            Self::CallableParameters => "callable_parameters",
+            Self::CallableParameter => "callable_parameter",
+            Self::NamedType => "named_type",
+            Self::TypeArguments => "type_arguments",
+            Self::SliceType => "slice_type",
+            Self::FixedArrayType => "fixed_array_type",
+            Self::GroupedType => "grouped_type",
+            Self::OpaqueResult => "opaque_result",
+            Self::OpaqueArguments => "opaque_arguments",
+            Self::OpaqueArgument => "opaque_argument",
+            Self::WhereClause => "where_clause",
+            Self::CapabilityPredicate => "capability_predicate",
+            Self::CopyPredicate => "copy_predicate",
+            Self::TypeEqualityPredicate => "type_equality_predicate",
+            Self::OperatorPredicate => "operator_predicate",
+            Self::CoercionPredicate => "coercion_predicate",
+            Self::ExpansionPredicate => "expansion_predicate",
+            Self::Capability => "capability",
+            Self::DeclarationTypePattern => "declaration_type_pattern",
+            Self::PatternArguments => "pattern_arguments",
+            Self::Error => "error",
+        }
+    }
+}
+
 /// Stable identity of a node inside one immutable syntax tree.
 ///
 /// Nodes and child elements live in flat arenas. This keeps ownership non-recursive even when a
@@ -332,6 +492,19 @@ impl SyntaxTree {
             return None;
         }
         self.nodes.get(id.index())
+    }
+
+    /// Iterates every node in its stable arena order.
+    ///
+    /// The returned identities belong only to this immutable tree. Consumers can use this view to
+    /// serialize or index the concrete syntax without reconstructing its arena topology.
+    #[must_use]
+    pub fn nodes(&self) -> impl ExactSizeIterator<Item = (NodeId, &SyntaxNode)> {
+        let source = self.source();
+        self.nodes
+            .iter()
+            .enumerate()
+            .map(move |(index, node)| (NodeId::new(source, index), node))
     }
 
     #[must_use]

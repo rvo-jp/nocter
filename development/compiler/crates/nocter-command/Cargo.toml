@@ -17,6 +17,7 @@ nocter-package-state = { path = "../nocter-package-state" }
 nocter-session = { path = "../nocter-session" }
 nocter-source = { path = "../nocter-source" }
 nocter-source-index = { path = "../nocter-source-index" }
+nocter-source-tooling = { path = "../nocter-source-tooling" }
 
 [dev-dependencies]
 

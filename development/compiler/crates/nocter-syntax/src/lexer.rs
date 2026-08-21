@@ -11,6 +11,19 @@ pub enum CommentKind {
     FileDocumentation,
 }
 
+impl CommentKind {
+    /// Stable category spelling used by compiler-owned tooling protocols.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Block => "block",
+            Self::ItemDocumentation => "item_documentation",
+            Self::FileDocumentation => "file_documentation",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Comment {
     kind: CommentKind,

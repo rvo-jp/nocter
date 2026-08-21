@@ -88,6 +88,27 @@ pub enum SourceError {
     TooManySources,
 }
 
+impl fmt::Display for SourceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RawCarriageReturn { normalized_offset } => write!(
+                formatter,
+                "raw carriage return at normalized byte {}",
+                normalized_offset.get()
+            ),
+            Self::InvalidUtf8 { normalized_offset } => write!(
+                formatter,
+                "invalid UTF-8 at normalized byte {}",
+                normalized_offset.get()
+            ),
+            Self::SourceTooLarge => formatter.write_str("source exceeds the byte-coordinate limit"),
+            Self::TooManySources => formatter.write_str("source identity space is exhausted"),
+        }
+    }
+}
+
+impl std::error::Error for SourceError {}
+
 /// Owns source identities and normalized text for one compiler invocation.
 #[derive(Clone, Debug, Default)]
 pub struct SourceMap {
