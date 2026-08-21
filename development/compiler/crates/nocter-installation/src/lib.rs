@@ -12,6 +12,13 @@ use std::path::{Path, PathBuf};
 use nocter_model::PackageIdentity;
 use nocter_package::StandardPackage;
 
+mod json;
+mod manifest;
+
+pub use manifest::{
+    ArchiveMetadata, ImplementedTarget, InstallationManifest, LicenseMetadata, ManifestError,
+};
+
 /// Explicit process facts needed to select a Nocter home.
 #[derive(Clone, Debug)]
 pub struct NocterHomeRequest {
@@ -40,10 +47,12 @@ pub enum NocterHomeOrigin {
 pub struct NocterHome {
     root: PathBuf,
     origin: NocterHomeOrigin,
-    release: Box<str>,
-    manifest: PathBuf,
+    manifest_path: PathBuf,
+    manifest: InstallationManifest,
     compiler: PathBuf,
     standard_root: PathBuf,
+    license: PathBuf,
+    notice: PathBuf,
 }
 
 impl NocterHome {
@@ -75,18 +84,35 @@ impl NocterHome {
             return Err(NocterHomeError::HomeNotDirectory(root));
         }
         let version = required_file(&root, "VERSION")?;
-        let manifest = required_file(&root, "MANIFEST.json")?;
+        let manifest_path = required_file(&root, "MANIFEST.json")?;
         let compiler = required_file(&root, "nocter")?;
         let standard_root = required_directory(&root, "std")?;
         required_file(&standard_root, "nocter.nct")?;
         let release = read_release(&version)?;
+        let manifest_bytes =
+            fs::read(&manifest_path).map_err(|error| NocterHomeError::Filesystem {
+                operation: "read MANIFEST.json",
+                path: manifest_path.clone(),
+                error,
+            })?;
+        let manifest =
+            InstallationManifest::decode(&manifest_bytes, &release).map_err(|error| {
+                NocterHomeError::Manifest {
+                    path: manifest_path.clone(),
+                    error,
+                }
+            })?;
+        let license = required_relative_file(&root, "license.path", manifest.license().path())?;
+        let notice = required_relative_file(&root, "license.notice", manifest.license().notice())?;
         Ok(Self {
             root,
             origin,
-            release,
+            manifest_path,
             manifest,
             compiler,
             standard_root,
+            license,
+            notice,
         })
     }
 
@@ -102,11 +128,16 @@ impl NocterHome {
 
     #[must_use]
     pub const fn release(&self) -> &str {
-        &self.release
+        self.manifest.release()
     }
 
     #[must_use]
-    pub fn manifest(&self) -> &Path {
+    pub fn manifest_path(&self) -> &Path {
+        &self.manifest_path
+    }
+
+    #[must_use]
+    pub const fn manifest(&self) -> &InstallationManifest {
         &self.manifest
     }
 
@@ -120,18 +151,43 @@ impl NocterHome {
         &self.standard_root
     }
 
+    #[must_use]
+    pub fn license(&self) -> &Path {
+        &self.license
+    }
+
+    #[must_use]
+    pub fn notice(&self) -> &Path {
+        &self.notice
+    }
+
     /// Creates the standard-package input owned by this exact release installation.
     #[must_use]
     pub fn standard_package(&self) -> StandardPackage {
         StandardPackage::new(
-            PackageIdentity::new(format!("toolchain-std-v{}", self.release)),
+            PackageIdentity::new(format!("toolchain-std-v{}", self.release())),
             self.standard_root.clone(),
         )
     }
 }
 
+fn required_relative_file(
+    root: &Path,
+    name: &'static str,
+    relative: &Path,
+) -> Result<PathBuf, NocterHomeError> {
+    inspect_required_file(root, name, root.join(relative))
+}
+
 fn required_file(root: &Path, name: &'static str) -> Result<PathBuf, NocterHomeError> {
-    let path = root.join(name);
+    inspect_required_file(root, name, root.join(name))
+}
+
+fn inspect_required_file(
+    root: &Path,
+    name: &'static str,
+    path: PathBuf,
+) -> Result<PathBuf, NocterHomeError> {
     match fs::metadata(&path) {
         Ok(metadata) if metadata.is_file() => {
             canonical_required(root, name, "canonicalize required file", &path)
@@ -232,6 +288,10 @@ pub enum NocterHomeError {
     InvalidVersion {
         path: PathBuf,
     },
+    Manifest {
+        path: PathBuf,
+        error: ManifestError,
+    },
     Filesystem {
         operation: &'static str,
         path: PathBuf,
@@ -288,6 +348,13 @@ impl fmt::Display for NocterHomeError {
                 "Nocter home VERSION is not one non-empty UTF-8 line: {}",
                 path.display()
             ),
+            Self::Manifest { path, error } => {
+                write!(
+                    formatter,
+                    "invalid Nocter manifest {}: {error}",
+                    path.display()
+                )
+            }
             Self::Filesystem {
                 operation,
                 path,
@@ -301,6 +368,7 @@ impl std::error::Error for NocterHomeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Filesystem { error, .. } => Some(error),
+            Self::Manifest { error, .. } => Some(error),
             Self::EmptyConfiguredHome
             | Self::ExecutableNotFile(_)
             | Self::ExecutableWithoutParent(_)
@@ -339,11 +407,45 @@ mod tests {
             let root = self.0.join(relative);
             fs::create_dir_all(root.join("std")).unwrap();
             fs::write(root.join("VERSION"), version).unwrap();
-            fs::write(root.join("MANIFEST.json"), b"{}").unwrap();
+            let release = std::str::from_utf8(version)
+                .unwrap_or("0.14.0")
+                .trim_end_matches('\n');
+            fs::write(root.join("MANIFEST.json"), manifest(release)).unwrap();
             fs::write(root.join("nocter"), b"compiler").unwrap();
+            fs::write(root.join("LICENSE"), b"license").unwrap();
+            fs::write(root.join("NOTICE"), b"notice").unwrap();
             fs::write(root.join("std/nocter.nct"), b"#name: \"std\"\n").unwrap();
             root
         }
+    }
+
+    fn manifest(release: &str) -> String {
+        format!(
+            r#"{{
+                "schema": "nocter.manifest",
+                "schema_version": 1,
+                "release": "{release}",
+                "host": "arm64-darwin",
+                "default_target": "arm64-darwin",
+                "compiler": {{ "path": "nocter" }},
+                "std": {{ "path": "std" }},
+                "license": {{
+                    "id": "Apache-2.0",
+                    "path": "LICENSE",
+                    "notice": "NOTICE"
+                }},
+                "implemented_targets": [{{
+                    "name": "arm64-darwin",
+                    "backend": "arm64",
+                    "executable": "macho",
+                    "os": "darwin"
+                }}],
+                "archive": {{
+                    "name": "nocter-v{release}-arm64-darwin.tar.gz",
+                    "root": ".nocter"
+                }}
+            }}"#
+        )
     }
 
     impl Drop for TempTree {
@@ -366,6 +468,10 @@ mod tests {
         assert_eq!(home.origin(), NocterHomeOrigin::Configured);
         assert_eq!(home.root(), fs::canonicalize(configured).unwrap());
         assert_eq!(home.release(), "0.14.0");
+        assert_eq!(
+            home.manifest().default_target(),
+            nocter_model::CompilationTarget::Arm64Darwin
+        );
         assert_eq!(
             home.standard_package().identity().as_str(),
             "toolchain-std-v0.14.0"
@@ -404,6 +510,33 @@ mod tests {
             )),
             Err(NocterHomeError::MissingRequiredEntry {
                 name: "MANIFEST.json",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn metadata_and_its_declared_files_are_one_validation_boundary() {
+        let tree = TempTree::new();
+        let invalid = tree.installation("invalid-manifest", b"0.14.0\n");
+        fs::write(invalid.join("MANIFEST.json"), b"{}").unwrap();
+        assert!(matches!(
+            NocterHome::resolve(NocterHomeRequest::new(
+                Some(invalid.into_os_string()),
+                "unused"
+            )),
+            Err(NocterHomeError::Manifest { .. })
+        ));
+
+        let missing_license = tree.installation("missing-license", b"0.14.0\n");
+        fs::remove_file(missing_license.join("LICENSE")).unwrap();
+        assert!(matches!(
+            NocterHome::resolve(NocterHomeRequest::new(
+                Some(missing_license.into_os_string()),
+                "unused"
+            )),
+            Err(NocterHomeError::MissingRequiredEntry {
+                name: "license.path",
                 ..
             })
         ));

@@ -174,10 +174,15 @@ does not read environment variables, the current executable, the working directo
 state. A nonempty configured home has priority. Otherwise, the canonical executable's parent is
 the only candidate. The selected root and its required entries are canonical, physically typed,
 and contained within that root, so a required symlink cannot substitute state outside the
-installation. `VERSION` is decoded once as one nonempty UTF-8 line, and the resulting release owns
-the standard-package identity and canonical `std/` root. Strict `MANIFEST.json` schema decoding is
-a following installation-metadata boundary; no command or compiler stage may inspect that JSON
-independently.
+installation. `VERSION` is decoded once as one nonempty UTF-8 line. A bounded strict JSON parser
+preserves object members rather than overwriting duplicate names, and one exact
+`nocter.manifest`-v1 decoder rejects duplicate, unknown, missing, mistyped, and inconsistent fields.
+It keeps host identity separate from compilation-target identity, requires the default target in
+the ordered implemented-target set, validates portable release and relative-path vocabulary,
+matches archive identity and `VERSION`, and closes the declared license files through the same
+contained physical boundary. The resulting immutable profile owns the release, complete metadata,
+canonical compiler, standard-library, license, and notice paths. Its release owns the standard
+package identity. No command or compiler stage may inspect installation JSON independently.
 
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
 lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources

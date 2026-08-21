@@ -15,18 +15,19 @@ implementation input.
 
 ## Immediate Work
 
-1. Complete installation metadata and then add the single public process entry.
+1. Add the single public process entry over the completed installation profile.
    `nocter-installation` now selects exactly one canonical home from explicit process facts:
    nonempty configured `NOCTER_HOME` first, otherwise the real executable's parent. It validates
    contained physical `VERSION`, `MANIFEST.json`, `nocter`, `std/`, and `std/nocter.nct` entries,
-   decodes `VERSION` once, and derives the release-owned standard-package identity. It does not
-   read process globals or search the working or user directory. The next boundary is a strict,
-   duplicate-preserving JSON parser and exact `nocter.manifest` v1 decoder. That decoder must
-   validate `VERSION` equality, license paths, host/default/implemented targets, compiler/std
-   paths, archive metadata, and required contained files before producing an immutable installation
-   profile. Only then may the public executable read environment, current-executable, and
-   current-directory facts once and compose `CommandToolchain`; it must reuse the existing argument
-   parser and execution adapter.
+   decodes `VERSION` once, and derives the release-owned standard-package identity. A bounded,
+   duplicate-preserving JSON parser and exact `nocter.manifest` v1 decoder now reject unknown,
+   missing, duplicate, mistyped, unsafe-path, version/archive, default-target, and required-file
+   inconsistencies before producing the immutable installation profile. Host identity remains
+   independent of compilation-target identity. The crate does not read process globals or search
+   the working or user directory. The public executable may now read environment,
+   current-executable, and current-directory facts once and compose `CommandToolchain`; it must
+   reuse the existing argument parser and execution adapter. It must also compare the manifest host
+   with the compiler build host before selecting the manifest default target.
 
    The completed command connection remains: `nocter-package` owns the only structured
    interpretation of `nocter.nct`, including
