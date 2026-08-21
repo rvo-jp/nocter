@@ -49,8 +49,11 @@ implementation input.
    watcher support while accepting unknown future capabilities. Its response advertises only the
    implemented UTF-16 and full-document synchronization surface. Initialize is now a two-phase
    lifecycle transition: invalid params atomically restore the uninitialized state instead of
-   leaving the session unable to retry. The next increment is the executable protocol loop,
-   followed by root-bound analysis and diagnostic publication.
+   leaving the session unable to retry. The executable sequential service and framed loop now
+   handle initialize, initialized, full document synchronization, unknown requests, shutdown, and
+   clean/premature exit without writing non-protocol stdout. Accepted document generations remain
+   explicit outputs. The next increment is the public `nocter lsp` process entry, outbound request
+   correlation for dynamic watcher registration, then root-bound analysis and diagnostics.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

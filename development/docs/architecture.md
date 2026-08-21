@@ -203,6 +203,13 @@ transition only after parameter validation and returns to `Uninitialized` on fai
 corrected request without reconstructing process state. No document or semantic notification can
 cross the pending-validation interval.
 
+The language-server service composes each validated protocol event with document state. Requests
+without an implemented handler receive the standard method-not-found response; malformed
+notifications produce no protocol response but remain typed server issues. Initialize and shutdown
+responses preserve request identity, and clean versus premature exit produces an explicit process
+status. The transport loop writes only framed JSON-RPC messages to its output and exposes accepted
+document generations for the next analysis increment rather than reading source independently.
+
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected

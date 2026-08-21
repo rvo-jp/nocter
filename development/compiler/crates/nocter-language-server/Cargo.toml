@@ -9,10 +9,8 @@ publish = false
 [dependencies]
 nocter-analysis = { path = "../nocter-analysis" }
 nocter-filesystem = { path = "../nocter-filesystem" }
-nocter-lsp = { path = "../nocter-lsp" }
-
-[dev-dependencies]
 nocter-json = { path = "../nocter-json" }
+nocter-lsp = { path = "../nocter-lsp" }
 
 [lints]
 workspace = true
