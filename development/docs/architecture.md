@@ -164,6 +164,9 @@ packages cross typed `LockRequired` and `FetchRequired` boundaries. Locked/offli
 only the forbidden requirement into a policy error. The resolver never writes a lock, contacts a
 source, downloads content, or mutates either store; those actions belong to a future package-state
 authority that must rerun exact resolution after completing its transaction.
+The production selection result retains command-root and standard `PackageIdentity` values beside
+the graph, so command discovery never recovers either role from a path or display name. A graph-only
+projection remains available only for consumers that genuinely do not need those roles.
 
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
 lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
@@ -310,6 +313,17 @@ forcing paths through Unicode, and rejects unknown, duplicate, missing-value, or
 options before filesystem access. Preparation then invokes the existing input resolver and command
 planner in that fixed order. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
+
+Prepared build and run commands now cross one production command adapter. Its explicit
+`CommandToolchain` contains the already selected target, Nocter home, and standard package; the
+adapter never reads process globals or reconstructs installation state. Package mode invokes exact
+package selection, retains the resolver-owned command-root identity, selects the root module and
+only the executable modules required by the command, and then creates one ordinary declared
+discovery request. A named build does not open an unselected executable module. Package-set and
+sole-selection modes retain every executable root needed for their cardinality rules. Single-file
+mode loads only the self-contained standard package and creates the normal single-file discovery
+request. Both layouts then use the same session, artifact, and launch boundaries. There is no
+separate CLI compiler pipeline.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by

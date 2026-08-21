@@ -19,6 +19,7 @@ pub use graph::{
 };
 pub use id::{PackageId, PackageIdError};
 pub use resolution::{
-    PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest, StandardPackage,
-    resolve_package_graph,
+    PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
+    ResolvedPackageSelection, StandardPackage, resolve_package_graph, resolve_package_selection,
+    resolve_standard_package,
 };

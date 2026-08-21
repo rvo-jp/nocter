@@ -6,10 +6,12 @@
 mod arguments;
 mod artifact;
 mod build;
+mod execute;
 mod input;
 mod output_plan;
 mod planning;
 mod run;
+mod source;
 
 pub use arguments::{
     CommandArgumentError, ParsedBuildCommand, ParsedCommand, ParsedRunCommand,
@@ -24,6 +26,10 @@ pub use build::{
     BuildCommandError, BuildSetCommandError, BuiltExecutable, BuiltExecutableEntry,
     BuiltExecutableSet, build_executable, build_executables, build_selected_executable,
 };
+pub use execute::{
+    BuildCommandExecutionError, BuildCommandResult, RunCommandExecutionError,
+    execute_prepared_build, execute_prepared_run,
+};
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
     ResolvedProgramInput, SingleFileCommandInput, resolve_program_input,
@@ -34,6 +40,7 @@ pub use planning::{
     RunCommandPlan, SelectedBuildOutput,
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
+pub use source::{CommandSourceError, CommandToolchain};
 
 #[cfg(test)]
 mod tests;

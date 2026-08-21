@@ -102,6 +102,10 @@ impl BuildCommandPlan {
     pub const fn operation(&self) -> &BuildOperation {
         &self.operation
     }
+
+    pub(crate) fn into_parts(self) -> (ResolvedProgramInput, BuildOperation) {
+        (self.input, self.operation)
+    }
 }
 
 #[derive(Debug)]
@@ -193,6 +197,10 @@ impl RunCommandPlan {
     #[must_use]
     pub fn working_directory(&self) -> &Path {
         &self.working_directory
+    }
+
+    pub(crate) fn into_parts(self) -> (ResolvedProgramInput, ExecutableSelector, PathBuf) {
+        (self.input, self.selector, self.working_directory)
     }
 }
 

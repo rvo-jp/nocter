@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
-use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_package::{
+    PackageResolutionError, ResolvedPackageGraph, ResolvedPackageSpec, StandardPackage,
+};
 use nocter_session::{
     ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
     bundled_standard_toolchain,
@@ -308,6 +310,143 @@ fn run_returns_a_nonzero_program_status_without_classifying_it_as_orchestration_
 
     assert_eq!(executed.status().code(), Some(7));
     fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn parsed_package_build_crosses_exact_resolution_discovery_and_publication() {
+    let directory = unique_test_directory("prepared-package-build");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#name: \"application\"\n#executable: { name: \"hello\" }\n",
+    );
+    write_source(&package_root, "index.nct", "func main(): void { return }\n");
+    let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
+        "build".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+    ])
+    .unwrap() else {
+        panic!("expected build command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+
+    let result = super::execute_prepared_build(prepared, &command_toolchain()).unwrap();
+
+    let super::BuildCommandResult::PackageSet(result) = result else {
+        panic!("default package build must produce the package set");
+    };
+    assert_eq!(result.entries().len(), 1);
+    assert_eq!(result.entries()[0].identity().name(), "hello");
+    assert_eq!(
+        &fs::read(package_root.join("hello")).unwrap()[..4],
+        &[0xcf, 0xfa, 0xed, 0xfe]
+    );
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn named_package_build_does_not_expand_an_unselected_target_module() {
+    let directory = unique_test_directory("prepared-named-build");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
+    );
+    write_source(&package_root, "index.nct", "//! Package root.\n");
+    write_source(
+        &package_root,
+        "src/good/index.nct",
+        "func main(): void { return }\n",
+    );
+    write_source(&package_root, "src/broken/index.nct", "func main(");
+    let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
+        "build".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+        "--executable".into(),
+        "good".into(),
+    ])
+    .unwrap() else {
+        panic!("expected build command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+
+    let result = super::execute_prepared_build(prepared, &command_toolchain()).unwrap();
+
+    let super::BuildCommandResult::Selected(result) = result else {
+        panic!("named package build must produce one selected executable");
+    };
+    assert_eq!(
+        result.artifact().path(),
+        fs::canonicalize(&package_root).unwrap().join("good")
+    );
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn parsed_resolution_policy_reaches_the_exact_package_boundary() {
+    let directory = unique_test_directory("prepared-package-policy");
+    let package_root = directory.join("package");
+    write_source(
+        &package_root,
+        "nocter.nct",
+        "#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
+    );
+    write_source(&package_root, "index.nct", "//! Package root.\n");
+    let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
+        "build".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+        "--offline".into(),
+    ])
+    .unwrap() else {
+        panic!("expected build command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+
+    let error = super::execute_prepared_build(prepared, &command_toolchain()).unwrap_err();
+
+    assert!(matches!(
+        error,
+        super::BuildCommandExecutionError::Source(
+            super::CommandSourceError::PackageResolution(
+                PackageResolutionError::MissingLockOffline { ref alias, .. }
+            )
+        ) if alias.as_ref() == "remote"
+    ));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn parsed_single_file_run_crosses_the_common_command_adapter() {
+    let directory = unique_test_directory("prepared-file-run");
+    write_source(&directory, "status.nct", "func main(): i32 { 9 }\n");
+    let super::ParsedCommand::Run(parsed) =
+        super::parse_command_arguments(["run".into(), "status.nct".into()]).unwrap()
+    else {
+        panic!("expected run command");
+    };
+    let prepared = parsed.prepare(&directory).unwrap();
+
+    let executed = super::execute_prepared_run(prepared, &command_toolchain()).unwrap();
+
+    assert_eq!(executed.status().code(), Some(9));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+fn command_toolchain() -> super::CommandToolchain {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    super::CommandToolchain::new(
+        CompilationTarget::Arm64Darwin,
+        compiler.join("../packaging"),
+        StandardPackage::new(
+            PackageIdentity::new("toolchain:std"),
+            compiler.join("../std"),
+        ),
+    )
 }
 
 fn discover_hello() -> nocter_discovery::DiscoveredUnit {

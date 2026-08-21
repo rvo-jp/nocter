@@ -48,6 +48,16 @@ impl StandardPackage {
             root: root.into(),
         }
     }
+
+    #[must_use]
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
 }
 
 /// Complete process-independent input to exact package graph resolution.
@@ -76,8 +86,38 @@ impl PackageResolutionRequest {
     }
 }
 
-/// Resolves one root package and its complete exact dependency graph without mutating locks or
-/// stores.
+/// One complete graph with its non-inferable command-root and toolchain identities.
+#[derive(Debug)]
+pub struct ResolvedPackageSelection {
+    graph: ResolvedPackageGraph,
+    root: PackageIdentity,
+    standard: PackageIdentity,
+}
+
+impl ResolvedPackageSelection {
+    #[must_use]
+    pub const fn graph(&self) -> &ResolvedPackageGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn root(&self) -> &PackageIdentity {
+        &self.root
+    }
+
+    #[must_use]
+    pub const fn standard(&self) -> &PackageIdentity {
+        &self.standard
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (ResolvedPackageGraph, PackageIdentity, PackageIdentity) {
+        (self.graph, self.root, self.standard)
+    }
+}
+
+/// Resolves one root package and its complete exact dependency selection without mutating locks
+/// or stores.
 ///
 /// Each selected `nocter.nct` is loaded exactly once into the returned graph. Missing mutable
 /// state is reported as a typed lock or fetch requirement when policy permits it; a separate
@@ -87,9 +127,9 @@ impl PackageResolutionRequest {
 ///
 /// Returns an error for invalid package data, inconsistent identities, filesystem failures, or a
 /// lock/fetch requirement that this read-only resolver cannot satisfy.
-pub fn resolve_package_graph(
+pub fn resolve_package_selection(
     request: PackageResolutionRequest,
-) -> Result<ResolvedPackageGraph, PackageResolutionError> {
+) -> Result<ResolvedPackageSelection, PackageResolutionError> {
     let root = canonical_package_root(&request.root).map_err(PackageResolutionError::Graph)?;
     let root_id = PackageId::from_canonical_path(&root)
         .map_err(PackageResolutionError::PackageId)?
@@ -112,7 +152,7 @@ pub fn resolve_package_graph(
         &mut builder,
         &mut roots,
         &mut pending,
-        root_id,
+        root_id.clone(),
         root.clone(),
     )?;
 
@@ -154,7 +194,45 @@ pub fn resolve_package_graph(
         implicit.insert("std".into(), standard_id.clone());
         edges.insert(identity, ResolvedPackageEdges { authored, implicit });
     }
-    builder.finish(edges).map_err(PackageResolutionError::Graph)
+    let graph = builder
+        .finish(edges)
+        .map_err(PackageResolutionError::Graph)?;
+    Ok(ResolvedPackageSelection {
+        graph,
+        root: root_id,
+        standard: standard_id,
+    })
+}
+
+/// Resolves one root package and returns only its exact graph.
+///
+/// Prefer [`resolve_package_selection`] when a later stage needs to distinguish the command root
+/// from its dependencies.
+///
+/// # Errors
+///
+/// Returns the same exact resolution error as [`resolve_package_selection`].
+pub fn resolve_package_graph(
+    request: PackageResolutionRequest,
+) -> Result<ResolvedPackageGraph, PackageResolutionError> {
+    let (graph, _, _) = resolve_package_selection(request)?.into_parts();
+    Ok(graph)
+}
+
+/// Loads the self-contained standard package selected by a toolchain for single-file mode.
+///
+/// # Errors
+///
+/// Returns a graph error if the package is invalid or declares an authored dependency. Bundled
+/// standard libraries are closed toolchain inputs and never resolve through user package stores.
+pub fn resolve_standard_package(
+    standard: StandardPackage,
+) -> Result<ResolvedPackageGraph, PackageGraphError> {
+    let identity = standard.identity;
+    ResolvedPackageGraph::load(vec![
+        crate::ResolvedPackageSpec::new(identity.clone(), standard.root)
+            .with_standard_dependency(identity),
+    ])
 }
 
 fn insert_package(

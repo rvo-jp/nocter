@@ -27,15 +27,19 @@ implementation input.
    and Nocter-home exact stores, mutable path roots, and the toolchain-selected standard package.
    One shared graph builder ensures that resolution and graph closure load each manifest only once.
    Missing lock and fetch state crosses typed requirements; locked/offline policy forbids only the
-   relevant mutation. Fetch, lock rewriting, and store installation remain a separate authority,
-   and the command adapter must supply the active Nocter home and standard package. Canonical
+   relevant mutation. The production command adapter now supplies an explicit target, Nocter home,
+   and standard package, preserves the resolver-owned command-root identity, selects only the
+   compile-root modules required by all/sole/named executable policy, and crosses the existing
+   discovery, session, publication, and launch boundaries. Parsed `--locked` and `--offline`
+   values reach exact resolution unchanged. Fetch, lock rewriting, store installation, and
+   process-global Nocter-home resolution remain separate authorities. Canonical
    `PackageId` construction is closed: Git and archive locks normalize to Windows-safe exact IDs,
    path packages hash their canonical absolute UTF-8 path, and one dependency-free SHA-256
    implementation is shared with Mach-O emission. Build/run
    arguments now parse from `OsString` without process or filesystem access, preserve exact path
    values, reject malformed option structure, retain `--locked`/`--offline` as package policy, and
-   prepare only through the existing input and command plans. The future executable adapter must
-   consume this parser rather than define another flag table.
+   prepare only through the existing input and command plans. The future public executable must
+   consume this parser and adapter rather than define another flag table or compiler pipeline.
    `nocter-command` now compiles one exact executable only through `nocter-session`, commits
    persistent images failure-atomically, and stages/runs/removes temporary images while preserving
    child exit status. Discovery, compile input, and the immutable declaration graph now preserve

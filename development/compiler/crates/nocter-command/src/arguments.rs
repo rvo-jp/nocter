@@ -102,6 +102,10 @@ impl PreparedBuildCommand {
     pub const fn resolution(&self) -> ResolutionOptions {
         self.resolution
     }
+
+    pub(crate) fn into_parts(self) -> (BuildCommandPlan, ResolutionOptions) {
+        (self.plan, self.resolution)
+    }
 }
 
 #[derive(Debug)]
@@ -119,6 +123,10 @@ impl PreparedRunCommand {
     #[must_use]
     pub const fn resolution(&self) -> ResolutionOptions {
         self.resolution
+    }
+
+    pub(crate) fn into_parts(self) -> (RunCommandPlan, ResolutionOptions) {
+        (self.plan, self.resolution)
     }
 }
 
