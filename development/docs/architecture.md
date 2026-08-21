@@ -253,6 +253,14 @@ before the first filesystem mutation. Publication then consumes that frozen orde
 committed through the same sibling-file protocol, and artifact errors retain the exact executable
 identity that failed.
 
+The command input boundary resolves package and single-file modes before package graph discovery.
+It receives the invocation directory explicitly rather than reading process-global state. No file
+input selects exactly that directory as a package root and requires its `nocter.nct`; `--root`
+selects exactly the requested directory. Positional and `--file` sources converge only after their
+mutual-exclusion check, require the `.nct` extension and one regular file, and cannot coexist with
+`--root`. Resolution canonicalizes the selected identity once and never searches ancestors,
+guesses `main.nct`, or invents a package.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

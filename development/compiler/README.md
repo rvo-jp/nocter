@@ -354,7 +354,10 @@ be introduced to make an unresolved syntax choice.
   names and cross-root collisions before writing, then publish every declaration-order image
   through that same artifact path. Temporary run artifacts use a private directory, inherited
   standard streams, exact child status, and explicit cleanup. This crate depends on session output
-  rather than semantic or backend internals.
+  rather than semantic or backend internals. Its common input boundary resolves an explicit
+  invocation directory plus package/file options into exactly one canonical package root or
+  single `.nct` source. It validates conflicting input forms before filesystem access and never
+  searches ancestors, guesses a source entry, or reads process-global current-directory state.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

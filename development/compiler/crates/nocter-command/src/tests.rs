@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
@@ -42,6 +42,77 @@ fn failed_output_selection_does_not_create_a_temporary_artifact() {
 
     assert_eq!(error.operation(), super::ArtifactOperation::SelectOutput);
     assert_eq!(temporary_entries(&directory), Vec::<String>::new());
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn default_program_input_selects_only_the_exact_current_package() {
+    let directory = unique_test_directory("input-package");
+    fs::write(directory.join("nocter.nct"), "#name: \"app\"\n").unwrap();
+
+    let selected = super::resolve_program_input(
+        &directory,
+        super::ProgramInputOptions::package(None::<PathBuf>),
+    )
+    .unwrap();
+
+    let package = selected.package().unwrap();
+    assert_eq!(package.root(), fs::canonicalize(&directory).unwrap());
+    assert_eq!(package.declaration(), package.root().join("nocter.nct"));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn package_input_never_searches_an_ancestor_for_nocter_nct() {
+    let directory = unique_test_directory("input-no-ancestor");
+    fs::write(directory.join("nocter.nct"), "#name: \"parent\"\n").unwrap();
+    let child = directory.join("child");
+    fs::create_dir(&child).unwrap();
+
+    let error =
+        super::resolve_program_input(&child, super::ProgramInputOptions::package(None::<PathBuf>))
+            .unwrap_err();
+
+    assert!(matches!(
+        error,
+        super::ProgramInputError::MissingPackageDeclaration(path)
+            if path == fs::canonicalize(&child).unwrap().join("nocter.nct")
+    ));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn positional_and_explicit_file_forms_converge_without_permitting_conflicts() {
+    let directory = unique_test_directory("input-file");
+    fs::write(directory.join("app.nct"), "func main(): void { return }\n").unwrap();
+    let positional = super::resolve_program_input(
+        &directory,
+        super::ProgramInputOptions::positional_file("app.nct"),
+    )
+    .unwrap();
+    let explicit = super::resolve_program_input(
+        &directory,
+        super::ProgramInputOptions::explicit_file("app.nct"),
+    )
+    .unwrap();
+
+    assert_eq!(positional, explicit);
+    assert!(matches!(
+        super::resolve_program_input(
+            &directory,
+            super::ProgramInputOptions::new(None, Some("app.nct".into()), Some("app.nct".into()))
+        )
+        .unwrap_err(),
+        super::ProgramInputError::ConflictingFileForms
+    ));
+    assert!(matches!(
+        super::resolve_program_input(
+            &directory,
+            super::ProgramInputOptions::new(Some(".".into()), Some("app.nct".into()), None)
+        )
+        .unwrap_err(),
+        super::ProgramInputError::RootWithFile
+    ));
     fs::remove_dir_all(directory).unwrap();
 }
 
