@@ -3,6 +3,14 @@
 version = 4
 
 [[package]]
+name = "nocter"
+version = "0.0.0"
+dependencies = [
+ "nocter-command",
+ "nocter-installation",
+]
+
+[[package]]
 name = "nocter-arm64"
 version = "0.0.0"
 dependencies = [

@@ -332,9 +332,11 @@ resolution policy; they never alter executable or output selection.
 
 Prepared build and run commands now cross one production command adapter. Its explicit
 `CommandToolchain` contains the already selected target, Nocter home, and standard package; the
-adapter never reads process globals or reconstructs installation state. A future process entry
-reads `NOCTER_HOME` and the real executable once, delegates selection to `nocter-installation`, and
-constructs this value only after manifest validation. Package mode invokes exact
+adapter never reads process globals or reconstructs installation state. The sole `nocter` process
+entry reads arguments, `NOCTER_HOME`, the real executable, and the current directory once. It
+validates argument structure before installation or source access, delegates installation
+selection to `nocter-installation`, compares compiler-host and manifest-host identity, and creates
+the command toolchain from the validated manifest default target and standard package. Package mode invokes exact
 package selection, retains the resolver-owned command-root identity, selects the root module and
 only the executable modules required by the command, and then creates one ordinary declared
 discovery request. A named build does not open an unselected executable module. Package-set and
@@ -342,6 +344,12 @@ sole-selection modes retain every executable root needed for their cardinality r
 mode loads only the self-contained standard package and creates the normal single-file discovery
 request. Both layouts then use the same session, artifact, and launch boundaries. There is no
 separate CLI compiler pipeline.
+
+The process adapter attaches a spanless diagnostic code only when it owns the complete
+classification: command syntax, filesystem input selection, package-root selection, or Nocter-home
+validation. It leaves compiler-stage failures unclassified rather than replacing a source-backed
+diagnostic with a generic CLI code. The next diagnostic-presentation boundary must retain source
+maps and indexes across failed sessions and render the phase-owned `SourceDiagnostic` directly.
 
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by

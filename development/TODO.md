@@ -2,8 +2,8 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed exact command adapter and deterministic physical
-Nocter-home boundary.
+Continue v0.14.0 Phase 6 from the completed public build/run process entry and exact installation
+profile.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -15,7 +15,25 @@ implementation input.
 
 ## Immediate Work
 
-1. Add the single public process entry over the completed installation profile.
+1. Close public diagnostic presentation before adding more commands.
+   The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses
+   arguments before installation or source access, validates the exact installation, compares
+   compiler and manifest host identities, derives `CommandToolchain` from the manifest default
+   target and standard package, and delegates preparation/execution to `nocter-command`. Its native
+   integration test builds a single file through a copied installed standard library. Spanless
+   argument, filesystem, package-root, and home failures receive only their specification-owned
+   codes. Compiler failures deliberately receive no invented CLI code.
+
+   The next boundary must carry the discovery source map, final source index when available, and
+   phase-owned `SourceDiagnostic` through failed sessions into one human renderer. It must render
+   exact normalized path, line, column, primary range, related notes, and help without inspecting
+   semantic error variants or reopening source text. Syntax diagnostics need the same envelope.
+   Internal compiler failures remain visibly distinct and never receive a source rule code. After
+   this presentation boundary is closed, add the package-state transaction that fulfills typed
+   `LockRequired`/`FetchRequired` results and reruns exact resolution; do not make the resolver or
+   command adapter mutate locks or stores.
+
+   The completed installation boundary remains:
    `nocter-installation` now selects exactly one canonical home from explicit process facts:
    nonempty configured `NOCTER_HOME` first, otherwise the real executable's parent. It validates
    contained physical `VERSION`, `MANIFEST.json`, `nocter`, `std/`, and `std/nocter.nct` entries,
@@ -24,10 +42,7 @@ implementation input.
    missing, duplicate, mistyped, unsafe-path, version/archive, default-target, and required-file
    inconsistencies before producing the immutable installation profile. Host identity remains
    independent of compilation-target identity. The crate does not read process globals or search
-   the working or user directory. The public executable may now read environment,
-   current-executable, and current-directory facts once and compose `CommandToolchain`; it must
-   reuse the existing argument parser and execution adapter. It must also compare the manifest host
-   with the compiler build host before selecting the manifest default target.
+   the working or user directory.
 
    The completed command connection remains: `nocter-package` owns the only structured
    interpretation of `nocter.nct`, including
@@ -45,15 +60,15 @@ implementation input.
    and standard package, preserves the resolver-owned command-root identity, selects only the
    compile-root modules required by all/sole/named executable policy, and crosses the existing
    discovery, session, publication, and launch boundaries. Parsed `--locked` and `--offline`
-   values reach exact resolution unchanged. Fetch, lock rewriting, store installation, and
-   process-global Nocter-home resolution remain separate authorities. Canonical
+   values reach exact resolution unchanged. Fetch, lock rewriting, and store installation remain
+   separate authorities. Canonical
    `PackageId` construction is closed: Git and archive locks normalize to Windows-safe exact IDs,
    path packages hash their canonical absolute UTF-8 path, and one dependency-free SHA-256
    implementation is shared with Mach-O emission. Build/run
    arguments now parse from `OsString` without process or filesystem access, preserve exact path
    values, reject malformed option structure, retain `--locked`/`--offline` as package policy, and
-   prepare only through the existing input and command plans. The future public executable must
-   consume this parser and adapter rather than define another flag table or compiler pipeline.
+   prepare only through the existing input and command plans. The public executable consumes this
+   parser and adapter and defines no second flag table or compiler pipeline.
    `nocter-command` now compiles one exact executable only through `nocter-session`, commits
    persistent images failure-atomically, and stages/runs/removes temporary images while preserving
    child exit status. Discovery, compile input, and the immutable declaration graph now preserve

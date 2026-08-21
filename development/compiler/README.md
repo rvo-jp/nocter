@@ -367,6 +367,15 @@ be introduced to make an unresolved syntax choice.
   session selection, implicit or explicit output policy, and an exact working directory. These
   plans reject file-mode `--executable` without consulting declarations; target existence and
   cardinality stay in the session boundary.
+- `nocter-installation` selects one canonical Nocter home from explicit configured-home and
+  executable facts. It validates contained physical entries, decodes one exact `VERSION`, and uses
+  a bounded duplicate-preserving JSON parser plus an exact `nocter.manifest` v1 decoder to freeze
+  host, target, standard-library, license, notice, and archive facts. It never reads process globals
+  or searches unrelated directories.
+- `nocter` is the sole public process adapter. It reads argv, `NOCTER_HOME`, the current executable,
+  and cwd once; checks compiler-host agreement; constructs `CommandToolchain` from the validated
+  installation; and delegates build/run parsing, preparation, compilation, publication, and launch
+  to the existing boundaries. It contains no second option table or compiler pipeline.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

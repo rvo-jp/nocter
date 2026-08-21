@@ -1,0 +1,21 @@
+[package]
+name = "nocter"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "nocter_cli"
+
+[[bin]]
+name = "nocter"
+path = "src/main.rs"
+
+[dependencies]
+nocter-command = { path = "../nocter-command" }
+nocter-installation = { path = "../nocter-installation" }
+
+[lints]
+workspace = true

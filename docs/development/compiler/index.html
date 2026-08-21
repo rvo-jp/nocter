@@ -451,7 +451,14 @@
   Separate build/run plans then map normalized package/file input to all-target or sole/named
   session selection, implicit or explicit output policy, and an exact working directory. These
   plans reject file-mode <code>--executable</code> without consulting declarations; target existence and
-  cardinality stay in the session boundary.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
+  cardinality stay in the session boundary.</li><li><code>nocter-installation</code> selects one canonical Nocter home from explicit configured-home and
+  executable facts. It validates contained physical entries, decodes one exact <code>VERSION</code>, and uses
+  a bounded duplicate-preserving JSON parser plus an exact <code>nocter.manifest</code> v1 decoder to freeze
+  host, target, standard-library, license, notice, and archive facts. It never reads process globals
+  or searches unrelated directories.</li><li><code>nocter</code> is the sole public process adapter. It reads argv, <code>NOCTER_HOME</code>, the current executable,
+  and cwd once; checks compiler-host agreement; constructs <code>CommandToolchain</code> from the validated
+  installation; and delegates build/run parsing, preparation, compilation, publication, and launch
+  to the existing boundaries. It contains no second option table or compiler pipeline.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body
