@@ -396,7 +396,12 @@ mod tests {
     ) -> (ModuleId, DeclarationSiteId) {
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let package = builder.add_package(app_name).unwrap();
+        let package = builder
+            .add_package(
+                nocter_model::PackageIdentity::new("workspace:app"),
+                app_name,
+            )
+            .unwrap();
         let module = builder.add_module(package, ModulePath::root()).unwrap();
         builder
             .define_module_namespace(module, ModuleNamespace::default())

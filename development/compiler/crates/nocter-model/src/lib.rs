@@ -8,6 +8,7 @@ mod arena;
 mod field;
 mod id;
 mod origin;
+mod package;
 mod symbol;
 mod target;
 mod type_store;
@@ -23,6 +24,7 @@ pub use id::{
     TypeAliasId, TypeId, VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
+pub use package::PackageIdentity;
 pub use symbol::{Symbol, SymbolTable};
 pub use target::CompilationTarget;
 pub use type_store::{

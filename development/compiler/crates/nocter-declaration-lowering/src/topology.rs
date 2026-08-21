@@ -252,7 +252,7 @@ pub fn lower_compile_unit_topology(
             .symbols()
             .get(package.display_name())
             .ok_or_else(|| LoweringError::MissingCollectedSymbol(package.display_name().into()))?;
-        let id = program.add_package(display_name)?;
+        let id = program.add_package(package.identity().clone(), display_name)?;
         package_ids.insert(package.identity().clone(), id);
         if let Some(declaration) = package.declaration() {
             let tree = declaration.syntax();

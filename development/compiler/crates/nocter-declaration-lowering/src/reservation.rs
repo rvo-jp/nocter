@@ -345,7 +345,7 @@ fn reserve_packages(
             .symbols()
             .get(package.display_name())
             .ok_or_else(|| ReservationError::MissingSymbol(package.display_name().into()))?;
-        let id = program.add_package(name)?;
+        let id = program.add_package(package.identity().clone(), name)?;
         ids.insert(package.identity().clone(), id);
         if let Some(declaration) = package.declaration() {
             let tree = declaration.syntax();

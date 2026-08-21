@@ -194,7 +194,12 @@ mod tests {
         let name = symbols.get("value").unwrap();
         let mut program =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let package = program.add_package(app_name).unwrap();
+        let package = program
+            .add_package(
+                nocter_model::PackageIdentity::new("workspace:app"),
+                app_name,
+            )
+            .unwrap();
         let first = program
             .add_module(package, ModulePath::from_segments([first_name]))
             .unwrap();
@@ -227,7 +232,12 @@ mod tests {
         let name = symbols.get("value").unwrap();
         let mut program =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let package = program.add_package(app_name).unwrap();
+        let package = program
+            .add_package(
+                nocter_model::PackageIdentity::new("workspace:app"),
+                app_name,
+            )
+            .unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
         let target = ExportedEntity::Module(module);
 

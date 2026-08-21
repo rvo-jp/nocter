@@ -99,7 +99,7 @@ mod tests {
         let symbols = SymbolTable::from_spellings(["std"]);
         let name = symbols.get("std").unwrap();
         DeclarationProgramBuilder::new(CompilationTarget::Arm64Darwin, symbols)
-            .add_package(name)
+            .add_package(nocter_model::PackageIdentity::new("toolchain:std"), name)
             .unwrap()
     }
 

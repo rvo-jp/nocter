@@ -1,4 +1,4 @@
-use nocter_model::{BuiltinType, CallableCapability, SymbolTable, TypeKind};
+use nocter_model::{BuiltinType, CallableCapability, PackageIdentity, SymbolTable, TypeKind};
 
 use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
@@ -17,7 +17,9 @@ fn package_target_names_and_positions_are_unique_within_their_typed_domains() {
     let run_name = symbols.get("run").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -58,7 +60,9 @@ fn two_pass_definitions_support_recursive_header_identity() {
     let field_name = symbols.get("value").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -120,7 +124,9 @@ fn orphaned_members_cannot_enter_the_immutable_program() {
     let field_name = symbols.get("value").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -166,7 +172,9 @@ fn empty_enums_cannot_enter_the_immutable_program() {
     let empty_name = symbols.get("Empty").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -209,7 +217,9 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
     let method_name = symbols.get("view").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -296,8 +306,12 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
         let str_name = symbols.get("str").unwrap();
         let mut program =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = program.add_package(app_name).unwrap();
-        let standard = program.add_package(standard_name).unwrap();
+        let app = program
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let standard = program
+            .add_package(PackageIdentity::new("toolchain:std"), standard_name)
+            .unwrap();
         let app_str = program
             .add_module(app, ModulePath::from_segments([str_name]))
             .unwrap();
@@ -348,7 +362,9 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
     let u_name = symbols.get("U").unwrap();
     let mut program =
         DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-    let package = program.add_package(app_name).unwrap();
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
     let module = program.add_module(package, ModulePath::root()).unwrap();
     program
         .define_module_namespace(module, ModuleNamespace::default())
@@ -430,7 +446,9 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         let self_name = symbols.get("self").unwrap();
         let mut program =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let package = program.add_package(app_name).unwrap();
+        let package = program
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
         let module = program.add_module(package, ModulePath::root()).unwrap();
         program
             .define_module_namespace(module, ModuleNamespace::default())

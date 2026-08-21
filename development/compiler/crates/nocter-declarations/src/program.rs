@@ -3,7 +3,7 @@ use std::fmt;
 
 use nocter_model::{
     Arena, ArenaBuilder, CompilationTarget, DeclarationSiteId, ImportId, ModuleId, PackageId,
-    PackageTargetId, Symbol, SymbolTable, TypeStore,
+    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeStore,
 };
 
 use crate::{
@@ -14,10 +14,16 @@ use crate::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Package {
+    identity: PackageIdentity,
     display_name: Symbol,
 }
 
 impl Package {
+    #[must_use]
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+
     #[must_use]
     pub const fn display_name(&self) -> Symbol {
         self.display_name
@@ -316,6 +322,7 @@ pub struct DeclarationProgramBuilder {
     target: CompilationTarget,
     symbols: SymbolTable,
     packages: ArenaBuilder<PackageId, Package>,
+    package_ids: HashMap<PackageIdentity, PackageId>,
     root_packages: Vec<PackageId>,
     standard_library: Option<StandardLibrary>,
     modules: ArenaBuilder<ModuleId, Module>,
@@ -335,6 +342,7 @@ impl DeclarationProgramBuilder {
             target,
             symbols,
             packages: ArenaBuilder::new(),
+            package_ids: HashMap::new(),
             root_packages: Vec::new(),
             standard_library: None,
             modules: ArenaBuilder::new(),
@@ -360,11 +368,23 @@ impl DeclarationProgramBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`ProgramBuildError::UnknownSymbol`] when the display name is absent from the
-    /// program's canonical symbol table.
-    pub fn add_package(&mut self, display_name: Symbol) -> Result<PackageId, ProgramBuildError> {
+    /// Returns an error when the display name is absent from the program's canonical symbol table
+    /// or the resolved package identity has already been reserved.
+    pub fn add_package(
+        &mut self,
+        identity: PackageIdentity,
+        display_name: Symbol,
+    ) -> Result<PackageId, ProgramBuildError> {
         self.require_symbol(display_name)?;
-        Ok(self.packages.insert(Package { display_name }))
+        if self.package_ids.contains_key(&identity) {
+            return Err(ProgramBuildError::DuplicatePackageIdentity(identity));
+        }
+        let id = self.packages.insert(Package {
+            identity: identity.clone(),
+            display_name,
+        });
+        self.package_ids.insert(identity, id);
+        Ok(id)
     }
 
     /// Records packages selected as compile roots before dependency traversal.
@@ -610,10 +630,11 @@ impl DeclarationProgramBuilder {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProgramBuildError {
     UnknownSymbol,
     UnknownPackage,
+    DuplicatePackageIdentity(PackageIdentity),
     UnknownModule,
     DuplicateModule(ModuleId),
     DuplicateRootPackage(PackageId),
@@ -636,6 +657,12 @@ impl fmt::Display for ProgramBuildError {
         match self {
             Self::UnknownSymbol => formatter.write_str("symbol is not part of the program table"),
             Self::UnknownPackage => formatter.write_str("package is not part of the program"),
+            Self::DuplicatePackageIdentity(identity) => {
+                write!(
+                    formatter,
+                    "package identity {identity:?} is already reserved"
+                )
+            }
             Self::UnknownModule => formatter.write_str("module is not part of the program"),
             Self::DuplicateModule(existing) => {
                 write!(formatter, "module identity duplicates {existing:?}")
@@ -698,7 +725,7 @@ impl From<ProgramValidationError> for ProgramBuildError {
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, SymbolTable, TypeKind};
+    use nocter_model::{BuiltinType, PackageIdentity, SymbolTable, TypeKind};
 
     use crate::{
         DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
@@ -712,8 +739,18 @@ mod tests {
         let parser = symbols.get("parser").unwrap();
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = builder.add_package(app_name).unwrap();
-        let dependency = builder.add_package(dependency_name).unwrap();
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        assert_eq!(
+            builder
+                .add_package(PackageIdentity::new("workspace:app"), dependency_name)
+                .unwrap_err(),
+            ProgramBuildError::DuplicatePackageIdentity(PackageIdentity::new("workspace:app"))
+        );
+        let dependency = builder
+            .add_package(PackageIdentity::new("resolved:dependency"), dependency_name)
+            .unwrap();
 
         let app_parser = builder
             .add_module(app, ModulePath::from_segments([parser]))
@@ -738,8 +775,12 @@ mod tests {
         let dependency_name = symbols.get("dependency").unwrap();
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = builder.add_package(app_name).unwrap();
-        let dependency = builder.add_package(dependency_name).unwrap();
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let dependency = builder
+            .add_package(PackageIdentity::new("resolved:dependency"), dependency_name)
+            .unwrap();
 
         builder.set_root_packages([app]).unwrap();
         assert_eq!(
@@ -758,6 +799,10 @@ mod tests {
         let program = builder.finish().unwrap();
 
         assert_eq!(program.root_packages(), &[app]);
+        assert_eq!(
+            program.packages().get(app).unwrap().identity(),
+            &PackageIdentity::new("workspace:app")
+        );
     }
 
     #[test]
@@ -769,8 +814,12 @@ mod tests {
         let other_name = symbols.get("other").unwrap();
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = builder.add_package(app_name).unwrap();
-        let other = builder.add_package(other_name).unwrap();
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let other = builder
+            .add_package(PackageIdentity::new("workspace:other"), other_name)
+            .unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
         let parser = builder
             .add_module(app, ModulePath::from_segments([parser_name]))
@@ -808,7 +857,9 @@ mod tests {
         let app_name = symbols.get("app").unwrap();
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = builder.add_package(app_name).unwrap();
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
         builder
             .define_module_namespace(root, ModuleNamespace::default())
@@ -833,7 +884,9 @@ mod tests {
         let mut builder =
             DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
         let i32_type = builder.types().builtin(BuiltinType::I32);
-        let app = builder.add_package(app_name).unwrap();
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
         let root = builder.add_module(app, ModulePath::root()).unwrap();
         builder
             .define_module_namespace(root, ModuleNamespace::default())

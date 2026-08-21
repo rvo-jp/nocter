@@ -1,19 +1,5 @@
+pub use nocter_model::PackageIdentity;
 use nocter_syntax::Keyword;
-
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct PackageIdentity(Box<str>);
-
-impl PackageIdentity {
-    #[must_use]
-    pub fn new(identity: impl Into<Box<str>>) -> Self {
-        Self(identity.into())
-    }
-
-    #[must_use]
-    pub const fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleIdentity {

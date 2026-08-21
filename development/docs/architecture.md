@@ -166,6 +166,12 @@ program. Declared packages require one package declaration and one root module; 
 requires exactly one root module source and no package declaration. The two layouts cannot be
 silently substituted for each other.
 
+The resolved `PackageIdentity` is a syntax-independent model value, and each semantic `Package`
+retains it beside its presentation-only display-name symbol. Declaration reservation rejects a
+repeated resolved identity even when the display names differ. Dense `PackageId` values remain the
+internal relation keys, while commands, caches, and diagnostics can recover the exact resolver
+identity without correlating arena order or reparsing source metadata.
+
 Package discovery also supplies one resolved edge for every top-level or block `use` node. The
 edge identifies either an exact physical implementation source or an exact module identity;
 lowering never derives that distinction from path text or filesystem layout. Validation requires
@@ -212,8 +218,9 @@ Executable-producing session requests additionally own presentation-name selecti
 selects the sole executable or one declared name among the exact command-root packages, resolves it
 to exactly one `PackageTargetId`, and consumes the target program into `ExecutableProgram`.
 Discovery freezes command-root `PackageIdentity` values before dependency traversal; declaration
-lowering translates them once to `PackageId` values retained by `DeclarationGraph`. Session code
-therefore never infers root authority from package names, target presence, or dependency shape.
+lowering translates them once to `PackageId` values retained by `DeclarationGraph`, while each
+semantic package retains the corresponding resolver identity. Session code therefore never infers
+root authority from package names, target presence, arena order, or dependency shape.
 Absence, multiplicity, unknown names, and cross-root ambiguity are closed selection errors. Build
 and run cannot repeat this lookup or call executable specialization directly.
 
