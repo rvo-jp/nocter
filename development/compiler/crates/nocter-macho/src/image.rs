@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_arm64::{Arm64Program, Arm64ProgramError};
 
-use crate::sha256;
+use nocter_hash::sha256;
 
 const MACH_HEADER_SIZE: u64 = 32;
 const VM_BASE: u64 = 0x1_0000_0000;
@@ -241,7 +241,7 @@ fn image_uuid(text: &[u8], data: &[u8], entry_offset: u64) -> [u8; 16] {
     content.extend_from_slice(text);
     content.extend_from_slice(data);
     content.extend_from_slice(&entry_offset.to_le_bytes());
-    let digest = sha256::digest(&content);
+    let digest = sha256(&content);
     let mut uuid: [u8; 16] = digest[..16].try_into().expect("digest prefix has 16 bytes");
     uuid[6] = (uuid[6] & 0x0f) | 0x30;
     uuid[8] = (uuid[8] & 0x3f) | 0x80;
@@ -448,7 +448,7 @@ fn write_code_directory(
         return Err(MachOError::InvalidCodeLimit);
     }
     for page in code.chunks(CODE_HASH_PAGE_SIZE) {
-        signature.extend_from_slice(&sha256::digest(page));
+        signature.extend_from_slice(&sha256(page));
     }
     Ok(())
 }

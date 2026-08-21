@@ -138,6 +138,14 @@ as an authored dependency or lock; lock kind is validated against its declared s
 target name, kind, declaration order, and normalized module path cross the later pipeline as facts.
 Discovery and declaration lowering do not decode those fields again.
 
+The same crate owns canonical exact `PackageId` construction. Git commits become `git-` plus the
+lowercase locked commit, archive content becomes `sha256-` plus the lowercase locked digest, and a
+mutable path package becomes `path-` plus SHA-256 of its canonical absolute UTF-8 path. These
+Windows-safe strings are both resolved `PackageIdentity` values and store directory basenames;
+display metadata and acquisition URLs cannot affect identity. `nocter-hash` owns the one
+dependency-free SHA-256 implementation shared by package identity, Mach-O UUID generation, and
+Mach-O code signing.
+
 The same crate closes externally selected identities and roots into one `ResolvedPackageGraph`.
 That graph owns the manifest `SourceMap`, syntax trees, decoded declarations, presentation names,
 and exact alias edges. It rejects duplicate identities or canonical roots, unknown edge targets,

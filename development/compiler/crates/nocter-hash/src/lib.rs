@@ -1,3 +1,5 @@
+//! Dependency-free deterministic hashing used by compiler-owned formats and identities.
+
 const INITIAL: [u32; 8] = [
     0x6a09_e667,
     0xbb67_ae85,
@@ -76,10 +78,10 @@ const ROUND: [u32; 64] = [
     0xc671_78f2,
 ];
 
-pub(crate) fn digest(input: &[u8]) -> [u8; 32] {
-    let bit_length = u64::try_from(input.len())
-        .expect("slice length fits u64")
-        .wrapping_mul(8);
+/// Computes the SHA-256 digest of `input`.
+#[must_use]
+pub fn sha256(input: &[u8]) -> [u8; 32] {
+    let bit_length = (input.len() as u64).wrapping_mul(8);
     let padding = 1 + ((55_usize.wrapping_sub(input.len())) & 63) + 8;
     let mut message = Vec::with_capacity(input.len() + padding);
     message.extend_from_slice(input);
@@ -158,4 +160,29 @@ fn round(state: &mut [u32; 8], constant: u32, word: u32) {
         sixth_state,
         seventh_state,
     ];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sha256;
+
+    #[test]
+    fn matches_published_empty_and_abc_vectors() {
+        assert_eq!(
+            sha256(b""),
+            [
+                0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f,
+                0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b,
+                0x78, 0x52, 0xb8, 0x55,
+            ]
+        );
+        assert_eq!(
+            sha256(b"abc"),
+            [
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
+                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
+                0xf2, 0x00, 0x15, 0xad,
+            ]
+        );
+    }
 }

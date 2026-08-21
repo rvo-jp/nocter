@@ -9,6 +9,7 @@ members = [
     "crates/nocter-declaration-lowering",
     "crates/nocter-discovery",
     "crates/nocter-diagnostics",
+    "crates/nocter-hash",
     "crates/nocter-machine",
     "crates/nocter-macho",
     "crates/nocter-model",

@@ -4,7 +4,6 @@
 //! addresses, Mach-O load commands, the native entry offset, and the ad-hoc code signature.
 
 mod image;
-mod sha256;
 
 pub use image::{MachOError, MachOImage};
 

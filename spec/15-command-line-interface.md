@@ -153,6 +153,18 @@ Git builds use only the locked commit and archives use only the locked SHA-256 c
 dependencies are mutable development inputs and have no lock entry. No separate lockfile exists.
 The generated block is sorted by dependency alias.
 
+Every exact dependency selection has one canonical, Windows-safe `PackageId`:
+
+- a Git lock `git:<40-hex-commit>` becomes `git-<lowercase-40-hex-commit>`
+- an archive lock `sha256:<64-hex-digest>` becomes `sha256-<lowercase-64-hex-digest>`
+- a path package becomes `path-<64-lowercase-hex>`, where the digest is SHA-256 over the UTF-8
+  bytes of its canonical absolute path
+
+The Git URL and archive URL are acquisition metadata, not identity input. Two declarations that
+select the same exact commit or archive content therefore select the same package even when they
+use different mirrors. Symlinks in a path dependency are resolved before its identity is computed.
+Display names and versions never participate in identity.
+
 ## Executable Selection
 
 An executable declaration selects a module. The selected module must contain a top-level `func
@@ -207,8 +219,9 @@ nocter fetch --offline
 ```
 
 `fetch` resolves missing direct locks, writes the generated `#lock` block atomically, and installs
-exact packages under `.nocter/packages/<PackageId>`. Package commands may perform the same missing
-lock generation and fetch before analysis.
+exact packages under `<package-root>/.nocter/packages/<PackageId>`. The directory basename is the
+complete canonical `PackageId`; it is not an alias or display name. Package commands may perform
+the same missing lock generation and fetch before analysis.
 
 The complete dependency graph is validated before generated lock data is committed. A failed graph
 does not partially rewrite `nocter.nct`.
@@ -218,7 +231,11 @@ does not partially rewrite `nocter.nct`.
   the package-local or Nocter-home store.
 - Existing locks are never changed implicitly.
 - LSP behaves as locked and offline regardless of command defaults.
-- Nocter home is searched only for an exact `PackageId`, never for a matching package name.
+- Resolution first checks `<package-root>/.nocter/packages/<PackageId>`, then
+  `<Nocter-home>/packages/<PackageId>`. It never searches by package name, version, URL, or a
+  partial identity.
+- Path dependencies use their authored canonical directories directly and are not copied into an
+  exact-package store.
 
 ## Run
 

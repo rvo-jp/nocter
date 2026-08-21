@@ -6,6 +6,7 @@
 
 mod declaration;
 mod graph;
+mod id;
 
 pub use declaration::{
     AuthoredString, DependencyDeclaration, DependencyLock, DependencySource, PackageDeclaration,
@@ -15,3 +16,4 @@ pub use declaration::{
 pub use graph::{
     PackageGraphError, ResolvedPackageGraph, ResolvedPackageSnapshot, ResolvedPackageSpec,
 };
+pub use id::{PackageId, PackageIdError};

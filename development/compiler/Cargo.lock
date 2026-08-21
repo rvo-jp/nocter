@@ -116,6 +116,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-hash"
+version = "0.0.0"
+
+[[package]]
 name = "nocter-machine"
 version = "0.0.0"
 dependencies = [
@@ -133,6 +137,7 @@ name = "nocter-macho"
 version = "0.0.0"
 dependencies = [
  "nocter-arm64",
+ "nocter-hash",
 ]
 
 [[package]]
@@ -155,6 +160,7 @@ version = "0.0.0"
 name = "nocter-package"
 version = "0.0.0"
 dependencies = [
+ "nocter-hash",
  "nocter-model",
  "nocter-source",
  "nocter-syntax",
