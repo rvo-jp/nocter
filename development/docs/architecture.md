@@ -198,6 +198,10 @@ duplicates and wrong types, while unknown capabilities remain forward-compatible
 result is built from one protocol-owned schema and advertises only UTF-16 positions plus implemented
 open/close, full-change, and included-save-text synchronization; semantic features are added only
 when their production query path exists.
+Receiving an initialize envelope enters a distinct `Initializing` state. The server commits that
+transition only after parameter validation and returns to `Uninitialized` on failure, allowing a
+corrected request without reconstructing process state. No document or semantic notification can
+cross the pending-validation interval.
 
 `nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot

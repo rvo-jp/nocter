@@ -63,6 +63,18 @@ impl ProtocolSession {
         self.lifecycle.state()
     }
 
+    /// Commits or rejects the parameter validation of the pending initialize event.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session has no pending initialize event.
+    pub fn complete_initialize(
+        &mut self,
+        accepted: bool,
+    ) -> Result<(), crate::LifecycleTransitionError> {
+        self.lifecycle.complete_initialize(accepted)
+    }
+
     /// Validates one JSON body and returns either one immediate error response or one typed event.
     ///
     /// Notifications that are invalid for the current lifecycle intentionally produce neither.
@@ -135,6 +147,8 @@ mod tests {
                 ..
             }) if id.as_ref() == "init"
         ));
+        assert_eq!(session.state(), LifecycleState::Initializing);
+        session.complete_initialize(true).unwrap();
         assert_eq!(session.state(), LifecycleState::AwaitingInitialized);
     }
 
@@ -156,6 +170,7 @@ mod tests {
     fn reaches_clean_exit_only_after_shutdown() {
         let mut session = ProtocolSession::new();
         session.receive(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
+        session.complete_initialize(true).unwrap();
         session.receive(r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#);
         let shutdown = session.receive(r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#);
         assert_eq!(

@@ -6,6 +6,7 @@ use crate::{IncomingMessage, RequestId, ResponseErrorCode};
 pub enum LifecycleState {
     #[default]
     Uninitialized,
+    Initializing,
     AwaitingInitialized,
     Running,
     Shutdown,
@@ -65,6 +66,7 @@ impl Lifecycle {
 
         match self.state {
             LifecycleState::Uninitialized => self.accept_uninitialized(message),
+            LifecycleState::Initializing => reject_during_initialization(message),
             LifecycleState::AwaitingInitialized => self.accept_awaiting_initialized(message),
             LifecycleState::Running => self.accept_running(message),
             LifecycleState::Shutdown => reject_or_ignore(message),
@@ -75,7 +77,7 @@ impl Lifecycle {
     fn accept_uninitialized(&mut self, message: IncomingMessage) -> LifecycleAction {
         match message {
             IncomingMessage::Request { id, method, params } if method.as_ref() == "initialize" => {
-                self.state = LifecycleState::AwaitingInitialized;
+                self.state = LifecycleState::Initializing;
                 LifecycleAction::Initialize { id, params }
             }
             IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
@@ -84,6 +86,23 @@ impl Lifecycle {
             },
             IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
         }
+    }
+
+    /// Commits or rejects the parameter validation for the pending initialize request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no initialize request is pending.
+    pub fn complete_initialize(&mut self, accepted: bool) -> Result<(), LifecycleTransitionError> {
+        if self.state != LifecycleState::Initializing {
+            return Err(LifecycleTransitionError { state: self.state });
+        }
+        self.state = if accepted {
+            LifecycleState::AwaitingInitialized
+        } else {
+            LifecycleState::Uninitialized
+        };
+        Ok(())
     }
 
     fn accept_awaiting_initialized(&mut self, message: IncomingMessage) -> LifecycleAction {
@@ -130,6 +149,46 @@ impl Lifecycle {
     }
 }
 
+fn reject_during_initialization(message: IncomingMessage) -> LifecycleAction {
+    match message {
+        IncomingMessage::Request { id, method, .. } if method.as_ref() == "initialize" => {
+            LifecycleAction::Reject {
+                id,
+                code: ResponseErrorCode::InvalidRequest,
+            }
+        }
+        IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
+            id,
+            code: ResponseErrorCode::ServerNotInitialized,
+        },
+        IncomingMessage::Notification { .. } => LifecycleAction::IgnoreNotification,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LifecycleTransitionError {
+    state: LifecycleState,
+}
+
+impl LifecycleTransitionError {
+    #[must_use]
+    pub const fn state(self) -> LifecycleState {
+        self.state
+    }
+}
+
+impl std::fmt::Display for LifecycleTransitionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "cannot complete LSP initialization from {:?}",
+            self.state
+        )
+    }
+}
+
+impl std::error::Error for LifecycleTransitionError {}
+
 fn reject_or_ignore(message: IncomingMessage) -> LifecycleAction {
     match message {
         IncomingMessage::Request { id, .. } => LifecycleAction::Reject {
@@ -166,6 +225,8 @@ mod tests {
             lifecycle.accept(request(1, "initialize")),
             LifecycleAction::Initialize { .. }
         ));
+        assert_eq!(lifecycle.state(), LifecycleState::Initializing);
+        lifecycle.complete_initialize(true).unwrap();
         assert_eq!(lifecycle.state(), LifecycleState::AwaitingInitialized);
         assert_eq!(
             lifecycle.accept(notification("initialized")),
@@ -212,6 +273,7 @@ mod tests {
                 code: ResponseErrorCode::InvalidRequest,
             }
         );
+        lifecycle.complete_initialize(true).unwrap();
         lifecycle.accept(notification("initialized"));
         assert_eq!(
             lifecycle.accept(request(4, "initialize")),
@@ -237,5 +299,17 @@ mod tests {
             lifecycle.accept(notification("exit")),
             LifecycleAction::Exit { clean: false }
         );
+    }
+
+    #[test]
+    fn rejected_initialize_parameters_restore_the_uninitialized_state() {
+        let mut lifecycle = Lifecycle::new();
+        lifecycle.accept(request(1, "initialize"));
+        lifecycle.complete_initialize(false).unwrap();
+        assert_eq!(lifecycle.state(), LifecycleState::Uninitialized);
+        assert!(matches!(
+            lifecycle.accept(request(2, "initialize")),
+            LifecycleAction::Initialize { .. }
+        ));
     }
 }

@@ -14,7 +14,7 @@ mod transport;
 mod uri;
 
 pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};
-pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState};
+pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState, LifecycleTransitionError};
 pub use message::{IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId};
 pub use parameters::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,
