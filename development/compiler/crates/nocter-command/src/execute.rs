@@ -107,7 +107,7 @@ impl BuildCommandExecutionError {
         &nocter_source::SourceMap,
     )> {
         match self {
-            Self::Source(_) => None,
+            Self::Source(error) => error.source_diagnostics(),
             Self::Selected(failure) => Some((failure.diagnostics(), failure.sources())),
             Self::PackageSet(failure) => Some((failure.diagnostics(), failure.sources())),
         }
@@ -172,7 +172,7 @@ impl RunCommandExecutionError {
         &nocter_source::SourceMap,
     )> {
         match self {
-            Self::Source(_) => None,
+            Self::Source(error) => error.source_diagnostics(),
             Self::Run(failure) => Some((failure.diagnostics(), failure.sources())),
         }
     }

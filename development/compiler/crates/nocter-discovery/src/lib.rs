@@ -6,12 +6,14 @@
 
 mod diagnostic;
 mod error;
+mod failure;
 mod graph;
 mod request;
 mod snapshot;
 mod syntax;
 
 pub use error::{DiscoveryError, ImportFailure, ToolchainDiscoveryError};
+pub use failure::DiscoveryFailure;
 pub use graph::discover;
 pub use request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,

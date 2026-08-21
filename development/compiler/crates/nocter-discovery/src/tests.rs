@@ -137,12 +137,21 @@ fn single_file_cannot_open_a_parallel_local_source_graph() {
     ))
     .unwrap_err();
     assert!(matches!(
-        error,
+        error.error(),
         DiscoveryError::Import {
             failure: ImportFailure::SingleFileLocalImport,
             ..
         }
     ));
+    assert_eq!(error.diagnostics().len(), 1);
+    assert_eq!(error.diagnostics()[0].code(), "E0263");
+    assert_eq!(
+        error.diagnostics()[0].primary().span().range(),
+        nocter_source::TextRange::new(
+            nocter_source::ByteOffset::new(4),
+            nocter_source::ByteOffset::new(12),
+        )
+    );
 }
 
 #[test]
@@ -275,12 +284,18 @@ fn rejects_a_relative_path_with_both_source_and_module_candidates() {
     .unwrap_err();
 
     assert!(matches!(
-        error,
+        error.error(),
         DiscoveryError::Import {
             failure: ImportFailure::Ambiguous { .. },
             ..
         }
     ));
+    assert_eq!(error.diagnostics()[0].code(), "E0263");
+    assert!(
+        error.diagnostics()[0]
+            .message()
+            .contains("both a source file")
+    );
 }
 
 #[test]

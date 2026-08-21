@@ -11,13 +11,13 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;
 
-use crate::DiscoveryError;
 use crate::error::{ImportFailure, ToolchainDiscoveryError};
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
 use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
 use crate::syntax::active_use_paths;
+use crate::{DiscoveryError, DiscoveryFailure};
 
 #[derive(Debug)]
 struct PackageState {
@@ -89,8 +89,10 @@ impl From<DiscoveryError> for ResolveError {
 ///
 /// Returns a filesystem or topology error when an exact package, module, source, or active import
 /// cannot be selected unambiguously.
-pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryError> {
-    Builder::new(request)?.run()
+pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
+    Builder::new(request)
+        .map_err(DiscoveryFailure::before_source_snapshot)?
+        .run()
 }
 
 impl Builder {
@@ -144,40 +146,59 @@ impl Builder {
         })
     }
 
-    fn run(mut self) -> Result<DiscoveredUnit, DiscoveryError> {
+    fn run(mut self) -> Result<DiscoveredUnit, DiscoveryFailure> {
         while let Some(work) = self.pending.pop_first() {
-            match work {
-                Work::Module(module) => self.load_module(module)?,
+            let loaded = match work {
+                Work::Module(module) => self.load_module(module),
                 Work::SingleFile { module, path } => {
-                    self.load_module_source(module, &path, ModuleSourceKind::SingleFile)?;
+                    self.load_module_source(module, &path, ModuleSourceKind::SingleFile)
                 }
                 Work::Source { module, path } => {
-                    self.load_module_source(module, &path, ModuleSourceKind::Implementation)?;
+                    self.load_module_source(module, &path, ModuleSourceKind::Implementation)
                 }
+            };
+            if let Err(error) = loaded {
+                return Err(self.into_failure(error));
             }
         }
 
         let toolchain = if self.syntax.iter().any(SyntaxTree::has_errors) {
             None
         } else {
-            Some(self.resolve_toolchain()?)
+            match self.resolve_toolchain() {
+                Ok(toolchain) => Some(toolchain),
+                Err(error) => return Err(self.into_failure(error)),
+            }
         };
 
+        let non_unicode_declaration = self.packages.values().find_map(|state| {
+            state
+                .declaration
+                .as_ref()
+                .map(|(path, _)| path)
+                .filter(|path| path.to_str().is_none())
+                .cloned()
+        });
+        if let Some(path) = non_unicode_declaration {
+            return Err(self.into_failure(DiscoveryError::NonUnicodeCanonicalPath(path)));
+        }
         let packages = self
             .packages
             .into_values()
-            .map(|state| {
-                Ok(DiscoveredPackage {
-                    identity: state.identity,
-                    display_name: state.display_name,
-                    mode: state.mode,
-                    declaration: state
-                        .declaration
-                        .map(|(path, syntax)| Ok((canonical_text(&path)?, syntax)))
-                        .transpose()?,
-                })
+            .map(|state| DiscoveredPackage {
+                identity: state.identity,
+                display_name: state.display_name,
+                mode: state.mode,
+                declaration: state.declaration.map(|(path, syntax)| {
+                    (
+                        path.to_str()
+                            .expect("validated canonical declaration path is Unicode")
+                            .into(),
+                        syntax,
+                    )
+                }),
             })
-            .collect::<Result<_, DiscoveryError>>()?;
+            .collect();
         let modules = self
             .modules
             .into_iter()
@@ -206,6 +227,10 @@ impl Builder {
             package_target_resolutions: self.package_target_resolutions,
             toolchain,
         })
+    }
+
+    fn into_failure(self, error: DiscoveryError) -> DiscoveryFailure {
+        DiscoveryFailure::from_snapshot(error, self.sources, &self.syntax)
     }
 
     fn resolve_toolchain(&self) -> Result<ToolchainInput, DiscoveryError> {

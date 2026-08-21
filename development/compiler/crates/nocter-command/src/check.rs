@@ -146,7 +146,7 @@ impl CheckCommandExecutionError {
         &nocter_source::SourceMap,
     )> {
         match self {
-            Self::Source { .. } => None,
+            Self::Source { error, .. } => error.source_diagnostics(),
             Self::Check { failure, .. } => Some((failure.diagnostics(), failure.sources())),
         }
     }

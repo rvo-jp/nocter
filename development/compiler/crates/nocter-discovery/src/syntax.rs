@@ -20,7 +20,7 @@ pub(crate) fn active_use_paths(
             NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
         ) && active.use_is_active(node)
         {
-            let path = direct_child(tree, node, NodeKind::ModulePath)
+            let path = use_path_node(tree, node)
                 .and_then(|path| tree.node(path))
                 .and_then(|path| source.text_at(path.range()))
                 .ok_or(DiscoveryError::InconsistentSyntax(node))?;
@@ -47,4 +47,8 @@ fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeI
             }
             SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
         })
+}
+
+pub(crate) fn use_path_node(tree: &SyntaxTree, declaration: NodeId) -> Option<NodeId> {
+    direct_child(tree, declaration, NodeKind::ModulePath)
 }

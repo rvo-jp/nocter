@@ -386,6 +386,31 @@ fn internal_json_failure_keeps_code_and_status_independent() {
     assert!(rendered.contains("\"ok\":false"));
 }
 
+#[test]
+fn json_discovery_failure_uses_the_authored_module_path() {
+    let tree = TempTree::new("check-json-discovery");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("app.nct"),
+        "use ./helper\n\nfunc main(): i32 { return 0 }\n",
+    )
+    .unwrap();
+    let error = execute_invocation(invocation(
+        ["check", "app.nct", "--format=json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+    assert_eq!(error.failure_class(), InvocationFailureClass::Source);
+    assert_eq!(error.exit_code(), 1);
+    assert!(rendered.contains("\"code\":\"E0263\""));
+    assert!(rendered.contains("\"start_byte\":4,\"end_byte\":12"));
+    assert!(rendered.contains("single-file mode cannot load a local source graph"));
+}
+
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
 fn public_invocation_builds_through_the_installed_standard_library() {

@@ -394,6 +394,12 @@ Failed compilation retains the invocation `SourceMap` beside
 the phase-selected `SourceDiagnostic` values. The common renderer consumes that snapshot directly;
 the process adapter neither reopens files nor classifies semantic errors.
 
+Discovery uses the same rule before a complete `DiscoveredUnit` exists. `DiscoveryFailure` owns the
+partially loaded `SourceMap` and projects an authored resolution failure to `E0263` at the exact
+`ModulePath` syntax node. The command boundary forwards that snapshot rather than flattening the
+failure to package or filesystem text. Failures that prove an impossible discovery graph or syntax
+identity carry no authored origin and remain internal `E0900` failures.
+
 Machine-readable source diagnostics use the same validated origin projection. The projection
 checks source identity, range bounds, and UTF-8 boundaries once, then exposes exclusive byte
 offsets and one-based byte line/column coordinates to the versioned JSON renderer. JSON escaping,

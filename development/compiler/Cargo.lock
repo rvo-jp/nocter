@@ -1793,6 +1793,7 @@ dependencies = [
  "nocter-model",
  "nocter-package",
  "nocter-source",
+ "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",
  "nocter-target-selection",

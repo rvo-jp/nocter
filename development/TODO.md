@@ -15,8 +15,8 @@ implementation input.
 
 ## Immediate Work
 
-1. Project authored discovery failures into source diagnostics before expanding the public command
-   set.
+1. Add `--version` and `doctor` through the validated installation profile before adding commands
+   that require new compiler stages.
    The human-diagnostic command path is closed: `check` consumes the same package transaction,
    discovery, and target-validated session as build/run, then stops before executable
    specialization and code generation. Library-only packages and single files are valid. A named
@@ -32,9 +32,16 @@ implementation input.
    Source, user/environment, and internal failure classes select exit statuses independently from
    diagnostic codes; internal JSON failures use `E0900` and status 3.
 
-   Discovery still leaves authored import/module failures spanless because it has not selected
-   syntax origins for them. Move those rules into discovery-owned `SourceDiagnostic` values rather
-   than assigning broader CLI codes. Internal graph/syntax inconsistencies must remain `E0900`.
+   Discovery now returns `DiscoveryFailure`, which retains its immutable source snapshot and
+   projects an unresolved authored module path to `E0263` at the exact `ModulePath` node. Command
+   wrappers forward that snapshot like every later compiler phase. Graph/syntax inconsistencies
+   remain spanless `E0900` failures instead of borrowing a user-facing import code.
+
+   `--version` must use release, host, and default-target facts already validated by
+   `nocter-installation`; `doctor` must report validation of that same selected home. Neither may
+   create a second manifest decoder, search policy, or installation model. Their successful text
+   is stdout, their typed failures keep status 2, and neither reads user source or initializes
+   package acquisition.
 
    The public build/run/fetch and diagnostic boundaries are now closed.
    The new `nocter` binary reads argv, `NOCTER_HOME`, the real executable, and cwd once. It parses
