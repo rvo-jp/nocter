@@ -15,11 +15,12 @@ implementation input.
 
 ## Immediate Work
 
-1. Add command orchestration on top of the completed executable-session request/result boundary.
-   Explicit single-file discovery, selected declared package targets, and every public example now
-   close an exact `ExecutableProgram` through the same immutable session. Build and run must next
-   consume this result through MIR, machine, ARM64, and Mach-O boundaries without reopening target
-   names or assembling semantic stages.
+1. Add command orchestration on top of the completed native-image session boundary. Explicit
+   single-file discovery, selected declared package targets, and every public example now close an
+   exact `MachOImage` through discovery, semantic checking, executable specialization, MIR,
+   machine lowering, ARM64 selection, and Mach-O construction without reopening target names.
+   Build must next write those bytes atomically to its selected output path; run must execute that
+   same artifact rather than assembling any compiler stage itself.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

@@ -44,11 +44,45 @@ pub(crate) fn select_operation(
             let result = operation
                 .result()
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            let source = addresses.use_address(*source, selected)?;
-            selected.push(Arm64SelectedInstruction::MemoryAddress {
-                destination: one_word(values, result)?,
-                source,
-            });
+            let address = machine_address(scope.0, scope.1, *source)?;
+            match address.extent() {
+                nocter_machine::MachineAddressExtent::Stored { .. } => {
+                    let source = addresses.use_address(*source, selected)?;
+                    selected.push(Arm64SelectedInstruction::MemoryAddress {
+                        destination: one_word(values, result)?,
+                        source,
+                    });
+                }
+                nocter_machine::MachineAddressExtent::View => {
+                    let (pointer, length) = addresses.use_view_address(*source, selected)?;
+                    let result_layout = scope
+                        .0
+                        .function(scope.1)
+                        .and_then(|function| function.body().value(result))
+                        .and_then(|value| scope.0.layouts().get(value.ty()))
+                        .ok_or(Arm64SelectionError::MemoryShape(result))?;
+                    let nocter_machine::MachineLayoutKind::View {
+                        pointer_offset,
+                        length_offset,
+                    } = result_layout.kind()
+                    else {
+                        return Err(Arm64SelectionError::MemoryShape(result));
+                    };
+                    let destinations = crate::selection::direct_value(values, result)?;
+                    let pointer_lane = direct_lane(*pointer_offset, destinations.len())?;
+                    let length_lane = direct_lane(*length_offset, destinations.len())?;
+                    selected.push(Arm64SelectedInstruction::Move {
+                        size: Arm64DataSize::Bits64,
+                        destination: Arm64SelectedRegister::Virtual(destinations[pointer_lane]),
+                        source: pointer,
+                    });
+                    selected.push(Arm64SelectedInstruction::Move {
+                        size: Arm64DataSize::Bits64,
+                        destination: Arm64SelectedRegister::Virtual(destinations[length_lane]),
+                        source: length,
+                    });
+                }
+            }
             Ok(())
         }
         _ => unreachable!("the caller classifies memory operations exhaustively"),
@@ -112,15 +146,18 @@ pub(crate) fn select_load(
 ) -> Result<(), Arm64SelectionError> {
     let (program, owner) = scope;
     let address = machine_address(program, owner, source)?;
-    if stored_value_size(program, owner, result)? != address.size() {
+    let address_size = address
+        .stored_size()
+        .ok_or(Arm64SelectionError::MemoryShape(result))?;
+    if stored_value_size(program, owner, result)? != address_size {
         return Err(Arm64SelectionError::MemoryShape(result));
     }
     match values
         .value(result)
         .ok_or(Arm64SelectionError::UnknownValue(result))?
     {
-        crate::Arm64ValueStorage::Omitted if address.size() == 0 => return Ok(()),
-        crate::Arm64ValueStorage::Memory { size, .. } if *size == address.size() => {
+        crate::Arm64ValueStorage::Omitted if address_size == 0 => return Ok(()),
+        crate::Arm64ValueStorage::Memory { size, .. } if *size == address_size => {
             let object = frame
                 .memory_value(result)
                 .ok_or(Arm64SelectionError::MemoryValue(result))?;
@@ -141,7 +178,7 @@ pub(crate) fn select_load(
     }
     let base = addresses.use_address(source, selected)?;
     let registers = crate::selection::direct_value(values, result)?;
-    let sizes = direct_lane_sizes(address.size(), registers.len())?;
+    let sizes = direct_lane_sizes(address_size, registers.len())?;
     let extension = direct_load_extension(program, owner, result, sizes.first().copied())?;
     for (lane, (register, bytes)) in registers.iter().copied().zip(sizes).enumerate() {
         selected.push(Arm64SelectedInstruction::LoadMemory {
@@ -169,15 +206,18 @@ pub(crate) fn select_store(
 ) -> Result<(), Arm64SelectionError> {
     let (program, owner) = scope;
     let address = machine_address(program, owner, destination)?;
-    if stored_value_size(program, owner, value)? != address.size() {
+    let address_size = address
+        .stored_size()
+        .ok_or(Arm64SelectionError::MemoryShape(value))?;
+    if stored_value_size(program, owner, value)? != address_size {
         return Err(Arm64SelectionError::MemoryShape(value));
     }
     match values
         .value(value)
         .ok_or(Arm64SelectionError::UnknownValue(value))?
     {
-        crate::Arm64ValueStorage::Omitted if address.size() == 0 => return Ok(()),
-        crate::Arm64ValueStorage::Memory { size, .. } if *size == address.size() => {
+        crate::Arm64ValueStorage::Omitted if address_size == 0 => return Ok(()),
+        crate::Arm64ValueStorage::Memory { size, .. } if *size == address_size => {
             let object = frame
                 .memory_value(value)
                 .ok_or(Arm64SelectionError::MemoryValue(value))?;
@@ -199,7 +239,7 @@ pub(crate) fn select_store(
     }
     let base = addresses.use_address(destination, selected)?;
     let registers = crate::selection::direct_value(values, value)?;
-    let sizes = direct_lane_sizes(address.size(), registers.len())?;
+    let sizes = direct_lane_sizes(address_size, registers.len())?;
     for (lane, (register, bytes)) in registers.iter().copied().zip(sizes).enumerate() {
         selected.push(Arm64SelectedInstruction::StoreMemory {
             bytes,

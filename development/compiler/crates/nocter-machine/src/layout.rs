@@ -233,13 +233,15 @@ impl MachineLayoutStore {
         }
         for (_, function) in program.functions().iter() {
             roots.insert(function.result());
-            collect_body_types(function.body(), &mut roots);
+            collect_body_types(function.body(), program.executable().types(), &mut roots);
         }
         match program.root() {
-            MirRoot::Process(root) => collect_body_types(root.body(), &mut roots),
+            MirRoot::Process(root) => {
+                collect_body_types(root.body(), program.executable().types(), &mut roots);
+            }
             MirRoot::Tests { cases, .. } => {
                 for case in cases {
-                    collect_body_types(case.body(), &mut roots);
+                    collect_body_types(case.body(), program.executable().types(), &mut roots);
                 }
             }
         }
@@ -632,12 +634,18 @@ impl LayoutBuilder<'_> {
     }
 }
 
-fn collect_body_types(body: &MirBody, types: &mut BTreeSet<TypeId>) {
+fn collect_body_types(body: &MirBody, store: &TypeStore, types: &mut BTreeSet<TypeId>) {
     if let Some(pack) = body.pack() {
         types.extend([pack.element(), pack.next()]);
     }
     types.extend(body.locals().iter().map(|(_, local)| local.ty()));
-    types.extend(body.places().iter().map(|(_, place)| place.ty()));
+    types.extend(body.places().iter().filter_map(|(_, place)| {
+        (!matches!(
+            store.get(place.ty()),
+            Some(TypeKind::Builtin(BuiltinType::Str) | TypeKind::Slice(_))
+        ))
+        .then_some(place.ty())
+    }));
     types.extend(body.values().iter().map(|(_, value)| value.ty()));
     for (_, operation) in body.operations().iter() {
         if let MirOperationKind::Call(call) = operation.kind()

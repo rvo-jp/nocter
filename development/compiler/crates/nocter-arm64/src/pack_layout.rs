@@ -88,17 +88,23 @@ impl Arm64PackStateLayout {
                     let iterator = body
                         .address(spread.iterator())
                         .ok_or(Arm64PackLayoutError::UnknownAddress(spread.iterator()))?;
-                    validate_alignment(iterator.alignment())?;
-                    let iterator_offset = align_up(next, iterator.alignment())?;
+                    let iterator_size = iterator
+                        .stored_size()
+                        .ok_or(Arm64PackLayoutError::NonStoredAddress(spread.iterator()))?;
+                    let iterator_alignment = iterator
+                        .stored_alignment()
+                        .ok_or(Arm64PackLayoutError::NonStoredAddress(spread.iterator()))?;
+                    validate_alignment(iterator_alignment)?;
+                    let iterator_offset = align_up(next, iterator_alignment)?;
                     next = iterator_offset
-                        .checked_add(iterator.size())
+                        .checked_add(iterator_size)
                         .ok_or(Arm64PackLayoutError::SizeOverflow)?;
-                    state_alignment = state_alignment.max(iterator.alignment());
+                    state_alignment = state_alignment.max(iterator_alignment);
                     Arm64PackSegmentLayout::Spread {
                         remaining_offset,
                         iterator_offset,
-                        iterator_size: iterator.size(),
-                        iterator_alignment: iterator.alignment(),
+                        iterator_size,
+                        iterator_alignment,
                     }
                 }
             };
@@ -174,6 +180,7 @@ pub enum Arm64PackLayoutError {
     UnknownValue(nocter_machine::MachineValueId),
     NonStoredValue(nocter_machine::MachineValueId),
     UnknownAddress(nocter_machine::MachineAddressId),
+    NonStoredAddress(nocter_machine::MachineAddressId),
     InvalidRemaining(nocter_machine::MachineValueId),
     InvalidAlignment(u64),
     SizeOverflow,

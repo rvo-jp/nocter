@@ -1,3 +1,5 @@
+use std::fmt;
+
 use nocter_arm64::{Arm64Program, Arm64ProgramError};
 
 use crate::sha256;
@@ -544,6 +546,43 @@ pub enum MachOError {
     InvalidCodeLimit,
     OffsetOverflow,
     Arm64(Arm64ProgramError),
+}
+
+impl fmt::Display for MachOError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingEntryFunction => {
+                formatter.write_str("ARM64 program has no entry function")
+            }
+            Self::InvalidDataAlignment(alignment) => {
+                write!(formatter, "invalid Mach-O data alignment {alignment}")
+            }
+            Self::FileOffsetOutOfRange(offset) => {
+                write!(
+                    formatter,
+                    "Mach-O file offset {offset} exceeds its encoded domain"
+                )
+            }
+            Self::OverlappingLayout => formatter.write_str("Mach-O sections overlap"),
+            Self::InvalidCodeLimit => formatter.write_str("Mach-O code signature limit is invalid"),
+            Self::OffsetOverflow => formatter.write_str("Mach-O layout offset overflowed"),
+            Self::Arm64(error) => write!(formatter, "ARM64 relocation failed: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for MachOError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Arm64(error) => Some(error),
+            Self::MissingEntryFunction
+            | Self::InvalidDataAlignment(_)
+            | Self::FileOffsetOutOfRange(_)
+            | Self::OverlappingLayout
+            | Self::InvalidCodeLimit
+            | Self::OffsetOverflow => None,
+        }
+    }
 }
 
 impl From<Arm64ProgramError> for MachOError {

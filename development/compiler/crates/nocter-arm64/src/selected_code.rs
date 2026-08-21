@@ -98,6 +98,21 @@ fn emit_instruction(
             destination,
             source,
         } => emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::IntegerConversion {
+            size,
+            source_bits,
+            signed,
+            destination,
+            source,
+        } => emit_integer_conversion(
+            function,
+            destination,
+            source,
+            size,
+            source_bits,
+            signed,
+            code,
+        ),
         Arm64SelectedInstruction::LoadMemory {
             bytes,
             extension,
@@ -236,6 +251,28 @@ fn emit_selected_borrowed_comparison(
         },
         code,
     )
+}
+
+fn emit_integer_conversion(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedRegister,
+    source: Arm64SelectedRegister,
+    size: Arm64DataSize,
+    source_bits: u8,
+    signed: bool,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = read_register(function, source, 0, code)?;
+    let destination = write_target(function, destination)?;
+    code.append(Arm64Instruction::BitfieldExtend {
+        size,
+        signed,
+        source_bits,
+        destination: destination.register,
+        source,
+    });
+    finish_write(destination, code);
+    Ok(())
 }
 
 fn emit_pack_callback_address(

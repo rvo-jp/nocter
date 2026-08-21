@@ -86,8 +86,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         }
         self.validate_pack_input()?;
         self.validate_parameters()?;
-        for (_, local) in self.function.locals().iter() {
+        for (id, local) in self.function.locals().iter() {
             self.require_type(local.ty())?;
+            if is_non_storable(self.types, local.ty()) {
+                return Err(MirValidationError::NonStorableLocal(id));
+            }
         }
         for (place, value) in self.function.places().iter() {
             self.validate_place(place, value)?;
@@ -197,6 +200,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
 
     fn validate_place(&self, id: MirPlaceId, place: &MirPlace) -> Result<(), MirValidationError> {
         self.require_type(place.ty())?;
+        if is_non_storable(self.types, place.ty()) {
+            return Err(MirValidationError::NonStorablePlace(id));
+        }
         let mut current = match place.root() {
             MirPlaceRoot::Local(local) => {
                 let local = self.require_local(local)?;
@@ -1127,6 +1133,13 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             .get(block)
             .ok_or(MirValidationError::UnknownBlock(block))
     }
+}
+
+fn is_non_storable(types: &TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
+    )
 }
 
 fn builtin_field_projection_matches(

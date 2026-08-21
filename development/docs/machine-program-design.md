@@ -284,6 +284,7 @@ operands name checked frame objects, outgoing/incoming offsets, or selected runt
 blocks retain only machine CFG identities and target-selected instructions. The executable slice
 covers integer and boolean constants, checked static/dynamic addresses and scalar loads/stores,
 integer and boolean operations,
+lossless integer widening with source-signedness-preserving extension,
 raw-value comparison, representation-exact readonly-borrow comparison, direct scalar call
 transport, indirect caller-owned aggregate transport, local branches, value and stored-tag
 switches, direct returns, traps, and process exit. Signed narrow loads
@@ -331,6 +332,12 @@ lane, performs unsigned bounds checks, and traps an invalid index before access.
 loads/stores/address formation and structural fixed/view index borrows call this same evaluator.
 The selected memory-address type therefore replaces stack-only operation variants rather than
 adding projected-memory exceptions.
+
+A terminal `str` or slice place is a dynamic view address, not fictional stored bytes. Its address
+extent retains the active pointer and length while stored addresses retain exact size and
+alignment. Loads, stores, pack state, and destruction require a stored extent; borrowing a view
+transports both lanes through the same address evaluator. This distinction keeps unsized types out
+of the stored-layout table without special-casing slice or string reborrows in MIR.
 
 Indirect call transport consumes `MachineValueClass::Indirect` without introducing a second ABI
 planner. Each caller passes the address of its memory-backed argument value and provides a

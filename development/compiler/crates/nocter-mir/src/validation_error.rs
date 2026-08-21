@@ -18,6 +18,8 @@ pub enum MirValidationError {
     UnknownField(FieldId),
     UnknownVariant(VariantId),
     UnknownParameter(ParameterId),
+    NonStorableLocal(MirLocalId),
+    NonStorablePlace(MirPlaceId),
     DuplicateParameter(MirLocalId),
     InvalidParameterKind {
         parameter: MirLocalId,

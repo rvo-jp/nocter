@@ -6,6 +6,7 @@
 
 mod error;
 mod executable;
+mod native;
 mod output;
 mod profile;
 
@@ -14,7 +15,8 @@ pub use executable::{
     ExecutableCompileRequest, ExecutableSelectionError, ExecutableSelector, ExecutableSessionError,
     compile_executable,
 };
-pub use output::{CompiledExecutable, CompiledTarget};
+pub use native::{NativeSessionError, compile_native_image};
+pub use output::{CompiledExecutable, CompiledNativeImage, CompiledTarget};
 pub use profile::bundled_standard_toolchain;
 
 use nocter_checking::{check_prepared_program, prepare_program_checking};

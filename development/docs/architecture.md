@@ -214,6 +214,12 @@ consumes the target program into `ExecutableProgram`. Absence, multiplicity, unk
 cross-root ambiguity are closed selection errors. Build and run cannot repeat this lookup or call
 executable specialization directly.
 
+The native session consumes that executable result through MIR, machine lowering, ARM64 selection,
+and Mach-O construction and returns one immutable image beside the unchanged `SourceIndex`.
+`NativeSessionError` preserves the exact failed boundary instead of flattening backend integrity
+failures into a command message. Commands may choose paths, write image bytes, and launch an
+artifact, but they cannot invoke or reorder individual compiler stages.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

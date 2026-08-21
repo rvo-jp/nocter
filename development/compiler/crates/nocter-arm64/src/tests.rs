@@ -197,6 +197,40 @@ fn encodes_multiply_divide_shift_and_wide_immediates() {
 }
 
 #[test]
+fn encodes_lossless_integer_widening_with_exact_signedness() {
+    assert_eq!(
+        word(Arm64Instruction::BitfieldExtend {
+            size: Arm64DataSize::Bits32,
+            signed: true,
+            source_bits: 8,
+            destination: x(0),
+            source: x(1),
+        }),
+        0x1300_1c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::BitfieldExtend {
+            size: Arm64DataSize::Bits32,
+            signed: false,
+            source_bits: 8,
+            destination: x(0),
+            source: x(1),
+        }),
+        0x5300_1c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::BitfieldExtend {
+            size: Arm64DataSize::Bits64,
+            signed: true,
+            source_bits: 32,
+            destination: x(0),
+            source: x(1),
+        }),
+        0x9340_7c20
+    );
+}
+
+#[test]
 fn encodes_scaled_memory_and_control_instructions() {
     assert_eq!(
         word(Arm64Instruction::LoadUnsigned {

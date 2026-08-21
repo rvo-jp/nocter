@@ -48,12 +48,25 @@ fn lower_address(
     }
     current_view = state.current_view;
     let steps = state.steps;
-    if current != value.ty() || current_view {
+    if current != value.ty() {
         return Err(address_error(
             ids,
             place,
             MachineAddressError::InvalidProjection,
         ));
+    }
+    if current_view {
+        if !matches!(
+            types.get(value.ty()),
+            Some(TypeKind::Builtin(BuiltinType::Str) | TypeKind::Slice(_))
+        ) {
+            return Err(address_error(
+                ids,
+                place,
+                MachineAddressError::InvalidProjection,
+            ));
+        }
+        return Ok(MachineAddress::new_view(value.ty(), root, steps));
     }
     let layout = layouts
         .get(value.ty())

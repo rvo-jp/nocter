@@ -48,9 +48,7 @@ impl FunctionLowerer<'_> {
                 layer,
                 outer,
             } => self.lower_propagation(node, *operand, *layer, outer),
-            CheckedOutcome::Force { operand, layer } => {
-                self.lower_force(node, *operand, *layer).map(Some)
-            }
+            CheckedOutcome::Force { operand, layer } => self.lower_force(node, *operand, *layer),
             CheckedOutcome::Recover {
                 operand,
                 layer,
@@ -83,7 +81,7 @@ impl FunctionLowerer<'_> {
             .terminate(failure_block, MirTerminator::Return(Some(returned)))?;
 
         self.current = Some(success);
-        self.read_outcome_payload(place, layer, payload).map(Some)
+        self.read_outcome_payload(place, layer, payload)
     }
 
     fn lower_force(
@@ -91,7 +89,7 @@ impl FunctionLowerer<'_> {
         node: BodyNodeId,
         operand: BodyNodeId,
         layer: OutcomeLayer,
-    ) -> Result<MirValueId, MirLoweringError> {
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
         let place = self.materialize_outcome_operand(operand)?;
         let payload = self.outcome_payload_type(place, layer, node)?;
         let (success, failure) = self.switch_outcome(place, layer)?;
@@ -135,15 +133,12 @@ impl FunctionLowerer<'_> {
             })?;
         }
         let fallback_value = self.lower_node(fallback)?;
-        let fallback_exit = self.current.map(|block| {
-            fallback_value
-                .map(|value| (block, value))
-                .ok_or(MirLoweringError::MissingValue(fallback))
-        });
-        let fallback_exit = fallback_exit.transpose()?;
-
-        self.join_outcome_values(ty, [success_exit, fallback_exit])
-            .map(Some)
+        let fallback_exit = self.current.map(|block| (block, fallback_value));
+        let carries_value = !matches!(
+            self.executable.types().get(ty),
+            Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
+        );
+        self.join_branches(ty, carries_value, [success_exit, fallback_exit])
     }
 
     fn materialize_outcome_operand(
@@ -210,7 +205,15 @@ impl FunctionLowerer<'_> {
         source: OutcomeStorage,
         layer: OutcomeLayer,
         payload: TypeId,
-    ) -> Result<MirValueId, MirLoweringError> {
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
+        if layer == OutcomeLayer::Fallible
+            && matches!(
+                self.executable.types().get(payload),
+                Some(TypeKind::Builtin(BuiltinType::Void))
+            )
+        {
+            return Ok(None);
+        }
         let root = MirPlaceRoot::Local(source.local);
         let projection = match layer {
             OutcomeLayer::Optional => MirProjectionKind::OptionalPayload,
@@ -226,6 +229,7 @@ impl FunctionLowerer<'_> {
                 mode: MirReadMode::Move,
             },
         )
+        .map(Some)
     }
 
     fn read_outcome_failure(
@@ -340,29 +344,5 @@ impl FunctionLowerer<'_> {
         } else {
             self.require_value(payload).map(Some)
         }
-    }
-
-    fn join_outcome_values(
-        &mut self,
-        ty: TypeId,
-        exits: [Option<(MirBlockId, MirValueId)>; 2],
-    ) -> Result<MirValueId, MirLoweringError> {
-        let live = exits.into_iter().flatten().collect::<Vec<_>>();
-        if live.is_empty() {
-            self.current = None;
-            return Err(MirLoweringError::MissingCurrentBlock);
-        }
-        let (join, parameters) = self.builder.create_block([ty]);
-        for (block, value) in live {
-            self.builder.terminate(
-                block,
-                MirTerminator::Goto(MirBranchTarget::new(join, [value])),
-            )?;
-        }
-        self.current = Some(join);
-        parameters
-            .first()
-            .copied()
-            .ok_or(MirLoweringError::MissingCurrentBlock)
     }
 }

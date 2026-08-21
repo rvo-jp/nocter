@@ -175,6 +175,14 @@ pub enum Arm64Instruction {
         value: Arm64Register,
         amount: Arm64Register,
     },
+    /// Extracts the low `source_bits` and sign- or zero-extends them to `size`.
+    BitfieldExtend {
+        size: Arm64DataSize,
+        signed: bool,
+        source_bits: u8,
+        destination: Arm64Register,
+        source: Arm64Register,
+    },
     LoadUnsigned {
         size: Arm64LoadStoreSize,
         destination: Arm64DataRegister,

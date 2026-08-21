@@ -162,9 +162,9 @@ fn receiver_offset(
         .checked_sub(iterator_offset)
         .ok_or_else(invalid)?;
     let receiver_end = relative
-        .checked_add(receiver_address.size())
+        .checked_add(receiver_address.stored_size().ok_or_else(invalid)?)
         .ok_or_else(invalid)?;
-    if receiver_end > iterator.size() {
+    if receiver_end > iterator.stored_size().ok_or_else(invalid)? {
         return Err(invalid());
     }
     Ok(relative)

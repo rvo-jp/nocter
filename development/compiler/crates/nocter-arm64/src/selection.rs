@@ -104,6 +104,14 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
     },
+    /// Losslessly widens one canonical integer value according to the source signedness.
+    IntegerConversion {
+        size: Arm64DataSize,
+        source_bits: u8,
+        signed: bool,
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedRegister,
+    },
     LoadMemory {
         bytes: u8,
         extension: Arm64SelectedLoadExtension,
@@ -495,6 +503,10 @@ impl Arm64SelectedFunction {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the closed machine-operation domain is routed exhaustively in one place"
+)]
 fn select_operation(
     context: Arm64SelectionContext<'_>,
     operation_id: MachineOperationId,
@@ -597,20 +609,15 @@ fn select_operation(
             operation.result(),
             selected,
         ),
-        unsupported @ MachineOperationKind::IntegerConversion { .. } => {
-            unsupported_operation(operation_id, unsupported)
-        }
+        MachineOperationKind::IntegerConversion { operand } => select_integer_conversion(
+            (context.program(), context.owner()),
+            operation_id,
+            *operand,
+            operation.result(),
+            values,
+            selected,
+        ),
     }
-}
-
-fn unsupported_operation(
-    operation: MachineOperationId,
-    kind: &MachineOperationKind,
-) -> Result<(), Arm64SelectionError> {
-    Err(Arm64SelectionError::UnsupportedOperation {
-        operation,
-        kind: crate::selection_error::operation_name(kind),
-    })
 }
 
 fn select_aggregate_operation(
@@ -682,6 +689,35 @@ fn select_unary(
         },
         destination: one_word(values, result)?,
         operand: one_word(values, operand)?,
+    });
+    Ok(())
+}
+
+fn select_integer_conversion(
+    scope: (&nocter_machine::MachineProgram, MachineFunctionId),
+    operation_id: MachineOperationId,
+    operand: MachineValueId,
+    result: Option<MachineValueId>,
+    values: &Arm64ValuePlan,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
+    let (source_bits, signed) = integer_value(scope.0, scope.1, operand)?;
+    let (target_bits, _) = integer_value(scope.0, scope.1, result)?;
+    if source_bits > target_bits {
+        return Err(Arm64SelectionError::UnsupportedScalar(operand));
+    }
+    let size = match target_bits {
+        1..=32 => Arm64DataSize::Bits32,
+        33..=64 => Arm64DataSize::Bits64,
+        _ => return Err(Arm64SelectionError::UnsupportedScalar(result)),
+    };
+    selected.push(Arm64SelectedInstruction::IntegerConversion {
+        size,
+        source_bits,
+        signed,
+        destination: one_word(values, result)?,
+        source: one_word(values, operand)?,
     });
     Ok(())
 }
@@ -940,6 +976,28 @@ fn scalar_value(
                 _ => return Err(Arm64SelectionError::UnsupportedScalar(value)),
             };
             Ok((size, *signed))
+        }
+        _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
+    }
+}
+
+fn integer_value(
+    program: &nocter_machine::MachineProgram,
+    owner: MachineFunctionId,
+    value: MachineValueId,
+) -> Result<(u8, bool), Arm64SelectionError> {
+    let ty = program
+        .function(owner)
+        .and_then(|function| function.body().value(value))
+        .map(nocter_machine::MachineValue::ty)
+        .ok_or(Arm64SelectionError::UnknownValue(value))?;
+    match program
+        .layouts()
+        .get(ty)
+        .map(nocter_machine::MachineLayout::kind)
+    {
+        Some(MachineLayoutKind::Scalar(MachineScalar::Integer { bits, signed })) => {
+            Ok((*bits, *signed))
         }
         _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
     }

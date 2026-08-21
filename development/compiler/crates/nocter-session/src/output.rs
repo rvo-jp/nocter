@@ -1,3 +1,4 @@
+use nocter_macho::MachOImage;
 use nocter_source_index::SourceIndex;
 use nocter_target_program::ExecutableProgram;
 use nocter_target_program::TargetProgram;
@@ -7,6 +8,37 @@ use nocter_target_program::TargetProgram;
 pub struct CompiledTarget {
     program: TargetProgram,
     source_index: SourceIndex,
+}
+
+/// One deterministic native executable image plus its independent source projection.
+#[derive(Debug)]
+pub struct CompiledNativeImage {
+    image: MachOImage,
+    source_index: SourceIndex,
+}
+
+impl CompiledNativeImage {
+    pub(crate) const fn new(image: MachOImage, source_index: SourceIndex) -> Self {
+        Self {
+            image,
+            source_index,
+        }
+    }
+
+    #[must_use]
+    pub const fn image(&self) -> &MachOImage {
+        &self.image
+    }
+
+    #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (MachOImage, SourceIndex) {
+        (self.image, self.source_index)
+    }
 }
 
 /// One fully selected and specialized process executable plus independent source projection.

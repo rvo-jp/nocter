@@ -12,7 +12,8 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::MoveWide { .. }
         | Arm64Instruction::MultiplyAdd { .. }
         | Arm64Instruction::Divide { .. }
-        | Arm64Instruction::VariableShift { .. }) => encode_arithmetic(instruction),
+        | Arm64Instruction::VariableShift { .. }
+        | Arm64Instruction::BitfieldExtend { .. }) => encode_arithmetic(instruction),
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
         | Arm64Instruction::LoadSigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
@@ -94,10 +95,49 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             value.number(),
             amount.number(),
         )),
+        Arm64Instruction::BitfieldExtend {
+            size,
+            signed,
+            source_bits,
+            destination,
+            source,
+        } => encode_bitfield_extend(
+            size,
+            signed,
+            source_bits,
+            destination.number(),
+            source.number(),
+        ),
         _ => {
             unreachable!("instruction category is closed by encode")
         }
     }
+}
+
+fn encode_bitfield_extend(
+    size: Arm64DataSize,
+    signed: bool,
+    source_bits: u8,
+    destination: u8,
+    source: u8,
+) -> Result<u32, Arm64EncodingError> {
+    let register_bits = match size {
+        Arm64DataSize::Bits32 => 32,
+        Arm64DataSize::Bits64 => 64,
+    };
+    if source_bits == 0 || source_bits > register_bits {
+        return Err(Arm64EncodingError::InvalidShift);
+    }
+    let base = match (size, signed) {
+        (Arm64DataSize::Bits32, true) => 0x1300_0000,
+        (Arm64DataSize::Bits32, false) => 0x5300_0000,
+        (Arm64DataSize::Bits64, true) => 0x9340_0000,
+        (Arm64DataSize::Bits64, false) => 0xd340_0000,
+    };
+    Ok(base
+        | (u32::from(source_bits - 1) << 10)
+        | (u32::from(source) << 5)
+        | u32::from(destination))
 }
 
 fn encode_add_subtract(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {

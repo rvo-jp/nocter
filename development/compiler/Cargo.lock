@@ -140,11 +140,15 @@ version = "0.0.0"
 name = "nocter-session"
 version = "0.0.0"
 dependencies = [
+ "nocter-arm64",
  "nocter-checking",
  "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-discovery",
+ "nocter-machine",
+ "nocter-macho",
+ "nocter-mir",
  "nocter-model",
  "nocter-source-index",
  "nocter-syntax",

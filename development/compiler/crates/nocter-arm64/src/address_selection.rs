@@ -51,6 +51,7 @@ pub enum Arm64SelectedAddressStep {
 pub struct Arm64SelectedAddressCalculation {
     root: Arm64SelectedAddressRoot,
     steps: Box<[Arm64SelectedAddressStep]>,
+    view: bool,
 }
 
 impl Arm64SelectedAddressCalculation {
@@ -62,6 +63,11 @@ impl Arm64SelectedAddressCalculation {
     #[must_use]
     pub const fn steps(&self) -> &[Arm64SelectedAddressStep] {
         &self.steps
+    }
+
+    #[must_use]
+    pub const fn is_view(&self) -> bool {
+        self.view
     }
 }
 
@@ -108,12 +114,36 @@ impl Arm64SelectedAddressPlan {
             .ok_or(Arm64SelectionError::UnknownAddress(address))?
         {
             Arm64SelectedAddress::Stack(address) => Ok(Arm64SelectedMemoryAddress::Stack(*address)),
-            Arm64SelectedAddress::Runtime(_) => {
+            Arm64SelectedAddress::Runtime(calculation) if !calculation.is_view() => {
                 selected.push(Arm64SelectedInstruction::ResolveAddress(address));
                 Ok(Arm64SelectedMemoryAddress::Register {
                     base: Arm64SelectedRegister::Fixed(runtime_address_register()),
                     offset: 0,
                 })
+            }
+            Arm64SelectedAddress::Runtime(_) => Err(Arm64SelectionError::ProjectedAddress),
+        }
+    }
+
+    pub(crate) fn use_view_address(
+        &self,
+        address: MachineAddressId,
+        selected: &mut Vec<Arm64SelectedInstruction>,
+    ) -> Result<(Arm64SelectedRegister, Arm64SelectedRegister), Arm64SelectionError> {
+        match self
+            .addresses
+            .get(address.index())
+            .ok_or(Arm64SelectionError::UnknownAddress(address))?
+        {
+            Arm64SelectedAddress::Runtime(calculation) if calculation.is_view() => {
+                selected.push(Arm64SelectedInstruction::ResolveAddress(address));
+                Ok((
+                    Arm64SelectedRegister::Fixed(runtime_address_register()),
+                    Arm64SelectedRegister::Fixed(runtime_view_length_register()),
+                ))
+            }
+            Arm64SelectedAddress::Stack(_) | Arm64SelectedAddress::Runtime(_) => {
+                Err(Arm64SelectionError::ProjectedAddress)
             }
         }
     }
@@ -188,13 +218,15 @@ fn select_address(
         };
         steps.push(selected);
     }
-    if current_view {
+    let expects_view = matches!(address.extent(), nocter_machine::MachineAddressExtent::View);
+    if current_view != expects_view {
         return Err(Arm64SelectionError::ProjectedAddress);
     }
     Ok(Arm64SelectedAddress::Runtime(
         Arm64SelectedAddressCalculation {
             root,
             steps: steps.into_boxed_slice(),
+            view: current_view,
         },
     ))
 }
@@ -283,4 +315,9 @@ fn direct_registers(
 pub(crate) fn runtime_address_register() -> crate::Arm64Register {
     crate::Arm64NocterAbi::argument_register(0)
         .expect("the ABI reserves x0 as the runtime-address boundary register")
+}
+
+pub(crate) fn runtime_view_length_register() -> crate::Arm64Register {
+    crate::Arm64NocterAbi::argument_register(1)
+        .expect("the ABI reserves x1 as the runtime-view length boundary register")
 }

@@ -71,8 +71,8 @@ pub use program::{
     MachineTestProgram,
 };
 pub use storage::{
-    MachineAddress, MachineAddressRoot, MachineAddressStep, MachineDropFlag, MachineIndex,
-    MachineIndexBound, MachineStackObject, MachineStackPurpose,
+    MachineAddress, MachineAddressExtent, MachineAddressRoot, MachineAddressStep, MachineDropFlag,
+    MachineIndex, MachineIndexBound, MachineStackObject, MachineStackPurpose,
 };
 pub use structural::{
     MachineComparison, MachineComparisonOperation, MachineComparisonRepresentation,

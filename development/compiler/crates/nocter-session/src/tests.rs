@@ -7,7 +7,7 @@ use nocter_model::CompilationTarget;
 use nocter_target_program::PrimitiveRole;
 
 use super::{
-    ExecutableCompileRequest, bundled_standard_toolchain, compile_executable, compile_target,
+    ExecutableCompileRequest, bundled_standard_toolchain, compile_native_image, compile_target,
 };
 
 #[test]
@@ -66,7 +66,7 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
             bundled_standard_toolchain(&package),
         ))
         .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", source.display()));
-        compile_executable(ExecutableCompileRequest::only(&unit))
+        compile_native_image(ExecutableCompileRequest::only(&unit))
             .unwrap_or_else(|error| panic!("{} failed compilation: {error:?}", source.display()));
     }
 }
@@ -91,18 +91,9 @@ fn public_package_example_crosses_the_complete_target_session() {
     ))
     .unwrap();
     let target =
-        compile_executable(ExecutableCompileRequest::named(&unit, "file-summary")).unwrap();
+        compile_native_image(ExecutableCompileRequest::named(&unit, "file-summary")).unwrap();
 
-    assert_eq!(
-        target
-            .program()
-            .target()
-            .checked()
-            .graph()
-            .package_targets()
-            .len(),
-        1
-    );
+    assert!(!target.image().bytes().is_empty());
 }
 
 fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackage {

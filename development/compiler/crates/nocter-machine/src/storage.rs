@@ -90,10 +90,15 @@ pub enum MachineAddressStep {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineAddress {
     ty: TypeId,
-    size: u64,
-    alignment: u64,
+    extent: MachineAddressExtent,
     root: MachineAddressRoot,
     steps: Box<[MachineAddressStep]>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineAddressExtent {
+    Stored { size: u64, alignment: u64 },
+    View,
 }
 
 impl MachineAddress {
@@ -106,8 +111,20 @@ impl MachineAddress {
     ) -> Self {
         Self {
             ty,
-            size,
-            alignment,
+            extent: MachineAddressExtent::Stored { size, alignment },
+            root,
+            steps: steps.into(),
+        }
+    }
+
+    pub(crate) fn new_view(
+        ty: TypeId,
+        root: MachineAddressRoot,
+        steps: impl Into<Box<[MachineAddressStep]>>,
+    ) -> Self {
+        Self {
+            ty,
+            extent: MachineAddressExtent::View,
             root,
             steps: steps.into(),
         }
@@ -119,13 +136,24 @@ impl MachineAddress {
     }
 
     #[must_use]
-    pub const fn size(&self) -> u64 {
-        self.size
+    pub const fn extent(&self) -> MachineAddressExtent {
+        self.extent
     }
 
     #[must_use]
-    pub const fn alignment(&self) -> u64 {
-        self.alignment
+    pub const fn stored_size(&self) -> Option<u64> {
+        match self.extent {
+            MachineAddressExtent::Stored { size, .. } => Some(size),
+            MachineAddressExtent::View => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn stored_alignment(&self) -> Option<u64> {
+        match self.extent {
+            MachineAddressExtent::Stored { alignment, .. } => Some(alignment),
+            MachineAddressExtent::View => None,
+        }
     }
 
     #[must_use]

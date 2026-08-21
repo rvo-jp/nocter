@@ -923,6 +923,27 @@ fn lowers_fallible_injection_and_propagation_through_typed_storage() {
 }
 
 #[test]
+fn lowers_void_fallible_success_without_fictional_payload_storage() {
+    let program = lower_fixture(
+        "func succeeds(): void! { return }\n\
+         func pass(): void! { succeeds()? }\n\
+         func main(): void! { pass() }\n",
+    )
+    .unwrap();
+    let void = program
+        .executable()
+        .types()
+        .builtin(nocter_model::BuiltinType::Void);
+
+    assert!(program.functions().iter().all(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .all(|(_, place)| place.ty() != void)
+    }));
+}
+
+#[test]
 fn lowers_forced_optional_failure_to_an_explicit_trap_edge() {
     let program = lower_fixture(
         "func force(input: i32?): i32 { input! }\n\
