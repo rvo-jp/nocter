@@ -15,12 +15,12 @@ implementation input.
 
 ## Immediate Work
 
-1. Add command orchestration on top of the completed native-image session boundary. Explicit
-   single-file discovery, selected declared package targets, and every public example now close an
-   exact `MachOImage` through discovery, semantic checking, executable specialization, MIR,
-   machine lowering, ARM64 selection, and Mach-O construction without reopening target names.
-   Build must next write those bytes atomically to its selected output path; run must execute that
-   same artifact rather than assembling any compiler stage itself.
+1. Add the public command-input and executable-set selection model above the completed command
+   core. `nocter-command` now compiles one exact executable only through `nocter-session`, commits
+   persistent images failure-atomically, and stages/runs/removes temporary images while preserving
+   child exit status. Package `build` still needs declaration-order all-target selection and output
+   policy; package `run` needs the specified sole/named selection policy. Neither may scan semantic
+   declarations or invoke compiler stages directly.
 
 `ExecutableProgram` now freezes fully specialized declaration-order struct fields, enum payloads,
 and opaque witnesses. `nocter-machine` owns the selected target facts and the complete recursive

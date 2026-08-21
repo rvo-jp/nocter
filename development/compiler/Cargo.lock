@@ -30,6 +30,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-command"
+version = "0.0.0"
+dependencies = [
+ "nocter-compile-input",
+ "nocter-discovery",
+ "nocter-macho",
+ "nocter-model",
+ "nocter-session",
+ "nocter-source-index",
+]
+
+[[package]]
 name = "nocter-compile-input"
 version = "0.0.0"
 dependencies = [

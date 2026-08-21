@@ -3,6 +3,7 @@ members = [
     "crates/nocter-arm64",
     "crates/nocter-checking",
     "crates/nocter-compile-input",
+    "crates/nocter-command",
     "crates/nocter-conformance",
     "crates/nocter-declarations",
     "crates/nocter-declaration-lowering",

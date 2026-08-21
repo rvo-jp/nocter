@@ -220,6 +220,15 @@ and Mach-O construction and returns one immutable image beside the unchanged `So
 failures into a command message. Commands may choose paths, write image bytes, and launch an
 artifact, but they cannot invoke or reorder individual compiler stages.
 
+`nocter-command` owns executable filesystem and child-process effects after that session. Build
+writes a uniquely created sibling file, applies executable permissions, synchronizes it, and
+atomically renames it over the requested output; failures remove the private file and never expose
+partial bytes. Run stages the same image in a private temporary directory, inherits standard
+streams, waits for the child, preserves its `ExitStatus`, and explicitly removes the artifact.
+Launch and cleanup failures remain distinct, including the case where both occur. This crate
+depends on `nocter-session` rather than semantic or backend crates, so command code cannot assemble
+a second compiler pipeline.
+
 Before semantic identities are reserved, lowering produces one temporary declaration-surface
 inventory. It visits module roots before implementation sources, sorts implementation sources by
 canonical physical identity, and records each declaration or member with its exact syntactic

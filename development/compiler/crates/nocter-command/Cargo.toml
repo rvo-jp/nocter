@@ -1,0 +1,20 @@
+[package]
+name = "nocter-command"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-macho = { path = "../nocter-macho" }
+nocter-session = { path = "../nocter-session" }
+nocter-source-index = { path = "../nocter-source-index" }
+
+[dev-dependencies]
+nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-discovery = { path = "../nocter-discovery" }
+nocter-model = { path = "../nocter-model" }
+
+[lints]
+workspace = true
