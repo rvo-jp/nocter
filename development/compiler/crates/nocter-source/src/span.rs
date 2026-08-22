@@ -89,6 +89,22 @@ impl TextRange {
         self.start.get() <= offset.get() && offset.get() < self.end.get()
     }
 
+    /// Returns whether an editor cursor lies within this range or on its trailing boundary.
+    ///
+    /// A cursor is a position between bytes rather than a byte in the range. Completion and
+    /// signature queries therefore keep ownership at `end` while ordinary semantic range lookup
+    /// remains half-open through [`Self::contains_offset`].
+    #[must_use]
+    pub const fn contains_cursor(self, cursor: ByteOffset) -> bool {
+        self.start.get() <= cursor.get() && cursor.get() <= self.end.get()
+    }
+
+    /// Returns whether this range completely contains another half-open range.
+    #[must_use]
+    pub const fn contains_range(self, inner: Self) -> bool {
+        self.start.get() <= inner.start.get() && inner.end.get() <= self.end.get()
+    }
+
     /// Returns whether two non-empty half-open ranges overlap.
     ///
     /// Empty ranges represent positions rather than byte sets and therefore never overlap.
@@ -139,6 +155,12 @@ mod tests {
         assert!(range.contains_offset(offset(2)));
         assert!(range.contains_offset(offset(4)));
         assert!(!range.contains_offset(offset(5)));
+        assert!(range.contains_cursor(offset(5)));
+        assert!(!range.contains_cursor(offset(6)));
+
+        assert!(range.contains_range(TextRange::new(offset(3), offset(5))));
+        assert!(range.contains_range(TextRange::empty(offset(5))));
+        assert!(!range.contains_range(TextRange::new(offset(1), offset(3))));
 
         assert!(range.overlaps(TextRange::new(offset(4), offset(7))));
         assert!(!range.overlaps(TextRange::new(offset(5), offset(7))));

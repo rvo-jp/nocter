@@ -31,7 +31,7 @@ pub(super) fn checked_completions(
                 return None;
             };
             let range = binding.origin().span().range();
-            if !contains_range(range, context_range) {
+            if !range.contains_range(context_range) {
                 return None;
             }
             let checked = program.bodies().get(body)?.nodes().get(node)?;
@@ -42,7 +42,7 @@ pub(super) fn checked_completions(
             };
             Some((range, *definition, fields.as_ref()))
         })
-        .min_by_key(|(range, _, _)| range_length(*range));
+        .min_by_key(|(range, _, _)| range.len());
     let Some((_, definition, fields)) = selected else {
         return Ok(None);
     };
@@ -101,20 +101,8 @@ fn containing_initializer(
         .into_iter()
         .flat_map(SyntaxTree::nodes)
         .filter_map(|(_, node)| {
-            (node.kind() == NodeKind::StructInitializer && contains(node.range(), offset))
+            (node.kind() == NodeKind::StructInitializer && node.range().contains_cursor(offset))
                 .then_some(node.range())
         })
-        .min_by_key(|range| range_length(*range))
-}
-
-const fn contains(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn contains_range(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
-}
-
-const fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
+        .min_by_key(|range| range.len())
 }

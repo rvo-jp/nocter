@@ -1,6 +1,6 @@
 use nocter_checking::{CallTarget, CheckedOperation};
 use nocter_model::{BodyId, BodyNodeId};
-use nocter_source::{ByteOffset, SourceId, TextRange};
+use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use crate::AnalysisSnapshot;
@@ -79,7 +79,7 @@ impl AnalysisSnapshot {
                     return None;
                 };
                 let range = binding.origin().span().range();
-                if offset < range.start() || range.end() < offset {
+                if !range.contains_cursor(offset) {
                     return None;
                 }
                 let node = checked.bodies().get(body_id)?.nodes().get(node_id)?;
@@ -88,7 +88,7 @@ impl AnalysisSnapshot {
                 };
                 Some((body_id, node_id, range, call))
             })
-            .min_by_key(|(_, _, range, _)| range_length(*range))
+            .min_by_key(|(_, _, range, _)| range.len())
         else {
             return Ok(None);
         };
@@ -148,13 +148,9 @@ fn active_parameter(
                 .iter()
                 .filter(|binding| binding.origin().source() == source)
                 .map(|binding| binding.origin().span().range())
-                .min_by_key(|range| range_length(*range))
+                .min_by_key(|range| range.len())
         })
         .filter(|range| range.end() < offset)
         .count();
     u32::try_from(completed.min(parameter_count - 1)).ok()
-}
-
-fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
 }

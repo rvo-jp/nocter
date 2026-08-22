@@ -18,9 +18,10 @@ pub(super) fn checked_completions(
     offset: ByteOffset,
     module: nocter_model::ModuleId,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let mut selected = None;
+    let mut selected: Option<(TextRange, ConstructionCompletionTarget)> = None;
     for binding in index.bindings_in(source).filter(|binding| {
-        binding.role() == SourceRole::Reference && contains(binding.origin().span().range(), offset)
+        binding.role() == SourceRole::Reference
+            && binding.origin().span().range().contains_cursor(offset)
     }) {
         let target = match binding.entity() {
             SemanticEntity::Variant(variant) => ConstructionCompletionTarget::Variant(variant),
@@ -41,7 +42,7 @@ pub(super) fn checked_completions(
         let range = binding.origin().span().range();
         if selected
             .as_ref()
-            .is_none_or(|(current, _)| range_length(range) < range_length(*current))
+            .is_none_or(|(current, _)| range.len() < current.len())
         {
             selected = Some((range, target));
         }
@@ -104,12 +105,4 @@ fn render_completions(
         })
         .collect::<Vec<_>>()
         .into_boxed_slice()
-}
-
-const fn contains(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
 }

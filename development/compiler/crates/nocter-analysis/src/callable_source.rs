@@ -34,7 +34,7 @@ pub(crate) fn project_callable_source(
     let declaration = syntax
         .nodes()
         .filter(|(_, node)| {
-            declaration_matches(kind, node.kind()) && contains(node.range(), binding_range)
+            declaration_matches(kind, node.kind()) && node.range().contains_range(binding_range)
         })
         .min_by_key(|(_, node)| node.range().len())?
         .0;
@@ -139,10 +139,6 @@ const fn declaration_matches(callable: CallableKind, syntax: NodeKind) -> bool {
         CallableKind::Index => matches!(syntax, NodeKind::IndexOperator),
         CallableKind::Expansion => matches!(syntax, NodeKind::ExpansionOperator),
     }
-}
-
-const fn contains(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
 }
 
 #[cfg(test)]

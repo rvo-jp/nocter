@@ -392,7 +392,7 @@ fn interrupted_completions(
         return Ok(None);
     };
     let origin = interruption.origin();
-    if origin.source() != source || !contains(origin.span().range(), offset) {
+    if origin.source() != source || !origin.span().range().contains_cursor(offset) {
         return Ok(None);
     }
     let spellings = VisibleSpellings::new(recovery.prepared().graph(), module);
@@ -483,10 +483,10 @@ fn checked_member_completions(
         .filter(|binding| {
             binding.role() == SourceRole::Reference
                 && matches!(binding.entity(), SemanticEntity::Callable(_))
-                && contains(binding.origin().span().range(), offset)
+                && binding.origin().span().range().contains_cursor(offset)
         })
         .map(|binding| binding.origin().span().range())
-        .min_by_key(|range| range_length(*range));
+        .min_by_key(|range| range.len());
     let Some(member_range) = member_range else {
         return Ok(None);
     };
@@ -497,7 +497,7 @@ fn checked_member_completions(
                 return None;
             };
             let range = binding.origin().span().range();
-            if !contains(range, offset) || !contains_range(range, member_range) {
+            if !range.contains_cursor(offset) || !range.contains_range(member_range) {
                 return None;
             }
             let node = program.bodies().get(body_id)?.nodes().get(node_id)?;
@@ -506,7 +506,7 @@ fn checked_member_completions(
             };
             Some((body_id, range, call.receiver()?))
         })
-        .min_by_key(|(_, range, _)| range_length(*range))
+        .min_by_key(|(_, range, _)| range.len())
         .map(|(body, _, receiver)| (body, receiver));
     let Some((body_id, receiver)) = receiver_selection else {
         return Ok(None);
@@ -589,14 +589,14 @@ fn containing_scope(
 ) -> Option<(BodyId, BodyScopeId)> {
     index
         .bindings_in(source)
-        .filter(|binding| contains(binding.origin().span().range(), offset))
+        .filter(|binding| binding.origin().span().range().contains_cursor(offset))
         .filter_map(|binding| match binding.entity() {
             SemanticEntity::BodyScope(body, scope) => {
                 Some((body, scope, binding.origin().span().range()))
             }
             _ => None,
         })
-        .min_by_key(|(_, _, range)| range_length(*range))
+        .min_by_key(|(_, _, range)| range.len())
         .map(|(body, scope, _)| (body, scope))
 }
 
@@ -720,16 +720,4 @@ fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Opt
         ),
     };
     Some(Candidate { entity, kind })
-}
-
-const fn contains(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn contains_range(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
-}
-
-const fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
 }

@@ -521,9 +521,7 @@ fn syntax_errors_are_inside_blocks(tree: &SyntaxTree) -> bool {
         .collect::<Vec<_>>();
     tree.diagnostics().iter().all(|diagnostic| {
         let range = diagnostic.span().range();
-        blocks.iter().any(|block| {
-            block.start().get() <= range.start().get() && range.end().get() <= block.end().get()
-        })
+        blocks.iter().any(|block| block.contains_range(range))
     })
 }
 

@@ -4,7 +4,7 @@ use nocter_checking::{
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, ModuleId};
-use nocter_source::{ByteOffset, SourceId, TextRange};
+use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use super::{SemanticCompletion, SemanticCompletionKind};
@@ -21,9 +21,10 @@ pub(super) fn checked_completions(
         .associated_type_completion_contexts()
         .iter()
         .filter(|context| {
-            context.origin().source() == source && contains(context.origin().span().range(), offset)
+            context.origin().source() == source
+                && context.origin().span().range().contains_cursor(offset)
         })
-        .min_by_key(|context| range_length(context.origin().span().range()));
+        .min_by_key(|context| context.origin().span().range().len());
     let Some(context) = selected else {
         return Ok(None);
     };
@@ -79,12 +80,4 @@ fn render_completions(
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Vec::into_boxed_slice)
-}
-
-const fn contains(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
 }

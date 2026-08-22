@@ -27,7 +27,9 @@ pub(super) fn checked_completions(
         let SemanticEntity::Variant(variant) = binding.entity() else {
             return None;
         };
-        contains_range(pattern, binding.origin().span().range()).then_some(variant)
+        pattern
+            .contains_range(binding.origin().span().range())
+            .then_some(variant)
     });
     let Some(variant) = variant else {
         return Ok(None);
@@ -99,16 +101,8 @@ fn containing_pattern(
         .into_iter()
         .flat_map(SyntaxTree::nodes)
         .filter_map(|(_, node)| {
-            (node.kind() == NodeKind::EnumPattern && contains(node.range(), offset))
+            (node.kind() == NodeKind::EnumPattern && node.range().contains_cursor(offset))
                 .then_some(node.range())
         })
-        .min_by_key(|range| range.end().get() - range.start().get())
-}
-
-const fn contains(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn contains_range(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
+        .min_by_key(|range| range.len())
 }

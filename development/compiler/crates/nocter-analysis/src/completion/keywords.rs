@@ -87,12 +87,12 @@ fn has_visible_generic_syntax(tree: &SyntaxTree, where_clause: NodeId) -> bool {
     };
     tree.nodes().any(|(_, candidate)| {
         declaration_container(candidate.kind())
-            && contains_range(candidate.range(), where_range)
+            && candidate.range().contains_range(where_range)
             && tree.nodes().any(|(_, generic)| {
                 matches!(
                     generic.kind(),
                     NodeKind::GenericParameters | NodeKind::PatternArguments
-                ) && contains_range(candidate.range(), generic.range())
+                ) && candidate.range().contains_range(generic.range())
                     && generic.range().end() <= where_range.start()
             })
     })
@@ -105,7 +105,7 @@ fn is_top_level_test_position(
 ) -> bool {
     if tree.nodes().any(|(_, node)| {
         (node.kind() == NodeKind::Block || declaration_container(node.kind()))
-            && contains_position(node.range(), offset)
+            && node.range().contains_cursor(offset)
     }) {
         return false;
     }
@@ -127,7 +127,7 @@ fn is_top_level_test_position(
 
 fn innermost_node(tree: &SyntaxTree, offset: ByteOffset, kind: NodeKind) -> Option<NodeId> {
     tree.nodes()
-        .filter(|(_, node)| node.kind() == kind && contains_position(node.range(), offset))
+        .filter(|(_, node)| node.kind() == kind && node.range().contains_cursor(offset))
         .min_by_key(|(_, node)| node.range().len())
         .map(|(node, _)| node)
 }
@@ -137,7 +137,7 @@ fn has_descendant(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> bool {
         return false;
     };
     tree.nodes()
-        .any(|(_, node)| node.kind() == kind && contains_range(root_range, node.range()))
+        .any(|(_, node)| node.kind() == kind && root_range.contains_range(node.range()))
 }
 
 const fn declaration_container(kind: NodeKind) -> bool {
@@ -160,12 +160,4 @@ const fn declaration_container(kind: NodeKind) -> bool {
             | NodeKind::InherentMethod
             | NodeKind::ConformMethod
     )
-}
-
-const fn contains_position(range: TextRange, offset: ByteOffset) -> bool {
-    range.start().get() <= offset.get() && offset.get() <= range.end().get()
-}
-
-const fn contains_range(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
 }
