@@ -1,7 +1,8 @@
 use std::fmt::{self, Write};
 
 use nocter_checking::{
-    CheckedProgram, GenericArguments, SelectedConstructionEntry, SelectedConstructionSurface,
+    CheckedPredicate, CheckedProgram, GenericArguments, RequiredConformanceMethod,
+    SelectedConstructionEntry, SelectedConstructionSurface,
 };
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, ExportedEntity,
@@ -136,6 +137,27 @@ pub(super) fn name_recovery_presentation(
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
     semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
+}
+
+pub(super) fn declaration_presentation(
+    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
+) -> Option<SemanticPresentation> {
+    semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
+}
+
+pub(super) fn required_conformance_method_presentation(
+    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    required: &RequiredConformanceMethod,
+    from: nocter_model::ModuleId,
+) -> Option<SemanticPresentation> {
+    let spellings = visible_spelling::VisibleSpellings::new(recovery.graph(), from);
+    let mut renderer = Renderer::new(recovery.graph(), recovery.types(), &spellings);
+    renderer.required_conformance_method(required)?;
+    Some(SemanticPresentation {
+        code: renderer.output.into_boxed_str(),
+    })
 }
 
 fn semantic_presentation(
@@ -445,6 +467,121 @@ impl<'a> Renderer<'a> {
         self.ty(callable.result())?;
         self.provenance(callable)?;
         self.requirements(callable.requirements())?;
+        Some(())
+    }
+
+    fn required_conformance_method(&mut self, required: &RequiredConformanceMethod) -> Option<()> {
+        let declarations = self.graph.declarations();
+        let callable = declarations.callables().get(required.interface_method())?;
+        self.output.push_str("method ");
+        self.output.push_str(match required.receiver() {
+            CallableCapability::Readonly => "&self.",
+            CallableCapability::ReadWrite => "&+self.",
+            CallableCapability::Owned => "self.",
+        });
+        self.output.push_str(self.symbol(callable.name()?)?);
+        self.generic_parameters(required.generic_parameters())?;
+        self.output.push('(');
+        for (index, parameter) in required.parameters().iter().copied().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            if parameter.variadic() {
+                self.output.push_str("...");
+            }
+            let declaration = declarations.parameters().get(parameter.declaration())?;
+            self.output.push_str(self.symbol(declaration.name())?);
+            self.output.push_str(": ");
+            self.ty(parameter.ty())?;
+        }
+        self.output.push_str("): ");
+        self.ty(required.result())?;
+        self.checked_requirements(required.requirements())
+    }
+
+    fn checked_requirements(&mut self, requirements: &[CheckedPredicate]) -> Option<()> {
+        if requirements.is_empty() {
+            return Some(());
+        }
+        self.output.push_str(" where ");
+        for (index, requirement) in requirements.iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            self.checked_requirement(requirement)?;
+        }
+        Some(())
+    }
+
+    fn checked_requirement(&mut self, requirement: &CheckedPredicate) -> Option<()> {
+        match requirement {
+            CheckedPredicate::Capability {
+                subject,
+                capability,
+            } => {
+                self.ty(*subject)?;
+                self.output.push_str(": ");
+                self.structural_capability(capability)?;
+            }
+            CheckedPredicate::Copy(ty) => {
+                self.output.push_str("copy ");
+                self.ty(*ty)?;
+            }
+            CheckedPredicate::TypeEquality { left, right } => {
+                self.ty(*left)?;
+                self.output.push_str(" = ");
+                self.ty(*right)?;
+            }
+            CheckedPredicate::Equality(ty) | CheckedPredicate::Ordering(ty) => {
+                self.output.push_str("(&");
+                self.ty(*ty)?;
+                self.output
+                    .push_str(if matches!(requirement, CheckedPredicate::Equality(_)) {
+                        " == &"
+                    } else {
+                        " < &"
+                    });
+                self.ty(*ty)?;
+                self.output.push_str("): bool");
+            }
+            CheckedPredicate::Index {
+                capability,
+                container,
+                index,
+                result,
+            } => {
+                self.output.push('(');
+                self.output.push_str(match capability {
+                    BorrowCapability::Readonly => "&",
+                    BorrowCapability::ReadWrite => "&+",
+                });
+                self.ty(*container)?;
+                self.output.push('[');
+                self.ty(*index)?;
+                self.output.push_str("]): ");
+                self.ty(*result)?;
+            }
+            CheckedPredicate::Coercion { source, target } => {
+                self.ty(*source)?;
+                self.output.push_str(" as ");
+                self.ty(*target)?;
+            }
+            CheckedPredicate::Expansion {
+                capability,
+                source,
+                result,
+            } => {
+                self.output.push_str("(...");
+                self.output.push_str(match capability {
+                    ExpansionCapability::Readonly => "&",
+                    ExpansionCapability::ReadWrite => "&+",
+                    ExpansionCapability::Owned => "",
+                });
+                self.ty(*source)?;
+                self.output.push_str("): ");
+                self.ty(*result)?;
+            }
+        }
         Some(())
     }
 

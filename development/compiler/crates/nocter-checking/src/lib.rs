@@ -86,7 +86,8 @@ pub use concrete_dispatch::{
 pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
-    MethodSelection, SubstitutionError, build_conformance_table,
+    MethodSelection, MissingConformanceMethods, RequiredConformanceMethod,
+    RequiredConformanceParameter, SubstitutionError, build_conformance_table,
 };
 pub use construction_completion::{
     ConstructionCompletionCandidate, ConstructionCompletionError, ConstructionCompletionOwner,
@@ -126,7 +127,7 @@ pub use preparation::{
     PreparationError, PreparationFailure, PreparedChecking, PreparedSemanticProgram,
     prepare_program_checking, prepare_program_checking_recovering,
 };
-pub use recovery::{BodyAnalysisRecovery, SemanticAnalysisRecovery};
+pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, SemanticAnalysisRecovery};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{
     StructuralFieldCompletionCandidate, StructuralFieldCompletionError,

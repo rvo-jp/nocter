@@ -1213,3 +1213,13 @@ the current compiler diagnostic by stable rule code and exact source subject, re
 import candidate attached to completion, and publish it only when the ordinary compiler accepts
 the candidate overlay. The adapter ignores client diagnostic contents and never derives edits from
 diagnostic messages or help strings.
+
+Preparation failures retain only the deepest completed semantic authority. A conformance-table
+failure owns a declaration recovery value containing the graph, monotonic type store, and source
+index, but no conformance table, construction surface, name result, or checked body. While selecting
+required interface methods, the checker captures every missing method after applying the same
+interface, target, associated-type, and callable-generic substitutions used by signature
+compatibility. The code-action layer renders those typed contracts through canonical presentation,
+inserts all missing methods with diverging `std/process.abort()` bodies, and obtains the import edit
+from semantic automatic-import completion. The shared speculative transaction publishes the action
+only when the whole edited program reaches the complete target-validated state.

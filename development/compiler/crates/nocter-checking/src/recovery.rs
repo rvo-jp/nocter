@@ -1,4 +1,6 @@
+use nocter_declarations::DeclarationGraph;
 use nocter_model::{ModuleId, TypeStore};
+use nocter_source_index::SourceIndex;
 
 use crate::member_completion::select_member_completions;
 use crate::{
@@ -10,6 +12,7 @@ use crate::{
 /// The exact semantic stage retained by one failed editor analysis generation.
 #[derive(Debug)]
 pub enum SemanticAnalysisRecovery {
+    Declarations(Box<DeclarationAnalysisRecovery>),
     Names(Box<crate::NameAnalysisRecovery>),
     Bodies(Box<BodyAnalysisRecovery>),
 }
@@ -19,7 +22,15 @@ impl SemanticAnalysisRecovery {
     pub fn names(&self) -> Option<&crate::NameAnalysisRecovery> {
         match self {
             Self::Names(recovery) => Some(recovery.as_ref()),
-            Self::Bodies(_) => None,
+            Self::Declarations(_) | Self::Bodies(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn declarations(&self) -> Option<&DeclarationAnalysisRecovery> {
+        match self {
+            Self::Declarations(recovery) => Some(recovery.as_ref()),
+            Self::Names(_) | Self::Bodies(_) => None,
         }
     }
 
@@ -27,8 +38,49 @@ impl SemanticAnalysisRecovery {
     pub fn bodies(&self) -> Option<&BodyAnalysisRecovery> {
         match self {
             Self::Bodies(recovery) => Some(recovery.as_ref()),
-            Self::Names(_) => None,
+            Self::Declarations(_) | Self::Names(_) => None,
         }
+    }
+}
+
+/// The complete declaration graph retained when a program-wide preparation rule rejects source.
+///
+/// This boundary contains no conformance, construction, instance-operation, name, or body result.
+/// It exists so tooling can inspect the exact declaration identities involved in the failure
+/// without rerunning lowering or pretending that a later semantic authority was completed.
+#[derive(Debug)]
+pub struct DeclarationAnalysisRecovery {
+    graph: DeclarationGraph,
+    types: TypeStore,
+    source_index: SourceIndex,
+}
+
+impl DeclarationAnalysisRecovery {
+    pub(crate) fn new(
+        graph: DeclarationGraph,
+        types: TypeStore,
+        source_index: SourceIndex,
+    ) -> Self {
+        Self {
+            graph,
+            types,
+            source_index,
+        }
+    }
+
+    #[must_use]
+    pub const fn graph(&self) -> &DeclarationGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        &self.types
+    }
+
+    #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
     }
 }
 

@@ -1,9 +1,14 @@
 use std::fmt;
 
-use nocter_checking::NameRule;
+use nocter_checking::{ConformanceRule, NameRule, PreparationError};
+use nocter_session::CompileSessionError;
 use nocter_source::{SourceId, TextRange};
 
 use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
+
+mod conformance;
+
+pub use conformance::ConformanceActionError;
 
 /// One compiler-owned source repair independent of editor protocol and workspace mutation.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -42,6 +47,7 @@ pub enum SemanticCodeActionError {
     MissingSource(SourceId),
     InvalidDiagnosticRange { source: SourceId, range: TextRange },
     Completion(SemanticCompletionError),
+    Conformance(ConformanceActionError),
 }
 
 impl fmt::Display for SemanticCodeActionError {
@@ -57,6 +63,7 @@ impl fmt::Display for SemanticCodeActionError {
                 range.end().get()
             ),
             Self::Completion(error) => error.fmt(formatter),
+            Self::Conformance(error) => error.fmt(formatter),
         }
     }
 }
@@ -65,6 +72,7 @@ impl std::error::Error for SemanticCodeActionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Completion(error) => Some(error),
+            Self::Conformance(error) => Some(error),
             Self::MissingSource(_) | Self::InvalidDiagnosticRange { .. } => None,
         }
     }
@@ -73,6 +81,12 @@ impl std::error::Error for SemanticCodeActionError {
 impl From<SemanticCompletionError> for SemanticCodeActionError {
     fn from(error: SemanticCompletionError) -> Self {
         Self::Completion(error)
+    }
+}
+
+impl From<ConformanceActionError> for SemanticCodeActionError {
+    fn from(error: ConformanceActionError) -> Self {
+        Self::Conformance(error)
     }
 }
 
@@ -100,10 +114,25 @@ impl AnalysisSnapshot {
         for diagnostic in self.diagnostics() {
             let primary = diagnostic.primary();
             let range = primary.span().range();
-            if diagnostic.code() != NameRule::UnknownName.code()
-                || primary.source() != source
-                || !ranges_intersect(range, requested_range)
-            {
+            if primary.source() != source || !ranges_intersect(range, requested_range) {
+                continue;
+            }
+            if diagnostic.code() == ConformanceRule::MissingMethod.code() {
+                let Some(missing) = self.missing_conformance_methods() else {
+                    continue;
+                };
+                if let Some(action) = conformance::missing_method_action(
+                    self,
+                    source,
+                    diagnostic.code(),
+                    range,
+                    missing,
+                )? {
+                    actions.push(action);
+                }
+                continue;
+            }
+            if diagnostic.code() != NameRule::UnknownName.code() {
                 continue;
             }
             let name = source_file
@@ -136,6 +165,15 @@ impl AnalysisSnapshot {
         actions.sort_by(|left, right| left.title.cmp(&right.title));
         actions.dedup();
         Ok(actions.into_boxed_slice())
+    }
+
+    fn missing_conformance_methods(&self) -> Option<&nocter_checking::MissingConformanceMethods> {
+        let CompileSessionError::Preparation(PreparationError::Conformance(error)) =
+            self.compilation_failure()?
+        else {
+            return None;
+        };
+        error.missing_methods()
     }
 }
 

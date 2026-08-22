@@ -228,15 +228,16 @@ pub enum PreparationError {
     NameResolution(NameResolutionError),
 }
 
-/// A preparation failure with an optional current-generation lexical recovery snapshot.
+/// A preparation failure with the deepest current-generation semantic recovery stage retained for
+/// editor analysis.
 #[derive(Debug)]
 pub struct PreparationFailure {
     error: PreparationError,
-    recovery: Option<Box<crate::NameAnalysisRecovery>>,
+    recovery: Option<Box<crate::SemanticAnalysisRecovery>>,
 }
 
 impl PreparationFailure {
-    fn new(error: PreparationError, recovery: Option<crate::NameAnalysisRecovery>) -> Self {
+    fn new(error: PreparationError, recovery: Option<crate::SemanticAnalysisRecovery>) -> Self {
         Self {
             error,
             recovery: recovery.map(Box::new),
@@ -249,12 +250,12 @@ impl PreparationFailure {
     }
 
     #[must_use]
-    pub fn recovery(&self) -> Option<&crate::NameAnalysisRecovery> {
+    pub fn recovery(&self) -> Option<&crate::SemanticAnalysisRecovery> {
         self.recovery.as_deref()
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (PreparationError, Option<crate::NameAnalysisRecovery>) {
+    pub fn into_parts(self) -> (PreparationError, Option<crate::SemanticAnalysisRecovery>) {
         (self.error, self.recovery.map(|recovery| *recovery))
     }
 }
@@ -404,23 +405,47 @@ fn prepare_program_checking_internal<'syntax>(
         .into());
     }
     let (graph, mut types) = program.into_parts();
-    let body_sources = catalog_body_sources(input, &graph, &source_index)
-        .map_err(NameResolutionInternalError::from)
-        .map_err(NameResolutionError::from)
-        .map_err(PreparationError::from)?;
-    validate_declaration_types(&graph, &types, &source_index).map_err(PreparationError::from)?;
-    let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)
-        .map_err(PreparationError::from)?;
-    let drops = DropTable::build(&graph, &types).map_err(PreparationError::from)?;
-    let conformances = build_conformance_table(&graph, &mut types, &source_index)
-        .map_err(PreparationError::from)?;
-    let construction_surfaces =
-        ConstructionSurfaceTable::build(&graph, &types).map_err(PreparationError::from)?;
-    let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)
-        .map_err(PreparationError::from)?;
-    let standard_semantics =
-        StandardSemanticTable::build(toolchain.standard_roles(), &graph, &types, &source_index)
-            .map_err(PreparationError::from)?;
+    macro_rules! declaration_stage {
+        ($operation:expr) => {
+            match $operation {
+                Ok(value) => value,
+                Err(error) => {
+                    return Err(declaration_failure(
+                        error.into(),
+                        retain_names,
+                        graph,
+                        types,
+                        source_index,
+                    ));
+                }
+            }
+        };
+    }
+
+    let body_sources = declaration_stage!(
+        catalog_body_sources(input, &graph, &source_index)
+            .map_err(NameResolutionInternalError::from)
+            .map_err(NameResolutionError::from)
+            .map_err(PreparationError::from)
+    );
+    declaration_stage!(validate_declaration_types(&graph, &types, &source_index));
+    let copyabilities =
+        declaration_stage!(CopyabilityTable::build(&graph, &mut types, &source_index));
+    let drops = declaration_stage!(DropTable::build(&graph, &types));
+    let conformances =
+        declaration_stage!(build_conformance_table(&graph, &mut types, &source_index));
+    let construction_surfaces = declaration_stage!(ConstructionSurfaceTable::build(&graph, &types));
+    let instance_operations = declaration_stage!(build_instance_operation_table(
+        &graph,
+        &mut types,
+        &source_index
+    ));
+    let standard_semantics = declaration_stage!(StandardSemanticTable::build(
+        toolchain.standard_roles(),
+        &graph,
+        &types,
+        &source_index,
+    ));
     let resolution =
         match resolve_cataloged_body_names_recovering(input, &graph, source_index, body_sources) {
             Ok(resolution) => resolution,
@@ -438,7 +463,8 @@ fn prepare_program_checking_internal<'syntax>(
                     });
                 return Err(PreparationFailure::new(
                     PreparationError::NameResolution(*failure.error),
-                    recovery,
+                    recovery
+                        .map(|recovery| crate::SemanticAnalysisRecovery::Names(Box::new(recovery))),
                 ));
             }
         };
@@ -456,6 +482,21 @@ fn prepare_program_checking_internal<'syntax>(
         body_names,
         source_index,
     })
+}
+
+fn declaration_failure(
+    error: PreparationError,
+    retain_recovery: bool,
+    graph: DeclarationGraph,
+    types: TypeStore,
+    source_index: SourceIndex,
+) -> PreparationFailure {
+    let recovery = retain_recovery.then(|| {
+        crate::SemanticAnalysisRecovery::Declarations(Box::new(
+            crate::DeclarationAnalysisRecovery::new(graph, types, source_index),
+        ))
+    });
+    PreparationFailure::new(error, recovery)
 }
 
 #[cfg(test)]

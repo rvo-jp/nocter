@@ -1647,6 +1647,70 @@ mod tests {
     }
 
     #[test]
+    fn code_actions_implement_required_conformance_methods_with_abort() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let source = concat!(
+            "pub interface Readable {\n",
+            "    pub type Item\n",
+            "    pub method &self.read<T>(fallback: T): Self.Item from self where copy T\n",
+            "    pub method &self.ready(): bool\n",
+            "}\n",
+            "\n",
+            "struct Value {}\n",
+            "conform Readable for Value {\n",
+            "    type Item = i32\n",
+            "}\n",
+        );
+        let source_path = temporary.path().join("index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0350");
+
+        let action = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":7,\"character\":0}},",
+                "\"end\":{{\"line\":9,\"character\":1}}}},",
+                "\"context\":{{\"diagnostics\":[]}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = action.response().unwrap();
+        assert!(
+            response.contains("Implement 2 required methods"),
+            "{response}"
+        );
+        assert!(response.contains("use std/process.abort"), "{response}");
+        assert!(
+            response.contains("method &self.read<T>(fallback: T): i32 where copy T"),
+            "{response}"
+        );
+        assert!(
+            response.contains("method &self.ready(): bool"),
+            "{response}"
+        );
+        assert!(response.contains("abort()"), "{response}");
+        assert!(response.contains("\"version\":1"), "{response}");
+        assert!(response.contains("\"isPreferred\":true"), "{response}");
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+    }
+
+    #[test]
     fn package_root_selection_compiles_from_a_child_target() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(

@@ -63,6 +63,39 @@ fn conformance_method_failures_have_distinct_rules() {
 }
 
 #[test]
+fn missing_method_failure_retains_every_specialized_required_signature() {
+    let fixture = Fixture::new(concat!(
+        "pub interface Readable {\n",
+        "    pub type Item\n",
+        "    pub method &self.read<T>(fallback: T): Self.Item from self where copy T\n",
+        "    pub method &self.ready(): bool\n",
+        "}\n",
+        "struct Value {}\n",
+        "conform Readable for Value {\n",
+        "    type Item = i32\n",
+        "}\n",
+    ));
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let (graph, mut types) = program.into_parts();
+    let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
+    let missing = error.missing_methods().unwrap();
+
+    assert_eq!(missing.required().len(), 2);
+    let read = &missing.required()[0];
+    assert_eq!(read.parameters().len(), 1);
+    assert_eq!(read.generic_parameters().len(), 1);
+    assert_eq!(read.requirements().len(), 1);
+    assert_eq!(
+        types.get(read.result()),
+        Some(&nocter_model::TypeKind::Builtin(
+            nocter_model::BuiltinType::I32
+        ))
+    );
+}
+
+#[test]
 fn exact_overlap_diagnostic_is_input_order_independent() {
     let fixture = Fixture::new(
         "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\nconform Marker for Value {}\n",

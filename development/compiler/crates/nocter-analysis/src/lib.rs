@@ -29,7 +29,7 @@ mod signature;
 mod source_context;
 mod source_edits;
 
-pub use code_actions::{SemanticCodeAction, SemanticCodeActionError};
+pub use code_actions::{ConformanceActionError, SemanticCodeAction, SemanticCodeActionError};
 pub use completion::{
     SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
 };
@@ -274,6 +274,19 @@ impl AnalysisSnapshot {
             AnalysisState::CompilationFailed { recovery, .. } => recovery
                 .as_deref()
                 .and_then(nocter_checking::SemanticAnalysisRecovery::names),
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
+            | AnalysisState::Complete { .. } => None,
+        }
+    }
+
+    pub(crate) fn declaration_recovery(
+        &self,
+    ) -> Option<&nocter_checking::DeclarationAnalysisRecovery> {
+        match &self.state {
+            AnalysisState::CompilationFailed { recovery, .. } => recovery
+                .as_deref()
+                .and_then(nocter_checking::SemanticAnalysisRecovery::declarations),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::Complete { .. } => None,

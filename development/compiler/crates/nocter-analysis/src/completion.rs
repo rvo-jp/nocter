@@ -14,7 +14,9 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
 use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::presentation::{name_recovery_presentation, prepared_presentation, presentation};
+use crate::presentation::{
+    declaration_presentation, name_recovery_presentation, prepared_presentation, presentation,
+};
 use crate::source_context::{SourceContext, SourceContextError};
 
 mod associated_types;
@@ -224,6 +226,7 @@ enum CompletionProgram<'a> {
     },
     Prepared(&'a PreparedSemanticProgram),
     Names(&'a nocter_checking::NameAnalysisRecovery),
+    Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
 }
 
 impl<'a> CompletionProgram<'a> {
@@ -232,6 +235,7 @@ impl<'a> CompletionProgram<'a> {
             Self::Checked { program, .. } => program.graph(),
             Self::Prepared(program) => program.graph(),
             Self::Names(program) => program.graph(),
+            Self::Declarations(program) => program.graph(),
         }
     }
 
@@ -240,6 +244,7 @@ impl<'a> CompletionProgram<'a> {
             Self::Checked { index, .. } => index,
             Self::Prepared(program) => program.source_index(),
             Self::Names(program) => program.source_index(),
+            Self::Declarations(program) => program.source_index(),
         }
     }
 
@@ -248,6 +253,7 @@ impl<'a> CompletionProgram<'a> {
             Self::Checked { program, .. } => program.bodies().get(body)?.scopes().get(scope),
             Self::Prepared(program) => program.body_names().get(body)?.scopes().get(scope),
             Self::Names(program) => program.body_names().get(body)?.scopes().get(scope),
+            Self::Declarations(_) => None,
         }
     }
 
@@ -256,6 +262,7 @@ impl<'a> CompletionProgram<'a> {
             Self::Checked { program, .. } => presentation(program, entity, spellings),
             Self::Prepared(program) => prepared_presentation(program, entity, spellings),
             Self::Names(program) => name_recovery_presentation(program, entity, spellings),
+            Self::Declarations(program) => declaration_presentation(program, entity, spellings),
         }
         .map(|presentation| Box::<str>::from(presentation.code()))
     }
@@ -286,6 +293,8 @@ impl AnalysisSnapshot {
             CompletionProgram::Prepared(prepared)
         } else if let Some(recovery) = self.name_recovery() {
             CompletionProgram::Names(recovery)
+        } else if let Some(recovery) = self.declaration_recovery() {
+            CompletionProgram::Declarations(recovery)
         } else {
             return Ok(Box::new([]));
         };

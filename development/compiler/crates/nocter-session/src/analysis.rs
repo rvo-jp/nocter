@@ -55,7 +55,7 @@ impl CompileTargetFailure {
 }
 
 /// Runs one immutable discovery snapshot while retaining the deepest valid current-generation
-/// analysis recovery when authored typed-body source fails.
+/// analysis recovery when declaration preparation, name resolution, or typed-body source fails.
 ///
 /// # Errors
 ///
@@ -114,10 +114,7 @@ fn analyze_target_internal(
     let prepared = if retain_prepared {
         prepare_program_checking_recovering(&input, program, source_index).map_err(|failure| {
             let (error, recovery) = failure.into_parts();
-            Box::new(CompileTargetFailure::new(
-                error.into(),
-                recovery.map(|recovery| SemanticAnalysisRecovery::Names(Box::new(recovery))),
-            ))
+            Box::new(CompileTargetFailure::new(error.into(), recovery))
         })?
     } else {
         prepare_program_checking(&input, program, source_index)

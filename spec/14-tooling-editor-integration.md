@@ -194,6 +194,13 @@ Code actions expose compiler-planned edits, including imports, required interfac
 optional/fallible callable contracts. Generated edits must parse and typecheck as ordinary Nocter;
 the protocol layer does not synthesize source templates independently.
 
+A required-interface-method action implements every missing required method in the selected
+`conform` declaration as one atomic edit. Each generated signature uses the conformance-specialized
+associated types, callable generics, parameter and result types, and `where` predicates. Generated
+method bodies call `std/process.abort()`; the action adds that import when it is not already visible.
+The server offers no action unless the complete edited package passes ordinary compilation, so a
+partial method set, unresolved signature type, or conflicting `abort` binding is not published.
+
 Inlay type hints appear after inferred local binding names and use the checked type rendered in the
 binding's module context. An explicit binding type suppresses the hint. Result-provenance hints
 appear after a callable result type only for compiler-inferred external origins expressible as

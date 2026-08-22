@@ -2,10 +2,10 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed compiler-owned automatic-import code-action boundary.
-The next editor work is the required-conformance-member action family, followed by optional and
-fallible callable-contract repairs. Each family must produce typed compiler edit plans and pass the
-shared speculative-compilation transaction; it must not infer templates from diagnostic prose.
+Continue v0.14.0 Phase 6 from the completed compiler-owned required-conformance-method code-action
+boundary. The next editor work is optional and fallible callable-contract repairs. Each family must
+produce typed compiler edit plans and pass the shared speculative-compilation transaction; it must
+not infer templates from diagnostic prose.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -191,6 +191,13 @@ implementation input.
    Rename has been migrated to this common transaction. Client diagnostic contents, rendered
    messages, and help text never select a repair. Only import candidates whose speculative snapshot
    reaches `Complete` are published.
+   Required-conformance-method actions now retain a declaration-stage recovery snapshot and the
+   conformance selector's exact owner-specialized method contracts. Missing methods are collected
+   as one typed failure instead of stopping after the first name. Canonical presentation renders
+   substituted associated types, callable generics, parameters, results, and predicates; the
+   source planner inserts every required method together with `std/process.abort` and its semantic
+   automatic import. The action uses the shared workspace transaction, so no partial method set,
+   unresolved signature, colliding import, or non-compiling placeholder reaches the client.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

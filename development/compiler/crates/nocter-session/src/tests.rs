@@ -150,6 +150,45 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
 }
 
 #[test]
+fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        concat!(
+            "pub interface Readable { pub method &self.read(): i32 }\n",
+            "struct Value {}\n",
+            "conform Readable for Value {}\n",
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let failure = analyze_target(&unit).unwrap_err();
+    assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0350");
+    assert!(failure.prepared().is_none());
+    let recovery = failure.recovery().unwrap();
+    assert!(recovery.names().is_none());
+    assert!(recovery.bodies().is_none());
+    let declarations = recovery.declarations().unwrap();
+    assert!(
+        !declarations
+            .graph()
+            .declarations()
+            .conformances()
+            .is_empty()
+    );
+    assert!(!declarations.source_index().is_empty());
+}
+
+#[test]
 fn incomplete_member_syntax_retains_typed_receiver_context() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
