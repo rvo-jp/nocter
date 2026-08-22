@@ -95,6 +95,15 @@ fn propagation_carries_its_payload_context_into_generic_call_inference() {
 }
 
 #[test]
+fn propagation_with_both_result_layers_infers_a_statically_shaped_generic_operand() {
+    check(
+        "func produce<T>(): T? { loop {} }\n\
+         func forward(): i32?! { produce()? }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn move_only_outcome_places_require_move_before_elimination() {
     let implicit =
         check("struct Owned { value: i32 }\nfunc invalid(input: Owned?): Owned? { input? }\n")

@@ -1252,6 +1252,9 @@ result and constrains its payload without materializing the enclosing callable's
 operand. Typed places and non-generic calls are checked without that premature wrapper. This lets a
 missing inner layer reach `OutcomeContract` even when another outcome layer already exists, while
 generic calls retain payload inference and unconstrained result shapes remain errors.
+If the enclosing result contains both outcome layers, the call declaration's immediate layer
+selects the matching expected propagation payload through the ordinary expected-type planner.
+This keeps optional and fallible generic calls deterministic without ranking one wrapper globally.
 
 That declaration-kind path now belongs to one `CallableSourceProjection` authority shared by
 source mutation and inlay presentation. It selects the semantic callable's exact declaration from

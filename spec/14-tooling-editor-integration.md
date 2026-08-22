@@ -228,6 +228,8 @@ Operand checking keeps postfix-propagation payload context distinct from an ordi
 expectation. A callable already returning `T!` can therefore receive an optional-layer repair to
 `T?!` for an operand of type `T?`; the existing fallible layer is not allowed to force the operand
 to `T!` before its immediate layer is known.
+When the enclosing result already has both layers, a generic call's statically declared immediate
+layer selects the matching propagation payload; source order or a preferred wrapper does not.
 
 Inlay type hints appear after inferred local binding names and use the checked type rendered in the
 binding's module context. An explicit binding type suppresses the hint. Result-provenance hints

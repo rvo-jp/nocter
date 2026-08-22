@@ -2,6 +2,7 @@ use nocter_model::{BodyNodeId, BuiltinType, TypeId, TypeKind};
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
+use super::value_planning::CallResultContext;
 use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
@@ -25,8 +26,8 @@ impl BodyChecker<'_, '_> {
                 let [operand] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
-                let expected_payload = self.outcome_operand_payload(expected, punctuation);
-                self.check_outcome_operand_expression(*operand, expected_payload)?
+                let result_context = self.outcome_operand_context(expected, punctuation);
+                self.check_outcome_operand_expression(*operand, result_context)?
             }
             _ => return Err(BodyCheckInternalError::InvalidSyntax(node).into()),
         };
@@ -117,7 +118,7 @@ impl BodyChecker<'_, '_> {
     fn check_outcome_operand_expression(
         &mut self,
         root: NodeId,
-        expected_payload: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let mut syntax = root;
         while self
@@ -132,18 +133,18 @@ impl BodyChecker<'_, '_> {
         }
         if self.kind(syntax)? == NodeKind::PostfixExpression
             && direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_some()
-            && let Some(expected_payload) = expected_payload
+            && let Some(result_context) = result_context
         {
-            return self.check_outcome_operand_call(syntax, expected_payload);
+            return self.check_outcome_operand_call(syntax, result_context);
         }
         self.check_expression(syntax, None)
     }
 
-    fn outcome_operand_payload(
+    fn outcome_operand_context(
         &self,
         payload: Option<TypeId>,
         punctuation: Punctuation,
-    ) -> Option<TypeId> {
+    ) -> Option<CallResultContext> {
         let payload = payload?;
         if punctuation != Punctuation::Question || self.closure_result_inference.is_some() {
             return None;
@@ -181,8 +182,9 @@ impl BodyChecker<'_, '_> {
             payload
         };
         match (accepts_optional, accepts_fallible) {
-            (true, false) | (false, true) => Some(payload),
-            (false, false) | (true, true) => None,
+            (true, false) | (false, true) => Some(CallResultContext::OutcomePayload(payload)),
+            (true, true) => Some(CallResultContext::Propagation(self.result_type)),
+            (false, false) => None,
         }
     }
 

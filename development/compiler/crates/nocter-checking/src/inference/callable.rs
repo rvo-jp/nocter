@@ -5,7 +5,7 @@ use nocter_model::{
 };
 
 use crate::checked::{GenericArgument, GenericArguments};
-use crate::expected::{ExpectedTypeError, plan_expected_type};
+use crate::expected::{ExpectedBase, ExpectedTypeError, OutcomeLayer, plan_expected_type};
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, unify_type_pairs,
 };
@@ -254,6 +254,33 @@ impl CallableInference {
         Ok(())
     }
 
+    /// Constrains a call payload against the matching propagation layer in `expected`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an unknown-type failure or a duplicate-result-context failure.
+    pub fn constrain_propagation_result(
+        &mut self,
+        types: &TypeStore,
+        result: TypeId,
+        expected: TypeId,
+    ) -> Result<(), InferenceFailure> {
+        if types.get(result).is_none() {
+            return Err(InferenceFailure::UnknownType(result));
+        }
+        if types.get(expected).is_none() {
+            return Err(InferenceFailure::UnknownType(expected));
+        }
+        if self
+            .result_context
+            .replace(ResultContext::Propagation { result, expected })
+            .is_some()
+        {
+            return Err(InferenceFailure::DuplicateResultContext);
+        }
+        Ok(())
+    }
+
     /// Solves a unique substitution and validates every specialized generic argument.
     ///
     /// # Errors
@@ -322,6 +349,11 @@ impl CallableInference {
                     let payload = immediate_outcome_payload(types, result)?;
                     (expected, payload)
                 }
+                ResultContext::Propagation { result, expected } => {
+                    let result = substitution.apply_type(types, result)?;
+                    let (layer, payload) = immediate_outcome(types, result)?;
+                    (propagation_payload(types, expected, layer)?, payload)
+                }
             };
             if !result_context_compatible(types, expected, result)? {
                 return Err(InferenceFailure::ContextualMismatch {
@@ -367,12 +399,15 @@ impl CallableInference {
 enum ResultContext {
     Complete { result: TypeId, expected: TypeId },
     OutcomePayload { result: TypeId, expected: TypeId },
+    Propagation { result: TypeId, expected: TypeId },
 }
 
 impl ResultContext {
     const fn result(self) -> TypeId {
         match self {
-            Self::Complete { result, .. } | Self::OutcomePayload { result, .. } => result,
+            Self::Complete { result, .. }
+            | Self::OutcomePayload { result, .. }
+            | Self::Propagation { result, .. } => result,
         }
     }
 }
@@ -403,6 +438,13 @@ impl ResultContext {
             return Ok(vec![ResultCandidate::OutcomePayload {
                 result_payload: immediate_outcome_payload(types, result)?,
                 expected_payload: expected,
+            }]);
+        }
+        if let Self::Propagation { result, expected } = self {
+            let (layer, result_payload) = immediate_outcome(types, result)?;
+            return Ok(vec![ResultCandidate::OutcomePayload {
+                result_payload,
+                expected_payload: propagation_payload(types, expected, layer)?,
             }]);
         }
         let Self::Complete { result, expected } = self else {
@@ -440,6 +482,46 @@ fn immediate_outcome_payload(
             evidence: InferenceEvidence::Typed(result),
         }),
     }
+}
+
+fn immediate_outcome(
+    types: &TypeStore,
+    result: TypeId,
+) -> Result<(OutcomeLayer, TypeId), InferenceFailure> {
+    match types
+        .get(result)
+        .ok_or(InferenceFailure::UnknownType(result))?
+    {
+        TypeKind::Optional(payload) => Ok((OutcomeLayer::Optional, *payload)),
+        TypeKind::Fallible(payload) => Ok((OutcomeLayer::Fallible, *payload)),
+        _ => Err(InferenceFailure::ContextualMismatch {
+            expected: result,
+            evidence: InferenceEvidence::Typed(result),
+        }),
+    }
+}
+
+fn propagation_payload(
+    types: &TypeStore,
+    expected: TypeId,
+    layer: OutcomeLayer,
+) -> Result<TypeId, InferenceFailure> {
+    let evidence = match layer {
+        OutcomeLayer::Optional => InferenceEvidence::Absent,
+        OutcomeLayer::Fallible => InferenceEvidence::Failure,
+    };
+    let plan = plan_expected_type(types, expected, evidence).map_err(|error| match error {
+        ExpectedTypeError::UnknownType(ty) => InferenceFailure::UnknownType(ty),
+        ExpectedTypeError::Mismatch { .. } => {
+            InferenceFailure::ContextualMismatch { expected, evidence }
+        }
+    })?;
+    let ((OutcomeLayer::Optional, ExpectedBase::Absent(base))
+    | (OutcomeLayer::Fallible, ExpectedBase::Failure(base))) = (layer, plan.base())
+    else {
+        return Err(InferenceFailure::ContextualMismatch { expected, evidence });
+    };
+    immediate_outcome_payload(types, base)
 }
 
 fn result_candidate(

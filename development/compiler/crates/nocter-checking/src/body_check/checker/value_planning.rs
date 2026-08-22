@@ -39,6 +39,7 @@ pub(super) enum ValueDraft {
 pub(super) enum CallResultContext {
     Complete(TypeId),
     OutcomePayload(TypeId),
+    Propagation(TypeId),
 }
 
 impl CallResultContext {
@@ -52,7 +53,7 @@ impl CallResultContext {
     pub(super) const fn complete_type(self) -> Option<TypeId> {
         match self {
             Self::Complete(expected) => Some(expected),
-            Self::OutcomePayload(_) => None,
+            Self::OutcomePayload(_) | Self::Propagation(_) => None,
         }
     }
 }
@@ -171,6 +172,9 @@ impl BodyChecker<'_, '_> {
                 }
                 CallResultContext::OutcomePayload(expected) => {
                     inference.constrain_outcome_payload(self.types, context.result, expected)
+                }
+                CallResultContext::Propagation(expected) => {
+                    inference.constrain_propagation_result(self.types, context.result, expected)
                 }
             };
             result.map_err(|error| {

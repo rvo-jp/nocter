@@ -25,12 +25,9 @@ impl BodyChecker<'_, '_> {
     pub(super) fn check_outcome_operand_call(
         &mut self,
         node: NodeId,
-        expected_payload: TypeId,
+        result_context: CallResultContext,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        self.check_call_with_context(
-            node,
-            Some(CallResultContext::OutcomePayload(expected_payload)),
-        )
+        self.check_call_with_context(node, Some(result_context))
     }
 
     fn check_call_with_context(

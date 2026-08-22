@@ -203,6 +203,8 @@ implementation input.
    operands under an existing fallible result reach the canonical `T?!` repair instead of failing
    early as an ordinary type mismatch; statically shaped generic calls infer through exactly one
    immediate outcome layer, and every published repair still passes full-package compilation.
+   When both enclosing layers already exist, the generic call's declared immediate layer selects
+   the matching propagation payload rather than relying on wrapper priority or source order.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit
