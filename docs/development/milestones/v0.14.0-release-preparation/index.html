@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter v0.10.0 Phase 2 - Nocter</title>
-    <meta name="description" content="Status: Completed on 2026-08-09.">
+    <title>v0.14.0 Release Preparation - Nocter</title>
+    <meta name="description" content="Status: candidate identity prepared; complete source and artifact qualification pending. This record owns the authorized preparation of v0.14.0 and stops b">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.10.0-phase-2/">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0-release-preparation/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter v0.10.0 Phase 2 - Nocter">
-    <meta property="og:description" content="Status: Completed on 2026-08-09.">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.10.0-phase-2/">
+    <meta property="og:title" content="v0.14.0 Release Preparation - Nocter">
+    <meta property="og:description" content="Status: candidate identity prepared; complete source and artifact qualification pending. This record owns the authorized preparation of v0.14.0 and stops b">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0-release-preparation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-09">
+    <meta property="article:modified_time" content="2026-08-22">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter v0.10.0 Phase 2 - Nocter">
-    <meta name="twitter:description" content="Status: Completed on 2026-08-09.">
+    <meta name="twitter:title" content="v0.14.0 Release Preparation - Nocter">
+    <meta name="twitter:description" content="Status: candidate identity prepared; complete source and artifact qualification pending. This record owns the authorized preparation of v0.14.0 and stops b">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 2 - Nocter","description":"Status: Completed on 2026-08-09.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 2","item":"https://nocter.dev/development/milestones/v0.10.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0 Release Preparation - Nocter","description":"Status: candidate identity prepared; complete source and artifact qualification pending. This record owns the authorized preparation of v0.14.0 and stops b","url":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0 Release Preparation","item":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -127,63 +127,23 @@
                 <li><a href="../v0.14.0/index.html#content">v0.14.0 milestone</a></li>
                 <li><a href="../v0.14.0-qualification/index.html#content">implementation qualification</a></li>
                 <li><a href="../../reviews/v0.14.0-final-design/index.html#content">final design review</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">release preparation</a></li>
+                <li><a href="./index.html#content" aria-current="page">release preparation</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.10.0-phase-2.md</span>
+                <span class="markdown-path-text">/development/milestones/v0.14.0-release-preparation.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-10-0-phase-2">Nocter v0.10.0 Phase 2</h1><p><strong>Status:</strong> Completed on 2026-08-09.</p><h2 id="purpose">Purpose</h2><p>Phase 2 completes the directory-module model by separating a public callable contract in <code>index.nct</code> from its executable body in an explicitly imported implementation source. The public root remains the sole API authority without forcing growing standard-library implementations back into one large file.</p><p>This is a semantic declaration/body relationship. It is not a wrapper convention, textual inclusion, source-order rule, duplicate symbol exception, or separate-compilation boundary.</p><h2 id="source-contract">Source Contract</h2><p>A public callable in a module root may omit its body:</p><pre><code class="language-nct"><span class="token-comment">// index.nct</span>
-<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>operations
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span>
-
-impl <span class="token-type">Value</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">render</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
-<span class="token-operator">}</span>
-</code></pre><p>One private declaration with an exactly matching signature supplies each omitted body:</p><pre><code class="language-nct"><span class="token-comment">// operations.nct</span>
-<span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span>
-<span class="token-operator">}</span>
-
-impl <span class="token-type">Value</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">render</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-</code></pre><p>Rules:</p><ul><li>body omission is accepted only for a <code>pub</code> or <code>pub(nocter)</code> callable declared in <code>index.nct</code></li><li>an omitted body requires exactly one body-bearing private implementation in a composed source
-  of the same directory module</li><li>an implementation is not a second symbol and cannot be imported, exported, or selected by
-  source path</li><li>callable kind, owner, generic parameters and bounds, receiver, parameter names and types, return
-  type, and authored <code>from</code> clause must match exactly after canonical type resolution</li><li>inline public bodies remain valid for small declarations</li><li>implementation-only declarations without a root contract remain ordinary private callables</li><li><code>default</code> belongs to the construction contract; its implementation does not repeat it</li><li>interface requirements retain their existing conformance model and cannot use module-body
-  implementations; interface default bodies remain inline</li><li>interface implementation methods and <code>drop</code> members always require bodies</li></ul><p>The model applies uniformly to top-level and associated functions, inherent methods, construction functions, typed literals, and coercion entries. No callable form gets a path-based or standard-library-only exception.</p><h2 id="compiler-identity">Compiler Identity</h2><p>One compiler-owned <code>CallableBodyIndex</code> records the declaration-to-implementation relation for a complete directory module. Matching occurs after source composition and before symbol collection. It produces deterministic missing-body, signature-mismatch, and duplicate-body diagnostics.</p><ul><li>exported symbol identity, visibility, hover notation, completion, and call resolution use the
-  declaration span in <code>index.nct</code></li><li>body resolution, type checking, ownership, buildability, lowering, and body diagnostics use the
-  implementation AST and its physical spans</li><li>call targets and specialization identities use the declaration identity even when emitted from
-  an implementation source</li><li>references and rename join declaration, implementation, and call occurrences</li><li>definition navigates to the public contract; implementation navigation uses the body location</li><li>source invalidation follows both the source-import edge and the explicit body relation</li></ul><p>The index is shared semantic data. Individual compiler stages may not rematch callables by source text, basename, filesystem path, or presentation string.</p><h2 id="standard-library-layout">Standard-Library Layout</h2><p>After the semantic model is complete, Phase 2 normalizes the standard-library tree:</p><ul><li><code>std/string_search</code> and <code>std/string_views</code> become <code>search.nct</code> and <code>views.nct</code> sources of
-  <code>std/string</code></li><li><code>std/vec_into_iter</code> becomes <code>into_iter.nct</code> in <code>std/vec</code></li><li><code>std/io/core</code> becomes <code>core.nct</code> in <code>std/io</code></li><li><code>std/iter/core</code>, <code>ops</code>, <code>sources</code>, <code>chain</code>, <code>enumerate</code>, and <code>range</code> become focused source files
-  of <code>std/iter</code>; re-export-only adapter modules are removed</li><li><code>std/io_buffer</code> becomes the genuine child module <code>std/io/buffer</code></li><li>the internal target boundary moves from <code>std/os</code> to <code>std/internal/os</code></li></ul><p><code>std/error</code>, <code>std/fmt</code>, <code>std/io</code>, <code>std/iter</code>, <code>std/mem</code>, <code>std/num</code>, <code>std/path</code>, <code>std/prelude</code>, <code>std/process</code>, <code>std/ptr</code>, <code>std/sequence</code>, <code>std/slice</code>, <code>std/str</code>, <code>std/string</code>, <code>std/testing</code>, and <code>std/vec</code> remain top-level conceptual modules.</p><h2 id="completion-gate">Completion Gate</h2><ul><li>every supported callable kind parses, formats, and emits stable AST JSON with or without an
-  inline body</li><li>declaration/body matching is source-order-independent and reports both physical locations</li><li>resolver, type checker, ownership, provenance, buildability, specialization, and native lowering
-  consume the shared body index</li><li>LSP hover, completion, signature help, definition, implementation, references, rename, semantic
-  tokens, and diagnostics preserve the two source-backed locations</li><li>the standard library uses the normalized module/source layout without compatibility re-exports
-  from removed paths</li><li><code>std/vec/index.nct</code>, <code>std/string/index.nct</code>, and <code>std/io/index.nct</code> present their public contracts
-  without retaining private implementation bodies that belong in focused sources</li><li>public specification and compiler-development documentation identify one current source of truth</li><li>the complete compiler verification suite, documentation generation, public examples, formatting,
-  warnings-denied Clippy, and <code>git diff --check</code> pass</li></ul><p>Phase 2 does not add wildcard source discovery, overloads, separate compilation, header generation, dynamic linking, ABI-stable libraries, or new practical standard-library APIs.</p><h2 id="completion-record">Completion Record</h2><ul><li>One <code>CallableBodyIndex</code> matches bodyless root contracts to private bodies for functions,
-  associated functions, inherent methods, construction functions, typed literals, and coercions.
-  Stable <code>E0250</code> through <code>E0253</code> diagnostics cover missing, mismatched, duplicate, and invalid
-  bodyless declarations.</li><li>The index owns callable and input identity. Receivers, parameters, and literal captures in a
-  physical body map to the public contract before result-provenance and retained-mutation summaries
-  cross a call boundary.</li><li>Resolver, type checking, recursive generic specialization, buildability, native lowering, drop
-  discovery, and trusted declaration lookup consume the composed module and shared body relation.
-  A regression test builds a source-backed generic body that reaches another generic call.</li><li>LSP definition, implementation, references, rename, hover, completion, signature help, semantic
-  tokens, and diagnostics retain the public contract and physical body as two locations of one
-  semantic callable.</li><li>Standard-library public contracts now live in their conceptual module roots. Focused sources are
-  <code>std/string/search.nct</code>, <code>std/string/views.nct</code>, <code>std/vec/into_iter.nct</code>, <code>std/io/core.nct</code>, and
-  <code>std/iter/{core,ops,sources}.nct</code>. <code>std/io/buffer</code> and <code>std/internal/os</code> are genuine child
-  modules. Removed module paths have no compatibility re-export.</li><li>The complete library suite passed 2,370 tests with warnings-denied Clippy. The normalized
-  installed-home suite passed all 225 tests, including native execution, ownership, region,
-  provenance, LSP, and callable-contract audit coverage. Public examples, source corpus, CLI
-  suites, formatting, documentation generation, and <code>git diff --check</code> complete the final gate.</li></ul>
+                <h1 id="v0-14-0-release-preparation">v0.14.0 Release Preparation</h1><p><strong>Status: candidate identity prepared; complete source and artifact qualification pending.</strong> This record owns the authorized preparation of v0.14.0 and stops before tagging, pushing, uploading, or publishing the release.</p><h2 id="release-blocker-audit">Release Blocker Audit</h2><p>The initial audit compared the normative command-line specification with the specification-first compiler. It found that <code>nocter init</code> and <code>nocter graph</code> had not crossed the rewrite boundary even though both remained current public commands. That omission was repaired before release identity changed:</p><ul><li><code>init</code> now owns a preflighted, rollback-capable three-file source transaction and does not select
+  an installed Nocter home;</li><li><code>graph</code> projects the exact package resolver result without package acquisition, generated locks,
+  store mutation, or source mutation;</li><li>human and versioned JSON graph output have one command-owned typed projection;</li><li>initialized executable and library packages cross real public checking and native testing.</li></ul><h2 id="candidate-identity">Candidate Identity</h2><p>The tracked release inputs now identify v0.14.0:</p><ul><li><code>development/packaging/VERSION</code> contains <code>0.14.0</code>;</li><li><code>development/packaging/MANIFEST.json</code> names release <code>0.14.0</code> and
+  <code>nocter-v0.14.0-arm64-darwin.tar.gz</code>;</li><li><code>development/std/nocter.nct</code> declares standard package version <code>0.14.0</code>;</li><li>compiler and LSP reports derive that identity from the validated installed home rather than a
+  duplicate compiled constant.</li></ul><p>The public release notes are prepared in <a href="../../../releases/v0.14.0/index.html#content"><code>../../releases/v0.14.0.md</code></a>. The published release index and download instructions remain on v0.13.0 until publication.</p><h2 id="qualification-contract">Qualification Contract</h2><p>Release qualification must run from a clean release-content commit. It must complete:</p><ol><li>1. incremental workspace tests, strict Clippy, formatting, documentation generation, and textual
+   consistency checks;</li><li>clean tests and strict Clippy with distinct external Cargo target directories;</li><li>the explicit public-HTTPS acquisition test;</li><li>two independent optimized package generations with byte-identical compressed archives and
+   recursively identical extracted homes;</li><li>installed-home identity, diagnosis, help, initialization, locked/offline check and native test,
+   deterministic JSON graph, run, explicit build, direct Mach-O execution, and framed LSP
+   lifecycle checks;</li><li>proof that the installed home remains unchanged throughout the smoke matrix.</li></ol><p>The retained candidate record must include its exact release-content commit, byte size, SHA-256, and standard-library file count. Any subsequent compiler, standard-library, packaging, or release- identity change invalidates that evidence and requires the whole matrix again.</p><h2 id="publication-boundary">Publication Boundary</h2><p>Preparation does not authorize an annotated tag, push, GitHub release, asset upload, public latest- release update, or replacement of the v0.13.0 download link. Those operations require explicit user authorization after the qualified candidate is reported.</p>
             </div>
         </main>
     </div>

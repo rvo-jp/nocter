@@ -1,12 +1,13 @@
 # Contributor Documentation
 
 Nocter has completed and qualified a new compiler built from the language specification. The
-published v0.13.0 release remains available to users, but its compiler implementation was not an
-input to the rewrite.
+v0.14.0 release candidate is being prepared while the published v0.13.0 release remains available
+to users; the v0.13.0 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
-Release preparation remains a separately authorized operation.
+Release preparation is authorized and in progress. Publication remains a separately authorized
+operation.
 
 ## Current Work
 
@@ -14,6 +15,7 @@ Release preparation remains a separately authorized operation.
 - [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
 - [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
 - [v0.14.0 final design review](reviews/v0.14.0-final-design.md)
+- [v0.14.0 release preparation](milestones/v0.14.0-release-preparation.md)
 - [New compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
@@ -54,11 +56,11 @@ development/
 ├── compiler/          # specification-first compiler workspace
 ├── docs/              # rewrite architecture and maintenance policy
 ├── milestones/        # active and historical milestone records
-├── packaging/         # published-package inputs, unchanged during specification closure
+├── packaging/         # release identity, deterministic assembly, and artifact qualification
 ├── reviews/           # cross-cutting design criteria, findings, and remediation evidence
 ├── releases/          # immutable published qualification records
 └── std/               # existing source, not a bootstrap oracle for the new compiler
 ```
 
-Rust and Cargo are development requirements for the new workspace. Users of the published
-v0.13.0 release remain unaffected by the rewrite.
+Rust, Cargo, and Node.js are development requirements for the workspace and release qualification.
+Users of the published v0.13.0 release remain unaffected by the rewrite until v0.14.0 is published.

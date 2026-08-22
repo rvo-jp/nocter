@@ -2,10 +2,11 @@
 
 ## Current Task
 
-Prepare the v0.14.0 release without publishing it. The initial release audit found that normative
-`init` and `graph` commands were absent from the specification-first rewrite. Their ordinary
-command/CLI implementations and focused conformance tests are now complete; full workspace
-requalification remains required before the release-content commit is frozen.
+Prepare the v0.14.0 release without publishing it. The normative `init` and `graph` omission found
+by the release audit is repaired and committed. Deterministic packaging passed its complete
+installed-artifact matrix with the previous release identity. The tracked compiler installation,
+standard package, manifest, and English candidate notes now identify v0.14.0; full incremental and
+clean requalification remains before the release-content commit can be frozen.
 
 Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing, and
 publication remain outside the current operation and require explicit user authorization.
