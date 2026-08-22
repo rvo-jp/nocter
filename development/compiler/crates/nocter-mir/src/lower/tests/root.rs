@@ -1,5 +1,5 @@
 use nocter_model::{BuiltinType, TypeId};
-use nocter_target_program::{ExecutableItemKey, ProcessSuccessType};
+use nocter_target_program::ProcessSuccessType;
 use nocter_test_support::CompilerFixture;
 
 use super::{executable_fixture, test_executable_fixture};
@@ -103,25 +103,12 @@ fn materializes_one_isolated_root_per_test_in_declaration_order() {
     let MirRoot::Tests { cases, .. } = program.root() else {
         panic!("test fixture produced a process root")
     };
-    let graph = program.executable().target().checked().graph();
-
     assert_eq!(
-        cases
-            .iter()
-            .map(|case| graph.symbols().spelling(case.name()).unwrap())
-            .collect::<Vec<_>>(),
+        cases.iter().map(|case| case.name()).collect::<Vec<_>>(),
         ["first", "second"]
     );
     for case in cases {
         assert_eq!(direct_calls(case.body()), [case.item()]);
-        assert!(matches!(
-            program
-                .executable()
-                .items()
-                .get(case.item())
-                .map(nocter_target_program::ExecutableItem::key),
-            Some(ExecutableItemKey::Test(declaration)) if *declaration == case.declaration()
-        ));
         assert_eq!(
             case.body()
                 .operations()
@@ -180,5 +167,5 @@ fn expected_status_type(
         ProcessSuccessType::I32 => BuiltinType::I32,
         ProcessSuccessType::Usize => BuiltinType::Usize,
     };
-    Some(program.executable().types().builtin(builtin))
+    Some(program.types().builtin(builtin))
 }

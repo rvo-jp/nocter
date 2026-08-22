@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{MirBody, MirConstant, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{ExecutableItemId, PackageTargetId, Symbol, TestId};
+use nocter_model::{ExecutableItemId, PackageTargetId, TestId};
 
 use crate::identity::{
     MachineDataId, MachineDestructionId, MachineId, MachineLinkageId, MachineTable,
@@ -30,32 +30,32 @@ impl MachineLinkageEntry {
 }
 
 /// One compiler-owned test entry retained in declaration order.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineTestLinkage {
     declaration: TestId,
-    name: Symbol,
+    name: Box<str>,
     test: MachineLinkageId,
     body: MachineLinkageId,
 }
 
 impl MachineTestLinkage {
     #[must_use]
-    pub const fn declaration(self) -> TestId {
+    pub const fn declaration(&self) -> TestId {
         self.declaration
     }
 
     #[must_use]
-    pub const fn name(self) -> Symbol {
-        self.name
+    pub const fn name(&self) -> &str {
+        &self.name
     }
 
     #[must_use]
-    pub const fn test(self) -> MachineLinkageId {
+    pub const fn test(&self) -> MachineLinkageId {
         self.test
     }
 
     #[must_use]
-    pub const fn body(self) -> MachineLinkageId {
+    pub const fn body(&self) -> MachineLinkageId {
         self.body
     }
 }
@@ -185,7 +185,7 @@ fn close_root(
                 .map(|case| {
                     Ok(MachineTestLinkage {
                         declaration: case.declaration(),
-                        name: case.name(),
+                        name: case.name().into(),
                         test: require_id(ids, MachineLinkageKey::TestRoot(case.declaration()))?,
                         body: require_id(ids, MachineLinkageKey::Item(case.item()))?,
                     })

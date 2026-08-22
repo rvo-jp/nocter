@@ -58,7 +58,7 @@ fn stored_layout_fixture() -> nocter_mir::MirProgram {
 }
 
 fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineLayoutStore) {
-    let types = program.executable().types();
+    let types = program.types();
     let empty = named_nominal(program, "Empty");
     let empty_layout = layouts.get(empty).unwrap();
     assert_eq!((empty_layout.size(), empty_layout.alignment()), (0, 1));
@@ -157,7 +157,7 @@ fn assert_scalar_view_and_outcome_layouts(
     program: &nocter_mir::MirProgram,
     layouts: &MachineLayoutStore,
 ) {
-    let types = program.executable().types();
+    let types = program.types();
     let str_borrow = borrow_type(types, BuiltinType::Str);
     let i32_borrow = borrow_type(types, BuiltinType::I32);
     assert!(matches!(
@@ -247,7 +247,6 @@ fn closure_layout_uses_the_executable_capture_order_and_concrete_types() {
     );
     let layouts = MachineLayoutStore::build(&program).unwrap();
     let closure = program
-        .executable()
         .types()
         .iter()
         .find_map(|(ty, kind)| matches!(kind, TypeKind::Closure { .. }).then_some(ty))
@@ -293,7 +292,7 @@ fn payloadless_enum_and_optional_keep_their_distinct_tagged_layouts() {
         } if variants.len() == 2 && variants.iter().all(|variant| variant.payload().is_empty())
     ));
 
-    let types = program.executable().types();
+    let types = program.types();
     let optional = types
         .iter()
         .find_map(|(ty, kind)| {
@@ -335,7 +334,7 @@ fn opaque_layout_is_exactly_its_specialized_witness_layout() {
          func main(): i32 { make().show() }\n",
     );
     let layouts = MachineLayoutStore::build(&program).unwrap();
-    let types = program.executable().types();
+    let types = program.types();
     let opaque = types
         .iter()
         .find_map(|(ty, kind)| matches!(kind, TypeKind::Opaque { .. }).then_some(ty))
@@ -1547,24 +1546,52 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
 }
 
 fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
-    let executable = program.executable();
-    let graph = executable.target().checked().graph();
-    executable
-        .types()
+    program
+        .type_representations()
         .iter()
-        .find_map(|(ty, kind)| {
-            let TypeKind::Nominal { definition, .. } = kind else {
-                return None;
-            };
-            graph
-                .declarations()
-                .nominal_types()
-                .get(*definition)
-                .and_then(|nominal| graph.symbols().spelling(nominal.name()))
-                .is_some_and(|name| name == expected)
-                .then_some(ty)
+        .find_map(|(ty, representation)| {
+            fixture_representation_matches(program.types(), representation, expected).then_some(ty)
         })
         .unwrap_or_else(|| panic!("missing nominal {expected}"))
+}
+
+fn fixture_representation_matches(
+    types: &nocter_model::TypeStore,
+    representation: &nocter_runtime_contract::RuntimeTypeRepresentation,
+    expected: &str,
+) -> bool {
+    use nocter_runtime_contract::RuntimeTypeRepresentation::{Enum, Struct};
+
+    let builtin = |builtin| types.builtin(builtin);
+    match (expected, representation) {
+        ("Empty", Struct { fields }) => fields.is_empty(),
+        ("Pair", Struct { fields }) => fields
+            .iter()
+            .map(|field| field.ty())
+            .eq([builtin(BuiltinType::U8), builtin(BuiltinType::U64)]),
+        ("Large", Struct { fields }) => fields
+            .iter()
+            .map(|field| field.ty())
+            .eq([builtin(BuiltinType::U64); 3]),
+        ("Choice", Enum { variants }) => {
+            variants.len() == 3
+                && variants[0].payload().is_empty()
+                && variants[1]
+                    .payload()
+                    .iter()
+                    .map(|payload| payload.ty())
+                    .eq([builtin(BuiltinType::U32)])
+                && variants[2]
+                    .payload()
+                    .iter()
+                    .map(|payload| payload.ty())
+                    .eq([builtin(BuiltinType::U8), builtin(BuiltinType::U64)])
+        }
+        ("Flag", Enum { variants }) => {
+            variants.len() == 2 && variants.iter().all(|variant| variant.payload().is_empty())
+        }
+        _ => false,
+    }
 }
 
 fn borrow_type(types: &nocter_model::TypeStore, referent: BuiltinType) -> TypeId {

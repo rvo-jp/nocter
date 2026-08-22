@@ -73,9 +73,15 @@ pub(super) fn build_selected_tests(
         .iter()
         .zip(roots)
         .map(|(test, key)| {
+            let name = target
+                .checked()
+                .graph()
+                .symbols()
+                .spelling(test.name())
+                .ok_or(ExecutableProgramError::MissingTestName(test.declaration()))?;
             Ok(ExecutableTestCase {
                 declaration: test.declaration(),
-                name: test.name(),
+                name: name.into(),
                 item: frozen.item_id(&key)?,
             })
         })
@@ -767,7 +773,7 @@ struct DraftCallableInvocation {
 fn freeze_items(
     drafts: BTreeMap<ExecutableItemKey, DraftItem>,
     types: nocter_model::TypeStore,
-    type_representations: super::RuntimeTypeRepresentationTable,
+    mut type_representations: super::RuntimeTypeRepresentationTable,
 ) -> Result<FrozenClosure, ExecutableProgramError> {
     let mut key_arena = ArenaBuilder::<ExecutableItemId, _>::new();
     let mut item_ids = BTreeMap::new();
@@ -785,6 +791,30 @@ fn freeze_items(
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
         let (signature, closure, body) = freeze_body(draft, &item_ids)?;
         let closure_ty = closure.as_ref().map(super::ExecutableClosureLayout::ty);
+        if let Some(layout) = &closure {
+            let captures = layout
+                .captures()
+                .iter()
+                .map(|capture| {
+                    nocter_runtime_contract::RuntimeCaptureRepresentation::new(
+                        capture.binding(),
+                        capture.ty(),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            if type_representations
+                .insert(
+                    layout.ty(),
+                    nocter_runtime_contract::RuntimeTypeRepresentation::Closure { captures },
+                )
+                .is_some()
+            {
+                return Err(ExecutableProgramError::InvalidTypeRepresentation(
+                    layout.ty(),
+                ));
+            }
+        }
         let actual = items.insert(ExecutableItem {
             key: key.clone(),
             signature,

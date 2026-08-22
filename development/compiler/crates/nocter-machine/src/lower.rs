@@ -57,7 +57,7 @@ impl MachineProgram {
                         linkage_id,
                         destruction.plan(),
                         destruction.abi(),
-                        program.executable().types(),
+                        program.types(),
                         &layouts,
                     )
                 }
@@ -67,7 +67,7 @@ impl MachineProgram {
                         linkage_id,
                         body,
                         ProgramLoweringContext {
-                            types: program.executable().types(),
+                            types: program.types(),
                             layouts: &layouts,
                             abi: &abi,
                             data: &data,
@@ -85,7 +85,7 @@ impl MachineProgram {
                 }
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
-        let root = lower_root(program, linkage.root(), &domains.linkages)?;
+        let root = lower_root(linkage.root(), &domains.linkages)?;
         let functions = MachineTable::from_values(functions);
         let contexts = MachineContextPlans::build(&functions)?;
 
@@ -140,7 +140,7 @@ fn function_source<'program>(
             Ok((
                 MachineFunctionKind::TestRoot {
                     declaration,
-                    name: root.name(),
+                    name: root.name().into(),
                 },
                 root.body(),
             ))
@@ -192,7 +192,6 @@ fn assign_function_domains(
 }
 
 fn lower_root(
-    program: &MirProgram,
     root: &crate::MachineRootLinkage,
     functions: &BTreeMap<MachineLinkageId, MachineFunctionId>,
 ) -> Result<MachineProgramRoot, MachineProgramError> {
@@ -207,17 +206,9 @@ fn lower_root(
             .iter()
             .enumerate()
             .map(|(index, case)| {
-                let name = program
-                    .executable()
-                    .target()
-                    .checked()
-                    .graph()
-                    .symbols()
-                    .spelling(case.name())
-                    .ok_or(MachineProgramError::MissingTestName(case.declaration()))?;
                 Ok(MachineTestProgram::new(
                     crate::MachineTestId::new(index),
-                    name,
+                    case.name(),
                     require_function(functions, case.test())?,
                     require_function(functions, case.body())?,
                 ))
@@ -276,7 +267,6 @@ pub enum MachineProgramError {
     MissingCallableAbi(ExecutableItemId),
     MissingProcessRoot(nocter_model::PackageTargetId),
     MissingTestRoot(TestId),
-    MissingTestName(TestId),
     MissingLinkageKey(MachineLinkageKey),
     MissingDestruction(crate::MachineDestructionId),
     MissingBytePointerType,
@@ -356,7 +346,6 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingCallableAbi(_)
             | Self::MissingProcessRoot(_)
             | Self::MissingTestRoot(_)
-            | Self::MissingTestName(_)
             | Self::MissingLinkageKey(_)
             | Self::MissingDestruction(_)
             | Self::MissingBytePointerType

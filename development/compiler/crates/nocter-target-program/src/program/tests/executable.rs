@@ -802,12 +802,8 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
         panic!("test selection must produce a test root")
     };
     let graph = executable.target().checked().graph();
-
     assert_eq!(
-        cases
-            .iter()
-            .map(|case| graph.symbols().spelling(case.name()).unwrap())
-            .collect::<Vec<_>>(),
+        cases.iter().map(|case| case.name()).collect::<Vec<_>>(),
         ["first", "second"]
     );
     assert!(

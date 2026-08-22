@@ -8,8 +8,9 @@ use nocter_checking::{
 };
 use nocter_model::{
     Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, PackageTargetId,
-    Symbol, TestId, TypeId, TypeStore,
+    TestId, TypeId, TypeStore,
 };
+use nocter_runtime_contract::RuntimeEnvironment;
 
 use crate::{
     BodyDependencyError, CallableInstanceKey, CallableInstanceKeyError, CheckedDestruction,
@@ -390,26 +391,26 @@ impl ExecutableItem {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutableTestCase {
     declaration: TestId,
-    name: Symbol,
+    name: Box<str>,
     item: ExecutableItemId,
 }
 
 impl ExecutableTestCase {
     #[must_use]
-    pub const fn declaration(self) -> TestId {
+    pub const fn declaration(&self) -> TestId {
         self.declaration
     }
 
     #[must_use]
-    pub const fn name(self) -> Symbol {
-        self.name
+    pub const fn name(&self) -> &str {
+        &self.name
     }
 
     #[must_use]
-    pub const fn item(self) -> ExecutableItemId {
+    pub const fn item(&self) -> ExecutableItemId {
         self.item
     }
 }
@@ -529,6 +530,13 @@ impl ExecutableProgram {
     pub const fn root(&self) -> &ExecutableRoot {
         &self.root
     }
+
+    /// Consumes the executable closure and retains only the facts admitted past the MIR boundary.
+    #[must_use]
+    pub fn into_runtime_environment(self) -> RuntimeEnvironment {
+        let abi = self.target.toolchain().abi();
+        RuntimeEnvironment::new(self.types, self.type_representations, abi)
+    }
 }
 
 /// Failure to construct one closed executable program.
@@ -547,6 +555,7 @@ pub enum ExecutableProgramError {
     UnknownItem(ExecutableItemKey),
     BodylessCallable(nocter_model::CallableId),
     MissingDeclarationSite(BodyId),
+    MissingTestName(TestId),
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
@@ -588,6 +597,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::UnknownItem(_)
             | Self::BodylessCallable(_)
             | Self::MissingDeclarationSite(_)
+            | Self::MissingTestName(_)
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)

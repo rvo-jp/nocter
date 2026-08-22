@@ -208,7 +208,7 @@ impl MachineLayoutStore {
     /// Rejects symbolic, unsized, recursive-by-value, incomplete, or overflowing representation
     /// input. Such a failure is a compiler-integrity error, never a source diagnostic.
     pub fn build(program: &MirProgram) -> Result<Self, MachineLayoutError> {
-        let target = MachineTarget::select(program.executable().target().toolchain().abi());
+        let target = MachineTarget::select(program.runtime_abi());
         let mut builder = LayoutBuilder {
             program,
             target,
@@ -219,12 +219,11 @@ impl MachineLayoutStore {
         // Machine-generated CFGs use these canonical control and offset carriers independently of
         // whether source MIR happens to mention them.
         roots.extend([
-            program.executable().types().builtin(BuiltinType::Bool),
-            program.executable().types().builtin(BuiltinType::Usize),
+            program.types().builtin(BuiltinType::Bool),
+            program.types().builtin(BuiltinType::Usize),
         ]);
-        let byte = program.executable().types().builtin(BuiltinType::U8);
+        let byte = program.types().builtin(BuiltinType::U8);
         if let Some(pointer) = program
-            .executable()
             .types()
             .iter()
             .find_map(|(ty, kind)| (kind == &TypeKind::Pointer(byte)).then_some(ty))
@@ -233,20 +232,20 @@ impl MachineLayoutStore {
         }
         for (_, function) in program.functions().iter() {
             roots.insert(function.result());
-            collect_body_types(function.body(), program.executable().types(), &mut roots);
+            collect_body_types(function.body(), program.types(), &mut roots);
         }
         match program.root() {
             MirRoot::Process(root) => {
-                collect_body_types(root.body(), program.executable().types(), &mut roots);
+                collect_body_types(root.body(), program.types(), &mut roots);
             }
             MirRoot::Tests { cases, .. } => {
                 for case in cases {
-                    collect_body_types(case.body(), program.executable().types(), &mut roots);
+                    collect_body_types(case.body(), program.types(), &mut roots);
                 }
             }
         }
         for ty in roots {
-            if !is_completion_type(program.executable().types(), ty) {
+            if !is_completion_type(program.types(), ty) {
                 builder.layout(ty)?;
             }
         }
@@ -289,7 +288,6 @@ impl LayoutBuilder<'_> {
         }
         let kind = self
             .program
-            .executable()
             .types()
             .get(ty)
             .cloned()
@@ -312,7 +310,6 @@ impl LayoutBuilder<'_> {
             TypeKind::Borrow { referent, .. } => {
                 let referent = self
                     .program
-                    .executable()
                     .types()
                     .get(*referent)
                     .ok_or(MachineLayoutError::UnknownType(*referent))?;
@@ -360,16 +357,12 @@ impl LayoutBuilder<'_> {
                 )
             }
             TypeKind::Fallible(payload) => {
-                let primary = if is_void(self.program.executable().types(), *payload) {
+                let primary = if is_void(self.program.types(), *payload) {
                     None
                 } else {
                     Some((self.layout(*payload)?.clone(), *payload))
                 };
-                let error = self
-                    .program
-                    .executable()
-                    .types()
-                    .builtin(BuiltinType::Error);
+                let error = self.program.types().builtin(BuiltinType::Error);
                 let alternate = self.layout(error)?.clone();
                 Self::outcome(
                     ty,
@@ -382,7 +375,7 @@ impl LayoutBuilder<'_> {
                 let Some(RuntimeTypeRepresentation::Opaque {
                     definition: actual,
                     witness,
-                }) = self.program.executable().type_representations().get(ty)
+                }) = self.program.type_representations().get(ty)
                 else {
                     return Err(MachineLayoutError::MissingRepresentation(ty));
                 };
@@ -450,7 +443,6 @@ impl LayoutBuilder<'_> {
     fn nominal(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
         let representation = self
             .program
-            .executable()
             .type_representations()
             .get(ty)
             .cloned()
@@ -540,23 +532,22 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
-            RuntimeTypeRepresentation::Opaque { .. } => {
+            RuntimeTypeRepresentation::Opaque { .. }
+            | RuntimeTypeRepresentation::Closure { .. } => {
                 Err(MachineLayoutError::InvalidRepresentation(ty))
             }
         }
     }
 
     fn closure(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
-        let layout = self
-            .program
-            .executable()
-            .closure_layout_for_type(ty)
-            .cloned()
-            .ok_or(MachineLayoutError::MissingRepresentation(ty))?;
-        let captures = layout
-            .captures()
+        let Some(RuntimeTypeRepresentation::Closure { captures }) =
+            self.program.type_representations().get(ty)
+        else {
+            return Err(MachineLayoutError::MissingRepresentation(ty));
+        };
+        let captures = captures
             .iter()
-            .map(|capture| (capture.binding(), capture.ty()))
+            .map(|capture| (capture.capture(), capture.ty()))
             .collect::<Vec<_>>();
         let (size, alignment, offsets) =
             self.member_offsets(ty, captures.iter().map(|(_, ty)| *ty))?;

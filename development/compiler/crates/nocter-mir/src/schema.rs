@@ -1,6 +1,6 @@
 use nocter_model::{
     Arena, ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
-    MirValueId, PackageTargetId, Symbol, TestId, TypeId, VariantId,
+    MirValueId, PackageTargetId, TestId, TypeId, VariantId,
 };
 use nocter_target_program::ProcessResultContract;
 
@@ -403,21 +403,21 @@ impl MirProcessRoot {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirTestRoot {
     declaration: TestId,
-    name: Symbol,
+    name: Box<str>,
     item: ExecutableItemId,
     body: MirBody,
 }
 
 impl MirTestRoot {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         declaration: TestId,
-        name: Symbol,
+        name: impl Into<Box<str>>,
         item: ExecutableItemId,
         body: MirBody,
     ) -> Self {
         Self {
             declaration,
-            name,
+            name: name.into(),
             item,
             body,
         }
@@ -429,8 +429,8 @@ impl MirTestRoot {
     }
 
     #[must_use]
-    pub const fn name(&self) -> Symbol {
-        self.name
+    pub const fn name(&self) -> &str {
+        &self.name
     }
 
     #[must_use]

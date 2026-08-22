@@ -1,6 +1,29 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{FieldId, OpaqueTypeId, ParameterId, TypeId, VariantId};
+use nocter_model::{CaptureId, FieldId, OpaqueTypeId, ParameterId, TypeId, VariantId};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeCaptureRepresentation {
+    capture: CaptureId,
+    ty: TypeId,
+}
+
+impl RuntimeCaptureRepresentation {
+    #[must_use]
+    pub const fn new(capture: CaptureId, ty: TypeId) -> Self {
+        Self { capture, ty }
+    }
+
+    #[must_use]
+    pub const fn capture(self) -> CaptureId {
+        self.capture
+    }
+
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeFieldRepresentation {
@@ -89,6 +112,9 @@ pub enum RuntimeTypeRepresentation {
         definition: OpaqueTypeId,
         witness: TypeId,
     },
+    Closure {
+        captures: Box<[RuntimeCaptureRepresentation]>,
+    },
 }
 
 /// Complete specialized runtime members and opaque witnesses, keyed by concrete type.
@@ -106,6 +132,17 @@ impl RuntimeTypeRepresentationTable {
     #[must_use]
     pub fn get(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
         self.entries.get(&ty)
+    }
+
+    /// Adds one representation while the target closure is being frozen.
+    ///
+    /// Returns the prior value when the type already had a representation.
+    pub fn insert(
+        &mut self,
+        ty: TypeId,
+        representation: RuntimeTypeRepresentation,
+    ) -> Option<RuntimeTypeRepresentation> {
+        self.entries.insert(ty, representation)
     }
 
     #[must_use]

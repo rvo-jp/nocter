@@ -3,9 +3,7 @@ use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::CompilationTarget;
 use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
-use nocter_target_program::{
-    ExecutableItemKey, ExecutableProgram, TargetProgram, ToolchainSnapshot,
-};
+use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
 use super::{MirLoweringError, lower_executable};
@@ -167,11 +165,11 @@ fn lowers_static_string_values_as_readonly_str_borrows() {
             .map(crate::MirValue::ty);
         text.as_ref() == "hello"
             && matches!(
-                ty.and_then(|ty| program.executable().types().get(ty)),
+                ty.and_then(|ty| program.types().get(ty)),
                 Some(nocter_model::TypeKind::Borrow {
                     capability: nocter_model::BorrowCapability::Readonly,
                     referent,
-                }) if *referent == program.executable().types().builtin(nocter_model::BuiltinType::Str)
+                }) if *referent == program.types().builtin(nocter_model::BuiltinType::Str)
             )
     }));
 }
@@ -476,20 +474,18 @@ fn sequence_using_retains_the_same_call_scoped_allocation_lane() {
             let crate::MirCallAllocation::Explicit(place) = call.allocation() else {
                 return false;
             };
-            call.pack().is_some()
-                && function.places().get(place).is_some_and(|place| {
-                    matches!(
-                        program.executable().types().get(place.ty()),
-                        Some(nocter_model::TypeKind::Nominal { definition, .. })
-                            if Some(*definition)
-                                == program
-                                    .executable()
-                                    .target()
-                                    .checked()
-                                    .standard_semantics()
-                                    .nominal(nocter_declarations::StandardDeclarationRole::AbortingAllocator)
-                    )
-                })
+            call.pack().is_some() && function.places().get(place).is_some_and(|place| {
+                matches!(
+                    (
+                        program.types().get(place.ty()),
+                        program.type_representations().get(place.ty()),
+                    ),
+                    (
+                        Some(nocter_model::TypeKind::Nominal { .. }),
+                        Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct { fields }),
+                    ) if fields.len() == 2
+                )
+            })
         })
     }));
 }
@@ -585,16 +581,14 @@ fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
             matches!(call.target(), crate::MirCallTarget::Direct(_))
                 && function.places().get(place).is_some_and(|place| {
                     matches!(
-                        program.executable().types().get(place.ty()),
-                        Some(nocter_model::TypeKind::Nominal { definition, arguments })
-                            if arguments.is_empty()
-                                && Some(*definition)
-                                    == program
-                                        .executable()
-                                        .target()
-                                        .checked()
-                                        .standard_semantics()
-                                        .nominal(nocter_declarations::StandardDeclarationRole::AbortingAllocator)
+                        (
+                            program.types().get(place.ty()),
+                            program.type_representations().get(place.ty()),
+                        ),
+                        (
+                            Some(nocter_model::TypeKind::Nominal { arguments, .. }),
+                            Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct { fields }),
+                        ) if arguments.is_empty() && fields.len() == 2
                     )
                 })
         })
@@ -930,10 +924,7 @@ fn lowers_void_fallible_success_without_fictional_payload_storage() {
          func main(): void! { pass() }\n",
     )
     .unwrap();
-    let void = program
-        .executable()
-        .types()
-        .builtin(nocter_model::BuiltinType::Void);
+    let void = program.types().builtin(nocter_model::BuiltinType::Void);
 
     assert!(program.functions().iter().all(|(_, function)| {
         function
@@ -1530,16 +1521,19 @@ fn lowers_closure_construction_and_invocation_from_one_concrete_layout() {
     .unwrap();
 
     assert_eq!(program.functions().len(), 2);
-    let closure_items = program
-        .executable()
-        .items()
+    let closure_item = only_closure_item(&program);
+    let closure_layouts = program
+        .type_representations()
         .iter()
-        .filter(|(_, item)| matches!(item.key(), ExecutableItemKey::Closure(_)))
+        .filter_map(|(_, representation)| match representation {
+            nocter_runtime_contract::RuntimeTypeRepresentation::Closure { captures } => {
+                Some(captures)
+            }
+            _ => None,
+        })
         .collect::<Vec<_>>();
-    assert_eq!(closure_items.len(), 1);
-    let (closure_item, item) = closure_items[0];
-    let layout = item.closure_layout().unwrap();
-    assert!(layout.captures().is_empty());
+    assert_eq!(closure_layouts.len(), 1);
+    assert!(closure_layouts[0].is_empty());
     assert!(program.functions().iter().any(|(_, function)| {
         let mut constructed = false;
         let mut invoked = false;
@@ -1707,18 +1701,23 @@ fn specializes_generic_closure_environment_before_mir_lowering() {
     )
     .unwrap();
     let layouts = program
-        .executable()
-        .items()
+        .type_representations()
         .iter()
-        .filter_map(|(_, item)| item.closure_layout())
+        .filter_map(|(ty, representation)| match representation {
+            nocter_runtime_contract::RuntimeTypeRepresentation::Closure { captures } => {
+                Some((ty, captures))
+            }
+            _ => None,
+        })
         .collect::<Vec<_>>();
 
     assert_eq!(layouts.len(), 1);
-    assert!(is_concrete_type(program.executable().types(), layouts[0].ty()).unwrap());
+    assert!(is_concrete_type(program.types(), layouts[0].0).unwrap());
     assert!(
-        layouts[0].captures().iter().all(|capture| {
-            is_concrete_type(program.executable().types(), capture.ty()).unwrap()
-        })
+        layouts[0]
+            .1
+            .iter()
+            .all(|capture| is_concrete_type(program.types(), capture.ty()).unwrap())
     );
 }
 
@@ -1776,14 +1775,7 @@ fn specializes_callable_bounds_to_direct_closure_calls() {
          func main(): i32 { apply((value) { value * 2 }, 7) }\n",
     )
     .unwrap();
-    let closure_item = program
-        .executable()
-        .items()
-        .iter()
-        .find_map(|(item, definition)| {
-            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
-        })
-        .unwrap();
+    let closure_item = only_closure_item(&program);
 
     assert!(program.functions().iter().any(|(item, function)| {
         item != closure_item
@@ -1814,14 +1806,7 @@ fn specializes_readwrite_callable_bounds_without_erasing_environment_access() {
          }\n",
     )
     .unwrap();
-    let closure_item = program
-        .executable()
-        .items()
-        .iter()
-        .find_map(|(item, definition)| {
-            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
-        })
-        .unwrap();
+    let closure_item = only_closure_item(&program);
 
     assert!(program.functions().iter().any(|(item, function)| {
         item != closure_item
@@ -1856,14 +1841,7 @@ fn owned_callable_contract_destroys_a_readonly_body_environment_after_return() {
          }\n",
     )
     .unwrap();
-    let closure_item = program
-        .executable()
-        .items()
-        .iter()
-        .find_map(|(item, definition)| {
-            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
-        })
-        .unwrap();
+    let closure_item = only_closure_item(&program);
     let generic_caller = program.functions().iter().find_map(|(_, function)| {
         function
             .operations()
@@ -1922,14 +1900,7 @@ fn owned_closure_operand_is_staged_until_propagating_arguments_succeed() {
          }\n",
     )
     .unwrap();
-    let closure_item = program
-        .executable()
-        .items()
-        .iter()
-        .find_map(|(item, definition)| {
-            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
-        })
-        .unwrap();
+    let closure_item = only_closure_item(&program);
     let caller = program
         .functions()
         .iter()
@@ -1981,14 +1952,7 @@ fn owned_callable_bound_preserves_the_same_argument_failure_cleanup() {
          }\n",
     )
     .unwrap();
-    let closure_item = program
-        .executable()
-        .items()
-        .iter()
-        .find_map(|(item, definition)| {
-            matches!(definition.key(), ExecutableItemKey::Closure(_)).then_some(item)
-        })
-        .unwrap();
+    let closure_item = only_closure_item(&program);
     let caller = program
         .functions()
         .iter()
@@ -2022,19 +1986,22 @@ fn owned_callable_bound_preserves_the_same_argument_failure_cleanup() {
 fn only_closure_function(program: &crate::MirProgram) -> &crate::MirFunction {
     program
         .functions()
+        .get(only_closure_item(program))
+        .expect("closure body must name a MIR function")
+}
+
+fn only_closure_item(program: &crate::MirProgram) -> nocter_model::ExecutableItemId {
+    let items = program
+        .functions()
         .iter()
-        .find(|(item, _)| {
-            matches!(
-                program
-                    .executable()
-                    .items()
-                    .get(*item)
-                    .map(nocter_target_program::ExecutableItem::key),
-                Some(ExecutableItemKey::Closure(_))
-            )
+        .flat_map(|(_, function)| function.operations().iter())
+        .filter_map(|(_, operation)| match operation.kind() {
+            MirOperationKind::Aggregate(MirAggregate::Closure { body, .. }) => Some(*body),
+            _ => None,
         })
-        .expect("fixture must produce one closure function")
-        .1
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(items.len(), 1, "fixture must construct one closure");
+    items.into_iter().next().unwrap()
 }
 
 fn place_has_capture_projection(place: &crate::MirPlace) -> bool {

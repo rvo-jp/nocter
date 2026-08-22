@@ -232,7 +232,7 @@ impl MachineAbiPlan {
         layouts: &MachineLayoutStore,
     ) -> Result<Self, MachineAbiError> {
         let target = layouts.target();
-        let types = program.executable().types();
+        let types = program.types();
         let mut callables = ArenaBuilder::new();
         for (expected, function) in program.functions().iter() {
             let actual = callables.insert(plan_function(function, types, layouts)?);

@@ -1,6 +1,9 @@
 use std::fmt;
 
-use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId};
+use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId, TypeStore};
+use nocter_runtime_contract::{
+    RuntimeAbiIdentity, RuntimeEnvironment, RuntimeTypeRepresentationTable,
+};
 use nocter_target_program::{ExecutableProgram, ExecutableRoot};
 
 use crate::program_validation::validate_program;
@@ -10,15 +13,25 @@ use crate::{MirFunction, MirRoot, MirValidationError, validate_function};
 /// One closed executable with one function per executable item and its compiler-owned roots.
 #[derive(Debug)]
 pub struct MirProgram {
-    executable: ExecutableProgram,
+    runtime: RuntimeEnvironment,
     functions: Arena<ExecutableItemId, MirFunction>,
     root: MirRoot,
 }
 
 impl MirProgram {
     #[must_use]
-    pub const fn executable(&self) -> &ExecutableProgram {
-        &self.executable
+    pub const fn types(&self) -> &TypeStore {
+        self.runtime.types()
+    }
+
+    #[must_use]
+    pub const fn type_representations(&self) -> &RuntimeTypeRepresentationTable {
+        self.runtime.type_representations()
+    }
+
+    #[must_use]
+    pub const fn runtime_abi(&self) -> RuntimeAbiIdentity {
+        self.runtime.abi()
     }
 
     #[must_use]
@@ -120,8 +133,9 @@ impl MirProgramBuilder {
         })?;
         let root = self.root.ok_or(MirProgramBuildError::MissingRoot)?;
         validate_program(&functions, &root, &self.executable)?;
+        let runtime = self.executable.into_runtime_environment();
         Ok(MirProgram {
-            executable: self.executable,
+            runtime,
             functions,
             root,
         })

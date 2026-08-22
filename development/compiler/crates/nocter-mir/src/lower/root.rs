@@ -31,7 +31,6 @@ pub(super) fn lower_root(executable: &ExecutableProgram) -> Result<MirRoot, MirL
         ExecutableRoot::Tests { target, cases } => {
             let cases = cases
                 .iter()
-                .copied()
                 .map(|case| {
                     let result_type = executable
                         .items()

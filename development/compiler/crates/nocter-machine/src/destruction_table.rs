@@ -238,7 +238,7 @@ fn destruction_abi(
     // Concrete source pointee types are deliberately erased here. Every generated cleanup body
     // accepts one byte-address lane plus a byte offset, so pointer primitives and heterogeneous
     // pack state can share the same ordinary call boundary.
-    let types = program.executable().types();
+    let types = program.types();
     let byte = types.builtin(BuiltinType::U8);
     let pointer = types
         .iter()

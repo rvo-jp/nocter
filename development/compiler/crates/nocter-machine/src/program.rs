@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{Symbol, TestId};
+use nocter_model::TestId;
 
 use crate::identity::MachineTable;
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
 pub enum MachineFunctionKind {
     Callable(crate::MachineCallableAbi),
     ProcessRoot,
-    TestRoot { declaration: TestId, name: Symbol },
+    TestRoot { declaration: TestId, name: Box<str> },
 }
 
 /// One target-independent function body with body-local dense identity domains.
