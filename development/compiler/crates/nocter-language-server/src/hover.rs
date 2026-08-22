@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_analysis::SemanticQueryError;
 use nocter_json::Value;
 use nocter_lsp::{HoverParams, Position, Range, hover_result};
 use nocter_source::{CoordinateError, Utf16Position};
@@ -24,7 +25,10 @@ pub(crate) fn query_hover(
     let offset = source
         .byte_offset(Utf16Position::new(position.line(), position.character()))
         .map_err(HoverQueryError::Coordinate)?;
-    let Some(subject) = snapshot.semantic_subject(source.id(), offset) else {
+    let Some(subject) = snapshot
+        .semantic_subject(source.id(), offset)
+        .map_err(HoverQueryError::Semantic)?
+    else {
         return Ok(Value::Null);
     };
     let range = source
@@ -45,6 +49,7 @@ fn position_value(position: Utf16Position) -> Position {
 pub enum HoverQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
+    Semantic(SemanticQueryError),
 }
 
 impl fmt::Display for HoverQueryError {
@@ -52,6 +57,7 @@ impl fmt::Display for HoverQueryError {
         match self {
             Self::Document(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
+            Self::Semantic(error) => error.fmt(formatter),
         }
     }
 }
@@ -61,6 +67,7 @@ impl std::error::Error for HoverQueryError {
         match self {
             Self::Document(error) => Some(error),
             Self::Coordinate(error) => Some(error),
+            Self::Semantic(error) => Some(error),
         }
     }
 }

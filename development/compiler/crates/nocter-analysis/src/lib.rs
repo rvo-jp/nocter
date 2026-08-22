@@ -24,6 +24,7 @@ mod presentation;
 mod rename;
 mod semantic;
 mod signature;
+mod source_context;
 
 pub use completion::{SemanticCompletion, SemanticCompletionKind};
 pub use documents::{
@@ -31,10 +32,11 @@ pub use documents::{
 };
 pub use highlights::{SemanticHighlight, SemanticHighlightKind};
 pub use navigation::SemanticLocation;
-pub use presentation::SemanticPresentation;
+pub use presentation::{PresentationError, SemanticPresentation};
 pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
-pub use semantic::{SemanticSelection, SemanticSubject};
+pub use semantic::{SemanticQueryError, SemanticSelection, SemanticSubject};
 pub use signature::{SemanticParameterLabel, SemanticSignatureHelp};
+pub use source_context::SourceContextError;
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

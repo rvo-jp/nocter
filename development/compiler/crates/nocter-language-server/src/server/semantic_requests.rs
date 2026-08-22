@@ -33,12 +33,17 @@ impl LanguageServer {
             },
             Err(error) => {
                 let detail = Value::String(error.to_string().into_boxed_str());
+                let code = match &error {
+                    crate::completion::CompletionQueryError::Document(_)
+                    | crate::completion::CompletionQueryError::Coordinate(_) => {
+                        ResponseErrorCode::InvalidParams
+                    }
+                    crate::completion::CompletionQueryError::Semantic(_) => {
+                        ResponseErrorCode::InternalError
+                    }
+                };
                 ServerStep {
-                    response: Some(render_error_response(
-                        Some(id),
-                        ResponseErrorCode::InvalidParams,
-                        Some(&detail),
-                    )),
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
                     issues: vec![ServerIssue::Completion(error)].into_boxed_slice(),
                     ..ServerStep::default()
                 }
@@ -75,12 +80,15 @@ impl LanguageServer {
             },
             Err(error) => {
                 let detail = Value::String(error.to_string().into_boxed_str());
+                let code = match &error {
+                    crate::hover::HoverQueryError::Document(_)
+                    | crate::hover::HoverQueryError::Coordinate(_) => {
+                        ResponseErrorCode::InvalidParams
+                    }
+                    crate::hover::HoverQueryError::Semantic(_) => ResponseErrorCode::InternalError,
+                };
                 ServerStep {
-                    response: Some(render_error_response(
-                        Some(id),
-                        ResponseErrorCode::InvalidParams,
-                        Some(&detail),
-                    )),
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
                     issues: vec![ServerIssue::Hover(error)].into_boxed_slice(),
                     ..ServerStep::default()
                 }
@@ -216,12 +224,18 @@ impl LanguageServer {
             },
             Err(error) => {
                 let detail = Value::String(error.to_string().into_boxed_str());
+                let code = match &error {
+                    crate::signature::SignatureQueryError::Document(_)
+                    | crate::signature::SignatureQueryError::Coordinate(_) => {
+                        ResponseErrorCode::InvalidParams
+                    }
+                    crate::signature::SignatureQueryError::Semantic(_)
+                    | crate::signature::SignatureQueryError::InvalidLabelRange(_) => {
+                        ResponseErrorCode::InternalError
+                    }
+                };
                 ServerStep {
-                    response: Some(render_error_response(
-                        Some(id),
-                        ResponseErrorCode::InvalidParams,
-                        Some(&detail),
-                    )),
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
                     issues: vec![ServerIssue::Signature(error)].into_boxed_slice(),
                     ..ServerStep::default()
                 }

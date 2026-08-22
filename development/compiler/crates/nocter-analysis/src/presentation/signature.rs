@@ -12,10 +12,16 @@ pub(crate) struct RenderedSignature {
 pub(crate) fn static_signature_presentation(
     checked: &CheckedProgram,
     selection: &StaticSelection,
+    from: nocter_model::ModuleId,
 ) -> Option<RenderedSignature> {
     let graph = checked.graph();
-    let mut renderer =
-        Renderer::with_generics(graph, checked.types(), selection.generic_arguments());
+    let spellings = super::visible_spelling::VisibleSpellings::new(graph, from);
+    let mut renderer = Renderer::with_generics(
+        graph,
+        checked.types(),
+        selection.generic_arguments(),
+        &spellings,
+    );
     match selection.dispatch() {
         StaticDispatch::Direct(callable)
         | StaticDispatch::InterfaceMethod {
@@ -48,9 +54,11 @@ pub(crate) fn static_signature_presentation(
 pub(crate) fn closure_signature_presentation(
     checked: &CheckedProgram,
     closure: nocter_model::ClosureId,
+    from: nocter_model::ModuleId,
 ) -> Option<RenderedSignature> {
     let signature = checked.closures().get(closure)?.signature();
-    let mut renderer = Renderer::for_signature(checked.graph(), checked.types());
+    let spellings = super::visible_spelling::VisibleSpellings::new(checked.graph(), from);
+    let mut renderer = Renderer::for_signature(checked.graph(), checked.types(), &spellings);
     renderer.callable_shape(
         signature.capability(),
         signature.parameters(),
@@ -60,10 +68,11 @@ pub(crate) fn closure_signature_presentation(
 }
 
 impl<'a> Renderer<'a> {
-    const fn with_generics(
+    fn with_generics(
         graph: &'a nocter_declarations::DeclarationGraph,
         types: &'a TypeStore,
         generics: &'a GenericArguments,
+        spellings: &'a super::visible_spelling::VisibleSpellings,
     ) -> Self {
         Self {
             graph,
@@ -73,12 +82,14 @@ impl<'a> Renderer<'a> {
             record_parameters: true,
             parameter_ranges: Vec::new(),
             self_type: None,
+            spellings,
         }
     }
 
     fn for_signature(
         graph: &'a nocter_declarations::DeclarationGraph,
         types: &'a TypeStore,
+        spellings: &'a super::visible_spelling::VisibleSpellings,
     ) -> Self {
         Self {
             graph,
@@ -88,6 +99,7 @@ impl<'a> Renderer<'a> {
             record_parameters: true,
             parameter_ranges: Vec::new(),
             self_type: None,
+            spellings,
         }
     }
 

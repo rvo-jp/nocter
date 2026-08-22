@@ -82,7 +82,9 @@ Examples:
 
 Internal canonical identities may contain package/module qualification. User presentation chooses
 the shortest unambiguous visible spelling and must not leak storage paths such as
-`std/iter.Type` into ordinary signatures.
+`std/iter.Type` into ordinary signatures. The compiler derives that spelling from the resolved
+namespace graph, including local import aliases and visible module exports; protocol adapters do not
+recover it from source text.
 
 ## Semantic Tokens
 
@@ -132,6 +134,8 @@ Completion follows lexical scope, visibility, shadowing, receiver capability, ge
 the exact package graph. It includes accessible declarations, imports, members, enum-pattern
 variants, unused struct fields, construction entries, native-test syntax, and relevant keywords.
 `copy` is offered only in a generic requirement context where it is not already present.
+Construction completion uses the use-site construction view, not hover's public-presentation view,
+so private construction available inside the defining module remains available to its source.
 
 Automatic imports consider only reached exports whose resolved boundary contains the current
 module: ancestor- and package-visible exports in the active package, bare-public exports in direct

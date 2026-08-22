@@ -7,6 +7,7 @@ use crate::AnalysisSnapshot;
 use crate::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
+use crate::source_context::{SourceContext, SourceContextError};
 
 /// One compiler-selected call signature and active authored argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,15 +55,24 @@ impl SemanticSignatureHelp {
 
 impl AnalysisSnapshot {
     /// Selects the innermost checked call containing `offset`.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal context error when a reached source has no unique semantic module.
     pub fn semantic_signature_help(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Option<SemanticSignatureHelp> {
-        let checked = self.target()?.program().checked();
-        let index = self.source_index()?;
-        let (body_id, _node_id, _range, call) = index
+    ) -> Result<Option<SemanticSignatureHelp>, SourceContextError> {
+        let Some(target) = self.target() else {
+            return Ok(None);
+        };
+        let checked = target.program().checked();
+        let Some(index) = self.source_index() else {
+            return Ok(None);
+        };
+        let from = SourceContext::resolve(index, source)?.module();
+        let Some((body_id, _node_id, _range, call)) = index
             .bindings_in(source)
             .filter_map(|binding| {
                 let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
@@ -78,16 +88,22 @@ impl AnalysisSnapshot {
                 };
                 Some((body_id, node_id, range, call))
             })
-            .min_by_key(|(_, _, range, _)| range_length(*range))?;
+            .min_by_key(|(_, _, range, _)| range_length(*range))
+        else {
+            return Ok(None);
+        };
         let rendered = match call.target() {
             CallTarget::Static(selection)
             | CallTarget::CallableValue {
                 dispatch: selection,
                 ..
-            } => static_signature_presentation(checked, selection)?,
+            } => static_signature_presentation(checked, selection, from),
             CallTarget::ClosureValue { closure, .. } => {
-                closure_signature_presentation(checked, *closure)?
+                closure_signature_presentation(checked, *closure, from)
             }
+        };
+        let Some(rendered) = rendered else {
+            return Ok(None);
         };
         let parameters = rendered
             .parameter_ranges
@@ -104,11 +120,11 @@ impl AnalysisSnapshot {
             offset,
             parameters.len(),
         );
-        Some(SemanticSignatureHelp {
+        Ok(Some(SemanticSignatureHelp {
             presentation: rendered.presentation,
             parameters,
             active_parameter,
-        })
+        }))
     }
 }
 

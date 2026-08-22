@@ -10,7 +10,9 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
+use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{name_recovery_presentation, prepared_presentation, presentation};
+use crate::source_context::{SourceContext, SourceContextError};
 
 /// One compiler-selected name visible at an exact source position.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -92,11 +94,11 @@ impl<'a> CompletionProgram<'a> {
         }
     }
 
-    fn detail(&self, entity: SemanticEntity) -> Option<Box<str>> {
+    fn detail(&self, entity: SemanticEntity, spellings: &VisibleSpellings) -> Option<Box<str>> {
         match self {
-            Self::Checked { program, .. } => presentation(program, entity),
-            Self::Prepared(program) => prepared_presentation(program, entity),
-            Self::Names(program) => name_recovery_presentation(program, entity),
+            Self::Checked { program, .. } => presentation(program, entity, spellings),
+            Self::Prepared(program) => prepared_presentation(program, entity, spellings),
+            Self::Names(program) => name_recovery_presentation(program, entity, spellings),
         }
         .map(|presentation| Box::<str>::from(presentation.code()))
     }
@@ -108,12 +110,15 @@ impl AnalysisSnapshot {
     /// Candidate identity and shadowing come from compiler-owned namespaces. Source ranges are
     /// used only to select the containing scope and to exclude sequential local declarations that
     /// occur after the cursor.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal context error when a reached source has no unique semantic module.
     pub fn semantic_completions(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Box<[SemanticCompletion]> {
+    ) -> Result<Box<[SemanticCompletion]>, SourceContextError> {
         let program = if let Some(target) = self.target() {
             CompletionProgram::Checked {
                 program: target.program().checked(),
@@ -124,22 +129,20 @@ impl AnalysisSnapshot {
         } else if let Some(recovery) = self.name_recovery() {
             CompletionProgram::Names(recovery)
         } else {
-            return Box::new([]);
+            return Ok(Box::new([]));
         };
         let index = program.index();
-        let Some(module) = containing_module(index, source, offset) else {
-            return Box::new([]);
-        };
+        let module = SourceContext::resolve(index, source)?.module();
         if let CompletionProgram::Checked {
             program: checked, ..
         } = program
             && let Some(completions) =
                 checked_member_completions(checked, index, source, offset, module)
         {
-            return completions;
+            return Ok(completions);
         }
         if let Some(completions) = interrupted_member_completions(self, source, offset, module) {
-            return completions;
+            return Ok(completions);
         }
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
@@ -154,18 +157,19 @@ impl AnalysisSnapshot {
                 &mut candidates,
             );
         }
-        candidates
+        let spellings = VisibleSpellings::new(program.graph(), module);
+        Ok(candidates
             .into_iter()
             .filter_map(|(name, candidate)| {
                 let label = program.graph().symbols().spelling(name)?;
                 Some(SemanticCompletion {
                     label: label.into(),
                     kind: candidate.kind,
-                    detail: program.detail(candidate.entity),
+                    detail: program.detail(candidate.entity, &spellings),
                 })
             })
             .collect::<Vec<_>>()
-            .into_boxed_slice()
+            .into_boxed_slice())
     }
 }
 
@@ -181,6 +185,7 @@ fn interrupted_member_completions(
         return None;
     }
     let candidates = recovery.interrupted_member_completions(module)?.ok()?;
+    let spellings = VisibleSpellings::new(recovery.prepared().graph(), module);
     Some(
         candidates
             .iter()
@@ -192,7 +197,9 @@ fn interrupted_member_completions(
                     .spelling(candidate.name())?;
                 let (kind, entity) = completion_target(candidate.target());
                 let detail = entity
-                    .and_then(|entity| prepared_presentation(recovery.prepared(), entity))
+                    .and_then(|entity| {
+                        prepared_presentation(recovery.prepared(), entity, &spellings)
+                    })
                     .map(|presentation| Box::<str>::from(presentation.code()));
                 Some(SemanticCompletion {
                     label: label.into(),
@@ -256,6 +263,7 @@ fn checked_member_completions(
             owned,
         ))
         .ok()?;
+    let spellings = VisibleSpellings::new(program.graph(), module);
     Some(
         candidates
             .iter()
@@ -263,7 +271,7 @@ fn checked_member_completions(
                 let label = program.graph().symbols().spelling(candidate.name())?;
                 let (kind, entity) = completion_target(candidate.target());
                 let detail = entity
-                    .and_then(|entity| presentation(program, entity))
+                    .and_then(|entity| presentation(program, entity, &spellings))
                     .map(|presentation| Box::<str>::from(presentation.code()));
                 Some(SemanticCompletion {
                     label: label.into(),
@@ -306,29 +314,6 @@ const fn receiver_access(preparation: ReceiverPreparation) -> (BorrowCapability,
         | ReceiverPreparation::PreserveBorrow(capability) => (capability, false),
         ReceiverPreparation::WeakenReadwriteBorrow => (BorrowCapability::ReadWrite, false),
     }
-}
-
-fn containing_module(
-    index: &SourceIndex,
-    source: SourceId,
-    offset: ByteOffset,
-) -> Option<nocter_model::ModuleId> {
-    index
-        .bindings_in(source)
-        .filter(|binding| contains(binding.origin().span().range(), offset))
-        .filter_map(|binding| match binding.entity() {
-            SemanticEntity::Module(module)
-                if matches!(
-                    binding.role(),
-                    SourceRole::Declaration | SourceRole::Implementation
-                ) =>
-            {
-                Some((module, binding.origin().span().range()))
-            }
-            _ => None,
-        })
-        .min_by_key(|(_, range)| range_length(*range))
-        .map(|(module, _)| module)
 }
 
 fn containing_scope(

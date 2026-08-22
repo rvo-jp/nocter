@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::SemanticCompletionKind;
+use nocter_analysis::{SemanticCompletionKind, SourceContextError};
 use nocter_json::Value;
 use nocter_lsp::{CompletionItem, CompletionItemKind, CompletionParams, completion_result};
 use nocter_source::{CoordinateError, Utf16Position};
@@ -28,7 +28,8 @@ pub(crate) fn query_completion(
         .map_err(CompletionQueryError::Coordinate)?;
     let completions = document
         .snapshot()
-        .semantic_completions(document.source().id(), offset);
+        .semantic_completions(document.source().id(), offset)
+        .map_err(CompletionQueryError::Semantic)?;
     let items = completions
         .iter()
         .map(|completion| {
@@ -62,6 +63,7 @@ const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {
 pub enum CompletionQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
+    Semantic(SourceContextError),
 }
 
 impl fmt::Display for CompletionQueryError {
@@ -69,6 +71,7 @@ impl fmt::Display for CompletionQueryError {
         match self {
             Self::Document(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
+            Self::Semantic(error) => error.fmt(formatter),
         }
     }
 }
@@ -78,6 +81,7 @@ impl std::error::Error for CompletionQueryError {
         match self {
             Self::Document(error) => Some(error),
             Self::Coordinate(error) => Some(error),
+            Self::Semantic(error) => Some(error),
         }
     }
 }

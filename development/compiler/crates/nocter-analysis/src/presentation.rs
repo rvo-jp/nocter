@@ -1,11 +1,12 @@
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 use nocter_checking::{
-    CheckedProgram, GenericArguments, VisibleConstructionEntry, VisibleConstructionSurface,
+    CheckedProgram, GenericArguments, SelectedConstructionEntry, SelectedConstructionSurface,
 };
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, NominalShape,
-    ParameterRole, RequirementKind, RequirementSubject, StructuralCapability, Visibility,
+    CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, ExportedEntity,
+    NominalShape, ParameterRole, RequirementKind, RequirementSubject, StructuralCapability,
+    Visibility,
 };
 use nocter_model::{
     BorrowCapability, BuiltinType, CallableCapability, Symbol, TypeId, TypeKind, TypeStore,
@@ -13,6 +14,7 @@ use nocter_model::{
 use nocter_source_index::SemanticEntity;
 
 mod signature;
+pub(crate) mod visible_spelling;
 
 pub(super) use signature::{closure_signature_presentation, static_signature_presentation};
 
@@ -20,6 +22,46 @@ pub(super) use signature::{closure_signature_presentation, static_signature_pres
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SemanticPresentation {
     code: Box<str>,
+}
+
+/// An internal inconsistency while rendering checked semantic data.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PresentationError {
+    InvalidEntity(SemanticEntity),
+    InvalidConstruction(nocter_model::NominalTypeId),
+    ConstructionSurface(nocter_checking::ConstructionSurfaceSelectionError),
+}
+
+impl fmt::Display for PresentationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidEntity(entity) => {
+                write!(formatter, "cannot render semantic entity {entity:?}")
+            }
+            Self::InvalidConstruction(nominal) => {
+                write!(
+                    formatter,
+                    "cannot render construction surface for {nominal:?}"
+                )
+            }
+            Self::ConstructionSurface(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for PresentationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ConstructionSurface(error) => Some(error),
+            Self::InvalidEntity(_) | Self::InvalidConstruction(_) => None,
+        }
+    }
+}
+
+impl From<nocter_checking::ConstructionSurfaceSelectionError> for PresentationError {
+    fn from(error: nocter_checking::ConstructionSurfaceSelectionError) -> Self {
+        Self::ConstructionSurface(error)
+    }
 }
 
 impl SemanticPresentation {
@@ -32,9 +74,10 @@ impl SemanticPresentation {
 pub(super) fn presentation(
     checked: &CheckedProgram,
     entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
     let graph = checked.graph();
-    let mut renderer = Renderer::new(graph, checked.types());
+    let mut renderer = Renderer::new(graph, checked.types(), spellings);
     renderer.entity(Some(checked), entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -45,18 +88,22 @@ pub(super) fn hover_presentation(
     checked: &CheckedProgram,
     entity: SemanticEntity,
     from: nocter_model::ModuleId,
-) -> Option<SemanticPresentation> {
+) -> Result<SemanticPresentation, PresentationError> {
     let graph = checked.graph();
-    let mut renderer = Renderer::new(graph, checked.types());
-    renderer.entity(Some(checked), entity)?;
+    let spellings = visible_spelling::VisibleSpellings::new(graph, from);
+    let mut renderer = Renderer::new(graph, checked.types(), &spellings);
+    renderer
+        .entity(Some(checked), entity)
+        .ok_or(PresentationError::InvalidEntity(entity))?;
     if let SemanticEntity::NominalType(nominal) = entity {
         let surface = checked
             .construction_surfaces()
-            .visible_surface(graph, nominal, from)
-            .ok()?;
-        renderer.nominal_construction_surface(nominal, &surface)?;
+            .public_surface(graph, nominal, from)?;
+        renderer
+            .nominal_construction_surface(nominal, &surface)
+            .ok_or(PresentationError::InvalidConstruction(nominal))?;
     }
-    Some(SemanticPresentation {
+    Ok(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
     })
 }
@@ -64,23 +111,26 @@ pub(super) fn hover_presentation(
 pub(super) fn prepared_presentation(
     prepared: &nocter_checking::PreparedSemanticProgram,
     entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    semantic_presentation(prepared.graph(), prepared.types(), entity)
+    semantic_presentation(prepared.graph(), prepared.types(), entity, spellings)
 }
 
 pub(super) fn name_recovery_presentation(
     recovery: &nocter_checking::NameAnalysisRecovery,
     entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    semantic_presentation(recovery.graph(), recovery.types(), entity)
+    semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
 }
 
 fn semantic_presentation(
     graph: &DeclarationGraph,
     types: &TypeStore,
     entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, types);
+    let mut renderer = Renderer::new(graph, types, spellings);
     renderer.entity(None, entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -95,10 +145,15 @@ pub(super) struct Renderer<'a> {
     record_parameters: bool,
     parameter_ranges: Vec<(usize, usize)>,
     self_type: Option<TypeId>,
+    spellings: &'a visible_spelling::VisibleSpellings,
 }
 
 impl<'a> Renderer<'a> {
-    const fn new(graph: &'a DeclarationGraph, types: &'a TypeStore) -> Self {
+    fn new(
+        graph: &'a DeclarationGraph,
+        types: &'a TypeStore,
+        spellings: &'a visible_spelling::VisibleSpellings,
+    ) -> Self {
         Self {
             graph,
             types,
@@ -107,6 +162,7 @@ impl<'a> Renderer<'a> {
             record_parameters: false,
             parameter_ranges: Vec::new(),
             self_type: None,
+            spellings,
         }
     }
 
@@ -163,19 +219,16 @@ impl<'a> Renderer<'a> {
                     NominalShape::Struct { .. } => "struct",
                     NominalShape::Enum { .. } => "enum",
                 };
-                write!(
-                    self.output,
-                    "{keyword} {}",
-                    self.symbol(declaration.name())?
-                )
-                .ok()?;
+                write!(self.output, "{keyword} ").ok()?;
+                self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.requirements(declaration.requirements())?;
             }
             SemanticEntity::TypeAlias(id) => {
                 let declaration = declarations.type_aliases().get(id)?;
                 self.visibility(declaration.site())?;
-                write!(self.output, "type {}", self.symbol(declaration.name())?).ok()?;
+                self.output.push_str("type ");
+                self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.output.push_str(" = ");
                 self.ty(declaration.target())?;
@@ -184,12 +237,8 @@ impl<'a> Renderer<'a> {
             SemanticEntity::Interface(id) => {
                 let declaration = declarations.interfaces().get(id)?;
                 self.visibility(declaration.site())?;
-                write!(
-                    self.output,
-                    "interface {}",
-                    self.symbol(declaration.name())?
-                )
-                .ok()?;
+                self.output.push_str("interface ");
+                self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.requirements(declaration.requirements())?;
             }
@@ -197,13 +246,13 @@ impl<'a> Renderer<'a> {
                 let declaration = declarations.associated_types().get(id)?;
                 let owner = declarations.interfaces().get(declaration.interface())?;
                 self.visibility(declaration.site())?;
-                write!(
-                    self.output,
-                    "type {}.{}",
-                    self.symbol(owner.name())?,
-                    self.symbol(declaration.name())?
-                )
-                .ok()?;
+                self.output.push_str("type ");
+                self.exported_name(
+                    ExportedEntity::Interface(declaration.interface()),
+                    owner.name(),
+                )?;
+                self.output.push('.');
+                self.output.push_str(self.symbol(declaration.name())?);
             }
             _ => return None,
         }
@@ -218,13 +267,11 @@ impl<'a> Renderer<'a> {
                 let field = declarations.fields().get(id)?;
                 let owner = declarations.nominal_types().get(field.owner())?;
                 self.visibility(field.site())?;
-                write!(
-                    self.output,
-                    "field {}.{}: ",
-                    self.symbol(owner.name())?,
-                    self.symbol(field.name())?
-                )
-                .ok()?;
+                self.output.push_str("field ");
+                self.exported_name(ExportedEntity::NominalType(field.owner()), owner.name())?;
+                self.output.push('.');
+                self.output.push_str(self.symbol(field.name())?);
+                self.output.push_str(": ");
                 self.ty(field.ty())?;
             }
             SemanticEntity::BuiltinField(field) => self.output.push_str(match field {
@@ -235,13 +282,10 @@ impl<'a> Renderer<'a> {
                 let variant = declarations.variants().get(id)?;
                 let owner = declarations.nominal_types().get(variant.owner())?;
                 self.visibility(variant.site())?;
-                write!(
-                    self.output,
-                    "variant {}.{}",
-                    self.symbol(owner.name())?,
-                    self.symbol(variant.name())?
-                )
-                .ok()?;
+                self.output.push_str("variant ");
+                self.exported_name(ExportedEntity::NominalType(variant.owner()), owner.name())?;
+                self.output.push('.');
+                self.output.push_str(self.symbol(variant.name())?);
                 self.parameters(variant.payload())?;
             }
             _ => return None,
@@ -307,6 +351,12 @@ impl<'a> Renderer<'a> {
     }
 
     fn module(&mut self, id: nocter_model::ModuleId) -> Option<()> {
+        let start = self.output.len();
+        self.output.push_str("module ");
+        if self.visible_name(ExportedEntity::Module(id))? {
+            return Some(());
+        }
+        self.output.truncate(start);
         let module = self.graph.modules().get(id)?;
         let package = self.graph.packages().get(module.package())?;
         write!(
@@ -387,17 +437,17 @@ impl<'a> Renderer<'a> {
     fn nominal_construction_surface(
         &mut self,
         nominal: nocter_model::NominalTypeId,
-        surface: &VisibleConstructionSurface,
+        surface: &SelectedConstructionSurface,
     ) -> Option<()> {
         let declarations = self.graph.declarations();
         let nominal_declaration = declarations.nominal_types().get(nominal)?;
         let structural = surface
             .entries()
-            .contains(&VisibleConstructionEntry::Structural);
+            .contains(&SelectedConstructionEntry::Structural);
         let has_variants = surface
             .entries()
             .iter()
-            .any(|entry| matches!(entry, VisibleConstructionEntry::Variant(_)));
+            .any(|entry| matches!(entry, SelectedConstructionEntry::Variant(_)));
         if structural {
             let NominalShape::Struct { fields, .. } = nominal_declaration.shape() else {
                 return None;
@@ -416,7 +466,7 @@ impl<'a> Renderer<'a> {
         } else if has_variants {
             self.output.push_str(" {\n");
             for entry in surface.entries() {
-                let VisibleConstructionEntry::Variant(variant) = *entry else {
+                let SelectedConstructionEntry::Variant(variant) = *entry else {
                     continue;
                 };
                 let declaration = declarations.variants().get(variant)?;
@@ -435,19 +485,19 @@ impl<'a> Renderer<'a> {
         };
         let construction = declarations.constructions().get(construction_id)?;
         self.output.push_str("\n\nconstruct ");
-        self.ty(construction.target())?;
+        self.declaration_type_pattern(construction.target())?;
         self.output.push_str(" {");
         let has_members = surface
             .entries()
             .iter()
-            .any(|entry| matches!(entry, VisibleConstructionEntry::Callable(_)));
+            .any(|entry| matches!(entry, SelectedConstructionEntry::Callable(_)));
         if !has_members {
             self.output.push('}');
             return Some(());
         }
         self.self_type = Some(construction.target());
         for (index, entry) in surface.entries().iter().enumerate() {
-            let VisibleConstructionEntry::Callable(member) = *entry else {
+            let SelectedConstructionEntry::Callable(member) = *entry else {
                 continue;
             };
             self.output.push_str("\n    ");
@@ -536,7 +586,8 @@ impl<'a> Renderer<'a> {
             CallableOwner::Conformance(id) => declarations.conformances().get(id)?.target(),
             CallableOwner::Interface(id) => {
                 let declaration = declarations.interfaces().get(id)?;
-                write!(self.output, "{}.", self.symbol(declaration.name())?).ok()?;
+                self.exported_name(ExportedEntity::Interface(id), declaration.name())?;
+                self.output.push('.');
                 return Some(());
             }
         };
@@ -812,7 +863,10 @@ impl<'a> Renderer<'a> {
                     .declarations()
                     .interfaces()
                     .get(application.interface())?;
-                self.output.push_str(self.symbol(declaration.name())?);
+                self.exported_name(
+                    ExportedEntity::Interface(application.interface()),
+                    declaration.name(),
+                )?;
                 self.type_arguments(application.arguments())?;
             }
             StructuralCapability::Callable(contract) => {
@@ -866,14 +920,14 @@ impl<'a> Renderer<'a> {
             }
             TypeKind::InterfaceSelf(id) => {
                 let declaration = self.graph.declarations().interfaces().get(*id)?;
-                self.output.push_str(self.symbol(declaration.name())?);
+                self.exported_name(ExportedEntity::Interface(*id), declaration.name())?;
             }
             TypeKind::Nominal {
                 definition,
                 arguments,
             } => {
                 let declaration = self.graph.declarations().nominal_types().get(*definition)?;
-                self.output.push_str(self.symbol(declaration.name())?);
+                self.exported_name(ExportedEntity::NominalType(*definition), declaration.name())?;
                 self.type_arguments(arguments)?;
             }
             TypeKind::AssociatedProjection { base, associated } => {
@@ -897,7 +951,10 @@ impl<'a> Renderer<'a> {
                     .declarations()
                     .interfaces()
                     .get(declaration.interface().interface())?;
-                self.output.push_str(self.symbol(interface.name())?);
+                self.exported_name(
+                    ExportedEntity::Interface(declaration.interface().interface()),
+                    interface.name(),
+                )?;
                 self.type_arguments(arguments)?;
             }
             TypeKind::Pointer(pointee) => {
@@ -1011,6 +1068,53 @@ impl<'a> Renderer<'a> {
 
     fn symbol(&self, symbol: Symbol) -> Option<&'a str> {
         self.graph.symbols().spelling(symbol)
+    }
+
+    fn exported_name(&mut self, entity: ExportedEntity, fallback: Symbol) -> Option<()> {
+        if self.visible_name(entity)? {
+            return Some(());
+        }
+        self.output.push_str(self.symbol(fallback)?);
+        Some(())
+    }
+
+    fn declaration_pattern_name(&mut self, entity: ExportedEntity, fallback: Symbol) -> Option<()> {
+        if let Some([name]) = self.spellings.get(entity) {
+            self.output.push_str(self.graph.symbols().spelling(*name)?);
+        } else {
+            self.output.push_str(self.symbol(fallback)?);
+        }
+        Some(())
+    }
+
+    fn declaration_type_pattern(&mut self, ty: TypeId) -> Option<()> {
+        let TypeKind::Nominal {
+            definition,
+            arguments,
+        } = self.types.get(ty)?
+        else {
+            return None;
+        };
+        let declaration = self.graph.declarations().nominal_types().get(*definition)?;
+        self.declaration_pattern_name(
+            ExportedEntity::NominalType(*definition),
+            declaration.name(),
+        )?;
+        self.type_arguments(arguments)
+    }
+
+    fn visible_name(&mut self, entity: ExportedEntity) -> Option<bool> {
+        let Some(spelling) = self.spellings.get(entity) else {
+            return Some(false);
+        };
+        for (index, segment) in spelling.iter().copied().enumerate() {
+            if index != 0 {
+                self.output.push('.');
+            }
+            self.output
+                .push_str(self.graph.symbols().spelling(segment)?);
+        }
+        Some(true)
     }
 }
 

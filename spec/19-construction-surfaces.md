@@ -156,6 +156,20 @@ signature help, and go-to-definition must query that information rather than sca
 reconstruct a list independently. Entries shown at a use site must respect type and member
 visibility and must use the visible type spelling rather than an internal canonical module path.
 
+The canonical surface has two derived views. The use-site view contains every entry ordinary source
+may access from the requesting module, including private structural construction and private enum
+variants inside their defining module. The public-presentation view used by type hover removes raw
+private construction and private entries even when the hover occurs in their defining module. Both
+views preserve the same semantic entry and default identities; they are not separate indexes.
+
+Declaration-shaped hover keeps the nominal declaration head's authored name because that head
+describes the declaration identity rather than a use-site alias. A bodyless `construct` head uses a
+direct one-segment import alias when one resolves to the type. If the type is reachable only through
+a namespace path, that head keeps the defining declaration name because `DeclarationTypePattern`
+does not admit a qualified path. Type references inside member signatures still use the shortest
+complete visible path. Presentation never emits an invalid qualified declaration or an internal
+canonical path.
+
 Enum variants are intrinsic construction entries and are not duplicated inside `construct`.
 Interfaces and type aliases do not own construction surfaces. Interfaces are not values. An alias
 does not acquire a second construction API under its alias spelling; callers use the nominal target

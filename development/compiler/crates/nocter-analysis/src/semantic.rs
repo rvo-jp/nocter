@@ -1,8 +1,11 @@
+use std::fmt;
+
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::presentation::{SemanticPresentation, hover_presentation};
+use crate::presentation::{PresentationError, SemanticPresentation, hover_presentation};
+use crate::source_context::{SourceContext, SourceContextError};
 
 /// One exact interactive source occurrence selected independently of presentation or protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,37 +90,73 @@ impl AnalysisSnapshot {
     /// Failed generations deliberately answer no semantic query. When projections overlap, the
     /// narrowest displayable source range wins; ties prefer references, then declarations, then
     /// implementation sites. This keeps keywords and declaration bodies outside editor ranges.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal query error when source ownership or checked presentation is
+    /// inconsistent.
     pub fn semantic_subject(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Option<SemanticSubject> {
-        let checked = self.target()?.program().checked();
-        let index = self.source_index()?;
-        let binding = selected_binding(index, source, offset)?;
-        let from = source_module(index, source)?;
-        let presentation = hover_presentation(checked, binding.entity(), from)?;
-        Some(SemanticSubject {
+    ) -> Result<Option<SemanticSubject>, SemanticQueryError> {
+        let Some(target) = self.target() else {
+            return Ok(None);
+        };
+        let checked = target.program().checked();
+        let Some(index) = self.source_index() else {
+            return Ok(None);
+        };
+        let Some(binding) = selected_binding(index, source, offset) else {
+            return Ok(None);
+        };
+        let context = SourceContext::resolve(index, source)?;
+        let presentation = hover_presentation(checked, binding.entity(), context.module())?;
+        Ok(Some(SemanticSubject {
             entity: binding.entity(),
             role: binding.role(),
             range: binding.origin().span().range(),
             presentation,
             documentation: index.documentation_for(binding).map(Box::from),
-        })
+        }))
     }
 }
 
-fn source_module(
-    index: &nocter_source_index::SourceIndex,
-    source: SourceId,
-) -> Option<nocter_model::ModuleId> {
-    index.bindings_in(source).find_map(|binding| {
-        let SemanticEntity::Module(module) = binding.entity() else {
-            return None;
-        };
-        Some(module)
-    })
+/// An internal failure while answering a semantic presentation query.
+#[derive(Debug)]
+pub enum SemanticQueryError {
+    SourceContext(SourceContextError),
+    Presentation(PresentationError),
+}
+
+impl fmt::Display for SemanticQueryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SourceContext(error) => error.fmt(formatter),
+            Self::Presentation(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for SemanticQueryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceContext(error) => Some(error),
+            Self::Presentation(error) => Some(error),
+        }
+    }
+}
+
+impl From<SourceContextError> for SemanticQueryError {
+    fn from(error: SourceContextError) -> Self {
+        Self::SourceContext(error)
+    }
+}
+
+impl From<PresentationError> for SemanticQueryError {
+    fn from(error: PresentationError) -> Self {
+        Self::Presentation(error)
+    }
 }
 
 fn selected_binding(

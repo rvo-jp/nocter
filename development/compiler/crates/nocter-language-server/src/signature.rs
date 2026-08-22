@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_analysis::SourceContextError;
 use nocter_json::Value;
 use nocter_lsp::{SignatureHelpParams, SignatureParameter, signature_help_result};
 use nocter_source::{CoordinateError, Utf16Position};
@@ -28,6 +29,7 @@ pub(crate) fn query_signature_help(
     document
         .snapshot()
         .semantic_signature_help(document.source().id(), offset)
+        .map_err(SignatureQueryError::Semantic)?
         .map_or_else(
             || Ok(Value::Null),
             |help| {
@@ -63,6 +65,7 @@ fn utf16_offset(label: &str, byte: usize) -> Result<u32, SignatureQueryError> {
 pub enum SignatureQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
+    Semantic(SourceContextError),
     InvalidLabelRange(usize),
 }
 
@@ -71,6 +74,7 @@ impl fmt::Display for SignatureQueryError {
         match self {
             Self::Document(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
+            Self::Semantic(error) => error.fmt(formatter),
             Self::InvalidLabelRange(offset) => {
                 write!(
                     formatter,
@@ -86,6 +90,7 @@ impl std::error::Error for SignatureQueryError {
         match self {
             Self::Document(error) => Some(error),
             Self::Coordinate(error) => Some(error),
+            Self::Semantic(error) => Some(error),
             Self::InvalidLabelRange(_) => None,
         }
     }

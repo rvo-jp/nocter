@@ -23,6 +23,10 @@ semantic identity and project its existing `SourceIndex` bindings; they never se
 Failed generations expose no checked identity answer. A query never consults an older successful
 snapshot. Completion has a narrower recovery contract described below: it may consume only
 explicit semantic stages retained by the current failed generation.
+One shared source-context resolver selects the unique declaration or implementation module that
+owns a physical source. Hover, completion, and signature help consume that identity; module-path
+references cannot become source owners. A missing or conflicting owner is an internal query error,
+not an ordinary empty editor result.
 The source index selects the smallest displayable binding under the cursor, with references before
 declarations and implementation sites when ranges tie. Synthetic package, target, and whole-file
 module projections are not interactive. An authored module-path reference remains interactive and
@@ -48,14 +52,27 @@ The renderer owns:
 - canonical structural type spelling and required grouping;
 - explicit result-provenance clauses only.
 
-Nominal hover additionally consumes `ConstructionSurfaceTable::visible_surface` with the module
-that owns the hovered source occurrence. That query is the common ordered authority for structural
-construction, variants, construct members, visibility, and default identity. Presentation does not
-scan nominal or construct declarations to decide membership. It renders the selected structural or
-variant subset in the nominal declaration and selected authored members in a bodyless, unqualified
-`construct Type { ... }` block. Exact construction-target occurrences become `Self` recursively in
-member results. Private raw construction and members outside the requesting module's normalized
-visibility boundary are absent.
+For a module-relative query, the renderer finds the shortest visible type or module spelling by
+walking the immutable authored and prelude namespace layers. Import aliases therefore remain
+presentation facts without source slicing, while filesystem and canonical package paths remain
+absent. Nominal declaration heads retain their authored declaration names. A construction-pattern
+position uses a direct one-segment alias when available and otherwise retains the declaration name,
+because a qualified path is not valid `DeclarationTypePattern` syntax.
+
+Nominal hover additionally consumes `ConstructionSurfaceTable::public_surface` with the module that
+owns the hovered source occurrence. The table retains one canonical ordered surface and derives a
+separate `accessible_surface` for use-site tools. The latter follows ordinary language visibility,
+including module-private access, while the public presentation view removes raw private
+construction. Both views preserve the same structural, variant, member, source-order, and default
+identities. Presentation does not scan nominal or construct declarations to decide membership. It
+renders the selected structural or variant subset in the nominal declaration and selected authored
+members in a bodyless, unqualified `construct Type { ... }` block. Exact construction-target
+occurrences become `Self` recursively in member results.
+
+Semantic presentation distinguishes absence from failure. No binding at the requested coordinate
+returns no result. A source-context conflict, construction-table disagreement, or invalid checked
+entity returns a typed internal query error that the LSP boundary reports as an internal error rather
+than silently converting it to `null`.
 
 Declaration lowering also owns the exact interactive anchor for every declaration identity. Named
 declarations use their name token; coercions use `as`; equality and ordering use `==` and `<`;

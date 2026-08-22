@@ -692,6 +692,50 @@ mod tests {
     }
 
     #[test]
+    fn type_hover_uses_the_shortest_visible_import_alias() {
+        let temporary = TemporaryDirectory::new();
+        let widgets = temporary.path().join("widgets");
+        fs::create_dir(&widgets).unwrap();
+        fs::write(
+            temporary.path().join("nocter.nct"),
+            "#name: \"hover-alias\"\n#version: \"0.1.0\"\n#executable: {\n    name: \"hover-alias\",\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            widgets.join("index.nct"),
+            "pub struct Widget {\n    pub value: i32\n}\n\nconstruct Widget {\n    pub default func new(): Self { return Widget { value: 1 } }\n}\n",
+        )
+        .unwrap();
+        let source = temporary.path().join("index.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use ./widgets.Widget as LocalWidget\\n\\nfunc main(): void {{\\n    let value: LocalWidget = LocalWidget.new()\\n    return\\n}}\\n\"}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":18}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct Widget"), "{response}");
+        assert!(response.contains("construct LocalWidget {"), "{response}");
+        assert!(!response.contains("widgets.Widget"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
+    #[test]
     fn semantic_tokens_use_exact_compiler_bindings_instead_of_syntax_ranges() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
