@@ -73,8 +73,8 @@ impl BodyAnalysisRecovery {
     }
 
     #[must_use]
-    pub fn interruption(&self) -> Option<TypedBodyInterruption> {
-        self.typed.as_ref().map(|typed| typed.interruption)
+    pub fn interruption(&self) -> Option<&TypedBodyInterruption> {
+        self.typed.as_ref().map(|typed| &typed.interruption)
     }
 
     /// Applies the normal member selector to an exact failed member-selection context.
@@ -103,7 +103,7 @@ impl BodyAnalysisRecovery {
             self.prepared.conformances(),
             self.prepared.instance_operations(),
             &typed.copyabilities,
-            MemberCompletionContext::new(owner, module, receiver, available, owned),
+            MemberCompletionContext::new(owner, module, *receiver, *available, *owned),
         ))
     }
 
@@ -118,6 +118,31 @@ impl BodyAnalysisRecovery {
         else {
             return None;
         };
-        Some(self.prepared.construction_completions(owner, module))
+        Some(self.prepared.construction_completions(*owner, module))
+    }
+
+    /// Applies the structural construction selector to fields fixed before a body failure.
+    #[must_use]
+    pub fn interrupted_structural_field_completions(
+        &self,
+        module: ModuleId,
+    ) -> Option<
+        Result<
+            Box<[crate::StructuralFieldCompletionCandidate]>,
+            crate::StructuralFieldCompletionError,
+        >,
+    > {
+        let typed = self.typed.as_ref()?;
+        let TypedBodyInterruptionKind::StructuralConstruction {
+            definition,
+            initialized,
+        } = typed.interruption.kind()
+        else {
+            return None;
+        };
+        Some(
+            self.prepared
+                .structural_field_completions(*definition, module, initialized),
+        )
     }
 }

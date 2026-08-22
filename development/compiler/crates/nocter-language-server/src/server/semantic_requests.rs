@@ -988,6 +988,80 @@ mod tests {
     }
 
     #[test]
+    fn completion_offers_only_uninitialized_structural_fields() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let source_with = |fields: &str| {
+            concat!(
+                "struct Record {\n",
+                "    first: i32\n",
+                "    second: i32\n",
+                "    third: i32\n",
+                "}\n",
+                "func main(): Record {\n",
+                "    Record {\n",
+                "$fields",
+                "    }\n",
+                "}\n",
+            )
+            .replace("$fields", fields)
+        };
+
+        let incomplete = source_with("        first: 1,\n\n");
+        let opened = set_completion_document(&mut server, &uri, &incomplete, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        let completion = request_completion(&mut server, &uri, 2, 8, 0);
+        let response = completion.response().unwrap();
+        assert!(!response.contains("\"label\":\"first\""), "{response}");
+        assert!(
+            response.contains("\"label\":\"second\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"third\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let syntax_incomplete = source_with("        first: 1,\n        second:\n");
+        let changed = set_completion_document(&mut server, &uri, &syntax_incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 3, 8, 15);
+        let response = completion.response().unwrap();
+        assert!(!response.contains("\"label\":\"first\""), "{response}");
+        assert!(!response.contains("\"label\":\"second\""), "{response}");
+        assert!(
+            response.contains("\"label\":\"third\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let complete = source_with(concat!(
+            "        first: 1,\n",
+            "        second: 2,\n",
+            "        third: 3,\n",
+        ));
+        let changed = set_completion_document(&mut server, &uri, &complete, 3);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        let completion = request_completion(&mut server, &uri, 4, 8, 10);
+        assert!(
+            completion.response().unwrap().contains("\"result\":[]"),
+            "{}",
+            completion.response().unwrap()
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn module_path_segments_navigate_as_one_resolved_namespace() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

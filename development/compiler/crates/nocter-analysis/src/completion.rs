@@ -4,7 +4,8 @@ use std::fmt;
 use nocter_checking::{
     BodyScope, CheckedOperation, CheckedProgram, ConstructionCompletionError,
     MemberCompletionContext, MemberCompletionError, MemberCompletionTarget, NameTarget,
-    PreparedSemanticProgram, ReceiverPreparation, TypedBodyInterruptionKind,
+    PreparedSemanticProgram, ReceiverPreparation, StructuralFieldCompletionError,
+    TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -17,6 +18,7 @@ use crate::presentation::{name_recovery_presentation, prepared_presentation, pre
 use crate::source_context::{SourceContext, SourceContextError};
 
 mod construction;
+mod structural_fields;
 
 /// One compiler-selected name visible at an exact source position.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -66,6 +68,7 @@ pub enum SemanticCompletionError {
     SourceContext(SourceContextError),
     Member(MemberCompletionError),
     Construction(ConstructionCompletionError),
+    StructuralField(StructuralFieldCompletionError),
 }
 
 impl fmt::Display for SemanticCompletionError {
@@ -74,6 +77,7 @@ impl fmt::Display for SemanticCompletionError {
             Self::SourceContext(error) => error.fmt(formatter),
             Self::Member(error) => error.fmt(formatter),
             Self::Construction(error) => error.fmt(formatter),
+            Self::StructuralField(error) => error.fmt(formatter),
         }
     }
 }
@@ -84,6 +88,7 @@ impl std::error::Error for SemanticCompletionError {
             Self::SourceContext(error) => Some(error),
             Self::Member(error) => Some(error),
             Self::Construction(error) => Some(error),
+            Self::StructuralField(error) => Some(error),
         }
     }
 }
@@ -103,6 +108,12 @@ impl From<MemberCompletionError> for SemanticCompletionError {
 impl From<ConstructionCompletionError> for SemanticCompletionError {
     fn from(error: ConstructionCompletionError) -> Self {
         Self::Construction(error)
+    }
+}
+
+impl From<StructuralFieldCompletionError> for SemanticCompletionError {
+    fn from(error: StructuralFieldCompletionError) -> Self {
+        Self::StructuralField(error)
     }
 }
 
@@ -190,6 +201,16 @@ impl AnalysisSnapshot {
             program: checked, ..
         } = program
         {
+            if let Some(completions) = structural_fields::checked_completions(
+                checked,
+                index,
+                self.syntax_trees(),
+                source,
+                offset,
+                module,
+            )? {
+                return Ok(completions);
+            }
             if let Some(completions) =
                 construction::checked_completions(checked, index, source, offset, module)?
             {
@@ -289,6 +310,17 @@ fn interrupted_completions(
             Ok(Some(construction::render_prepared_completions(
                 recovery.prepared(),
                 &spellings,
+                &candidates,
+            )))
+        }
+        TypedBodyInterruptionKind::StructuralConstruction { .. } => {
+            let Some(candidates) = recovery.interrupted_structural_field_completions(module) else {
+                return Ok(None);
+            };
+            let candidates = candidates?;
+            Ok(Some(structural_fields::render_prepared_completions(
+                recovery.prepared(),
+                module,
                 &candidates,
             )))
         }

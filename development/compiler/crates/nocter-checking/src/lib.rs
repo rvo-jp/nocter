@@ -30,6 +30,7 @@ mod recovery;
 mod standard_semantics;
 #[cfg(test)]
 mod standard_semantics_tests;
+mod structural_field_completion;
 mod syntax;
 #[cfg(test)]
 mod target_tests;
@@ -120,6 +121,9 @@ pub use preparation::{
 };
 pub use recovery::{BodyAnalysisRecovery, SemanticAnalysisRecovery};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
+pub use structural_field_completion::{
+    StructuralFieldCompletionCandidate, StructuralFieldCompletionError,
+};
 pub use type_relations::{TypeSubstitution, is_concrete_type};
 pub use type_validity::{
     DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,

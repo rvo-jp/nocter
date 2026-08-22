@@ -206,3 +206,13 @@ repair incomplete arguments or synthesize a member. Complete, body-failed, and s
 generations therefore converge on the same selection authority. Selection-table disagreement is a
 typed completion error and becomes an internal LSP error rather than silently falling back to name
 completion.
+
+Structural-field completion is another construction-owned query, not lexical name completion.
+For a complete body, the checked aggregate supplies its nominal identity and initialized field
+identities. When incomplete or invalid construction stops body checking, a
+`StructuralConstruction` interruption retains only the nominal identity and field identities
+resolved before that failure. Both paths subtract those identities from the construction table's
+use-site structural entry, preserving field declaration order and the ordinary visibility
+boundary. The CST selects the containing initializer range but never supplies a type or field
+spelling. A structurally inaccessible type therefore produces no field candidates, and an empty
+result inside a complete initializer does not fall back to unrelated lexical names.

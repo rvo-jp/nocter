@@ -11,7 +11,10 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_structural_field};
 use crate::syntax::{direct_child, direct_children, direct_identifier, direct_nodes};
-use crate::{AggregateConstruction, CheckedOperation, TypePosition, validate_type};
+use crate::{
+    AggregateConstruction, CheckedOperation, TypePosition, TypedBodyInterruption,
+    TypedBodyInterruptionKind, validate_type,
+};
 
 struct StructFieldDraft {
     field: nocter_model::FieldId,
@@ -96,18 +99,18 @@ impl BodyChecker<'_, '_> {
         let Some(declared_fields) = structural_fields.map(<[nocter_model::FieldId]>::to_vec) else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);
         };
-        let initializer = direct_child(self.tree(), node, NodeKind::StructInitializer)
+        let struct_initializer = direct_child(self.tree(), node, NodeKind::StructInitializer)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let initializers = direct_children(self.tree(), initializer, NodeKind::FieldInitializer);
-        if initializers.len() != declared_fields.len() {
-            return Err(self.rule(BodyRule::InvalidConstruction, initializer)?);
-        }
+        let initializers =
+            direct_children(self.tree(), struct_initializer, NodeKind::FieldInitializer);
+        self.record_structural_interruption(struct_initializer, definition, &[])?;
 
-        let mut selected = Vec::with_capacity(initializers.len());
+        let mut selected: Vec<StructFieldDraft> = Vec::with_capacity(initializers.len());
+        let mut initialized = Vec::with_capacity(initializers.len());
         let mut seen = HashSet::new();
-        for initializer in initializers {
-            let token = direct_identifier(self.tree(), initializer)
-                .ok_or(BodyCheckInternalError::InvalidSyntax(initializer))?;
+        for field_initializer in initializers {
+            let token = direct_identifier(self.tree(), field_initializer)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(field_initializer))?;
             let name = self.segment_symbol(token)?;
             let field = self
                 .construction_surfaces
@@ -131,8 +134,10 @@ impl BodyChecker<'_, '_> {
                 }
                 Err(_) => return Err(BodyCheckInternalError::FieldSelection.into()),
             };
-            let expression = direct_child(self.tree(), initializer, NodeKind::Expression)
-                .ok_or(BodyCheckInternalError::InvalidSyntax(initializer))?;
+            initialized.push(field.field());
+            self.record_structural_interruption(struct_initializer, definition, &initialized)?;
+            let expression = direct_child(self.tree(), field_initializer, NodeKind::Expression)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(field_initializer))?;
             self.project_field_token(token, field.field())?;
             selected.push(StructFieldDraft {
                 field: field.field(),
@@ -143,10 +148,29 @@ impl BodyChecker<'_, '_> {
         if seen.len() != declared_fields.len()
             || declared_fields.iter().any(|field| !seen.contains(field))
         {
-            return Err(self.rule(BodyRule::InvalidConstruction, initializer)?);
+            return Err(self.rule(BodyRule::InvalidConstruction, struct_initializer)?);
         }
 
         Ok(selected)
+    }
+
+    fn record_structural_interruption(
+        &mut self,
+        syntax: NodeId,
+        definition: nocter_model::NominalTypeId,
+        fields: &[nocter_model::FieldId],
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_node(self.tree(), syntax)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::StructuralConstruction {
+                definition,
+                initialized: fields.into(),
+            },
+        ));
+        Ok(())
     }
 
     pub(super) fn check_array_literal(

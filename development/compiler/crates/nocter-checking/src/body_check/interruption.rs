@@ -1,4 +1,4 @@
-use nocter_model::{BodyId, BorrowCapability, TypeId};
+use nocter_model::{BodyId, BorrowCapability, FieldId, NominalTypeId, TypeId};
 use nocter_source_index::SourceOrigin;
 
 use crate::ConstructionCompletionOwner;
@@ -7,7 +7,7 @@ use crate::ConstructionCompletionOwner;
 ///
 /// This value is not a partially successful checked node. It records only facts that were fixed
 /// before the rule failure and can therefore be consumed by tooling without inventing semantics.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedBodyInterruption {
     body: BodyId,
     origin: SourceOrigin,
@@ -24,23 +24,23 @@ impl TypedBodyInterruption {
     }
 
     #[must_use]
-    pub const fn body(self) -> BodyId {
+    pub const fn body(&self) -> BodyId {
         self.body
     }
 
     #[must_use]
-    pub const fn origin(self) -> SourceOrigin {
+    pub const fn origin(&self) -> SourceOrigin {
         self.origin
     }
 
     #[must_use]
-    pub const fn kind(self) -> TypedBodyInterruptionKind {
-        self.kind
+    pub const fn kind(&self) -> &TypedBodyInterruptionKind {
+        &self.kind
     }
 }
 
 /// Phase-owned typed contexts that remain valid when a body rule rejects source.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypedBodyInterruptionKind {
     MemberSelection {
         receiver: TypeId,
@@ -49,5 +49,9 @@ pub enum TypedBodyInterruptionKind {
     },
     ConstructionSelection {
         owner: ConstructionCompletionOwner,
+    },
+    StructuralConstruction {
+        definition: NominalTypeId,
+        initialized: Box<[FieldId]>,
     },
 }

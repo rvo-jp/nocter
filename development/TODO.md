@@ -153,6 +153,13 @@ implementation input.
    syntax. Visibility and declaration order remain table-owned, while an owner with no named surface
    returns an ordinary empty result. Selection inconsistencies are typed internal completion errors
    rather than a fallback to unrelated lexical names.
+   Structural-field completion now follows the same authority boundary. The body checker retains
+   the resolved nominal type and already initialized field identities when an incomplete
+   initializer rejects the generation. Complete aggregates and failed generations both subtract
+   those identities from the construction table's use-site structural entry. Declaration order and
+   visibility remain compiler-owned; the LSP adapter neither scans field declarations nor infers a
+   type from initializer text. Complete, body-failed, and syntax-incomplete initializer states are
+   covered by protocol tests.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass
