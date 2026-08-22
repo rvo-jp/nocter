@@ -28,6 +28,16 @@ pub use model::{
 };
 use resolver::BodyNameResolver;
 
+pub(crate) struct PartialNameResolution {
+    pub(crate) bodies: Arena<BodyId, ResolvedBodyNames>,
+    pub(crate) source_index: SourceIndex,
+}
+
+pub(crate) struct RecoveringNameResolutionError {
+    pub(crate) error: Box<NameResolutionError>,
+    pub(crate) recovery: Option<Box<PartialNameResolution>>,
+}
+
 /// Complete temporary name-resolution product plus the extended source projection.
 #[derive(Debug)]
 pub struct NameResolution<'syntax> {
@@ -220,33 +230,106 @@ pub(crate) fn resolve_cataloged_body_names<'syntax>(
     source_index: SourceIndex,
     catalog: BodySourceCatalog<'syntax>,
 ) -> Result<NameResolution<'syntax>, NameResolutionError> {
-    let import_targets = block_import_targets(input, graph, &source_index)?;
+    resolve_cataloged_body_names_recovering(input, graph, source_index, catalog)
+        .map_err(|failure| *failure.error)
+}
+
+pub(crate) fn resolve_cataloged_body_names_recovering<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
+    source_index: SourceIndex,
+    catalog: BodySourceCatalog<'syntax>,
+) -> Result<NameResolution<'syntax>, RecoveringNameResolutionError> {
+    resolve_cataloged_body_names_active(input, graph, source_index, catalog)
+}
+
+fn resolve_cataloged_body_names_active<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
+    source_index: SourceIndex,
+    catalog: BodySourceCatalog<'syntax>,
+) -> Result<NameResolution<'syntax>, RecoveringNameResolutionError> {
+    let import_targets = block_import_targets(input, graph, &source_index).map_err(|error| {
+        RecoveringNameResolutionError {
+            error: Box::new(error.into()),
+            recovery: None,
+        }
+    })?;
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
 
     for source in catalog.iter() {
-        let resolved = BodyNameResolver::new(input, graph, &source_index, &import_targets, source)
-            .resolve()?;
         let expected = source.body();
+        let resolved =
+            match BodyNameResolver::new(input, graph, &source_index, &import_targets, source)
+                .resolve_recovering()
+            {
+                Ok(resolved) => resolved,
+                Err(failure) => {
+                    let recovery = if let Some(partial) = failure.partial {
+                        let actual = bodies.insert(partial.body);
+                        if actual != expected {
+                            return Err(RecoveringNameResolutionError {
+                                error: Box::new(
+                                    NameResolutionInternalError::InvalidBodyOwner(expected).into(),
+                                ),
+                                recovery: None,
+                            });
+                        }
+                        projections.extend(partial.projections);
+                        let source_index = extend_name_source_index(source_index, projections)
+                            .map_err(|error| RecoveringNameResolutionError {
+                                error: Box::new(error.into()),
+                                recovery: None,
+                            })?;
+                        Some(Box::new(PartialNameResolution {
+                            bodies: bodies.finish(),
+                            source_index,
+                        }))
+                    } else {
+                        None
+                    };
+                    return Err(RecoveringNameResolutionError {
+                        error: failure.error,
+                        recovery,
+                    });
+                }
+            };
         let actual = bodies.insert(resolved.body);
         if actual != expected {
-            return Err(NameResolutionInternalError::InvalidBodyOwner(expected).into());
+            return Err(RecoveringNameResolutionError {
+                error: Box::new(NameResolutionInternalError::InvalidBodyOwner(expected).into()),
+                recovery: None,
+            });
         }
         projections.extend(resolved.projections);
     }
 
+    let source_index = extend_name_source_index(source_index, projections).map_err(|error| {
+        RecoveringNameResolutionError {
+            error: Box::new(error.into()),
+            recovery: None,
+        }
+    })?;
+
+    Ok(NameResolution {
+        body_sources: catalog,
+        bodies: bodies.finish(),
+        source_index,
+    })
+}
+
+fn extend_name_source_index(
+    source_index: SourceIndex,
+    projections: Vec<Projection>,
+) -> Result<SourceIndex, NameResolutionInternalError> {
     let mut source_index = source_index.into_builder();
     for projection in projections {
         source_index
             .insert(projection.entity, projection.role, projection.origin)
             .map_err(NameResolutionInternalError::from)?;
     }
-
-    Ok(NameResolution {
-        body_sources: catalog,
-        bodies: bodies.finish(),
-        source_index: source_index.finish(),
-    })
+    Ok(source_index.finish())
 }
 
 pub(super) struct Projection {

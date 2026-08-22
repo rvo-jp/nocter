@@ -665,6 +665,48 @@ mod tests {
     }
 
     #[test]
+    fn completion_retains_only_current_scopes_before_a_name_error() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func latest(): i32 { 1 }\n",
+            "func main(subject: i32): void {\n",
+            "    let visible = subject\n",
+            "    unresolved\n",
+            "    let hidden = subject\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":8}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(response.contains("\"label\":\"latest\""), "{response}");
+        assert!(response.contains("\"label\":\"subject\""), "{response}");
+        assert!(response.contains("\"label\":\"visible\""), "{response}");
+        assert!(!response.contains("\"label\":\"hidden\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn completion_uses_checked_receiver_selection_for_methods() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

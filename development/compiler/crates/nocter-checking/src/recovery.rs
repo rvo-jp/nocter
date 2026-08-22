@@ -6,6 +6,31 @@ use crate::{
     PreparedSemanticProgram, TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
+/// The exact semantic stage retained by one failed editor analysis generation.
+#[derive(Debug)]
+pub enum SemanticAnalysisRecovery {
+    Names(Box<crate::NameAnalysisRecovery>),
+    Bodies(Box<BodyAnalysisRecovery>),
+}
+
+impl SemanticAnalysisRecovery {
+    #[must_use]
+    pub fn names(&self) -> Option<&crate::NameAnalysisRecovery> {
+        match self {
+            Self::Names(recovery) => Some(recovery.as_ref()),
+            Self::Bodies(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn bodies(&self) -> Option<&BodyAnalysisRecovery> {
+        match self {
+            Self::Bodies(recovery) => Some(recovery.as_ref()),
+            Self::Names(_) => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct TypedInterruptionSnapshot {
     interruption: TypedBodyInterruption,

@@ -7,7 +7,10 @@ use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
-use super::{CaptureMode, LocalBindingKind, NameTarget, resolve_body_names};
+use super::{
+    CaptureMode, LocalBindingKind, NameTarget, resolve_body_names,
+    resolve_cataloged_body_names_recovering,
+};
 
 #[test]
 fn lexical_identities_cover_scopes_and_explicit_capture_projection() {
@@ -101,6 +104,40 @@ fn binding_initializer_cannot_see_the_binding_being_declared() {
     let error = resolve_body_names(&input, program.graph(), source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0340");
+}
+
+#[test]
+fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
+    let fixture = Fixture::new(
+        "func main(input: i32): void {\n    let before = input\n    unknown\n    let after = input\n    return\n}\n",
+        "",
+    );
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let catalog = crate::catalog_body_sources(&input, program.graph(), &source_index).unwrap();
+    let failure =
+        resolve_cataloged_body_names_recovering(&input, program.graph(), source_index, catalog)
+            .unwrap_err();
+
+    assert_eq!(failure.error.source_diagnostic().unwrap().code(), "E0340");
+    let recovery = failure.recovery.unwrap();
+    let (_, body) = recovery.bodies.iter().next().unwrap();
+    let names = body
+        .scopes()
+        .iter()
+        .flat_map(|(_, scope)| scope.bindings())
+        .filter_map(|binding| program.graph().symbols().spelling(binding.name()))
+        .collect::<Vec<_>>();
+    assert!(names.contains(&"input"));
+    assert!(names.contains(&"before"));
+    assert!(!names.contains(&"after"));
+    assert!(body.scopes().iter().all(|(scope, _)| {
+        !recovery
+            .source_index
+            .bindings_for(SemanticEntity::BodyScope(body.body(), scope))
+            .is_empty()
+    }));
 }
 
 #[test]

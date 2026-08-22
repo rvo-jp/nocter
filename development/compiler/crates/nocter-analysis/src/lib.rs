@@ -66,12 +66,12 @@ enum AnalysisState {
     DiscoveryFailed(DiscoveryFailure),
     SyntaxFailed {
         unit: DiscoveredUnit,
-        recovery: Option<Box<nocter_checking::BodyAnalysisRecovery>>,
+        recovery: Option<Box<nocter_checking::SemanticAnalysisRecovery>>,
     },
     CompilationFailed {
         unit: DiscoveredUnit,
         error: CompileSessionError,
-        recovery: Option<Box<nocter_checking::BodyAnalysisRecovery>>,
+        recovery: Option<Box<nocter_checking::SemanticAnalysisRecovery>>,
     },
     Complete {
         unit: DiscoveredUnit,
@@ -111,7 +111,11 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
-            let recovery = analyze_incomplete_syntax(&unit).map(Box::new);
+            let recovery = analyze_incomplete_syntax(&unit)
+                .map(|recovery| {
+                    nocter_checking::SemanticAnalysisRecovery::Bodies(Box::new(recovery))
+                })
+                .map(Box::new);
             return Self {
                 generation,
                 diagnostics: unit.syntax_diagnostics(),
@@ -230,6 +234,7 @@ impl AnalysisSnapshot {
             AnalysisState::SyntaxFailed { recovery, .. }
             | AnalysisState::CompilationFailed { recovery, .. } => recovery
                 .as_deref()
+                .and_then(nocter_checking::SemanticAnalysisRecovery::bodies)
                 .map(nocter_checking::BodyAnalysisRecovery::prepared),
             AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
         }
@@ -238,8 +243,21 @@ impl AnalysisSnapshot {
     pub(crate) fn body_recovery(&self) -> Option<&nocter_checking::BodyAnalysisRecovery> {
         match &self.state {
             AnalysisState::SyntaxFailed { recovery, .. }
-            | AnalysisState::CompilationFailed { recovery, .. } => recovery.as_deref(),
+            | AnalysisState::CompilationFailed { recovery, .. } => recovery
+                .as_deref()
+                .and_then(nocter_checking::SemanticAnalysisRecovery::bodies),
             AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
+        }
+    }
+
+    pub(crate) fn name_recovery(&self) -> Option<&nocter_checking::NameAnalysisRecovery> {
+        match &self.state {
+            AnalysisState::CompilationFailed { recovery, .. } => recovery
+                .as_deref()
+                .and_then(nocter_checking::SemanticAnalysisRecovery::names),
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
+            | AnalysisState::Complete { .. } => None,
         }
     }
 

@@ -100,7 +100,13 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     assert!(!prepared.graph().declarations().callables().is_empty());
     assert!(!prepared.body_names().is_empty());
     assert!(!prepared.source_index().is_empty());
-    let interruption = failure.recovery().unwrap().interruption().unwrap();
+    let interruption = failure
+        .recovery()
+        .unwrap()
+        .bodies()
+        .unwrap()
+        .interruption()
+        .unwrap();
     assert_eq!(
         interruption.origin().span(),
         failure
@@ -114,6 +120,33 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
         interruption.kind(),
         nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
     ));
+}
+
+#[test]
+fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "func main(input: i32): void {\n    let before = input\n    unknown\n    let after = input\n    return\n}\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let failure = analyze_target(&unit).unwrap_err();
+    assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0340");
+    assert!(failure.prepared().is_none());
+    let recovery = failure.recovery().unwrap().names().unwrap();
+    assert!(!recovery.graph().declarations().callables().is_empty());
+    assert!(!recovery.body_names().is_empty());
+    assert!(!recovery.source_index().is_empty());
 }
 
 #[test]

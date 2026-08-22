@@ -137,5 +137,10 @@ remain the snapshot's public failure; ordinary body checking stops on the explic
 node and may retain only facts fixed before it. This supports `value.` completion without inserting
 a synthetic identifier or compiling modified source.
 
-Completion after name-resolution failure remains open. It requires an explicit name-resolution
-snapshot and may not be approximated by editor-side token, spelling, or stale-snapshot lookup.
+When lexical name resolution rejects authored source, its editor-only entry may freeze one
+`NameAnalysisRecovery`. The value contains the declaration graph and type store together with only
+the body scopes, bindings, and source projections completed before the rule failed. The unresolved
+spelling receives no synthetic target, later statements are absent, and the value cannot enter body
+checking. Name completion can therefore use the exact current generation without editor-side token
+lookup or a stale successful snapshot. This recovery stage is distinct from the complete pre-body
+stage retained after a typed-body failure.

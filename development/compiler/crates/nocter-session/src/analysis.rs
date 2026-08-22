@@ -1,6 +1,7 @@
 use nocter_checking::{
-    BodyAnalysisRecovery, PreparedSemanticProgram, check_prepared_program,
-    check_prepared_program_recovering, prepare_program_checking,
+    BodyAnalysisRecovery, PreparedSemanticProgram, SemanticAnalysisRecovery,
+    check_prepared_program, check_prepared_program_recovering, prepare_program_checking,
+    prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
     lower_compile_unit_declarations, lower_incomplete_body_declarations,
@@ -14,11 +15,11 @@ use crate::{CompileSessionError, CompiledTarget};
 #[derive(Debug)]
 pub struct CompileTargetFailure {
     error: CompileSessionError,
-    recovery: Option<Box<BodyAnalysisRecovery>>,
+    recovery: Option<Box<SemanticAnalysisRecovery>>,
 }
 
 impl CompileTargetFailure {
-    fn new(error: CompileSessionError, recovery: Option<BodyAnalysisRecovery>) -> Self {
+    fn new(error: CompileSessionError, recovery: Option<SemanticAnalysisRecovery>) -> Self {
         Self {
             error,
             recovery: recovery.map(Box::new),
@@ -32,16 +33,18 @@ impl CompileTargetFailure {
 
     #[must_use]
     pub fn prepared(&self) -> Option<&PreparedSemanticProgram> {
-        self.recovery().map(BodyAnalysisRecovery::prepared)
+        self.recovery()
+            .and_then(SemanticAnalysisRecovery::bodies)
+            .map(BodyAnalysisRecovery::prepared)
     }
 
     #[must_use]
-    pub fn recovery(&self) -> Option<&BodyAnalysisRecovery> {
+    pub fn recovery(&self) -> Option<&SemanticAnalysisRecovery> {
         self.recovery.as_deref()
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (CompileSessionError, Option<BodyAnalysisRecovery>) {
+    pub fn into_parts(self) -> (CompileSessionError, Option<SemanticAnalysisRecovery>) {
         (self.error, self.recovery.map(|recovery| *recovery))
     }
 
@@ -108,14 +111,27 @@ fn analyze_target_internal(
         .map_err(without_prepared)
         .map_err(Box::new)?;
     let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index)
-        .map_err(CompileSessionError::from)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
+    let prepared = if retain_prepared {
+        prepare_program_checking_recovering(&input, program, source_index).map_err(|failure| {
+            let (error, recovery) = failure.into_parts();
+            Box::new(CompileTargetFailure::new(
+                error.into(),
+                recovery.map(|recovery| SemanticAnalysisRecovery::Names(Box::new(recovery))),
+            ))
+        })?
+    } else {
+        prepare_program_checking(&input, program, source_index)
+            .map_err(CompileSessionError::from)
+            .map_err(without_prepared)
+            .map_err(Box::new)?
+    };
     let checked = if retain_prepared {
         check_prepared_program_recovering(&input, prepared).map_err(|failure| {
             let (error, recovery) = failure.into_parts();
-            Box::new(CompileTargetFailure::new(error.into(), recovery))
+            Box::new(CompileTargetFailure::new(
+                error.into(),
+                recovery.map(|recovery| SemanticAnalysisRecovery::Bodies(Box::new(recovery))),
+            ))
         })?
     } else {
         check_prepared_program(&input, prepared)

@@ -19,6 +19,7 @@ mod inference;
 mod instance_operations;
 mod loans;
 mod member_completion;
+mod name_recovery;
 mod names;
 mod ownership;
 mod pattern_requirements;
@@ -100,6 +101,7 @@ pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
     MemberCompletionTarget,
 };
+pub use name_recovery::NameAnalysisRecovery;
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,
@@ -107,9 +109,10 @@ pub use names::{
 };
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
-    PreparationError, PreparedChecking, PreparedSemanticProgram, prepare_program_checking,
+    PreparationError, PreparationFailure, PreparedChecking, PreparedSemanticProgram,
+    prepare_program_checking, prepare_program_checking_recovering,
 };
-pub use recovery::BodyAnalysisRecovery;
+pub use recovery::{BodyAnalysisRecovery, SemanticAnalysisRecovery};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use type_relations::{TypeSubstitution, is_concrete_type};
 pub use type_validity::{

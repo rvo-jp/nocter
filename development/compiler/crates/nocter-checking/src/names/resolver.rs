@@ -27,6 +27,11 @@ pub(super) struct ResolvedBody {
     pub(super) projections: Vec<Projection>,
 }
 
+pub(super) struct BodyResolutionFailure {
+    pub(super) error: Box<NameResolutionError>,
+    pub(super) partial: Option<Box<ResolvedBody>>,
+}
+
 #[derive(Clone, Copy)]
 struct ActiveBinding {
     target: NameTarget,
@@ -99,7 +104,21 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         }
     }
 
-    pub(super) fn resolve(mut self) -> Result<ResolvedBody, NameResolutionError> {
+    pub(super) fn resolve_recovering(mut self) -> Result<ResolvedBody, BodyResolutionFailure> {
+        match self.resolve_active() {
+            Ok(()) => Ok(self.finish()),
+            Err(error) => {
+                let partial =
+                    matches!(error, NameResolutionError::Rule(_)).then(|| Box::new(self.finish()));
+                Err(BodyResolutionFailure {
+                    error: Box::new(error),
+                    partial,
+                })
+            }
+        }
+    }
+
+    fn resolve_active(&mut self) -> Result<(), NameResolutionError> {
         let root_scope = self.push_scope(None);
         self.record_block_scope(self.source.block(), root_scope)?;
         self.callable_boundaries.push(0);
@@ -113,7 +132,11 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         if !self.active.is_empty() || !self.callable_boundaries.is_empty() {
             return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.block()).into());
         }
-        Ok(ResolvedBody {
+        Ok(())
+    }
+
+    fn finish(self) -> ResolvedBody {
+        ResolvedBody {
             body: ResolvedBodyNames::new(
                 self.source.body(),
                 self.scopes.finish(),
@@ -123,7 +146,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 self.uses,
             ),
             projections: self.projections,
-        })
+        }
     }
 
     fn run(&mut self, mut actions: Vec<Action>) -> Result<(), NameResolutionError> {

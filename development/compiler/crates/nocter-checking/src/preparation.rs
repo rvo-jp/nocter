@@ -6,7 +6,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names};
+use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
     ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
@@ -228,6 +228,43 @@ pub enum PreparationError {
     NameResolution(NameResolutionError),
 }
 
+/// A preparation failure with an optional current-generation lexical recovery snapshot.
+#[derive(Debug)]
+pub struct PreparationFailure {
+    error: PreparationError,
+    recovery: Option<Box<crate::NameAnalysisRecovery>>,
+}
+
+impl PreparationFailure {
+    fn new(error: PreparationError, recovery: Option<crate::NameAnalysisRecovery>) -> Self {
+        Self {
+            error,
+            recovery: recovery.map(Box::new),
+        }
+    }
+
+    #[must_use]
+    pub const fn error(&self) -> &PreparationError {
+        &self.error
+    }
+
+    #[must_use]
+    pub fn recovery(&self) -> Option<&crate::NameAnalysisRecovery> {
+        self.recovery.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (PreparationError, Option<crate::NameAnalysisRecovery>) {
+        (self.error, self.recovery.map(|recovery| *recovery))
+    }
+}
+
+impl From<PreparationError> for PreparationFailure {
+    fn from(error: PreparationError) -> Self {
+        Self::new(error, None)
+    }
+}
+
 impl PreparationError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
@@ -332,6 +369,30 @@ pub fn prepare_program_checking<'syntax>(
     program: DeclarationProgram,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
+    prepare_program_checking_internal(input, program, source_index, false)
+        .map_err(|failure| failure.error)
+}
+
+/// Prepares the ordinary checking input while retaining partial lexical state on a name rule.
+///
+/// # Errors
+///
+/// Returns the exact preparation failure and a recovery snapshot only when lexical resolution
+/// completed explicit scopes and bindings before rejecting authored source.
+pub fn prepare_program_checking_recovering<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    program: DeclarationProgram,
+    source_index: SourceIndex,
+) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
+    prepare_program_checking_internal(input, program, source_index, true)
+}
+
+fn prepare_program_checking_internal<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    program: DeclarationProgram,
+    source_index: SourceIndex,
+    retain_names: bool,
+) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
     let toolchain = input
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
@@ -339,21 +400,48 @@ pub fn prepare_program_checking<'syntax>(
         return Err(PreparationError::TargetMismatch {
             input: input.target(),
             program: program.target(),
-        });
+        }
+        .into());
     }
     let (graph, mut types) = program.into_parts();
     let body_sources = catalog_body_sources(input, &graph, &source_index)
         .map_err(NameResolutionInternalError::from)
-        .map_err(NameResolutionError::from)?;
-    validate_declaration_types(&graph, &types, &source_index)?;
-    let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)?;
-    let drops = DropTable::build(&graph, &types)?;
-    let conformances = build_conformance_table(&graph, &mut types, &source_index)?;
-    let construction_surfaces = ConstructionSurfaceTable::build(&graph, &types)?;
-    let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)?;
+        .map_err(NameResolutionError::from)
+        .map_err(PreparationError::from)?;
+    validate_declaration_types(&graph, &types, &source_index).map_err(PreparationError::from)?;
+    let copyabilities = CopyabilityTable::build(&graph, &mut types, &source_index)
+        .map_err(PreparationError::from)?;
+    let drops = DropTable::build(&graph, &types).map_err(PreparationError::from)?;
+    let conformances = build_conformance_table(&graph, &mut types, &source_index)
+        .map_err(PreparationError::from)?;
+    let construction_surfaces =
+        ConstructionSurfaceTable::build(&graph, &types).map_err(PreparationError::from)?;
+    let instance_operations = build_instance_operation_table(&graph, &mut types, &source_index)
+        .map_err(PreparationError::from)?;
     let standard_semantics =
-        StandardSemanticTable::build(toolchain.standard_roles(), &graph, &types, &source_index)?;
-    let resolution = resolve_cataloged_body_names(input, &graph, source_index, body_sources)?;
+        StandardSemanticTable::build(toolchain.standard_roles(), &graph, &types, &source_index)
+            .map_err(PreparationError::from)?;
+    let resolution =
+        match resolve_cataloged_body_names_recovering(input, &graph, source_index, body_sources) {
+            Ok(resolution) => resolution,
+            Err(failure) => {
+                let recovery = retain_names
+                    .then_some(failure.recovery)
+                    .flatten()
+                    .map(|partial| {
+                        crate::NameAnalysisRecovery::new(
+                            graph,
+                            types,
+                            partial.bodies,
+                            partial.source_index,
+                        )
+                    });
+                return Err(PreparationFailure::new(
+                    PreparationError::NameResolution(*failure.error),
+                    recovery,
+                ));
+            }
+        };
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
         graph,

@@ -43,7 +43,22 @@ pub(super) fn prepared_presentation(
     prepared: &nocter_checking::PreparedSemanticProgram,
     entity: SemanticEntity,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(prepared.graph(), prepared.types());
+    semantic_presentation(prepared.graph(), prepared.types(), entity)
+}
+
+pub(super) fn name_recovery_presentation(
+    recovery: &nocter_checking::NameAnalysisRecovery,
+    entity: SemanticEntity,
+) -> Option<SemanticPresentation> {
+    semantic_presentation(recovery.graph(), recovery.types(), entity)
+}
+
+fn semantic_presentation(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    entity: SemanticEntity,
+) -> Option<SemanticPresentation> {
+    let mut renderer = Renderer::new(graph, types);
     renderer.entity(None, entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),

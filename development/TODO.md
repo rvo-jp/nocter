@@ -124,8 +124,11 @@ implementation input.
    executable block. Declaration/header syntax therefore cannot cross it. Syntax diagnostics stay
    authoritative while missing/error body nodes stop normal checking and expose only the exact
    typed interruption reached before them. Production compile input still rejects every syntax
-   error. Completion after name-resolution failure remains; it may not use token guesses or a
-   stale successful snapshot.
+   error. A name rule now retains a distinct lexical recovery snapshot containing only declaration
+   state plus scopes, bindings, and source projections completed before the failure. It invents no
+   target for the failing spelling and cannot be consumed as body-checking input. Name completion
+   uses that exact failed generation, so neither later bindings nor stale successful state can leak
+   into its candidates. The editor completion recovery boundary is closed.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

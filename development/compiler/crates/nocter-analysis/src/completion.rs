@@ -10,7 +10,7 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::presentation::{prepared_presentation, presentation};
+use crate::presentation::{name_recovery_presentation, prepared_presentation, presentation};
 
 /// One compiler-selected name visible at an exact source position.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,6 +64,7 @@ enum CompletionProgram<'a> {
         index: &'a SourceIndex,
     },
     Prepared(&'a PreparedSemanticProgram),
+    Names(&'a nocter_checking::NameAnalysisRecovery),
 }
 
 impl<'a> CompletionProgram<'a> {
@@ -71,6 +72,7 @@ impl<'a> CompletionProgram<'a> {
         match self {
             Self::Checked { program, .. } => program.graph(),
             Self::Prepared(program) => program.graph(),
+            Self::Names(program) => program.graph(),
         }
     }
 
@@ -78,6 +80,7 @@ impl<'a> CompletionProgram<'a> {
         match self {
             Self::Checked { index, .. } => index,
             Self::Prepared(program) => program.source_index(),
+            Self::Names(program) => program.source_index(),
         }
     }
 
@@ -85,6 +88,7 @@ impl<'a> CompletionProgram<'a> {
         match self {
             Self::Checked { program, .. } => program.bodies().get(body)?.scopes().get(scope),
             Self::Prepared(program) => program.body_names().get(body)?.scopes().get(scope),
+            Self::Names(program) => program.body_names().get(body)?.scopes().get(scope),
         }
     }
 
@@ -92,6 +96,7 @@ impl<'a> CompletionProgram<'a> {
         match self {
             Self::Checked { program, .. } => presentation(program, entity),
             Self::Prepared(program) => prepared_presentation(program, entity),
+            Self::Names(program) => name_recovery_presentation(program, entity),
         }
         .map(|presentation| Box::<str>::from(presentation.code()))
     }
@@ -116,6 +121,8 @@ impl AnalysisSnapshot {
             }
         } else if let Some(prepared) = self.prepared_semantics() {
             CompletionProgram::Prepared(prepared)
+        } else if let Some(recovery) = self.name_recovery() {
+            CompletionProgram::Names(recovery)
         } else {
             return Box::new([]);
         };
