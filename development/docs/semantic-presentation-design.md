@@ -48,6 +48,15 @@ The renderer owns:
 - canonical structural type spelling and required grouping;
 - explicit result-provenance clauses only.
 
+Nominal hover additionally consumes `ConstructionSurfaceTable::visible_surface` with the module
+that owns the hovered source occurrence. That query is the common ordered authority for structural
+construction, variants, construct members, visibility, and default identity. Presentation does not
+scan nominal or construct declarations to decide membership. It renders the selected structural or
+variant subset in the nominal declaration and selected authored members in a bodyless, unqualified
+`construct Type { ... }` block. Exact construction-target occurrences become `Self` recursively in
+member results. Private raw construction and members outside the requesting module's normalized
+visibility boundary are absent.
+
 Declaration lowering also owns the exact interactive anchor for every declaration identity. Named
 declarations use their name token; coercions use `as`; equality and ordering use `==` and `<`;
 indexing uses `[`; expansion uses `...`; literal declarations use their compact literal shape; and

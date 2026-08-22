@@ -72,6 +72,7 @@ impl<'a> Renderer<'a> {
             generics: Some(generics),
             record_parameters: true,
             parameter_ranges: Vec::new(),
+            self_type: None,
         }
     }
 
@@ -86,6 +87,7 @@ impl<'a> Renderer<'a> {
             generics: None,
             record_parameters: true,
             parameter_ranges: Vec::new(),
+            self_type: None,
         }
     }
 

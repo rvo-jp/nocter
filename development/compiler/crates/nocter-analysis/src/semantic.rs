@@ -2,7 +2,7 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::presentation::{SemanticPresentation, presentation};
+use crate::presentation::{SemanticPresentation, hover_presentation};
 
 /// One exact interactive source occurrence selected independently of presentation or protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,7 +96,8 @@ impl AnalysisSnapshot {
         let checked = self.target()?.program().checked();
         let index = self.source_index()?;
         let binding = selected_binding(index, source, offset)?;
-        let presentation = presentation(checked, binding.entity())?;
+        let from = source_module(index, source)?;
+        let presentation = hover_presentation(checked, binding.entity(), from)?;
         Some(SemanticSubject {
             entity: binding.entity(),
             role: binding.role(),
@@ -105,6 +106,18 @@ impl AnalysisSnapshot {
             documentation: index.documentation_for(binding).map(Box::from),
         })
     }
+}
+
+fn source_module(
+    index: &nocter_source_index::SourceIndex,
+    source: SourceId,
+) -> Option<nocter_model::ModuleId> {
+    index.bindings_in(source).find_map(|binding| {
+        let SemanticEntity::Module(module) = binding.entity() else {
+            return None;
+        };
+        Some(module)
+    })
 }
 
 fn selected_binding(

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape,
+    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape, Visibility,
 };
 use nocter_model::{
     CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId, Symbol, TypeId, TypeStore,
@@ -24,6 +24,39 @@ struct ConstructionSurface {
 struct StructuralSurface {
     fields: Box<[FieldId]>,
     by_name: BTreeMap<Symbol, FieldId>,
+}
+
+/// One visible entry in the compiler-owned construction surface of a nominal type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VisibleConstructionEntry {
+    Structural,
+    Variant(VariantId),
+    Callable(CallableId),
+}
+
+/// The ordered construction API visible from one exact module.
+#[derive(Debug, Eq, PartialEq)]
+pub struct VisibleConstructionSurface {
+    declaration: Option<ConstructionId>,
+    entries: Box<[VisibleConstructionEntry]>,
+    default: Option<usize>,
+}
+
+impl VisibleConstructionSurface {
+    #[must_use]
+    pub const fn declaration(&self) -> Option<ConstructionId> {
+        self.declaration
+    }
+
+    #[must_use]
+    pub const fn entries(&self) -> &[VisibleConstructionEntry] {
+        &self.entries
+    }
+
+    #[must_use]
+    pub fn is_default(&self, index: usize) -> bool {
+        self.default == Some(index)
+    }
 }
 
 impl ConstructionSurface {
@@ -161,6 +194,100 @@ impl ConstructionSurfaceTable {
         InherentTypeFamily::of(types, ty)
             .and_then(|family| self.by_family.get(&family))
             .and_then(|surface| surface.declaration)
+    }
+
+    /// Selects the complete non-private construction surface visible from one module.
+    ///
+    /// The result preserves declaration order. Structural construction is first, followed by
+    /// intrinsic variants and authored construct members. The default is an explicit fact rather
+    /// than an ordering convention, so hover and completion can choose their own layout without
+    /// reconstructing the surface.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the prepared table and declaration graph disagree.
+    pub fn visible_surface(
+        &self,
+        graph: &DeclarationGraph,
+        nominal: NominalTypeId,
+        from: ModuleId,
+    ) -> Result<VisibleConstructionSurface, ConstructionSurfaceSelectionError> {
+        let surface = self
+            .by_family
+            .get(&InherentTypeFamily::Nominal(nominal))
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        let nominal_declaration = graph
+            .declarations()
+            .nominal_types()
+            .get(nominal)
+            .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
+        let construction = surface
+            .declaration
+            .map(|id| {
+                graph
+                    .declarations()
+                    .constructions()
+                    .get(id)
+                    .map(|declaration| (id, declaration))
+                    .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(id))
+            })
+            .transpose()?;
+        let structural_enabled = construction.is_none_or(|(_, declaration)| {
+            declaration.default_member().is_none() && !declaration.members().is_empty()
+        });
+        let mut entries = Vec::new();
+        let mut default = None;
+
+        if structural_enabled && let Some(structural) = surface.structural.as_ref() {
+            let mut visible = true;
+            for field in structural.fields.iter().copied() {
+                visible &= public_field_is_visible(graph, nominal, field, from)?;
+            }
+            if visible {
+                default = Some(entries.len());
+                entries.push(VisibleConstructionEntry::Structural);
+            }
+        }
+
+        if let NominalShape::Enum { variants } = nominal_declaration.shape() {
+            for variant in variants.iter().copied() {
+                let declaration = graph
+                    .declarations()
+                    .variants()
+                    .get(variant)
+                    .ok_or(ConstructionSurfaceSelectionError::MissingVariant(variant))?;
+                if declaration.owner() != nominal
+                    || surface.variants.get(&declaration.name()) != Some(&variant)
+                {
+                    return Err(ConstructionSurfaceSelectionError::InvalidVariant(variant));
+                }
+                if public_site_is_visible(graph, declaration.site(), from).ok_or(
+                    ConstructionSurfaceSelectionError::MissingVariantSite(variant),
+                )? {
+                    entries.push(VisibleConstructionEntry::Variant(variant));
+                }
+            }
+        }
+
+        if let Some((construction, declaration)) = construction {
+            for member in declaration.members().iter().copied() {
+                if !surface_member_is_indexed(graph, surface, construction, member)? {
+                    return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
+                }
+                if public_member_is_visible(graph, construction, member, from)? {
+                    if declaration.default_member() == Some(member) {
+                        default = Some(entries.len());
+                    }
+                    entries.push(VisibleConstructionEntry::Callable(member));
+                }
+            }
+        }
+
+        Ok(VisibleConstructionSurface {
+            declaration: construction.map(|(id, _)| id),
+            entries: entries.into_boxed_slice(),
+            default,
+        })
     }
 
     /// Returns the declared field identities when structural construction is accessible here.
@@ -354,6 +481,78 @@ impl ConstructionSurfaceTable {
     }
 }
 
+fn public_field_is_visible(
+    graph: &DeclarationGraph,
+    nominal: NominalTypeId,
+    field: FieldId,
+    from: ModuleId,
+) -> Result<bool, ConstructionSurfaceSelectionError> {
+    let declaration = graph
+        .declarations()
+        .fields()
+        .get(field)
+        .ok_or(ConstructionSurfaceSelectionError::MissingField(field))?;
+    if declaration.owner() != nominal {
+        return Err(ConstructionSurfaceSelectionError::InvalidField(field));
+    }
+    public_site_is_visible(graph, declaration.site(), from)
+        .ok_or(ConstructionSurfaceSelectionError::MissingFieldSite(field))
+}
+
+fn surface_member_is_indexed(
+    graph: &DeclarationGraph,
+    surface: &ConstructionSurface,
+    construction: ConstructionId,
+    member: CallableId,
+) -> Result<bool, ConstructionSurfaceSelectionError> {
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(member)
+        .ok_or(ConstructionSurfaceSelectionError::MissingCallable(member))?;
+    if callable.owner() != CallableOwner::Construction(construction) {
+        return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
+    }
+    Ok(match callable.kind() {
+        CallableKind::ConstructionFunction => callable
+            .name()
+            .is_some_and(|name| surface.functions.get(&name) == Some(&member)),
+        CallableKind::Literal(shape) => surface.literals.get(&shape) == Some(&member),
+        _ => false,
+    })
+}
+
+fn public_member_is_visible(
+    graph: &DeclarationGraph,
+    construction: ConstructionId,
+    member: CallableId,
+    from: ModuleId,
+) -> Result<bool, ConstructionSurfaceSelectionError> {
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(member)
+        .ok_or(ConstructionSurfaceSelectionError::MissingCallable(member))?;
+    if callable.owner() != CallableOwner::Construction(construction) {
+        return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
+    }
+    public_site_is_visible(graph, callable.site(), from).ok_or(
+        ConstructionSurfaceSelectionError::MissingCallableSite(member),
+    )
+}
+
+fn public_site_is_visible(
+    graph: &DeclarationGraph,
+    site: nocter_model::DeclarationSiteId,
+    from: ModuleId,
+) -> Option<bool> {
+    let site = graph.declaration_sites().get(site).copied()?;
+    Some(
+        site.visibility() != Visibility::Private
+            && graph.is_visible_from(site.visibility(), from, site.module()),
+    )
+}
+
 fn index_construction_members(
     graph: &DeclarationGraph,
     construction: ConstructionId,
@@ -455,6 +654,12 @@ impl std::error::Error for ConstructionSurfaceBuildError {}
 pub enum ConstructionSurfaceSelectionError {
     MissingNominal(NominalTypeId),
     MissingNominalSite(NominalTypeId),
+    MissingField(FieldId),
+    MissingFieldSite(FieldId),
+    InvalidField(FieldId),
+    MissingVariant(VariantId),
+    MissingVariantSite(VariantId),
+    InvalidVariant(VariantId),
     MissingConstruction(ConstructionId),
     MissingCallable(CallableId),
     MissingCallableSite(CallableId),

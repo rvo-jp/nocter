@@ -138,6 +138,11 @@ implementation input.
    come from `nocter.nct`; module docs come only from root or single-file sources. Hover appends the
    normalized Markdown selected from that index after canonical semantic code, so the LSP server
    does not rescan comments, copy authored declarations, or confuse co-located identities.
+   Type hover now also consumes one module-relative `ConstructionSurfaceTable` selection. The
+   common selection owns structural availability, variant/member identity, normalized visibility,
+   source order, and default identity. Presentation emits only valid nominal and bodyless
+   `construct` declarations, restores semantic target results to `Self`, and never reconstructs a
+   construction API from syntax or exposes private raw initialization.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

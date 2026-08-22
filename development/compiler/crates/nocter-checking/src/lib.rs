@@ -82,6 +82,7 @@ pub use conformance::{
 };
 pub use construction_surfaces::{
     ConstructionSurfaceBuildError, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
+    VisibleConstructionEntry, VisibleConstructionSurface,
 };
 pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,

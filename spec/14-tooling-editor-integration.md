@@ -110,6 +110,17 @@ Declaration owners are shown when they disambiguate a member. Construction hover
 type-owned public construction surface, including its default entry. Raw private construction and
 inaccessible members are absent.
 
+When type hover expands a construction surface, it uses Nocter declaration syntax rather than an
+invented surface language. An accessible structural entry is represented by the nominal `struct`
+declaration with every required visible field. Intrinsic enum entries are represented by the
+nominal `enum` declaration with its visible variants. An authored surface is represented by a
+bodyless `construct Type { ... }` declaration;
+its members remain unqualified inside the block, use `Self` in their result contracts, preserve
+declaration order, and retain the explicit `default` modifier. The compiler does not invent a
+`fields` declaration, revive removed top-level literal or qualified-function forms, or include
+member bodies. A struct whose structural entry is unavailable remains a header-only type
+presentation unless it has another visible construction entry.
+
 Associated type hover uses the interface-owned declaration identity. A declaration or projection
 is shown as `associated type Interface.Name`; a conformance binding is shown as
 `type Interface.Name = ConcreteType`. Normalized callable presentation preserves a generic

@@ -1,6 +1,8 @@
 use std::fmt::Write;
 
-use nocter_checking::{CheckedProgram, GenericArguments};
+use nocter_checking::{
+    CheckedProgram, GenericArguments, VisibleConstructionEntry, VisibleConstructionSurface,
+};
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, NominalShape,
     ParameterRole, RequirementKind, RequirementSubject, StructuralCapability, Visibility,
@@ -39,6 +41,26 @@ pub(super) fn presentation(
     })
 }
 
+pub(super) fn hover_presentation(
+    checked: &CheckedProgram,
+    entity: SemanticEntity,
+    from: nocter_model::ModuleId,
+) -> Option<SemanticPresentation> {
+    let graph = checked.graph();
+    let mut renderer = Renderer::new(graph, checked.types());
+    renderer.entity(Some(checked), entity)?;
+    if let SemanticEntity::NominalType(nominal) = entity {
+        let surface = checked
+            .construction_surfaces()
+            .visible_surface(graph, nominal, from)
+            .ok()?;
+        renderer.nominal_construction_surface(nominal, &surface)?;
+    }
+    Some(SemanticPresentation {
+        code: renderer.output.into_boxed_str(),
+    })
+}
+
 pub(super) fn prepared_presentation(
     prepared: &nocter_checking::PreparedSemanticProgram,
     entity: SemanticEntity,
@@ -72,6 +94,7 @@ pub(super) struct Renderer<'a> {
     generics: Option<&'a GenericArguments>,
     record_parameters: bool,
     parameter_ranges: Vec<(usize, usize)>,
+    self_type: Option<TypeId>,
 }
 
 impl<'a> Renderer<'a> {
@@ -83,6 +106,7 @@ impl<'a> Renderer<'a> {
             generics: None,
             record_parameters: false,
             parameter_ranges: Vec::new(),
+            self_type: None,
         }
     }
 
@@ -358,6 +382,112 @@ impl<'a> Renderer<'a> {
         self.provenance(callable)?;
         self.requirements(callable.requirements())?;
         Some(())
+    }
+
+    fn nominal_construction_surface(
+        &mut self,
+        nominal: nocter_model::NominalTypeId,
+        surface: &VisibleConstructionSurface,
+    ) -> Option<()> {
+        let declarations = self.graph.declarations();
+        let nominal_declaration = declarations.nominal_types().get(nominal)?;
+        let structural = surface
+            .entries()
+            .contains(&VisibleConstructionEntry::Structural);
+        let has_variants = surface
+            .entries()
+            .iter()
+            .any(|entry| matches!(entry, VisibleConstructionEntry::Variant(_)));
+        if structural {
+            let NominalShape::Struct { fields, .. } = nominal_declaration.shape() else {
+                return None;
+            };
+            self.output.push_str(" {\n");
+            for field in fields.iter().copied() {
+                let declaration = declarations.fields().get(field)?;
+                self.output.push_str("    ");
+                self.visibility(declaration.site())?;
+                self.output.push_str(self.symbol(declaration.name())?);
+                self.output.push_str(": ");
+                self.ty(declaration.ty())?;
+                self.output.push('\n');
+            }
+            self.output.push('}');
+        } else if has_variants {
+            self.output.push_str(" {\n");
+            for entry in surface.entries() {
+                let VisibleConstructionEntry::Variant(variant) = *entry else {
+                    continue;
+                };
+                let declaration = declarations.variants().get(variant)?;
+                self.output.push_str("    ");
+                self.output.push_str(self.symbol(declaration.name())?);
+                if !declaration.payload().is_empty() {
+                    self.parameters(declaration.payload())?;
+                }
+                self.output.push('\n');
+            }
+            self.output.push('}');
+        }
+
+        let Some(construction_id) = surface.declaration() else {
+            return Some(());
+        };
+        let construction = declarations.constructions().get(construction_id)?;
+        self.output.push_str("\n\nconstruct ");
+        self.ty(construction.target())?;
+        self.output.push_str(" {");
+        let has_members = surface
+            .entries()
+            .iter()
+            .any(|entry| matches!(entry, VisibleConstructionEntry::Callable(_)));
+        if !has_members {
+            self.output.push('}');
+            return Some(());
+        }
+        self.self_type = Some(construction.target());
+        for (index, entry) in surface.entries().iter().enumerate() {
+            let VisibleConstructionEntry::Callable(member) = *entry else {
+                continue;
+            };
+            self.output.push_str("\n    ");
+            self.construction_member(member, surface.is_default(index))?;
+        }
+        self.self_type = None;
+        self.output.push_str("\n}");
+        Some(())
+    }
+
+    fn construction_member(
+        &mut self,
+        id: nocter_model::CallableId,
+        is_default: bool,
+    ) -> Option<()> {
+        let callable = self.graph.declarations().callables().get(id)?;
+        self.visibility(callable.site())?;
+        if is_default {
+            self.output.push_str("default ");
+        }
+        match callable.kind() {
+            CallableKind::ConstructionFunction => {
+                self.output.push_str("func ");
+                self.output.push_str(self.symbol(callable.name()?)?);
+            }
+            CallableKind::Literal(shape) => {
+                self.output.push_str("literal ");
+                self.output.push_str(match shape {
+                    nocter_declarations::LiteralShape::Sequence => "[]",
+                    nocter_declarations::LiteralShape::String => "\"\"",
+                });
+            }
+            _ => return None,
+        }
+        self.generic_parameters(callable.generic_parameters())?;
+        self.parameters(callable.parameters())?;
+        self.output.push_str(": ");
+        self.ty(callable.result())?;
+        self.provenance(callable)?;
+        self.requirements(callable.requirements())
     }
 
     fn operator(&mut self, callable: &nocter_declarations::CallableDeclaration) -> Option<()> {
@@ -718,6 +848,10 @@ impl<'a> Renderer<'a> {
     }
 
     fn ty(&mut self, ty: TypeId) -> Option<()> {
+        if self.self_type == Some(ty) {
+            self.output.push_str("Self");
+            return Some(());
+        }
         match self.types.get(ty)? {
             TypeKind::Builtin(builtin) => self.output.push_str(builtin_spelling(*builtin)),
             TypeKind::GenericParameter(id) => {

@@ -577,9 +577,12 @@ mod tests {
         let opened = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"/// Application entry.\\nfunc  main( ): void {{ return }}\\n\"}}}}}}"
         ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
-            opened.analysis().unwrap().snapshot().unwrap().status(),
-            nocter_analysis::AnalysisStatus::Complete
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
         );
 
         let hover = server.receive(&format!(
@@ -598,6 +601,94 @@ mod tests {
             keyword.response(),
             Some(r#"{"jsonrpc":"2.0","id":3,"result":null}"#)
         );
+    }
+
+    #[test]
+    fn type_hover_uses_the_visible_compiler_owned_construction_surface() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"pub struct Widget<T> {{\\n    pub visible: T\\n    hidden: T\\n}}\\n\\nconstruct Widget<T> {{\\n    pub func alternate(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n    pub default func new(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n}}\\n\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":12}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "pub struct Widget<T>\\n\\nconstruct Widget<T> {\\n",
+                "    pub func alternate(visible: T, hidden: T): Self\\n",
+                "    pub default func new(visible: T, hidden: T): Self\\n}"
+            )),
+            "{response}"
+        );
+        assert!(!response.contains("\\n    pub visible: T"), "{response}");
+        assert!(!response.contains("\\n    hidden: T"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
+    #[test]
+    fn type_hover_presents_structural_and_variant_construction_in_valid_syntax() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"pub struct Pair {{\\n    pub left: i32\\n    pub right: i32\\n}}\\n\\npub struct Sealed {{\\n    pub visible: i32\\n    hidden: i32\\n}}\\n\\npub enum Choice {{\\n    first\\n    second(value: i32)\\n}}\\n\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+        ));
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let pair = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":12}}}}}}"
+        ));
+        let response = pair.response().unwrap();
+        assert!(
+            response.contains("pub struct Pair {\\n    pub left: i32\\n    pub right: i32\\n}"),
+            "{response}"
+        );
+
+        let sealed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":12}}}}}}"
+        ));
+        let response = sealed.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub struct Sealed\\n```"),
+            "{response}"
+        );
+        assert!(!response.contains("visible: i32"), "{response}");
+
+        let choice = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":10,\"character\":11}}}}}}"
+        ));
+        let response = choice.response().unwrap();
+        assert!(
+            response.contains("pub enum Choice {\\n    first\\n    second(value: i32)\\n}"),
+            "{response}"
+        );
+        assert!(choice.issue().is_none(), "{:?}", choice.issue());
     }
 
     #[test]
