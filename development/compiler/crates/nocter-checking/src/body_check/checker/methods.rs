@@ -57,15 +57,19 @@ impl BodyChecker<'_, '_> {
         }
         let receiver = self.method_receiver_draft(owner)?;
         let receiver_owner = receiver_owner(self.types, receiver.ty())?;
-        let member_token = direct_identifier(self.tree(), member)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
+        let available = self.receiver_borrow_capability(&receiver)?;
+        let consumable = receiver.is_owned_source(self.types);
+        let Some(member_token) = direct_identifier(self.tree(), member) else {
+            let origin = SourceOrigin::from_node(self.tree(), member)
+                .map_err(|_| BodyCheckInternalError::InvalidSyntax(member))?;
+            self.record_member_interruption_origin(origin, receiver_owner, available, consumable);
+            return Err(BodyCheckInternalError::InvalidSyntax(member).into());
+        };
         let member_name = self
             .graph
             .symbols()
             .get(self.token_text(member_token)?)
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
-        let available = self.receiver_borrow_capability(&receiver)?;
-        let consumable = receiver.is_owned_source(self.types);
         let mut candidates = {
             let mut selector = self.instance_selector();
             selector
@@ -359,6 +363,17 @@ impl BodyChecker<'_, '_> {
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        self.record_member_interruption_origin(origin, receiver, available, owned);
+        Ok(())
+    }
+
+    pub(super) fn record_member_interruption_origin(
+        &mut self,
+        origin: SourceOrigin,
+        receiver: TypeId,
+        available: BorrowCapability,
+        owned: bool,
+    ) {
         self.interruption = Some(TypedBodyInterruption::new(
             self.source.body(),
             origin,
@@ -368,7 +383,6 @@ impl BodyChecker<'_, '_> {
                 owned,
             },
         ));
-        Ok(())
     }
 }
 

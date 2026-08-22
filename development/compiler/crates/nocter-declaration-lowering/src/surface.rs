@@ -345,6 +345,25 @@ impl From<LoweringError> for SurfaceError {
 pub fn collect_declaration_surface<'syntax>(
     input: &CompileUnitInput<'syntax>,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
+    collect_declaration_surface_with(input, SyntaxAcceptance::Complete)
+}
+
+pub(crate) fn collect_incomplete_body_declaration_surface<'syntax>(
+    input: &CompileUnitInput<'syntax>,
+) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
+    collect_declaration_surface_with(input, SyntaxAcceptance::IncompleteBodies)
+}
+
+#[derive(Clone, Copy)]
+enum SyntaxAcceptance {
+    Complete,
+    IncompleteBodies,
+}
+
+fn collect_declaration_surface_with<'syntax>(
+    input: &CompileUnitInput<'syntax>,
+    syntax_acceptance: SyntaxAcceptance,
+) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
     let prepared = prepare_compile_unit(input).map_err(|error| match error {
         LoweringError::UnknownTargetGate(literal) => SurfaceError::UnknownTargetGate(literal),
         error => SurfaceError::Topology(error),
@@ -383,6 +402,7 @@ pub fn collect_declaration_surface<'syntax>(
         .map(|(index, source)| (source.canonical_path(), SurfaceSourceId(index)))
         .collect();
     for (index, source) in sources.iter().enumerate() {
+        validate_source_syntax(source.syntax(), syntax_acceptance)?;
         collect_source(
             SurfaceSourceId(index),
             source,
@@ -437,9 +457,6 @@ fn collect_source(
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
     let tree = source.syntax();
-    if tree.has_errors() {
-        return Err(SurfaceError::SyntaxErrors(tree.source()));
-    }
     if tree.root().kind() != NodeKind::ModuleSource {
         return Err(SurfaceError::InvalidRootShape(tree.source()));
     }
@@ -477,6 +494,37 @@ fn collect_source(
         }
     }
     Ok(())
+}
+
+fn validate_source_syntax(
+    tree: &SyntaxTree,
+    acceptance: SyntaxAcceptance,
+) -> Result<(), SurfaceError> {
+    let accepted = !tree.has_errors()
+        || matches!(acceptance, SyntaxAcceptance::IncompleteBodies)
+            && syntax_errors_are_inside_blocks(tree);
+    if accepted {
+        Ok(())
+    } else {
+        Err(SurfaceError::SyntaxErrors(tree.source()))
+    }
+}
+
+fn syntax_errors_are_inside_blocks(tree: &SyntaxTree) -> bool {
+    if !tree.lexed().diagnostics().is_empty() {
+        return false;
+    }
+    let blocks = tree
+        .nodes()
+        .filter(|(_, node)| node.kind() == NodeKind::Block)
+        .map(|(_, node)| node.range())
+        .collect::<Vec<_>>();
+    tree.diagnostics().iter().all(|diagnostic| {
+        let range = diagnostic.span().range();
+        blocks.iter().any(|block| {
+            block.start().get() <= range.start().get() && range.end().get() <= block.end().get()
+        })
+    })
 }
 
 fn collect_item(

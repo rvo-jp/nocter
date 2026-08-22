@@ -108,8 +108,23 @@ impl BodyChecker<'_, '_> {
         for operation in syntax.operations {
             match operation {
                 PlaceOperation::Field(suffix) => {
-                    let field = direct_identifier(self.tree(), suffix)
-                        .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
+                    let Some(field) = direct_identifier(self.tree(), suffix) else {
+                        let receiver = self.place_projection_base(&mut draft)?;
+                        let origin = SourceOrigin::from_node(self.tree(), suffix)
+                            .map_err(|_| BodyCheckInternalError::InvalidSyntax(suffix))?;
+                        let available = if draft.writable {
+                            BorrowCapability::ReadWrite
+                        } else {
+                            BorrowCapability::Readonly
+                        };
+                        self.record_member_interruption_origin(
+                            origin,
+                            receiver,
+                            available,
+                            draft.access == PlaceAccess::Owned,
+                        );
+                        return Err(BodyCheckInternalError::InvalidSyntax(suffix).into());
+                    };
                     self.push_field(suffix, &mut draft, field)?;
                 }
                 PlaceOperation::Index(suffix) => self.push_index(suffix, &mut draft, capability)?,

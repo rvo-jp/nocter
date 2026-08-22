@@ -117,9 +117,15 @@ implementation input.
    invalid member call retains an explicit typed interruption containing its exact body, source
    origin, receiver type, borrow capability, and consumability together with the monotonic type
    state reached by that failed generation. It is not a partial checked body and cannot publish
-   dispatch for invalid source. The LSP adapter only maps the compiler result to method items and
-   advertises `.` as a trigger. Completion after syntax or name-resolution failure remains; it may
-   not use token guesses or a stale successful snapshot.
+   dispatch for invalid source. The candidate authority also enumerates exact visible fields
+   through the ordinary field selector. The LSP adapter only maps compiler field/method results and
+   advertises `.` as a trigger. Incomplete member syntax now uses a separate editor-only lowering
+   entry: it accepts no lexer errors and requires every parser diagnostic to be contained by an
+   executable block. Declaration/header syntax therefore cannot cross it. Syntax diagnostics stay
+   authoritative while missing/error body nodes stop normal checking and expose only the exact
+   typed interruption reached before them. Production compile input still rejects every syntax
+   error. Completion after name-resolution failure remains; it may not use token guesses or a
+   stale successful snapshot.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

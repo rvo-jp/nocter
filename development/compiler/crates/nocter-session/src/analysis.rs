@@ -2,7 +2,9 @@ use nocter_checking::{
     BodyAnalysisRecovery, PreparedSemanticProgram, check_prepared_program,
     check_prepared_program_recovering, prepare_program_checking,
 };
-use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_declaration_lowering::{
+    lower_compile_unit_declarations, lower_incomplete_body_declarations,
+};
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{PrimitiveRegistry, TargetProgram, ToolchainSnapshot};
 
@@ -57,6 +59,26 @@ impl CompileTargetFailure {
 /// Returns the exact production-session failure. No earlier successful generation participates.
 pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     analyze_target_internal(unit, true)
+}
+
+/// Attempts editor-only semantic recovery beneath an authoritative syntax failure.
+///
+/// This path can never return a checked or target program. It preserves only a preparation stage
+/// and an optional typed interruption reached before an explicit missing/error syntax node stopped
+/// the production phases.
+#[must_use]
+pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<BodyAnalysisRecovery> {
+    if !unit.has_syntax_errors() {
+        return None;
+    }
+    let input = unit.analysis_input().ok()?;
+    let lowered = lower_incomplete_body_declarations(&input).ok()?;
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).ok()?;
+    match check_prepared_program_recovering(&input, prepared) {
+        Err(failure) => failure.into_parts().1,
+        Ok(_) => None,
+    }
 }
 
 pub(crate) fn compile_target_without_recovery(

@@ -10,8 +10,8 @@ use nocter_target_program::PrimitiveRole;
 
 use super::{
     ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,
-    NativeTestTargetOutcome, analyze_target, bundled_standard_toolchain, compile_native_image,
-    compile_native_images, compile_native_tests, compile_target,
+    NativeTestTargetOutcome, analyze_incomplete_syntax, analyze_target, bundled_standard_toolchain,
+    compile_native_image, compile_native_images, compile_native_tests, compile_target,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -114,6 +114,51 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
         interruption.kind(),
         nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
     ));
+}
+
+#[test]
+fn incomplete_member_syntax_retains_typed_receiver_context() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "struct Text { value: i32 }\ninstance Text { pub method &self.len(): usize { 0 } }\nfunc inspect(value: &Text): void {\n    value.\n    return\n}\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    let recovery = analyze_incomplete_syntax(&unit).expect("typed syntax recovery");
+    assert!(matches!(
+        recovery.interruption().unwrap().kind(),
+        nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
+    ));
+}
+
+#[test]
+fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("main.nct", "func broken(: void { return }\n");
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    assert!(analyze_incomplete_syntax(&unit).is_none());
 }
 
 #[test]

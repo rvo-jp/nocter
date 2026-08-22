@@ -703,6 +703,10 @@ mod tests {
             response.contains("\"label\":\"len\",\"kind\":2"),
             "{response}"
         );
+        assert!(
+            response.contains("\"label\":\"text\",\"kind\":5"),
+            "{response}"
+        );
         assert!(!response.contains("\"label\":\"clear\""), "{response}");
         assert!(!response.contains("\"label\":\"value\""), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
@@ -725,9 +729,38 @@ mod tests {
             response.contains("\"label\":\"len\",\"kind\":2"),
             "{response}"
         );
+        assert!(
+            response.contains("\"label\":\"text\",\"kind\":5"),
+            "{response}"
+        );
         assert!(!response.contains("\"label\":\"clear\""), "{response}");
         assert!(!response.contains("\"label\":\"value\""), "{response}");
         assert!(failed.issue().is_none(), "{:?}", failed.issue());
+
+        let syntax_text = text.replace("value.len()", "value.");
+        let mut syntax_json = String::new();
+        nocter_json::write_string(&mut syntax_json, &syntax_text);
+        let changed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":3}},\"contentChanges\":[{{\"text\":{syntax_json}}}]}}}}"
+        ));
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let incomplete = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":45}}}}}}"
+        ));
+        let response = incomplete.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"len\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"text\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(!response.contains("\"label\":\"clear\""), "{response}");
+        assert!(incomplete.issue().is_none(), "{:?}", incomplete.issue());
     }
 
     #[test]

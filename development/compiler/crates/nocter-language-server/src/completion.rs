@@ -50,6 +50,7 @@ const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {
         SemanticCompletionKind::Type => CompletionItemKind::Class,
         SemanticCompletionKind::Interface => CompletionItemKind::Interface,
         SemanticCompletionKind::Function => CompletionItemKind::Function,
+        SemanticCompletionKind::Field => CompletionItemKind::Field,
         SemanticCompletionKind::Method => CompletionItemKind::Method,
         SemanticCompletionKind::Parameter | SemanticCompletionKind::Variable => {
             CompletionItemKind::Variable

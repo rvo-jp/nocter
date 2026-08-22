@@ -17,22 +17,9 @@ use crate::{
 
 /// One method name accepted by the ordinary instance-operation selector for a receiver.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MemberCompletionCandidate {
-    name: Symbol,
-    surface: Option<CallableId>,
-}
-
-impl MemberCompletionCandidate {
-    #[must_use]
-    pub const fn name(self) -> Symbol {
-        self.name
-    }
-
-    /// Returns the unique public contract identity when every viable route agrees on one.
-    #[must_use]
-    pub const fn surface(self) -> Option<CallableId> {
-        self.surface
-    }
+pub(crate) struct MethodCompletionCandidate {
+    pub(crate) name: Symbol,
+    pub(crate) surface: Option<CallableId>,
 }
 
 pub(crate) struct MethodReceiverCoercion {
@@ -104,7 +91,7 @@ impl InstanceOperationSelector<'_> {
         target: TypeId,
         available: BorrowCapability,
         owned: bool,
-    ) -> Result<Vec<MemberCompletionCandidate>, InstanceSelectionError> {
+    ) -> Result<Vec<MethodCompletionCandidate>, InstanceSelectionError> {
         let mut names = self
             .table
             .method_names(self.types, target)
@@ -141,7 +128,7 @@ impl InstanceOperationSelector<'_> {
                 continue;
             };
             let surface = surfaces.all(|surface| surface == first).then_some(first);
-            completions.push(MemberCompletionCandidate { name, surface });
+            completions.push(MethodCompletionCandidate { name, surface });
         }
         Ok(completions)
     }

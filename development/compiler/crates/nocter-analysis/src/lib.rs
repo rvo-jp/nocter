@@ -9,7 +9,9 @@ use std::path::Path;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
-use nocter_session::{CompileSessionError, CompiledTarget, analyze_target};
+use nocter_session::{
+    CompileSessionError, CompiledTarget, analyze_incomplete_syntax, analyze_target,
+};
 use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
@@ -62,7 +64,10 @@ pub enum AnalysisStatus {
 #[derive(Debug)]
 enum AnalysisState {
     DiscoveryFailed(DiscoveryFailure),
-    SyntaxFailed(DiscoveredUnit),
+    SyntaxFailed {
+        unit: DiscoveredUnit,
+        recovery: Option<Box<nocter_checking::BodyAnalysisRecovery>>,
+    },
     CompilationFailed {
         unit: DiscoveredUnit,
         error: CompileSessionError,
@@ -87,7 +92,7 @@ impl AnalysisSnapshot {
         match &self.state {
             AnalysisState::Complete { unit, .. } => Some(unit),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::CompilationFailed { .. } => None,
         }
     }
@@ -106,10 +111,11 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
+            let recovery = analyze_incomplete_syntax(&unit).map(Box::new);
             return Self {
                 generation,
                 diagnostics: unit.syntax_diagnostics(),
-                state: AnalysisState::SyntaxFailed(unit),
+                state: AnalysisState::SyntaxFailed { unit, recovery },
             };
         }
         match analyze_target(&unit) {
@@ -151,7 +157,7 @@ impl AnalysisSnapshot {
     pub const fn status(&self) -> AnalysisStatus {
         match self.state {
             AnalysisState::DiscoveryFailed(_) => AnalysisStatus::DiscoveryFailed,
-            AnalysisState::SyntaxFailed(_) => AnalysisStatus::SyntaxFailed,
+            AnalysisState::SyntaxFailed { .. } => AnalysisStatus::SyntaxFailed,
             AnalysisState::CompilationFailed { .. } => AnalysisStatus::CompilationFailed,
             AnalysisState::Complete { .. } => AnalysisStatus::Complete,
         }
@@ -166,7 +172,7 @@ impl AnalysisSnapshot {
     pub const fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.source_overlay(),
-            AnalysisState::SyntaxFailed(unit)
+            AnalysisState::SyntaxFailed { unit, .. }
             | AnalysisState::CompilationFailed { unit, .. }
             | AnalysisState::Complete { unit, .. } => unit.source_overlay(),
         }
@@ -183,7 +189,7 @@ impl AnalysisSnapshot {
     pub const fn sources(&self) -> &SourceMap {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.sources(),
-            AnalysisState::SyntaxFailed(unit)
+            AnalysisState::SyntaxFailed { unit, .. }
             | AnalysisState::CompilationFailed { unit, .. }
             | AnalysisState::Complete { unit, .. } => unit.sources(),
         }
@@ -193,7 +199,7 @@ impl AnalysisSnapshot {
     pub fn syntax_trees(&self) -> &[SyntaxTree] {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.syntax_trees(),
-            AnalysisState::SyntaxFailed(unit)
+            AnalysisState::SyntaxFailed { unit, .. }
             | AnalysisState::CompilationFailed { unit, .. }
             | AnalysisState::Complete { unit, .. } => unit.syntax_trees(),
         }
@@ -204,7 +210,7 @@ impl AnalysisSnapshot {
         match &self.state {
             AnalysisState::Complete { target, .. } => Some(target.source_index()),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::CompilationFailed { .. } => None,
         }
     }
@@ -214,28 +220,26 @@ impl AnalysisSnapshot {
         match &self.state {
             AnalysisState::Complete { target, .. } => Some(target),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::CompilationFailed { .. } => None,
         }
     }
 
     pub(crate) fn prepared_semantics(&self) -> Option<&nocter_checking::PreparedSemanticProgram> {
         match &self.state {
-            AnalysisState::CompilationFailed { recovery, .. } => recovery
+            AnalysisState::SyntaxFailed { recovery, .. }
+            | AnalysisState::CompilationFailed { recovery, .. } => recovery
                 .as_deref()
                 .map(nocter_checking::BodyAnalysisRecovery::prepared),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
-            | AnalysisState::Complete { .. } => None,
+            AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
         }
     }
 
     pub(crate) fn body_recovery(&self) -> Option<&nocter_checking::BodyAnalysisRecovery> {
         match &self.state {
-            AnalysisState::CompilationFailed { recovery, .. } => recovery.as_deref(),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
-            | AnalysisState::Complete { .. } => None,
+            AnalysisState::SyntaxFailed { recovery, .. }
+            | AnalysisState::CompilationFailed { recovery, .. } => recovery.as_deref(),
+            AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
         }
     }
 
@@ -243,7 +247,7 @@ impl AnalysisSnapshot {
     pub const fn discovery_failure(&self) -> Option<&DiscoveryFailure> {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => Some(failure),
-            AnalysisState::SyntaxFailed(_)
+            AnalysisState::SyntaxFailed { .. }
             | AnalysisState::CompilationFailed { .. }
             | AnalysisState::Complete { .. } => None,
         }
@@ -254,7 +258,7 @@ impl AnalysisSnapshot {
         match &self.state {
             AnalysisState::CompilationFailed { error, .. } => Some(error),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::Complete { .. } => None,
         }
     }

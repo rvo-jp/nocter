@@ -167,13 +167,11 @@ impl Builder {
             }
         }
 
-        let toolchain = if self.syntax.iter().any(SyntaxTree::has_errors) {
-            None
-        } else {
-            match self.resolve_toolchain() {
-                Ok(toolchain) => Some(toolchain),
-                Err(error) => return Err(self.into_failure(error)),
-            }
+        let has_syntax_errors = self.syntax.iter().any(SyntaxTree::has_errors);
+        let toolchain = match self.resolve_toolchain() {
+            Ok(toolchain) => Some(toolchain),
+            Err(_) if has_syntax_errors => None,
+            Err(error) => return Err(self.into_failure(error)),
         };
 
         let non_unicode_declaration = self.packages.values().find_map(|state| {

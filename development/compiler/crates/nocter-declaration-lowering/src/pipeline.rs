@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::surface::collect_incomplete_body_declaration_surface;
 use crate::{
     CallableContractDiagnostic, CallableContractError, CompileUnitInput, DeclarationDiagnostic,
     DefinitionDiagnostic, GenericDiagnostic, GenericError, HeaderDefinitionError, HeaderError,
@@ -110,7 +111,28 @@ impl std::error::Error for DeclarationLoweringError {}
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    let surface = match collect_declaration_surface(input) {
+    lower_compile_unit_declarations_from(input, collect_declaration_surface(input))
+}
+
+/// Lowers declarations only when every syntax diagnostic is lexically contained by an executable
+/// block. This editor-only boundary never declares the source compilable; it lets later phases
+/// retain facts preceding explicit missing/error body nodes.
+///
+/// # Errors
+///
+/// Returns the ordinary declaration error, including a surface error when any lexical diagnostic
+/// or declaration/header-level parse diagnostic exists.
+pub fn lower_incomplete_body_declarations(
+    input: &CompileUnitInput<'_>,
+) -> Result<LoweredDeclarations, DeclarationLoweringError> {
+    lower_compile_unit_declarations_from(input, collect_incomplete_body_declaration_surface(input))
+}
+
+fn lower_compile_unit_declarations_from<'syntax>(
+    input: &CompileUnitInput<'syntax>,
+    surface: Result<crate::DeclarationSurface<'syntax>, SurfaceError>,
+) -> Result<LoweredDeclarations, DeclarationLoweringError> {
+    let surface = match surface {
         Ok(surface) => surface,
         Err(SurfaceError::Topology(crate::LoweringError::Rule(violation))) => {
             return match TopologyDiagnostic::project(&violation, input) {

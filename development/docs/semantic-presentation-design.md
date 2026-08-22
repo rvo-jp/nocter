@@ -121,13 +121,21 @@ Receiver-member completion does not scan declarations or infer a type from sourc
 instance-operation and conformance authorities retain canonical method-name indexes. For each
 indexed name the ordinary selector proves receiver-pattern applicability, lexical or concrete
 conformance, `where` requirements, visibility, readonly/readwrite/owned capability, and the same
-one-step coercion fallback used by call checking. A completed call supplies its exact
-`CheckedReceiver`. If body checking rejects an unknown or ambiguous member, it may retain a typed
-interruption containing the failed operation's body identity, source origin, receiver type,
-available borrow capability, and consumability together with the monotonic type state reached at
-that point. The interruption is not a partial `CheckedBody`, does not manufacture a dispatch, and
-is usable only at its exact source range in that failed generation.
+one-step coercion fallback used by call checking. Visible fields come from the exact nominal shape
+and pass through the ordinary field selector. A completed call supplies its exact
+`CheckedReceiver`. If body checking rejects an unknown, ambiguous, or missing member, it may retain
+a typed interruption containing the failed operation's body identity, source origin, receiver
+type, available borrow capability, and consumability together with the monotonic type state reached
+at that point. The interruption is not a partial `CheckedBody`, does not manufacture a dispatch,
+and is usable only at its exact source range in that failed generation.
 
-Completion after syntax or name-resolution failure remains open. It requires explicit invalid
-syntax/name-resolution snapshots and may not be approximated by editor-side token, spelling, or
-stale-snapshot lookup.
+The production declaration-lowering and compile-input entries still reject every syntax error.
+One separate editor-only declaration entry permits an incomplete syntax tree only when it has no
+lexer diagnostics and every parser diagnostic is contained by an executable block. Header,
+declaration, import, and package syntax cannot cross this boundary. Original syntax diagnostics
+remain the snapshot's public failure; ordinary body checking stops on the explicit missing/error
+node and may retain only facts fixed before it. This supports `value.` completion without inserting
+a synthetic identifier or compiling modified source.
+
+Completion after name-resolution failure remains open. It requires an explicit name-resolution
+snapshot and may not be approximated by editor-side token, spelling, or stale-snapshot lookup.

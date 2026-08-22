@@ -94,9 +94,12 @@ pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
 pub use instance_operations::{
     CheckedInstanceOperations, InstanceOperationBuildError, InstanceOperationInternalError,
     InstanceOperationRule, InstanceOperationTable, InstanceSelectionError,
-    MemberCompletionCandidate, build_instance_operation_table,
+    build_instance_operation_table,
 };
-pub use member_completion::{MemberCompletionContext, MemberCompletionError};
+pub use member_completion::{
+    MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
+    MemberCompletionTarget,
+};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,

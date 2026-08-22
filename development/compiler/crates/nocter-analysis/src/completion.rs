@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use nocter_checking::{
-    BodyScope, CheckedOperation, CheckedProgram, MemberCompletionContext, NameTarget,
-    PreparedSemanticProgram, ReceiverPreparation,
+    BodyScope, CheckedOperation, CheckedProgram, MemberCompletionContext, MemberCompletionTarget,
+    NameTarget, PreparedSemanticProgram, ReceiverPreparation,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -46,6 +46,7 @@ pub enum SemanticCompletionKind {
     Type,
     Interface,
     Function,
+    Field,
     Method,
     Parameter,
     Variable,
@@ -182,18 +183,13 @@ fn interrupted_member_completions(
                     .graph()
                     .symbols()
                     .spelling(candidate.name())?;
-                let detail = candidate
-                    .surface()
-                    .and_then(|surface| {
-                        prepared_presentation(
-                            recovery.prepared(),
-                            SemanticEntity::Callable(surface),
-                        )
-                    })
+                let (kind, entity) = completion_target(candidate.target());
+                let detail = entity
+                    .and_then(|entity| prepared_presentation(recovery.prepared(), entity))
                     .map(|presentation| Box::<str>::from(presentation.code()));
                 Some(SemanticCompletion {
                     label: label.into(),
-                    kind: SemanticCompletionKind::Method,
+                    kind,
                     detail,
                 })
             })
@@ -258,19 +254,41 @@ fn checked_member_completions(
             .iter()
             .filter_map(|candidate| {
                 let label = program.graph().symbols().spelling(candidate.name())?;
-                let detail = candidate
-                    .surface()
-                    .and_then(|surface| presentation(program, SemanticEntity::Callable(surface)))
+                let (kind, entity) = completion_target(candidate.target());
+                let detail = entity
+                    .and_then(|entity| presentation(program, entity))
                     .map(|presentation| Box::<str>::from(presentation.code()));
                 Some(SemanticCompletion {
                     label: label.into(),
-                    kind: SemanticCompletionKind::Method,
+                    kind,
                     detail,
                 })
             })
             .collect::<Vec<_>>()
             .into_boxed_slice(),
     )
+}
+
+const fn completion_target(
+    target: MemberCompletionTarget,
+) -> (SemanticCompletionKind, Option<SemanticEntity>) {
+    match target {
+        MemberCompletionTarget::Field(nocter_model::FieldIdentity::Declared(field)) => (
+            SemanticCompletionKind::Field,
+            Some(SemanticEntity::Field(field)),
+        ),
+        MemberCompletionTarget::Field(nocter_model::FieldIdentity::Builtin(field)) => (
+            SemanticCompletionKind::Field,
+            Some(SemanticEntity::BuiltinField(field)),
+        ),
+        MemberCompletionTarget::Method { surface } => (
+            SemanticCompletionKind::Method,
+            match surface {
+                Some(surface) => Some(SemanticEntity::Callable(surface)),
+                None => None,
+            },
+        ),
+    }
 }
 
 const fn receiver_access(preparation: ReceiverPreparation) -> (BorrowCapability, bool) {

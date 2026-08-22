@@ -59,7 +59,9 @@ pub use nocter_compile_input::{
     UseTargetInput,
 };
 pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
-pub use pipeline::{DeclarationLoweringError, lower_compile_unit_declarations};
+pub use pipeline::{
+    DeclarationLoweringError, lower_compile_unit_declarations, lower_incomplete_body_declarations,
+};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };

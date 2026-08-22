@@ -177,6 +177,21 @@ impl DiscoveredUnit {
         if self.has_syntax_errors() {
             return Err(CompileInputError::SyntaxErrorsPresent);
         }
+        self.analysis_input()
+    }
+
+    /// Borrows the discovered graph for an editor-only recovery attempt even when syntax
+    /// diagnostics exist.
+    ///
+    /// The returned input must never be treated as a compilable program. Later phases may reject
+    /// its explicit missing/error nodes; tooling may retain only phase-owned facts completed before
+    /// that rejection while the original syntax diagnostics remain authoritative.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the incomplete snapshot lacks the toolchain profile selected by
+    /// discovery.
+    pub fn analysis_input(&self) -> Result<CompileUnitInput<'_>, CompileInputError> {
         let packages = self
             .packages
             .iter()
