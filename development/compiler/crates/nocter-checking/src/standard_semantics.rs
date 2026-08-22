@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declaration_lowering::StandardRoleInput;
+use nocter_compile_input::StandardRoleInput;
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
     StandardDeclarationRole, Visibility,

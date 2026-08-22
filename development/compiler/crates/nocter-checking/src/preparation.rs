@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_declaration_lowering::CompileUnitInput;
+use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};

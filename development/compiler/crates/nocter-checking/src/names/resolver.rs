@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use nocter_declaration_lowering::CompileUnitInput;
+use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph, ExportedEntity};
 use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,

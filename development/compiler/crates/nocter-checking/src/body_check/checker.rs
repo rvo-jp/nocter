@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use nocter_declaration_lowering::CompileUnitInput;
+use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{

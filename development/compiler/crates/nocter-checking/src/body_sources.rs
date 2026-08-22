@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use nocter_declaration_lowering::CompileUnitInput;
+use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;

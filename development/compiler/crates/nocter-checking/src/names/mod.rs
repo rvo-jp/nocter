@@ -8,7 +8,7 @@ mod tests;
 
 use std::fmt;
 
-use nocter_declaration_lowering::{CompileUnitInput, ModuleIdentity};
+use nocter_compile_input::{CompileUnitInput, ModuleIdentity};
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};

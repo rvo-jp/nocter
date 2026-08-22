@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use nocter_declaration_lowering::{CompileUnitInput, UseTargetInput};
+use nocter_compile_input::{CompileUnitInput, UseTargetInput};
 use nocter_declarations::DeclarationGraph;
 use nocter_model::ModuleId;
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
@@ -63,7 +63,7 @@ pub(super) fn block_import_targets(
                 .sources()
                 .iter()
                 .find(|source| source.syntax().source() == node.source())
-                .map(nocter_declaration_lowering::ModuleSourceInput::syntax)
+                .map(nocter_compile_input::ModuleSourceInput::syntax)
         }) else {
             continue;
         };

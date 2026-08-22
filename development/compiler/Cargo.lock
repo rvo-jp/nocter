@@ -1718,6 +1718,7 @@ dependencies = [
 name = "nocter-checking"
 version = "0.0.0"
 dependencies = [
+ "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",

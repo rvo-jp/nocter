@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use nocter_declaration_lowering::CompileUnitInput;
+use nocter_compile_input::CompileUnitInput;
 use nocter_model::{Arena, ArenaBuilder, BodyId, TypeId, TypeStore};
 use nocter_source_index::{SourceIndex, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
