@@ -1254,3 +1254,6 @@ replacement, and separately exposes the end of every source-visible result. Ordi
 tails are traversed directly through their declaration or method signature; nested closure tails
 are unreachable. Coercion, index, and expansion results therefore receive the same provenance-hint
 placement without making fixed index results editable.
+Requested inlay ranges remain half-open after UTF-16 validation and byte projection. Analysis owns
+that containment rule, so a hint exactly at the range end is excluded without protocol-specific
+filtering.

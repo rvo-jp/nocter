@@ -192,6 +192,9 @@ implementation input.
    hints and callable-outcome edits. It follows direct callable/method tails, includes coercion,
    index, and expansion results, and exposes edit nodes separately from presentation endpoints.
    Nested closure tails cannot be selected for an enclosing callable.
+   Inlay range filtering now uses the protocol's half-open interval inside analysis. A hint exactly
+   at the requested end is excluded, while the LSP adapter remains limited to validated coordinate
+   projection.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit

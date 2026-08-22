@@ -1513,6 +1513,43 @@ mod tests {
         assert_eq!(response.matches("\"kind\":1").count(), 1, "{response}");
         assert!(response.contains("\"line\":3,\"character\":15"));
         assert!(narrowed.issue().is_none(), "{:?}", narrowed.issue());
+
+        let ending_at_hint = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":4,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":1,\"character\":0}},",
+                "\"end\":{{\"line\":1,\"character\":16}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = ending_at_hint.response().unwrap();
+        assert!(response.contains("\"result\":[]"), "{response}");
+        assert!(
+            ending_at_hint.issue().is_none(),
+            "{:?}",
+            ending_at_hint.issue()
+        );
+
+        let extending_past_hint = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":5,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":1,\"character\":0}},",
+                "\"end\":{{\"line\":1,\"character\":17}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = extending_past_hint.response().unwrap();
+        assert_eq!(response.matches("\"kind\":1").count(), 1, "{response}");
+        assert!(response.contains("\"line\":1,\"character\":16"));
+        assert!(
+            extending_past_hint.issue().is_none(),
+            "{:?}",
+            extending_past_hint.issue()
+        );
     }
 
     #[test]
