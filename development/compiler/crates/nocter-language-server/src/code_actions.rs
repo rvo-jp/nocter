@@ -15,6 +15,9 @@ pub(crate) fn query_code_actions(
     analyses: &WorkspaceAnalyses,
     params: &CodeActionParams,
 ) -> Result<Value, CodeActionQueryError> {
+    if !params.quick_fixes_requested() {
+        return Ok(Value::Array(Vec::new()));
+    }
     let Some(document) = semantic_document(documents, analyses, params.uri())
         .map_err(CodeActionQueryError::Document)?
     else {

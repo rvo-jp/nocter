@@ -207,6 +207,8 @@ optional/fallible callable contracts. Generated edits must parse and typecheck a
 the protocol layer does not synthesize source templates independently.
 Code-action selections and diagnostic spans are half-open ranges: adjacent non-empty ranges do not
 match. An empty selection acts as a cursor query and matches a diagnostic containing that position.
+All currently generated actions have the `quickfix` kind. A client `context.only` filter that does
+not include `quickfix` receives no actions and does not trigger speculative compilation.
 
 A required-interface-method action implements every missing required method in the selected
 `conform` declaration as one atomic edit. Each generated signature uses the conformance-specialized

@@ -197,6 +197,8 @@ implementation input.
    projection.
    Source-owned half-open containment and overlap now also govern code-action filtering. An empty
    request is handled explicitly as a cursor query, so adjacency is never confused with overlap.
+   Typed code-action parameters now preserve the client's hierarchical `context.only` filter.
+   Requests excluding `quickfix` stop before semantic planning and speculative compilation.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit

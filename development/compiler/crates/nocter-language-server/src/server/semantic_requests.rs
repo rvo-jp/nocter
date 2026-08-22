@@ -1812,6 +1812,20 @@ mod tests {
             "{:?}",
             cursor_at_diagnostic.issue()
         );
+
+        let source_only = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":7,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":29}},",
+                "\"end\":{{\"line\":0,\"character\":42}}}},",
+                "\"context\":{{\"diagnostics\":[],\"only\":[\"source\"]}}}}}}"
+            ),
+            uri = uri,
+        ));
+        assert!(source_only.response().unwrap().contains("\"result\":[]"));
+        assert!(source_only.issue().is_none(), "{:?}", source_only.issue());
     }
 
     #[test]

@@ -1260,3 +1260,6 @@ filtering.
 Half-open containment and overlap for source bytes belong to `TextRange`. Code-action matching adds
 one explicit point-query rule for an empty editor selection; it does not turn adjacent non-empty
 ranges into overlaps or duplicate interval arithmetic in the protocol adapter.
+`CodeActionParams` also retains the client's optional hierarchical kind filter as the typed
+question “are quick fixes requested?”. A negative answer returns an empty result before semantic
+lookup or speculative compilation; action-family policy does not leak into JSON handling.

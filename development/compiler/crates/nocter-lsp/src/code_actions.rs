@@ -9,6 +9,7 @@ use crate::{DocumentUri, ParameterError, ParameterErrorKind, Range};
 pub struct CodeActionParams {
     uri: DocumentUri,
     range: Range,
+    quick_fixes_requested: bool,
 }
 
 impl CodeActionParams {
@@ -31,9 +32,23 @@ impl CodeActionParams {
         // Clients report diagnostics so they can filter UI, but stale or fabricated diagnostic
         // contents must never select a compiler repair. Validate only the required container.
         array(context.take("diagnostics")?, "params.context.diagnostics")?;
+        let quick_fixes_requested = match context.take_optional("only")? {
+            None => true,
+            Some(value) => array(value, "params.context.only")?
+                .into_iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    let path = format!("params.context.only[{index}]");
+                    string(value, &path)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .iter()
+                .any(|requested| kind_includes(requested, "quickfix")),
+        };
         Ok(Self {
             uri,
             range: Range::new(start, end),
+            quick_fixes_requested,
         })
     }
 
@@ -46,6 +61,19 @@ impl CodeActionParams {
     pub const fn range(&self) -> Range {
         self.range
     }
+
+    #[must_use]
+    pub const fn quick_fixes_requested(&self) -> bool {
+        self.quick_fixes_requested
+    }
+}
+
+fn kind_includes(requested: &str, candidate: &str) -> bool {
+    requested.is_empty()
+        || requested == candidate
+        || candidate
+            .strip_prefix(requested)
+            .is_some_and(|suffix| suffix.starts_with('.'))
 }
 
 /// One protocol code action whose title and edit were already selected and validated upstream.
@@ -117,6 +145,31 @@ mod tests {
         .unwrap();
         assert_eq!(params.range().start().line(), 1);
         assert_eq!(params.range().end().character(), 7);
+        assert!(params.quick_fixes_requested());
+    }
+
+    #[test]
+    fn code_action_kind_filter_selects_only_requested_families() {
+        let decode = |only: &str| {
+            CodeActionParams::decode(Some(
+                parse(&format!(
+                    concat!(
+                        "{{\"textDocument\":{{\"uri\":\"file:///workspace/main.nct\"}},",
+                        "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                        "\"end\":{{\"line\":0,\"character\":0}}}},",
+                        "\"context\":{{\"diagnostics\":[],\"only\":{only}}}}}"
+                    ),
+                    only = only,
+                ))
+                .unwrap(),
+            ))
+            .unwrap()
+        };
+
+        assert!(decode("[\"quickfix\"]").quick_fixes_requested());
+        assert!(decode("[\"\"]").quick_fixes_requested());
+        assert!(!decode("[\"source\"]").quick_fixes_requested());
+        assert!(!decode("[]").quick_fixes_requested());
     }
 
     #[test]
