@@ -192,7 +192,7 @@ impl InlayContext<'_> {
                 continue;
             };
             let position = binding.origin().span().range().end();
-            if !requested_range_contains(self.requested, position) {
+            if !self.requested.contains_offset(position) {
                 continue;
             }
             let checked_body = self
@@ -250,7 +250,7 @@ impl InlayContext<'_> {
             let position = projection
                 .result_end()
                 .ok_or(SemanticInlayHintError::InvalidCallableSource(callable))?;
-            if !requested_range_contains(self.requested, position) {
+            if !self.requested.contains_offset(position) {
                 continue;
             }
             let mut label = String::from(" from ");
@@ -286,10 +286,6 @@ impl InlayContext<'_> {
         }
         Ok(hints)
     }
-}
-
-const fn requested_range_contains(range: TextRange, position: ByteOffset) -> bool {
-    range.start().get() <= position.get() && position.get() < range.end().get()
 }
 
 fn annotated_binding_targets(syntax: &SyntaxTree) -> BTreeSet<TextRange> {

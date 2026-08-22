@@ -205,6 +205,8 @@ accepted document version.
 Code actions expose compiler-planned edits, including imports, required interface members, and
 optional/fallible callable contracts. Generated edits must parse and typecheck as ordinary Nocter;
 the protocol layer does not synthesize source templates independently.
+Code-action selections and diagnostic spans are half-open ranges: adjacent non-empty ranges do not
+match. An empty selection acts as a cursor query and matches a diagnostic containing that position.
 
 A required-interface-method action implements every missing required method in the selected
 `conform` declaration as one atomic edit. Each generated signature uses the conformance-specialized

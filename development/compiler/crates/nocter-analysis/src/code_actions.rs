@@ -125,7 +125,7 @@ impl AnalysisSnapshot {
         for diagnostic in self.diagnostics() {
             let primary = diagnostic.primary();
             let range = primary.span().range();
-            if primary.source() != source || !ranges_intersect(range, requested_range) {
+            if primary.source() != source || !diagnostic_matches_request(range, requested_range) {
                 continue;
             }
             if diagnostic.code() == ConformanceRule::MissingMethod.code() {
@@ -196,6 +196,62 @@ impl AnalysisSnapshot {
     }
 }
 
-const fn ranges_intersect(left: TextRange, right: TextRange) -> bool {
-    left.start().get() <= right.end().get() && right.start().get() <= left.end().get()
+const fn diagnostic_matches_request(diagnostic: TextRange, requested: TextRange) -> bool {
+    if requested.is_empty() {
+        return if diagnostic.is_empty() {
+            diagnostic.start().get() == requested.start().get()
+        } else {
+            diagnostic.contains_offset(requested.start())
+        };
+    }
+    if diagnostic.is_empty() {
+        return requested.contains_offset(diagnostic.start());
+    }
+    diagnostic.overlaps(requested)
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_source::{ByteOffset, TextRange};
+
+    use super::diagnostic_matches_request;
+
+    const fn offset(value: u32) -> ByteOffset {
+        ByteOffset::new(value)
+    }
+
+    #[test]
+    fn code_action_ranges_distinguish_overlap_adjacency_and_cursor_queries() {
+        let diagnostic = TextRange::new(offset(10), offset(20));
+        assert!(diagnostic_matches_request(
+            diagnostic,
+            TextRange::new(offset(15), offset(25))
+        ));
+        assert!(!diagnostic_matches_request(
+            diagnostic,
+            TextRange::new(offset(0), offset(10))
+        ));
+        assert!(!diagnostic_matches_request(
+            diagnostic,
+            TextRange::new(offset(20), offset(25))
+        ));
+        assert!(diagnostic_matches_request(
+            diagnostic,
+            TextRange::empty(offset(10))
+        ));
+        assert!(!diagnostic_matches_request(
+            diagnostic,
+            TextRange::empty(offset(20))
+        ));
+
+        let empty_diagnostic = TextRange::empty(offset(10));
+        assert!(diagnostic_matches_request(
+            empty_diagnostic,
+            TextRange::new(offset(10), offset(11))
+        ));
+        assert!(diagnostic_matches_request(
+            empty_diagnostic,
+            TextRange::empty(offset(10))
+        ));
+    }
 }

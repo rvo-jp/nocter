@@ -195,6 +195,8 @@ implementation input.
    Inlay range filtering now uses the protocol's half-open interval inside analysis. A hint exactly
    at the requested end is excluded, while the LSP adapter remains limited to validated coordinate
    projection.
+   Source-owned half-open containment and overlap now also govern code-action filtering. An empty
+   request is handled explicitly as a cursor query, so adjacency is never confused with overlap.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit

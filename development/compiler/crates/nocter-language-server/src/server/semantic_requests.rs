@@ -428,15 +428,26 @@ mod tests {
         );
         assert_eq!(snapshot.diagnostics()[0].code(), "E0392", "{source}");
 
+        request_code_action(&mut server, &uri, 2, start, end)
+    }
+
+    fn request_code_action(
+        server: &mut LanguageServer,
+        uri: &str,
+        id: usize,
+        start: (usize, usize),
+        end: (usize, usize),
+    ) -> ServerStep {
         server.receive(&format!(
             concat!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "{{\"jsonrpc\":\"2.0\",\"id\":{id},",
                 "\"method\":\"textDocument/codeAction\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
                 "\"range\":{{\"start\":{{\"line\":{start_line},\"character\":{start_character}}},",
                 "\"end\":{{\"line\":{end_line},\"character\":{end_character}}}}},",
                 "\"context\":{{\"diagnostics\":[]}}}}}}"
             ),
+            id = id,
             uri = uri,
             start_line = start.0,
             start_character = start.1,
@@ -1761,17 +1772,7 @@ mod tests {
             completion.response().unwrap()
         );
 
-        let action = server.receive(&format!(
-            concat!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
-                "\"method\":\"textDocument/codeAction\",",
-                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
-                "\"range\":{{\"start\":{{\"line\":0,\"character\":29}},",
-                "\"end\":{{\"line\":0,\"character\":42}}}},",
-                "\"context\":{{\"diagnostics\":[]}}}}}}"
-            ),
-            uri = uri,
-        ));
+        let action = request_code_action(&mut server, &uri, 2, (0, 29), (0, 42));
         let response = action.response().unwrap();
         assert!(
             response.contains("Import `public_helper` from `../api.public_helper`"),
@@ -1782,19 +1783,35 @@ mod tests {
         assert!(response.contains("\"isPreferred\":true"), "{response}");
         assert!(action.issue().is_none(), "{:?}", action.issue());
 
-        let outside = server.receive(&format!(
-            concat!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":3,",
-                "\"method\":\"textDocument/codeAction\",",
-                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
-                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
-                "\"end\":{{\"line\":0,\"character\":3}}}},",
-                "\"context\":{{\"diagnostics\":[]}}}}}}"
-            ),
-            uri = uri,
-        ));
+        let outside = request_code_action(&mut server, &uri, 3, (0, 0), (0, 3));
         assert!(outside.response().unwrap().contains("\"result\":[]"));
         assert!(outside.issue().is_none(), "{:?}", outside.issue());
+
+        let ending_at_diagnostic = request_code_action(&mut server, &uri, 5, (0, 0), (0, 29));
+        assert!(
+            ending_at_diagnostic
+                .response()
+                .unwrap()
+                .contains("\"result\":[]")
+        );
+        assert!(
+            ending_at_diagnostic.issue().is_none(),
+            "{:?}",
+            ending_at_diagnostic.issue()
+        );
+
+        let cursor_at_diagnostic = request_code_action(&mut server, &uri, 6, (0, 29), (0, 29));
+        assert!(
+            cursor_at_diagnostic
+                .response()
+                .unwrap()
+                .contains("Import `public_helper` from `../api.public_helper`")
+        );
+        assert!(
+            cursor_at_diagnostic.issue().is_none(),
+            "{:?}",
+            cursor_at_diagnostic.issue()
+        );
     }
 
     #[test]

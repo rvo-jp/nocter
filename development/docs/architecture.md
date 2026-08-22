@@ -1257,3 +1257,6 @@ placement without making fixed index results editable.
 Requested inlay ranges remain half-open after UTF-16 validation and byte projection. Analysis owns
 that containment rule, so a hint exactly at the range end is excluded without protocol-specific
 filtering.
+Half-open containment and overlap for source bytes belong to `TextRange`. Code-action matching adds
+one explicit point-query rule for an empty editor selection; it does not turn adjacent non-empty
+ranges into overlaps or duplicate interval arithmetic in the protocol adapter.

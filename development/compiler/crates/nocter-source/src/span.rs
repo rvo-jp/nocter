@@ -82,6 +82,23 @@ impl TextRange {
     pub const fn is_empty(self) -> bool {
         self.start.get() == self.end.get()
     }
+
+    /// Returns whether this half-open range contains `offset`.
+    #[must_use]
+    pub const fn contains_offset(self, offset: ByteOffset) -> bool {
+        self.start.get() <= offset.get() && offset.get() < self.end.get()
+    }
+
+    /// Returns whether two non-empty half-open ranges overlap.
+    ///
+    /// Empty ranges represent positions rather than byte sets and therefore never overlap.
+    #[must_use]
+    pub const fn overlaps(self, another: Self) -> bool {
+        !self.is_empty()
+            && !another.is_empty()
+            && self.start.get() < another.end.get()
+            && another.start.get() < self.end.get()
+    }
 }
 
 /// A normalized source range paired with its source identity.
@@ -105,5 +122,26 @@ impl Span {
     #[must_use]
     pub const fn range(self) -> TextRange {
         self.range
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ByteOffset, TextRange};
+
+    const fn offset(value: u32) -> ByteOffset {
+        ByteOffset::new(value)
+    }
+
+    #[test]
+    fn half_open_range_relations_exclude_end_and_adjacency() {
+        let range = TextRange::new(offset(2), offset(5));
+        assert!(range.contains_offset(offset(2)));
+        assert!(range.contains_offset(offset(4)));
+        assert!(!range.contains_offset(offset(5)));
+
+        assert!(range.overlaps(TextRange::new(offset(4), offset(7))));
+        assert!(!range.overlaps(TextRange::new(offset(5), offset(7))));
+        assert!(!range.overlaps(TextRange::empty(offset(3))));
     }
 }
