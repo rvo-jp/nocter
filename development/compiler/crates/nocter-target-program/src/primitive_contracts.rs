@@ -456,8 +456,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             None,
             vec![0, 1],
         ),
-        PrimitiveRole::CurrentAllocatorState => make(0, vec![], usize(), package, None, vec![]),
-        PrimitiveRole::CurrentAllocatorKind => make(0, vec![], usize(), package, None, vec![]),
+        PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
+            make(0, vec![], usize(), package, None, vec![])
+        }
         PrimitiveRole::AllocationAbort => make(0, vec![], never(), package, None, vec![]),
         PrimitiveRole::PointerAddress => make(
             1,

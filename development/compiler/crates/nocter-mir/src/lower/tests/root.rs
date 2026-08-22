@@ -4,8 +4,8 @@ use nocter_test_support::CompilerFixture;
 
 use super::{executable_fixture, test_executable_fixture};
 use crate::{
-    MirCallTarget, MirConstant, MirOperationKind, MirRoot, MirTerminator, MirValueDefinition,
-    lower_executable,
+    MirCallTarget, MirConstant, MirOperationKind, MirRoot, MirTerminator, MirTestRoot,
+    MirValueDefinition, lower_executable,
 };
 
 #[test]
@@ -104,7 +104,7 @@ fn materializes_one_isolated_root_per_test_in_declaration_order() {
         panic!("test fixture produced a process root")
     };
     assert_eq!(
-        cases.iter().map(|case| case.name()).collect::<Vec<_>>(),
+        cases.iter().map(MirTestRoot::name).collect::<Vec<_>>(),
         ["first", "second"]
     );
     for case in cases {

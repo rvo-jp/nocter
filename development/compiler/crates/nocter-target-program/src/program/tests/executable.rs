@@ -7,6 +7,7 @@ use super::{Fixture, build_target_program, callable_dependencies, named_callable
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
     ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment,
+    ExecutableTestCase,
 };
 
 #[test]
@@ -803,7 +804,10 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
     };
     let graph = executable.target().checked().graph();
     assert_eq!(
-        cases.iter().map(|case| case.name()).collect::<Vec<_>>(),
+        cases
+            .iter()
+            .map(ExecutableTestCase::name)
+            .collect::<Vec<_>>(),
         ["first", "second"]
     );
     assert!(

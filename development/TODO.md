@@ -2,10 +2,8 @@
 
 ## Current Task
 
-Perform the v0.14.0 final design review before release preparation. The review first freezes its
-criteria, then inventories every responsibility and direct production dependency without modifying
-production code. Findings are repaired only after the complete inventory has exposed their shared
-root causes.
+The v0.14.0 implementation, final design review, adversarial second review, and full requalification
+are complete. The repository is ready for a separately authorized release-preparation operation.
 
 Release preparation, packaging, artifact qualification, tagging, pushing, and publication have not
 started and require explicit user authorization after the review and requalification complete.
@@ -38,17 +36,16 @@ input.
 - The completion-criterion trace and named executable evidence are recorded in
   `development/milestones/v0.14.0-qualification.md`.
 
-## Review Work
+## Completed Review Work
 
-1. Replace the version-carrying-only filesystem overlay with versionless source overrides composed
-   with optional editor metadata.
-2. Introduce one runtime contract, move syntax-to-semantic primitive binding into declaration
-   lowering, and remove target-program's source dependencies.
-3. Close MIR's backend environment and remove machine's target-program dependency and executable
-   escape hatch.
-4. Replace MIR navigation through executable/target/checked storage with explicit semantic query
-   contracts.
-5. Perform the adversarial second review, then repeat incremental and clean qualification.
+1. Versionless compiler source overrides are separate from versioned editor documents.
+2. Runtime contracts have one source-independent owner; declaration lowering alone projects syntax
+   primitive bindings to semantic identities.
+3. MIR publishes a closed backend environment, and machine cannot reach target or checked storage.
+4. Executable semantic queries replace MIR navigation through provider storage.
+5. Convenience re-exports no longer obscure contract ownership.
+6. The adversarial second review found no remaining boundary violation, and incremental plus clean
+   external-target qualification passed.
 
 ## Guardrails
 
