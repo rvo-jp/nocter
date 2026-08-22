@@ -22,7 +22,7 @@ pub(crate) fn source_binding_key(
     let range = binding.origin().span().range();
     let (role, family, entity) = binding_authority_key(binding);
     (
-        range.end().get() - range.start().get(),
+        range.len(),
         role,
         family,
         entity,

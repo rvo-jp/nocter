@@ -89,10 +89,9 @@ impl SourceIndex {
         let end = self
             .by_source
             .partition_point(|binding| binding.origin.source() <= source);
-        self.by_source[start..end].iter().filter(move |binding| {
-            let range = binding.origin.span().range();
-            range.start() <= offset && offset < range.end()
-        })
+        self.by_source[start..end]
+            .iter()
+            .filter(move |binding| binding.origin.span().range().contains_offset(offset))
     }
 
     /// Returns every binding projected into one source in deterministic range order.

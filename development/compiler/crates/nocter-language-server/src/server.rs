@@ -614,6 +614,82 @@ mod tests {
     }
 
     #[test]
+    fn catch_bindings_keep_one_exact_local_identity_across_hover_and_tokens() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = "func recover(input: i32!): i32 { input catch failure { 0 } }\n";
+        let failure_start = u32::try_from(text.find("failure").unwrap()).unwrap();
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+        let source = snapshot
+            .sources()
+            .iter()
+            .find(|candidate| candidate.text() == text)
+            .unwrap();
+        let binding = snapshot
+            .semantic_highlights(source.id())
+            .iter()
+            .find(|highlight| highlight.range().start().get() == failure_start)
+            .copied()
+            .unwrap();
+        assert_eq!(binding.kind(), SemanticHighlightKind::Variable);
+        assert!(binding.is_declaration());
+        assert!(binding.is_readonly());
+        assert_eq!(source.text_at(binding.range()), Some("failure"));
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":{}}}}}}}",
+            failure_start + 2
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nlet failure: error\\n```"),
+            "{response}"
+        );
+        assert!(
+            response.contains(&format!(
+                "\"start\":{{\"line\":0,\"character\":{failure_start}}}"
+            )),
+            "{response}"
+        );
+        assert!(
+            response.contains(&format!(
+                "\"end\":{{\"line\":0,\"character\":{}}}",
+                failure_start + 7
+            )),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens
+                .response()
+                .is_some_and(|response| response.contains("\"resultId\":\"1\""))
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
+    #[test]
     fn type_hover_uses_the_visible_compiler_owned_construction_surface() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
