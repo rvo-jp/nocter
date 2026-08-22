@@ -23,6 +23,7 @@ mod associated_types;
 mod automatic_imports;
 mod construction;
 mod enum_patterns;
+mod keywords;
 mod structural_fields;
 
 /// One compiler-selected name visible at an exact source position.
@@ -129,6 +130,7 @@ pub enum SemanticCompletionKind {
     Method,
     Parameter,
     Variable,
+    Keyword,
 }
 
 /// An internal inconsistency while deriving completion from immutable compiler state.
@@ -284,6 +286,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Box<[SemanticCompletion]>, SemanticCompletionError> {
+        let keyword_completions = keywords::completions(self, source, offset);
         let program = if let Some(target) = self.target() {
             CompletionProgram::Checked {
                 program: target.program().checked(),
@@ -296,7 +299,7 @@ impl AnalysisSnapshot {
         } else if let Some(recovery) = self.declaration_recovery() {
             CompletionProgram::Declarations(recovery)
         } else {
-            return Ok(Box::new([]));
+            return Ok(keyword_completions);
         };
         let index = program.index();
         let module = SourceContext::resolve(index, source)?.module();
@@ -371,6 +374,7 @@ impl AnalysisSnapshot {
             })
             .collect::<Vec<_>>();
         completions.extend(automatic_imports);
+        completions.extend(keyword_completions);
         Ok(completions.into_boxed_slice())
     }
 }

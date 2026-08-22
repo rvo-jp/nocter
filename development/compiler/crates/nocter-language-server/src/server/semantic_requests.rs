@@ -876,6 +876,65 @@ mod tests {
     }
 
     #[test]
+    fn completion_supplies_contextual_test_and_copy_keywords() {
+        let temporary = TemporaryDirectory::new();
+        let uri = format!("file://{}", temporary.path().join("main.nct").display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+
+        let top_level = "te\n";
+        let opened = set_completion_document(&mut server, &uri, top_level, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 2, 0, 2);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"test\",\"kind\":14"),
+            "{response}"
+        );
+        assert!(response.contains("test name { ... }"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let generic = "func clone<T>(value: T): T where co\n";
+        let changed = set_completion_document(&mut server, &uri, generic, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 3, 0, generic.trim_end().len());
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"copy\",\"kind\":14"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        for (version, source) in [
+            (3, "func clone<T>(value: T): T where copy T, \n"),
+            (4, "func clone(value: i32): i32 where co\n"),
+            (5, "struct Value {\n    te\n}\n"),
+        ] {
+            set_completion_document(&mut server, &uri, source, version);
+            let (line, character) = if version == 5 {
+                (1, 6)
+            } else {
+                (0, source.trim_end().len())
+            };
+            let completion = request_completion(&mut server, &uri, version + 1, line, character);
+            let response = completion.response().unwrap();
+            assert!(!response.contains("\"label\":\"copy\""), "{response}");
+            assert!(!response.contains("\"label\":\"test\""), "{response}");
+            assert!(completion.issue().is_none(), "{:?}", completion.issue());
+        }
+    }
+
+    #[test]
     fn completion_uses_checked_receiver_selection_for_methods() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

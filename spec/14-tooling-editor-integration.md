@@ -134,6 +134,18 @@ Completion follows lexical scope, visibility, shadowing, receiver capability, ge
 the exact package graph. It includes accessible declarations, imports, members, enum-pattern
 variants, unused struct fields, construction entries, native-test syntax, and relevant keywords.
 `copy` is offered only in a generic requirement context where it is not already present.
+
+The v0.14.0 compiler-owned keyword set is deliberately contextual and closed:
+
+- `test` is offered at a top-level item position, with `test name { ... }` as declaration-shape
+  detail. Semantic completion inserts only the keyword; optional editor snippets may provide
+  placeholders.
+- `copy` is offered at the start of a `where` predicate when a generic parameter is visible and the
+  same clause has no existing `copy` predicate. A partially typed prefix such as `co` is accepted.
+
+Ordinary unconditional keyword lists and snippets are lexical editor conveniences, not semantic
+completion results. This avoids presenting `break`, `continue`, visibility, or declaration forms in
+grammar contexts where they cannot be used.
 Construction completion uses the use-site construction view, not hover's public-presentation view,
 so private construction available inside the defining module remains available to its source.
 After a construction owner followed by `.`, completion offers only named entries expressible in

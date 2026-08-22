@@ -1210,6 +1210,14 @@ server passes the exact accepted analysis generation to the neutral LSP encoder 
 set. The encoder still owns only legend mapping and delta encoding and never imports workspace
 state.
 
+Syntax-owned completion is a separate analysis input from semantic namespace completion. It reads
+the immutable CST and source at the requested byte position and emits only grammar-fixed contextual
+keywords. In v0.14.0 those are top-level `test` and intrinsic requirement `copy`; declaration
+identities and automatic imports remain in the semantic completion path. This allows header-syntax
+failures such as a partial `where co` to return a valid keyword without constructing a fake semantic
+program. The LSP adapter maps the compiler's closed `Keyword` category and never supplies snippets
+or its own keyword table.
+
 Source mutation features share one protocol-independent edit value containing an exact `SourceId`,
 byte range, and replacement. The language-server composition layer groups and validates these
 edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits

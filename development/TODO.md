@@ -111,7 +111,11 @@ implementation input.
    projections. Name completion follows those scope parents, respects declaration order and
    explicit closure capture boundaries, overlays the canonical module namespace, and reuses
    compiler-rendered details. A typed-body failure now retains the current generation's completed
-   pre-body semantic program, so name completion survives an unknown member or another body rule
+   pre-body semantic program. Syntax-owned keyword completion remains separate: the v0.14.0 set
+   contains top-level `test` and a non-duplicate `copy` at the start of a generic `where` predicate,
+   including partial prefixes in header-syntax-failed generations. The LSP layer maps only the
+   compiler's `Keyword` category and does not own keyword tables or snippets.
+   Name completion therefore survives an unknown member or another body rule
    without falling back to stale state. The retained value explicitly has no checked nodes, local
    types, dispatch, ownership, or provenance; ordinary command compilation uses a non-retaining
    path. Receiver-member completion now has a compiler-owned candidate-name index and applies the

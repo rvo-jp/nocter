@@ -45,6 +45,7 @@ pub enum CompletionItemKind {
     Interface = 8,
     Module = 9,
     Enum = 13,
+    Keyword = 14,
     EnumMember = 20,
     Struct = 22,
     TypeParameter = 25,
