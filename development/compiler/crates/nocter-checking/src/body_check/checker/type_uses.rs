@@ -4,7 +4,9 @@ use nocter_model::{
     NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind};
+use nocter_syntax::{
+    ExpectedSyntax, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
+};
 
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
@@ -221,6 +223,45 @@ impl BodyChecker<'_, '_> {
             arguments: arguments.clone(),
             member: member.token,
         })
+    }
+
+    /// Resolves the complete generic owner preceding a missing final member name.
+    ///
+    /// This accepts only the parser-owned missing-name shape of `Type<Args>.`. It does not repair
+    /// an incomplete type argument or invent a member token.
+    pub(super) fn resolve_incomplete_explicit_construction_owner(
+        &mut self,
+        node: NodeId,
+    ) -> Result<Option<NominalConstructionOwner>, BodyCheckError> {
+        let Some(named) = direct_child(self.tree(), node, NodeKind::NamedType) else {
+            return Ok(None);
+        };
+        let missing_member = self.tree().children(named).iter().copied().any(|element| {
+            matches!(
+                element,
+                SyntaxElement::Missing(missing)
+                    if missing.expected() == ExpectedSyntax::Name
+            )
+        });
+        if !missing_member {
+            return Ok(None);
+        }
+        let segments = self.named_segments(named)?;
+        if segments.is_empty() {
+            return Ok(None);
+        }
+        let ty = self.resolve_named_segments(node, segments)?;
+        let Some(TypeKind::Nominal {
+            definition,
+            arguments,
+        }) = self.types.get(ty)
+        else {
+            return Ok(None);
+        };
+        Ok(Some(NominalConstructionOwner {
+            definition: *definition,
+            arguments: NominalOwnerArguments::Fixed(arguments.clone()),
+        }))
     }
 
     pub(super) fn resolve_type_use(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {

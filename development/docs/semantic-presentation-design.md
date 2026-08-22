@@ -189,3 +189,20 @@ spelling receives no synthetic target, later statements are absent, and the valu
 checking. Name completion can therefore use the exact current generation without editor-side token
 lookup or a stale successful snapshot. This recovery stage is distinct from the complete pre-body
 stage retained after a typed-body failure.
+
+Construction-member completion is a separate type-owned query rather than a special case of value
+receiver completion. One `ConstructionCompletionOwner` identifies a nominal or built-in type
+family independently of inferred or explicit generic arguments. The checker-owned selector derives
+named candidates from the construction surface's use-site view: enum variants and construction
+functions preserve declaration order, while structural and literal entries are omitted because dot
+syntax cannot name them. An inaccessible entry never reaches the candidate list; an unconstructed
+built-in family yields an ordinary empty list.
+
+A checked member reference resolves back to its semantic variant or construction-callable identity
+before querying that surface. Invalid and missing member names retain a typed
+`ConstructionSelection` interruption containing the already-resolved owner family. The incomplete
+generic form `Type<Args>.` resolves only when the parser owns an exact missing final name; it cannot
+repair incomplete arguments or synthesize a member. Complete, body-failed, and syntax-incomplete
+generations therefore converge on the same selection authority. Selection-table disagreement is a
+typed completion error and becomes an internal LSP error rather than silently falling back to name
+completion.

@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
+use std::fmt;
 
 use nocter_checking::{
-    BodyScope, CheckedOperation, CheckedProgram, MemberCompletionContext, MemberCompletionTarget,
-    NameTarget, PreparedSemanticProgram, ReceiverPreparation,
+    BodyScope, CheckedOperation, CheckedProgram, ConstructionCompletionError,
+    MemberCompletionContext, MemberCompletionError, MemberCompletionTarget, NameTarget,
+    PreparedSemanticProgram, ReceiverPreparation, TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -13,6 +15,8 @@ use crate::AnalysisSnapshot;
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{name_recovery_presentation, prepared_presentation, presentation};
 use crate::source_context::{SourceContext, SourceContextError};
+
+mod construction;
 
 /// One compiler-selected name visible at an exact source position.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -48,10 +52,58 @@ pub enum SemanticCompletionKind {
     Type,
     Interface,
     Function,
+    Constructor,
+    EnumMember,
     Field,
     Method,
     Parameter,
     Variable,
+}
+
+/// An internal inconsistency while deriving completion from immutable compiler state.
+#[derive(Debug)]
+pub enum SemanticCompletionError {
+    SourceContext(SourceContextError),
+    Member(MemberCompletionError),
+    Construction(ConstructionCompletionError),
+}
+
+impl fmt::Display for SemanticCompletionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SourceContext(error) => error.fmt(formatter),
+            Self::Member(error) => error.fmt(formatter),
+            Self::Construction(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for SemanticCompletionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceContext(error) => Some(error),
+            Self::Member(error) => Some(error),
+            Self::Construction(error) => Some(error),
+        }
+    }
+}
+
+impl From<SourceContextError> for SemanticCompletionError {
+    fn from(error: SourceContextError) -> Self {
+        Self::SourceContext(error)
+    }
+}
+
+impl From<MemberCompletionError> for SemanticCompletionError {
+    fn from(error: MemberCompletionError) -> Self {
+        Self::Member(error)
+    }
+}
+
+impl From<ConstructionCompletionError> for SemanticCompletionError {
+    fn from(error: ConstructionCompletionError) -> Self {
+        Self::Construction(error)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -113,12 +165,13 @@ impl AnalysisSnapshot {
     ///
     /// # Errors
     ///
-    /// Returns an internal context error when a reached source has no unique semantic module.
+    /// Returns an internal query error when source context or a normalized selection authority is
+    /// inconsistent with the retained generation.
     pub fn semantic_completions(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Result<Box<[SemanticCompletion]>, SourceContextError> {
+    ) -> Result<Box<[SemanticCompletion]>, SemanticCompletionError> {
         let program = if let Some(target) = self.target() {
             CompletionProgram::Checked {
                 program: target.program().checked(),
@@ -136,12 +189,19 @@ impl AnalysisSnapshot {
         if let CompletionProgram::Checked {
             program: checked, ..
         } = program
-            && let Some(completions) =
-                checked_member_completions(checked, index, source, offset, module)
         {
-            return Ok(completions);
+            if let Some(completions) =
+                construction::checked_completions(checked, index, source, offset, module)?
+            {
+                return Ok(completions);
+            }
+            if let Some(completions) =
+                checked_member_completions(checked, index, source, offset, module)?
+            {
+                return Ok(completions);
+            }
         }
-        if let Some(completions) = interrupted_member_completions(self, source, offset, module) {
+        if let Some(completions) = interrupted_completions(self, source, offset, module)? {
             return Ok(completions);
         }
         let mut candidates = BTreeMap::new();
@@ -173,43 +233,66 @@ impl AnalysisSnapshot {
     }
 }
 
-fn interrupted_member_completions(
+fn interrupted_completions(
     snapshot: &AnalysisSnapshot,
     source: SourceId,
     offset: ByteOffset,
     module: nocter_model::ModuleId,
-) -> Option<Box<[SemanticCompletion]>> {
-    let recovery = snapshot.body_recovery()?;
-    let origin = recovery.interruption()?.origin();
+) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
+    let Some(recovery) = snapshot.body_recovery() else {
+        return Ok(None);
+    };
+    let Some(interruption) = recovery.interruption() else {
+        return Ok(None);
+    };
+    let origin = interruption.origin();
     if origin.source() != source || !contains(origin.span().range(), offset) {
-        return None;
+        return Ok(None);
     }
-    let candidates = recovery.interrupted_member_completions(module)?.ok()?;
     let spellings = VisibleSpellings::new(recovery.prepared().graph(), module);
-    Some(
-        candidates
-            .iter()
-            .filter_map(|candidate| {
-                let label = recovery
-                    .prepared()
-                    .graph()
-                    .symbols()
-                    .spelling(candidate.name())?;
-                let (kind, entity) = completion_target(candidate.target());
-                let detail = entity
-                    .and_then(|entity| {
-                        prepared_presentation(recovery.prepared(), entity, &spellings)
+    match interruption.kind() {
+        TypedBodyInterruptionKind::MemberSelection { .. } => {
+            let Some(candidates) = recovery.interrupted_member_completions(module) else {
+                return Ok(None);
+            };
+            let candidates = candidates?;
+            Ok(Some(
+                candidates
+                    .iter()
+                    .filter_map(|candidate| {
+                        let label = recovery
+                            .prepared()
+                            .graph()
+                            .symbols()
+                            .spelling(candidate.name())?;
+                        let (kind, entity) = completion_target(candidate.target());
+                        let detail = entity
+                            .and_then(|entity| {
+                                prepared_presentation(recovery.prepared(), entity, &spellings)
+                            })
+                            .map(|presentation| Box::<str>::from(presentation.code()));
+                        Some(SemanticCompletion {
+                            label: label.into(),
+                            kind,
+                            detail,
+                        })
                     })
-                    .map(|presentation| Box::<str>::from(presentation.code()));
-                Some(SemanticCompletion {
-                    label: label.into(),
-                    kind,
-                    detail,
-                })
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
-    )
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ))
+        }
+        TypedBodyInterruptionKind::ConstructionSelection { .. } => {
+            let Some(candidates) = recovery.interrupted_construction_completions(module) else {
+                return Ok(None);
+            };
+            let candidates = candidates?;
+            Ok(Some(construction::render_prepared_completions(
+                recovery.prepared(),
+                &spellings,
+                &candidates,
+            )))
+        }
+    }
 }
 
 fn checked_member_completions(
@@ -218,7 +301,7 @@ fn checked_member_completions(
     source: SourceId,
     offset: ByteOffset,
     module: nocter_model::ModuleId,
-) -> Option<Box<[SemanticCompletion]>> {
+) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
     let member_range = index
         .bindings_in(source)
         .filter(|binding| {
@@ -227,8 +310,11 @@ fn checked_member_completions(
                 && contains(binding.origin().span().range(), offset)
         })
         .map(|binding| binding.origin().span().range())
-        .min_by_key(|range| range_length(*range))?;
-    let (body_id, receiver) = index
+        .min_by_key(|range| range_length(*range));
+    let Some(member_range) = member_range else {
+        return Ok(None);
+    };
+    let receiver_selection = index
         .bindings_in(source)
         .filter_map(|binding| {
             let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
@@ -245,26 +331,34 @@ fn checked_member_completions(
             Some((body_id, range, call.receiver()?))
         })
         .min_by_key(|(_, range, _)| range_length(*range))
-        .map(|(body, _, receiver)| (body, receiver))?;
-    let body = program.graph().declarations().bodies().get(body_id)?;
+        .map(|(body, _, receiver)| (body, receiver));
+    let Some((body_id, receiver)) = receiver_selection else {
+        return Ok(None);
+    };
+    let body = program
+        .graph()
+        .declarations()
+        .bodies()
+        .get(body_id)
+        .ok_or(MemberCompletionError::MissingBody(body_id))?;
     let receiver_type = program
         .bodies()
-        .get(body_id)?
+        .get(body_id)
+        .ok_or(MemberCompletionError::MissingBody(body_id))?
         .nodes()
-        .get(receiver.value())?
+        .get(receiver.value())
+        .ok_or(MemberCompletionError::MissingReceiver(receiver.value()))?
         .ty();
     let (available, owned) = receiver_access(receiver.preparation());
-    let candidates = program
-        .member_completions(MemberCompletionContext::new(
-            body.owner(),
-            module,
-            receiver_type,
-            available,
-            owned,
-        ))
-        .ok()?;
+    let candidates = program.member_completions(MemberCompletionContext::new(
+        body.owner(),
+        module,
+        receiver_type,
+        available,
+        owned,
+    ))?;
     let spellings = VisibleSpellings::new(program.graph(), module);
-    Some(
+    Ok(Some(
         candidates
             .iter()
             .filter_map(|candidate| {
@@ -281,7 +375,7 @@ fn checked_member_completions(
             })
             .collect::<Vec<_>>()
             .into_boxed_slice(),
-    )
+    ))
 }
 
 const fn completion_target(

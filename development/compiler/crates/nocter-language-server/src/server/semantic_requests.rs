@@ -289,6 +289,49 @@ mod tests {
     use std::path::Path;
 
     use super::super::tests::{TemporaryDirectory, semantic_server};
+    use crate::{LanguageServer, ServerStep};
+
+    fn construction_completion_server(temporary: &TemporaryDirectory) -> (String, LanguageServer) {
+        let uri = format!("file://{}", temporary.path().join("main.nct").display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        (uri, server)
+    }
+
+    fn set_completion_document(
+        server: &mut LanguageServer,
+        uri: &str,
+        text: &str,
+        version: i32,
+    ) -> ServerStep {
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        if version == 1 {
+            server.receive(&format!(
+                "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+            ))
+        } else {
+            server.receive(&format!(
+                "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":{version}}},\"contentChanges\":[{{\"text\":{text_json}}}]}}}}"
+            ))
+        }
+    }
+
+    fn request_completion(
+        server: &mut LanguageServer,
+        uri: &str,
+        id: i32,
+        line: usize,
+        character: usize,
+    ) -> ServerStep {
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
+        ))
+    }
 
     #[test]
     fn definition_and_references_follow_identity_and_exact_ranges() {
@@ -817,6 +860,131 @@ mod tests {
         );
         assert!(!response.contains("\"label\":\"clear\""), "{response}");
         assert!(incomplete.issue().is_none(), "{:?}", incomplete.issue());
+    }
+
+    #[test]
+    fn completion_uses_the_use_site_construction_surface_in_every_generation_state() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+
+        let source_with = |selection: &str| {
+            concat!(
+                "pub enum Choice {\n",
+                "    first\n",
+                "    second(value: i32)\n",
+                "}\n",
+                "construct Choice {\n",
+                "    pub func new(): Self { loop {} }\n",
+                "}\n",
+                "func main(): Choice { Choice.$selection }\n",
+            )
+            .replace("$selection", selection)
+        };
+        let assert_surface = |step: &ServerStep| {
+            let response = step.response().unwrap();
+            assert!(
+                response.contains("\"label\":\"first\",\"kind\":20"),
+                "{response}"
+            );
+            assert!(
+                response.contains("\"label\":\"second\",\"kind\":20"),
+                "{response}"
+            );
+            assert!(
+                response.contains("\"label\":\"new\",\"kind\":4"),
+                "{response}"
+            );
+            assert!(!response.contains("\"label\":\"main\""), "{response}");
+            assert!(step.issue().is_none(), "{:?}", step.issue());
+        };
+
+        let checked_text = source_with("first");
+        let opened = set_completion_document(&mut server, &uri, &checked_text, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        assert_surface(&request_completion(&mut server, &uri, 2, 7, 31));
+
+        let failed_text = source_with("missing");
+        let changed = set_completion_document(&mut server, &uri, &failed_text, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_surface(&request_completion(&mut server, &uri, 3, 7, 32));
+
+        let incomplete_text = source_with("");
+        let changed = set_completion_document(&mut server, &uri, &incomplete_text, 3);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        assert_surface(&request_completion(&mut server, &uri, 4, 7, 29));
+    }
+
+    #[test]
+    fn completion_supports_builtin_construction_surfaces() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let changed =
+            set_completion_document(&mut server, &uri, "func main(): error { error. }\n", 1);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let builtin = request_completion(&mut server, &uri, 2, 0, 27);
+        let response = builtin.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"new\",\"kind\":4"),
+            "{response}"
+        );
+        assert!(builtin.issue().is_none(), "{:?}", builtin.issue());
+
+        let changed = set_completion_document(&mut server, &uri, "func main(): void { i32. }\n", 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let empty = request_completion(&mut server, &uri, 3, 0, 24);
+        assert!(empty.response().unwrap().contains("\"result\":[]"));
+        assert!(empty.issue().is_none(), "{:?}", empty.issue());
+    }
+
+    #[test]
+    fn completion_recovers_a_generic_construction_owner_before_the_missing_member() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let generic_text = concat!(
+            "pub enum GenericChoice<T> {\n",
+            "    empty\n",
+            "    value(item: T)\n",
+            "}\n",
+            "construct GenericChoice<T> {\n",
+            "    pub func new(item: T): Self { GenericChoice.value(move item) }\n",
+            "}\n",
+            "func main(): GenericChoice<i32> { GenericChoice<i32>. }\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, generic_text, 1);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let generic = request_completion(&mut server, &uri, 2, 7, 53);
+        let response = generic.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"empty\",\"kind\":20"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"value\",\"kind\":20"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"new\",\"kind\":4"),
+            "{response}"
+        );
+        assert!(generic.issue().is_none(), "{:?}", generic.issue());
     }
 
     #[test]

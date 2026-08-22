@@ -136,6 +136,13 @@ variants, unused struct fields, construction entries, native-test syntax, and re
 `copy` is offered only in a generic requirement context where it is not already present.
 Construction completion uses the use-site construction view, not hover's public-presentation view,
 so private construction available inside the defining module remains available to its source.
+After a construction owner followed by `.`, completion offers only named entries expressible in
+that position: accessible enum variants and construction functions. Structural construction and
+typed literals use their own delimiters and are not invented as dot members. Explicit generic
+arguments select the same type-family surface as inferred arguments, and a built-in type with no
+named construction surface produces no dot candidates. Complete members, an invalid member name,
+and a missing member name use the same compiler-owned entry identities, visibility decision, and
+declaration order.
 
 Automatic imports consider only reached exports whose resolved boundary contains the current
 module: ancestor- and package-visible exports in the active package, bare-public exports in direct

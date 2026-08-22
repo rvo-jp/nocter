@@ -78,6 +78,7 @@ pub enum MemberCompletionError {
     FieldSelection,
     Selection(crate::InstanceSelectionError),
     MissingBody(BodyId),
+    MissingReceiver(nocter_model::BodyNodeId),
     UnknownReceiver(TypeId),
 }
 
@@ -89,6 +90,12 @@ impl fmt::Display for MemberCompletionError {
             Self::Selection(error) => error.fmt(formatter),
             Self::MissingBody(body) => {
                 write!(formatter, "member completion body {body:?} is absent")
+            }
+            Self::MissingReceiver(receiver) => {
+                write!(
+                    formatter,
+                    "member completion receiver node {receiver:?} is absent"
+                )
             }
             Self::UnknownReceiver(receiver) => {
                 write!(

@@ -11,6 +11,7 @@ mod checked;
 mod concrete_destruction;
 mod concrete_dispatch;
 mod conformance;
+mod construction_completion;
 mod construction_surfaces;
 mod copyability;
 mod expected;
@@ -79,6 +80,10 @@ pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, SubstitutionError, build_conformance_table,
+};
+pub use construction_completion::{
+    ConstructionCompletionCandidate, ConstructionCompletionError, ConstructionCompletionOwner,
+    ConstructionCompletionTarget,
 };
 pub use construction_surfaces::{
     ConstructionSurfaceBuildError, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,

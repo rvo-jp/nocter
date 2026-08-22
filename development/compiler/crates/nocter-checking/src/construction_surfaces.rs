@@ -4,8 +4,8 @@ use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape, Visibility,
 };
 use nocter_model::{
-    CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId, Symbol, TypeId, TypeStore,
-    VariantId,
+    BuiltinType, CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId, Symbol, TypeId,
+    TypeStore, VariantId,
 };
 
 use crate::type_relations::InherentTypeFamily;
@@ -233,6 +233,40 @@ impl ConstructionSurfaceTable {
         self.select_surface(graph, nominal, from, SurfaceAudience::UseSite)
     }
 
+    /// Selects the use-site construction surface attached to one built-in type family.
+    ///
+    /// Built-ins have no structural or intrinsic-variant entry. Their named functions and typed
+    /// literals still pass through the same construction declaration, source order, default, and
+    /// visibility authority as nominal types.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the prepared table and declaration graph disagree.
+    pub(crate) fn accessible_builtin_surface(
+        &self,
+        graph: &DeclarationGraph,
+        builtin: BuiltinType,
+        from: ModuleId,
+    ) -> Result<SelectedConstructionSurface, ConstructionSurfaceSelectionError> {
+        let Some(surface) = self.by_family.get(&InherentTypeFamily::Builtin(builtin)) else {
+            return Ok(SelectedConstructionSurface {
+                declaration: None,
+                entries: Box::new([]),
+                default: None,
+            });
+        };
+        let construction = surface
+            .declaration
+            .ok_or(ConstructionSurfaceSelectionError::MissingBuiltinConstruction(builtin))?;
+        let (entries, default) =
+            select_authored_entries(graph, surface, construction, from, SurfaceAudience::UseSite)?;
+        Ok(SelectedConstructionSurface {
+            declaration: Some(construction),
+            entries: entries.into_boxed_slice(),
+            default,
+        })
+    }
+
     fn select_surface(
         &self,
         graph: &DeclarationGraph,
@@ -304,16 +338,13 @@ impl ConstructionSurfaceTable {
         }
 
         if let Some((construction, declaration)) = construction {
-            for member in declaration.members().iter().copied() {
-                if !surface_member_is_indexed(graph, surface, construction, member)? {
-                    return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
-                }
-                if member_is_visible(graph, construction, member, from, audience)? {
-                    if declaration.default_member() == Some(member) {
-                        default = Some(entries.len());
-                    }
-                    entries.push(SelectedConstructionEntry::Callable(member));
-                }
+            let offset = entries.len();
+            let (authored, authored_default) =
+                select_authored_entries(graph, surface, construction, from, audience)?;
+            entries.extend(authored);
+            if let Some(authored_default) = authored_default {
+                debug_assert!(declaration.default_member().is_some());
+                default = Some(offset + authored_default);
             }
         }
 
@@ -521,6 +552,36 @@ enum SurfaceAudience {
     PublicPresentation,
 }
 
+fn select_authored_entries(
+    graph: &DeclarationGraph,
+    surface: &ConstructionSurface,
+    construction: ConstructionId,
+    from: ModuleId,
+    audience: SurfaceAudience,
+) -> Result<(Vec<SelectedConstructionEntry>, Option<usize>), ConstructionSurfaceSelectionError> {
+    let declaration = graph
+        .declarations()
+        .constructions()
+        .get(construction)
+        .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(
+            construction,
+        ))?;
+    let mut entries = Vec::new();
+    let mut default = None;
+    for member in declaration.members().iter().copied() {
+        if !surface_member_is_indexed(graph, surface, construction, member)? {
+            return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
+        }
+        if member_is_visible(graph, construction, member, from, audience)? {
+            if declaration.default_member() == Some(member) {
+                default = Some(entries.len());
+            }
+            entries.push(SelectedConstructionEntry::Callable(member));
+        }
+    }
+    Ok((entries, default))
+}
+
 fn field_is_visible(
     graph: &DeclarationGraph,
     nominal: NominalTypeId,
@@ -696,6 +757,7 @@ impl std::error::Error for ConstructionSurfaceBuildError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstructionSurfaceSelectionError {
+    MissingBuiltinConstruction(BuiltinType),
     MissingNominal(NominalTypeId),
     MissingNominalSite(NominalTypeId),
     MissingField(FieldId),

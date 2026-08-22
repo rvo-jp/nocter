@@ -1,6 +1,8 @@
 use nocter_model::{BodyId, BorrowCapability, TypeId};
 use nocter_source_index::SourceOrigin;
 
+use crate::ConstructionCompletionOwner;
+
 /// One compiler-typed fact at the exact source operation that stopped body construction.
 ///
 /// This value is not a partially successful checked node. It records only facts that were fixed
@@ -44,5 +46,8 @@ pub enum TypedBodyInterruptionKind {
         receiver: TypeId,
         available: BorrowCapability,
         owned: bool,
+    },
+    ConstructionSelection {
+        owner: ConstructionCompletionOwner,
     },
 }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::{SemanticCompletionKind, SourceContextError};
+use nocter_analysis::{SemanticCompletionError, SemanticCompletionKind};
 use nocter_json::Value;
 use nocter_lsp::{CompletionItem, CompletionItemKind, CompletionParams, completion_result};
 use nocter_source::{CoordinateError, Utf16Position};
@@ -51,6 +51,8 @@ const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {
         SemanticCompletionKind::Type => CompletionItemKind::Class,
         SemanticCompletionKind::Interface => CompletionItemKind::Interface,
         SemanticCompletionKind::Function => CompletionItemKind::Function,
+        SemanticCompletionKind::Constructor => CompletionItemKind::Constructor,
+        SemanticCompletionKind::EnumMember => CompletionItemKind::EnumMember,
         SemanticCompletionKind::Field => CompletionItemKind::Field,
         SemanticCompletionKind::Method => CompletionItemKind::Method,
         SemanticCompletionKind::Parameter | SemanticCompletionKind::Variable => {
@@ -63,7 +65,7 @@ const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {
 pub enum CompletionQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
-    Semantic(SourceContextError),
+    Semantic(SemanticCompletionError),
 }
 
 impl fmt::Display for CompletionQueryError {

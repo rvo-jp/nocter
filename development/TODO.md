@@ -146,6 +146,13 @@ implementation input.
    semantic spelling, including import aliases, without source slicing. Presentation emits only
    valid nominal and bodyless `construct` declarations, restores semantic target results to `Self`,
    and reports table/context inconsistencies as internal query errors instead of empty hover.
+   Type-owned construction completion now consumes the use-site view of that table. Complete
+   variant/function references, invalid member selections, bare `Type.`, built-in owners, and
+   `Type<Args>.` all converge on one semantic owner-family query. Only dot-expressible variants and
+   construction functions are candidates; structural construction and literals retain their own
+   syntax. Visibility and declaration order remain table-owned, while an owner with no named surface
+   returns an ordinary empty result. Selection inconsistencies are typed internal completion errors
+   rather than a fallback to unrelated lexical names.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

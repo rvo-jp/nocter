@@ -26,7 +26,7 @@ mod semantic;
 mod signature;
 mod source_context;
 
-pub use completion::{SemanticCompletion, SemanticCompletionKind};
+pub use completion::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };

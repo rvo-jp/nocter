@@ -14,8 +14,9 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    AggregateConstruction, CallTarget, CheckedCall, CheckedOperation, GenericArgument, NameTarget,
-    StaticDispatch, StaticSelection,
+    AggregateConstruction, CallTarget, CheckedCall, CheckedOperation, ConstructionCompletionOwner,
+    GenericArgument, NameTarget, StaticDispatch, StaticSelection, TypedBodyInterruption,
+    TypedBodyInterruptionKind,
 };
 
 enum ConstructionOwnerArguments {
@@ -40,8 +41,13 @@ impl BodyChecker<'_, '_> {
         let owner = self.resolve_inferred_construction_owner(owner)?;
         let owner_reference = owner.reference;
         let owner_target = owner.target;
-        let member_token = crate::syntax::direct_identifier(self.tree(), member)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
+        let completion_owner = construction_completion_owner(owner_target);
+        let Some(member_token) = crate::syntax::direct_identifier(self.tree(), member) else {
+            if let Some(owner) = completion_owner {
+                self.record_construction_interruption_node(member, owner)?;
+            }
+            return Err(BodyCheckInternalError::InvalidSyntax(member).into());
+        };
         let member_name = self
             .graph
             .symbols()
@@ -70,6 +76,7 @@ impl BodyChecker<'_, '_> {
                     );
                 }
                 let Some(construction) = self.construction_surfaces.for_nominal(nominal) else {
+                    self.record_construction_interruption(member_token, completion_owner)?;
                     return Err(self.rule(BodyRule::InvalidCall, member)?);
                 };
                 construction
@@ -77,6 +84,7 @@ impl BodyChecker<'_, '_> {
             NameTarget::Builtin(builtin) => {
                 let ty = self.types.builtin(builtin);
                 let Some(construction) = self.construction_surfaces.for_type(self.types, ty) else {
+                    self.record_construction_interruption(member_token, completion_owner)?;
                     return Err(self.rule(BodyRule::InvalidCall, member)?);
                 };
                 construction
@@ -100,6 +108,13 @@ impl BodyChecker<'_, '_> {
         call_suffix: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some(incomplete) = self.resolve_incomplete_explicit_construction_owner(owner)? {
+            self.record_construction_interruption_node(
+                owner,
+                ConstructionCompletionOwner::Nominal(incomplete.definition),
+            )?;
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
         let owner = self.resolve_explicit_construction_owner(owner)?;
         let member_name = self
             .graph
@@ -150,19 +165,26 @@ impl BodyChecker<'_, '_> {
     ) -> Result<BodyNodeId, BodyCheckError> {
         let owner = self.resolve_inferred_construction_owner(owner)?;
         let reference = owner.reference;
+        let completion_owner = construction_completion_owner(owner.target);
+        let Some(token) = crate::syntax::direct_identifier(self.tree(), member) else {
+            if let Some(owner) = completion_owner {
+                self.record_construction_interruption_node(member, owner)?;
+            }
+            return Err(BodyCheckInternalError::InvalidSyntax(member).into());
+        };
         let NameTarget::Exported(ExportedEntity::NominalType(nominal)) = owner.target else {
+            self.record_construction_interruption(token, completion_owner)?;
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);
         };
         self.consumed_uses
             .insert(super::calls::call_origin(self, reference)?);
-        let token = crate::syntax::direct_identifier(self.tree(), member)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
         let name = self.segment_symbol(token)?;
         let Some(variant) = self
             .construction_surfaces
             .variant(nominal, name)
             .map_err(BodyCheckInternalError::from)?
         else {
+            self.record_construction_interruption(token, completion_owner)?;
             return Err(self.token_rule(BodyRule::InvalidConstruction, token)?);
         };
         let owner = self.inferred_nominal_construction_type(nominal)?;
@@ -181,6 +203,13 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some(owner) = self.resolve_incomplete_explicit_construction_owner(node)? {
+            self.record_construction_interruption_node(
+                node,
+                ConstructionCompletionOwner::Nominal(owner.definition),
+            )?;
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
         let owner = self.resolve_explicit_construction_owner(node)?;
         let name = self.segment_symbol(owner.member)?;
         let Some(variant) = self
@@ -188,6 +217,10 @@ impl BodyChecker<'_, '_> {
             .variant(owner.definition, name)
             .map_err(BodyCheckInternalError::from)?
         else {
+            self.record_construction_interruption(
+                owner.member,
+                Some(ConstructionCompletionOwner::Nominal(owner.definition)),
+            )?;
             return Err(self.token_rule(BodyRule::InvalidConstruction, owner.member)?);
         };
         self.finish_variant_construction(
@@ -326,6 +359,8 @@ impl BodyChecker<'_, '_> {
             .named_function(self.graph, construction, member_name, self.source.module())
             .map_err(BodyCheckInternalError::from)?;
         let Some(callable_id) = callable_id else {
+            let completion_owner = self.construction_declaration_completion_owner(construction)?;
+            self.record_construction_interruption(member_token, completion_owner)?;
             return Err(self.token_rule(BodyRule::InvalidCall, member_token)?);
         };
         let callable = self
@@ -405,6 +440,65 @@ impl BodyChecker<'_, '_> {
         })
     }
 
+    fn record_construction_interruption_node(
+        &mut self,
+        node: NodeId,
+        owner: ConstructionCompletionOwner,
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_node(self.tree(), node)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        self.record_construction_interruption_origin(origin, owner);
+        Ok(())
+    }
+
+    fn construction_declaration_completion_owner(
+        &self,
+        construction: nocter_model::ConstructionId,
+    ) -> Result<Option<ConstructionCompletionOwner>, BodyCheckInternalError> {
+        let declaration = self
+            .graph
+            .declarations()
+            .constructions()
+            .get(construction)
+            .ok_or(crate::ConstructionSurfaceSelectionError::MissingConstruction(construction))?;
+        match self.types.get(declaration.target()) {
+            Some(TypeKind::Nominal { definition, .. }) => {
+                Ok(Some(ConstructionCompletionOwner::Nominal(*definition)))
+            }
+            Some(TypeKind::Builtin(builtin)) => {
+                Ok(Some(ConstructionCompletionOwner::Builtin(*builtin)))
+            }
+            Some(_) => Ok(None),
+            None => Err(BodyCheckInternalError::UnknownType(declaration.target())),
+        }
+    }
+
+    fn record_construction_interruption(
+        &mut self,
+        token: SyntaxToken,
+        owner: Option<ConstructionCompletionOwner>,
+    ) -> Result<(), BodyCheckInternalError> {
+        let Some(owner) = owner else {
+            return Ok(());
+        };
+        let origin = SourceOrigin::from_token(self.tree(), token)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        self.record_construction_interruption_origin(origin, owner);
+        Ok(())
+    }
+
+    fn record_construction_interruption_origin(
+        &mut self,
+        origin: SourceOrigin,
+        owner: ConstructionCompletionOwner,
+    ) {
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::ConstructionSelection { owner },
+        ));
+    }
+
     fn project_construction_member(
         &mut self,
         token: SyntaxToken,
@@ -472,6 +566,19 @@ impl BodyChecker<'_, '_> {
             substitution.bind_generic(parameter, argument);
         }
         self.requirements_hold(&requirements, &substitution)
+    }
+}
+
+const fn construction_completion_owner(target: NameTarget) -> Option<ConstructionCompletionOwner> {
+    match target {
+        NameTarget::Exported(ExportedEntity::NominalType(nominal)) => {
+            Some(ConstructionCompletionOwner::Nominal(nominal))
+        }
+        NameTarget::Builtin(builtin) => Some(ConstructionCompletionOwner::Builtin(builtin)),
+        NameTarget::Exported(_)
+        | NameTarget::Parameter(_)
+        | NameTarget::Local(_)
+        | NameTarget::Capture(_) => None,
     }
 }
 

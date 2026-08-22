@@ -29,12 +29,14 @@ impl<'a> CompletionItem<'a> {
 pub enum CompletionItemKind {
     Method = 2,
     Function = 3,
+    Constructor = 4,
     Field = 5,
     Variable = 6,
     Class = 7,
     Interface = 8,
     Module = 9,
     Enum = 13,
+    EnumMember = 20,
     Struct = 22,
     TypeParameter = 25,
 }

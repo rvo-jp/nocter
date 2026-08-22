@@ -2,7 +2,8 @@ use nocter_model::{ModuleId, TypeStore};
 
 use crate::member_completion::select_member_completions;
 use crate::{
-    CopyabilityTable, MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
+    ConstructionCompletionCandidate, ConstructionCompletionError, CopyabilityTable,
+    MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
     PreparedSemanticProgram, TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
@@ -87,7 +88,10 @@ impl BodyAnalysisRecovery {
             receiver,
             available,
             owned,
-        } = typed.interruption.kind();
+        } = typed.interruption.kind()
+        else {
+            return None;
+        };
         let body = typed.interruption.body();
         let owner = match self.prepared.graph().declarations().bodies().get(body) {
             Some(body) => body.owner(),
@@ -101,5 +105,19 @@ impl BodyAnalysisRecovery {
             &typed.copyabilities,
             MemberCompletionContext::new(owner, module, receiver, available, owned),
         ))
+    }
+
+    /// Applies the use-site construction selector to an exact failed construction selection.
+    #[must_use]
+    pub fn interrupted_construction_completions(
+        &self,
+        module: ModuleId,
+    ) -> Option<Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError>> {
+        let typed = self.typed.as_ref()?;
+        let TypedBodyInterruptionKind::ConstructionSelection { owner } = typed.interruption.kind()
+        else {
+            return None;
+        };
+        Some(self.prepared.construction_completions(owner, module))
     }
 }
