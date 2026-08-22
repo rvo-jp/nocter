@@ -109,7 +109,10 @@ install -m 644 "$second_archive" "$temporary_candidate"
 mv -f -- "$temporary_candidate" "$candidate"
 rm -rf -- "$dist/.nocter"
 cp -R "$home" "$dist/.nocter"
-shasum -a 256 "$candidate" > "$dist/SHA256SUMS"
+(
+  cd "$dist"
+  shasum -a 256 "$archive_name" > SHA256SUMS
+)
 
 digest="$(shasum -a 256 "$candidate" | awk '{print $1}')"
 size="$(stat -f %z "$candidate")"
