@@ -69,7 +69,13 @@ before_smoke="$temporary_root/before-smoke"
 cp -R "$home" "$before_smoke"
 package="$temporary_root/package"
 environment=(env -u NOCTER_HOME)
-"${environment[@]}" "$home/nocter" --version | grep -Fx "Nocter $version"
+version_output="$("${environment[@]}" "$home/nocter" --version)"
+expected_version_output="$(printf 'Nocter\nrelease: %s\nhost: arm64-darwin\ndefault target: arm64-darwin' "$version")"
+if [[ "$version_output" != "$expected_version_output" ]]; then
+  echo "packaged compiler reported unexpected release identity" >&2
+  printf 'expected:\n%s\nactual:\n%s\n' "$expected_version_output" "$version_output" >&2
+  exit 1
+fi
 "${environment[@]}" "$home/nocter" doctor
 "${environment[@]}" "$home/nocter" --help
 "${environment[@]}" "$home/nocter" init "$package" --name release-smoke
@@ -111,4 +117,3 @@ standard_files="$(find "$home/std" -type f | wc -l | tr -d ' ')"
 commit="$(git -C "$repository_root" rev-parse HEAD)"
 printf 'Qualified %s\ncommit: %s\nbytes: %s\nsha256: %s\nstandard-library files: %s\n' \
   "$candidate" "$commit" "$size" "$digest" "$standard_files"
-
