@@ -762,6 +762,44 @@ fn expected_example_output(name: &str) -> &'static [u8] {
 }
 
 #[test]
+fn public_package_example_runs_with_process_arguments() {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let package_root = compiler.join("../../examples/file-summary");
+    let unit = discover_package(
+        vec![package(
+            "workspace:file-summary",
+            "file-summary",
+            &package_root,
+        )],
+        vec![module("workspace:file-summary", &[])],
+    );
+    let output_directory = unique_test_directory("public-package-example");
+    let input = output_directory.join("input.txt");
+    fs::write(&input, b"first\nsecond\n").unwrap();
+    let executable = output_directory.join("file-summary");
+    super::build_executable(
+        ExecutableCompileRequest::named(&unit, "file-summary"),
+        &executable,
+    )
+    .unwrap();
+
+    let executed = Command::new(&executable)
+        .arg(&input)
+        .current_dir(&package_root)
+        .output()
+        .unwrap();
+
+    assert!(
+        executed.status.success(),
+        "exit {:?}",
+        executed.status.code()
+    );
+    assert_eq!(executed.stdout, b"2\n");
+    assert!(executed.stderr.is_empty());
+    fs::remove_dir_all(output_directory).unwrap();
+}
+
+#[test]
 fn parsed_package_test_runs_every_case_independently_and_preserves_failures() {
     let directory = unique_test_directory("prepared-test");
     let package_root = directory.join("package");
