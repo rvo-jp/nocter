@@ -36,6 +36,7 @@ pub struct SemanticSubject {
     role: SourceRole,
     range: TextRange,
     presentation: SemanticPresentation,
+    documentation: Option<Box<str>>,
 }
 
 impl SemanticSubject {
@@ -58,6 +59,11 @@ impl SemanticSubject {
     pub const fn presentation(&self) -> &SemanticPresentation {
         &self.presentation
     }
+
+    #[must_use]
+    pub fn documentation(&self) -> Option<&str> {
+        self.documentation.as_deref()
+    }
 }
 
 impl AnalysisSnapshot {
@@ -69,15 +75,11 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
     ) -> Option<SemanticSelection> {
         self.target()?;
-        self.source_index()?
-            .bindings_at(source, offset)
-            .filter(|binding| interactive_binding(binding))
-            .min_by_key(|binding| selection_key(binding))
-            .map(|binding| SemanticSelection {
-                entity: binding.entity(),
-                role: binding.role(),
-                range: binding.origin().span().range(),
-            })
+        selected_binding(self.source_index()?, source, offset).map(|binding| SemanticSelection {
+            entity: binding.entity(),
+            role: binding.role(),
+            range: binding.origin().span().range(),
+        })
     }
 
     /// Resolves one exact source position through the current successful semantic snapshot.
@@ -92,15 +94,29 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
     ) -> Option<SemanticSubject> {
         let checked = self.target()?.program().checked();
-        let selection = self.semantic_selection(source, offset)?;
-        let presentation = presentation(checked, selection.entity())?;
+        let index = self.source_index()?;
+        let binding = selected_binding(index, source, offset)?;
+        let presentation = presentation(checked, binding.entity())?;
         Some(SemanticSubject {
-            entity: selection.entity(),
-            role: selection.role(),
-            range: selection.range(),
+            entity: binding.entity(),
+            role: binding.role(),
+            range: binding.origin().span().range(),
             presentation,
+            documentation: index.documentation_for(binding).map(Box::from),
         })
     }
+}
+
+fn selected_binding(
+    index: &nocter_source_index::SourceIndex,
+    source: SourceId,
+    offset: ByteOffset,
+) -> Option<SourceBinding> {
+    index
+        .bindings_at(source, offset)
+        .filter(|binding| interactive_binding(binding))
+        .min_by_key(|binding| selection_key(binding))
+        .copied()
 }
 
 fn interactive_binding(binding: &SourceBinding) -> bool {

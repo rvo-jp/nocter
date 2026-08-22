@@ -32,6 +32,7 @@ pub(crate) fn query_hover(
         .map_err(HoverQueryError::Coordinate)?;
     Ok(hover_result(
         subject.presentation().code(),
+        subject.documentation(),
         Range::new(position_value(range.start()), position_value(range.end())),
     ))
 }

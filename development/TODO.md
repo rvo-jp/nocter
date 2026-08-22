@@ -2,8 +2,10 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed public build/run process entry and exact installation
-profile.
+Continue v0.14.0 Phase 6 from the completed compiler-owned semantic presentation and source
+documentation boundary. The next editor work is chosen from the remaining specified tooling
+surface; it must reuse immutable analysis generations and semantic identities rather than add a
+protocol-owned source interpretation.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -129,6 +131,13 @@ implementation input.
    target for the failing spelling and cannot be consumed as body-checking input. Name completion
    uses that exact failed generation, so neither later bindings nor stale successful state can leak
    into its candidates. The editor completion recovery boundary is closed.
+   Syntax documentation is also closed as a compiler-owned path. The syntax tree groups and
+   normalizes line and block documentation once, and `ast` exposes those exact attachments.
+   Declaration lowering projects public contract documentation to semantic identities and joined
+   implementation documentation to exact identity-and-origin pairs in `SourceIndex`. Package docs
+   come from `nocter.nct`; module docs come only from root or single-file sources. Hover appends the
+   normalized Markdown selected from that index after canonical semantic code, so the LSP server
+   does not rescan comments, copy authored declarations, or confuse co-located identities.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

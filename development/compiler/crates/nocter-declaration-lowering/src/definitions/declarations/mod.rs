@@ -7,8 +7,7 @@ use nocter_declarations::{
     TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
-use nocter_source_index::SyntaxOrigin;
-use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, TokenKind};
 
 use crate::{
@@ -469,6 +468,15 @@ fn conformance_bindings(
             SemanticEntity::AssociatedType(associated),
             SourceRole::Reference,
             token,
+        )?;
+        let origin = SourceOrigin::from_token(projection::tree(types, declaration)?, token)
+            .map_err(|_| HeaderDefinitionError::InconsistentSource(token.source()))?;
+        projection::occurrence_documentation(
+            types,
+            declaration,
+            child,
+            SemanticEntity::AssociatedType(associated),
+            origin,
         )?;
         let ty_node =
             syntax::direct_node(projection::tree(types, declaration)?, child, NodeKind::Type)

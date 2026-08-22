@@ -47,6 +47,7 @@ struct ActiveScope {
 struct Introduction {
     token: SyntaxToken,
     kind: LocalBindingKind,
+    documentation: Option<NodeId>,
 }
 
 enum Action {
@@ -244,7 +245,11 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         } else {
             LocalBindingKind::Immutable
         };
-        actions.push(Action::Declare(Introduction { token, kind }));
+        actions.push(Action::Declare(Introduction {
+            token,
+            kind,
+            documentation: Some(node),
+        }));
         let expression = direct_child(self.tree(), node, NodeKind::Expression)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::Visit(expression));
@@ -267,6 +272,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             introductions: vec![Introduction {
                 token,
                 kind: LocalBindingKind::Loop,
+                documentation: None,
             }],
         });
         actions.push(Action::Visit(source));
@@ -289,6 +295,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             introductions: vec![Introduction {
                 token,
                 kind: LocalBindingKind::Region,
+                documentation: None,
             }],
         });
         actions.push(Action::Visit(allocator));
@@ -359,6 +366,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 vec![Introduction {
                     token,
                     kind: LocalBindingKind::Catch,
+                    documentation: None,
                 }]
             })
             .unwrap_or_default();
@@ -456,6 +464,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             self.declare_local(Introduction {
                 token,
                 kind: LocalBindingKind::ClosureParameter,
+                documentation: None,
             })?;
         }
 
@@ -607,11 +616,17 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             },
         );
         self.record_scope_binding(scope, name, NameTarget::Local(id))?;
-        self.projections.push(Projection::new(
+        let mut projection = Projection::new(
             SemanticEntity::LocalBinding(self.source.body(), id),
             SourceRole::Declaration,
             origin,
-        ));
+        );
+        if let Some(node) = introduction.documentation
+            && let Some(markdown) = self.tree().documentation(node)
+        {
+            projection = projection.with_documentation(markdown);
+        }
+        self.projections.push(projection);
         Ok(())
     }
 
@@ -778,6 +793,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             result.push(Introduction {
                 token,
                 kind: LocalBindingKind::PatternPayload,
+                documentation: None,
             });
         }
         Ok(result)

@@ -7,16 +7,18 @@ pub type HoverParams = TextDocumentPositionParams;
 
 /// Builds a hover result whose contents and range came from one semantic snapshot.
 #[must_use]
-pub fn hover_result(code: &str, range: Range) -> Value {
+pub fn hover_result(code: &str, documentation: Option<&str>, range: Range) -> Value {
+    let mut markdown = format!("```nocter\n{code}\n```");
+    if let Some(documentation) = documentation {
+        markdown.push_str("\n\n");
+        markdown.push_str(documentation);
+    }
     object([
         (
             "contents",
             object([
                 ("kind", Value::String("markdown".into())),
-                (
-                    "value",
-                    Value::String(format!("```nocter\n{code}\n```").into_boxed_str()),
-                ),
+                ("value", Value::String(markdown.into_boxed_str())),
             ]),
         ),
         ("range", range_value(range)),
@@ -74,10 +76,12 @@ mod tests {
             &mut rendered,
             &hover_result(
                 "pub struct Vec<T>",
+                Some("A growable sequence."),
                 Range::new(Position::new(1, 11), Position::new(1, 14)),
             ),
         );
         assert!(rendered.contains("```nocter\\npub struct Vec<T>\\n```"));
+        assert!(rendered.contains("A growable sequence."));
         assert!(rendered.contains("\"start\":{\"line\":1,\"character\":11}"));
     }
 }

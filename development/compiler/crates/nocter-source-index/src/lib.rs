@@ -4,10 +4,12 @@
 //! identities. Lowering boundaries may extend it when they create new identities; canonical
 //! declaration, checked, and machine programs never depend on it.
 
+mod documentation;
 mod entity;
 mod index;
 mod origin;
 
+pub use documentation::{DocumentationOwner, DuplicateDocumentation};
 pub use entity::SemanticEntity;
 pub use index::{
     DuplicateSourceBinding, SourceAccess, SourceBinding, SourceIndex, SourceIndexBuilder,

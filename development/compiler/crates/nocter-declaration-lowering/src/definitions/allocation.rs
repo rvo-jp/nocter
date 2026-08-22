@@ -225,6 +225,7 @@ fn allocate_field(
         SourceRole::Declaration,
         token,
     )?;
+    projection::documentation(types, declaration, SemanticEntity::Field(field))?;
     Ok(field)
 }
 

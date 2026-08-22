@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_declarations::{DefinitionError, ProgramBuildError};
 use nocter_model::TypeId;
 use nocter_source::SourceId;
-use nocter_source_index::DuplicateSourceBinding;
+use nocter_source_index::{DuplicateDocumentation, DuplicateSourceBinding};
 use nocter_syntax::NodeId;
 
 use crate::{LoweredDeclarations, PreparedTypes, SurfaceDeclarationId};
@@ -41,6 +41,7 @@ pub enum HeaderDefinitionError {
     Definition(DefinitionError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
+    DuplicateDocumentation(DuplicateDocumentation),
 }
 
 impl fmt::Display for HeaderDefinitionError {
@@ -112,6 +113,7 @@ impl fmt::Display for HeaderDefinitionError {
             Self::Definition(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
+            Self::DuplicateDocumentation(error) => error.fmt(formatter),
         }
     }
 }
@@ -133,6 +135,12 @@ impl From<DefinitionError> for HeaderDefinitionError {
 impl From<DuplicateSourceBinding> for HeaderDefinitionError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<DuplicateDocumentation> for HeaderDefinitionError {
+    fn from(error: DuplicateDocumentation) -> Self {
+        Self::DuplicateDocumentation(error)
     }
 }
 

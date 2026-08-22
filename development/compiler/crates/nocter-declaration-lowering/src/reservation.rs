@@ -8,7 +8,8 @@ use nocter_model::{
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole,
+    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndexBuilder,
+    SourceOrigin, SourceRole, SyntaxOrigin,
 };
 use nocter_syntax::NodeId;
 
@@ -61,6 +62,7 @@ pub enum ReservationError {
     Contract(CallableContractError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
+    DuplicateDocumentation(DuplicateDocumentation),
     MissingSymbol(Box<str>),
     UnknownPackage(ModuleIdentity),
     UnknownRootPackage(crate::PackageIdentity),
@@ -78,6 +80,7 @@ impl fmt::Display for ReservationError {
             Self::Contract(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
+            Self::DuplicateDocumentation(error) => error.fmt(formatter),
             Self::MissingSymbol(spelling) => {
                 write!(formatter, "canonical symbol table is missing {spelling}")
             }
@@ -136,6 +139,12 @@ impl From<ProgramBuildError> for ReservationError {
 impl From<DuplicateSourceBinding> for ReservationError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<DuplicateDocumentation> for ReservationError {
+    fn from(error: DuplicateDocumentation) -> Self {
+        Self::DuplicateDocumentation(error)
     }
 }
 
@@ -297,6 +306,13 @@ pub(crate) fn reserve_with_contracts(
     )?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
     let entities = reserve_surface_entities(&declarations, &contracts, &mut program)?;
+    project_declaration_documentation(
+        &sources,
+        &declarations,
+        &contracts,
+        &entities,
+        &mut source_index,
+    )?;
     let semantic_packages = packages
         .iter()
         .map(|package| {
@@ -348,6 +364,9 @@ fn reserve_packages(
         ids.insert(package.identity().clone(), id);
         if let Some(declaration) = package.declaration() {
             let tree = declaration.syntax();
+            if let Some(markdown) = tree.file_documentation() {
+                source_index.insert_documentation(SemanticEntity::Package(id), markdown)?;
+            }
             source_index.insert(
                 SemanticEntity::Package(id),
                 SourceRole::Declaration,
@@ -402,6 +421,13 @@ fn project_sources(
                 ModuleSourceKind::Root | ModuleSourceKind::SingleFile => SourceRole::Declaration,
                 ModuleSourceKind::Implementation => SourceRole::Implementation,
             };
+            if matches!(
+                source.kind(),
+                ModuleSourceKind::Root | ModuleSourceKind::SingleFile
+            ) && let Some(markdown) = source.syntax().file_documentation()
+            {
+                source_index.insert_documentation(SemanticEntity::Module(module), markdown)?;
+            }
             source_index.insert(
                 SemanticEntity::Module(module),
                 role,
@@ -411,6 +437,43 @@ fn project_sources(
             Ok(module)
         })
         .collect()
+}
+
+fn project_declaration_documentation(
+    sources: &[SurfaceSource<'_>],
+    declarations: &[SurfaceDeclaration],
+    contracts: &CallableContracts,
+    entities: &[Option<ReservedEntity>],
+    source_index: &mut SourceIndexBuilder,
+) -> Result<(), ReservationError> {
+    for (index, declaration) in declarations.iter().copied().enumerate() {
+        let id = SurfaceDeclarationId::from_index(index);
+        let Some(entity) = entities[index] else {
+            continue;
+        };
+        let source = sources
+            .get(declaration.source().index())
+            .ok_or(InconsistentSurface(id))?;
+        let Some(markdown) = source.syntax().documentation(declaration.node()) else {
+            continue;
+        };
+        if contracts.representative(id) == id {
+            source_index.insert_documentation(entity.semantic_entity(), markdown)?;
+        } else {
+            let origin = match declaration.entity_origin() {
+                SyntaxOrigin::Node(node) => SourceOrigin::from_node(source.syntax(), node)
+                    .map_err(|_| ReservationError::InconsistentSource(node.source()))?,
+                SyntaxOrigin::Token(token) => SourceOrigin::from_token(source.syntax(), token)
+                    .map_err(|_| ReservationError::InconsistentSource(token.source()))?,
+            };
+            source_index.insert_occurrence_documentation(
+                entity.semantic_entity(),
+                origin,
+                markdown,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn reserve_surface_entities(

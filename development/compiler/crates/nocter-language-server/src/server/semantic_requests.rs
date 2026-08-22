@@ -847,5 +847,17 @@ mod tests {
             "{}",
             responses[0]
         );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{document_uri}\"}},\"position\":{{\"line\":{line},\"character\":{}}}}}}}",
+            start + 1
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("module std/iter"), "{response}");
+        assert!(
+            response.contains("Allocation-free readonly iteration over contiguous views."),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 }

@@ -1,4 +1,5 @@
 use nocter_source::{SourceMap, SourceName};
+use nocter_source_index::SemanticEntity;
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{ReservedEntity, reserve_declaration_identities};
@@ -133,6 +134,60 @@ fn contract_and_implementation_receive_one_callable_identity() {
         reserved.entities()[0],
         Some(ReservedEntity::Callable(_))
     ));
+}
+
+#[test]
+fn public_file_documentation_has_one_semantic_owner() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(
+        &mut sources,
+        "/app/nocter.nct",
+        "//! Package documentation.\n",
+    );
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "//! Public module documentation.\n\nuse ./detail\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/detail.nct",
+        "//! Implementation source documentation.\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+
+    let reserved = reserve(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/detail.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![source_use(&root, 0, "/app/detail.nct")],
+    );
+    let package = reserved.package_ids()[0];
+    let module = reserved.module_ids()[0];
+    let source_index = reserved.source_index.finish();
+
+    assert_eq!(
+        source_index.documentation(SemanticEntity::Package(package)),
+        Some("Package documentation.")
+    );
+    assert_eq!(
+        source_index.documentation(SemanticEntity::Module(module)),
+        Some("Public module documentation.")
+    );
+    assert_eq!(
+        implementation.file_documentation(),
+        Some("Implementation source documentation."),
+        "implementation documentation stays available only on its syntax snapshot"
+    );
 }
 
 #[test]

@@ -97,3 +97,56 @@ pub(super) fn role(types: &PreparedTypes<'_>, declaration: SurfaceDeclarationId)
         SourceRole::Declaration
     }
 }
+
+pub(super) fn documentation(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    entity: SemanticEntity,
+) -> Result<(), HeaderDefinitionError> {
+    let markdown = tree(types, declaration)?
+        .documentation(
+            types
+                .namespaces
+                .imports
+                .generics
+                .headers
+                .reserved
+                .declarations[declaration.index()]
+            .node(),
+        )
+        .map(Box::<str>::from);
+    if let Some(markdown) = markdown {
+        types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .source_index
+            .insert_documentation(entity, markdown)?;
+    }
+    Ok(())
+}
+
+pub(super) fn occurrence_documentation(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    documented_node: NodeId,
+    entity: SemanticEntity,
+    origin: SourceOrigin,
+) -> Result<(), HeaderDefinitionError> {
+    let markdown = tree(types, declaration)?
+        .documentation(documented_node)
+        .map(Box::<str>::from);
+    if let Some(markdown) = markdown {
+        types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .source_index
+            .insert_occurrence_documentation(entity, origin, markdown)?;
+    }
+    Ok(())
+}

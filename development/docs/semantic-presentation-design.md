@@ -62,6 +62,25 @@ infer a storage origin but presentation must omit it. `Explicit` preserves wheth
 `static`; semantic provenance continues to store only caller-managed origins. The annotation never
 participates in checking, dispatch, ownership, or code generation.
 
+## Documentation Ownership
+
+The syntax tree is the sole authority for recognizing, grouping, and normalizing documentation
+comments. It attaches normalized Markdown to the exact file or declaration node before semantic
+lowering. Later stages never rescan comment tokens or copy source slices.
+
+Declaration lowering projects that attachment onto the same `SemanticEntity` used by hover,
+definition, references, and rename. Canonical declaration documentation belongs to the identity;
+documentation on a joined implementation body belongs to the exact identity-and-origin pair. This
+allows an implementation occurrence to explain itself without replacing the public contract's
+documentation or leaking to another semantic identity projected at the same token. The immutable
+`SourceIndex` stores both indexes and preserves them across the sole staged-extension boundary.
+
+Package file documentation comes from `nocter.nct`. Module file documentation comes only from a
+root `index.nct` or a single-file program. File documentation in an implementation source remains
+available in its syntax tree but cannot silently become public module documentation. Hover selects
+occurrence documentation first and canonical identity documentation second, then appends that
+Markdown to the canonical Nocter code fence. The protocol layer does not interpret either part.
+
 ## Protocol Surface
 
 The server advertises hover and full-document semantic tokens only after their complete paths are

@@ -241,6 +241,9 @@ fn documentable_nodes(syntax: &SyntaxTree, parents: &[Option<NodeId>]) -> Vec<Do
                 let parent_node = syntax
                     .node(parent)
                     .expect("parent node belongs to the same syntax tree");
+                if is_documentable(parent_node.kind()) {
+                    break;
+                }
                 if parent_node.kind() == NodeKind::Item {
                     item = Some(parent_node.range());
                     break;
@@ -341,6 +344,25 @@ mod tests {
             .map(|(node, _)| syntax.documentation(node))
             .collect::<Vec<_>>();
         assert_eq!(declarations, [None, None, Some("Attached.")]);
+    }
+
+    #[test]
+    fn nested_members_do_not_compete_with_their_documented_owner() {
+        let (_, syntax) =
+            syntax("/// Value docs.\nstruct Value {\n    /// Field docs.\n    value: i32\n}\n");
+        let declaration = syntax
+            .nodes()
+            .find(|(_, node)| node.kind() == NodeKind::StructDeclaration)
+            .unwrap()
+            .0;
+        let field = syntax
+            .nodes()
+            .find(|(_, node)| node.kind() == NodeKind::StructField)
+            .unwrap()
+            .0;
+
+        assert_eq!(syntax.documentation(declaration), Some("Value docs."));
+        assert_eq!(syntax.documentation(field), Some("Field docs."));
     }
 
     #[test]

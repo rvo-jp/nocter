@@ -468,6 +468,51 @@ mod tests {
     use crate::test_support::Fixture;
 
     #[test]
+    fn preparation_retains_syntax_owned_documentation_on_semantic_identities() {
+        let fixture = Fixture::new(
+            "//! Application module.\n\n/// Stored value.\nstruct Value {\n    /// Numeric field.\n    value: i32\n}\n\n/// Runs the program.\nfunc main(): void {\n    /// Temporary value.\n    let local = 1\n    return\n}\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let index = prepared.source_index();
+        let declarations = prepared.graph().declarations();
+        let (nominal, _) = declarations.nominal_types().iter().next().unwrap();
+        let (field, _) = declarations.fields().iter().next().unwrap();
+        let (callable, _) = declarations.callables().iter().next().unwrap();
+        let (body, names) = prepared
+            .body_names()
+            .iter()
+            .find(|(_, names)| !names.locals().is_empty())
+            .unwrap();
+        let (local, _) = names.locals().iter().next().unwrap();
+
+        assert_eq!(
+            index.documentation(nocter_source_index::SemanticEntity::NominalType(nominal)),
+            Some("Stored value.")
+        );
+        assert_eq!(
+            index.documentation(nocter_source_index::SemanticEntity::Field(field)),
+            Some("Numeric field.")
+        );
+        assert_eq!(
+            index.documentation(nocter_source_index::SemanticEntity::Callable(callable)),
+            Some("Runs the program.")
+        );
+        assert_eq!(
+            index.documentation(nocter_source_index::SemanticEntity::LocalBinding(
+                body, local
+            )),
+            Some("Temporary value.")
+        );
+        assert!(prepared.graph().modules().iter().any(|(module, _)| {
+            index.documentation(nocter_source_index::SemanticEntity::Module(module))
+                == Some("Application module.")
+        }));
+    }
+
+    #[test]
     fn preparation_owns_every_program_wide_checking_authority() {
         let fixture = Fixture::new(
             "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\n\

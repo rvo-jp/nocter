@@ -1,9 +1,13 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use nocter_source::{ByteOffset, SourceId};
 
-use crate::{SemanticEntity, SourceOrigin};
+use crate::documentation::{
+    EntityDocumentation, OccurrenceDocumentation, finish_entities, finish_occurrences,
+    occurrence_sort_key,
+};
+use crate::{DocumentationOwner, DuplicateDocumentation, SemanticEntity, SourceOrigin};
 
 /// The meaning of one semantic-to-source projection.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -58,6 +62,8 @@ impl SourceBinding {
 pub struct SourceIndex {
     by_entity: Box<[SourceBinding]>,
     by_source: Box<[SourceBinding]>,
+    entity_documentation: Box<[EntityDocumentation]>,
+    occurrence_documentation: Box<[OccurrenceDocumentation]>,
 }
 
 impl SourceIndex {
@@ -100,6 +106,31 @@ impl SourceIndex {
         self.by_source[start..end].iter()
     }
 
+    /// Returns the compiler-attached Markdown documentation for one semantic identity.
+    #[must_use]
+    pub fn documentation(&self, entity: SemanticEntity) -> Option<&str> {
+        let index = self
+            .entity_documentation
+            .binary_search_by_key(&entity, EntityDocumentation::entity)
+            .ok()?;
+        Some(self.entity_documentation[index].markdown())
+    }
+
+    /// Returns occurrence-specific Markdown when present, then the identity's canonical docs.
+    #[must_use]
+    pub fn documentation_for(&self, binding: SourceBinding) -> Option<&str> {
+        let key = occurrence_sort_key(binding.entity(), binding.origin());
+        if let Ok(index) = self
+            .occurrence_documentation
+            .binary_search_by_key(&key, |entry| {
+                occurrence_sort_key(entry.entity(), entry.origin())
+            })
+        {
+            return Some(self.occurrence_documentation[index].markdown());
+        }
+        self.documentation(binding.entity())
+    }
+
     #[must_use]
     pub const fn len(&self) -> usize {
         self.by_entity.len()
@@ -122,7 +153,24 @@ impl SourceIndex {
             .iter()
             .map(|binding| (binding.entity, binding.role, binding.origin))
             .collect();
-        SourceIndexBuilder { bindings, unique }
+        let entity_documentation = self
+            .entity_documentation
+            .into_vec()
+            .into_iter()
+            .map(EntityDocumentation::into_parts)
+            .collect();
+        let occurrence_documentation = self
+            .occurrence_documentation
+            .into_vec()
+            .into_iter()
+            .map(OccurrenceDocumentation::into_parts)
+            .collect();
+        SourceIndexBuilder {
+            bindings,
+            unique,
+            entity_documentation,
+            occurrence_documentation,
+        }
     }
 }
 
@@ -130,6 +178,8 @@ impl SourceIndex {
 pub struct SourceIndexBuilder {
     bindings: Vec<SourceBinding>,
     unique: HashSet<(SemanticEntity, SourceRole, SourceOrigin)>,
+    entity_documentation: HashMap<SemanticEntity, Box<str>>,
+    occurrence_documentation: HashMap<(SemanticEntity, SourceOrigin), Box<str>>,
 }
 
 impl SourceIndexBuilder {
@@ -138,6 +188,8 @@ impl SourceIndexBuilder {
         Self {
             bindings: Vec::new(),
             unique: HashSet::new(),
+            entity_documentation: HashMap::new(),
+            occurrence_documentation: HashMap::new(),
         }
     }
 
@@ -182,6 +234,50 @@ impl SourceIndexBuilder {
         self.insert_binding(entity, role, origin, Some(access))
     }
 
+    /// Attaches normalized Markdown to exactly one semantic identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateDocumentation`] when another syntax owner already attached Markdown to
+    /// the same identity.
+    pub fn insert_documentation(
+        &mut self,
+        entity: SemanticEntity,
+        markdown: impl Into<Box<str>>,
+    ) -> Result<(), DuplicateDocumentation> {
+        if self.entity_documentation.contains_key(&entity) {
+            return Err(DuplicateDocumentation::new(DocumentationOwner::Entity(
+                entity,
+            )));
+        }
+        self.entity_documentation.insert(entity, markdown.into());
+        Ok(())
+    }
+
+    /// Attaches normalized Markdown to one exact semantic occurrence.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateDocumentation`] if that exact origin already owns Markdown.
+    pub fn insert_occurrence_documentation(
+        &mut self,
+        entity: SemanticEntity,
+        origin: SourceOrigin,
+        markdown: impl Into<Box<str>>,
+    ) -> Result<(), DuplicateDocumentation> {
+        if self
+            .occurrence_documentation
+            .contains_key(&(entity, origin))
+        {
+            return Err(DuplicateDocumentation::new(
+                DocumentationOwner::Occurrence { entity, origin },
+            ));
+        }
+        self.occurrence_documentation
+            .insert((entity, origin), markdown.into());
+        Ok(())
+    }
+
     fn insert_binding(
         &mut self,
         entity: SemanticEntity,
@@ -211,6 +307,8 @@ impl SourceIndexBuilder {
         SourceIndex {
             by_entity: by_entity.into_boxed_slice(),
             by_source: by_source.into_boxed_slice(),
+            entity_documentation: finish_entities(self.entity_documentation),
+            occurrence_documentation: finish_occurrences(self.occurrence_documentation),
         }
     }
 }
@@ -366,6 +464,57 @@ mod tests {
             builder
                 .insert(entity, SourceRole::Declaration, origin)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn documentation_prefers_an_exact_occurrence_and_survives_stage_extension() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("index.nct"),
+                b"func main(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let (module, site) = declaration_ids();
+        let entity = SemanticEntity::DeclarationSite(site);
+        let other_entity = SemanticEntity::Module(module);
+        let token = find_token(&tree, sources.get(source).unwrap(), "main");
+        let origin = SourceOrigin::from_token(&tree, token).unwrap();
+        let mut builder = SourceIndexBuilder::new();
+        builder
+            .insert(entity, SourceRole::Declaration, origin)
+            .unwrap();
+        builder
+            .insert(other_entity, SourceRole::Reference, origin)
+            .unwrap();
+        builder
+            .insert_documentation(entity, "Canonical docs.")
+            .unwrap();
+        builder
+            .insert_documentation(other_entity, "Other entity docs.")
+            .unwrap();
+        builder
+            .insert_occurrence_documentation(entity, origin, "Occurrence docs.")
+            .unwrap();
+        let index = builder.finish();
+        let binding = index.bindings_for(entity)[0];
+        let other_binding = index.bindings_for(other_entity)[0];
+
+        assert_eq!(index.documentation(entity), Some("Canonical docs."));
+        assert_eq!(index.documentation_for(binding), Some("Occurrence docs."));
+        assert_eq!(
+            index.documentation_for(other_binding),
+            Some("Other entity docs."),
+            "an occurrence override must not leak to another entity at the same token"
+        );
+
+        let extended = index.into_builder().finish();
+        assert_eq!(extended.documentation(entity), Some("Canonical docs."));
+        assert_eq!(
+            extended.documentation_for(extended.bindings_for(entity)[0]),
+            Some("Occurrence docs.")
         );
     }
 

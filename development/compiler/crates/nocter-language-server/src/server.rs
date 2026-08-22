@@ -575,7 +575,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let opened = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func  main( ): void {{ return }}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"/// Application entry.\\nfunc  main( ): void {{ return }}\\n\"}}}}}}"
         ));
         assert_eq!(
             opened.analysis().unwrap().snapshot().unwrap().status(),
@@ -583,15 +583,16 @@ mod tests {
         );
 
         let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":7}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":7}}}}}}"
         ));
         let response = hover.response().unwrap();
         assert!(response.contains("```nocter\\nfunc main(): void\\n```"));
-        assert!(response.contains("\"start\":{\"line\":0,\"character\":6}"));
-        assert!(response.contains("\"end\":{\"line\":0,\"character\":10}"));
+        assert!(response.contains("Application entry."));
+        assert!(response.contains("\"start\":{\"line\":1,\"character\":6}"));
+        assert!(response.contains("\"end\":{\"line\":1,\"character\":10}"));
 
         let keyword = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":1}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":1}}}}}}"
         ));
         assert_eq!(
             keyword.response(),

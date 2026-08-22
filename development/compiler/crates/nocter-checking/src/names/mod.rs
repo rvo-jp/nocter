@@ -14,7 +14,8 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin,
+    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceRole,
+    SyntaxOrigin,
 };
 use nocter_syntax::NodeId;
 
@@ -132,6 +133,7 @@ pub enum NameResolutionInternalError {
     MissingParameterProjection(nocter_model::ParameterId),
     InvalidBodyOwner(BodyId),
     DuplicateSourceBinding(DuplicateSourceBinding),
+    DuplicateDocumentation(DuplicateDocumentation),
 }
 
 impl fmt::Display for NameResolutionInternalError {
@@ -187,6 +189,7 @@ impl fmt::Display for NameResolutionInternalError {
                 write!(formatter, "body {body:?} has no valid parameter owner")
             }
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
+            Self::DuplicateDocumentation(error) => error.fmt(formatter),
         }
     }
 }
@@ -202,6 +205,12 @@ impl From<BodySourceError> for NameResolutionInternalError {
 impl From<DuplicateSourceBinding> for NameResolutionInternalError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateSourceBinding(error)
+    }
+}
+
+impl From<DuplicateDocumentation> for NameResolutionInternalError {
+    fn from(error: DuplicateDocumentation) -> Self {
+        Self::DuplicateDocumentation(error)
     }
 }
 
@@ -328,6 +337,11 @@ fn extend_name_source_index(
         source_index
             .insert(projection.entity, projection.role, projection.origin)
             .map_err(NameResolutionInternalError::from)?;
+        if let Some(markdown) = projection.documentation {
+            source_index
+                .insert_documentation(projection.entity, markdown)
+                .map_err(NameResolutionInternalError::from)?;
+        }
     }
     Ok(source_index.finish())
 }
@@ -336,6 +350,7 @@ pub(super) struct Projection {
     entity: SemanticEntity,
     role: SourceRole,
     origin: nocter_source_index::SourceOrigin,
+    documentation: Option<Box<str>>,
 }
 
 impl Projection {
@@ -348,6 +363,12 @@ impl Projection {
             entity,
             role,
             origin,
+            documentation: None,
         }
+    }
+
+    pub(super) fn with_documentation(mut self, markdown: impl Into<Box<str>>) -> Self {
+        self.documentation = Some(markdown.into());
+        self
     }
 }
