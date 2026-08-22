@@ -304,24 +304,34 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
     package_root.source("second/index.nct", "func main(): void { return }\n");
     let standard_package = PackageIdentity::new("toolchain:std");
     let package = PackageIdentity::new("workspace:multi");
-    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
-        .with_standard_dependency(standard_package.clone());
-    let unit = discover(DiscoveryRequest::declared(
-        CompilationTarget::Arm64Darwin,
-        package_graph(vec![
+    let compile = |reverse_input: bool| {
+        let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+            .with_standard_dependency(standard_package.clone());
+        let mut packages = vec![
             resolved,
             resolved_standard(&standard_root, &standard_package),
-        ]),
-        vec![
+        ];
+        let mut roots = vec![
             ModuleIdentity::new(package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(package.clone(), ["first"]),
             ModuleIdentity::new(package.clone(), ["second"]),
-        ],
-        bundled_standard_toolchain(&standard_package),
-    ))
-    .unwrap();
+        ];
+        if reverse_input {
+            packages.reverse();
+            roots.reverse();
+        }
+        let unit = discover(DiscoveryRequest::declared(
+            CompilationTarget::Arm64Darwin,
+            package_graph(packages),
+            roots,
+            bundled_standard_toolchain(&standard_package),
+        ))
+        .unwrap();
+        compile_native_images(NativeImageSetCompileRequest::all(&unit)).unwrap()
+    };
 
-    let image_set = compile_native_images(NativeImageSetCompileRequest::all(&unit)).unwrap();
+    let image_set = compile(false);
+    let reversed_image_set = compile(true);
     assert_eq!(
         image_set
             .entries()
@@ -341,6 +351,18 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
             .entries()
             .iter()
             .all(|entry| entry.image().bytes().starts_with(&[0xcf, 0xfa, 0xed, 0xfe]))
+    );
+    assert_eq!(
+        image_set
+            .entries()
+            .iter()
+            .map(|entry| (entry.identity(), entry.image().bytes()))
+            .collect::<Vec<_>>(),
+        reversed_image_set
+            .entries()
+            .iter()
+            .map(|entry| (entry.identity(), entry.image().bytes()))
+            .collect::<Vec<_>>()
     );
 }
 
