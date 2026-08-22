@@ -199,6 +199,10 @@ implementation input.
    request is handled explicitly as a cursor query, so adjacency is never confused with overlap.
    Typed code-action parameters now preserve the client's hierarchical `context.only` filter.
    Requests excluding `quickfix` stop before semantic planning and speculative compilation.
+   Callable inference now owns a separate postfix-propagation payload context. Typed optional
+   operands under an existing fallible result reach the canonical `T?!` repair instead of failing
+   early as an ordinary type mismatch; statically shaped generic calls infer through exactly one
+   immediate outcome layer, and every published repair still passes full-package compilation.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit

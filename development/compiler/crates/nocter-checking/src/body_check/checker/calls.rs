@@ -5,6 +5,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
 use super::BodyChecker;
 use super::call_planning::DeclaredCallGenerics;
+use super::value_planning::CallResultContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
@@ -18,6 +19,25 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        self.check_call_with_context(node, CallResultContext::complete(expected))
+    }
+
+    pub(super) fn check_outcome_operand_call(
+        &mut self,
+        node: NodeId,
+        expected_payload: TypeId,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        self.check_call_with_context(
+            node,
+            Some(CallResultContext::OutcomePayload(expected_payload)),
+        )
+    }
+
+    fn check_call_with_context(
+        &mut self,
+        node: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let syntax = call_syntax(self, node)?;
         let (reference, suffix) = match syntax {
             CallSyntax::Direct { reference, suffix } => (reference, suffix),
@@ -27,40 +47,22 @@ impl BodyChecker<'_, '_> {
                 member,
                 suffix,
             } => {
-                if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
-                    return self
-                        .check_literal_pack_method(node, parameter, member, suffix, expected);
-                }
-                return if member_owner_is_value(self, owner)? {
-                    if owner_is_direct_call_result(self, owner)? {
-                        return self.check_method_call(node, owner, member, suffix, expected);
-                    }
-                    match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
-                        Ok(place) => {
-                            self.check_callable_place_call(node, callee, &place, suffix, expected)
-                        }
-                        Err(error)
-                            if matches!(
-                                error.rule(),
-                                Some(BodyRule::UnknownField | BodyRule::InaccessibleField)
-                            ) || matches!(
-                                error,
-                                BodyCheckError::Internal(
-                                    BodyCheckInternalError::UnsupportedSyntax(_, _)
-                                )
-                            ) =>
-                        {
-                            self.check_method_call(node, owner, member, suffix, expected)
-                        }
-                        Err(error) => Err(error),
-                    }
-                } else {
-                    self.check_construction_function_call(node, owner, member, suffix, expected)
-                };
+                return self.check_member_call_with_context(
+                    node,
+                    callee,
+                    owner,
+                    member,
+                    suffix,
+                    result_context,
+                );
             }
             CallSyntax::GenericOwner { owner, suffix } => {
-                return self
-                    .check_explicit_construction_function_call(node, owner, suffix, expected);
+                return self.check_explicit_construction_function_call(
+                    node,
+                    owner,
+                    suffix,
+                    result_context,
+                );
             }
         };
         let target = call_name_target(self, reference)?;
@@ -70,7 +72,12 @@ impl BodyChecker<'_, '_> {
                 callable
             }
             NameTarget::Parameter(_) | NameTarget::Local(_) | NameTarget::Capture(_) => {
-                return self.check_callable_value_call(node, reference, suffix, expected);
+                return self.check_callable_value_call(
+                    node,
+                    reference,
+                    suffix,
+                    result_context.and_then(CallResultContext::complete_type),
+                );
             }
             NameTarget::Exported(_) | NameTarget::Builtin(_) => {
                 self.consumed_uses.insert(call_origin(self, reference)?);
@@ -102,7 +109,7 @@ impl BodyChecker<'_, '_> {
             callable_id,
             &callable,
             DeclaredCallGenerics::inferred(callable.generic_parameters()),
-            expected,
+            result_context,
         )?;
         let call = self.add_node(
             node,
@@ -116,9 +123,64 @@ impl BodyChecker<'_, '_> {
                 plan.arguments,
             )),
         )?;
-        expected.map_or(Ok(call), |expected| {
-            self.apply_expected(node, call, expected)
-        })
+        result_context
+            .and_then(CallResultContext::complete_type)
+            .map_or(Ok(call), |expected| {
+                self.apply_expected(node, call, expected)
+            })
+    }
+
+    fn check_member_call_with_context(
+        &mut self,
+        node: NodeId,
+        callee: NodeId,
+        owner: NodeId,
+        member: NodeId,
+        suffix: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
+            return self.check_literal_pack_method(
+                node,
+                parameter,
+                member,
+                suffix,
+                result_context.and_then(CallResultContext::complete_type),
+            );
+        }
+        if !member_owner_is_value(self, owner)? {
+            return self.check_construction_function_call(
+                node,
+                owner,
+                member,
+                suffix,
+                result_context,
+            );
+        }
+        if owner_is_direct_call_result(self, owner)? {
+            return self.check_method_call(node, owner, member, suffix, result_context);
+        }
+        match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
+            Ok(place) => self.check_callable_place_call(
+                node,
+                callee,
+                &place,
+                suffix,
+                result_context.and_then(CallResultContext::complete_type),
+            ),
+            Err(error)
+                if matches!(
+                    error.rule(),
+                    Some(BodyRule::UnknownField | BodyRule::InaccessibleField)
+                ) || matches!(
+                    error,
+                    BodyCheckError::Internal(BodyCheckInternalError::UnsupportedSyntax(_, _))
+                ) =>
+            {
+                self.check_method_call(node, owner, member, suffix, result_context)
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 

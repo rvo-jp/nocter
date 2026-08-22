@@ -55,7 +55,7 @@ impl BodyChecker<'_, '_> {
                 inference_parameters: &plan.inference_parameters,
                 destination_types: &destination_types,
                 requirements: &[],
-                expected,
+                result_context: super::value_planning::CallResultContext::complete(expected),
                 failure_rule: BodyRule::InvalidConstruction,
             },
         )?;

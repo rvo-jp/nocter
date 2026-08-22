@@ -3,6 +3,7 @@ use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::call_planning::DeclaredCallGenerics;
+use super::value_planning::CallResultContext;
 use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
@@ -50,10 +51,16 @@ impl BodyChecker<'_, '_> {
         owner: NodeId,
         member: NodeId,
         call_suffix: NodeId,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
-            return self.check_literal_pack_method(node, parameter, member, call_suffix, expected);
+            return self.check_literal_pack_method(
+                node,
+                parameter,
+                member,
+                call_suffix,
+                result_context.and_then(CallResultContext::complete_type),
+            );
         }
         let receiver = self.method_receiver_draft(owner)?;
         let receiver_owner = receiver_owner(self.types, receiver.ty())?;
@@ -100,7 +107,7 @@ impl BodyChecker<'_, '_> {
             member_token,
             call_suffix,
             &selected,
-            expected,
+            result_context,
         )
     }
 
@@ -111,7 +118,7 @@ impl BodyChecker<'_, '_> {
         member_token: nocter_syntax::SyntaxToken,
         call_suffix: NodeId,
         selected: &MethodCandidate,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let callable_id = selected.callable();
         let callable = self
@@ -146,7 +153,7 @@ impl BodyChecker<'_, '_> {
                 &fixed_arguments,
                 selected.substitution(),
             ),
-            expected,
+            result_context,
         )?;
         self.project_method_member(member_token, selected.surface())?;
         let call = self.add_node(
@@ -161,9 +168,11 @@ impl BodyChecker<'_, '_> {
                 plan.arguments,
             )),
         )?;
-        expected.map_or(Ok(call), |expected| {
-            self.apply_expected(node, call, expected)
-        })
+        result_context
+            .and_then(CallResultContext::complete_type)
+            .map_or(Ok(call), |expected| {
+                self.apply_expected(node, call, expected)
+            })
     }
 
     fn method_receiver_draft(&mut self, root: NodeId) -> Result<ReceiverDraft, BodyCheckError> {

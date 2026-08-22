@@ -36,13 +36,35 @@ pub(super) enum ValueDraft {
 }
 
 #[derive(Clone, Copy)]
+pub(super) enum CallResultContext {
+    Complete(TypeId),
+    OutcomePayload(TypeId),
+}
+
+impl CallResultContext {
+    pub(super) const fn complete(expected: Option<TypeId>) -> Option<Self> {
+        match expected {
+            Some(expected) => Some(Self::Complete(expected)),
+            None => None,
+        }
+    }
+
+    pub(super) const fn complete_type(self) -> Option<TypeId> {
+        match self {
+            Self::Complete(expected) => Some(expected),
+            Self::OutcomePayload(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub(super) struct PositionalValueContext<'a> {
     pub(super) owner: NodeId,
     pub(super) result: TypeId,
     pub(super) inference_parameters: &'a [GenericParameterId],
     pub(super) destination_types: &'a [TypeId],
     pub(super) requirements: &'a [CheckedRequirement],
-    pub(super) expected: Option<TypeId>,
+    pub(super) result_context: Option<CallResultContext>,
     pub(super) failure_rule: BodyRule,
 }
 
@@ -142,12 +164,18 @@ impl BodyChecker<'_, '_> {
         context: &PositionalValueContext<'_>,
         mut inference: CallableInference,
     ) -> Result<GenericArguments, BodyCheckError> {
-        if let Some(expected) = context.expected {
-            inference
-                .constrain_result_contextual(self.types, context.result, expected)
-                .map_err(|error| {
-                    self.inference_error(context.owner, error, context.failure_rule)
-                })?;
+        if let Some(result_context) = context.result_context {
+            let result = match result_context {
+                CallResultContext::Complete(expected) => {
+                    inference.constrain_result_contextual(self.types, context.result, expected)
+                }
+                CallResultContext::OutcomePayload(expected) => {
+                    inference.constrain_outcome_payload(self.types, context.result, expected)
+                }
+            };
+            result.map_err(|error| {
+                self.inference_error(context.owner, error, context.failure_rule)
+            })?;
         }
         self.infer_closure_drafts(values, context, &mut inference)?;
         inference

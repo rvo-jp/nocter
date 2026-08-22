@@ -1903,11 +1903,15 @@ mod tests {
                 "func load(value: i32?): i32 { value? }\n",
                 "Make callable result optional: `i32?`",
             ),
+            (
+                "func load(value: i32?): i32! { value? }\n",
+                "Make callable result optional: `i32?!`",
+            ),
         ] {
             let line_length = source.trim_end().len();
             let action = request_outcome_code_action(source, (0, 0), (0, line_length));
             let response = action.response().unwrap();
-            assert!(response.contains(expected), "{response}");
+            assert!(response.contains(expected), "{source}: {response}");
             assert!(response.contains("\"version\":1"), "{response}");
             assert!(response.contains("\"isPreferred\":true"), "{response}");
             assert!(action.issue().is_none(), "{:?}", action.issue());

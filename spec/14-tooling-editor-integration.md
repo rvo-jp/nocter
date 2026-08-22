@@ -224,6 +224,10 @@ result annotation. It does not rewrite fixed-result comparison operators, gramma
 operators, postfix `!`, or local `catch`/`otherwise` recovery. The checker, not the diagnostic text or
 protocol adapter, selects the operand layer and proposed result. The server publishes the action only
 when the complete edited package passes ordinary compilation.
+Operand checking keeps postfix-propagation payload context distinct from an ordinary complete-result
+expectation. A callable already returning `T!` can therefore receive an optional-layer repair to
+`T?!` for an operand of type `T?`; the existing fallible layer is not allowed to force the operand
+to `T!` before its immediate layer is known.
 
 Inlay type hints appear after inferred local binding names and use the checked type rendered in the
 binding's module context. An explicit binding type suppresses the hint. Result-provenance hints

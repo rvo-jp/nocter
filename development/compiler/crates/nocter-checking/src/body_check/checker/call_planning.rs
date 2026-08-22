@@ -5,7 +5,7 @@ use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::BodyChecker;
-use super::value_planning::PositionalValueContext;
+use super::value_planning::{CallResultContext, PositionalValueContext};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::conformance::normalize_requirements;
@@ -67,7 +67,7 @@ impl BodyChecker<'_, '_> {
         callable_id: nocter_model::CallableId,
         callable: &CallableDeclaration,
         generics: DeclaredCallGenerics<'_>,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<DeclaredCallPlan, BodyCheckError> {
         let argument_syntax = direct_nodes(self.tree(), suffix);
         let mut substitution = generics.owner_substitution.cloned().unwrap_or_default();
@@ -101,7 +101,7 @@ impl BodyChecker<'_, '_> {
                 inference_parameters: generics.inference_parameters,
                 destination_types: &parameter_types,
                 requirements: &requirements,
-                expected,
+                result_context,
                 failure_rule: BodyRule::InvalidCall,
             },
         )?;

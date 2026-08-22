@@ -25,8 +25,8 @@ impl BodyChecker<'_, '_> {
                 let [operand] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
-                let operand_expected = self.outcome_operand_expected(expected, punctuation)?;
-                self.check_expression(*operand, operand_expected)?
+                let expected_payload = self.outcome_operand_payload(expected, punctuation);
+                self.check_outcome_operand_expression(*operand, expected_payload)?
             }
             _ => return Err(BodyCheckInternalError::InvalidSyntax(node).into()),
         };
@@ -114,16 +114,39 @@ impl BodyChecker<'_, '_> {
         Ok(())
     }
 
-    fn outcome_operand_expected(
+    fn check_outcome_operand_expression(
         &mut self,
+        root: NodeId,
+        expected_payload: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let mut syntax = root;
+        while self
+            .kind(syntax)
+            .is_ok_and(crate::syntax::is_transparent_expression)
+        {
+            let children = direct_nodes(self.tree(), syntax);
+            let [child] = children.as_slice() else {
+                break;
+            };
+            syntax = *child;
+        }
+        if self.kind(syntax)? == NodeKind::PostfixExpression
+            && direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_some()
+            && let Some(expected_payload) = expected_payload
+        {
+            return self.check_outcome_operand_call(syntax, expected_payload);
+        }
+        self.check_expression(syntax, None)
+    }
+
+    fn outcome_operand_payload(
+        &self,
         payload: Option<TypeId>,
         punctuation: Punctuation,
-    ) -> Result<Option<TypeId>, BodyCheckInternalError> {
-        let Some(payload) = payload else {
-            return Ok(None);
-        };
+    ) -> Option<TypeId> {
+        let payload = payload?;
         if punctuation != Punctuation::Question || self.closure_result_inference.is_some() {
-            return Ok(None);
+            return None;
         }
         let accepts_optional = accepts_propagation(
             self.types,
@@ -157,15 +180,10 @@ impl BodyChecker<'_, '_> {
         } else {
             payload
         };
-        let kind = match (accepts_optional, accepts_fallible) {
-            (true, false) => TypeKind::Optional(payload),
-            (false, true) => TypeKind::Fallible(payload),
-            (false, false) | (true, true) => return Ok(None),
-        };
-        self.types
-            .intern(kind)
-            .map(Some)
-            .map_err(|_| BodyCheckInternalError::UnknownType(payload))
+        match (accepts_optional, accepts_fallible) {
+            (true, false) | (false, true) => Some(payload),
+            (false, false) | (true, true) => None,
+        }
     }
 
     pub(super) fn check_recovery_expression(

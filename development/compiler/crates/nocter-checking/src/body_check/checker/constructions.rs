@@ -9,7 +9,7 @@ use super::BodyChecker;
 use super::call_planning::DeclaredCallGenerics;
 use super::construction_planning::bind_inferred_arguments;
 use super::type_uses::{NominalConstructionOwner, NominalOwnerArguments};
-use super::value_planning::PositionalValueContext;
+use super::value_planning::{CallResultContext, PositionalValueContext};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::type_relations::TypeSubstitution;
@@ -36,7 +36,7 @@ impl BodyChecker<'_, '_> {
         owner: NodeId,
         member: NodeId,
         call_suffix: NodeId,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let owner = self.resolve_inferred_construction_owner(owner)?;
         let owner_reference = owner.reference;
@@ -72,7 +72,7 @@ impl BodyChecker<'_, '_> {
                             self.tree(),
                             call_suffix,
                         )),
-                        expected,
+                        result_context.and_then(CallResultContext::complete_type),
                     );
                 }
                 let Some(construction) = self.construction_surfaces.for_nominal(nominal) else {
@@ -97,7 +97,7 @@ impl BodyChecker<'_, '_> {
             member_token,
             call_suffix,
             ConstructionOwnerArguments::Inferred,
-            expected,
+            result_context,
         )
     }
 
@@ -106,7 +106,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         owner: NodeId,
         call_suffix: NodeId,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         if let Some(incomplete) = self.resolve_incomplete_explicit_construction_owner(owner)? {
             self.record_construction_interruption_node(
@@ -135,7 +135,7 @@ impl BodyChecker<'_, '_> {
                 variant,
                 owner.member,
                 VariantInvocation::Call(crate::syntax::direct_nodes(self.tree(), call_suffix)),
-                expected,
+                result_context.and_then(CallResultContext::complete_type),
             );
         }
         let construction = self
@@ -152,7 +152,7 @@ impl BodyChecker<'_, '_> {
             owner.member,
             call_suffix,
             ConstructionOwnerArguments::Explicit(owner.arguments),
-            expected,
+            result_context,
         )
     }
 
@@ -312,7 +312,7 @@ impl BodyChecker<'_, '_> {
                 inference_parameters: &plan.inference_parameters,
                 destination_types: &destination_types,
                 requirements: &[],
-                expected,
+                result_context: super::value_planning::CallResultContext::complete(expected),
                 failure_rule: BodyRule::InvalidConstruction,
             },
         )?;
@@ -347,7 +347,7 @@ impl BodyChecker<'_, '_> {
         member_token: SyntaxToken,
         call_suffix: NodeId,
         owner_arguments: ConstructionOwnerArguments,
-        expected: Option<TypeId>,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let member_name = self
             .graph
@@ -414,7 +414,7 @@ impl BodyChecker<'_, '_> {
             callable_id,
             &callable,
             DeclaredCallGenerics::with_fixed(&inference_parameters, &fixed_arguments),
-            expected,
+            result_context,
         )?;
         if !self.construction_target_requirements_hold(
             construction_declaration.target(),
@@ -435,9 +435,11 @@ impl BodyChecker<'_, '_> {
                 plan.arguments,
             )),
         )?;
-        expected.map_or(Ok(call), |expected| {
-            self.apply_expected(node, call, expected)
-        })
+        result_context
+            .and_then(CallResultContext::complete_type)
+            .map_or(Ok(call), |expected| {
+                self.apply_expected(node, call, expected)
+            })
     }
 
     fn record_construction_interruption_node(

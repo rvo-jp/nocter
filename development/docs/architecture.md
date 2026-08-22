@@ -1246,6 +1246,12 @@ by the declaration kind's direct CST path; it does not search the declaration ra
 `CallableTail`. Fixed-result and grammar-restricted operators are explicitly non-editable. The
 shared speculative transaction remains the final authority, so a contract change that creates a
 public-call, conformance, provenance, or body error is not exposed.
+Callable inference distinguishes a complete-result context from a postfix-propagation payload
+context. The latter projects exactly one statically declared optional or fallible layer from a call
+result and constrains its payload without materializing the enclosing callable's result type on the
+operand. Typed places and non-generic calls are checked without that premature wrapper. This lets a
+missing inner layer reach `OutcomeContract` even when another outcome layer already exists, while
+generic calls retain payload inference and unconstrained result shapes remain errors.
 
 That declaration-kind path now belongs to one `CallableSourceProjection` authority shared by
 source mutation and inlay presentation. It selects the semantic callable's exact declaration from

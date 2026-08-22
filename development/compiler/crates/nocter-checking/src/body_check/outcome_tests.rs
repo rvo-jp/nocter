@@ -198,6 +198,63 @@ fn propagation_failure_retains_the_typed_callable_contract_repair() {
 }
 
 #[test]
+fn propagation_contract_recovery_selects_a_missing_inner_optional_layer() {
+    let source = "func invalid(input: i32?): i32! { input? }\n";
+    let fixture = Fixture::new(source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
+    let diagnostic = failure.error().source_diagnostic().unwrap();
+    assert_eq!(diagnostic.code(), "E0392");
+    let recovery = failure.recovery().expect("body recovery");
+    let interruption = recovery.interruption().expect("typed interruption");
+    let crate::TypedBodyInterruptionKind::OutcomeContract {
+        layer,
+        proposed_result,
+    } = interruption.kind()
+    else {
+        panic!("unexpected interruption: {:?}", interruption.kind());
+    };
+    assert_eq!(*layer, OutcomeLayer::Optional);
+    let Some(TypeKind::Fallible(optional)) = recovery.types().get(*proposed_result) else {
+        panic!("expected canonical fallible optional result")
+    };
+    assert!(matches!(
+        recovery.types().get(*optional),
+        Some(TypeKind::Optional(payload))
+            if *payload == recovery.types().builtin(BuiltinType::I32)
+    ));
+}
+
+#[test]
+fn propagation_contract_recovery_types_a_generic_operand_by_its_payload() {
+    let source = concat!(
+        "func produce<T>(): T? { loop {} }\n",
+        "func invalid(): i32! { produce()? }\n",
+    );
+    let fixture = Fixture::new(source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, source_index) = lowered.into_parts();
+    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
+    assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0392");
+    let interruption = failure
+        .recovery()
+        .and_then(|recovery| recovery.interruption())
+        .expect("typed outcome interruption");
+    assert!(matches!(
+        interruption.kind(),
+        crate::TypedBodyInterruptionKind::OutcomeContract {
+            layer: OutcomeLayer::Optional,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn recovery_joins_fallback_ownership_with_the_success_path() {
     let error = check(
         "struct Owned { value: i32 }\n\

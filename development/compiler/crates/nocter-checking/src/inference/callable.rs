@@ -212,7 +212,41 @@ impl CallableInference {
         }
         if self
             .result_context
-            .replace(ResultContext { result, expected })
+            .replace(ResultContext::Complete { result, expected })
+            .is_some()
+        {
+            return Err(InferenceFailure::DuplicateResultContext);
+        }
+        Ok(())
+    }
+
+    /// Constrains the immediate payload produced after one statically known outcome layer.
+    ///
+    /// This is the contextual boundary used by postfix propagation. It never guesses whether an
+    /// unconstrained result parameter is optional or fallible; the declared result shape must own
+    /// that layer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an unknown-type failure or a duplicate-result-context failure.
+    pub fn constrain_outcome_payload(
+        &mut self,
+        types: &TypeStore,
+        result: TypeId,
+        expected_payload: TypeId,
+    ) -> Result<(), InferenceFailure> {
+        if types.get(result).is_none() {
+            return Err(InferenceFailure::UnknownType(result));
+        }
+        if types.get(expected_payload).is_none() {
+            return Err(InferenceFailure::UnknownType(expected_payload));
+        }
+        if self
+            .result_context
+            .replace(ResultContext::OutcomePayload {
+                result,
+                expected: expected_payload,
+            })
             .is_some()
         {
             return Err(InferenceFailure::DuplicateResultContext);
@@ -279,10 +313,19 @@ impl CallableInference {
         if let Some(context) = self.result_context
             && !matches!(result_candidate, ResultCandidate::None)
         {
-            let result = substitution.apply_type(types, context.result)?;
-            if !result_context_compatible(types, context.expected, result)? {
+            let (expected, result) = match context {
+                ResultContext::Complete { result, expected } => {
+                    (expected, substitution.apply_type(types, result)?)
+                }
+                ResultContext::OutcomePayload { result, expected } => {
+                    let result = substitution.apply_type(types, result)?;
+                    let payload = immediate_outcome_payload(types, result)?;
+                    (expected, payload)
+                }
+            };
+            if !result_context_compatible(types, expected, result)? {
                 return Err(InferenceFailure::ContextualMismatch {
-                    expected: context.expected,
+                    expected,
                     evidence: InferenceEvidence::Typed(result),
                 });
             }
@@ -300,26 +343,38 @@ impl CallableInference {
             return;
         };
         if matches!(
-            types.get(context.result),
+            types.get(context.result()),
             Some(TypeKind::Builtin(BuiltinType::Never))
         ) {
             return;
         }
         match candidate {
             ResultCandidate::None => {}
-            ResultCandidate::Exact(candidate) => equations.push((context.result, candidate)),
+            ResultCandidate::Exact(candidate) => equations.push((context.result(), candidate)),
             ResultCandidate::BorrowWeakening {
                 result_referent,
                 expected_referent,
             } => equations.push((result_referent, expected_referent)),
+            ResultCandidate::OutcomePayload {
+                result_payload,
+                expected_payload,
+            } => equations.push((result_payload, expected_payload)),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ResultContext {
-    result: TypeId,
-    expected: TypeId,
+enum ResultContext {
+    Complete { result: TypeId, expected: TypeId },
+    OutcomePayload { result: TypeId, expected: TypeId },
+}
+
+impl ResultContext {
+    const fn result(self) -> TypeId {
+        match self {
+            Self::Complete { result, .. } | Self::OutcomePayload { result, .. } => result,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -330,20 +385,33 @@ enum ResultCandidate {
         result_referent: TypeId,
         expected_referent: TypeId,
     },
+    OutcomePayload {
+        result_payload: TypeId,
+        expected_payload: TypeId,
+    },
 }
 
 impl ResultContext {
     fn candidates(self, types: &TypeStore) -> Result<Vec<ResultCandidate>, InferenceFailure> {
         if matches!(
-            types.get(self.result),
+            types.get(self.result()),
             Some(TypeKind::Builtin(BuiltinType::Never))
         ) {
             return Ok(vec![ResultCandidate::None]);
         }
+        if let Self::OutcomePayload { result, expected } = self {
+            return Ok(vec![ResultCandidate::OutcomePayload {
+                result_payload: immediate_outcome_payload(types, result)?,
+                expected_payload: expected,
+            }]);
+        }
+        let Self::Complete { result, expected } = self else {
+            unreachable!("outcome payload context returned above")
+        };
         let mut candidates = Vec::new();
-        let mut current = self.expected;
+        let mut current = expected;
         loop {
-            candidates.push(result_candidate(types, self.result, current)?);
+            candidates.push(result_candidate(types, result, current)?);
             match types
                 .get(current)
                 .ok_or(InferenceFailure::UnknownType(current))?
@@ -355,6 +423,22 @@ impl ResultContext {
                 }
             }
         }
+    }
+}
+
+fn immediate_outcome_payload(
+    types: &TypeStore,
+    result: TypeId,
+) -> Result<TypeId, InferenceFailure> {
+    match types
+        .get(result)
+        .ok_or(InferenceFailure::UnknownType(result))?
+    {
+        TypeKind::Optional(payload) | TypeKind::Fallible(payload) => Ok(*payload),
+        _ => Err(InferenceFailure::ContextualMismatch {
+            expected: result,
+            evidence: InferenceEvidence::Typed(result),
+        }),
     }
 }
 
@@ -662,6 +746,23 @@ mod tests {
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
             Some(expected)
+        );
+    }
+
+    #[test]
+    fn outcome_payload_context_uses_the_declared_immediate_layer() {
+        let mut types = TypeStore::new();
+        let (parameter, variable) = parameter(&mut types);
+        let optional = types.intern(TypeKind::Optional(variable)).unwrap();
+        let i32_type = types.builtin(BuiltinType::I32);
+        let mut inference = CallableInference::new([parameter]);
+        inference
+            .constrain_outcome_payload(&types, optional, i32_type)
+            .unwrap();
+
+        assert_eq!(
+            inference.finish(&mut types).unwrap().get(parameter),
+            Some(i32_type)
         );
     }
 

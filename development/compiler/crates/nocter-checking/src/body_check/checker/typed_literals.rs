@@ -105,7 +105,7 @@ impl BodyChecker<'_, '_> {
             inference_parameters: &plan.inference_parameters,
             destination_types: &destinations,
             requirements: &requirements,
-            expected,
+            result_context: super::value_planning::CallResultContext::complete(expected),
             failure_rule: BodyRule::InvalidConstruction,
         };
         let inferred = self.finish_positional_inference(&mut values, &context, inference)?;
