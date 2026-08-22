@@ -4,7 +4,7 @@
 
 The v0.14.0 release candidate is fully prepared and qualified without publication. The normative
 `init` and `graph` omission found by the release audit is repaired. Release-content commit
-`22694918b46a379b0046628153396855db444540` passed incremental and clean source gates, deterministic
+`a59d4e387eff45c4975b38c771597688417ae4d6` passed incremental and clean source gates, deterministic
 double packaging, and the complete fresh-install smoke matrix. Candidate evidence is recorded in
 `development/milestones/v0.14.0-release-preparation.md`.
 
