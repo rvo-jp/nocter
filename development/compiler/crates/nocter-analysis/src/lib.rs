@@ -19,6 +19,7 @@ use nocter_syntax::SyntaxTree;
 mod completion;
 mod documents;
 mod highlights;
+mod inlay_hints;
 mod navigation;
 mod presentation;
 mod rename;
@@ -33,6 +34,7 @@ pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
 pub use highlights::{SemanticHighlight, SemanticHighlightKind};
+pub use inlay_hints::{SemanticInlayHint, SemanticInlayHintError, SemanticInlayHintKind};
 pub use navigation::SemanticLocation;
 pub use presentation::{PresentationError, SemanticPresentation};
 pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};

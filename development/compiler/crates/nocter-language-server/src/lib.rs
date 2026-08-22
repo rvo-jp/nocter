@@ -8,6 +8,7 @@ mod completion;
 mod diagnostics;
 mod documents;
 mod hover;
+mod inlay_hints;
 mod navigation;
 mod paths;
 mod rename;
@@ -27,6 +28,7 @@ pub use documents::{
     AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
 };
 pub use hover::HoverQueryError;
+pub use inlay_hints::InlayHintQueryError;
 pub use navigation::NavigationQueryError;
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use rename::RenameQueryError;

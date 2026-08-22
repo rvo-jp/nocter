@@ -4,6 +4,7 @@ use nocter_lsp::{LifecycleTransitionError, OutboundRequestError, ParameterError,
 
 use crate::completion::CompletionQueryError;
 use crate::hover::HoverQueryError;
+use crate::inlay_hints::InlayHintQueryError;
 use crate::navigation::NavigationQueryError;
 use crate::rename::RenameQueryError;
 use crate::semantic_tokens::SemanticTokensQueryError;
@@ -17,6 +18,7 @@ pub enum ServerIssue {
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
     Hover(HoverQueryError),
+    InlayHints(InlayHintQueryError),
     SemanticTokens(SemanticTokensQueryError),
     Navigation(NavigationQueryError),
     Rename(RenameQueryError),
@@ -35,6 +37,7 @@ impl fmt::Display for ServerIssue {
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
             Self::Hover(error) => error.fmt(formatter),
+            Self::InlayHints(error) => error.fmt(formatter),
             Self::SemanticTokens(error) => error.fmt(formatter),
             Self::Navigation(error) => error.fmt(formatter),
             Self::Rename(error) => error.fmt(formatter),
@@ -55,6 +58,7 @@ impl std::error::Error for ServerIssue {
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
             Self::Hover(error) => Some(error),
+            Self::InlayHints(error) => Some(error),
             Self::SemanticTokens(error) => Some(error),
             Self::Navigation(error) => Some(error),
             Self::Rename(error) => Some(error),

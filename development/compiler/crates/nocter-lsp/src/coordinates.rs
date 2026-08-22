@@ -75,13 +75,8 @@ impl TextDocumentPositionParams {
             .map_err(|_| {
                 ParameterError::new(ParameterErrorKind::EmptyUri, "params.textDocument.uri")
             })?;
-        let mut position = Object::new(root.take("position")?, "params.position")?;
-        let line = unsigned(position.take("line")?, "params.position.line")?;
-        let character = unsigned(position.take("character")?, "params.position.character")?;
-        Ok(Self {
-            uri,
-            position: Position::new(line, character),
-        })
+        let position = decode_position(root.take("position")?, "params.position")?;
+        Ok(Self { uri, position })
     }
 
     #[must_use]
@@ -102,7 +97,14 @@ pub(crate) fn range_value(range: Range) -> Value {
     ])
 }
 
-fn position_value(position: Position) -> Value {
+pub(crate) fn decode_position(value: Value, path: &str) -> Result<Position, ParameterError> {
+    let mut position = Object::new(value, path)?;
+    let line = unsigned(position.take("line")?, &format!("{path}.line"))?;
+    let character = unsigned(position.take("character")?, &format!("{path}.character"))?;
+    Ok(Position::new(line, character))
+}
+
+pub(crate) fn position_value(position: Position) -> Value {
     object([
         ("line", Value::Number(position.line().to_string().into())),
         (

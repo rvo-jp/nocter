@@ -1,0 +1,411 @@
+use std::collections::BTreeSet;
+use std::fmt;
+
+use nocter_checking::CheckedProgram;
+use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
+use nocter_model::ModuleId;
+use nocter_source::{ByteOffset, SourceId, TextRange};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
+use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
+
+use crate::AnalysisSnapshot;
+use crate::presentation::type_presentation;
+use crate::source_context::{SourceContext, SourceContextError};
+
+/// One compiler-owned inlay fact before editor-coordinate projection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticInlayHint {
+    position: ByteOffset,
+    label: Box<str>,
+    kind: SemanticInlayHintKind,
+}
+
+impl SemanticInlayHint {
+    #[must_use]
+    pub const fn position(&self) -> ByteOffset {
+        self.position
+    }
+
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> SemanticInlayHintKind {
+        self.kind
+    }
+}
+
+/// Protocol-independent categories for compiler-owned inlay facts.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum SemanticInlayHintKind {
+    Type,
+    Provenance,
+}
+
+/// An inconsistent checked-program or source projection encountered by an inlay query.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SemanticInlayHintError {
+    SourceContext(SourceContextError),
+    MissingSyntax(SourceId),
+    MissingBody(nocter_model::BodyId),
+    MissingLocal {
+        body: nocter_model::BodyId,
+        local: nocter_model::LocalBindingId,
+    },
+    MissingCallable(nocter_model::CallableId),
+    MissingCallableProvenance(nocter_model::CallableId),
+    MissingParameter(nocter_model::ParameterId),
+    UnknownSymbol(nocter_model::Symbol),
+    UnrenderableType(SemanticEntity),
+}
+
+impl fmt::Display for SemanticInlayHintError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SourceContext(error) => error.fmt(formatter),
+            Self::MissingSyntax(source) => {
+                write!(formatter, "inlay-hint syntax for {source:?} is absent")
+            }
+            Self::MissingBody(body) => write!(formatter, "inlay-hint body {body:?} is absent"),
+            Self::MissingLocal { body, local } => {
+                write!(formatter, "inlay-hint local {body:?}/{local:?} is absent")
+            }
+            Self::MissingCallable(callable) => {
+                write!(formatter, "inlay-hint callable {callable:?} is absent")
+            }
+            Self::MissingCallableProvenance(callable) => {
+                write!(
+                    formatter,
+                    "inlay-hint provenance for {callable:?} is absent"
+                )
+            }
+            Self::MissingParameter(parameter) => {
+                write!(formatter, "inlay-hint parameter {parameter:?} is absent")
+            }
+            Self::UnknownSymbol(symbol) => {
+                write!(formatter, "inlay-hint symbol {symbol:?} is absent")
+            }
+            Self::UnrenderableType(entity) => {
+                write!(formatter, "cannot render the inlay type for {entity:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SemanticInlayHintError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceContext(error) => Some(error),
+            Self::MissingSyntax(_)
+            | Self::MissingBody(_)
+            | Self::MissingLocal { .. }
+            | Self::MissingCallable(_)
+            | Self::MissingCallableProvenance(_)
+            | Self::MissingParameter(_)
+            | Self::UnknownSymbol(_)
+            | Self::UnrenderableType(_) => None,
+        }
+    }
+}
+
+impl From<SourceContextError> for SemanticInlayHintError {
+    fn from(error: SourceContextError) -> Self {
+        Self::SourceContext(error)
+    }
+}
+
+impl AnalysisSnapshot {
+    /// Projects inferred local-binding types retained by one successful checked generation.
+    ///
+    /// Explicit binding annotations suppress the corresponding hint. Syntax participates only in
+    /// that suppression decision; types and visible spellings remain checked-program facts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal query error when the immutable source, body, or type projections are
+    /// inconsistent.
+    pub fn semantic_inlay_hints(
+        &self,
+        source: SourceId,
+        requested: TextRange,
+    ) -> Result<Box<[SemanticInlayHint]>, SemanticInlayHintError> {
+        let Some(target) = self.target() else {
+            return Ok(Box::new([]));
+        };
+        let Some(index) = self.source_index() else {
+            return Ok(Box::new([]));
+        };
+        let checked = target.program().checked();
+        let module = SourceContext::resolve(index, source)?.module();
+        let syntax = self
+            .syntax_trees()
+            .iter()
+            .find(|tree| tree.source() == source)
+            .ok_or(SemanticInlayHintError::MissingSyntax(source))?;
+        let context = InlayContext {
+            checked,
+            index,
+            source,
+            module,
+            syntax,
+            requested,
+        };
+        let mut hints = context.local_type_hints()?;
+        hints.extend(context.callable_provenance_hints()?);
+        hints.sort_unstable_by_key(|hint| (hint.position, hint.kind));
+        hints.dedup_by_key(|hint| (hint.position, hint.kind));
+        Ok(hints.into_boxed_slice())
+    }
+}
+
+struct InlayContext<'a> {
+    checked: &'a CheckedProgram,
+    index: &'a SourceIndex,
+    source: SourceId,
+    module: ModuleId,
+    syntax: &'a SyntaxTree,
+    requested: TextRange,
+}
+
+impl InlayContext<'_> {
+    fn local_type_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
+        let annotated = annotated_binding_targets(self.syntax);
+        let mut hints = Vec::new();
+        for binding in self.index.bindings_in(self.source) {
+            if binding.role() != SourceRole::Declaration
+                || annotated.contains(&binding.origin().span().range())
+            {
+                continue;
+            }
+            let SemanticEntity::LocalBinding(body, local) = binding.entity() else {
+                continue;
+            };
+            let position = binding.origin().span().range().end();
+            if !contains_position(self.requested, position) {
+                continue;
+            }
+            let checked_body = self
+                .checked
+                .bodies()
+                .get(body)
+                .ok_or(SemanticInlayHintError::MissingBody(body))?;
+            let checked_local = checked_body
+                .locals()
+                .get(local)
+                .ok_or(SemanticInlayHintError::MissingLocal { body, local })?;
+            let entity = binding.entity();
+            let rendered = type_presentation(self.checked, checked_local.ty(), self.module)
+                .ok_or(SemanticInlayHintError::UnrenderableType(entity))?;
+            hints.push(SemanticInlayHint {
+                position,
+                label: format!(": {}", rendered.code()).into(),
+                kind: SemanticInlayHintKind::Type,
+            });
+        }
+        Ok(hints)
+    }
+
+    fn callable_provenance_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
+        let mut hints = Vec::new();
+        for binding in self.index.bindings_in(self.source) {
+            if binding.role() != SourceRole::Declaration {
+                continue;
+            }
+            let SemanticEntity::Callable(callable) = binding.entity() else {
+                continue;
+            };
+            let declaration = self
+                .checked
+                .graph()
+                .declarations()
+                .callables()
+                .get(callable)
+                .ok_or(SemanticInlayHintError::MissingCallable(callable))?;
+            if declaration.provenance_annotation() != ProvenanceAnnotation::Elided {
+                continue;
+            }
+            let provenance = self
+                .checked
+                .provenance()
+                .callables()
+                .get(callable)
+                .ok_or(SemanticInlayHintError::MissingCallableProvenance(callable))?;
+            if provenance.origins().is_empty() {
+                continue;
+            }
+            let Some(position) = callable_result_end(self.syntax, binding.origin().span().range())
+            else {
+                continue;
+            };
+            if !contains_position(self.requested, position) {
+                continue;
+            }
+            let mut label = String::from(" from ");
+            for (index, origin) in provenance.origins().iter().copied().enumerate() {
+                if index != 0 {
+                    label.push_str(" | ");
+                }
+                match origin {
+                    ProvenanceOrigin::Receiver => label.push_str("self"),
+                    ProvenanceOrigin::Parameter(parameter) => {
+                        let parameter = self
+                            .checked
+                            .graph()
+                            .declarations()
+                            .parameters()
+                            .get(parameter)
+                            .ok_or(SemanticInlayHintError::MissingParameter(parameter))?;
+                        label.push_str(
+                            self.checked
+                                .graph()
+                                .symbols()
+                                .spelling(parameter.name())
+                                .ok_or(SemanticInlayHintError::UnknownSymbol(parameter.name()))?,
+                        );
+                    }
+                }
+            }
+            hints.push(SemanticInlayHint {
+                position,
+                label: label.into(),
+                kind: SemanticInlayHintKind::Provenance,
+            });
+        }
+        Ok(hints)
+    }
+}
+
+const fn contains_position(range: TextRange, position: ByteOffset) -> bool {
+    range.start().get() <= position.get() && position.get() <= range.end().get()
+}
+
+fn callable_result_end(syntax: &SyntaxTree, name: TextRange) -> Option<ByteOffset> {
+    let owner = syntax
+        .nodes()
+        .filter(|(_, node)| callable_node(node.kind()) && contains(node.range(), name))
+        .min_by_key(|(_, node)| node.range().end().get() - node.range().start().get())?
+        .0;
+    let owner_range = syntax.node(owner)?.range();
+    let tail = syntax
+        .nodes()
+        .filter(|(_, node)| {
+            node.kind() == NodeKind::CallableTail && contains(owner_range, node.range())
+        })
+        .min_by_key(|(_, node)| node.range().end().get() - node.range().start().get())
+        .map(|(tail, _)| tail);
+    let Some(tail) = tail else {
+        return operator_result_end(syntax, owner);
+    };
+    let mut end = syntax.node(tail)?.range().start();
+    for element in syntax.children(tail) {
+        match element {
+            SyntaxElement::Node(child)
+                if matches!(
+                    syntax.node(*child)?.kind(),
+                    NodeKind::ProvenanceClause | NodeKind::WhereClause
+                ) =>
+            {
+                break;
+            }
+            SyntaxElement::Node(child) => end = syntax.node(*child)?.range().end(),
+            SyntaxElement::Token(token) => end = token.range().end(),
+            SyntaxElement::Missing(missing) => end = missing.span().range().end(),
+        }
+    }
+    Some(end)
+}
+
+const fn callable_node(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::FunctionDeclaration
+            | NodeKind::PrimitiveDeclaration
+            | NodeKind::InterfaceMethod
+            | NodeKind::ConstructionFunction
+            | NodeKind::LiteralDeclaration
+            | NodeKind::InherentMethod
+            | NodeKind::ConformMethod
+            | NodeKind::EqualityOperator
+            | NodeKind::OrderingOperator
+            | NodeKind::IndexOperator
+            | NodeKind::ExpansionOperator
+    )
+}
+
+fn operator_result_end(syntax: &SyntaxTree, owner: nocter_syntax::NodeId) -> Option<ByteOffset> {
+    let mut result = None;
+    for element in syntax.children(owner) {
+        let SyntaxElement::Node(child) = element else {
+            continue;
+        };
+        let node = syntax.node(*child)?;
+        match node.kind() {
+            NodeKind::ProvenanceClause | NodeKind::WhereClause | NodeKind::Block => break,
+            NodeKind::Type | NodeKind::BorrowType => result = Some(node.range().end()),
+            _ => {}
+        }
+    }
+    result
+}
+
+const fn contains(outer: TextRange, inner: TextRange) -> bool {
+    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
+}
+
+fn annotated_binding_targets(syntax: &SyntaxTree) -> BTreeSet<TextRange> {
+    syntax
+        .nodes()
+        .filter(|(_, node)| node.kind() == NodeKind::BindingStatement)
+        .filter_map(|(binding, _)| {
+            let mut target = None;
+            let mut annotation = false;
+            for child in syntax.children(binding) {
+                let SyntaxElement::Node(child) = child else {
+                    continue;
+                };
+                match syntax.node(*child)?.kind() {
+                    NodeKind::BindingTarget => {
+                        target = syntax.node(*child).map(nocter_syntax::SyntaxNode::range);
+                    }
+                    NodeKind::TypeAnnotation => annotation = true,
+                    _ => {}
+                }
+            }
+            annotation.then_some(target).flatten()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
+    use nocter_syntax::{ParseGoal, parse};
+
+    use super::callable_result_end;
+
+    #[test]
+    fn operator_provenance_hint_follows_the_direct_result_type() {
+        let text = concat!(
+            "instance Box<T> {\n",
+            "    operator (&self[index: usize]): &T { return &self.value }\n",
+            "}\n",
+        );
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("index.nct"), text.as_bytes())
+            .unwrap();
+        let syntax = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        assert!(!syntax.has_errors(), "{:?}", syntax.diagnostics());
+        let anchor = u32::try_from(text.find("operator").unwrap()).unwrap();
+        let expected = u32::try_from(text.find("&T {").unwrap() + 2).unwrap();
+        assert_eq!(
+            callable_result_end(
+                &syntax,
+                TextRange::new(ByteOffset::new(anchor), ByteOffset::new(anchor + 8)),
+            ),
+            Some(ByteOffset::new(expected))
+        );
+    }
+}

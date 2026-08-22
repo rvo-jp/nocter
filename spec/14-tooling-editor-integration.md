@@ -194,9 +194,12 @@ Code actions expose compiler-planned edits, including imports, required interfac
 optional/fallible callable contracts. Generated edits must parse and typecheck as ordinary Nocter;
 the protocol layer does not synthesize source templates independently.
 
-Inlay hints project retained inferred binding types and source-visible result provenance. Explicit
-source annotations suppress redundant hints. The language server performs no second inference pass
-and does not expose compiler-owned allocation dataflow as source syntax.
+Inlay type hints appear after inferred local binding names and use the checked type rendered in the
+binding's module context. An explicit binding type suppresses the hint. Result-provenance hints
+appear after a callable result type only for compiler-inferred external origins expressible as
+`from self` or `from parameter`; an explicit `from` clause suppresses the hint. Fresh/current
+allocation, temporary storage, and other compiler-owned provenance never become inlay source
+syntax. The language server performs no second type or provenance inference pass.
 
 ## Incomplete Source Recovery
 

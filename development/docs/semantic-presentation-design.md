@@ -250,3 +250,12 @@ insertion planner extends the last top-level import group or inserts before the 
 and its attached item documentation. File documentation and existing group whitespace remain
 unchanged. The language-server boundary only converts that edit to UTF-16
 `additionalTextEdits`; it does not rediscover exports, paths, visibility, or insertion positions.
+
+Inlay hints are another compiler-owned semantic projection. Checked local identities supply their
+final types, and the ordinary module-relative type renderer supplies labels; the syntax tree is
+consulted only to suppress a binding that already has a `TypeAnnotation`. Callable hints consume
+the checked `CallableProvenanceTable` and retain only external receiver or parameter origins that
+can be written in a source `from` clause. Explicit provenance suppresses the corresponding hint,
+while ambient allocation and temporary sources are never rendered. The analysis result owns byte
+positions and protocol-independent hint kinds. The language-server boundary validates the requested
+UTF-16 range and converts positions, while `nocter-lsp` only decodes and renders protocol values.

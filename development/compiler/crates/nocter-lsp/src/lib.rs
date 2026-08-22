@@ -8,6 +8,7 @@ mod coordinates;
 mod decode;
 mod hover;
 mod initialize;
+mod inlay_hints;
 mod lifecycle;
 mod message;
 mod navigation;
@@ -27,6 +28,7 @@ pub use completion::{CompletionItem, CompletionItemKind, CompletionParams, compl
 pub use coordinates::{Position, Range, TextDocumentPositionParams};
 pub use hover::{HoverParams, hover_result};
 pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};
+pub use inlay_hints::{InlayHint, InlayHintKind, InlayHintParams, inlay_hints_result};
 pub use lifecycle::{Lifecycle, LifecycleAction, LifecycleState, LifecycleTransitionError};
 pub use message::{
     IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId, ResponseError,

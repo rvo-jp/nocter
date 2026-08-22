@@ -234,6 +234,11 @@ impl LanguageServer {
                 self.semantic_tokens(&id, params)
             }
             IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/inlayHint" =>
+            {
+                self.inlay_hints(&id, params)
+            }
+            IncomingMessage::Request { id, method, params }
                 if method.as_ref() == "textDocument/definition" =>
             {
                 self.definition(&id, params)

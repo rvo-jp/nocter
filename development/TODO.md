@@ -178,6 +178,11 @@ implementation input.
    edits that would create a cycle. Frozen declaration graphs retain canonical package and module
    lookup indexes, avoiding edge-by-module scans on each keystroke. Direct package-root selection
    uses the now-explicit `use /.Name` grammar.
+   Compiler-owned inlay hints now project inferred local types through the module-relative type
+   renderer and inferred callable result origins through the checked provenance table. Exact CST
+   annotations suppress redundant type and `from` hints. Only source-expressible receiver and
+   parameter origins cross the boundary; ambient allocation and temporary provenance remain
+   internal. LSP validates the requested UTF-16 range and performs coordinate projection only.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

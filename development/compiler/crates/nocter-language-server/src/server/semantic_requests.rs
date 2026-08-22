@@ -1,12 +1,13 @@
 use nocter_json::Value;
 use nocter_lsp::{
-    CompletionParams, DefinitionParams, HoverParams, ReferencesParams, RenameParams, RequestId,
-    ResponseErrorCode, SemanticTokensParams, SignatureHelpParams, render_error_response,
-    render_success_response,
+    CompletionParams, DefinitionParams, HoverParams, InlayHintParams, ReferencesParams,
+    RenameParams, RequestId, ResponseErrorCode, SemanticTokensParams, SignatureHelpParams,
+    render_error_response, render_success_response,
 };
 
 use crate::completion::query_completion;
 use crate::hover::query_hover;
+use crate::inlay_hints::query_inlay_hints;
 use crate::navigation::{NavigationQueryError, query_definition, query_references};
 use crate::rename::query_rename;
 use crate::semantic_tokens::{SemanticTokensQueryError, query_semantic_tokens};
@@ -134,6 +135,43 @@ impl LanguageServer {
                 ServerStep {
                     response: Some(render_error_response(Some(id), code, Some(&detail))),
                     issues: vec![ServerIssue::SemanticTokens(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+        }
+    }
+
+    pub(super) fn inlay_hints(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match InlayHintParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        match query_inlay_hints(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        ) {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let detail = Value::String(error.to_string().into_boxed_str());
+                let code = match &error {
+                    crate::inlay_hints::InlayHintQueryError::Document(_)
+                    | crate::inlay_hints::InlayHintQueryError::RequestCoordinate(_) => {
+                        ResponseErrorCode::InvalidParams
+                    }
+                    crate::inlay_hints::InlayHintQueryError::ResultCoordinate(_)
+                    | crate::inlay_hints::InlayHintQueryError::Semantic(_) => {
+                        ResponseErrorCode::InternalError
+                    }
+                };
+                ServerStep {
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
+                    issues: vec![ServerIssue::InlayHints(error)].into_boxed_slice(),
                     ..ServerStep::default()
                 }
             }
@@ -1271,6 +1309,123 @@ mod tests {
             "{:?}",
             snapshot.compilation_failure()
         );
+    }
+
+    #[test]
+    fn inlay_hints_project_only_unannotated_checked_binding_types_in_the_requested_range() {
+        let temporary = TemporaryDirectory::new();
+        let source_path = temporary.path().join("main.nct");
+        let source = concat!(
+            "func main(): void {\n",
+            "    let inferred = 1\n",
+            "    let explicit: i32 = 2\n",
+            "    var mutable = 3\n",
+            "    return\n",
+            "}\n",
+        );
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":5,\"character\":1}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":1,\"character\":16},",
+                "\"label\":\": i32\",\"kind\":1"
+            )),
+            "{response}"
+        );
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":3,\"character\":15},",
+                "\"label\":\": i32\",\"kind\":1"
+            )),
+            "{response}"
+        );
+        assert!(!response.contains("\"line\":2,\"character\":16"));
+        assert_eq!(response.matches("\"kind\":1").count(), 2, "{response}");
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let narrowed = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":3,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":3,\"character\":0}},",
+                "\"end\":{{\"line\":3,\"character\":19}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = narrowed.response().unwrap();
+        assert_eq!(response.matches("\"kind\":1").count(), 1, "{response}");
+        assert!(response.contains("\"line\":3,\"character\":15"));
+        assert!(narrowed.issue().is_none(), "{:?}", narrowed.issue());
+    }
+
+    #[test]
+    fn inlay_hints_show_only_elided_external_result_provenance() {
+        let temporary = TemporaryDirectory::new();
+        let source_path = temporary.path().join("main.nct");
+        let source = concat!(
+            "func view(text: &str): &str { return text }\n",
+            "func explicit(text: &str): &str from text { return text }\n",
+            "func main(): void { return }\n",
+        );
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":2,\"character\":28}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":0,\"character\":27},",
+                "\"label\":\" from text\""
+            )),
+            "{response}"
+        );
+        assert_eq!(response.matches(" from text").count(), 1, "{response}");
+        assert!(!response.contains("\"line\":1"), "{response}");
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 
     #[test]
