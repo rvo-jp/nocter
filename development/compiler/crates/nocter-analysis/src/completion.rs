@@ -30,6 +30,7 @@ pub struct SemanticCompletion {
     kind: SemanticCompletionKind,
     detail: Option<Box<str>>,
     additional_edits: Box<[SemanticCompletionEdit]>,
+    automatic_import: Option<Box<str>>,
 }
 
 impl SemanticCompletion {
@@ -43,11 +44,17 @@ impl SemanticCompletion {
             kind,
             detail,
             additional_edits: Box::new([]),
+            automatic_import: None,
         }
     }
 
     fn with_additional_edit(mut self, edit: SemanticCompletionEdit) -> Self {
         self.additional_edits = Box::new([edit]);
+        self
+    }
+
+    fn with_automatic_import(mut self, path: impl Into<Box<str>>) -> Self {
+        self.automatic_import = Some(path.into());
         self
     }
 
@@ -69,6 +76,12 @@ impl SemanticCompletion {
     #[must_use]
     pub const fn additional_edits(&self) -> &[SemanticCompletionEdit] {
         &self.additional_edits
+    }
+
+    /// Returns the exact compiler-selected import route for an automatic-import candidate.
+    #[must_use]
+    pub fn automatic_import(&self) -> Option<&str> {
+        self.automatic_import.as_deref()
     }
 }
 

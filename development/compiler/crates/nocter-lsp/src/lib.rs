@@ -3,6 +3,7 @@
 //! This crate contains no compiler semantics and performs no filesystem access. Validated
 //! messages cross this boundary before they may mutate editor documents or invoke analysis.
 
+mod code_actions;
 mod completion;
 mod coordinates;
 mod decode;
@@ -24,6 +25,7 @@ mod transport;
 mod uri;
 mod watcher;
 
+pub use code_actions::{CodeAction, CodeActionParams, code_actions_result};
 pub use completion::{CompletionItem, CompletionItemKind, CompletionParams, completion_result};
 pub use coordinates::{Position, Range, TextDocumentPositionParams};
 pub use hover::{HoverParams, hover_result};

@@ -93,6 +93,7 @@ pub fn initialize_result(server_version: &str) -> Value {
                 ),
                 ("referencesProvider", Value::Bool(true)),
                 ("renameProvider", Value::Bool(true)),
+                ("codeActionProvider", Value::Bool(true)),
                 ("inlayHintProvider", Value::Bool(true)),
                 (
                     "signatureHelpProvider",
@@ -272,6 +273,7 @@ mod tests {
                 "\"hoverProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\"]},",
                 "\"referencesProvider\":true,",
                 "\"renameProvider\":true,",
+                "\"codeActionProvider\":true,",
                 "\"inlayHintProvider\":true,",
                 "\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]},",
                 "\"semanticTokensProvider\":{\"legend\":{",

@@ -2,10 +2,10 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed compiler-owned semantic presentation and source
-documentation boundary. The next editor work is chosen from the remaining specified tooling
-surface; it must reuse immutable analysis generations and semantic identities rather than add a
-protocol-owned source interpretation.
+Continue v0.14.0 Phase 6 from the completed compiler-owned automatic-import code-action boundary.
+The next editor work is the required-conformance-member action family, followed by optional and
+fallible callable-contract repairs. Each family must produce typed compiler edit plans and pass the
+shared speculative-compilation transaction; it must not infer templates from diagnostic prose.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -183,6 +183,14 @@ implementation input.
    annotations suppress redundant type and `from` hints. Only source-expressible receiver and
    parameter origins cross the boundary; ambient allocation and temporary provenance remain
    internal. LSP validates the requested UTF-16 range and performs coordinate projection only.
+   Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
+   the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
+   keeps source identity, byte range, and replacement inseparable. A shared language-server edit
+   transaction validates non-overlap and UTF-8 boundaries, applies an isolated overlay, recompiles
+   through the production path, and then emits the same edits as versioned `documentChanges`.
+   Rename has been migrated to this common transaction. Client diagnostic contents, rendered
+   messages, and help text never select a repair. Only import candidates whose speculative snapshot
+   reaches `Complete` are published.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

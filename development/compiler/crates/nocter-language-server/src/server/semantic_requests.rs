@@ -1,10 +1,11 @@
 use nocter_json::Value;
 use nocter_lsp::{
-    CompletionParams, DefinitionParams, HoverParams, InlayHintParams, ReferencesParams,
-    RenameParams, RequestId, ResponseErrorCode, SemanticTokensParams, SignatureHelpParams,
-    render_error_response, render_success_response,
+    CodeActionParams, CompletionParams, DefinitionParams, HoverParams, InlayHintParams,
+    ReferencesParams, RenameParams, RequestId, ResponseErrorCode, SemanticTokensParams,
+    SignatureHelpParams, render_error_response, render_success_response,
 };
 
+use crate::code_actions::query_code_actions;
 use crate::completion::query_completion;
 use crate::hover::query_hover;
 use crate::inlay_hints::query_inlay_hints;
@@ -16,6 +17,38 @@ use crate::signature::query_signature_help;
 use super::{LanguageServer, ServerIssue, ServerStep};
 
 impl LanguageServer {
+    pub(super) fn code_actions(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match CodeActionParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        match query_code_actions(
+            &self.documents,
+            self.analyses
+                .as_ref()
+                .expect("initialized server owns workspace analyses"),
+            &params,
+        ) {
+            Ok(result) => ServerStep {
+                response: Some(render_success_response(id, &result)),
+                ..ServerStep::default()
+            },
+            Err(error) => {
+                let code = if error.is_request_error() {
+                    ResponseErrorCode::InvalidParams
+                } else {
+                    ResponseErrorCode::InternalError
+                };
+                let detail = Value::String(error.to_string().into_boxed_str());
+                ServerStep {
+                    response: Some(render_error_response(Some(id), code, Some(&detail))),
+                    issues: vec![ServerIssue::CodeActions(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                }
+            }
+        }
+    }
+
     pub(super) fn completion(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
         let params = match CompletionParams::decode(params) {
             Ok(params) => params,
@@ -1527,6 +1560,90 @@ mod tests {
         let response = completion.response().unwrap();
         assert!(!response.contains("\"label\":\"root_value\""), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
+    fn code_actions_publish_only_recompiled_compiler_owned_import_edits() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::create_dir(temporary.path().join("api")).unwrap();
+        std::fs::create_dir(temporary.path().join("child")).unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            concat!(
+                "use ./api\n",
+                "use ./child\n",
+                "pub func root_marker(): i32 { return 1 }\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            temporary.path().join("api/index.nct"),
+            "pub func public_helper(): i32 { return 7 }\n",
+        )
+        .unwrap();
+        let source = "func inspect(): i32 { return public_helper() }\n";
+        let source_path = temporary.path().join("child/index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0340");
+
+        let completion = request_completion(&mut server, &uri, 4, 0, 30);
+        assert!(
+            completion
+                .response()
+                .unwrap()
+                .contains("\"label\":\"public_helper\""),
+            "{}",
+            completion.response().unwrap()
+        );
+
+        let action = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":29}},",
+                "\"end\":{{\"line\":0,\"character\":42}}}},",
+                "\"context\":{{\"diagnostics\":[]}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = action.response().unwrap();
+        assert!(
+            response.contains("Import `public_helper` from `../api.public_helper`"),
+            "{response}"
+        );
+        assert!(response.contains("\"version\":1"), "{response}");
+        assert!(response.contains("use ../api.public_helper"), "{response}");
+        assert!(response.contains("\"isPreferred\":true"), "{response}");
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+
+        let outside = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":3,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":0,\"character\":3}}}},",
+                "\"context\":{{\"diagnostics\":[]}}}}}}"
+            ),
+            uri = uri,
+        ));
+        assert!(outside.response().unwrap().contains("\"result\":[]"));
+        assert!(outside.issue().is_none(), "{:?}", outside.issue());
     }
 
     #[test]

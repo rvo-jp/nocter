@@ -2,6 +2,7 @@ use std::fmt;
 
 use nocter_lsp::{LifecycleTransitionError, OutboundRequestError, ParameterError, ResponseError};
 
+use crate::code_actions::CodeActionQueryError;
 use crate::completion::CompletionQueryError;
 use crate::hover::HoverQueryError;
 use crate::inlay_hints::InlayHintQueryError;
@@ -15,6 +16,7 @@ use crate::{DiagnosticPublicationError, DocumentWorkspaceError, WorkspaceConfigu
 pub enum ServerIssue {
     Parameters(ParameterError),
     Completion(CompletionQueryError),
+    CodeActions(CodeActionQueryError),
     Documents(DocumentWorkspaceError),
     Diagnostics(DiagnosticPublicationError),
     Hover(HoverQueryError),
@@ -34,6 +36,7 @@ impl fmt::Display for ServerIssue {
         match self {
             Self::Parameters(error) => error.fmt(formatter),
             Self::Completion(error) => error.fmt(formatter),
+            Self::CodeActions(error) => error.fmt(formatter),
             Self::Documents(error) => error.fmt(formatter),
             Self::Diagnostics(error) => error.fmt(formatter),
             Self::Hover(error) => error.fmt(formatter),
@@ -55,6 +58,7 @@ impl std::error::Error for ServerIssue {
         match self {
             Self::Parameters(error) => Some(error),
             Self::Completion(error) => Some(error),
+            Self::CodeActions(error) => Some(error),
             Self::Documents(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
             Self::Hover(error) => Some(error),

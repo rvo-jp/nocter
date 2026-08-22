@@ -16,6 +16,7 @@ use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
+mod code_actions;
 mod completion;
 mod documents;
 mod highlights;
@@ -26,7 +27,9 @@ mod rename;
 mod semantic;
 mod signature;
 mod source_context;
+mod source_edits;
 
+pub use code_actions::{SemanticCodeAction, SemanticCodeActionError};
 pub use completion::{
     SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
 };
@@ -41,6 +44,7 @@ pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
 pub use semantic::{SemanticQueryError, SemanticSelection, SemanticSubject};
 pub use signature::{SemanticParameterLabel, SemanticSignatureHelp};
 pub use source_context::SourceContextError;
+pub use source_edits::SemanticSourceEdit;
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

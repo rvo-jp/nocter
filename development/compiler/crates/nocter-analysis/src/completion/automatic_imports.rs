@@ -135,7 +135,8 @@ pub(super) fn completions(
                         candidate.kind,
                         program.detail(candidate.entity, &spellings),
                     )
-                    .with_additional_edit(insertion.edit(&import)),
+                    .with_additional_edit(insertion.edit(&import))
+                    .with_automatic_import(import),
                 );
             }
         }

@@ -1203,3 +1203,13 @@ completion, navigation, rename, tokens, diagnostics, and code actions consume th
 when they exist and use syntax-only recovery only when no semantic fact is available. Every
 generation first freezes its complete open-document overlay; package resolution, discovery, syntax,
 and semantic analysis all consume that one value.
+
+Source mutation features share one protocol-independent edit value containing an exact `SourceId`,
+byte range, and replacement. The language-server composition layer groups and validates these
+edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits
+as versioned LSP `documentChanges`. Overlapping edits, missing sources, invalid UTF-8 boundaries,
+and failed speculative compilation cannot reach the client. Automatic-import code actions select
+the current compiler diagnostic by stable rule code and exact source subject, reuse the semantic
+import candidate attached to completion, and publish it only when the ordinary compiler accepts
+the candidate overlay. The adapter ignores client diagnostic contents and never derives edits from
+diagnostic messages or help strings.

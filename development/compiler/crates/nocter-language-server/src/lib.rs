@@ -4,6 +4,7 @@
 //! document URI through the filesystem and mutate accepted workspace document state.
 
 mod analysis;
+mod code_actions;
 mod completion;
 mod diagnostics;
 mod documents;
@@ -18,10 +19,12 @@ mod semantic_tokens;
 mod server;
 mod signature;
 mod workspace;
+mod workspace_edits;
 
 pub use analysis::{
     AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
 };
+pub use code_actions::CodeActionQueryError;
 pub use completion::CompletionQueryError;
 pub use diagnostics::{DiagnosticPublicationError, DiagnosticPublisher};
 pub use documents::{

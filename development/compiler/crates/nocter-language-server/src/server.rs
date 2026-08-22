@@ -239,6 +239,11 @@ impl LanguageServer {
                 self.inlay_hints(&id, params)
             }
             IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/codeAction" =>
+            {
+                self.code_actions(&id, params)
+            }
+            IncomingMessage::Request { id, method, params }
                 if method.as_ref() == "textDocument/definition" =>
             {
                 self.definition(&id, params)
