@@ -15,7 +15,8 @@ pub use build::{
 };
 pub(crate) use comparison::ComparisonCandidateImplementation;
 pub use diagnostic::InstanceOperationRule;
-pub(crate) use methods::MethodCandidate;
+pub use methods::MemberCompletionCandidate;
+pub(crate) use methods::{MethodCandidate, receiver_supports};
 pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;
 pub(crate) use selection::{

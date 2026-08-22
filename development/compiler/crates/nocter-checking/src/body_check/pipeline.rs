@@ -7,7 +7,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
 
 use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyOutput, NodeProjection};
 use super::context::BodyProgramFacts;
-use super::error::{BodyCheckError, BodyCheckInternalError};
+use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureTableBuilder,
@@ -33,12 +33,13 @@ pub fn check_prepared_program<'syntax>(
         .map_err(|failure| failure.into_parts().0)
 }
 
-/// Checks typed bodies while retaining the completed pre-body semantic stage on authored failure.
+/// Checks typed bodies while retaining current-generation analysis recovery on authored failure.
 ///
 /// # Errors
 ///
 /// Returns the body error and, when typed-body construction was the rejecting boundary, the exact
-/// current-generation [`crate::PreparedSemanticProgram`].
+/// current-generation [`crate::BodyAnalysisRecovery`]. Recovery always contains the completed
+/// preparation stage and may additionally contain a phase-owned typed interruption.
 pub fn check_prepared_program_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     prepared: PreparedChecking<'syntax>,
@@ -87,10 +88,15 @@ fn check_prepared_program_internal<'syntax>(
         &prepared.body_names,
     ) {
         Ok(checked) => checked,
-        Err(error) => {
+        Err(failure) => {
+            let (error, interruption) = failure.into_parts();
+            let typed = interruption
+                .map(|interruption| (interruption, checked_types, checked_copyabilities));
             return Err(crate::BodyCheckFailure::new(
                 error,
-                retain_prepared.then(|| prepared.into_semantic_program()),
+                retain_prepared.then(|| {
+                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), typed)
+                }),
             ));
         }
     };
@@ -111,7 +117,8 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         return Err(crate::BodyCheckFailure::new(
             error,
-            retain_prepared.then(|| prepared.into_semantic_program()),
+            retain_prepared
+                .then(|| crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), None)),
         ));
     }
 
@@ -128,7 +135,9 @@ fn check_prepared_program_internal<'syntax>(
         Err(error) => {
             return Err(crate::BodyCheckFailure::new(
                 error,
-                retain_prepared.then(|| prepared.into_semantic_program()),
+                retain_prepared.then(|| {
+                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), None)
+                }),
             ));
         }
     };
@@ -287,32 +296,38 @@ fn check_declared_bodies<'input, 'syntax>(
     closures: &'input mut ClosureTableBuilder,
     body_sources: &BodySourceCatalog<'syntax>,
     body_names: &'input Arena<BodyId, ResolvedBodyNames>,
-) -> Result<CheckedBodiesOutput, BodyCheckError> {
+) -> Result<CheckedBodiesOutput, BodyConstructionFailure> {
     let mut checked_bodies = Vec::new();
     let mut projections = Vec::new();
     let mut opaque_witnesses = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
         let source = body_sources
             .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
+            .ok_or(BodyCheckInternalError::MissingBodySource(body))
+            .map_err(|error| BodyConstructionFailure::new(error.into(), None))?;
         let names = body_names
             .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodyNames(body))?;
+            .ok_or(BodyCheckInternalError::MissingBodyNames(body))
+            .map_err(|error| BodyConstructionFailure::new(error.into(), None))?;
         if names.body() != body {
-            return Err(BodyCheckInternalError::BodyIdentityMismatch(body).into());
+            return Err(BodyConstructionFailure::new(
+                BodyCheckInternalError::BodyIdentityMismatch(body).into(),
+                None,
+            ));
         }
         let unit = BodyUnitInput {
             source,
             names,
             closure_ids: reserve_body_closures(closures, source),
         };
-        let mut checked =
-            BodyChecker::new(input, facts, types, copyabilities, closures, unit)?.check()?;
-        projections.append(&mut checked.projections);
-        if let Some(witness) = checked.opaque_witness {
+        let body_checker = BodyChecker::new(input, facts, types, copyabilities, closures, unit)
+            .map_err(|error| BodyConstructionFailure::new(error, None))?;
+        let mut body_output = body_checker.check()?;
+        projections.append(&mut body_output.projections);
+        if let Some(witness) = body_output.opaque_witness {
             opaque_witnesses.push(witness);
         }
-        checked_bodies.push((body, checked));
+        checked_bodies.push((body, body_output));
     }
     Ok(CheckedBodiesOutput {
         bodies: checked_bodies,

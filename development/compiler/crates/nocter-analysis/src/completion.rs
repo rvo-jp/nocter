@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
-use nocter_checking::{BodyScope, CheckedProgram, NameTarget, PreparedSemanticProgram};
+use nocter_checking::{
+    BodyScope, CheckedOperation, CheckedProgram, MemberCompletionContext, NameTarget,
+    PreparedSemanticProgram, ReceiverPreparation,
+};
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
-use nocter_model::{BodyId, BodyScopeId, Symbol};
+use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
@@ -43,6 +46,7 @@ pub enum SemanticCompletionKind {
     Type,
     Interface,
     Function,
+    Method,
     Parameter,
     Variable,
 }
@@ -118,6 +122,17 @@ impl AnalysisSnapshot {
         let Some(module) = containing_module(index, source, offset) else {
             return Box::new([]);
         };
+        if let CompletionProgram::Checked {
+            program: checked, ..
+        } = program
+            && let Some(completions) =
+                checked_member_completions(checked, index, source, offset, module)
+        {
+            return completions;
+        }
+        if let Some(completions) = interrupted_member_completions(self, source, offset, module) {
+            return completions;
+        }
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
         if let Some((body, scope)) = containing_scope(index, source, offset) {
@@ -143,6 +158,128 @@ impl AnalysisSnapshot {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice()
+    }
+}
+
+fn interrupted_member_completions(
+    snapshot: &AnalysisSnapshot,
+    source: SourceId,
+    offset: ByteOffset,
+    module: nocter_model::ModuleId,
+) -> Option<Box<[SemanticCompletion]>> {
+    let recovery = snapshot.body_recovery()?;
+    let origin = recovery.interruption()?.origin();
+    if origin.source() != source || !contains(origin.span().range(), offset) {
+        return None;
+    }
+    let candidates = recovery.interrupted_member_completions(module)?.ok()?;
+    Some(
+        candidates
+            .iter()
+            .filter_map(|candidate| {
+                let label = recovery
+                    .prepared()
+                    .graph()
+                    .symbols()
+                    .spelling(candidate.name())?;
+                let detail = candidate
+                    .surface()
+                    .and_then(|surface| {
+                        prepared_presentation(
+                            recovery.prepared(),
+                            SemanticEntity::Callable(surface),
+                        )
+                    })
+                    .map(|presentation| Box::<str>::from(presentation.code()));
+                Some(SemanticCompletion {
+                    label: label.into(),
+                    kind: SemanticCompletionKind::Method,
+                    detail,
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+    )
+}
+
+fn checked_member_completions(
+    program: &CheckedProgram,
+    index: &SourceIndex,
+    source: SourceId,
+    offset: ByteOffset,
+    module: nocter_model::ModuleId,
+) -> Option<Box<[SemanticCompletion]>> {
+    let member_range = index
+        .bindings_in(source)
+        .filter(|binding| {
+            binding.role() == SourceRole::Reference
+                && matches!(binding.entity(), SemanticEntity::Callable(_))
+                && contains(binding.origin().span().range(), offset)
+        })
+        .map(|binding| binding.origin().span().range())
+        .min_by_key(|range| range_length(*range))?;
+    let (body_id, receiver) = index
+        .bindings_in(source)
+        .filter_map(|binding| {
+            let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
+                return None;
+            };
+            let range = binding.origin().span().range();
+            if !contains(range, offset) || !contains_range(range, member_range) {
+                return None;
+            }
+            let node = program.bodies().get(body_id)?.nodes().get(node_id)?;
+            let CheckedOperation::Call(call) = node.operation() else {
+                return None;
+            };
+            Some((body_id, range, call.receiver()?))
+        })
+        .min_by_key(|(_, range, _)| range_length(*range))
+        .map(|(body, _, receiver)| (body, receiver))?;
+    let body = program.graph().declarations().bodies().get(body_id)?;
+    let receiver_type = program
+        .bodies()
+        .get(body_id)?
+        .nodes()
+        .get(receiver.value())?
+        .ty();
+    let (available, owned) = receiver_access(receiver.preparation());
+    let candidates = program
+        .member_completions(MemberCompletionContext::new(
+            body.owner(),
+            module,
+            receiver_type,
+            available,
+            owned,
+        ))
+        .ok()?;
+    Some(
+        candidates
+            .iter()
+            .filter_map(|candidate| {
+                let label = program.graph().symbols().spelling(candidate.name())?;
+                let detail = candidate
+                    .surface()
+                    .and_then(|surface| presentation(program, SemanticEntity::Callable(surface)))
+                    .map(|presentation| Box::<str>::from(presentation.code()));
+                Some(SemanticCompletion {
+                    label: label.into(),
+                    kind: SemanticCompletionKind::Method,
+                    detail,
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+    )
+}
+
+const fn receiver_access(preparation: ReceiverPreparation) -> (BorrowCapability, bool) {
+    match preparation {
+        ReceiverPreparation::Owned => (BorrowCapability::ReadWrite, true),
+        ReceiverPreparation::BorrowPlace(capability)
+        | ReceiverPreparation::BorrowTemporary(capability)
+        | ReceiverPreparation::PreserveBorrow(capability) => (capability, false),
+        ReceiverPreparation::WeakenReadwriteBorrow => (BorrowCapability::ReadWrite, false),
     }
 }
 
@@ -311,6 +448,10 @@ fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Opt
 
 const fn contains(range: TextRange, offset: ByteOffset) -> bool {
     range.start().get() <= offset.get() && offset.get() <= range.end().get()
+}
+
+const fn contains_range(outer: TextRange, inner: TextRange) -> bool {
+    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
 }
 
 const fn range_length(range: TextRange) -> u32 {

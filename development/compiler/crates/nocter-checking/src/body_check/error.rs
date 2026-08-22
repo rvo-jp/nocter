@@ -11,21 +11,43 @@ use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;
 use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget, TypeValidityRule};
 
+/// Internal result of constructing one body before program-level recovery is assembled.
+pub(super) struct BodyConstructionFailure {
+    error: Box<BodyCheckError>,
+    interruption: Option<super::TypedBodyInterruption>,
+}
+
+impl BodyConstructionFailure {
+    pub(super) fn new(
+        error: BodyCheckError,
+        interruption: Option<super::TypedBodyInterruption>,
+    ) -> Self {
+        Self {
+            error: Box::new(error),
+            interruption,
+        }
+    }
+
+    pub(super) fn into_parts(self) -> (BodyCheckError, Option<super::TypedBodyInterruption>) {
+        (*self.error, self.interruption)
+    }
+}
+
 /// A typed-body failure with the deepest current-generation semantic state that remains valid.
 #[derive(Debug)]
 pub struct BodyCheckFailure {
     error: BodyCheckError,
-    prepared: Option<Box<crate::PreparedSemanticProgram>>,
+    recovery: Option<Box<crate::BodyAnalysisRecovery>>,
 }
 
 impl BodyCheckFailure {
     pub(crate) fn new(
         error: BodyCheckError,
-        prepared: Option<crate::PreparedSemanticProgram>,
+        recovery: Option<crate::BodyAnalysisRecovery>,
     ) -> Self {
         Self {
             error,
-            prepared: prepared.map(Box::new),
+            recovery: recovery.map(Box::new),
         }
     }
 
@@ -36,15 +58,17 @@ impl BodyCheckFailure {
 
     #[must_use]
     pub fn prepared(&self) -> Option<&crate::PreparedSemanticProgram> {
-        match &self.prepared {
-            Some(prepared) => Some(prepared.as_ref()),
-            None => None,
-        }
+        self.recovery().map(crate::BodyAnalysisRecovery::prepared)
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (BodyCheckError, Option<crate::PreparedSemanticProgram>) {
-        (self.error, self.prepared.map(|prepared| *prepared))
+    pub fn recovery(&self) -> Option<&crate::BodyAnalysisRecovery> {
+        self.recovery.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (BodyCheckError, Option<crate::BodyAnalysisRecovery>) {
+        (self.error, self.recovery.map(|recovery| *recovery))
     }
 }
 

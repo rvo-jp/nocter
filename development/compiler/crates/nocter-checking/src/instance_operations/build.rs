@@ -1,9 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{ArenaBuilder, CallableCapability, CallableId, InstanceId, TypeId, TypeStore};
+use nocter_model::{
+    ArenaBuilder, CallableCapability, CallableId, InstanceId, Symbol, TypeId, TypeStore,
+};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use super::diagnostic;
@@ -100,6 +102,7 @@ pub fn build_instance_operation_table(
     let declarations = graph.declarations();
     let mut entries = ArenaBuilder::<InstanceId, CheckedInstanceOperations>::new();
     let mut by_family = BTreeMap::<InherentTypeFamily, Vec<InstanceId>>::new();
+    let mut method_names_by_family = BTreeMap::<InherentTypeFamily, BTreeSet<Symbol>>::new();
 
     for (id, instance) in declarations.instances().iter() {
         let pattern_requirements = PatternRequirements::collect(graph, instance.requirements())?;
@@ -140,6 +143,21 @@ pub fn build_instance_operation_table(
             instance.members(),
             &pattern_substitution,
         )?;
+        for member in instance.members() {
+            let callable = declarations
+                .callables()
+                .get(*member)
+                .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
+            if callable.kind() == CallableKind::Method {
+                let name = callable
+                    .name()
+                    .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
+                method_names_by_family
+                    .entry(family)
+                    .or_default()
+                    .insert(name);
+            }
+        }
         let actual = entries.insert(CheckedInstanceOperations::new(
             target,
             instance.generic_parameters(),
@@ -156,6 +174,10 @@ pub fn build_instance_operation_table(
         by_family
             .into_iter()
             .map(|(family, instances)| (family, instances.into_boxed_slice()))
+            .collect(),
+        method_names_by_family
+            .into_iter()
+            .map(|(family, names)| (family, names.into_iter().collect()))
             .collect(),
     ))
 }

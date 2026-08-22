@@ -17,7 +17,7 @@ use nocter_syntax::{
 use super::assumptions::body_assumptions;
 use super::context::{BodyProgramFacts, body_generic_domain, body_result_type};
 use super::diagnostic::BodyRule;
-use super::error::{BodyCheckError, BodyCheckInternalError};
+use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::literal::{fits_integer, integer_type, parse_integer};
 use crate::checked::{CheckedBodyBuilder, ClosureTableBuilder};
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
@@ -154,6 +154,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
     closure_type_arguments: Box<[TypeId]>,
     opaque_result: Option<OpaqueResultState>,
+    interruption: Option<super::TypedBodyInterruption>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -234,8 +235,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
-        let assumptions = body_assumptions(graph, types, conformances, instance_operations, source)
-            .map_err(BodyCheckInternalError::BodyAssumptions)?;
+        let assumptions = body_assumptions(
+            graph,
+            types,
+            conformances,
+            instance_operations,
+            source.owner(),
+        )
+        .map_err(BodyCheckInternalError::BodyAssumptions)?;
         let opaque_result = OpaqueResultState::for_body(graph, types, source, result_type)?;
         Ok(Self {
             input,
@@ -268,16 +275,24 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             closure_ids,
             closure_type_arguments,
             opaque_result,
+            interruption: None,
         })
     }
 
-    pub(super) fn check(mut self) -> Result<CheckedBodyOutput, BodyCheckError> {
-        let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
-        if self.consumed_uses.len() != self.names.uses().len() {
-            return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
-        }
-        let opaque_witness = self.finish_opaque_witness(self.source.block())?;
-        let body = self.builder.finish(root)?;
+    pub(super) fn check(mut self) -> Result<CheckedBodyOutput, BodyConstructionFailure> {
+        let checked = (|| {
+            let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
+            if self.consumed_uses.len() != self.names.uses().len() {
+                return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
+            }
+            let opaque_witness = self.finish_opaque_witness(self.source.block())?;
+            Ok::<_, BodyCheckError>((root, opaque_witness))
+        })();
+        let (root, opaque_witness) = checked
+            .map_err(|error| BodyConstructionFailure::new(error, self.interruption.take()))?;
+        let body = self.builder.finish(root).map_err(|error| {
+            BodyConstructionFailure::new(error.into(), self.interruption.take())
+        })?;
         Ok(CheckedBodyOutput {
             body,
             projections: self.projections,

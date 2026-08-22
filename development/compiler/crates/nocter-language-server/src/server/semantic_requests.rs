@@ -652,7 +652,7 @@ mod tests {
         );
 
         let failed = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":10}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":4}}}}}}"
         ));
         let response = failed.response().unwrap();
         assert!(response.contains("\"label\":\"replacement\""));
@@ -661,6 +661,72 @@ mod tests {
         assert!(!response.contains("\"label\":\"helper\""));
         assert!(!response.contains("\"label\":\"input\""));
         assert!(!response.contains("\"label\":\"before\""));
+        assert!(failed.issue().is_none(), "{:?}", failed.issue());
+    }
+
+    #[test]
+    fn completion_uses_checked_receiver_selection_for_methods() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "struct Text { value: i32 }\n",
+            "struct Wrapper { text: Text }\n",
+            "instance Text {\n",
+            "    pub method &self.len(): usize { 0 }\n",
+            "    pub method &+self.clear(): void { return }\n",
+            "}\n",
+            "instance Wrapper { pub coerce &self as &Text { &self.text } }\n",
+            "func inspect(value: &Wrapper): usize { value.len() }\n",
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":47}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"len\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(!response.contains("\"label\":\"clear\""), "{response}");
+        assert!(!response.contains("\"label\":\"value\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let failed_text = text.replace("value.len()", "value.missing()");
+        let mut failed_json = String::new();
+        nocter_json::write_string(&mut failed_json, &failed_text);
+        let changed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":2}},\"contentChanges\":[{{\"text\":{failed_json}}}]}}}}"
+        ));
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        let failed = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":49}}}}}}"
+        ));
+        let response = failed.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"len\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(!response.contains("\"label\":\"clear\""), "{response}");
+        assert!(!response.contains("\"label\":\"value\""), "{response}");
         assert!(failed.issue().is_none(), "{:?}", failed.issue());
     }
 

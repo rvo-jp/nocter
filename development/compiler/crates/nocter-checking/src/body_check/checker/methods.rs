@@ -7,11 +7,12 @@ use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
-use crate::instance_operations::MethodCandidate;
+use crate::instance_operations::{MethodCandidate, receiver_supports};
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, CheckedReceiver, CheckedReceiverCoercion,
-    PlaceAccess, ReceiverPreparation, StaticSelection,
+    PlaceAccess, ReceiverPreparation, StaticSelection, TypedBodyInterruption,
+    TypedBodyInterruptionKind,
 };
 
 enum ReceiverDraft {
@@ -64,6 +65,7 @@ impl BodyChecker<'_, '_> {
             .get(self.token_text(member_token)?)
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
         let available = self.receiver_borrow_capability(&receiver)?;
+        let consumable = receiver.is_owned_source(self.types);
         let mut candidates = {
             let mut selector = self.instance_selector();
             selector
@@ -71,12 +73,7 @@ impl BodyChecker<'_, '_> {
                 .map_err(BodyCheckInternalError::from)?
         };
         candidates.retain(|candidate| {
-            receiver_supports(
-                &receiver,
-                self.types,
-                available,
-                candidate.receiver_capability(),
-            )
+            receiver_supports(available, consumable, candidate.receiver_capability())
         });
         if candidates.is_empty() {
             let mut selector = self.instance_selector();
@@ -86,9 +83,11 @@ impl BodyChecker<'_, '_> {
         }
         let mut candidates = candidates.drain(..);
         let Some(selected) = candidates.next() else {
+            self.record_member_interruption(member_token, receiver_owner, available, consumable)?;
             return Err(self.token_rule(BodyRule::InvalidCall, member_token)?);
         };
         if candidates.next().is_some() {
+            self.record_member_interruption(member_token, receiver_owner, available, consumable)?;
             return Err(self.token_rule(BodyRule::InvalidCall, member_token)?);
         }
         self.finish_method_call(
@@ -350,6 +349,27 @@ impl BodyChecker<'_, '_> {
         ));
         Ok(())
     }
+
+    fn record_member_interruption(
+        &mut self,
+        token: nocter_syntax::SyntaxToken,
+        receiver: TypeId,
+        available: BorrowCapability,
+        owned: bool,
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_token(self.tree(), token)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::MemberSelection {
+                receiver,
+                available,
+                owned,
+            },
+        ));
+        Ok(())
+    }
 }
 
 fn receiver_owner(
@@ -360,19 +380,6 @@ fn receiver_owner(
         Some(TypeKind::Borrow { referent, .. }) => Ok(*referent),
         Some(_) => Ok(ty),
         None => Err(BodyCheckInternalError::UnknownType(ty)),
-    }
-}
-
-fn receiver_supports(
-    receiver: &ReceiverDraft,
-    types: &nocter_model::TypeStore,
-    available: BorrowCapability,
-    required: CallableCapability,
-) -> bool {
-    match required {
-        CallableCapability::Readonly => true,
-        CallableCapability::ReadWrite => available == BorrowCapability::ReadWrite,
-        CallableCapability::Owned => receiver.is_owned_source(types),
     }
 }
 

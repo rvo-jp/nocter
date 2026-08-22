@@ -84,7 +84,13 @@ pub fn initialize_result(server_version: &str) -> Value {
                 ),
                 ("definitionProvider", Value::Bool(true)),
                 ("hoverProvider", Value::Bool(true)),
-                ("completionProvider", object([])),
+                (
+                    "completionProvider",
+                    object([(
+                        "triggerCharacters",
+                        Value::Array(vec![Value::String(".".into())]),
+                    )]),
+                ),
                 ("referencesProvider", Value::Bool(true)),
                 ("renameProvider", Value::Bool(true)),
                 (
@@ -262,7 +268,7 @@ mod tests {
                 "{\"capabilities\":{\"positionEncoding\":\"utf-16\",",
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
                 "\"save\":{\"includeText\":true}},\"definitionProvider\":true,",
-                "\"hoverProvider\":true,\"completionProvider\":{},",
+                "\"hoverProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\"]},",
                 "\"referencesProvider\":true,",
                 "\"renameProvider\":true,",
                 "\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]},",

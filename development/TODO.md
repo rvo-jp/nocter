@@ -111,8 +111,15 @@ implementation input.
    pre-body semantic program, so name completion survives an unknown member or another body rule
    without falling back to stale state. The retained value explicitly has no checked nodes, local
    types, dispatch, ownership, or provenance; ordinary command compilation uses a non-retaining
-   path. Receiver-member completion and completion after syntax or name-resolution failure remain;
-   neither may use token guesses or a stale successful snapshot.
+   path. Receiver-member completion now has a compiler-owned candidate-name index and applies the
+   ordinary instance, conformance, requirement, visibility, capability, and one-step coercion
+   selector to every result. Successful calls derive receiver facts from `CheckedReceiver`; an
+   invalid member call retains an explicit typed interruption containing its exact body, source
+   origin, receiver type, borrow capability, and consumability together with the monotonic type
+   state reached by that failed generation. It is not a partial checked body and cannot publish
+   dispatch for invalid source. The LSP adapter only maps the compiler result to method items and
+   advertises `.` as a trigger. Completion after syntax or name-resolution failure remains; it may
+   not use token guesses or a stale successful snapshot.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

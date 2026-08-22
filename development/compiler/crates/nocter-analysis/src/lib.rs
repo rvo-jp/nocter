@@ -66,7 +66,7 @@ enum AnalysisState {
     CompilationFailed {
         unit: DiscoveredUnit,
         error: CompileSessionError,
-        prepared: Option<Box<nocter_checking::PreparedSemanticProgram>>,
+        recovery: Option<Box<nocter_checking::BodyAnalysisRecovery>>,
     },
     Complete {
         unit: DiscoveredUnit,
@@ -122,7 +122,7 @@ impl AnalysisSnapshot {
                 },
             },
             Err(failure) => {
-                let (error, prepared) = (*failure).into_parts();
+                let (error, recovery) = (*failure).into_parts();
                 let diagnostics = error
                     .source_diagnostic()
                     .cloned()
@@ -135,7 +135,7 @@ impl AnalysisSnapshot {
                     state: AnalysisState::CompilationFailed {
                         unit,
                         error,
-                        prepared: prepared.map(Box::new),
+                        recovery: recovery.map(Box::new),
                     },
                 }
             }
@@ -221,10 +221,18 @@ impl AnalysisSnapshot {
 
     pub(crate) fn prepared_semantics(&self) -> Option<&nocter_checking::PreparedSemanticProgram> {
         match &self.state {
-            AnalysisState::CompilationFailed { prepared, .. } => match prepared {
-                Some(prepared) => Some(prepared.as_ref()),
-                None => None,
-            },
+            AnalysisState::CompilationFailed { recovery, .. } => recovery
+                .as_deref()
+                .map(nocter_checking::BodyAnalysisRecovery::prepared),
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::SyntaxFailed(_)
+            | AnalysisState::Complete { .. } => None,
+        }
+    }
+
+    pub(crate) fn body_recovery(&self) -> Option<&nocter_checking::BodyAnalysisRecovery> {
+        match &self.state {
+            AnalysisState::CompilationFailed { recovery, .. } => recovery.as_deref(),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::SyntaxFailed(_)
             | AnalysisState::Complete { .. } => None,

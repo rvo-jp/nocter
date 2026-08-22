@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{Arena, CallableId, GenericParameterId, InstanceId, TypeId, TypeStore};
+use nocter_model::{Arena, CallableId, GenericParameterId, InstanceId, Symbol, TypeId, TypeStore};
 
 use crate::type_relations::InherentTypeFamily;
 use crate::{CheckedRequirement, GenericArgument};
@@ -63,14 +63,20 @@ impl CheckedInstanceOperations {
 pub struct InstanceOperationTable {
     entries: Arena<InstanceId, CheckedInstanceOperations>,
     by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
+    method_names_by_family: BTreeMap<InherentTypeFamily, Box<[Symbol]>>,
 }
 
 impl InstanceOperationTable {
     pub(super) fn new(
         entries: Arena<InstanceId, CheckedInstanceOperations>,
         by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
+        method_names_by_family: BTreeMap<InherentTypeFamily, Box<[Symbol]>>,
     ) -> Self {
-        Self { entries, by_family }
+        Self {
+            entries,
+            by_family,
+            method_names_by_family,
+        }
     }
 
     #[must_use]
@@ -82,5 +88,16 @@ impl InstanceOperationTable {
         InherentTypeFamily::of(types, target)
             .and_then(|family| self.by_family.get(&family))
             .map(AsRef::as_ref)
+    }
+
+    /// Returns the canonical candidate-name universe for one inherent receiver family.
+    ///
+    /// This is a discovery index only. Visibility, pattern matching, requirements, receiver
+    /// capability, and dispatch are still decided by [`super::InstanceOperationSelector`].
+    pub(crate) fn method_names(&self, types: &TypeStore, target: TypeId) -> &[Symbol] {
+        InherentTypeFamily::of(types, target)
+            .and_then(|family| self.method_names_by_family.get(&family))
+            .map(AsRef::as_ref)
+            .unwrap_or_default()
     }
 }

@@ -168,4 +168,13 @@ impl ConformanceTable {
             .map(AsRef::as_ref)
             .unwrap_or_default()
     }
+
+    /// Returns every interface-method name known to the conformance authority.
+    ///
+    /// Consumers must still run ordinary method selection for the receiver and lexical proof
+    /// environment. This index prevents tooling from rediscovering interface members by scanning
+    /// declarations.
+    pub(crate) fn method_names(&self) -> impl Iterator<Item = Symbol> + '_ {
+        self.interfaces_by_method.keys().copied()
+    }
 }

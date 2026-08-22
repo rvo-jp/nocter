@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use nocter_declarations::{
     CallableKind, InterfaceApplication, ParameterRole, StructuralCapability,
 };
@@ -12,6 +14,26 @@ use crate::{
     CheckedPredicate, CoercedReceiverPreparation, GenericArgument, GenericArguments,
     StaticDispatch, StaticSelection,
 };
+
+/// One method name accepted by the ordinary instance-operation selector for a receiver.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MemberCompletionCandidate {
+    name: Symbol,
+    surface: Option<CallableId>,
+}
+
+impl MemberCompletionCandidate {
+    #[must_use]
+    pub const fn name(self) -> Symbol {
+        self.name
+    }
+
+    /// Returns the unique public contract identity when every viable route agrees on one.
+    #[must_use]
+    pub const fn surface(self) -> Option<CallableId> {
+        self.surface
+    }
+}
 
 pub(crate) struct MethodReceiverCoercion {
     source_capability: BorrowCapability,
@@ -75,6 +97,55 @@ impl MethodCandidate {
 }
 
 impl InstanceOperationSelector<'_> {
+    /// Enumerates method names by running the same applicability, visibility, requirement,
+    /// receiver-capability, and one-step coercion decisions used by a checked call.
+    pub(crate) fn select_member_completions(
+        &mut self,
+        target: TypeId,
+        available: BorrowCapability,
+        owned: bool,
+    ) -> Result<Vec<MemberCompletionCandidate>, InstanceSelectionError> {
+        let mut names = self
+            .table
+            .method_names(self.types, target)
+            .iter()
+            .copied()
+            .chain(self.conformances.method_names())
+            .collect::<BTreeSet<_>>();
+        for capability in [BorrowCapability::Readonly, BorrowCapability::ReadWrite] {
+            if capability == BorrowCapability::ReadWrite && available == BorrowCapability::Readonly
+            {
+                continue;
+            }
+            for coercion in self.select_coercions(target, capability)? {
+                names.extend(
+                    self.table
+                        .method_names(self.types, coercion.target())
+                        .iter()
+                        .copied(),
+                );
+            }
+        }
+
+        let mut completions = Vec::new();
+        for name in names {
+            let mut selected = self.select_method_candidates(target, name)?;
+            selected.retain(|candidate| {
+                receiver_supports(available, owned, candidate.receiver_capability())
+            });
+            if selected.is_empty() {
+                selected = self.select_coerced_method_candidates(target, name, available)?;
+            }
+            let mut surfaces = selected.iter().map(MethodCandidate::surface);
+            let Some(first) = surfaces.next() else {
+                continue;
+            };
+            let surface = surfaces.all(|surface| surface == first).then_some(first);
+            completions.push(MemberCompletionCandidate { name, surface });
+        }
+        Ok(completions)
+    }
+
     /// Selects only one compiler-supplied interface method identity.
     ///
     /// This bypasses ordinary spelling-based method lookup without bypassing conformance proof,
@@ -739,6 +810,18 @@ impl InstanceOperationSelector<'_> {
             }
         }
         Ok(())
+    }
+}
+
+pub(crate) fn receiver_supports(
+    available: BorrowCapability,
+    owned: bool,
+    required: CallableCapability,
+) -> bool {
+    match required {
+        CallableCapability::Readonly => true,
+        CallableCapability::ReadWrite => available == BorrowCapability::ReadWrite,
+        CallableCapability::Owned => owned,
     }
 }
 

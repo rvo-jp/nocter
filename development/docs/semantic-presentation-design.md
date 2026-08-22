@@ -7,8 +7,8 @@ declaration from source.
 
 ## Query Boundary
 
-One positioned query consumes a successful immutable `AnalysisSnapshot`, a `SourceId`, and a
-normalized byte offset. Selection follows exactly one direction:
+One identity-presentation query consumes a successful immutable `AnalysisSnapshot`, a `SourceId`,
+and a normalized byte offset. Selection follows exactly one direction:
 
 ```text
 SourceId + byte offset
@@ -20,7 +20,9 @@ SourceId + byte offset
 Hover then renders checked declaration/type data. Definition and references retain the selected
 semantic identity and project its existing `SourceIndex` bindings; they never search source text.
 
-Failed generations expose no semantic answer. A query never consults an older successful snapshot.
+Failed generations expose no checked identity answer. A query never consults an older successful
+snapshot. Completion has a narrower recovery contract described below: it may consume only
+explicit semantic stages retained by the current failed generation.
 The source index selects the smallest displayable binding under the cursor, with references before
 declarations and implementation sites when ranges tie. Synthetic package, target, and whole-file
 module projections are not interactive. An authored module-path reference remains interactive and
@@ -73,9 +75,9 @@ their exact modifiers or category. Keyword, visibility, brace, whitespace, and s
 whole-file ranges cannot become interactive or colored merely because a broader compiler
 projection overlaps them.
 
-All semantic requests select one current successful snapshot through the shared semantic-document
-boundary. An unopened dependency source may therefore use the same package generation as its open
-root, while a failed current generation returns no stale semantics.
+Identity-oriented semantic requests select one current successful snapshot through the shared
+semantic-document boundary. An unopened dependency source may therefore use the same package
+generation as its open root, while a failed current generation returns no stale checked identity.
 
 Definition prefers an authored declaration binding and falls back to an implementation binding
 only when no separate declaration exists. A module path navigates as one contiguous namespace to
@@ -115,6 +117,17 @@ body names, scopes, and their source index, but no checked nodes, local types, d
 or provenance. Name completion may consume that exact failed-generation stage. Ordinary command
 compilation uses the non-retaining path and does not clone the type or copyability stores.
 
-Receiver-member completion and completion after syntax or name-resolution failure remain open.
-They require compiler-owned member candidate selection and explicit invalid-node snapshots;
-neither may be approximated by editor-side token, spelling, or stale-snapshot lookup.
+Receiver-member completion does not scan declarations or infer a type from source spelling. The
+instance-operation and conformance authorities retain canonical method-name indexes. For each
+indexed name the ordinary selector proves receiver-pattern applicability, lexical or concrete
+conformance, `where` requirements, visibility, readonly/readwrite/owned capability, and the same
+one-step coercion fallback used by call checking. A completed call supplies its exact
+`CheckedReceiver`. If body checking rejects an unknown or ambiguous member, it may retain a typed
+interruption containing the failed operation's body identity, source origin, receiver type,
+available borrow capability, and consumability together with the monotonic type state reached at
+that point. The interruption is not a partial `CheckedBody`, does not manufacture a dispatch, and
+is usable only at its exact source range in that failed generation.
+
+Completion after syntax or name-resolution failure remains open. It requires explicit invalid
+syntax/name-resolution snapshots and may not be approximated by editor-side token, spelling, or
+stale-snapshot lookup.

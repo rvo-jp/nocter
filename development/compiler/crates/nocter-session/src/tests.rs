@@ -77,7 +77,7 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 }
 
 #[test]
-fn body_failure_retains_only_the_completed_pre_body_semantics() {
+fn body_failure_retains_preparation_and_exact_typed_interruption() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
@@ -100,6 +100,20 @@ fn body_failure_retains_only_the_completed_pre_body_semantics() {
     assert!(!prepared.graph().declarations().callables().is_empty());
     assert!(!prepared.body_names().is_empty());
     assert!(!prepared.source_index().is_empty());
+    let interruption = failure.recovery().unwrap().interruption().unwrap();
+    assert_eq!(
+        interruption.origin().span(),
+        failure
+            .error()
+            .source_diagnostic()
+            .unwrap()
+            .primary()
+            .span()
+    );
+    assert!(matches!(
+        interruption.kind(),
+        nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
+    ));
 }
 
 #[test]

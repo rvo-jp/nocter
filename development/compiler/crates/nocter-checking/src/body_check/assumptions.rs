@@ -6,27 +6,25 @@ use nocter_model::{TypeKind, TypeStore};
 use crate::conformance::normalize_requirements;
 use crate::copyability::CopyProofs;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
-use crate::{
-    BodySource, CheckedPredicate, CheckedRequirement, ConformanceTable, InstanceOperationTable,
-};
+use crate::{CheckedPredicate, CheckedRequirement, ConformanceTable, InstanceOperationTable};
 
 /// The complete lexical proof environment for one body.
 ///
 /// Declared requirements retain source identities for structural dispatch. Intrinsic facts are
 /// language truths, such as an interface default body's `Self` satisfying that same interface,
 /// and deliberately cannot masquerade as authored requirements.
-pub(super) struct BodyAssumptions {
+pub(crate) struct BodyAssumptions {
     declared: Vec<CheckedRequirement>,
     intrinsic: Vec<CheckedPredicate>,
     copy_proofs: CopyProofs,
 }
 
 impl BodyAssumptions {
-    pub(super) fn declared(&self) -> &[CheckedRequirement] {
+    pub(crate) fn declared(&self) -> &[CheckedRequirement] {
         &self.declared
     }
 
-    pub(super) fn intrinsic(&self) -> &[CheckedPredicate] {
+    pub(crate) fn intrinsic(&self) -> &[CheckedPredicate] {
         &self.intrinsic
     }
 
@@ -36,14 +34,14 @@ impl BodyAssumptions {
 }
 
 /// Collects the normalized lexical predicate environment for one checked body.
-pub(super) fn body_assumptions(
+pub(crate) fn body_assumptions(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     conformances: &ConformanceTable,
     instance_operations: &InstanceOperationTable,
-    source: BodySource<'_>,
+    owner: BodyOwner,
 ) -> Result<BodyAssumptions, SubstitutionError> {
-    let BodyOwner::Callable(callable_id) = source.owner() else {
+    let BodyOwner::Callable(callable_id) = owner else {
         return Ok(BodyAssumptions {
             declared: Vec::new(),
             intrinsic: Vec::new(),

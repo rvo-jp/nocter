@@ -1,6 +1,6 @@
 use nocter_checking::{
-    PreparedSemanticProgram, check_prepared_program, check_prepared_program_recovering,
-    prepare_program_checking,
+    BodyAnalysisRecovery, PreparedSemanticProgram, check_prepared_program,
+    check_prepared_program_recovering, prepare_program_checking,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_discovery::DiscoveredUnit;
@@ -12,14 +12,14 @@ use crate::{CompileSessionError, CompiledTarget};
 #[derive(Debug)]
 pub struct CompileTargetFailure {
     error: CompileSessionError,
-    prepared: Option<Box<PreparedSemanticProgram>>,
+    recovery: Option<Box<BodyAnalysisRecovery>>,
 }
 
 impl CompileTargetFailure {
-    fn new(error: CompileSessionError, prepared: Option<PreparedSemanticProgram>) -> Self {
+    fn new(error: CompileSessionError, recovery: Option<BodyAnalysisRecovery>) -> Self {
         Self {
             error,
-            prepared: prepared.map(Box::new),
+            recovery: recovery.map(Box::new),
         }
     }
 
@@ -30,12 +30,17 @@ impl CompileTargetFailure {
 
     #[must_use]
     pub fn prepared(&self) -> Option<&PreparedSemanticProgram> {
-        self.prepared.as_deref()
+        self.recovery().map(BodyAnalysisRecovery::prepared)
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (CompileSessionError, Option<PreparedSemanticProgram>) {
-        (self.error, self.prepared.map(|prepared| *prepared))
+    pub fn recovery(&self) -> Option<&BodyAnalysisRecovery> {
+        self.recovery.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (CompileSessionError, Option<BodyAnalysisRecovery>) {
+        (self.error, self.recovery.map(|recovery| *recovery))
     }
 
     #[must_use]
@@ -44,8 +49,8 @@ impl CompileTargetFailure {
     }
 }
 
-/// Runs one immutable discovery snapshot while retaining a completed preparation stage when
-/// authored typed-body source fails.
+/// Runs one immutable discovery snapshot while retaining the deepest valid current-generation
+/// analysis recovery when authored typed-body source fails.
 ///
 /// # Errors
 ///
@@ -87,8 +92,8 @@ fn analyze_target_internal(
         .map_err(Box::new)?;
     let checked = if retain_prepared {
         check_prepared_program_recovering(&input, prepared).map_err(|failure| {
-            let (error, prepared) = failure.into_parts();
-            Box::new(CompileTargetFailure::new(error.into(), prepared))
+            let (error, recovery) = failure.into_parts();
+            Box::new(CompileTargetFailure::new(error.into(), recovery))
         })?
     } else {
         check_prepared_program(&input, prepared)

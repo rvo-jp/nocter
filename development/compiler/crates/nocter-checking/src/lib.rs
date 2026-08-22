@@ -18,11 +18,13 @@ mod field_selection;
 mod inference;
 mod instance_operations;
 mod loans;
+mod member_completion;
 mod names;
 mod ownership;
 mod pattern_requirements;
 mod preparation;
 mod provenance;
+mod recovery;
 mod standard_semantics;
 #[cfg(test)]
 mod standard_semantics_tests;
@@ -36,8 +38,8 @@ mod type_validity;
 mod test_support;
 
 pub use body_check::{
-    BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, check_prepared_program,
-    check_prepared_program_recovering,
+    BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, TypedBodyInterruption,
+    TypedBodyInterruptionKind, check_prepared_program, check_prepared_program_recovering,
 };
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
@@ -92,8 +94,9 @@ pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
 pub use instance_operations::{
     CheckedInstanceOperations, InstanceOperationBuildError, InstanceOperationInternalError,
     InstanceOperationRule, InstanceOperationTable, InstanceSelectionError,
-    build_instance_operation_table,
+    MemberCompletionCandidate, build_instance_operation_table,
 };
+pub use member_completion::{MemberCompletionContext, MemberCompletionError};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,
@@ -103,6 +106,7 @@ pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
     PreparationError, PreparedChecking, PreparedSemanticProgram, prepare_program_checking,
 };
+pub use recovery::BodyAnalysisRecovery;
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use type_relations::{TypeSubstitution, is_concrete_type};
 pub use type_validity::{

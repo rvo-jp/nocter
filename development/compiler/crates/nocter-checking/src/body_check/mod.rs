@@ -3,6 +3,7 @@ mod closure_capability;
 mod context;
 mod diagnostic;
 mod error;
+mod interruption;
 mod literal;
 mod ownership;
 mod pipeline;
@@ -66,6 +67,8 @@ mod typed_literal_tests;
 
 pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
+pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
 pub use pipeline::{check_prepared_program, check_prepared_program_recovering};
 mod assumptions;
+pub(crate) use assumptions::body_assumptions;

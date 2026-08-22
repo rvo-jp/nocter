@@ -27,6 +27,7 @@ impl<'a> CompletionItem<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum CompletionItemKind {
+    Method = 2,
     Function = 3,
     Variable = 6,
     Class = 7,
