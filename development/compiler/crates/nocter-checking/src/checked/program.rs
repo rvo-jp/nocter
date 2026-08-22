@@ -3,8 +3,9 @@ use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
 use crate::{
-    ClosureTable, ConformanceTable, ConstructionSurfaceTable, CopyabilityTable, DropTable,
-    InstanceOperationTable, LoanTable, ProvenanceTable, StandardSemanticTable,
+    AssociatedTypeCompletionContext, ClosureTable, ConformanceTable, ConstructionSurfaceTable,
+    CopyabilityTable, DropTable, InstanceOperationTable, LoanTable, ProvenanceTable,
+    StandardSemanticTable,
 };
 
 use super::{CheckedBody, OpaqueWitnessTable};
@@ -25,6 +26,7 @@ pub struct CheckedProgram {
     closures: ClosureTable,
     opaque_witnesses: OpaqueWitnessTable,
     bodies: Arena<BodyId, CheckedBody>,
+    associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
 }
 
 pub(crate) struct CheckedProgramAuthorities {
@@ -38,6 +40,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) loans: LoanTable,
     pub(crate) closures: ClosureTable,
     pub(crate) opaque_witnesses: OpaqueWitnessTable,
+    pub(crate) associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
 }
 
 impl CheckedProgram {
@@ -61,6 +64,7 @@ impl CheckedProgram {
             closures: authorities.closures,
             opaque_witnesses: authorities.opaque_witnesses,
             bodies,
+            associated_type_completion_contexts: authorities.associated_type_completion_contexts,
         }
     }
 
@@ -127,6 +131,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn bodies(&self) -> &Arena<BodyId, CheckedBody> {
         &self.bodies
+    }
+
+    #[must_use]
+    pub const fn associated_type_completion_contexts(&self) -> &[AssociatedTypeCompletionContext] {
+        &self.associated_type_completion_contexts
     }
 }
 

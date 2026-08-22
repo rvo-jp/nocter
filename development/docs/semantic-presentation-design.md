@@ -223,3 +223,12 @@ Complete patterns recover the same owner through the selected variant identity. 
 construction surface for accessible variants only, so construction functions and other entries
 cannot leak into a pattern candidate list. The pattern CST selects the cursor context but does not
 infer the subject type or accept a merely matching qualifier spelling.
+
+Associated-type completion is based on the checked body's normalized predicate environment. At a
+`T.Name` or `Self.Name` type position, the checker collects associated declaration identities from
+the exact interface capabilities proven for that base. A successful body stores one immutable
+source context with those identities in `CheckedProgram`; an invalid or missing final name retains
+the same identities in an `AssociatedTypeProjection` interruption. Complete, body-failed, and
+syntax-incomplete generations therefore share one candidate set. The LSP layer does not rescan
+`where` clauses, infer an interface from the base spelling, or expose associated types from an
+unproven interface.

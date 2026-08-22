@@ -78,6 +78,7 @@ fn check_prepared_program_internal<'syntax>(
         bodies: mut checked_bodies,
         projections,
         opaque_witnesses,
+        associated_type_completion_contexts,
     } = match check_declared_bodies(
         input,
         facts,
@@ -89,14 +90,12 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         Ok(checked) => checked,
         Err(failure) => {
-            let (error, interruption) = failure.into_parts();
-            let typed = interruption
-                .map(|interruption| (interruption, checked_types, checked_copyabilities));
-            return Err(crate::BodyCheckFailure::new(
-                error,
-                retain_prepared.then(|| {
-                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), typed)
-                }),
+            return Err(recover_body_construction_failure(
+                failure,
+                retain_prepared,
+                prepared,
+                checked_types,
+                checked_copyabilities,
             ));
         }
     };
@@ -151,9 +150,28 @@ fn check_prepared_program_internal<'syntax>(
             projections,
             closures,
             opaque_witnesses,
+            associated_type_completion_contexts: associated_type_completion_contexts
+                .into_boxed_slice(),
             provenance,
             loans,
         },
+    )
+}
+
+fn recover_body_construction_failure(
+    failure: BodyConstructionFailure,
+    retain_prepared: bool,
+    prepared: PreparedCheckingParts<'_>,
+    types: TypeStore,
+    copyabilities: CopyabilityTable,
+) -> crate::BodyCheckFailure {
+    let (error, interruption) = failure.into_parts();
+    let recovery_state = interruption.map(|interruption| (interruption, types, copyabilities));
+    crate::BodyCheckFailure::new(
+        error,
+        retain_prepared.then(|| {
+            crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), recovery_state)
+        }),
     )
 }
 
@@ -164,6 +182,7 @@ struct CheckedProgramCompletion {
     projections: Vec<NodeProjection>,
     closures: crate::ClosureTable,
     opaque_witnesses: crate::OpaqueWitnessTable,
+    associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
     provenance: crate::ProvenanceTable,
     loans: crate::LoanTable,
 }
@@ -179,6 +198,7 @@ fn finish_checked_program(
         projections,
         closures,
         opaque_witnesses,
+        associated_type_completion_contexts,
         provenance,
         loans,
     } = completion;
@@ -230,6 +250,7 @@ fn finish_checked_program(
                 loans,
                 closures,
                 opaque_witnesses,
+                associated_type_completion_contexts,
             },
             bodies.finish(),
         ),
@@ -300,6 +321,7 @@ fn check_declared_bodies<'input, 'syntax>(
     let mut checked_bodies = Vec::new();
     let mut projections = Vec::new();
     let mut opaque_witnesses = Vec::new();
+    let mut associated_type_completion_contexts = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
         let source = body_sources
             .get(body)
@@ -324,6 +346,8 @@ fn check_declared_bodies<'input, 'syntax>(
             .map_err(|error| BodyConstructionFailure::new(error, None))?;
         let mut body_output = body_checker.check()?;
         projections.append(&mut body_output.projections);
+        associated_type_completion_contexts
+            .append(&mut body_output.associated_type_completion_contexts);
         if let Some(witness) = body_output.opaque_witness {
             opaque_witnesses.push(witness);
         }
@@ -333,6 +357,7 @@ fn check_declared_bodies<'input, 'syntax>(
         bodies: checked_bodies,
         projections,
         opaque_witnesses,
+        associated_type_completion_contexts,
     })
 }
 
@@ -340,6 +365,7 @@ struct CheckedBodiesOutput {
     bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
     opaque_witnesses: Vec<(nocter_model::OpaqueTypeId, TypeId)>,
+    associated_type_completion_contexts: Vec<crate::AssociatedTypeCompletionContext>,
 }
 
 fn reserve_body_closures(

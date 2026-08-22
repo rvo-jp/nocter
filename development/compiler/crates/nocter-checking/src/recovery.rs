@@ -161,4 +161,23 @@ impl BodyAnalysisRecovery {
         };
         Some(self.prepared.enum_pattern_completions(*definition, module))
     }
+
+    /// Validates associated-type identities fixed before a type-position failure.
+    #[must_use]
+    pub fn interrupted_associated_type_completions(
+        &self,
+    ) -> Option<
+        Result<
+            Box<[crate::AssociatedTypeCompletionCandidate]>,
+            crate::AssociatedTypeCompletionError,
+        >,
+    > {
+        let typed = self.typed.as_ref()?;
+        let TypedBodyInterruptionKind::AssociatedTypeProjection { candidates } =
+            typed.interruption.kind()
+        else {
+            return None;
+        };
+        Some(self.prepared.associated_type_completions(candidates))
+    }
 }

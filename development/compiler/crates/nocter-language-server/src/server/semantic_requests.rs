@@ -1123,6 +1123,90 @@ mod tests {
     }
 
     #[test]
+    fn completion_uses_resolved_generic_bounds_for_associated_types() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let source_with = |selection: &str| {
+            concat!(
+                "interface Source {\n",
+                "    pub type Item\n",
+                "    pub type Failure\n",
+                "    pub method &self.read(): Self.Item\n",
+                "}\n",
+                "func inspect<T>(value: &T): void where T: Source {\n",
+                "    let item: T.$selection = value.read()\n",
+                "    return\n",
+                "}\n",
+            )
+            .replace("$selection", selection)
+        };
+        let assert_associated = |step: &ServerStep| {
+            let response = step.response().unwrap();
+            assert!(
+                response.contains("\"label\":\"Item\",\"kind\":7"),
+                "{response}"
+            );
+            assert!(
+                response.contains("\"label\":\"Failure\",\"kind\":7"),
+                "{response}"
+            );
+            assert!(!response.contains("\"label\":\"Source\""), "{response}");
+            assert!(step.issue().is_none(), "{:?}", step.issue());
+        };
+
+        let complete = source_with("Item");
+        let opened = set_completion_document(&mut server, &uri, &complete, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        assert_associated(&request_completion(&mut server, &uri, 2, 6, 18));
+
+        let invalid = source_with("Missing");
+        let changed = set_completion_document(&mut server, &uri, &invalid, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_associated(&request_completion(&mut server, &uri, 3, 6, 19));
+
+        let incomplete = source_with("");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 3);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        assert_associated(&request_completion(&mut server, &uri, 4, 6, 16));
+
+        let self_source = |selection: &str| {
+            concat!(
+                "interface Source {\n",
+                "    pub type Item\n",
+                "    pub type Failure\n",
+                "    pub method &self.inspect(): void {\n",
+                "        let value: Self.$selection = 0\n",
+                "        return\n",
+                "    }\n",
+                "}\n",
+            )
+            .replace("$selection", selection)
+        };
+        let changed = set_completion_document(&mut server, &uri, &self_source("Missing"), 4);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_associated(&request_completion(&mut server, &uri, 5, 4, 27));
+
+        let changed = set_completion_document(&mut server, &uri, &self_source(""), 5);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        assert_associated(&request_completion(&mut server, &uri, 6, 4, 24));
+    }
+
+    #[test]
     fn module_path_segments_navigate_as_one_resolved_namespace() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

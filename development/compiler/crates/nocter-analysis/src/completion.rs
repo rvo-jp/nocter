@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_checking::{
-    BodyScope, CheckedOperation, CheckedProgram, ConstructionCompletionError,
-    EnumPatternCompletionError, MemberCompletionContext, MemberCompletionError,
-    MemberCompletionTarget, NameTarget, PreparedSemanticProgram, ReceiverPreparation,
-    StructuralFieldCompletionError, TypedBodyInterruptionKind,
+    AssociatedTypeCompletionError, BodyScope, CheckedOperation, CheckedProgram,
+    ConstructionCompletionError, EnumPatternCompletionError, MemberCompletionContext,
+    MemberCompletionError, MemberCompletionTarget, NameTarget, PreparedSemanticProgram,
+    ReceiverPreparation, StructuralFieldCompletionError, TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -17,6 +17,7 @@ use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{name_recovery_presentation, prepared_presentation, presentation};
 use crate::source_context::{SourceContext, SourceContextError};
 
+mod associated_types;
 mod construction;
 mod enum_patterns;
 mod structural_fields;
@@ -71,6 +72,7 @@ pub enum SemanticCompletionError {
     Construction(ConstructionCompletionError),
     StructuralField(StructuralFieldCompletionError),
     EnumPattern(EnumPatternCompletionError),
+    AssociatedType(AssociatedTypeCompletionError),
 }
 
 impl fmt::Display for SemanticCompletionError {
@@ -81,6 +83,7 @@ impl fmt::Display for SemanticCompletionError {
             Self::Construction(error) => error.fmt(formatter),
             Self::StructuralField(error) => error.fmt(formatter),
             Self::EnumPattern(error) => error.fmt(formatter),
+            Self::AssociatedType(error) => error.fmt(formatter),
         }
     }
 }
@@ -93,6 +96,7 @@ impl std::error::Error for SemanticCompletionError {
             Self::Construction(error) => Some(error),
             Self::StructuralField(error) => Some(error),
             Self::EnumPattern(error) => Some(error),
+            Self::AssociatedType(error) => Some(error),
         }
     }
 }
@@ -124,6 +128,12 @@ impl From<StructuralFieldCompletionError> for SemanticCompletionError {
 impl From<EnumPatternCompletionError> for SemanticCompletionError {
     fn from(error: EnumPatternCompletionError) -> Self {
         Self::EnumPattern(error)
+    }
+}
+
+impl From<AssociatedTypeCompletionError> for SemanticCompletionError {
+    fn from(error: AssociatedTypeCompletionError) -> Self {
+        Self::AssociatedType(error)
     }
 }
 
@@ -211,6 +221,11 @@ impl AnalysisSnapshot {
             program: checked, ..
         } = program
         {
+            if let Some(completions) =
+                associated_types::checked_completions(checked, source, offset, module)?
+            {
+                return Ok(completions);
+            }
             if let Some(completions) = enum_patterns::checked_completions(
                 checked,
                 index,
@@ -354,6 +369,17 @@ fn interrupted_completions(
                 module,
                 &candidates,
             )))
+        }
+        TypedBodyInterruptionKind::AssociatedTypeProjection { .. } => {
+            let Some(candidates) = recovery.interrupted_associated_type_completions() else {
+                return Ok(None);
+            };
+            let candidates = candidates?;
+            Ok(Some(associated_types::render_prepared_completions(
+                recovery.prepared(),
+                module,
+                &candidates,
+            )?))
         }
     }
 }

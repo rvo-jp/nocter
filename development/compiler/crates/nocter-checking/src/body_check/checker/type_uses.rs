@@ -1,7 +1,7 @@
 use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, CallableContract, GenericParameterId,
-    NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
+    AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
+    GenericParameterId, NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -15,7 +15,10 @@ use crate::syntax::{
     direct_child, direct_children, direct_identifier, direct_nodes, direct_token, identifier_tokens,
 };
 use crate::type_relations::TypeSubstitution;
-use crate::{NameTarget, TypePosition, TypeValidityFailure, validate_type};
+use crate::{
+    NameTarget, TypePosition, TypeValidityFailure, TypedBodyInterruption,
+    TypedBodyInterruptionKind, validate_type,
+};
 
 pub(super) struct ExplicitConstructionOwner {
     pub(super) definition: NominalTypeId,
@@ -519,10 +522,28 @@ impl BodyChecker<'_, '_> {
                 None
             };
             if let Some(base) = base {
+                let candidates = self.associated_type_candidates(base);
+                let missing_member = self.tree().children(node).iter().any(|element| {
+                    matches!(
+                        element,
+                        SyntaxElement::Missing(missing)
+                            if missing.expected() == ExpectedSyntax::Name
+                    )
+                });
+                if missing_member {
+                    self.record_associated_type_interruption(node, &candidates)?;
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+                }
                 return match segments.as_slice() {
                     [_] => Ok(base),
                     [_, associated] if associated.arguments.is_empty() => {
-                        self.resolve_associated_projection(node, base, associated.token)
+                        self.record_associated_type_interruption(node, &candidates)?;
+                        self.resolve_associated_projection(
+                            node,
+                            base,
+                            associated.token,
+                            &candidates,
+                        )
                     }
                     _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
                 };
@@ -573,8 +594,33 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         base: TypeId,
         token: SyntaxToken,
+        available: &[AssociatedTypeId],
     ) -> Result<TypeId, BodyCheckError> {
         let name = self.segment_symbol(token)?;
+        let declarations = self.graph.declarations();
+        let candidates = available
+            .iter()
+            .copied()
+            .filter(|associated| {
+                declarations
+                    .associated_types()
+                    .get(*associated)
+                    .is_some_and(|declaration| declaration.name() == name)
+            })
+            .collect::<Vec<_>>();
+        let [associated] = candidates.as_slice() else {
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+        };
+        self.project_type_entity(token, SemanticEntity::AssociatedType(*associated))?;
+        self.types
+            .intern(TypeKind::AssociatedProjection {
+                base,
+                associated: *associated,
+            })
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
+    }
+
+    fn associated_type_candidates(&self, base: TypeId) -> Vec<AssociatedTypeId> {
         let declarations = self.graph.declarations();
         let mut candidates = self
             .assumptions
@@ -600,25 +646,31 @@ impl BodyChecker<'_, '_> {
                     .iter()
                     .copied()
             })
-            .filter(|associated| {
-                declarations
-                    .associated_types()
-                    .get(*associated)
-                    .is_some_and(|declaration| declaration.name() == name)
-            })
             .collect::<Vec<_>>();
         candidates.sort_unstable();
         candidates.dedup();
-        let [associated] = candidates.as_slice() else {
-            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-        };
-        self.project_type_entity(token, SemanticEntity::AssociatedType(*associated))?;
-        self.types
-            .intern(TypeKind::AssociatedProjection {
-                base,
-                associated: *associated,
-            })
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
+        candidates
+    }
+
+    fn record_associated_type_interruption(
+        &mut self,
+        syntax: NodeId,
+        candidates: &[AssociatedTypeId],
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_node(self.tree(), syntax)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;
+        self.associated_type_completion_contexts
+            .push(crate::AssociatedTypeCompletionContext::new(
+                origin, candidates,
+            ));
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::AssociatedTypeProjection {
+                candidates: candidates.into(),
+            },
+        ));
+        Ok(())
     }
 
     fn resolve_unapplied_nominal(

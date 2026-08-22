@@ -164,6 +164,11 @@ implementation input.
    completion. The typed subject supplies the exact enum family in failed generations, while a
    checked variant identity supplies it in complete generations. The shared construction surface
    returns variants only, preventing construction functions from leaking into pattern candidates.
+   Type-position associated completion now consumes the normalized body predicate environment.
+   Checked bodies retain immutable source contexts for the associated identities proven on `T` or
+   `Self`; invalid and missing final names retain the same identities in a typed interruption.
+   Complete, body-failed, and syntax-incomplete generations share one renderer and never rescan
+   authored `where` clauses in analysis or the protocol adapter.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

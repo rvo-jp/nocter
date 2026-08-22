@@ -115,6 +115,7 @@ pub(super) struct CheckedBodyOutput {
     pub(super) node_origins: HashMap<BodyNodeId, SourceOrigin>,
     pub(super) opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
     pub(super) copy_proofs: CopyProofs,
+    pub(super) associated_type_completion_contexts: Vec<crate::AssociatedTypeCompletionContext>,
 }
 
 pub(super) struct BodyUnitInput<'input, 'syntax> {
@@ -155,6 +156,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     closure_type_arguments: Box<[TypeId]>,
     opaque_result: Option<OpaqueResultState>,
     interruption: Option<super::TypedBodyInterruption>,
+    associated_type_completion_contexts: Vec<crate::AssociatedTypeCompletionContext>,
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
@@ -276,6 +278,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             closure_type_arguments,
             opaque_result,
             interruption: None,
+            associated_type_completion_contexts: Vec::new(),
         })
     }
 
@@ -299,6 +302,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             node_origins: self.node_origins,
             opaque_witness,
             copy_proofs: self.copy_proofs,
+            associated_type_completion_contexts: self.associated_type_completion_contexts,
         })
     }
 

@@ -1,4 +1,4 @@
-use nocter_model::{BodyId, BorrowCapability, FieldId, NominalTypeId, TypeId};
+use nocter_model::{AssociatedTypeId, BodyId, BorrowCapability, FieldId, NominalTypeId, TypeId};
 use nocter_source_index::SourceOrigin;
 
 use crate::ConstructionCompletionOwner;
@@ -56,5 +56,8 @@ pub enum TypedBodyInterruptionKind {
     },
     EnumPattern {
         definition: NominalTypeId,
+    },
+    AssociatedTypeProjection {
+        candidates: Box<[AssociatedTypeId]>,
     },
 }

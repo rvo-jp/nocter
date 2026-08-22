@@ -5,6 +5,7 @@
 //! checked semantic identities. Later stages may consume its immutable semantic values, but they
 //! cannot construct them, inspect body syntax, or reopen a checked selection.
 
+mod associated_type_completion;
 mod body_check;
 mod body_sources;
 mod checked;
@@ -41,6 +42,10 @@ mod type_validity;
 #[cfg(test)]
 mod test_support;
 
+pub use associated_type_completion::{
+    AssociatedTypeCompletionCandidate, AssociatedTypeCompletionContext,
+    AssociatedTypeCompletionError,
+};
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, TypedBodyInterruption,
     TypedBodyInterruptionKind, check_prepared_program, check_prepared_program_recovering,
