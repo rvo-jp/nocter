@@ -18,6 +18,7 @@ mod response;
 mod semantic_tokens;
 mod session;
 mod signature;
+mod text_edit;
 mod transport;
 mod uri;
 mod watcher;
@@ -37,7 +38,7 @@ pub use parameters::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,
     ParameterErrorKind,
 };
-pub use rename::{DocumentEdit, RenameParams, TextEdit, workspace_edit_result};
+pub use rename::{DocumentEdit, RenameParams, workspace_edit_result};
 pub use response::{
     ResponseErrorCode, render_error_response, render_notification, render_request,
     render_success_response,
@@ -48,6 +49,7 @@ pub use semantic_tokens::{
 };
 pub use session::{ProtocolEvent, ProtocolReception, ProtocolSession};
 pub use signature::{SignatureHelpParams, SignatureParameter, signature_help_result};
+pub use text_edit::TextEdit;
 pub use transport::{FrameError, FrameReader, write_frame};
 pub use uri::{DocumentUri, DocumentUriError, DocumentUriErrorKind};
 pub use watcher::{

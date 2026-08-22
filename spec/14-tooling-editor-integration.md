@@ -149,7 +149,8 @@ module: ancestor- and package-visible exports in the active package, bare-public
 dependencies, and the public surface of the implicit `std` package. The compiler supplies the
 additional top-level `use` edit while preserving leading documentation and existing import groups.
 Private, unreachable, dependency-internal, and standard-library-internal declarations are not
-candidates.
+candidates. A candidate whose added module edge would create an import cycle is also excluded;
+top-level and block imports both participate in that proof.
 
 Member completion for a generic receiver combines its declared capability set. Distinct interfaces
 with the same applicable member name are ambiguous; order never chooses one.

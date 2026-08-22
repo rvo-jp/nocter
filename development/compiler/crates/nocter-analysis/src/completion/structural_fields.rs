@@ -80,11 +80,11 @@ fn render_completions(
         .iter()
         .filter_map(|candidate| {
             let field = candidate.field();
-            Some(SemanticCompletion {
-                label: graph.symbols().spelling(candidate.name())?.into(),
-                kind: SemanticCompletionKind::Field,
-                detail: detail(field),
-            })
+            Some(SemanticCompletion::new(
+                graph.symbols().spelling(candidate.name())?,
+                SemanticCompletionKind::Field,
+                detail(field),
+            ))
         })
         .collect::<Vec<_>>()
         .into_boxed_slice()

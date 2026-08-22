@@ -18,7 +18,10 @@ pub use graph::discover;
 pub use request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
-pub use snapshot::{CompileInputError, DiscoveredModule, DiscoveredSource, DiscoveredUnit};
+pub use snapshot::{
+    CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,
+    DiscoveredUnit,
+};
 
 #[cfg(test)]
 mod tests;

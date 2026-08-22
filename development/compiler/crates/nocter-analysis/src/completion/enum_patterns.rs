@@ -66,11 +66,11 @@ fn render_completions(
         .iter()
         .filter_map(|candidate| {
             let variant = candidate.variant();
-            Some(SemanticCompletion {
-                label: graph.symbols().spelling(candidate.name())?.into(),
-                kind: SemanticCompletionKind::EnumMember,
-                detail: detail(variant),
-            })
+            Some(SemanticCompletion::new(
+                graph.symbols().spelling(candidate.name())?,
+                SemanticCompletionKind::EnumMember,
+                detail(variant),
+            ))
         })
         .collect::<Vec<_>>()
         .into_boxed_slice()

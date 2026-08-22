@@ -2,7 +2,10 @@ use std::fmt;
 
 use nocter_analysis::{SemanticCompletionError, SemanticCompletionKind};
 use nocter_json::Value;
-use nocter_lsp::{CompletionItem, CompletionItemKind, CompletionParams, completion_result};
+use nocter_lsp::{
+    CompletionItem, CompletionItemKind, CompletionParams, Position, Range, TextEdit,
+    completion_result,
+};
 use nocter_source::{CoordinateError, Utf16Position};
 
 use crate::semantic_document::{SemanticDocumentError, semantic_document};
@@ -30,14 +33,38 @@ pub(crate) fn query_completion(
         .snapshot()
         .semantic_completions(document.source().id(), offset)
         .map_err(CompletionQueryError::Semantic)?;
-    let items = completions
+    let additional_edits = completions
         .iter()
         .map(|completion| {
+            completion
+                .additional_edits()
+                .iter()
+                .map(|edit| {
+                    let range = document
+                        .source()
+                        .utf16_range(edit.range())
+                        .map_err(CompletionQueryError::Coordinate)?;
+                    Ok(TextEdit::new(
+                        Range::new(
+                            Position::new(range.start().line(), range.start().character()),
+                            Position::new(range.end().line(), range.end().character()),
+                        ),
+                        edit.new_text(),
+                    ))
+                })
+                .collect::<Result<Vec<_>, CompletionQueryError>>()
+        })
+        .collect::<Result<Vec<_>, CompletionQueryError>>()?;
+    let items = completions
+        .iter()
+        .zip(&additional_edits)
+        .map(|(completion, edits)| {
             CompletionItem::new(
                 completion.label(),
                 item_kind(completion.kind()),
                 completion.detail(),
             )
+            .with_additional_text_edits(edits)
         })
         .collect::<Vec<_>>();
     Ok(completion_result(&items))

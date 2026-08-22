@@ -1207,6 +1207,215 @@ mod tests {
     }
 
     #[test]
+    fn completion_supplies_a_top_level_edit_for_a_reached_export() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::create_dir(temporary.path().join("tools")).unwrap();
+        std::fs::write(
+            temporary.path().join("tools/index.nct"),
+            "pub func helper(): i32 { return 1 }\n",
+        )
+        .unwrap();
+        let source = concat!(
+            "use ./tools\n",
+            "\n",
+            "func main(): void {\n",
+            "    return\n",
+            "}\n",
+        );
+        let source_path = temporary.path().join("index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let completion = request_completion(&mut server, &uri, 2, 3, 4);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"helper\",\"kind\":3"),
+            "{response}"
+        );
+        assert!(
+            response.contains(concat!(
+                "\"additionalTextEdits\":[{\"range\":{",
+                "\"start\":{\"line\":0,\"character\":11},",
+                "\"end\":{\"line\":0,\"character\":11}},",
+                "\"newText\":\"\\nuse ./tools.helper\"}]"
+            )),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let imported = concat!(
+            "use ./tools\n",
+            "use ./tools.helper\n",
+            "\n",
+            "func main(): void {\n",
+            "    return\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, imported, 2);
+        let snapshot = changed.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+    }
+
+    #[test]
+    fn automatic_imports_respect_direct_dependency_visibility() {
+        let temporary = TemporaryDirectory::new();
+        let application = temporary.path().join("app");
+        let dependency = temporary.path().join("dependency");
+        std::fs::create_dir(&application).unwrap();
+        std::fs::create_dir(&dependency).unwrap();
+        std::fs::create_dir(dependency.join("api")).unwrap();
+        std::fs::write(
+            application.join("nocter.nct"),
+            concat!(
+                "#name: \"app\"\n",
+                "#dependencies: { dep: { path: \"../dependency\" } }\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(dependency.join("nocter.nct"), "#name: \"dependency\"\n").unwrap();
+        std::fs::write(dependency.join("index.nct"), "").unwrap();
+        std::fs::write(
+            dependency.join("api/index.nct"),
+            concat!(
+                "pub func public_helper(): i32 { return 1 }\n",
+                "func private_helper(): i32 { return 2 }\n",
+            ),
+        )
+        .unwrap();
+        let source = concat!(
+            "use dep/api\n",
+            "\n",
+            "func main(): void {\n",
+            "    return\n",
+            "}\n",
+        );
+        let source_path = application.join("index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(&application);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            application.display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "compilation={:?}, discovery={:?}",
+            snapshot.compilation_failure(),
+            snapshot.discovery_failure()
+        );
+
+        let completion = request_completion(&mut server, &uri, 2, 3, 4);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"public_helper\""),
+            "{response}"
+        );
+        assert!(response.contains("use dep/api.public_helper"), "{response}");
+        assert!(!response.contains("private_helper"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
+    fn automatic_imports_do_not_create_a_module_cycle() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::create_dir(temporary.path().join("child")).unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            concat!(
+                "pub func root_value(): i32 {\n",
+                "    use ./child\n",
+                "\n",
+                "    return 1\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let child_source = "func inspect(): void { return }\n";
+        let child_path = temporary.path().join("child/index.nct");
+        std::fs::write(&child_path, child_source).unwrap();
+        let uri = format!("file://{}", child_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, child_source, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+
+        let completion = request_completion(&mut server, &uri, 2, 0, 5);
+        let response = completion.response().unwrap();
+        assert!(!response.contains("\"label\":\"root_value\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
+    fn package_root_selection_compiles_from_a_child_target() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(
+            temporary.path().join("nocter.nct"),
+            concat!(
+                "#name: \"app\"\n",
+                "#executable: { name: \"app\", module: \"./child\" }\n",
+            ),
+        )
+        .unwrap();
+        std::fs::create_dir(temporary.path().join("child")).unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "pub func root_value(): i32 { return 1 }\n",
+        )
+        .unwrap();
+        let source = concat!(
+            "use /.root_value\n",
+            "\n",
+            "func main(): i32 { return root_value() }\n",
+        );
+        let source_path = temporary.path().join("child/index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+    }
+
+    #[test]
     fn module_path_segments_navigate_as_one_resolved_namespace() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -128,7 +128,7 @@ fn eof_recovery_never_duplicates_the_eof_token() {
 #[test]
 fn parses_private_scoped_and_selected_imports() {
     assert_syntax_ok(
-        "use std/io\nuse /parser.Parser\nuse ../shared/path.{Path, normalize as clean,}\npub use ./public\npub(../../) use ./internal.Value\n",
+        "use std/io\nuse /parser.Parser\nuse /.RootValue\nuse ../shared/path.{Path, normalize as clean,}\npub use ./public\npub(../../) use ./internal.Value\n",
         ParseGoal::ModuleSource,
     );
 }

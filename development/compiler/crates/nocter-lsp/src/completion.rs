@@ -1,6 +1,7 @@
 use nocter_json::{Member, Value};
 
-use crate::TextDocumentPositionParams;
+use crate::text_edit::text_edit_value;
+use crate::{TextDocumentPositionParams, TextEdit};
 
 pub type CompletionParams = TextDocumentPositionParams;
 
@@ -10,6 +11,7 @@ pub struct CompletionItem<'a> {
     label: &'a str,
     kind: CompletionItemKind,
     detail: Option<&'a str>,
+    additional_text_edits: &'a [TextEdit],
 }
 
 impl<'a> CompletionItem<'a> {
@@ -19,7 +21,14 @@ impl<'a> CompletionItem<'a> {
             label,
             kind,
             detail,
+            additional_text_edits: &[],
         }
+    }
+
+    #[must_use]
+    pub const fn with_additional_text_edits(mut self, edits: &'a [TextEdit]) -> Self {
+        self.additional_text_edits = edits;
+        self
     }
 }
 
@@ -64,6 +73,17 @@ pub fn completion_result(items: &[CompletionItem<'_>]) -> Value {
                         value: Value::String(detail.into()),
                     });
                 }
+                if !item.additional_text_edits.is_empty() {
+                    members.push(Member {
+                        name: "additionalTextEdits".into(),
+                        value: Value::Array(
+                            item.additional_text_edits
+                                .iter()
+                                .map(text_edit_value)
+                                .collect(),
+                        ),
+                    });
+                }
                 Value::Object(members)
             })
             .collect(),
@@ -75,6 +95,7 @@ mod tests {
     use nocter_json::write_value;
 
     use super::{CompletionItem, CompletionItemKind, completion_result};
+    use crate::{Position, Range, TextEdit};
 
     #[test]
     fn renders_compiler_ordered_items_without_protocol_side_inference() {
@@ -93,6 +114,22 @@ mod tests {
         assert_eq!(
             rendered,
             "[{\"label\":\"read\",\"kind\":3,\"detail\":\"func read(): i32\"},{\"label\":\"value\",\"kind\":6}]"
+        );
+    }
+
+    #[test]
+    fn renders_compiler_supplied_additional_text_edits() {
+        let edit = TextEdit::new(
+            Range::new(Position::new(0, 0), Position::new(0, 0)),
+            "use std/io.print\n\n",
+        );
+        let item = CompletionItem::new("print", CompletionItemKind::Function, None)
+            .with_additional_text_edits(std::slice::from_ref(&edit));
+        let mut rendered = String::new();
+        write_value(&mut rendered, &completion_result(&[item]));
+        assert_eq!(
+            rendered,
+            "[{\"label\":\"print\",\"kind\":3,\"additionalTextEdits\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"newText\":\"use std/io.print\\n\\n\"}]}]"
         );
     }
 }

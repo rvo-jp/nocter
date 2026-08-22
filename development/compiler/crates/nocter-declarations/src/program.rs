@@ -71,9 +71,11 @@ pub struct DeclarationGraph {
     target: CompilationTarget,
     symbols: SymbolTable,
     packages: Arena<PackageId, Package>,
+    package_ids: HashMap<PackageIdentity, PackageId>,
     root_packages: Box<[PackageId]>,
     standard_library: Option<StandardLibrary>,
     modules: Arena<ModuleId, Module>,
+    module_ids: HashMap<(PackageId, ModulePath), ModuleId>,
     module_namespaces: Arena<ModuleId, ModuleNamespace>,
     declaration_sites: Arena<DeclarationSiteId, DeclarationSite>,
     imports: Arena<ImportId, ImportDeclaration>,
@@ -104,6 +106,12 @@ impl DeclarationGraph {
         &self.packages
     }
 
+    /// Resolves one exact package-graph identity without scanning display metadata.
+    #[must_use]
+    pub fn package_by_identity(&self, identity: &PackageIdentity) -> Option<PackageId> {
+        self.package_ids.get(identity).copied()
+    }
+
     /// Returns the exact packages selected before dependency traversal.
     #[must_use]
     pub const fn root_packages(&self) -> &[PackageId] {
@@ -130,6 +138,12 @@ impl DeclarationGraph {
     #[must_use]
     pub const fn modules(&self) -> &Arena<ModuleId, Module> {
         &self.modules
+    }
+
+    /// Resolves one normalized package-local module path through the graph's canonical index.
+    #[must_use]
+    pub fn module_by_path(&self, package: PackageId, path: &ModulePath) -> Option<ModuleId> {
+        self.module_ids.get(&(package, path.clone())).copied()
     }
 
     #[must_use]
@@ -231,6 +245,11 @@ impl DeclarationProgram {
     }
 
     #[must_use]
+    pub fn package_by_identity(&self, identity: &PackageIdentity) -> Option<PackageId> {
+        self.graph.package_by_identity(identity)
+    }
+
+    #[must_use]
     pub const fn root_packages(&self) -> &[PackageId] {
         self.graph.root_packages()
     }
@@ -248,6 +267,11 @@ impl DeclarationProgram {
     #[must_use]
     pub const fn modules(&self) -> &Arena<ModuleId, Module> {
         self.graph.modules()
+    }
+
+    #[must_use]
+    pub fn module_by_path(&self, package: PackageId, path: &ModulePath) -> Option<ModuleId> {
+        self.graph.module_by_path(package, path)
     }
 
     #[must_use]
@@ -595,9 +619,11 @@ impl DeclarationProgramBuilder {
                 target: self.target,
                 symbols: self.symbols,
                 packages: self.packages.finish(),
+                package_ids: self.package_ids,
                 root_packages: self.root_packages.into_boxed_slice(),
                 standard_library: self.standard_library,
                 modules: self.modules.finish(),
+                module_ids: self.module_ids,
                 module_namespaces,
                 declaration_sites: self.declaration_sites.finish(),
                 imports: self.imports.finish(),
@@ -802,6 +828,18 @@ mod tests {
         assert_eq!(
             program.packages().get(app).unwrap().identity(),
             &PackageIdentity::new("workspace:app")
+        );
+        assert_eq!(
+            program.package_by_identity(&PackageIdentity::new("workspace:app")),
+            Some(app)
+        );
+        assert_eq!(
+            program.module_by_path(app, &ModulePath::root()),
+            Some(app_root)
+        );
+        assert_eq!(
+            program.module_by_path(dependency, &ModulePath::root()),
+            Some(dependency_root)
         );
     }
 

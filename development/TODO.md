@@ -169,6 +169,15 @@ implementation input.
    `Self`; invalid and missing final names retain the same identities in a typed interruption.
    Complete, body-failed, and syntax-incomplete generations share one renderer and never rescan
    authored `where` clauses in analysis or the protocol adapter.
+   Automatic-import completion now joins declaration-owned reached exports and effective
+   visibility with discovery-owned direct dependency aliases. Each candidate carries one
+   compiler-planned byte-range edit; the shared insertion planner preserves file and item
+   documentation plus existing top-level import groups, and the LSP adapter performs only UTF-16
+   projection. Package-root sources may receive edits, while dependency and toolchain sources stay
+   read-only. Discovery exposes top-level and block module-dependency edges so completion rejects
+   edits that would create a cycle. Frozen declaration graphs retain canonical package and module
+   lookup indexes, avoiding edge-by-module scans on each keystroke. Direct package-root selection
+   uses the now-explicit `use /.Name` grammar.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

@@ -232,3 +232,21 @@ the same identities in an `AssociatedTypeProjection` interruption. Complete, bod
 syntax-incomplete generations therefore share one candidate set. The LSP layer does not rescan
 `where` clauses, infer an interface from the base spelling, or expose associated types from an
 unproven interface.
+
+Automatic-import completion combines two immutable authorities instead of scanning the workspace.
+The declaration graph supplies reached module namespaces, effective visibility, semantic targets,
+and canonical details. The discovery snapshot retains the active package's exact dependency
+alias-to-package edges. Only another reached module in the active package, a direct dependency, or
+the selected standard package can therefore produce a candidate; a public re-export through one of
+those modules remains valid, while a transitive package cannot be addressed directly. Candidates
+are suppressed when their local spelling is already visible. Discovery also projects every
+top-level and block module-import edge; a candidate is excluded when adding its edge would close a
+module cycle. The frozen declaration graph retains canonical package-identity and normalized
+module-path indexes, so projecting those discovery edges is proportional to their path lengths and
+does not rescan every module for every completion request.
+
+Each automatic-import candidate owns a protocol-independent byte-range edit. One syntax-based
+insertion planner extends the last top-level import group or inserts before the first declaration
+and its attached item documentation. File documentation and existing group whitespace remain
+unchanged. The language-server boundary only converts that edit to UTF-16
+`additionalTextEdits`; it does not rediscover exports, paths, visibility, or insertion positions.

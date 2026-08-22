@@ -1,8 +1,8 @@
 use nocter_json::{Member, Value};
 
-use crate::coordinates::range_value;
 use crate::decode::{Object, required, string};
-use crate::{DocumentUri, ParameterError, Range, TextDocumentPositionParams};
+use crate::text_edit::text_edit_value;
+use crate::{DocumentUri, ParameterError, TextDocumentPositionParams, TextEdit};
 
 /// Validated `textDocument/rename` parameters.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,23 +39,6 @@ impl RenameParams {
     #[must_use]
     pub const fn new_name(&self) -> &str {
         &self.new_name
-    }
-}
-
-/// One protocol text replacement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TextEdit {
-    range: Range,
-    new_text: Box<str>,
-}
-
-impl TextEdit {
-    #[must_use]
-    pub fn new(range: Range, new_text: impl Into<Box<str>>) -> Self {
-        Self {
-            range,
-            new_text: new_text.into(),
-        }
     }
 }
 
@@ -103,18 +86,7 @@ fn document_edit_value(document: &DocumentEdit) -> Value {
         ),
         (
             "edits",
-            Value::Array(
-                document
-                    .edits
-                    .iter()
-                    .map(|edit| {
-                        object([
-                            ("range", range_value(edit.range)),
-                            ("newText", Value::String(edit.new_text.clone())),
-                        ])
-                    })
-                    .collect(),
-            ),
+            Value::Array(document.edits.iter().map(text_edit_value).collect()),
         ),
     ])
 }
@@ -136,7 +108,7 @@ mod tests {
     use nocter_json::{parse, write_value};
 
     use super::*;
-    use crate::Position;
+    use crate::{Position, Range};
 
     #[test]
     fn decodes_rename_without_claiming_language_name_validity() {

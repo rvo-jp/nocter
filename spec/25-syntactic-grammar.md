@@ -135,6 +135,7 @@ UseDeclaration = Visibility? "use" UseTree
 
 UseTree = ModulePath
         | ModulePath "." ImportSelection
+        | "/" "." ImportSelection
 
 ImportSelection = Name ("as" Name)?
                 | "{" NonEmptyList(SelectedName) "}"

@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 nocter-checking = { path = "../nocter-checking" }
+nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-discovery = { path = "../nocter-discovery" }
@@ -19,7 +20,6 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 
 [dev-dependencies]
-nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 

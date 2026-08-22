@@ -71,11 +71,11 @@ fn render_completions(
             let label = graph.symbols().spelling(candidate.name()).ok_or(
                 AssociatedTypeCompletionError::MissingAssociatedType(associated),
             )?;
-            Ok(SemanticCompletion {
-                label: label.into(),
-                kind: SemanticCompletionKind::Type,
-                detail: detail(associated),
-            })
+            Ok(SemanticCompletion::new(
+                label,
+                SemanticCompletionKind::Type,
+                detail(associated),
+            ))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Vec::into_boxed_slice)

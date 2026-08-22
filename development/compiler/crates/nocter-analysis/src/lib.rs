@@ -26,7 +26,9 @@ mod semantic;
 mod signature;
 mod source_context;
 
-pub use completion::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
+pub use completion::{
+    SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
+};
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
@@ -96,6 +98,15 @@ impl AnalysisSnapshot {
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::SyntaxFailed { .. }
             | AnalysisState::CompilationFailed { .. } => None,
+        }
+    }
+
+    fn current_unit(&self) -> Option<&DiscoveredUnit> {
+        match &self.state {
+            AnalysisState::SyntaxFailed { unit, .. }
+            | AnalysisState::CompilationFailed { unit, .. }
+            | AnalysisState::Complete { unit, .. } => Some(unit),
+            AnalysisState::DiscoveryFailed(_) => None,
         }
     }
 

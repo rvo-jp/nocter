@@ -18,6 +18,7 @@ use crate::presentation::{name_recovery_presentation, prepared_presentation, pre
 use crate::source_context::{SourceContext, SourceContextError};
 
 mod associated_types;
+mod automatic_imports;
 mod construction;
 mod enum_patterns;
 mod structural_fields;
@@ -28,9 +29,28 @@ pub struct SemanticCompletion {
     label: Box<str>,
     kind: SemanticCompletionKind,
     detail: Option<Box<str>>,
+    additional_edits: Box<[SemanticCompletionEdit]>,
 }
 
 impl SemanticCompletion {
+    fn new(
+        label: impl Into<Box<str>>,
+        kind: SemanticCompletionKind,
+        detail: Option<Box<str>>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            kind,
+            detail,
+            additional_edits: Box::new([]),
+        }
+    }
+
+    fn with_additional_edit(mut self, edit: SemanticCompletionEdit) -> Self {
+        self.additional_edits = Box::new([edit]);
+        self
+    }
+
     #[must_use]
     pub fn label(&self) -> &str {
         &self.label
@@ -44,6 +64,38 @@ impl SemanticCompletion {
     #[must_use]
     pub fn detail(&self) -> Option<&str> {
         self.detail.as_deref()
+    }
+
+    #[must_use]
+    pub const fn additional_edits(&self) -> &[SemanticCompletionEdit] {
+        &self.additional_edits
+    }
+}
+
+/// One protocol-independent source edit attached to a semantic completion candidate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticCompletionEdit {
+    range: TextRange,
+    new_text: Box<str>,
+}
+
+impl SemanticCompletionEdit {
+    #[must_use]
+    pub fn new(range: TextRange, new_text: impl Into<Box<str>>) -> Self {
+        Self {
+            range,
+            new_text: new_text.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+
+    #[must_use]
+    pub fn new_text(&self) -> &str {
+        &self.new_text
     }
 }
 
@@ -73,6 +125,7 @@ pub enum SemanticCompletionError {
     StructuralField(StructuralFieldCompletionError),
     EnumPattern(EnumPatternCompletionError),
     AssociatedType(AssociatedTypeCompletionError),
+    AutomaticImport(automatic_imports::AutomaticImportError),
 }
 
 impl fmt::Display for SemanticCompletionError {
@@ -84,6 +137,7 @@ impl fmt::Display for SemanticCompletionError {
             Self::StructuralField(error) => error.fmt(formatter),
             Self::EnumPattern(error) => error.fmt(formatter),
             Self::AssociatedType(error) => error.fmt(formatter),
+            Self::AutomaticImport(error) => error.fmt(formatter),
         }
     }
 }
@@ -97,6 +151,7 @@ impl std::error::Error for SemanticCompletionError {
             Self::StructuralField(error) => Some(error),
             Self::EnumPattern(error) => Some(error),
             Self::AssociatedType(error) => Some(error),
+            Self::AutomaticImport(error) => Some(error),
         }
     }
 }
@@ -134,6 +189,12 @@ impl From<EnumPatternCompletionError> for SemanticCompletionError {
 impl From<AssociatedTypeCompletionError> for SemanticCompletionError {
     fn from(error: AssociatedTypeCompletionError) -> Self {
         Self::AssociatedType(error)
+    }
+}
+
+impl From<automatic_imports::AutomaticImportError> for SemanticCompletionError {
+    fn from(error: automatic_imports::AutomaticImportError) -> Self {
+        Self::AutomaticImport(error)
     }
 }
 
@@ -274,18 +335,21 @@ impl AnalysisSnapshot {
             );
         }
         let spellings = VisibleSpellings::new(program.graph(), module);
-        Ok(candidates
+        let automatic_imports =
+            automatic_imports::completions(self, &program, source, module, &candidates)?;
+        let mut completions = candidates
             .into_iter()
             .filter_map(|(name, candidate)| {
                 let label = program.graph().symbols().spelling(name)?;
-                Some(SemanticCompletion {
-                    label: label.into(),
-                    kind: candidate.kind,
-                    detail: program.detail(candidate.entity, &spellings),
-                })
+                Some(SemanticCompletion::new(
+                    label,
+                    candidate.kind,
+                    program.detail(candidate.entity, &spellings),
+                ))
             })
-            .collect::<Vec<_>>()
-            .into_boxed_slice())
+            .collect::<Vec<_>>();
+        completions.extend(automatic_imports);
+        Ok(completions.into_boxed_slice())
     }
 }
 
@@ -327,11 +391,7 @@ fn interrupted_completions(
                                 prepared_presentation(recovery.prepared(), entity, &spellings)
                             })
                             .map(|presentation| Box::<str>::from(presentation.code()));
-                        Some(SemanticCompletion {
-                            label: label.into(),
-                            kind,
-                            detail,
-                        })
+                        Some(SemanticCompletion::new(label, kind, detail))
                     })
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
@@ -456,11 +516,7 @@ fn checked_member_completions(
                 let detail = entity
                     .and_then(|entity| presentation(program, entity, &spellings))
                     .map(|presentation| Box::<str>::from(presentation.code()));
-                Some(SemanticCompletion {
-                    label: label.into(),
-                    kind,
-                    detail,
-                })
+                Some(SemanticCompletion::new(label, kind, detail))
             })
             .collect::<Vec<_>>()
             .into_boxed_slice(),

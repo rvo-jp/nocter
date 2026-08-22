@@ -68,11 +68,35 @@ impl DiscoveredModule {
     }
 }
 
+/// One exact cross-module dependency selected from an authored top-level or block `use`.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct DiscoveredModuleDependency {
+    source: ModuleIdentity,
+    target: ModuleIdentity,
+}
+
+impl DiscoveredModuleDependency {
+    pub(crate) const fn new(source: ModuleIdentity, target: ModuleIdentity) -> Self {
+        Self { source, target }
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> &ModuleIdentity {
+        &self.source
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> &ModuleIdentity {
+        &self.target
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct DiscoveredPackage {
     pub(crate) identity: PackageIdentity,
     pub(crate) display_name: Box<str>,
     pub(crate) mode: PackageMode,
+    pub(crate) dependencies: BTreeMap<Box<str>, PackageIdentity>,
     pub(crate) declaration: Option<(Box<str>, usize)>,
 }
 
@@ -85,6 +109,7 @@ pub struct DiscoveredUnit {
     pub(crate) packages: Vec<DiscoveredPackage>,
     pub(crate) root_packages: Vec<PackageIdentity>,
     pub(crate) modules: Vec<DiscoveredModule>,
+    pub(crate) module_dependencies: Vec<DiscoveredModuleDependency>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pub(crate) toolchain: Option<ToolchainInput>,
@@ -120,6 +145,27 @@ impl DiscoveredUnit {
     #[must_use]
     pub fn root_packages(&self) -> &[PackageIdentity] {
         &self.root_packages
+    }
+
+    /// Returns the exact authored dependency aliases of one resolved package.
+    ///
+    /// Alias spelling remains discovery-owned because it is a property of the importing package,
+    /// not of the dependency's semantic identity.
+    #[must_use]
+    pub fn package_dependencies(
+        &self,
+        package: &PackageIdentity,
+    ) -> Option<&BTreeMap<Box<str>, PackageIdentity>> {
+        self.packages
+            .iter()
+            .find(|candidate| &candidate.identity == package)
+            .map(|candidate| &candidate.dependencies)
+    }
+
+    /// Returns exact cross-module edges selected from top-level and block `use` declarations.
+    #[must_use]
+    pub fn module_dependencies(&self) -> &[DiscoveredModuleDependency] {
+        &self.module_dependencies
     }
 
     /// Reports whether one discovered source is authored by a selected root package.

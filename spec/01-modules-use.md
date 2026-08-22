@@ -372,7 +372,11 @@ Package-absolute paths begin with `/` and resolve directory modules from the own
 
 ```nct
 use /parser.Parser
+use /.RootValue
 ```
+
+The second form selects a name directly from the package root module. Bare `use /` is invalid
+because a namespace import requires a final module segment from which to derive its local name.
 
 Non-relative paths begin with a declared dependency alias or `std` and resolve directory modules
 only:

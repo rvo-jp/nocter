@@ -208,8 +208,9 @@ fn selected_name(parser: &mut Parser<'_>) {
 }
 
 fn module_path(parser: &mut Parser<'_>) {
-    if parser.eat_punctuation(Punctuation::Slash) {
+    let package_absolute = if parser.eat_punctuation(Punctuation::Slash) {
         // Package-absolute prefix.
+        true
     } else if parser.eat_punctuation(Punctuation::Dot) {
         if parser.eat_punctuation(Punctuation::Slash) {
             // Current-module relative prefix.
@@ -222,6 +223,13 @@ fn module_path(parser: &mut Parser<'_>) {
                 parser.expect_punctuation(Punctuation::Slash);
             }
         }
+        false
+    } else {
+        false
+    };
+
+    if package_absolute && parser.at_punctuation(Punctuation::Dot) {
+        return;
     }
 
     if !expect_module_segment(parser) {

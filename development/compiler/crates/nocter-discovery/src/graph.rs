@@ -15,7 +15,10 @@ use crate::error::{ImportFailure, ToolchainDiscoveryError};
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
-use crate::snapshot::{DiscoveredModule, DiscoveredPackage, DiscoveredSource, DiscoveredUnit};
+use crate::snapshot::{
+    DiscoveredModule, DiscoveredModuleDependency, DiscoveredPackage, DiscoveredSource,
+    DiscoveredUnit,
+};
 use crate::syntax::active_use_paths;
 use crate::{DiscoveryError, DiscoveryFailure};
 
@@ -60,6 +63,7 @@ struct Builder {
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
     modules: BTreeMap<ModuleIdentity, Vec<DiscoveredSource>>,
+    module_dependencies: Vec<DiscoveredModuleDependency>,
     source_owners: BTreeMap<PathBuf, ModuleIdentity>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
@@ -143,6 +147,7 @@ impl Builder {
             sources,
             syntax,
             modules: BTreeMap::new(),
+            module_dependencies: Vec::new(),
             source_owners: BTreeMap::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
@@ -192,6 +197,7 @@ impl Builder {
                 identity: state.identity,
                 display_name: state.display_name,
                 mode: state.mode,
+                dependencies: state.dependencies,
                 declaration: state.declaration.map(|(path, syntax)| {
                     (
                         path.to_str()
@@ -219,6 +225,8 @@ impl Builder {
             let node = resolution.declaration();
             (node.source(), node.index())
         });
+        self.module_dependencies.sort_unstable();
+        self.module_dependencies.dedup();
         Ok(DiscoveredUnit {
             target: self.target,
             source_overlay: self.source_overlay,
@@ -227,6 +235,7 @@ impl Builder {
             packages,
             root_packages: self.root_packages,
             modules,
+            module_dependencies: self.module_dependencies,
             use_resolutions: self.use_resolutions,
             package_target_resolutions: self.package_target_resolutions,
             toolchain,
@@ -451,8 +460,13 @@ impl Builder {
                         path: PathBuf::from(path.as_ref()),
                     });
                 }
-                UseTargetInput::Module(module) => {
-                    self.pending.insert(Work::Module(module.clone()));
+                UseTargetInput::Module(target_module) => {
+                    self.module_dependencies
+                        .push(DiscoveredModuleDependency::new(
+                            module.clone(),
+                            target_module.clone(),
+                        ));
+                    self.pending.insert(Work::Module(target_module.clone()));
                 }
             }
             self.use_resolutions

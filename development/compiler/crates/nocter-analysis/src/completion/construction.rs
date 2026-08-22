@@ -100,11 +100,7 @@ fn render_completions(
                     SemanticEntity::Callable(callable),
                 ),
             };
-            Some(SemanticCompletion {
-                label: label.into(),
-                kind,
-                detail: detail(entity),
-            })
+            Some(SemanticCompletion::new(label, kind, detail(entity)))
         })
         .collect::<Vec<_>>()
         .into_boxed_slice()
