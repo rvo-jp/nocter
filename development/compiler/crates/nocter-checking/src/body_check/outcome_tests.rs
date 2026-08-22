@@ -1,7 +1,7 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_model::BuiltinType;
+use nocter_model::{BuiltinType, TypeKind};
 
-use super::check_prepared_program;
+use super::{check_prepared_program, check_prepared_program_recovering};
 use crate::test_support::Fixture;
 use crate::{
     CheckedOperation, CheckedOutcome, CleanupTarget, CleanupTiming, OutcomeLayer,
@@ -156,6 +156,44 @@ fn mismatched_or_unreturnable_outcome_operations_have_one_rule() {
     ] {
         let error = check(source).unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0392");
+    }
+}
+
+#[test]
+fn propagation_failure_retains_the_typed_callable_contract_repair() {
+    for (source, expected_layer) in [
+        (
+            "func invalid(input: i32?): i32 { input? }\n",
+            OutcomeLayer::Optional,
+        ),
+        (
+            "func invalid(input: i32!): i32 { input? }\n",
+            OutcomeLayer::Fallible,
+        ),
+    ] {
+        let fixture = Fixture::new(source);
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, source_index) = lowered.into_parts();
+        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
+        let recovery = failure.recovery().expect("body recovery");
+        let interruption = recovery.interruption().expect("typed interruption");
+        let crate::TypedBodyInterruptionKind::OutcomeContract {
+            layer,
+            proposed_result,
+        } = interruption.kind()
+        else {
+            panic!("unexpected interruption: {:?}", interruption.kind());
+        };
+        assert_eq!(*layer, expected_layer);
+        match (expected_layer, recovery.types().get(*proposed_result)) {
+            (OutcomeLayer::Optional, Some(TypeKind::Optional(payload)))
+            | (OutcomeLayer::Fallible, Some(TypeKind::Fallible(payload))) => {
+                assert_eq!(*payload, recovery.types().builtin(BuiltinType::I32));
+            }
+            (_, actual) => panic!("unexpected proposed result: {actual:?}"),
+        }
     }
 }
 

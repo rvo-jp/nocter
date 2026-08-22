@@ -463,6 +463,7 @@ fn interrupted_completions(
                 &candidates,
             )?))
         }
+        TypedBodyInterruptionKind::OutcomeContract { .. } => Ok(None),
     }
 }
 

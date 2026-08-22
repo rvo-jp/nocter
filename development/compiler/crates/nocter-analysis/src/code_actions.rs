@@ -7,8 +7,10 @@ use nocter_source::{SourceId, TextRange};
 use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
 
 mod conformance;
+mod outcomes;
 
 pub use conformance::ConformanceActionError;
+pub use outcomes::OutcomeActionError;
 
 /// One compiler-owned source repair independent of editor protocol and workspace mutation.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -48,6 +50,7 @@ pub enum SemanticCodeActionError {
     InvalidDiagnosticRange { source: SourceId, range: TextRange },
     Completion(SemanticCompletionError),
     Conformance(ConformanceActionError),
+    Outcome(OutcomeActionError),
 }
 
 impl fmt::Display for SemanticCodeActionError {
@@ -64,6 +67,7 @@ impl fmt::Display for SemanticCodeActionError {
             ),
             Self::Completion(error) => error.fmt(formatter),
             Self::Conformance(error) => error.fmt(formatter),
+            Self::Outcome(error) => error.fmt(formatter),
         }
     }
 }
@@ -73,6 +77,7 @@ impl std::error::Error for SemanticCodeActionError {
         match self {
             Self::Completion(error) => Some(error),
             Self::Conformance(error) => Some(error),
+            Self::Outcome(error) => Some(error),
             Self::MissingSource(_) | Self::InvalidDiagnosticRange { .. } => None,
         }
     }
@@ -87,6 +92,12 @@ impl From<SemanticCompletionError> for SemanticCodeActionError {
 impl From<ConformanceActionError> for SemanticCodeActionError {
     fn from(error: ConformanceActionError) -> Self {
         Self::Conformance(error)
+    }
+}
+
+impl From<OutcomeActionError> for SemanticCodeActionError {
+    fn from(error: OutcomeActionError) -> Self {
+        Self::Outcome(error)
     }
 }
 
@@ -128,6 +139,14 @@ impl AnalysisSnapshot {
                     range,
                     missing,
                 )? {
+                    actions.push(action);
+                }
+                continue;
+            }
+            if diagnostic.code() == nocter_checking::BodyRule::InvalidOutcomeOperation.code() {
+                if let Some(action) =
+                    outcomes::callable_contract_action(self, source, diagnostic.code(), range)?
+                {
                     actions.push(action);
                 }
                 continue;

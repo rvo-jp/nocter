@@ -1223,3 +1223,12 @@ compatibility. The code-action layer renders those typed contracts through canon
 inserts all missing methods with diverging `std/process.abort()` bodies, and obtains the import edit
 from semantic automatic-import completion. The shared speculative transaction publishes the action
 only when the whole edited program reaches the complete target-validated state.
+
+A failed postfix-propagation check may retain a separate `OutcomeContract` interruption only after
+the operand's immediate optional or fallible layer is typed. The interruption owns that layer and a
+proposed canonical result `TypeId` interned in the exact monotonic type store reached by the failed
+generation. Analysis renders through that retained store and locates the editable result annotation
+by the declaration kind's direct CST path; it does not search the declaration range for a nested
+`CallableTail`. Fixed-result and grammar-restricted operators are explicitly non-editable. The
+shared speculative transaction remains the final authority, so a contract change that creates a
+public-call, conformance, provenance, or body error is not exposed.

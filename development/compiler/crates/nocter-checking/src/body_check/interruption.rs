@@ -2,6 +2,7 @@ use nocter_model::{AssociatedTypeId, BodyId, BorrowCapability, FieldId, NominalT
 use nocter_source_index::SourceOrigin;
 
 use crate::ConstructionCompletionOwner;
+use crate::OutcomeLayer;
 
 /// One compiler-typed fact at the exact source operation that stopped body construction.
 ///
@@ -59,5 +60,9 @@ pub enum TypedBodyInterruptionKind {
     },
     AssociatedTypeProjection {
         candidates: Box<[AssociatedTypeId]>,
+    },
+    OutcomeContract {
+        layer: OutcomeLayer,
+        proposed_result: TypeId,
     },
 }

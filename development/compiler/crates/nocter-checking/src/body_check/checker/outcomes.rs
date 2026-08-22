@@ -8,7 +8,7 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{direct_child, direct_identifier, direct_nodes};
 use crate::{
     CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence, LocalBindingKind,
-    OutcomeLayer, plan_expected_type,
+    OutcomeLayer, TypedBodyInterruption, TypedBodyInterruptionKind, plan_expected_type,
 };
 
 impl BodyChecker<'_, '_> {
@@ -45,6 +45,7 @@ impl BodyChecker<'_, '_> {
                     };
                     let Ok(plan) = plan_expected_type(self.types, self.result_type, evidence)
                     else {
+                        self.record_outcome_contract_interruption(node, layer)?;
                         return Err(self.rule(BodyRule::InvalidOutcomeOperation, node)?);
                     };
                     let (base, outer) = plan.into_parts();
@@ -73,6 +74,44 @@ impl BodyChecker<'_, '_> {
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })
+    }
+
+    fn record_outcome_contract_interruption(
+        &mut self,
+        node: NodeId,
+        layer: OutcomeLayer,
+    ) -> Result<(), BodyCheckInternalError> {
+        let proposed_result = match (layer, self.types.get(self.result_type).cloned()) {
+            // Official mixed-outcome spelling keeps fallible outside optional success.
+            (OutcomeLayer::Optional, Some(TypeKind::Fallible(payload))) => {
+                let optional = self
+                    .types
+                    .intern(TypeKind::Optional(payload))
+                    .map_err(|_| BodyCheckInternalError::UnknownType(payload))?;
+                self.types
+                    .intern(TypeKind::Fallible(optional))
+                    .map_err(|_| BodyCheckInternalError::UnknownType(optional))?
+            }
+            (OutcomeLayer::Optional, _) => self
+                .types
+                .intern(TypeKind::Optional(self.result_type))
+                .map_err(|_| BodyCheckInternalError::UnknownType(self.result_type))?,
+            (OutcomeLayer::Fallible, _) => self
+                .types
+                .intern(TypeKind::Fallible(self.result_type))
+                .map_err(|_| BodyCheckInternalError::UnknownType(self.result_type))?,
+        };
+        let origin = nocter_source_index::SourceOrigin::from_node(self.tree(), node)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::OutcomeContract {
+                layer,
+                proposed_result,
+            },
+        ));
+        Ok(())
     }
 
     fn outcome_operand_expected(

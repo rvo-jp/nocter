@@ -29,7 +29,9 @@ mod signature;
 mod source_context;
 mod source_edits;
 
-pub use code_actions::{ConformanceActionError, SemanticCodeAction, SemanticCodeActionError};
+pub use code_actions::{
+    ConformanceActionError, OutcomeActionError, SemanticCodeAction, SemanticCodeActionError,
+};
 pub use completion::{
     SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
 };

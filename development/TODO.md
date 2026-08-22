@@ -2,10 +2,11 @@
 
 ## Current Task
 
-Continue v0.14.0 Phase 6 from the completed compiler-owned required-conformance-method code-action
-boundary. The next editor work is optional and fallible callable-contract repairs. Each family must
-produce typed compiler edit plans and pass the shared speculative-compilation transaction; it must
-not infer templates from diagnostic prose.
+Continue v0.14.0 Phase 6 from the completed compiler-owned code-action boundary. Automatic imports,
+required conformance methods, and optional/fallible callable-result repairs now produce typed
+compiler edit plans and pass the shared speculative-compilation transaction; none infer templates
+from diagnostic prose. The next work is an editor qualification audit against the normative tooling
+surface, followed only by missing protocol or semantic cases demonstrated by that audit.
 Discovery now resolves the standard package, prelude, built-in attachment modules, and every
 standard semantic role into one immutable toolchain profile. The complete authored standard
 library parses, discovers, lowers, prepares, and passes body checking as one real source graph
@@ -198,6 +199,12 @@ implementation input.
    source planner inserts every required method together with `std/process.abort` and its semantic
    automatic import. The action uses the shared workspace transaction, so no partial method set,
    unresolved signature, colliding import, or non-compiling placeholder reaches the client.
+   Optional/fallible callable-result actions now retain the typed operand layer and proposed result
+   `TypeId` at the exact failed postfix `?`. Analysis renders that result from the failed
+   generation's monotonic type store and reaches the authored result annotation through the
+   declaration kind's direct CST path, so nested closure tails cannot be selected. Fixed-result and
+   grammar-restricted operators are not editable. The shared transaction suppresses any result
+   change that leaves a public call, conformance, provenance, or body failure.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

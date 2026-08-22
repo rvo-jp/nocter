@@ -404,6 +404,47 @@ mod tests {
         ))
     }
 
+    fn request_outcome_code_action(
+        source: &str,
+        start: (usize, usize),
+        end: (usize, usize),
+    ) -> ServerStep {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let source_path = temporary.path().join("index.nct");
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0392", "{source}");
+
+        server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":{start_line},\"character\":{start_character}}},",
+                "\"end\":{{\"line\":{end_line},\"character\":{end_character}}}}},",
+                "\"context\":{{\"diagnostics\":[]}}}}}}"
+            ),
+            uri = uri,
+            start_line = start.0,
+            start_character = start.1,
+            end_line = end.0,
+            end_character = end.1,
+        ))
+    }
+
     #[test]
     fn definition_and_references_follow_identity_and_exact_ranges() {
         let temporary = TemporaryDirectory::new();
@@ -1707,6 +1748,76 @@ mod tests {
         assert!(response.contains("abort()"), "{response}");
         assert!(response.contains("\"version\":1"), "{response}");
         assert!(response.contains("\"isPreferred\":true"), "{response}");
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+    }
+
+    #[test]
+    fn code_actions_add_missing_callable_outcome_contracts() {
+        for (source, expected) in [
+            (
+                "func load(value: i32!): i32 { value? }\n",
+                "Make callable result fallible: `i32!`",
+            ),
+            (
+                "func load(value: i32?): i32 { value? }\n",
+                "Make callable result optional: `i32?`",
+            ),
+        ] {
+            let line_length = source.trim_end().len();
+            let action = request_outcome_code_action(source, (0, 0), (0, line_length));
+            let response = action.response().unwrap();
+            assert!(response.contains(expected), "{response}");
+            assert!(response.contains("\"version\":1"), "{response}");
+            assert!(response.contains("\"isPreferred\":true"), "{response}");
+            assert!(action.issue().is_none(), "{:?}", action.issue());
+        }
+    }
+
+    #[test]
+    fn callable_outcome_action_ignores_nested_closure_results() {
+        let source = concat!(
+            "func load(value: i32!): i32 {\n",
+            "    let closure = (): bool { true }\n",
+            "    value?\n",
+            "}\n",
+        );
+        let action = request_outcome_code_action(source, (2, 4), (2, 10));
+        let response = action.response().unwrap();
+        assert!(
+            response.contains("Make callable result fallible: `i32!`"),
+            "{response}"
+        );
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+    }
+
+    #[test]
+    fn callable_outcome_action_rewrites_method_results() {
+        let source = concat!(
+            "struct Loader {}\n",
+            "instance Loader {\n",
+            "    pub method &self.load(value: i32!): i32 { value? }\n",
+            "}\n",
+        );
+        let action = request_outcome_code_action(source, (2, 48), (2, 54));
+        let response = action.response().unwrap();
+        assert!(
+            response.contains("Make callable result fallible: `i32!`"),
+            "{response}"
+        );
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+    }
+
+    #[test]
+    fn code_actions_do_not_rewrite_fixed_operator_results() {
+        let source = concat!(
+            "struct Value { status: bool! }\n",
+            "instance Value {\n",
+            "    pub operator (&self == other: &Self): bool { self.status? }\n",
+            "}\n",
+        );
+        let action = request_outcome_code_action(source, (2, 0), (2, 63));
+        let response = action.response().unwrap();
+        assert!(response.contains("\"result\":[]"), "{response}");
         assert!(action.issue().is_none(), "{:?}", action.issue());
     }
 

@@ -201,6 +201,14 @@ method bodies call `std/process.abort()`; the action adds that import when it is
 The server offers no action unless the complete edited package passes ordinary compilation, so a
 partial method set, unresolved signature type, or conflicting `abort` binding is not published.
 
+When postfix `?` has a typed optional or fallible operand but the enclosing authored callable result
+cannot propagate that layer, a callable-contract action may replace the callable's exact result type
+with the compiler-selected canonical outcome type. The action changes only an editable authored
+result annotation. It does not rewrite fixed-result comparison operators, grammar-restricted index
+operators, postfix `!`, or local `catch`/`otherwise` recovery. The checker, not the diagnostic text or
+protocol adapter, selects the operand layer and proposed result. The server publishes the action only
+when the complete edited package passes ordinary compilation.
+
 Inlay type hints appear after inferred local binding names and use the checked type rendered in the
 binding's module context. An explicit binding type suppresses the hint. Result-provenance hints
 appear after a callable result type only for compiler-inferred external origins expressible as

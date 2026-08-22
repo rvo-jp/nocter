@@ -99,6 +99,20 @@ pub(super) fn type_presentation(
     })
 }
 
+pub(super) fn recovery_type_presentation(
+    recovery: &nocter_checking::BodyAnalysisRecovery,
+    ty: TypeId,
+    from: nocter_model::ModuleId,
+) -> Option<SemanticPresentation> {
+    let graph = recovery.prepared().graph();
+    let spellings = visible_spelling::VisibleSpellings::new(graph, from);
+    let mut renderer = Renderer::new(graph, recovery.types(), &spellings);
+    renderer.ty(ty)?;
+    Some(SemanticPresentation {
+        code: renderer.output.into_boxed_str(),
+    })
+}
+
 pub(super) fn hover_presentation(
     checked: &CheckedProgram,
     entity: SemanticEntity,

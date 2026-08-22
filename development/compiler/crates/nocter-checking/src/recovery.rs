@@ -129,6 +129,14 @@ impl BodyAnalysisRecovery {
         self.typed.as_ref().map(|typed| &typed.interruption)
     }
 
+    /// Returns the exact monotonic type store reached by this failed generation.
+    #[must_use]
+    pub fn types(&self) -> &TypeStore {
+        self.typed
+            .as_ref()
+            .map_or_else(|| self.prepared.types(), |typed| &typed.types)
+    }
+
     /// Applies the normal member selector to an exact failed member-selection context.
     #[must_use]
     pub fn interrupted_member_completions(
