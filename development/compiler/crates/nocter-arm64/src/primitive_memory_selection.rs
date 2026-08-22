@@ -37,9 +37,9 @@ fn select_string_copy(
 ) -> Result<(), Arm64SelectionError> {
     validate_completion_abi(operation, target, &[1, 1, 2])?;
     super::primitive_selection::validate_type_arguments(operation, target, 0)?;
-    select_dynamic_address(selected)?;
+    let destination = select_dynamic_address(selected)?;
     selected.push(Arm64SelectedInstruction::CopyMemoryNonOverlappingDynamic {
-        destination: fixed(0)?,
+        destination,
         source: fixed(2)?,
         bytes: fixed(3)?,
     });

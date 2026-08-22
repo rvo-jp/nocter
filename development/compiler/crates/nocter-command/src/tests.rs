@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, PackageIdentity};
@@ -702,6 +703,62 @@ fn parsed_single_file_run_crosses_the_common_command_adapter() {
 
     assert_eq!(executed.status().code(), Some(9));
     fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn every_public_single_file_example_runs_to_success() {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let examples = compiler.join("../../examples");
+    let mut sources = fs::read_dir(&examples)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "nct"))
+        .collect::<Vec<_>>();
+    sources.sort();
+    assert!(!sources.is_empty());
+
+    for source in sources {
+        let unit = discover_single_file(&source);
+        let output_directory = unique_test_directory("public-example");
+        let executable = output_directory.join("program");
+        super::build_executable(ExecutableCompileRequest::only(&unit), &executable)
+            .unwrap_or_else(|error| panic!("{} failed to build: {error:?}", source.display()));
+        let executed = Command::new(&executable)
+            .current_dir(&examples)
+            .output()
+            .unwrap_or_else(|error| panic!("{} failed to launch: {error:?}", source.display()));
+        let name = source.file_name().unwrap().to_str().unwrap();
+        assert!(
+            executed.status.success(),
+            "{} exited with {:?}",
+            source.display(),
+            executed.status.code()
+        );
+        assert_eq!(
+            executed.stdout,
+            expected_example_output(name),
+            "unexpected output from {}",
+            source.display()
+        );
+        assert!(
+            executed.stderr.is_empty(),
+            "unexpected stderr from {}",
+            source.display()
+        );
+        fs::remove_dir_all(output_directory).unwrap();
+    }
+}
+
+fn expected_example_output(name: &str) -> &'static [u8] {
+    match name {
+        "custom-format.nct" => b"point = (3, 4)\n",
+        "equality.nct" => b"equality found the point\n",
+        "hello.nct" => b"Hello from Nocter\n",
+        "indexing.nct" | "recovery.nct" => b"",
+        "mutable-iteration.nct" => b"mutable iteration updated every element\n",
+        "ordering.nct" => b"strict ordering selected source declarations\n",
+        _ => panic!("public example has no output contract: {name}"),
+    }
 }
 
 #[test]

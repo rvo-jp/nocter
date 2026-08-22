@@ -628,6 +628,7 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
          func main(): i32 {\n\
              var bytes = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
              copy_str_to_ptr_for_test(from_ref_mut(&+bytes.a), 0, \"hello\")\n\
+             copy_str_to_ptr_for_test(from_ref_mut(&+bytes.a), 2, \"xy\")\n\
              var copied = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
              copy_ptr_to_ptr_for_test(\n\
                  from_ref_mut(&+copied.a),\n\
@@ -652,10 +653,14 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
                  if bytes.e == 111 {\n\
                      if copied.a == 104 {\n\
                          if copied.b == 97 {\n\
-                             if copied.e == 111 {\n\
-                                 if recovered == 42 {\n\
-                                     if recovered_array[2] == 42 {\n\
-                                         return 42\n\
+                             if copied.c == 120 {\n\
+                                 if copied.d == 121 {\n\
+                                     if copied.e == 111 {\n\
+                                         if recovered == 42 {\n\
+                                             if recovered_array[2] == 42 {\n\
+                                                 return 42\n\
+                                             }\n\
+                                         }\n\
                                      }\n\
                                  }\n\
                              }\n\
