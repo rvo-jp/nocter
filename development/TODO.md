@@ -40,15 +40,15 @@ input.
 
 ## Review Work
 
-1. Freeze the criteria in `development/reviews/v0.14.0-final-design.md`.
-2. Record one owner, responsibility, input contract, output contract, invariant set, consumer set,
-   and forbidden-knowledge set for every production responsibility.
-3. Justify every direct Cargo dependency with a contract; record reach-through or duplicated
-   authority as a finding.
-4. Complete read-only pipeline, horizontal-service, standard-library, test, determinism, failure,
-   and cost audits before changing production code.
-5. Group findings by root cause, design full authority replacements and deletion sets, then
-   implement and requalify one coherent responsibility at a time.
+1. Replace the version-carrying-only filesystem overlay with versionless source overrides composed
+   with optional editor metadata.
+2. Introduce one runtime contract, move syntax-to-semantic primitive binding into declaration
+   lowering, and remove target-program's source dependencies.
+3. Close MIR's backend environment and remove machine's target-program dependency and executable
+   escape hatch.
+4. Replace MIR navigation through executable/target/checked storage with explicit semantic query
+   contracts.
+5. Perform the adversarial second review, then repeat incremental and clean qualification.
 
 ## Guardrails
 
