@@ -23,6 +23,7 @@ mod build;
 mod callable_invocation;
 mod closure_layout;
 mod primitive_dependency;
+mod semantic_environment;
 mod sequence_pack;
 mod signature;
 mod type_representation;
@@ -479,7 +480,8 @@ impl ExecutableProgram {
     }
 
     #[must_use]
-    pub fn target(&self) -> &TargetProgram {
+    #[cfg(test)]
+    pub(crate) fn target(&self) -> &TargetProgram {
         self.target.as_ref()
     }
 

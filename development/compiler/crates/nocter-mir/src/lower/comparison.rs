@@ -224,8 +224,7 @@ impl FunctionLowerer<'_> {
                 .ok_or(MirLoweringError::InvalidDispatch(operand.value())),
             ReadonlyOperandPreparation::UseReadonlyBorrow => self.concrete_type(source),
             ReadonlyOperandPreparation::WeakenReadwriteBorrow => {
-                let Some(TypeKind::Borrow { referent, .. }) =
-                    self.executable.target().checked().types().get(source)
+                let Some(TypeKind::Borrow { referent, .. }) = self.executable.types().get(source)
                 else {
                     return Err(MirLoweringError::InvalidDispatch(operand.value()));
                 };

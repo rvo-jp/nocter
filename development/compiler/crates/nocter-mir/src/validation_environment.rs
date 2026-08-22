@@ -1,12 +1,12 @@
 use nocter_declarations::{
-    CallableKind, FieldDeclaration, NominalTypeDeclaration, OpaqueTypeDeclaration, Parameter,
+    FieldDeclaration, NominalTypeDeclaration, OpaqueTypeDeclaration, Parameter,
     StandardDeclarationRole, VariantDeclaration,
 };
 use nocter_model::{
     CaptureId, ExecutableItemId, FieldId, NominalTypeId, OpaqueTypeId, ParameterId, TypeId,
     TypeStore, VariantId,
 };
-use nocter_target_program::{ExecutableClosureLayout, ExecutableItemKey, ExecutableProgram};
+use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 
 /// The immutable semantic authority required to validate one MIR function.
 ///
@@ -56,73 +56,35 @@ impl MirValidationEnvironment for ExecutableProgram {
     }
 
     fn item_accepts_allocation_override(&self, item: ExecutableItemId) -> bool {
-        let Some(ExecutableItemKey::Callable(key)) = self
-            .items()
-            .get(item)
-            .map(nocter_target_program::ExecutableItem::key)
-        else {
-            return false;
-        };
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .callables()
-            .get(key.callable())
-            .is_some_and(|callable| matches!(callable.kind(), CallableKind::Literal(_)))
+        ExecutableProgram::item_accepts_allocation_override(self, item)
     }
 
     fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .nominal_types()
-            .get(id)
+        ExecutableProgram::nominal_type(self, id)
     }
 
     fn opaque_type(&self, id: OpaqueTypeId) -> Option<&OpaqueTypeDeclaration> {
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .opaque_types()
-            .get(id)
+        ExecutableProgram::opaque_type(self, id)
     }
 
     fn opaque_witness(&self, id: OpaqueTypeId) -> Option<TypeId> {
-        self.target().checked().opaque_witnesses().get(id)
+        ExecutableProgram::opaque_witness(self, id)
     }
 
     fn field(&self, id: FieldId) -> Option<&FieldDeclaration> {
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .fields()
-            .get(id)
+        ExecutableProgram::field(self, id)
     }
 
     fn variant(&self, id: VariantId) -> Option<&VariantDeclaration> {
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .variants()
-            .get(id)
+        ExecutableProgram::variant(self, id)
     }
 
     fn parameter(&self, id: ParameterId) -> Option<&Parameter> {
-        self.target()
-            .checked()
-            .graph()
-            .declarations()
-            .parameters()
-            .get(id)
+        ExecutableProgram::parameter(self, id)
     }
 
     fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
-        self.target().checked().standard_semantics().nominal(role)
+        ExecutableProgram::standard_nominal(self, role)
     }
 
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {

@@ -24,10 +24,7 @@ pub(super) fn lower_function(
     item: &ExecutableItem,
 ) -> Result<MirFunction, MirLoweringError> {
     let checked = executable
-        .target()
-        .checked()
-        .bodies()
-        .get(item.body().body())
+        .checked_body(item.body().body())
         .ok_or(MirLoweringError::UnknownBody(item.body().body()))?;
     let mut lowerer = FunctionLowerer::new(executable, item_id, item, checked)?;
     lowerer.prepare_cleanup_flags()?;
