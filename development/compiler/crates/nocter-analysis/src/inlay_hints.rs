@@ -9,6 +9,7 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::AnalysisSnapshot;
+use crate::callable_source::project_callable_source;
 use crate::presentation::type_presentation;
 use crate::source_context::{SourceContext, SourceContextError};
 
@@ -56,6 +57,7 @@ pub enum SemanticInlayHintError {
     },
     MissingCallable(nocter_model::CallableId),
     MissingCallableProvenance(nocter_model::CallableId),
+    InvalidCallableSource(nocter_model::CallableId),
     MissingParameter(nocter_model::ParameterId),
     UnknownSymbol(nocter_model::Symbol),
     UnrenderableType(SemanticEntity),
@@ -81,6 +83,12 @@ impl fmt::Display for SemanticInlayHintError {
                     "inlay-hint provenance for {callable:?} is absent"
                 )
             }
+            Self::InvalidCallableSource(callable) => {
+                write!(
+                    formatter,
+                    "callable {callable:?} has no structural source projection"
+                )
+            }
             Self::MissingParameter(parameter) => {
                 write!(formatter, "inlay-hint parameter {parameter:?} is absent")
             }
@@ -103,6 +111,7 @@ impl std::error::Error for SemanticInlayHintError {
             | Self::MissingLocal { .. }
             | Self::MissingCallable(_)
             | Self::MissingCallableProvenance(_)
+            | Self::InvalidCallableSource(_)
             | Self::MissingParameter(_)
             | Self::UnknownSymbol(_)
             | Self::UnrenderableType(_) => None,
@@ -235,10 +244,12 @@ impl InlayContext<'_> {
             if provenance.origins().is_empty() {
                 continue;
             }
-            let Some(position) = callable_result_end(self.syntax, binding.origin().span().range())
-            else {
-                continue;
-            };
+            let projection =
+                project_callable_source(self.syntax, binding.origin().syntax(), declaration.kind())
+                    .ok_or(SemanticInlayHintError::InvalidCallableSource(callable))?;
+            let position = projection
+                .result_end()
+                .ok_or(SemanticInlayHintError::InvalidCallableSource(callable))?;
             if !contains_position(self.requested, position) {
                 continue;
             }
@@ -281,79 +292,6 @@ const fn contains_position(range: TextRange, position: ByteOffset) -> bool {
     range.start().get() <= position.get() && position.get() <= range.end().get()
 }
 
-fn callable_result_end(syntax: &SyntaxTree, name: TextRange) -> Option<ByteOffset> {
-    let owner = syntax
-        .nodes()
-        .filter(|(_, node)| callable_node(node.kind()) && contains(node.range(), name))
-        .min_by_key(|(_, node)| node.range().end().get() - node.range().start().get())?
-        .0;
-    let owner_range = syntax.node(owner)?.range();
-    let tail = syntax
-        .nodes()
-        .filter(|(_, node)| {
-            node.kind() == NodeKind::CallableTail && contains(owner_range, node.range())
-        })
-        .min_by_key(|(_, node)| node.range().end().get() - node.range().start().get())
-        .map(|(tail, _)| tail);
-    let Some(tail) = tail else {
-        return operator_result_end(syntax, owner);
-    };
-    let mut end = syntax.node(tail)?.range().start();
-    for element in syntax.children(tail) {
-        match element {
-            SyntaxElement::Node(child)
-                if matches!(
-                    syntax.node(*child)?.kind(),
-                    NodeKind::ProvenanceClause | NodeKind::WhereClause
-                ) =>
-            {
-                break;
-            }
-            SyntaxElement::Node(child) => end = syntax.node(*child)?.range().end(),
-            SyntaxElement::Token(token) => end = token.range().end(),
-            SyntaxElement::Missing(missing) => end = missing.span().range().end(),
-        }
-    }
-    Some(end)
-}
-
-const fn callable_node(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FunctionDeclaration
-            | NodeKind::PrimitiveDeclaration
-            | NodeKind::InterfaceMethod
-            | NodeKind::ConstructionFunction
-            | NodeKind::LiteralDeclaration
-            | NodeKind::InherentMethod
-            | NodeKind::ConformMethod
-            | NodeKind::EqualityOperator
-            | NodeKind::OrderingOperator
-            | NodeKind::IndexOperator
-            | NodeKind::ExpansionOperator
-    )
-}
-
-fn operator_result_end(syntax: &SyntaxTree, owner: nocter_syntax::NodeId) -> Option<ByteOffset> {
-    let mut result = None;
-    for element in syntax.children(owner) {
-        let SyntaxElement::Node(child) = element else {
-            continue;
-        };
-        let node = syntax.node(*child)?;
-        match node.kind() {
-            NodeKind::ProvenanceClause | NodeKind::WhereClause | NodeKind::Block => break,
-            NodeKind::Type | NodeKind::BorrowType => result = Some(node.range().end()),
-            _ => {}
-        }
-    }
-    result
-}
-
-const fn contains(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
-}
-
 fn annotated_binding_targets(syntax: &SyntaxTree) -> BTreeSet<TextRange> {
     syntax
         .nodes()
@@ -376,36 +314,4 @@ fn annotated_binding_targets(syntax: &SyntaxTree) -> BTreeSet<TextRange> {
             annotation.then_some(target).flatten()
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
-    use nocter_syntax::{ParseGoal, parse};
-
-    use super::callable_result_end;
-
-    #[test]
-    fn operator_provenance_hint_follows_the_direct_result_type() {
-        let text = concat!(
-            "instance Box<T> {\n",
-            "    operator (&self[index: usize]): &T { return &self.value }\n",
-            "}\n",
-        );
-        let mut sources = SourceMap::new();
-        let source = sources
-            .add_bytes(SourceName::new("index.nct"), text.as_bytes())
-            .unwrap();
-        let syntax = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
-        assert!(!syntax.has_errors(), "{:?}", syntax.diagnostics());
-        let anchor = u32::try_from(text.find("operator").unwrap()).unwrap();
-        let expected = u32::try_from(text.find("&T {").unwrap() + 2).unwrap();
-        assert_eq!(
-            callable_result_end(
-                &syntax,
-                TextRange::new(ByteOffset::new(anchor), ByteOffset::new(anchor + 8)),
-            ),
-            Some(ByteOffset::new(expected))
-        );
-    }
 }

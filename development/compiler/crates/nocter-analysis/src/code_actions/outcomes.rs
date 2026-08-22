@@ -1,11 +1,11 @@
 use std::fmt;
 
-use nocter_declarations::{BodyOwner, CallableKind};
+use nocter_declarations::BodyOwner;
 use nocter_source::{SourceId, TextRange};
-use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_source_index::{SemanticEntity, SourceRole};
 
 use super::SemanticCodeAction;
+use crate::callable_source::project_callable_source;
 use crate::presentation::recovery_type_presentation;
 use crate::{AnalysisSnapshot, SemanticSourceEdit};
 
@@ -109,13 +109,9 @@ pub(super) fn callable_contract_action(
         .iter()
         .find(|tree| tree.source() == requested_source)
         .ok_or(OutcomeActionError::MissingSyntax(requested_source))?;
-    let declaration = callable_declaration(
-        syntax,
-        binding.origin().syntax(),
-        interruption.origin().span().range(),
-    )
-    .ok_or(OutcomeActionError::InvalidCallableSource)?;
-    let Some(result) = callable_result(syntax, declaration, callable_id, callable.kind())? else {
+    let projection = project_callable_source(syntax, binding.origin().syntax(), callable.kind())
+        .ok_or(OutcomeActionError::InvalidCallableSource)?;
+    let Some(result) = projection.editable_result() else {
         return Ok(None);
     };
     let result_range = syntax
@@ -142,103 +138,4 @@ pub(super) fn callable_contract_action(
             presentation.code(),
         )]),
     }))
-}
-
-fn callable_declaration(
-    syntax: &SyntaxTree,
-    binding: SyntaxOrigin,
-    failure: TextRange,
-) -> Option<NodeId> {
-    let binding = match binding {
-        SyntaxOrigin::Node(node) => syntax.node(node)?.range(),
-        SyntaxOrigin::Token(token) => token.range(),
-    };
-    syntax
-        .nodes()
-        .filter(|(_, node)| {
-            callable_declaration_kind(node.kind())
-                && contains(node.range(), binding)
-                && contains(node.range(), failure)
-        })
-        .min_by_key(|(_, node)| range_length(node.range()))
-        .map(|(id, _)| id)
-}
-
-fn callable_result(
-    syntax: &SyntaxTree,
-    declaration: NodeId,
-    callable: nocter_model::CallableId,
-    kind: CallableKind,
-) -> Result<Option<NodeId>, OutcomeActionError> {
-    match kind {
-        CallableKind::Function | CallableKind::ConstructionFunction | CallableKind::Literal(_) => {
-            let tail = required_direct_node(syntax, declaration, NodeKind::CallableTail, callable)?;
-            required_direct_node(syntax, tail, NodeKind::Type, callable).map(Some)
-        }
-        CallableKind::Method => {
-            let signature =
-                required_direct_node(syntax, declaration, NodeKind::MethodSignature, callable)?;
-            let tail = required_direct_node(syntax, signature, NodeKind::CallableTail, callable)?;
-            required_direct_node(syntax, tail, NodeKind::Type, callable).map(Some)
-        }
-        CallableKind::Coercion | CallableKind::Expansion => {
-            required_direct_node(syntax, declaration, NodeKind::Type, callable).map(Some)
-        }
-        // These operator contracts have fixed or grammar-restricted result shapes. Changing them
-        // is not a callable-result repair even when their implementation contains postfix `?`.
-        CallableKind::Primitive
-        | CallableKind::Equality
-        | CallableKind::Ordering
-        | CallableKind::Index => Ok(None),
-    }
-}
-
-fn required_direct_node(
-    syntax: &SyntaxTree,
-    parent: NodeId,
-    kind: NodeKind,
-    callable: nocter_model::CallableId,
-) -> Result<NodeId, OutcomeActionError> {
-    direct_node(syntax, parent, kind).ok_or(OutcomeActionError::MissingResultType(callable))
-}
-
-fn direct_node(syntax: &SyntaxTree, parent: NodeId, kind: NodeKind) -> Option<NodeId> {
-    syntax
-        .children(parent)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(node)
-                if syntax
-                    .node(*node)
-                    .is_some_and(|candidate| candidate.kind() == kind) =>
-            {
-                Some(*node)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-}
-
-const fn callable_declaration_kind(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FunctionDeclaration
-            | NodeKind::InterfaceMethod
-            | NodeKind::ConstructionFunction
-            | NodeKind::LiteralDeclaration
-            | NodeKind::InherentMethod
-            | NodeKind::CoercionDeclaration
-            | NodeKind::EqualityOperator
-            | NodeKind::OrderingOperator
-            | NodeKind::IndexOperator
-            | NodeKind::ExpansionOperator
-            | NodeKind::ConformMethod
-    )
-}
-
-const fn contains(outer: TextRange, inner: TextRange) -> bool {
-    outer.start().get() <= inner.start().get() && inner.end().get() <= outer.end().get()
-}
-
-const fn range_length(range: TextRange) -> u32 {
-    range.end().get() - range.start().get()
 }

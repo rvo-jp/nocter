@@ -16,6 +16,7 @@ use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
+mod callable_source;
 mod code_actions;
 mod completion;
 mod documents;

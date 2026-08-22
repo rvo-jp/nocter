@@ -188,6 +188,10 @@ implementation input.
    annotations suppress redundant type and `from` hints. Only source-expressible receiver and
    parameter origins cross the boundary; ambient allocation and temporary provenance remain
    internal. LSP validates the requested UTF-16 range and performs coordinate projection only.
+   Callable source result projection is now one shared declaration-kind authority for provenance
+   hints and callable-outcome edits. It follows direct callable/method tails, includes coercion,
+   index, and expansion results, and exposes edit nodes separately from presentation endpoints.
+   Nested closure tails cannot be selected for an enclosing callable.
    Compiler-owned automatic-import code actions now select exact unresolved-name diagnostics from
    the current failed generation and reuse their semantic import candidates. `SemanticSourceEdit`
    keeps source identity, byte range, and replacement inseparable. A shared language-server edit

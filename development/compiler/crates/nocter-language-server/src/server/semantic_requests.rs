@@ -1520,9 +1520,16 @@ mod tests {
         let temporary = TemporaryDirectory::new();
         let source_path = temporary.path().join("main.nct");
         let source = concat!(
-            "func view(text: &str): &str { return text }\n",
+            "func view(text: &str): &str {\n",
+            "    let closure = (): bool { true }\n",
+            "    text\n",
+            "}\n",
             "func explicit(text: &str): &str from text { return text }\n",
             "func main(): void { return }\n",
+            "struct Text { value: &str }\n",
+            "instance Text {\n",
+            "    pub coerce &self as &str { self.value }\n",
+            "}\n",
         );
         std::fs::write(&source_path, source).unwrap();
         let uri = format!("file://{}", source_path.display());
@@ -1544,7 +1551,7 @@ mod tests {
                 "\"method\":\"textDocument/inlayHint\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
                 "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
-                "\"end\":{{\"line\":2,\"character\":28}}}}}}}}"
+                "\"end\":{{\"line\":9,\"character\":1}}}}}}}}"
             ),
             uri = uri,
         ));
@@ -1557,7 +1564,14 @@ mod tests {
             "{response}"
         );
         assert_eq!(response.matches(" from text").count(), 1, "{response}");
-        assert!(!response.contains("\"line\":1"), "{response}");
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":8,\"character\":28},",
+                "\"label\":\" from self\""
+            )),
+            "{response}"
+        );
+        assert!(!response.contains("\"line\":4"), "{response}");
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 

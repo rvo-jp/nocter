@@ -1246,3 +1246,11 @@ by the declaration kind's direct CST path; it does not search the declaration ra
 `CallableTail`. Fixed-result and grammar-restricted operators are explicitly non-editable. The
 shared speculative transaction remains the final authority, so a contract change that creates a
 public-call, conformance, provenance, or body error is not exposed.
+
+That declaration-kind path now belongs to one `CallableSourceProjection` authority shared by
+source mutation and inlay presentation. It selects the semantic callable's exact declaration from
+its `SourceIndex` origin, exposes an editable result node only when that callable grammar permits
+replacement, and separately exposes the end of every source-visible result. Ordinary callable
+tails are traversed directly through their declaration or method signature; nested closure tails
+are unreachable. Coercion, index, and expansion results therefore receive the same provenance-hint
+placement without making fixed index results editable.

@@ -227,6 +227,9 @@ appear after a callable result type only for compiler-inferred external origins 
 `from self` or `from parameter`; an explicit `from` clause suppresses the hint. Fresh/current
 allocation, temporary storage, and other compiler-owned provenance never become inlay source
 syntax. The language server performs no second type or provenance inference pass.
+Result positions follow the callable declaration's structural grammar. A nested closure result
+never receives the surrounding callable's provenance hint, while coercion, index, and expansion
+results participate when their inferred provenance has a source-visible external origin.
 
 ## Incomplete Source Recovery
 
