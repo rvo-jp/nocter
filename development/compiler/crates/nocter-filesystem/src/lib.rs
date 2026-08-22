@@ -27,11 +27,34 @@ impl DocumentVersion {
     }
 }
 
+/// One immutable byte value selected ahead of disk content.
+///
+/// This contract deliberately carries no editor version. Compiler transactions, generated source
+/// previews, and tests can override bytes without inventing protocol state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceOverride {
+    bytes: Arc<[u8]>,
+}
+
+impl SourceOverride {
+    #[must_use]
+    pub fn new(bytes: impl Into<Arc<[u8]>>) -> Self {
+        Self {
+            bytes: bytes.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
 /// One immutable open-document value selected ahead of disk content.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OpenDocument {
     version: DocumentVersion,
-    bytes: Arc<[u8]>,
+    source: SourceOverride,
 }
 
 impl OpenDocument {
@@ -39,7 +62,7 @@ impl OpenDocument {
     pub fn new(version: DocumentVersion, bytes: impl Into<Arc<[u8]>>) -> Self {
         Self {
             version,
-            bytes: bytes.into(),
+            source: SourceOverride::new(bytes),
         }
     }
 
@@ -50,17 +73,45 @@ impl OpenDocument {
 
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
-        &self.bytes
+        self.source.bytes()
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> &SourceOverride {
+        &self.source
     }
 }
 
-/// A read-only map of canonical absolute source paths to accepted editor versions.
+#[derive(Clone, Debug)]
+enum OverlayEntry {
+    Source(SourceOverride),
+    Document(OpenDocument),
+}
+
+impl OverlayEntry {
+    const fn source(&self) -> &SourceOverride {
+        match self {
+            Self::Source(source) => source,
+            Self::Document(document) => document.source(),
+        }
+    }
+
+    const fn document(&self) -> Option<&OpenDocument> {
+        match self {
+            Self::Source(_) => None,
+            Self::Document(document) => Some(document),
+        }
+    }
+}
+
+/// A read-only map of canonical absolute source paths to immutable byte overrides.
 ///
-/// Clones share the complete immutable map. Reads of paths absent from the map fall back to disk;
-/// writes, fetches, and lock generation deliberately have no API here.
+/// An entry may additionally retain a real accepted editor version. Clones share the complete
+/// immutable map. Reads of paths absent from the map fall back to disk; writes, fetches, and lock
+/// generation deliberately have no API here.
 #[derive(Clone, Debug, Default)]
 pub struct SourceOverlay {
-    documents: Arc<BTreeMap<PathBuf, OpenDocument>>,
+    entries: Arc<BTreeMap<PathBuf, OverlayEntry>>,
 }
 
 impl SourceOverlay {
@@ -76,37 +127,40 @@ impl SourceOverlay {
 
     #[must_use]
     pub fn document(&self, canonical_path: &Path) -> Option<&OpenDocument> {
-        self.documents.get(canonical_path)
+        self.entries.get(canonical_path)?.document()
     }
 
-    /// Iterates the complete accepted document set in canonical path order.
-    ///
-    /// This is used to derive speculative read-only overlays without mutating the accepted editor
-    /// generation or falling back to disk for another open document.
-    pub fn documents(&self) -> impl Iterator<Item = (&Path, &OpenDocument)> {
-        self.documents
+    /// Returns the selected override independently of any editor metadata.
+    #[must_use]
+    pub fn source(&self, canonical_path: &Path) -> Option<&SourceOverride> {
+        self.entries.get(canonical_path).map(OverlayEntry::source)
+    }
+
+    /// Iterates the complete byte-override set in canonical path order.
+    pub fn sources(&self) -> impl Iterator<Item = (&Path, &SourceOverride)> {
+        self.entries
             .iter()
-            .map(|(path, document)| (path.as_path(), document))
+            .map(|(path, entry)| (path.as_path(), entry.source()))
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.documents.len()
+        self.entries.len()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.documents.is_empty()
+        self.entries.is_empty()
     }
 
-    /// Reads the accepted open-document bytes or falls back to the corresponding disk file.
+    /// Reads the selected override bytes or falls back to the corresponding disk file.
     ///
     /// # Errors
     ///
     /// Returns the disk read error when no open document owns `path`.
     pub fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
-        if let Some(document) = self.documents.get(path) {
-            return Ok(document.bytes().to_vec());
+        if let Some(entry) = self.entries.get(path) {
+            return Ok(entry.source().bytes().to_vec());
         }
         fs::read(path)
     }
@@ -117,7 +171,7 @@ impl SourceOverlay {
     ///
     /// Returns a disk metadata error other than absence when `path` is not overlaid.
     pub fn is_file(&self, path: &Path) -> io::Result<bool> {
-        if self.documents.contains_key(path) {
+        if self.entries.contains_key(path) {
             return Ok(true);
         }
         match fs::metadata(path) {
@@ -134,7 +188,7 @@ impl SourceOverlay {
     /// Returns the disk canonicalization error when the path is neither present on disk nor an
     /// exact overlay key.
     pub fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        if self.documents.contains_key(path) {
+        if self.entries.contains_key(path) {
             return Ok(path.to_path_buf());
         }
         fs::canonicalize(path)
@@ -144,7 +198,7 @@ impl SourceOverlay {
 /// Consumed builder for one immutable source overlay.
 #[derive(Debug, Default)]
 pub struct SourceOverlayBuilder {
-    documents: BTreeMap<PathBuf, OpenDocument>,
+    entries: BTreeMap<PathBuf, OverlayEntry>,
 }
 
 impl SourceOverlayBuilder {
@@ -158,14 +212,34 @@ impl SourceOverlayBuilder {
     /// # Errors
     ///
     /// Returns an error for a relative or lexically non-canonical path, or a duplicate document.
-    pub fn insert(
+    pub fn insert_source(
+        &mut self,
+        canonical_path: impl Into<PathBuf>,
+        source: SourceOverride,
+    ) -> Result<(), SourceOverlayError> {
+        self.insert_entry(canonical_path.into(), OverlayEntry::Source(source))
+    }
+
+    /// Adds one canonical absolute versioned editor document exactly once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a relative or lexically non-canonical path, or a duplicate override.
+    pub fn insert_document(
         &mut self,
         canonical_path: impl Into<PathBuf>,
         document: OpenDocument,
     ) -> Result<(), SourceOverlayError> {
-        let path = canonical_path.into();
+        self.insert_entry(canonical_path.into(), OverlayEntry::Document(document))
+    }
+
+    fn insert_entry(
+        &mut self,
+        path: PathBuf,
+        entry: OverlayEntry,
+    ) -> Result<(), SourceOverlayError> {
         validate_canonical_path(&path)?;
-        if self.documents.insert(path.clone(), document).is_some() {
+        if self.entries.insert(path.clone(), entry).is_some() {
             return Err(SourceOverlayError::DuplicatePath(path));
         }
         Ok(())
@@ -174,7 +248,7 @@ impl SourceOverlayBuilder {
     #[must_use]
     pub fn finish(self) -> SourceOverlay {
         SourceOverlay {
-            documents: Arc::new(self.documents),
+            entries: Arc::new(self.entries),
         }
     }
 }
@@ -240,7 +314,7 @@ mod tests {
         let path = fs::canonicalize(path).unwrap();
         let mut builder = SourceOverlay::builder();
         builder
-            .insert(
+            .insert_document(
                 path.clone(),
                 OpenDocument::new(DocumentVersion::new(7), &b"editor"[..]),
             )
@@ -265,7 +339,7 @@ mod tests {
         let virtual_path = directory.path().join("virtual.nct");
         let mut builder = SourceOverlay::builder();
         builder
-            .insert(
+            .insert_document(
                 virtual_path.clone(),
                 OpenDocument::new(DocumentVersion::new(1), &b"virtual"[..]),
             )
@@ -279,10 +353,24 @@ mod tests {
     }
 
     #[test]
+    fn versionless_override_never_fabricates_an_open_document() {
+        let path = PathBuf::from("/tmp/nocter-generated-source.nct");
+        let mut builder = SourceOverlay::builder();
+        builder
+            .insert_source(path.clone(), super::SourceOverride::new(&b"candidate"[..]))
+            .unwrap();
+        let overlay = builder.finish();
+
+        assert_eq!(overlay.source(&path).unwrap().bytes(), b"candidate");
+        assert_eq!(overlay.read(&path).unwrap(), b"candidate");
+        assert!(overlay.document(&path).is_none());
+    }
+
+    #[test]
     fn builder_rejects_ambiguous_and_duplicate_path_identity() {
         let mut builder = SourceOverlay::builder();
         assert!(matches!(
-            builder.insert(
+            builder.insert_document(
                 "relative.nct",
                 OpenDocument::new(DocumentVersion::new(1), &b"one"[..])
             ),
@@ -290,13 +378,13 @@ mod tests {
         ));
         let path = PathBuf::from("/tmp/nocter-overlay.nct");
         builder
-            .insert(
+            .insert_document(
                 path.clone(),
                 OpenDocument::new(DocumentVersion::new(1), &b"one"[..]),
             )
             .unwrap();
         assert!(matches!(
-            builder.insert(
+            builder.insert_document(
                 path,
                 OpenDocument::new(DocumentVersion::new(2), &b"two"[..])
             ),

@@ -85,13 +85,13 @@ fn one_open_document_overlay_flows_from_package_data_through_module_discovery() 
     let root_source = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
     overlay
-        .insert(
+        .insert_document(
             manifest.clone(),
             OpenDocument::new(DocumentVersion::new(4), &b"#name: \"editor-name\"\n"[..]),
         )
         .unwrap();
     overlay
-        .insert(
+        .insert_document(
             root_source.clone(),
             OpenDocument::new(
                 DocumentVersion::new(9),

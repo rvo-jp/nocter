@@ -3,7 +3,9 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use nocter_analysis::{AnalysisSnapshot, SemanticSourceEdit};
-use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError};
+use nocter_filesystem::{
+    DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError, SourceOverride,
+};
 use nocter_json::Value;
 use nocter_lsp::{
     DocumentEdit, DocumentUri, DocumentUriError, Position, Range, TextEdit, workspace_edit_result,
@@ -20,15 +22,19 @@ pub(crate) fn candidate_overlay(
     edits: &[SemanticSourceEdit],
 ) -> Result<SourceOverlay, WorkspaceEditError> {
     let grouped = grouped_edits(edits)?;
-    let mut documents = BTreeMap::new();
-    for (path, document) in snapshot.source_overlay().documents() {
-        documents.insert(path.to_path_buf(), document.clone());
+    let mut sources = BTreeMap::new();
+    for (path, source) in snapshot.source_overlay().sources() {
+        sources.insert(
+            path.to_path_buf(),
+            (
+                snapshot.document_version(path),
+                SourceOverride::new(source.bytes()),
+            ),
+        );
     }
     for source in snapshot.sources().iter() {
         let path = PathBuf::from(source.name().as_str());
-        let version = snapshot
-            .document_version(&path)
-            .unwrap_or(DocumentVersion::new(0));
+        let version = snapshot.document_version(&path);
         let mut text = source.text().to_owned();
         if let Some(source_edits) = grouped.get(&source.id()) {
             for edit in source_edits.iter().rev() {
@@ -42,7 +48,7 @@ pub(crate) fn candidate_overlay(
                 text.replace_range(start..end, edit.new_text());
             }
         }
-        documents.insert(path, OpenDocument::new(version, text.into_bytes()));
+        sources.insert(path, (version, SourceOverride::new(text.into_bytes())));
     }
     for source in grouped.keys() {
         if snapshot.sources().get(*source).is_none() {
@@ -50,10 +56,14 @@ pub(crate) fn candidate_overlay(
         }
     }
     let mut builder = SourceOverlay::builder();
-    for (path, document) in documents {
-        builder
-            .insert(path, document)
-            .map_err(WorkspaceEditError::Overlay)?;
+    for (path, (version, source)) in sources {
+        match version {
+            Some(version) => {
+                builder.insert_document(path, OpenDocument::new(version, source.bytes()))
+            }
+            None => builder.insert_source(path, source),
+        }
+        .map_err(WorkspaceEditError::Overlay)?;
     }
     Ok(builder.finish())
 }

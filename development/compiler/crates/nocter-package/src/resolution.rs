@@ -848,7 +848,7 @@ mod tests {
         let manifest = fs::canonicalize(tree.0.join("app/nocter.nct")).unwrap();
         let mut overlay = SourceOverlay::builder();
         overlay
-            .insert(
+            .insert_document(
                 manifest.clone(),
                 OpenDocument::new(
                     DocumentVersion::new(12),

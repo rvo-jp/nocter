@@ -175,7 +175,7 @@ impl WorkspaceDocuments {
         let mut builder = SourceOverlay::builder();
         for (path, document) in &candidate {
             builder
-                .insert(path.clone(), document.clone())
+                .insert_document(path.clone(), document.clone())
                 .map_err(DocumentStateError::InvalidPath)?;
         }
         let source_overlay = builder.finish();

@@ -20,7 +20,7 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     let source_path = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
     overlay
-        .insert(
+        .insert_document(
             source_path.clone(),
             OpenDocument::new(DocumentVersion::new(18), &b"func newer(: void {}\n"[..]),
         )
@@ -66,7 +66,7 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     let source_path = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
     overlay
-        .insert(
+        .insert_document(
             source_path.clone(),
             OpenDocument::new(DocumentVersion::new(23), &b"use ./missing\n"[..]),
         )
