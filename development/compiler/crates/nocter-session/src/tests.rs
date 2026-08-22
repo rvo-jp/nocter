@@ -6,7 +6,7 @@ use nocter_compile_input::{ModuleIdentity, PackageIdentity};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_target_program::PrimitiveRole;
+use nocter_runtime_contract::PrimitiveRole;
 
 use super::{
     ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,

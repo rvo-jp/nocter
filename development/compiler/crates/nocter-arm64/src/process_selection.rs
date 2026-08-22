@@ -1,8 +1,9 @@
 use nocter_machine::{
     MachineArgumentLocation, MachineCallTarget, MachineContextRequirement, MachineFunctionId,
     MachineOperationId, MachinePrimitiveTarget, MachineResultAbi, MachineResultLocation,
-    MachineValueClass, PrimitiveRole,
+    MachineValueClass,
 };
+use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{
     Arm64FunctionFrame, Arm64NocterAbi, Arm64ProcessContextFrame, Arm64SelectedInstruction,

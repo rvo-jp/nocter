@@ -4,10 +4,10 @@ use nocter_checking::{
     prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    lower_compile_unit_declarations, lower_incomplete_body_declarations,
+    lower_compile_unit_declarations, lower_incomplete_body_declarations, resolve_primitive_bindings,
 };
 use nocter_discovery::DiscoveredUnit;
-use nocter_target_program::{PrimitiveRegistry, TargetProgram, ToolchainSnapshot};
+use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::{CompileSessionError, CompiledTarget};
 
@@ -143,7 +143,7 @@ fn analyze_target_internal(
         .ok_or(CompileSessionError::MissingStandardPackage)
         .map_err(without_prepared)
         .map_err(Box::new)?;
-    let primitives = PrimitiveRegistry::resolve(&primitive_roles, &source_index)
+    let primitives = resolve_primitive_bindings(&primitive_roles, &source_index)
         .map_err(CompileSessionError::from)
         .map_err(without_prepared)
         .map_err(Box::new)?;

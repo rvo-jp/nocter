@@ -1,4 +1,4 @@
-use nocter_target_program::TargetAbiIdentity;
+use nocter_runtime_contract::RuntimeAbiIdentity;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineEndianness {
@@ -22,9 +22,9 @@ pub struct MachineTarget {
 }
 
 impl MachineTarget {
-    pub(crate) const fn select(abi: TargetAbiIdentity) -> Self {
+    pub(crate) const fn select(abi: RuntimeAbiIdentity) -> Self {
         match abi {
-            TargetAbiIdentity::Arm64DarwinV1 => Self {
+            RuntimeAbiIdentity::Arm64DarwinV1 => Self {
                 word_size: 8,
                 pointer_size: 8,
                 pointer_alignment: 8,

@@ -2,107 +2,19 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution, is_concrete_type};
 use nocter_declarations::NominalShape;
-use nocter_model::{FieldId, OpaqueTypeId, ParameterId, TypeId, TypeKind, VariantId};
+use nocter_model::{OpaqueTypeId, TypeId, TypeKind};
+use nocter_runtime_contract::{
+    RuntimeFieldRepresentation, RuntimePayloadRepresentation, RuntimeTypeRepresentation,
+    RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
+};
 
 use super::ExecutableProgramError;
 use crate::TargetProgram;
 
-/// One concrete field type in declaration order.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ExecutableFieldRepresentation {
-    field: FieldId,
-    ty: TypeId,
-}
-
-impl ExecutableFieldRepresentation {
-    #[must_use]
-    pub const fn field(self) -> FieldId {
-        self.field
-    }
-
-    #[must_use]
-    pub const fn ty(self) -> TypeId {
-        self.ty
-    }
-}
-
-/// One concrete enum payload parameter type in declaration order.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ExecutablePayloadRepresentation {
-    parameter: ParameterId,
-    ty: TypeId,
-}
-
-impl ExecutablePayloadRepresentation {
-    #[must_use]
-    pub const fn parameter(self) -> ParameterId {
-        self.parameter
-    }
-
-    #[must_use]
-    pub const fn ty(self) -> TypeId {
-        self.ty
-    }
-}
-
-/// One concrete enum variant payload in declaration order.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutableVariantRepresentation {
-    variant: VariantId,
-    payload: Box<[ExecutablePayloadRepresentation]>,
-}
-
-impl ExecutableVariantRepresentation {
-    #[must_use]
-    pub const fn variant(&self) -> VariantId {
-        self.variant
-    }
-
-    #[must_use]
-    pub const fn payload(&self) -> &[ExecutablePayloadRepresentation] {
-        &self.payload
-    }
-}
-
-/// Representation children already specialized before ABI layout begins.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ExecutableTypeRepresentation {
-    Struct {
-        fields: Box<[ExecutableFieldRepresentation]>,
-    },
-    Enum {
-        variants: Box<[ExecutableVariantRepresentation]>,
-    },
-    Opaque {
-        definition: OpaqueTypeId,
-        witness: TypeId,
-    },
-}
-
-/// The sole concrete member/witness authority consumed by machine layout.
-#[derive(Debug, Default)]
-pub struct ExecutableTypeRepresentationTable {
-    entries: BTreeMap<TypeId, ExecutableTypeRepresentation>,
-}
-
-impl ExecutableTypeRepresentationTable {
-    #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&ExecutableTypeRepresentation> {
-        self.entries.get(&ty)
-    }
-
-    #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &ExecutableTypeRepresentation)> {
-        self.entries
-            .iter()
-            .map(|(ty, representation)| (*ty, representation))
-    }
-}
-
 pub(super) fn close_type_representations(
     target: &TargetProgram,
     resolver: &mut ConcreteDispatchResolver<'_>,
-) -> Result<ExecutableTypeRepresentationTable, ExecutableProgramError> {
+) -> Result<RuntimeTypeRepresentationTable, ExecutableProgramError> {
     let candidates = resolver
         .types()
         .iter()
@@ -171,7 +83,7 @@ pub(super) fn close_type_representations(
             entries.insert(ty, representation);
         }
     }
-    Ok(ExecutableTypeRepresentationTable { entries })
+    Ok(RuntimeTypeRepresentationTable::new(entries))
 }
 
 fn close_nominal(
@@ -181,7 +93,7 @@ fn close_nominal(
     definition: nocter_model::NominalTypeId,
     arguments: &[TypeId],
     pending: &mut BTreeSet<TypeId>,
-) -> Result<ExecutableTypeRepresentation, ExecutableProgramError> {
+) -> Result<RuntimeTypeRepresentation, ExecutableProgramError> {
     let declarations = target.checked().graph().declarations();
     let nominal = declarations
         .nominal_types()
@@ -201,14 +113,11 @@ fn close_nominal(
                         .ok_or(ExecutableProgramError::MissingRepresentationField(field))?;
                     let concrete = resolver.specialize_type(declaration.ty(), &substitution)?;
                     pending.insert(concrete);
-                    Ok(ExecutableFieldRepresentation {
-                        field,
-                        ty: concrete,
-                    })
+                    Ok(RuntimeFieldRepresentation::new(field, concrete))
                 })
                 .collect::<Result<Vec<_>, ExecutableProgramError>>()?
                 .into_boxed_slice();
-            Ok(ExecutableTypeRepresentation::Struct { fields })
+            Ok(RuntimeTypeRepresentation::Struct { fields })
         }
         NominalShape::Enum { variants } => {
             let variants = variants
@@ -229,18 +138,15 @@ fn close_nominal(
                             let concrete =
                                 resolver.specialize_type(declaration.ty(), &substitution)?;
                             pending.insert(concrete);
-                            Ok(ExecutablePayloadRepresentation {
-                                parameter,
-                                ty: concrete,
-                            })
+                            Ok(RuntimePayloadRepresentation::new(parameter, concrete))
                         })
                         .collect::<Result<Vec<_>, ExecutableProgramError>>()?
                         .into_boxed_slice();
-                    Ok(ExecutableVariantRepresentation { variant, payload })
+                    Ok(RuntimeVariantRepresentation::new(variant, payload))
                 })
                 .collect::<Result<Vec<_>, ExecutableProgramError>>()?
                 .into_boxed_slice();
-            Ok(ExecutableTypeRepresentation::Enum { variants })
+            Ok(RuntimeTypeRepresentation::Enum { variants })
         }
     }
 }
@@ -252,7 +158,7 @@ fn close_opaque(
     definition: OpaqueTypeId,
     arguments: &[TypeId],
     pending: &mut BTreeSet<TypeId>,
-) -> Result<ExecutableTypeRepresentation, ExecutableProgramError> {
+) -> Result<RuntimeTypeRepresentation, ExecutableProgramError> {
     let declaration = target
         .checked()
         .graph()
@@ -266,7 +172,7 @@ fn close_opaque(
     )?;
     let witness = resolver.specialize_type(witness, &substitution)?;
     pending.insert(witness);
-    Ok(ExecutableTypeRepresentation::Opaque {
+    Ok(RuntimeTypeRepresentation::Opaque {
         definition,
         witness,
     })

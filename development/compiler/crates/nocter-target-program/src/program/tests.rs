@@ -6,14 +6,13 @@ use nocter_checking::{
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::{BuiltinType, CompilationTarget, TypeKind};
+use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
 use nocter_test_support::CompilerFixture as Fixture;
 
-use super::{TargetProgram, TargetProgramError};
+use super::TargetProgram;
 use crate::{
-    CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, PrimitiveBinding,
-    PrimitiveContractRule, PrimitiveRegistry, PrimitiveRegistryValidationError, PrimitiveRole,
-    ProcessSuccessType, ToolchainSnapshot, collect_body_dependencies, select_executable_entry,
-    select_test_target,
+    CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, ProcessSuccessType,
+    ToolchainSnapshot, collect_body_dependencies, select_executable_entry, select_test_target,
 };
 
 mod executable;
@@ -475,7 +474,7 @@ fn test_target_selects_only_direct_cases_in_source_order() {
 }
 
 #[test]
-fn semantic_attachment_cannot_swap_same_shaped_primitive_names() {
+fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
     let fixture = Fixture::new();
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
@@ -504,14 +503,21 @@ fn semantic_attachment_cannot_swap_same_shaped_primitive_names() {
         PrimitiveRegistry::new(bindings).unwrap(),
     )
     .unwrap();
-    let error = TargetProgram::build(checked, snapshot).unwrap_err();
-    let TargetProgramError::PrimitiveRegistry(PrimitiveRegistryValidationError::Contract(error)) =
-        error
-    else {
-        panic!("unexpected target-program error")
-    };
-    assert_eq!(error.role(), PrimitiveRole::CurrentAllocatorState);
-    assert_eq!(error.rule(), PrimitiveContractRule::Name);
+    let target = TargetProgram::build(checked, snapshot).unwrap();
+    assert_eq!(
+        target
+            .toolchain()
+            .primitives()
+            .callable(PrimitiveRole::CurrentAllocatorState),
+        right_callable
+    );
+    assert_eq!(
+        target
+            .toolchain()
+            .primitives()
+            .callable(PrimitiveRole::CurrentAllocatorKind),
+        left_callable
+    );
 }
 
 fn build_target_program(fixture: &Fixture) -> TargetProgram {
@@ -602,7 +608,7 @@ fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry 
                     .iter()
                     .map(|segment| graph.symbols().spelling(*segment))
                     .collect::<Option<Vec<_>>>()?;
-                let (module, name) = crate::primitive_source_location(role);
+                let (module, name) = nocter_test_support::primitive_source_location(role);
                 (declaration.kind() == CallableKind::Primitive
                     && actual_path == module
                     && declaration

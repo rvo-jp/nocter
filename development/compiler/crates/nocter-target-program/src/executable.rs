@@ -14,7 +14,8 @@ use nocter_model::{
 use crate::{
     BodyDependencyError, CallableInstanceKey, CallableInstanceKeyError, CheckedDestruction,
     ClosureInstanceKey, ClosureInstanceKeyError, DropInstanceKey, DropInstanceKeyError,
-    EntrySelectionError, PrimitiveRole, ProcessResultContract, TargetProgram, TestSelectionError,
+    EntrySelectionError, PrimitiveRole, ProcessResultContract, RuntimeTypeRepresentationTable,
+    TargetProgram, TestSelectionError,
 };
 
 mod build;
@@ -34,10 +35,6 @@ pub use sequence_pack::{
 };
 pub use signature::{
     ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
-};
-pub use type_representation::{
-    ExecutableFieldRepresentation, ExecutablePayloadRepresentation, ExecutableTypeRepresentation,
-    ExecutableTypeRepresentationTable, ExecutableVariantRepresentation,
 };
 
 /// One canonical monomorphized source-body identity.
@@ -439,7 +436,7 @@ pub struct ExecutableProgram {
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     closure_layouts: BTreeMap<TypeId, ExecutableItemId>,
-    type_representations: ExecutableTypeRepresentationTable,
+    type_representations: RuntimeTypeRepresentationTable,
     root: ExecutableRoot,
 }
 
@@ -524,7 +521,7 @@ impl ExecutableProgram {
     }
 
     #[must_use]
-    pub const fn type_representations(&self) -> &ExecutableTypeRepresentationTable {
+    pub const fn type_representations(&self) -> &RuntimeTypeRepresentationTable {
         &self.type_representations
     }
 

@@ -1710,6 +1710,7 @@ dependencies = [
  "nocter-machine",
  "nocter-mir",
  "nocter-model",
+ "nocter-runtime-contract",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1751,6 +1752,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-declarations",
  "nocter-model",
+ "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
 ]
@@ -1767,6 +1769,7 @@ dependencies = [
  "nocter-macho",
  "nocter-mir",
  "nocter-model",
+ "nocter-runtime-contract",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1780,6 +1783,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-model",
  "nocter-package",
+ "nocter-runtime-contract",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
@@ -1815,11 +1819,13 @@ dependencies = [
  "nocter-filesystem",
  "nocter-model",
  "nocter-package",
+ "nocter-runtime-contract",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",
  "nocter-target-selection",
+ "nocter-test-support",
 ]
 
 [[package]]
@@ -1877,6 +1883,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-mir",
  "nocter-model",
+ "nocter-runtime-contract",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1897,6 +1904,7 @@ dependencies = [
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-model",
+ "nocter-runtime-contract",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1939,6 +1947,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-runtime-contract"
+version = "0.0.0"
+dependencies = [
+ "nocter-model",
+]
+
+[[package]]
 name = "nocter-session"
 version = "0.0.0"
 dependencies = [
@@ -1954,6 +1969,7 @@ dependencies = [
  "nocter-mir",
  "nocter-model",
  "nocter-package",
+ "nocter-runtime-contract",
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",
@@ -1994,11 +2010,10 @@ name = "nocter-target-program"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
- "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-model",
- "nocter-source-index",
+ "nocter-runtime-contract",
  "nocter-test-support",
 ]
 
@@ -2019,6 +2034,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-package",
+ "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
 ]

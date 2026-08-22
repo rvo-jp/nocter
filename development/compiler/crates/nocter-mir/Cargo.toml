@@ -10,6 +10,7 @@ publish = false
 nocter-checking = { path = "../nocter-checking" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
+nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]

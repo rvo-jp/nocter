@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
-use nocter_declarations::{PrimitiveRole, StandardDeclarationRole};
+use nocter_declarations::StandardDeclarationRole;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::CompilationTarget;
 use nocter_package::ResolvedPackageGraph;
+use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 /// The physical input shape selected by the command layer before source discovery.

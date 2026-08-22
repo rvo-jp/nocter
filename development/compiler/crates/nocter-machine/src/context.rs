@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_model::TypeId;
-use nocter_target_program::PrimitiveRole;
+use nocter_runtime_contract::PrimitiveRole;
 
 use crate::identity::MachineTable;
 use crate::{

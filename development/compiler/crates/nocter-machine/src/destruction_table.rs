@@ -4,7 +4,7 @@ use nocter_mir::{
     MirBody, MirCallTarget, MirOperationKind, MirPackSegment, MirPrimitiveDependency, MirProgram,
 };
 use nocter_model::{BuiltinType, ExecutableItemId, MirOperationId, TypeKind};
-use nocter_target_program::PrimitiveRole;
+use nocter_runtime_contract::PrimitiveRole;
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{

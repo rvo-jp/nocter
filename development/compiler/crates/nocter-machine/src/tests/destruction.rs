@@ -1,4 +1,4 @@
-use nocter_target_program::PrimitiveRole;
+use nocter_runtime_contract::PrimitiveRole;
 use nocter_test_support::CompilerFixture;
 
 use super::lower_selected_fixture;

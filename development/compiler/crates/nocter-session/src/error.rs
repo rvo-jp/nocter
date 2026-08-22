@@ -11,7 +11,7 @@ pub enum CompileSessionError {
     Checking(nocter_checking::BodyCheckError),
     MissingToolchainProfile,
     MissingStandardPackage,
-    Primitive(nocter_target_program::PrimitiveResolutionError),
+    Primitive(nocter_declaration_lowering::PrimitiveResolutionError),
     TargetUnavailable(nocter_target_program::TargetUnavailable),
     Target(nocter_target_program::TargetProgramError),
 }
@@ -110,8 +110,8 @@ impl From<nocter_checking::BodyCheckError> for CompileSessionError {
     }
 }
 
-impl From<nocter_target_program::PrimitiveResolutionError> for CompileSessionError {
-    fn from(error: nocter_target_program::PrimitiveResolutionError) -> Self {
+impl From<nocter_declaration_lowering::PrimitiveResolutionError> for CompileSessionError {
+    fn from(error: nocter_declaration_lowering::PrimitiveResolutionError) -> Self {
         Self::Primitive(error)
     }
 }

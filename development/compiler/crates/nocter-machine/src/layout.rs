@@ -5,7 +5,7 @@ use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
 use nocter_model::{
     BuiltinType, CaptureId, FieldId, ParameterId, TypeId, TypeKind, TypeStore, VariantId,
 };
-use nocter_target_program::ExecutableTypeRepresentation;
+use nocter_runtime_contract::RuntimeTypeRepresentation;
 
 use crate::MachineTarget;
 
@@ -379,7 +379,7 @@ impl LayoutBuilder<'_> {
                 )
             }
             TypeKind::Opaque { definition, .. } => {
-                let Some(ExecutableTypeRepresentation::Opaque {
+                let Some(RuntimeTypeRepresentation::Opaque {
                     definition: actual,
                     witness,
                 }) = self.program.executable().type_representations().get(ty)
@@ -456,7 +456,7 @@ impl LayoutBuilder<'_> {
             .cloned()
             .ok_or(MachineLayoutError::MissingRepresentation(ty))?;
         match representation {
-            ExecutableTypeRepresentation::Struct { fields } => {
+            RuntimeTypeRepresentation::Struct { fields } => {
                 let members = fields
                     .iter()
                     .map(|field| (field.field(), field.ty()))
@@ -479,7 +479,7 @@ impl LayoutBuilder<'_> {
                     kind: MachineLayoutKind::Struct { fields },
                 })
             }
-            ExecutableTypeRepresentation::Enum { variants } => {
+            RuntimeTypeRepresentation::Enum { variants } => {
                 if variants.is_empty() || variants.len() > 256 {
                     return Err(MachineLayoutError::InvalidRepresentation(ty));
                 }
@@ -540,7 +540,7 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
-            ExecutableTypeRepresentation::Opaque { .. } => {
+            RuntimeTypeRepresentation::Opaque { .. } => {
                 Err(MachineLayoutError::InvalidRepresentation(ty))
             }
         }

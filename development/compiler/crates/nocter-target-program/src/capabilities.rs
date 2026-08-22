@@ -1,17 +1,12 @@
 use std::fmt;
 
 use nocter_model::CompilationTarget;
+use nocter_runtime_contract::RuntimeAbiIdentity;
 
 /// The backend implementation selected by an immutable toolchain snapshot.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TargetBackendIdentity {
     Arm64V1,
-}
-
-/// The internal ABI implementation selected by an immutable toolchain snapshot.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum TargetAbiIdentity {
-    Arm64DarwinV1,
 }
 
 /// The executable writer selected by an immutable toolchain snapshot.
@@ -63,7 +58,7 @@ pub(crate) const fn capabilities_for(
 ) -> Result<
     (
         TargetBackendIdentity,
-        TargetAbiIdentity,
+        RuntimeAbiIdentity,
         ExecutableWriterIdentity,
     ),
     TargetUnavailable,
@@ -71,7 +66,7 @@ pub(crate) const fn capabilities_for(
     match target {
         CompilationTarget::Arm64Darwin => Ok((
             TargetBackendIdentity::Arm64V1,
-            TargetAbiIdentity::Arm64DarwinV1,
+            RuntimeAbiIdentity::Arm64DarwinV1,
             ExecutableWriterIdentity::Arm64MachOV1,
         )),
         CompilationTarget::X64Linux

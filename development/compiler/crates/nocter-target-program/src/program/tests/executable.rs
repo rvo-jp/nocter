@@ -1,12 +1,12 @@
 use nocter_checking::{CleanupTarget, ConcreteDestructionKind, SpreadMode, StaticDispatch};
 use nocter_declarations::{CallableKind, CallableOwner, LiteralShape};
 use nocter_model::BuiltinType;
+use nocter_runtime_contract::{PrimitiveRole, RuntimeTypeRepresentation};
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
     ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment,
-    ExecutableTypeRepresentation, PrimitiveRole,
 };
 
 #[test]
@@ -888,14 +888,14 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
             .get(*definition)
             .and_then(|nominal| graph.symbols().spelling(nominal.name()));
         match (name, representation) {
-            (Some("Pair"), ExecutableTypeRepresentation::Struct { fields }) => {
+            (Some("Pair"), RuntimeTypeRepresentation::Struct { fields }) => {
                 assert_eq!(
                     fields.iter().map(|field| field.ty()).collect::<Vec<_>>(),
                     [i32_, u8_]
                 );
                 pair_seen = true;
             }
-            (Some("Choice"), ExecutableTypeRepresentation::Enum { variants }) => {
+            (Some("Choice"), RuntimeTypeRepresentation::Enum { variants }) => {
                 assert_eq!(variants.len(), 2);
                 assert_eq!(
                     variants[0]

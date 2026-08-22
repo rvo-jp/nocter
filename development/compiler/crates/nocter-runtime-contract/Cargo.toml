@@ -1,0 +1,13 @@
+[package]
+name = "nocter-runtime-contract"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-model = { path = "../nocter-model" }
+
+[lints]
+workspace = true

@@ -19,6 +19,59 @@ construct error {
     }
 }
 ";
+
+/// Physical primitive locators belonging to the shared authored standard fixture.
+#[must_use]
+pub fn primitive_source_location(
+    role: nocter_runtime_contract::PrimitiveRole,
+) -> (&'static [&'static str], &'static str) {
+    use nocter_runtime_contract::PrimitiveRole as Role;
+
+    match role {
+        Role::NewError => (&["error"], "new_error"),
+        Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
+        Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
+        Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),
+        Role::PointerAddress => (&["ptr"], "addr"),
+        Role::PointerFromReference => (&["ptr"], "from_ref"),
+        Role::PointerFromReadWriteReference => (&["ptr"], "from_ref_mut"),
+        Role::PointerFromAddress => (&["ptr"], "from_addr"),
+        Role::PointeeSize => (&["ptr"], "pointee_size"),
+        Role::PointeeAlignment => (&["ptr"], "pointee_align"),
+        Role::CopyStringToPointer => (&["ptr"], "copy_str_to_ptr"),
+        Role::CopyPointerToPointer => (&["ptr"], "copy_ptr_to_ptr"),
+        Role::StoreByteToPointer => (&["ptr"], "store_u8_to_ptr"),
+        Role::StoreValueToPointer => (&["ptr"], "store_value_to_ptr"),
+        Role::DropValueAtPointer => (&["ptr"], "drop_value_at_ptr"),
+        Role::TakeValueAtPointer => (&["ptr"], "take_value_at_ptr"),
+        Role::StringFromRawParts => (&["ptr"], "str_from_raw_parts"),
+        Role::ByteSliceFromRawParts => (&["ptr"], "slice_from_raw_parts"),
+        Role::MutableByteSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_mut"),
+        Role::ValueSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_value"),
+        Role::MutableValueSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_value_mut"),
+        Role::BytesFromString => (&["string"], "bytes_from_str"),
+        Role::StringSubviewUnchecked => (&["string"], "str_subview_unchecked"),
+        Role::SliceLength => (&["slice"], "slice_len_raw"),
+        Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
+        Role::StringLength => (&["str"], "str_len_raw"),
+        Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
+        Role::ProcessExit => (&["process"], "exit_raw"),
+        Role::ProcessArgumentCount => (&["process"], "arg_count_raw"),
+        Role::ProcessArgument => (&["process"], "arg_raw"),
+        Role::ProcessEnvironmentCount => (&["process"], "env_count_raw"),
+        Role::ProcessEnvironmentName => (&["process"], "env_name_raw"),
+        Role::ProcessEnvironmentValue => (&["process"], "env_value_raw"),
+        Role::Syscall0 => (&["internal", "os"], "syscall0"),
+        Role::Syscall1 => (&["internal", "os"], "syscall1"),
+        Role::Syscall2 => (&["internal", "os"], "syscall2"),
+        Role::Syscall3 => (&["internal", "os"], "syscall3"),
+        Role::Syscall4 => (&["internal", "os"], "syscall4"),
+        Role::Syscall5 => (&["internal", "os"], "syscall5"),
+        Role::Syscall6 => (&["internal", "os"], "syscall6"),
+        Role::Trap => (&["internal", "os"], "trap"),
+        Role::Unreachable => (&["internal", "os"], "unreachable"),
+    }
+}
 const ITERATION_SOURCE: &str = "\
 pub interface Iterator {
     pub type Item

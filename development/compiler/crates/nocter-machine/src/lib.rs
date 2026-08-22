@@ -56,7 +56,6 @@ pub use linkage::{
     MachineLinkageTable, MachineRootLinkage, MachineTestLinkage,
 };
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};
-pub use nocter_target_program::PrimitiveRole;
 pub use operation::{
     MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineConstant,
     MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,

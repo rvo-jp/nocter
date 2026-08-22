@@ -1,7 +1,8 @@
 use std::fmt;
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
+use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 /// A toolchain-profile failure selected before semantic lowering.

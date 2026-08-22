@@ -4,10 +4,8 @@ use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_machine::MachineProgram;
 use nocter_mir::lower_executable;
 use nocter_model::CompilationTarget;
-use nocter_target_program::{
-    ExecutableProgram, PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, TargetProgram,
-    ToolchainSnapshot,
-};
+use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
+use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
 pub(crate) fn lower_machine(source: &str) -> MachineProgram {
@@ -68,7 +66,7 @@ fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveReg
                     .iter()
                     .map(|segment| graph.symbols().spelling(*segment))
                     .collect::<Option<Vec<_>>>()?;
-                let (module, name) = nocter_target_program::primitive_source_location(role);
+                let (module, name) = nocter_test_support::primitive_source_location(role);
                 (declaration.kind() == CallableKind::Primitive
                     && actual_path == module
                     && declaration

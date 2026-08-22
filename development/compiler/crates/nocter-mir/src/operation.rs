@@ -2,7 +2,7 @@ use nocter_model::{
     BorrowCapability, CaptureId, ExecutableItemId, FieldId, MirDropFlagId, MirLocalId, MirPlaceId,
     MirValueId, NominalTypeId, TypeId, VariantId,
 };
-use nocter_target_program::PrimitiveRole;
+use nocter_runtime_contract::PrimitiveRole;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirConstant {

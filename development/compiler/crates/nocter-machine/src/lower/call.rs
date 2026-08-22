@@ -62,7 +62,7 @@ pub(super) fn lower_call_target(
             signature,
             dependency,
         } => {
-            if *role == nocter_target_program::PrimitiveRole::DropValueAtPointer
+            if *role == nocter_runtime_contract::PrimitiveRole::DropValueAtPointer
                 && matches!(
                     dependency,
                     MirPrimitiveDependency::Destruction { plan: Some(_), .. }

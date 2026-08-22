@@ -6,10 +6,11 @@ use nocter_compile_input::{
     BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode,
     UseTargetInput,
 };
-use nocter_declarations::{BuiltinAttachment, PrimitiveRole, StandardDeclarationRole};
+use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::CompilationTarget;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 use crate::{
@@ -579,7 +580,7 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
         .iter()
         .copied()
         .map(|role| {
-            let (path, name) = nocter_target_program::primitive_source_location(role);
+            let (path, name) = nocter_test_support::primitive_source_location(role);
             PrimitiveRoleLocator::new(role, module(path), NodeKind::PrimitiveDeclaration, name)
         })
         .collect();

@@ -2,7 +2,7 @@ use nocter_model::{CompilationTarget, PackageId};
 
 use crate::capabilities::capabilities_for;
 use crate::{
-    ExecutableWriterIdentity, PrimitiveRegistry, TargetAbiIdentity, TargetBackendIdentity,
+    ExecutableWriterIdentity, PrimitiveRegistry, RuntimeAbiIdentity, TargetBackendIdentity,
     TargetUnavailable,
 };
 
@@ -14,7 +14,7 @@ use crate::{
 pub struct ToolchainSnapshot {
     target: CompilationTarget,
     backend: TargetBackendIdentity,
-    abi: TargetAbiIdentity,
+    abi: RuntimeAbiIdentity,
     executable_writer: ExecutableWriterIdentity,
     standard_package: PackageId,
     primitives: PrimitiveRegistry,
@@ -54,7 +54,7 @@ impl ToolchainSnapshot {
     }
 
     #[must_use]
-    pub const fn abi(&self) -> TargetAbiIdentity {
+    pub const fn abi(&self) -> RuntimeAbiIdentity {
         self.abi
     }
 
@@ -78,11 +78,11 @@ impl ToolchainSnapshot {
 mod tests {
     use nocter_declarations::{DeclarationArenaBuilder, DeclarationProgramBuilder};
     use nocter_model::{CompilationTarget, SymbolTable};
-
-    use crate::{
-        ExecutableWriterIdentity, PrimitiveBinding, PrimitiveRegistry, PrimitiveRole,
-        TargetAbiIdentity, TargetBackendIdentity, ToolchainSnapshot,
+    use nocter_runtime_contract::{
+        PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimeAbiIdentity,
     };
+
+    use crate::{ExecutableWriterIdentity, TargetBackendIdentity, ToolchainSnapshot};
 
     fn complete_registry() -> PrimitiveRegistry {
         let mut declarations = DeclarationArenaBuilder::new();
@@ -112,7 +112,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(snapshot.backend(), TargetBackendIdentity::Arm64V1);
-        assert_eq!(snapshot.abi(), TargetAbiIdentity::Arm64DarwinV1);
+        assert_eq!(snapshot.abi(), RuntimeAbiIdentity::Arm64DarwinV1);
         assert_eq!(
             snapshot.executable_writer(),
             ExecutableWriterIdentity::Arm64MachOV1

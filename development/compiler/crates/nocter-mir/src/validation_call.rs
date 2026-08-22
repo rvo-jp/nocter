@@ -77,13 +77,13 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
 
     fn validate_primitive_dependency(
         &self,
-        role: nocter_target_program::PrimitiveRole,
+        role: nocter_runtime_contract::PrimitiveRole,
         type_arguments: &[TypeId],
         dependency: &MirPrimitiveDependency,
     ) -> Result<(), MirValidationError> {
         match (role, dependency) {
             (
-                nocter_target_program::PrimitiveRole::DropValueAtPointer,
+                nocter_runtime_contract::PrimitiveRole::DropValueAtPointer,
                 MirPrimitiveDependency::Destruction { subject, plan },
             ) if type_arguments == [*subject] => {
                 self.require_type(*subject)?;
@@ -98,7 +98,7 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 }
                 Ok(())
             }
-            (nocter_target_program::PrimitiveRole::DropValueAtPointer, _)
+            (nocter_runtime_contract::PrimitiveRole::DropValueAtPointer, _)
             | (_, MirPrimitiveDependency::Destruction { .. }) => Err(self.invalid()),
             (_, MirPrimitiveDependency::None) => Ok(()),
         }

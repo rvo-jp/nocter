@@ -1,7 +1,8 @@
 use nocter_machine::{
     MachineArgumentLocation, MachineOperationId, MachinePrimitiveTarget, MachineResultAbi,
-    MachineResultLocation, MachineValueClass, PrimitiveRole,
+    MachineResultLocation, MachineValueClass,
 };
+use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{
     Arm64DataSize, Arm64NocterAbi, Arm64SelectedBinaryOperation, Arm64SelectedInstruction,

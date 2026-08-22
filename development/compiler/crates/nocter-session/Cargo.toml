@@ -21,6 +21,7 @@ nocter-model = { path = "../nocter-model" }
 nocter-machine = { path = "../nocter-machine" }
 nocter-macho = { path = "../nocter-macho" }
 nocter-mir = { path = "../nocter-mir" }
+nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 
 [dev-dependencies]
 nocter-package = { path = "../nocter-package" }

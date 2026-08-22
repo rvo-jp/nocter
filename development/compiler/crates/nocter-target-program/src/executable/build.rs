@@ -99,7 +99,7 @@ struct FrozenClosure {
     items: nocter_model::Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     closure_layouts: BTreeMap<nocter_model::TypeId, ExecutableItemId>,
-    type_representations: super::ExecutableTypeRepresentationTable,
+    type_representations: super::RuntimeTypeRepresentationTable,
 }
 
 impl FrozenClosure {
@@ -767,7 +767,7 @@ struct DraftCallableInvocation {
 fn freeze_items(
     drafts: BTreeMap<ExecutableItemKey, DraftItem>,
     types: nocter_model::TypeStore,
-    type_representations: super::ExecutableTypeRepresentationTable,
+    type_representations: super::RuntimeTypeRepresentationTable,
 ) -> Result<FrozenClosure, ExecutableProgramError> {
     let mut key_arena = ArenaBuilder::<ExecutableItemId, _>::new();
     let mut item_ids = BTreeMap::new();

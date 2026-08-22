@@ -18,6 +18,7 @@ mod namespace;
 mod namespace_diagnostic;
 mod package_targets;
 mod pipeline;
+mod primitive_bindings;
 mod reservation;
 mod surface;
 mod surface_diagnostic;
@@ -62,6 +63,7 @@ pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 pub use pipeline::{
     DeclarationLoweringError, lower_compile_unit_declarations, lower_incomplete_body_declarations,
 };
+pub use primitive_bindings::{PrimitiveResolutionError, resolve_primitive_bindings};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };
