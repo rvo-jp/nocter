@@ -2,9 +2,9 @@ use std::fmt;
 
 use nocter_command::{
     BuildCommandExecutionError, CheckCommandExecutionError, CommandArgumentFailure,
-    DiagnosticFormat, FetchCommandExecutionError, FormatCommandError, PreparedCommandError,
-    ProgramInputError, RunCommandExecutionError, SourceInspectionCommandError,
-    TestCommandExecutionError,
+    DiagnosticFormat, FetchCommandExecutionError, FormatCommandError, GraphCommandError,
+    InitCommandError, PreparedCommandError, ProgramInputError, RunCommandExecutionError,
+    SourceInspectionCommandError, TestCommandExecutionError,
 };
 use nocter_diagnostics::{
     DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
@@ -26,6 +26,8 @@ pub enum InvocationErrorKind {
     Arguments(CommandArgumentFailure),
     Installation(NocterHomeError),
     InstallationCompatibility(InstallationCompatibilityError),
+    Init(InitCommandError),
+    Graph(GraphCommandError),
     AcquisitionInitialization(PackageAcquisitionError),
     Preparation(PreparedCommandError),
     Fetch(Box<FetchCommandExecutionError>),
@@ -93,6 +95,7 @@ impl InvocationError {
             ) => Some("E0700"),
             InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_) => Some("E0703"),
+            InvocationErrorKind::Graph(error) => Some(error.diagnostic_code()),
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::PackageRootNotDirectory(_)
                 | ProgramInputError::MissingPackageDeclaration(_)
@@ -101,6 +104,7 @@ impl InvocationError {
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::SourceNotFile(_) | ProgramInputError::Filesystem { .. },
             ))
+            | InvocationErrorKind::Init(_)
             | InvocationErrorKind::SourceInspection(_) => Some("E0702"),
             InvocationErrorKind::Check(error) => error.diagnostic_code(),
             InvocationErrorKind::Fetch(error) => Some(error.diagnostic_code()),
@@ -194,6 +198,8 @@ impl InvocationError {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
+            | InvocationErrorKind::Init(_)
+            | InvocationErrorKind::Graph(_)
             | InvocationErrorKind::Preparation(_)
             | InvocationErrorKind::Fetch(_) => true,
             InvocationErrorKind::Check(error) => error.is_user_failure(),
@@ -226,6 +232,8 @@ impl InvocationError {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
+            | InvocationErrorKind::Init(_)
+            | InvocationErrorKind::Graph(_)
             | InvocationErrorKind::AcquisitionInitialization(_)
             | InvocationErrorKind::Fetch(_)
             | InvocationErrorKind::Preparation(_)
@@ -241,6 +249,8 @@ impl fmt::Display for InvocationError {
             InvocationErrorKind::Arguments(error) => error.fmt(formatter),
             InvocationErrorKind::Installation(error) => error.fmt(formatter),
             InvocationErrorKind::InstallationCompatibility(error) => error.fmt(formatter),
+            InvocationErrorKind::Init(error) => error.fmt(formatter),
+            InvocationErrorKind::Graph(error) => error.fmt(formatter),
             InvocationErrorKind::AcquisitionInitialization(error) => {
                 write!(formatter, "cannot initialize package acquisition: {error}")
             }
@@ -262,6 +272,8 @@ impl std::error::Error for InvocationError {
             InvocationErrorKind::Arguments(error) => Some(error),
             InvocationErrorKind::Installation(error) => Some(error),
             InvocationErrorKind::InstallationCompatibility(error) => Some(error),
+            InvocationErrorKind::Init(error) => Some(error),
+            InvocationErrorKind::Graph(error) => Some(error),
             InvocationErrorKind::Preparation(error) => Some(error),
             InvocationErrorKind::AcquisitionInitialization(error) => Some(error),
             InvocationErrorKind::Fetch(error) => Some(error),

@@ -2,11 +2,13 @@
 
 ## Current Task
 
-The v0.14.0 implementation, final design review, adversarial second review, and full requalification
-are complete. The repository is ready for a separately authorized release-preparation operation.
+Prepare the v0.14.0 release without publishing it. The initial release audit found that normative
+`init` and `graph` commands were absent from the specification-first rewrite. Their ordinary
+command/CLI implementations and focused conformance tests are now complete; full workspace
+requalification remains required before the release-content commit is frozen.
 
-Release preparation, packaging, artifact qualification, tagging, pushing, and publication have not
-started and require explicit user authorization after the review and requalification complete.
+Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing, and
+publication remain outside the current operation and require explicit user authorization.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

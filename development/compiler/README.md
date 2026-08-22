@@ -380,6 +380,11 @@ be introduced to make an unresolved syntax choice.
   command runner stages, captures, and cleans each case independently and derives human and JSON
   reports from one ordered result. These plans reject invalid file-mode or test-mode combinations
   without consulting declarations; target existence and cardinality stay in the session boundary.
+  Package initialization is an installation-independent rollback-capable source transaction: it
+  preflights every owned path, never replaces user content, and removes only paths it created after
+  a later failure. Exact graph inspection invokes the package resolver without acquisition or
+  mutation authority, then projects one deterministic typed result to human or
+  `nocter.package_graph` version-1 output. It cannot create locks or package-store entries.
 - `nocter-installation` selects one canonical Nocter home from explicit configured-home and
   executable facts. It validates contained physical entries, decodes one exact `VERSION`, and uses
   a bounded duplicate-preserving JSON parser plus an exact `nocter.manifest` v1 decoder to freeze
@@ -388,7 +393,9 @@ be introduced to make an unresolved syntax choice.
 - `nocter` is the sole public process adapter. It reads argv, `NOCTER_HOME`, the current executable,
   and cwd once; checks compiler-host agreement; constructs `CommandToolchain` from the validated
   installation; and delegates build/run/test parsing, preparation, compilation, publication, and
-  launch to the existing boundaries. It contains no second option table or compiler pipeline.
+  launch to the existing boundaries. Installation-independent `init` exits before home selection;
+  `graph` uses the validated home's standard-package and store context without receiving mutation
+  authority. The adapter contains no second option table or compiler pipeline.
 - `nocter-mir` owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA

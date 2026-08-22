@@ -523,6 +523,15 @@ Fetch uses the package-only projection of the same input authority, so a source-
 representable after parsing. `--locked` and `--offline` survive as a separate immutable package
 resolution policy; they never alter executable or output selection.
 
+`init` is the only installation-independent package mutation. Its command-owned transaction
+preflights `nocter.nct`, root `index.nct`, and `tests/unit/index.nct`, records each newly created
+file and directory, and rolls those paths back after any later failure. It never removes unrelated
+content from an existing destination. `graph` has the opposite capability: it receives a validated
+`CommandPackageContext` but no acquisition authority, invokes the read-only exact resolver, and
+projects the resulting typed identities and edges through one human/JSON presentation contract.
+Missing locks or packages remain explicit resolution requirements; inspection cannot satisfy them
+by changing source or store state.
+
 `fmt`, `tokens`, and `ast` are source-only commands with exact-one-file parse results. One
 command-owned standalone loader resolves the canonical path, retains the original bytes, selects
 the package-file or module-source parse goal, and constructs `nocter-source-tooling`: one
@@ -553,8 +562,9 @@ the Nocter home and standard package. Fetch receives only that package context, 
 target authority. The adapter never reads process globals or reconstructs installation state. The
 sole `nocter` process
 entry reads arguments, `NOCTER_HOME`, the real executable, and the current directory once. It
-validates argument structure before installation or source access. Source-only inspection then
-exits through its independent boundary. Remaining non-help commands delegate installation
+validates argument structure before installation or source access. Source-only inspection and
+package initialization then exit through their independent boundaries. Remaining non-help
+commands delegate installation
 selection to `nocter-installation`, then create `CompilerInstallation` only after the manifest
 host and native default target both match the running compiler host. This wrapper makes the
 compatibility relationship a prerequisite for every installation-dependent command instead of a

@@ -150,6 +150,111 @@ fn help_does_not_select_an_installation_or_prepare_source() {
 }
 
 #[test]
+fn initialization_does_not_select_an_installation_and_never_overwrites_source() {
+    let tree = TempTree::new("init");
+    let missing_home = tree.0.join("missing-home");
+    let outcome = execute_invocation(invocation(
+        ["init", "hello"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(outcome, InvocationOutcome::Init(_)));
+    assert_eq!(outcome.exit_code(), 0);
+    assert!(
+        outcome
+            .render_standard_output()
+            .unwrap()
+            .starts_with("Initialized executable package `hello` at ")
+    );
+    assert!(tree.0.join("hello/nocter.nct").is_file());
+    assert!(tree.0.join("hello/index.nct").is_file());
+    assert!(tree.0.join("hello/tests/unit/index.nct").is_file());
+
+    let error = execute_invocation(invocation(
+        ["init", "hello"],
+        &tree.0,
+        &missing_home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+    assert!(matches!(error.kind(), InvocationErrorKind::Init(_)));
+    assert_eq!(error.exit_code(), 2);
+}
+
+#[test]
+fn graph_uses_the_validated_home_and_projects_one_read_only_selection() {
+    let tree = TempTree::new("graph");
+    let home = tree.installation("arm64-darwin", false);
+    fs::write(
+        tree.0.join("nocter.nct"),
+        "#name: \"application\"\n#version: \"1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(tree.0.join("index.nct"), "//! Application.\n").unwrap();
+
+    let outcome = execute_invocation(invocation(
+        ["graph", "--format", "json"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(outcome, InvocationOutcome::Graph(_)));
+    let output = outcome.render_standard_output().unwrap();
+    assert!(output.starts_with("{\"schema\":\"nocter.package_graph\",\"version\":1,"));
+    assert!(output.contains("\"name\":\"application\",\"version\":\"1.0.0\""));
+    assert!(output.contains("\"alias\":\"std\",\"source\":\"standard\""));
+    assert!(!tree.0.join(".nocter").exists());
+}
+
+#[test]
+fn both_initialized_templates_pass_public_check_and_test() {
+    let tree = TempTree::new("init-conformance");
+    let home = tree.installation("arm64-darwin", true);
+    for (name, arguments) in [
+        ("application", vec!["init", "application"]),
+        ("library", vec!["init", "library", "--library"]),
+    ] {
+        execute_invocation(invocation(
+            arguments,
+            &tree.0,
+            &tree.0.join("unused-home"),
+            "arm64-darwin",
+        ))
+        .unwrap();
+        let package = tree.0.join(name);
+        let check = execute_invocation(invocation(
+            [
+                OsString::from("check"),
+                OsString::from("--root"),
+                package.as_os_str().to_owned(),
+            ],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap();
+        assert_eq!(check.exit_code(), 0, "initialized {name} must check");
+        let test = execute_invocation(invocation(
+            [
+                OsString::from("test"),
+                OsString::from("--root"),
+                package.as_os_str().to_owned(),
+            ],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap();
+        assert_eq!(test.exit_code(), 0, "initialized {name} tests must pass");
+    }
+}
+
+#[test]
 fn source_inspection_bypasses_installation_and_package_selection() {
     let tree = TempTree::new("source-inspection");
     let missing_home = tree.0.join("missing-home");

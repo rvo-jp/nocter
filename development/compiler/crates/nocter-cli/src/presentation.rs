@@ -44,6 +44,8 @@ impl InvocationDiagnosticPresentation {
             ParsedCommand::Help(_)
             | ParsedCommand::Version
             | ParsedCommand::Doctor
+            | ParsedCommand::Init(_)
+            | ParsedCommand::Graph(_)
             | ParsedCommand::Fetch(_)
             | ParsedCommand::Build(_)
             | ParsedCommand::Run(_)

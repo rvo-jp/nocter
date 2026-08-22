@@ -6,6 +6,8 @@ pub(crate) enum CommandKind {
     Help,
     Version,
     Doctor,
+    Init,
+    Graph,
     Fetch,
     Check,
     Build,
@@ -48,6 +50,8 @@ pub(crate) enum CommandOption {
     Test,
     Case,
     FormatCheck,
+    Name,
+    Library,
 }
 
 impl CommandOption {
@@ -148,7 +152,7 @@ const RESOLUTION_OPTIONS: u16 = CommandOption::Locked.bit() | CommandOption::Off
 const INPUT_OPTIONS: u16 =
     CommandOption::Root.bit() | CommandOption::File.bit() | CommandOption::Executable.bit();
 
-const OPTIONS: [OptionSchema; 12] = [
+const OPTIONS: [OptionSchema; 14] = [
     OptionSchema {
         option: CommandOption::Help,
         long: "--help",
@@ -233,11 +237,30 @@ const OPTIONS: [OptionSchema; 12] = [
         value: None,
         description: "Report a formatting difference without rewriting the source.",
     },
+    OptionSchema {
+        option: CommandOption::Name,
+        long: "--name",
+        short: None,
+        value: Some("NAME"),
+        description: "Set the initialized package name.",
+    },
+    OptionSchema {
+        option: CommandOption::Library,
+        long: "--library",
+        short: None,
+        value: None,
+        description: "Initialize a library package instead of an executable.",
+    },
 ];
 
 const SOURCE: PositionalSchema = PositionalSchema {
     value: "SOURCE",
     description: "A standalone .nct source file.",
+};
+
+const DIRECTORY: PositionalSchema = PositionalSchema {
+    value: "DIR",
+    description: "A new or existing directory for the package.",
 };
 
 const HELP_TOPIC: PositionalSchema = PositionalSchema {
@@ -269,6 +292,27 @@ const DOCTOR: CommandSchema = CommandSchema {
     form: CommandForm::Subcommand,
     summary: "Validate and report the active Nocter home.",
     accepted: HELP_OPTION,
+    positional: None,
+};
+
+const INIT: CommandSchema = CommandSchema {
+    kind: CommandKind::Init,
+    name: "init",
+    form: CommandForm::Subcommand,
+    summary: "Create a source-owned package without overwriting files.",
+    accepted: HELP_OPTION | CommandOption::Name.bit() | CommandOption::Library.bit(),
+    positional: Some(DIRECTORY),
+};
+
+const GRAPH: CommandSchema = CommandSchema {
+    kind: CommandKind::Graph,
+    name: "graph",
+    form: CommandForm::Subcommand,
+    summary: "Inspect one exact read-only package graph.",
+    accepted: HELP_OPTION
+        | CommandOption::Root.bit()
+        | RESOLUTION_OPTIONS
+        | CommandOption::Format.bit(),
     positional: None,
 };
 
@@ -367,8 +411,8 @@ const LSP: CommandSchema = CommandSchema {
     positional: None,
 };
 
-const COMMANDS: [CommandSchema; 12] = [
-    HELP, VERSION, DOCTOR, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT, LSP,
+const COMMANDS: [CommandSchema; 14] = [
+    HELP, VERSION, DOCTOR, INIT, GRAPH, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT, LSP,
 ];
 
 /// One pure help selection produced by the public argument parser.
@@ -454,10 +498,12 @@ fn render_command_help(schema: CommandSchema) -> String {
 mod tests {
     use super::*;
 
-    const KINDS: [CommandKind; 12] = [
+    const KINDS: [CommandKind; 14] = [
         CommandKind::Help,
         CommandKind::Version,
         CommandKind::Doctor,
+        CommandKind::Init,
+        CommandKind::Graph,
         CommandKind::Fetch,
         CommandKind::Check,
         CommandKind::Build,
@@ -506,6 +552,8 @@ mod tests {
             assert!(rendered.contains(schema.name));
         }
         assert!(rendered.contains("--help"));
+        assert!(rendered.contains("init"));
+        assert!(rendered.contains("graph"));
         assert!(rendered.contains("test"));
         assert!(!rendered.contains("nocter fmt"));
         assert!(rendered.contains("lsp"));

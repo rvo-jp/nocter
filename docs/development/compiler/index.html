@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-21">
+    <meta property="article:modified_time" content="2026-08-22">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="New Nocter Compiler - Nocter">
     <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-21","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -464,14 +464,21 @@
   target-local syntax, semantic, or backend failure therefore cannot suppress a later target. The
   command runner stages, captures, and cleans each case independently and derives human and JSON
   reports from one ordered result. These plans reject invalid file-mode or test-mode combinations
-  without consulting declarations; target existence and cardinality stay in the session boundary.</li><li><code>nocter-installation</code> selects one canonical Nocter home from explicit configured-home and
+  without consulting declarations; target existence and cardinality stay in the session boundary.
+  Package initialization is an installation-independent rollback-capable source transaction: it
+  preflights every owned path, never replaces user content, and removes only paths it created after
+  a later failure. Exact graph inspection invokes the package resolver without acquisition or
+  mutation authority, then projects one deterministic typed result to human or
+  <code>nocter.package_graph</code> version-1 output. It cannot create locks or package-store entries.</li><li><code>nocter-installation</code> selects one canonical Nocter home from explicit configured-home and
   executable facts. It validates contained physical entries, decodes one exact <code>VERSION</code>, and uses
   a bounded duplicate-preserving JSON parser plus an exact <code>nocter.manifest</code> v1 decoder to freeze
   host, target, standard-library, license, notice, and archive facts. It never reads process globals
   or searches unrelated directories.</li><li><code>nocter</code> is the sole public process adapter. It reads argv, <code>NOCTER_HOME</code>, the current executable,
   and cwd once; checks compiler-host agreement; constructs <code>CommandToolchain</code> from the validated
   installation; and delegates build/run/test parsing, preparation, compilation, publication, and
-  launch to the existing boundaries. It contains no second option table or compiler pipeline.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
+  launch to the existing boundaries. Installation-independent <code>init</code> exits before home selection;
+  <code>graph</code> uses the validated home's standard-package and store context without receiving mutation
+  authority. The adapter contains no second option table or compiler pipeline.</li><li><code>nocter-mir</code> owns the backend-independent control-flow representation and its consuming builders.
   Distinct dense identities cover locals, places, values, operations, blocks, and drop flags.
   Validation checks concrete operation and projection types, CFG closure, edge arguments, SSA
   dominance, terminal behavior, and direct/primitive call signatures. The current checked-body

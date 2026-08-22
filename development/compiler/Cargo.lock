@@ -1736,6 +1736,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-diagnostics",
  "nocter-discovery",
+ "nocter-json",
  "nocter-macho",
  "nocter-model",
  "nocter-package",

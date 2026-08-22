@@ -19,6 +19,69 @@ resolved package IDs. `--locked` and `--offline` retain their normal resolution 
 Graph inspection never writes generated lock data. `nocter fetch` remains the only command that
 intentionally updates dependency locks.
 
+Initialization has this exact public surface:
+
+```sh
+nocter init
+nocter init path/to/package
+nocter init path/to/package --name display-name
+nocter init path/to/library --library
+```
+
+Omitting `DIR` selects the current directory. The selected directory may already contain unrelated
+files, but `init` checks all three owned source paths before its first write. It creates
+`nocter.nct`, root `index.nct`, and `tests/unit/index.nct` as one rollback-capable operation. The
+executable template declares one root executable and one test target. The library template omits
+the executable, exports one root function, and tests that API from the separate test module. A
+successful command reports the canonical initialized directory. `init` does not select a Nocter
+home because package source creation does not depend on a compiler installation.
+
+Graph inspection has this exact public surface:
+
+```sh
+nocter graph
+nocter graph --root path/to/package
+nocter graph --locked --offline
+nocter graph --format json
+```
+
+The human form starts with `root: <PackageId>`. Each package then has a `package <PackageId>` line,
+indented name, version, and canonical-root lines, followed by zero or more dependency lines. A
+missing authored version or exact lock is rendered as `-`. Packages are ordered by `PackageId` and
+dependency edges by alias.
+
+The JSON form is one LF-terminated object:
+
+```json
+{
+  "schema": "nocter.package_graph",
+  "version": 1,
+  "root": "path-<digest>",
+  "packages": [
+    {
+      "id": "path-<digest>",
+      "name": "example",
+      "version": "0.1.0",
+      "root": "/absolute/path/to/example",
+      "dependencies": [
+        {
+          "alias": "std",
+          "source": "standard",
+          "lock": null,
+          "resolved": "toolchain-std-v0.14.0"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`source` is exactly `standard`, `git`, `archive`, or `path`. `version` and `lock` are JSON null
+when absent. The root package and bundled standard package are ordinary entries in `packages`.
+Graph resolution uses only authored locks and already installed exact packages. When a required
+lock or package is absent, it reports the normal resolution requirement without downloading,
+creating package-store state, or editing `nocter.nct`; the user may run `nocter fetch` explicitly.
+
 ## Command Model
 
 Package commands operate on a source-owned `nocter.nct`. Omitting a source selects a package; it
@@ -32,6 +95,9 @@ nocter help check
 nocter check --help
 nocter --version
 nocter doctor
+nocter init
+nocter graph
+nocter graph --format json
 nocter fetch
 nocter fetch --locked --offline
 nocter build

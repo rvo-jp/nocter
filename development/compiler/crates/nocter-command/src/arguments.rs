@@ -41,6 +41,8 @@ pub enum ParsedCommand {
     Help(crate::HelpRequest),
     Version,
     Doctor,
+    Init(ParsedInitCommand),
+    Graph(ParsedGraphCommand),
     Fetch(ParsedFetchCommand),
     Check(ParsedCheckCommand),
     Build(ParsedBuildCommand),
@@ -62,11 +64,82 @@ impl ParsedCommand {
             Self::Help(_)
             | Self::Version
             | Self::Doctor
+            | Self::Init(_)
+            | Self::Graph(_)
             | Self::Fetch(_)
             | Self::SourceInspection(_)
             | Self::Format(_)
             | Self::Lsp => None,
         }
+    }
+}
+
+/// Pure argument result for creating one source-owned package.
+#[derive(Debug)]
+pub struct ParsedInitCommand {
+    directory: Option<PathBuf>,
+    name: Option<Box<str>>,
+    library: bool,
+}
+
+impl ParsedInitCommand {
+    #[must_use]
+    pub fn directory(&self) -> Option<&Path> {
+        self.directory.as_deref()
+    }
+
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    #[must_use]
+    pub const fn library(&self) -> bool {
+        self.library
+    }
+
+    pub(crate) fn into_parts(self) -> (Option<PathBuf>, Option<Box<str>>, bool) {
+        (self.directory, self.name, self.library)
+    }
+}
+
+/// Output projection selected for exact package-graph inspection.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum GraphOutputFormat {
+    #[default]
+    Human,
+    Json,
+}
+
+#[derive(Debug)]
+pub struct ParsedGraphCommand {
+    root: Option<PathBuf>,
+    resolution: ResolutionOptions,
+    format: GraphOutputFormat,
+}
+
+impl ParsedGraphCommand {
+    #[must_use]
+    pub const fn format(&self) -> GraphOutputFormat {
+        self.format
+    }
+
+    /// Resolves one exact package root without loading or mutating its graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact package-root input failure.
+    pub fn prepare(
+        self,
+        current_directory: impl AsRef<Path>,
+    ) -> Result<PreparedGraphCommand, PreparedCommandError> {
+        let input = resolve_package_input(current_directory, self.root.as_deref())
+            .map_err(PreparedCommandError::Input)?;
+        Ok(PreparedGraphCommand {
+            input,
+            resolution: self.resolution,
+            format: self.format,
+        })
     }
 }
 
@@ -402,6 +475,40 @@ pub struct PreparedFetchCommand {
     resolution: ResolutionOptions,
 }
 
+#[derive(Debug)]
+pub struct PreparedGraphCommand {
+    input: crate::PackageCommandInput,
+    resolution: ResolutionOptions,
+    format: GraphOutputFormat,
+}
+
+impl PreparedGraphCommand {
+    #[must_use]
+    pub const fn input(&self) -> &crate::PackageCommandInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub const fn resolution(&self) -> ResolutionOptions {
+        self.resolution
+    }
+
+    #[must_use]
+    pub const fn format(&self) -> GraphOutputFormat {
+        self.format
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        crate::PackageCommandInput,
+        ResolutionOptions,
+        GraphOutputFormat,
+    ) {
+        (self.input, self.resolution, self.format)
+    }
+}
+
 impl PreparedFetchCommand {
     #[must_use]
     pub const fn input(&self) -> &crate::PackageCommandInput {
@@ -508,6 +615,12 @@ pub fn parse_command_invocation(
         CommandKind::Doctor => parse_empty_command(arguments.into_iter(), kind.schema())
             .map(|()| ParsedCommand::Doctor)
             .map_err(|failure| failure.for_command("doctor")),
+        CommandKind::Init => parse_init(arguments.into_iter())
+            .map(ParsedCommand::Init)
+            .map_err(|failure| failure.for_command("init")),
+        CommandKind::Graph => parse_graph(arguments.into_iter())
+            .map(ParsedCommand::Graph)
+            .map_err(|failure| failure.for_command("graph")),
         CommandKind::Fetch => parse_fetch(arguments.into_iter())
             .map(ParsedCommand::Fetch)
             .map_err(|failure| failure.for_command("fetch")),
@@ -544,6 +657,31 @@ pub fn parse_command_invocation(
             .map(|()| ParsedCommand::Lsp)
             .map_err(|failure| failure.for_command("lsp")),
     }
+}
+
+fn parse_init(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedInitCommand, OptionsParseFailure> {
+    let parsed = parse_options(arguments, CommandKind::Init.schema())?;
+    Ok(ParsedInitCommand {
+        directory: parsed.positional,
+        name: parsed.name,
+        library: parsed.library,
+    })
+}
+
+fn parse_graph(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedGraphCommand, OptionsParseFailure> {
+    let parsed = parse_options(arguments, CommandKind::Graph.schema())?;
+    Ok(ParsedGraphCommand {
+        root: parsed.root,
+        resolution: parsed.resolution,
+        format: match parsed.format {
+            Some(DiagnosticFormat::Json) => GraphOutputFormat::Json,
+            Some(DiagnosticFormat::Human) | None => GraphOutputFormat::Human,
+        },
+    })
 }
 
 fn parse_format(
@@ -616,6 +754,8 @@ fn parse_check(
         test: _,
         case: _,
         format_check: _,
+        name: _,
+        library: _,
     } = parse_options(arguments, CommandKind::Check.schema())?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -641,6 +781,8 @@ fn parse_fetch(
         test: _,
         case: _,
         format_check: _,
+        name: _,
+        library: _,
     } = parse_options(arguments, CommandKind::Fetch.schema())?;
     Ok(ParsedFetchCommand { root, resolution })
 }
@@ -660,6 +802,8 @@ fn parse_build(
         test: _,
         case: _,
         format_check: _,
+        name: _,
+        library: _,
     } = parse_options(arguments, CommandKind::Build.schema())?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -684,6 +828,8 @@ fn parse_run(
         test: _,
         case: _,
         format_check: _,
+        name: _,
+        library: _,
     } = parse_options(arguments, CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -708,6 +854,8 @@ fn parse_test(
         test,
         case,
         format_check: _,
+        name: _,
+        library: _,
     } = parse_options(arguments, CommandKind::Test.schema())?;
     Ok(ParsedTestCommand {
         root,
@@ -731,6 +879,8 @@ struct ParsedOptions {
     test: Option<Box<str>>,
     case: Option<Box<str>>,
     format_check: bool,
+    name: Option<Box<str>>,
+    library: bool,
 }
 
 fn parse_options(
@@ -925,10 +1075,18 @@ fn parse_valued_option(
             CommandArgumentError::NonUnicodeCase,
             CommandArgumentError::EmptyCase,
         ),
+        CommandOption::Name => set_name(
+            &mut parsed.name,
+            value,
+            schema.canonical_name(),
+            CommandArgumentError::NonUnicodePackageName,
+            CommandArgumentError::EmptyPackageName,
+        ),
         CommandOption::Help
         | CommandOption::Locked
         | CommandOption::Offline
-        | CommandOption::FormatCheck => {
+        | CommandOption::FormatCheck
+        | CommandOption::Library => {
             unreachable!("flag option passed the valued-option boundary")
         }
     }
@@ -950,6 +1108,7 @@ fn parse_flag_option(
         CommandOption::Locked => set_flag(&mut parsed.resolution.locked, option.canonical_name()),
         CommandOption::Offline => set_flag(&mut parsed.resolution.offline, option.canonical_name()),
         CommandOption::FormatCheck => set_flag(&mut parsed.format_check, option.canonical_name()),
+        CommandOption::Library => set_flag(&mut parsed.library, option.canonical_name()),
         CommandOption::Root
         | CommandOption::File
         | CommandOption::Executable
@@ -957,7 +1116,8 @@ fn parse_flag_option(
         | CommandOption::Format
         | CommandOption::Target
         | CommandOption::Test
-        | CommandOption::Case => unreachable!("valued option passed the flag-option boundary"),
+        | CommandOption::Case
+        | CommandOption::Name => unreachable!("valued option passed the flag-option boundary"),
     }
 }
 
@@ -1058,6 +1218,8 @@ pub enum CommandArgumentError {
     EmptyTest,
     NonUnicodeCase(OsString),
     EmptyCase,
+    NonUnicodePackageName(OsString),
+    EmptyPackageName,
 }
 
 /// A pure argument failure plus the output selection completed by the same parse.
@@ -1200,6 +1362,12 @@ impl fmt::Display for CommandArgumentError {
                 name.to_string_lossy()
             ),
             Self::EmptyCase => formatter.write_str("test case name cannot be empty"),
+            Self::NonUnicodePackageName(name) => write!(
+                formatter,
+                "package name is not Unicode: {}",
+                name.to_string_lossy()
+            ),
+            Self::EmptyPackageName => formatter.write_str("package name cannot be empty"),
         }
     }
 }
@@ -1244,6 +1412,54 @@ mod tests {
             CommandArgumentError::OptionNotAccepted {
                 option: "--offline",
                 command: "doctor",
+            }
+        );
+    }
+
+    #[test]
+    fn package_creation_and_graph_inspection_have_disjoint_argument_surfaces() {
+        let parsed = parse_command_arguments(arguments(&[
+            "init",
+            "workspace/tool",
+            "--name",
+            "tool",
+            "--library",
+        ]))
+        .unwrap();
+        let ParsedCommand::Init(command) = parsed else {
+            panic!("expected init command")
+        };
+        assert_eq!(command.directory(), Some(Path::new("workspace/tool")));
+        assert_eq!(command.name(), Some("tool"));
+        assert!(command.library());
+
+        let parsed = parse_command_arguments(arguments(&[
+            "graph",
+            "--root",
+            "workspace/tool",
+            "--locked",
+            "--offline",
+            "--format",
+            "json",
+        ]))
+        .unwrap();
+        let ParsedCommand::Graph(command) = parsed else {
+            panic!("expected graph command")
+        };
+        assert_eq!(command.format(), GraphOutputFormat::Json);
+
+        assert_eq!(
+            parse_command_arguments(arguments(&["init", "--root", "."])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--root",
+                command: "init",
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["graph", "--library"])).unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--library",
+                command: "graph",
             }
         );
     }

@@ -2,8 +2,9 @@ use std::path::{Path, PathBuf};
 
 use nocter_command::{
     CommandToolchain, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand,
-    ParsedRunCommand, ParsedTestCommand, ResolvedProgramInput, execute_prepared_build,
-    execute_prepared_check, execute_prepared_fetch, execute_prepared_run, execute_prepared_test,
+    ParsedGraphCommand, ParsedRunCommand, ParsedTestCommand, ResolvedProgramInput,
+    execute_prepared_build, execute_prepared_check, execute_prepared_fetch, execute_prepared_graph,
+    execute_prepared_run, execute_prepared_test,
 };
 use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
@@ -29,6 +30,7 @@ pub(crate) fn execute_parsed_command(
         ParsedCommand::Doctor => Ok(InvocationOutcome::Doctor(DoctorReport::from_installation(
             installation,
         ))),
+        ParsedCommand::Graph(command) => execute_graph(command, current_directory, toolchain),
         ParsedCommand::Fetch(command) => {
             execute_fetch(command, current_directory, toolchain, presentation)
         }
@@ -50,10 +52,26 @@ pub(crate) fn execute_parsed_command(
         ParsedCommand::Format(_) => {
             unreachable!("formatting executes before installation selection")
         }
+        ParsedCommand::Init(_) => {
+            unreachable!("initialization executes before installation selection")
+        }
         ParsedCommand::Lsp => Ok(InvocationOutcome::LanguageServer(Box::new(
             LanguageServerLaunch::new(current_directory, installation.clone()),
         ))),
     }
+}
+
+fn execute_graph(
+    command: ParsedGraphCommand,
+    current_directory: &Path,
+    toolchain: &CommandToolchain,
+) -> Result<InvocationOutcome, InvocationError> {
+    let command = command
+        .prepare(current_directory)
+        .map_err(|error| InvocationError::new(InvocationErrorKind::Preparation(error), None))?;
+    execute_prepared_graph(command, toolchain.packages())
+        .map(InvocationOutcome::Graph)
+        .map_err(|error| InvocationError::new(InvocationErrorKind::Graph(error), None))
 }
 
 fn execute_fetch(

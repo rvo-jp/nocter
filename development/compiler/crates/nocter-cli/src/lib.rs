@@ -8,9 +8,9 @@ use std::path::PathBuf;
 
 use nocter_command::{
     BuildCommandResult, CheckCommandPresentation, CheckCommandResult, CommandToolchain,
-    DiagnosticFormat, ExecutedProgram, FetchCommandResult, FormatCommandResult, HelpRequest,
-    ParsedCommand, SourceInspectionCommandResult, execute_format, execute_source_inspection,
-    parse_command_invocation,
+    DiagnosticFormat, ExecutedProgram, FetchCommandResult, FormatCommandResult, GraphCommandResult,
+    HelpRequest, InitCommandResult, ParsedCommand, SourceInspectionCommandResult, execute_format,
+    execute_init, execute_source_inspection, parse_command_invocation,
 };
 use nocter_diagnostics::{
     DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostics_json,
@@ -69,6 +69,8 @@ pub enum InvocationOutcome {
     Help(HelpRequest),
     Version(VersionReport),
     Doctor(DoctorReport),
+    Init(InitCommandResult),
+    Graph(GraphCommandResult),
     Fetch(FetchCommandResult),
     Check(Box<CheckCommandResult>),
     Build(BuildCommandResult),
@@ -86,6 +88,8 @@ impl InvocationOutcome {
             Self::Help(_)
             | Self::Version(_)
             | Self::Doctor(_)
+            | Self::Init(_)
+            | Self::Graph(_)
             | Self::Fetch(_)
             | Self::Check(_)
             | Self::Build(_)
@@ -104,6 +108,8 @@ impl InvocationOutcome {
             Self::Help(request) => Some(request.render()),
             Self::Version(report) => Some(report.render()),
             Self::Doctor(report) => Some(report.render()),
+            Self::Init(result) => Some(result.render()),
+            Self::Graph(result) => Some(result.render()),
             Self::Test(result) => test_report::render_test_human(result),
             Self::SourceInspection(result) => Some(result.json().to_owned()),
             Self::Fetch(_)
@@ -136,6 +142,8 @@ impl InvocationOutcome {
             Self::Help(_)
             | Self::Version(_)
             | Self::Doctor(_)
+            | Self::Init(_)
+            | Self::Graph(_)
             | Self::Fetch(_)
             | Self::Check(_)
             | Self::Build(_)
@@ -170,6 +178,14 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
     })?;
     if let ParsedCommand::Help(request) = &command {
         return Ok(InvocationOutcome::Help(*request));
+    }
+    if let ParsedCommand::Init(_) = &command {
+        let ParsedCommand::Init(command) = command else {
+            unreachable!()
+        };
+        return execute_init(command, &current_directory)
+            .map(InvocationOutcome::Init)
+            .map_err(|error| InvocationError::new(InvocationErrorKind::Init(error), None));
     }
     if let ParsedCommand::SourceInspection(_) = &command {
         let ParsedCommand::SourceInspection(command) = command else {
