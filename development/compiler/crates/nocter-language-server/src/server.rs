@@ -765,9 +765,24 @@ mod tests {
         ));
         assert_eq!(
             tokens.response(),
-            Some(r#"{"jsonrpc":"2.0","id":2,"result":{"data":[0,6,4,10,1]}}"#)
+            Some(r#"{"jsonrpc":"2.0","id":2,"result":{"resultId":"1","data":[0,6,4,10,1]}}"#)
         );
         assert!(tokens.issue().is_none());
+
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":2}},\"contentChanges\":[{{\"text\":\"func main(): void {{ return }}\\n\"}}]}}}}"
+        ));
+        let changed_tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            changed_tokens
+                .response()
+                .is_some_and(|response| response.contains("\"resultId\":\"2\"")),
+            "{:?}",
+            changed_tokens.response()
+        );
+        assert!(changed_tokens.issue().is_none());
 
         let memory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/mem/index.nct");
         let memory_uri = DocumentUri::new(format!("file://{}", memory.display())).unwrap();
@@ -889,7 +904,7 @@ mod tests {
         ));
         let response = tokens.response().unwrap();
         assert!(
-            response.contains("\"result\":{\"data\":["),
+            response.contains("\"result\":{\"resultId\":\"1\",\"data\":["),
             "unexpected response {response:?} with issue {:?}",
             tokens.issue()
         );

@@ -1204,6 +1204,12 @@ when they exist and use syntax-only recovery only when no semantic fact is avail
 generation first freezes its complete open-document overlay; package resolution, discovery, syntax,
 and semantic analysis all consume that one value.
 
+Full semantic-token results retain that snapshot identity at the protocol boundary. The language
+server passes the exact accepted analysis generation to the neutral LSP encoder as an opaque
+`resultId`; a later accepted document transition therefore cannot be mistaken for the earlier token
+set. The encoder still owns only legend mapping and delta encoding and never imports workspace
+state.
+
 Source mutation features share one protocol-independent edit value containing an exact `SourceId`,
 byte range, and replacement. The language-server composition layer groups and validates these
 edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits

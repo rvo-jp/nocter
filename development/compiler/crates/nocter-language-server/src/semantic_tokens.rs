@@ -45,7 +45,8 @@ pub(crate) fn query_semantic_tokens(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    semantic_tokens_result(&tokens).map_err(SemanticTokensQueryError::Encoding)
+    let result_id = document.analysis().generation().get().to_string();
+    semantic_tokens_result(&result_id, &tokens).map_err(SemanticTokensQueryError::Encoding)
 }
 
 const fn token_type(kind: SemanticHighlightKind) -> SemanticTokenType {

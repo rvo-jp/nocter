@@ -205,6 +205,11 @@ implementation input.
    declaration kind's direct CST path, so nested closure tails cannot be selected. Fixed-result and
    grammar-restricted operators are not editable. The shared transaction suppresses any result
    change that leaves a public call, conformance, provenance, or body failure.
+   The editor qualification audit found and closed the missing semantic-token generation contract.
+   `textDocument/semanticTokens/full` now returns the exact immutable accepted analysis generation
+   as `resultId`; a later accepted document change produces a distinct identifier. Token encoding
+   remains protocol-owned and receives the generation as an opaque string rather than importing
+   workspace state.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

@@ -119,12 +119,14 @@ impl SemanticTokensParams {
     }
 }
 
-/// Delta-encodes one sorted, non-overlapping semantic-token sequence.
+/// Delta-encodes one sorted, non-overlapping semantic-token sequence and its immutable generation
+/// identity.
 ///
 /// # Errors
 ///
 /// Returns an error for empty, out-of-order, or overlapping tokens.
 pub fn semantic_tokens_result(
+    result_id: &str,
     tokens: &[SemanticToken],
 ) -> Result<Value, SemanticTokenEncodingError> {
     let mut data = Vec::with_capacity(tokens.len() * 5);
@@ -154,14 +156,17 @@ pub fn semantic_tokens_result(
         ]);
         previous = Some(*token);
     }
-    Ok(object([(
-        "data",
-        Value::Array(
-            data.into_iter()
-                .map(|value| Value::Number(value.to_string().into()))
-                .collect(),
+    Ok(object([
+        ("resultId", Value::String(result_id.into())),
+        (
+            "data",
+            Value::Array(
+                data.into_iter()
+                    .map(|value| Value::Number(value.to_string().into()))
+                    .collect(),
+            ),
         ),
-    )]))
+    ]))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -218,8 +223,14 @@ mod tests {
             SemanticToken::new(4, 1, 5, SemanticTokenType::Function, false, false),
         ];
         let mut rendered = String::new();
-        write_value(&mut rendered, &semantic_tokens_result(&tokens).unwrap());
-        assert_eq!(rendered, r#"{"data":[2,4,3,2,1,0,6,1,7,2,2,1,5,10,0]}"#);
+        write_value(
+            &mut rendered,
+            &semantic_tokens_result("17", &tokens).unwrap(),
+        );
+        assert_eq!(
+            rendered,
+            r#"{"resultId":"17","data":[2,4,3,2,1,0,6,1,7,2,2,1,5,10,0]}"#
+        );
     }
 
     #[test]
@@ -229,7 +240,7 @@ mod tests {
             SemanticToken::new(0, 5, 2, SemanticTokenType::Type, false, false),
         ];
         assert_eq!(
-            semantic_tokens_result(&tokens),
+            semantic_tokens_result("1", &tokens),
             Err(SemanticTokenEncodingError::OutOfOrderOrOverlapping)
         );
     }
