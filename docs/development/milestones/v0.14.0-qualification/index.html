@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter v0.10.0 Phase 1 - Nocter</title>
-    <meta name="description" content="Status: Complete.">
+    <title>v0.14.0 Implementation Qualification - Nocter</title>
+    <meta name="description" content="Status: complete (2026-08-22). This record qualifies the specification-first compiler implementation against the completion definition in the v0.14.0 miles">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.10.0-phase-1/">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0-qualification/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter v0.10.0 Phase 1 - Nocter">
-    <meta property="og:description" content="Status: Complete.">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.10.0-phase-1/">
+    <meta property="og:title" content="v0.14.0 Implementation Qualification - Nocter">
+    <meta property="og:description" content="Status: complete (2026-08-22). This record qualifies the specification-first compiler implementation against the completion definition in the v0.14.0 miles">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0-qualification/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-22">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter v0.10.0 Phase 1 - Nocter">
-    <meta name="twitter:description" content="Status: Complete.">
+    <meta name="twitter:title" content="v0.14.0 Implementation Qualification - Nocter">
+    <meta name="twitter:description" content="Status: complete (2026-08-22). This record qualifies the specification-first compiler implementation against the completion definition in the v0.14.0 miles">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 1 - Nocter","description":"Status: Complete.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 1","item":"https://nocter.dev/development/milestones/v0.10.0-phase-1/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0 Implementation Qualification - Nocter","description":"Status: complete (2026-08-22). This record qualifies the specification-first compiler implementation against the completion definition in the v0.14.0 miles","url":"https://nocter.dev/development/milestones/v0.14.0-qualification/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0-qualification/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0 Qualification","item":"https://nocter.dev/development/milestones/v0.14.0-qualification/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -125,36 +125,35 @@
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="../v0.14.0/index.html#content">v0.14.0 milestone</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">implementation qualification</a></li>
+                <li><a href="./index.html#content" aria-current="page">implementation qualification</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.10.0-phase-1.md</span>
+                <span class="markdown-path-text">/development/milestones/v0.14.0-qualification.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-10-0-phase-1">Nocter v0.10.0 Phase 1</h1><p><strong>Status:</strong> Complete.</p><h2 id="purpose">Purpose</h2><p>Phase 1 replaces file-defined modules with directory-defined modules. It separates package metadata, module identity, and physical source composition so large libraries can split private implementation across files without creating public namespaces or scattering their API surface.</p><h2 id="source-model">Source Model</h2><ul><li><code>nocter.nct</code> is the package file. It contains package documentation and package directives only.</li><li>A directory containing <code>index.nct</code> defines one module. The <code>index.nct</code> file is that module's
-  module root source file.</li><li>Other imported <code>.nct</code> files are source files of the nearest enclosing module. Their file names do
-  not create namespaces or externally visible identities.</li><li>A directory without <code>index.nct</code> is a source folder, not a module.</li><li><code>use ./search</code> resolves <code>search.nct</code> as a same-module source import when that file exists.</li><li><code>use ./parser.Parser</code> resolves <code>parser/index.nct</code> as a child-module import.</li><li>A source file and a child module may not use the same logical path. The compiler reports the
-  conflict instead of selecting one by precedence.</li><li>Same-module source imports are idempotent and may form cycles because declarations are collected
-  for the complete module before bodies are resolved.</li><li>A source file not reachable from the module root source file is not part of the module.</li></ul><h2 id="visibility-and-identity">Visibility and Identity</h2><ul><li>Only a module root source file may contain <code>pub</code> declarations or <code>pub use</code> declarations.</li><li>All declarations in other source files are module-private and are visible throughout their
-  module.</li><li>Duplicate declarations are diagnosed across the complete module, independent of source order.</li><li>External imports address only directory modules and their root-defined public surface. A package
-  consumer cannot import a source file directly.</li><li>Compiler and editor identities use package plus normalized module-directory path. Physical source
-  paths remain definition locations, dependency edges, and diagnostic origins only.</li></ul><h2 id="package-targets">Package Targets</h2><p><code>#executable</code> and <code>#test</code> select a module with <code>module</code>; the former <code>entry</code> field is removed. An omitted executable module selects <code>.</code>. Module <code>.</code> is the package root <code>index.nct</code>, never <code>nocter.nct</code>.</p><pre><code class="language-nct">#executable<span class="token-operator">:</span> <span class="token-operator">{</span>
-    name<span class="token-operator">:</span> <span class="token-string">"app"</span><span class="token-operator">,</span>
-    module<span class="token-operator">:</span> <span class="token-string">"."</span><span class="token-operator">,</span>
-<span class="token-operator">}</span>
-</code></pre><h2 id="completion-gate">Completion Gate</h2><ul><li>package loading rejects ordinary Nocter declarations in <code>nocter.nct</code></li><li>build, check, run, test, graph, formatting, AST JSON, and package initialization use directory
-  modules and <code>module</code> target fields</li><li>source imports compose one module namespace without producing import aliases</li><li>module imports expose only the root source file's public surface</li><li>resolver, type checker, native lowering, trusted declaration lookup, and LSP queries preserve
-  source-backed locations while sharing directory module identity</li><li>the standard library, public examples, fixtures, and tests use the new layout</li><li>documentation contains no active one-file-one-module, package-source, or target-<code>entry</code> contract</li><li><code>development/compiler/scripts/verify.sh</code>, documentation generation, and <code>git diff --check</code> pass</li></ul><p>Phase 1 does not introduce wildcard source discovery, textual inclusion order, partial declarations, or an additional manifest file.</p><h2 id="completion-record">Completion Record</h2><ul><li>Package parsing now keeps <code>nocter.nct</code> outside the ordinary AST and rejects source declarations
-  there. Package targets resolve directory modules through <code>module</code>; the removed <code>entry</code> field is
-  diagnosed rather than retained as a compatibility alias.</li><li>One shared source-layout model defines module roots, source membership, normalized module
-  identity, ambiguity detection, and missing-file canonicalization for open editor buffers.</li><li>The resolver joins reachable physical sources into one declaration namespace while preserving
-  per-source spans and analysis results. Source cycles are idempotent; module cycles remain errors.</li><li>Visibility validation makes <code>index.nct</code> the sole public-surface authority. Package, dependency,
-  standard-library, and re-export paths cannot address implementation sources.</li><li>CLI commands, package initialization, the LSP, the standard library, compiler fixtures, and
-  public examples use the directory-module layout. Cross-source LSP navigation is covered for
-  unsaved implementation buffers.</li><li>The complete 3,405-test compiler verification suite, generated documentation, public example
-  checks, and whitespace validation passed for the migrated tree.</li></ul>
+                <h1 id="v0-14-0-implementation-qualification">v0.14.0 Implementation Qualification</h1><p><strong>Status: complete (2026-08-22).</strong> This record qualifies the specification-first compiler implementation against the completion definition in the <a href="../v0.14.0/index.html#content">v0.14.0 milestone</a>. It does not prepare, package, tag, push, or publish a release.</p><h2 id="contract-trace">Contract Trace</h2><p>The specification table of contents is the complete public-contract inventory. The implementation and its conformance boundaries trace to it as follows:</p><table><thead><tr><th>Public contract</th><th>Normative authority</th><th>Executable evidence</th></tr></thead><tbody><tr><td>Source text and grammar</td><td><code>spec/13-lexical-grammar.md</code>, <code>spec/25-syntactic-grammar.md</code></td><td>G001-G033 accepted, rejected, semantic-boundary, lossless-projection, depth-limit, and non-recursive parser tests</td></tr><tr><td>Modules, declarations, types, generics, construction, and dispatch</td><td><code>spec/01-modules-use.md</code>, <code>spec/02-values-types.md</code>, <code>spec/08-generics-interfaces-embedding-methods.md</code>, <code>spec/17-literal-definitions-sequence-spread.md</code> through <code>spec/19-construction-surfaces.md</code>, and <code>spec/22-borrow-coercions.md</code> through <code>spec/24-ordering-operators.md</code></td><td>declaration-lowering, requirement-normalization, conformance, construction-surface, type-validity, and checked-body suites</td></tr><tr><td>Control flow, outcomes, ownership, provenance, regions, and destruction</td><td><code>spec/03-control-flow.md</code> through <code>spec/06-memory-region-allocator.md</code></td><td>checked ownership/loan/cleanup/region/outcome suites and MIR lowering/validation suites</td></tr><tr><td>Strings, arrays, views, pointers, standard roles, and public library APIs</td><td><code>spec/07-strings-arrays-views-pointers.md</code>, <code>spec/11-stdlib-primitives-os.md</code>, <code>spec/18-callables-default-methods.md</code>, <code>spec/21-practical-standard-library.md</code></td><td><code>bundled_standard_library_crosses_the_complete_target_session</code>, standard-role contract tests, native primitive conformance, and public example execution</td></tr><tr><td>ABI, targets, process behavior, and native tests</td><td><code>spec/09-abi-layout.md</code>, <code>spec/10-targets-distribution.md</code>, <code>spec/11-stdlib-primitives-os.md</code>, <code>spec/20-native-testing.md</code></td><td>MIR, machine, ARM64, Mach-O, and complete native conformance suites</td></tr><tr><td>Diagnostics, formatting, CLI, packages, and editor behavior</td><td><code>spec/12-diagnostics.md</code>, <code>spec/14-tooling-editor-integration.md</code>, <code>spec/15-command-line-interface.md</code>, <code>spec/16-source-style-formatting.md</code></td><td>source-tooling, package, command, CLI, analysis, LSP, and language-server protocol suites</td></tr></tbody></table><p>Sections explicitly labeled <strong>Future Direction</strong>, <strong>Non-goal</strong>, or <strong>reserved, not implemented</strong> are not current behavior. The specification and active compiler/standard source contain no unresolved <code>TODO</code>, <code>FIXME</code>, <code>HACK</code>, <code>XXX</code>, <code>todo!</code>, or <code>unimplemented!</code> marker. Reserved non-Darwin targets produce the specified unsupported-target failure instead of entering a partial backend.</p><h2 id="completion-evidence">Completion Evidence</h2><p>The milestone criteria are closed by these boundaries:</p><ul><li>The grammar fixtures and semantic suites above cover every current normative domain. No archived
+  implementation, released binary, historical output, or compatibility adapter participates.</li><li><code>bundled_standard_library_crosses_the_complete_target_session</code> checks every authored standard
+  body and the complete primitive registry. <code>every_public_single_file_example_runs_to_success</code> and
+  <code>public_package_example_runs_with_process_arguments</code> launch every public example through the
+  production command, native session, and generated Mach-O boundary with exact process contracts.</li><li><code>TargetProgram</code> is the single accepted-program boundary. Command tests prove that <code>check</code> stops
+  there without an artifact, while build and run continue from that same value through executable
+  selection. Library, named-target, package, and single-file cases cover the selection matrix.</li><li>CLI tests exercise the public process adapter and JSON diagnostic envelopes. LSP and
+  language-server tests exercise JSON-RPC framing, lifecycle, document generations, diagnostics,
+  hover, tokens, navigation, rename, signature help, completion, inlay hints, and code actions at
+  protocol boundaries.</li><li>Native conformance executes the ABI, process state, allocation contexts, regions, syscalls, I/O,
+  packs, indirect values, views, destruction, and checked indexing on ARM64 macOS. The Mach-O suite
+  verifies deterministic self-contained images without an external assembler, linker, or signer.</li><li>Discovery, topology, declaration reservation, diagnostics, name resolution, type validity,
+  conformance, method selection, and source projection each reverse their relevant input order in
+  focused tests. <code>all_root_executables_share_one_target_compilation_and_keep_declaration_order</code>
+  additionally reverses package and root-module requests and compares the final executable
+  identities and Mach-O bytes.</li><li>The workspace contains only the specification-first crates listed in
+  <code>development/compiler/Cargo.toml</code>. Semantic programs and source projections are separate values;
+  each lowering crate exposes an immutable output boundary and cannot access a superseded stage's
+  private representation. The archive directory contains design records only and is outside the
+  compiler workspace.</li></ul><h2 id="verification-runs">Verification Runs</h2><p>The implementation passed the following matrix on ARM64 macOS:</p><ul><li>incremental <code>cargo test --workspace --quiet</code>: 1,129 passed, zero failed, one network test ignored;</li><li>clean <code>cargo test --workspace --quiet</code> with a new external <code>CARGO_TARGET_DIR</code>: the same 1,129
+  passed, zero failed, and one ignored;</li><li>explicit public-HTTPS <code>clones_resolves_and_materializes_without_external_git</code>: passed;</li><li><code>cargo clippy --workspace --all-targets -- -D warnings</code>: passed;</li><li><code>cargo fmt --all --check</code>: passed;</li><li><code>node docs/build-docs.js</code>: generated 123 pages reproducibly;</li><li><code>git diff --check</code>: passed.</li></ul><p>The clean-build directory was created outside the repository and removed after the run, so the qualification did not retain another build tree.</p><h2 id="boundary">Boundary</h2><p>The v0.14.0 implementation milestone is complete. Release identity changes, release notes, distribution packaging, artifact qualification, tagging, pushing, and publication are a separate release-preparation operation and require explicit user authorization.</p>
             </div>
         </main>
     </div>

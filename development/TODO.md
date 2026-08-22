@@ -2,8 +2,9 @@
 
 ## Current Task
 
-Qualify the completed v0.14.0 implementation against the milestone completion definition. Phase 6
-is complete. Publication remains a separate action and requires explicit user authorization.
+The v0.14.0 specification-first implementation and its milestone qualification are complete.
+Release preparation, packaging, artifact qualification, tagging, pushing, and publication have not
+started and require explicit user authorization.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
@@ -25,19 +26,20 @@ input.
   stderr checks. The public `file-summary` package executes with a real file argument.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
-- The latest complete workspace test run passed with one intentional public-HTTPS integration test
-  ignored. The latest warnings-denied workspace Clippy run passed before the final public-package
-  execution test was added; rerun the complete verification matrix before closing qualification.
+- Incremental and clean full-workspace test runs each passed 1,129 tests with one intentional
+  public-HTTPS integration test ignored. That network test also passed when run explicitly.
+- Warnings-denied workspace Clippy, Rust formatting, documentation regeneration, and repository
+  whitespace checks passed. The clean build used a temporary external target directory that was
+  removed afterward.
+- The completion-criterion trace and named executable evidence are recorded in
+  `development/milestones/v0.14.0-qualification.md`.
 
-## Qualification Work
+## Next Authorized Operation
 
-1. Rerun the complete workspace tests and warnings-denied Clippy after the latest commits.
-2. Check each v0.14.0 completion criterion against a named specification section and executable
-   test boundary. Add a test or fix only when the audit demonstrates a real gap.
-3. Regenerate public documentation and require a clean regeneration diff.
-4. Run formatting and repository whitespace checks.
-5. Record the final qualification evidence in `development/milestones/v0.14.0.md` and stop before
-   packaging, tagging, pushing, or publishing.
+After explicit user authorization, create a release-preparation plan that changes version identity,
+writes English release notes, constructs reproducible distribution artifacts, qualifies a fresh
+installation, and stops again before tagging, pushing, or publishing unless those actions are also
+authorized.
 
 ## Guardrails
 

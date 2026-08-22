@@ -1,16 +1,18 @@
 # Contributor Documentation
 
-Nocter is rebuilding its compiler from the language specification. The published v0.13.0 release
-remains available to users, but its compiler implementation is not an input to the rewrite.
+Nocter has completed and qualified a new compiler built from the language specification. The
+published v0.13.0 release remains available to users, but its compiler implementation was not an
+input to the rewrite.
 
-The active work first closes every normative gap in [`spec/`](../spec/README.md). Compiler code is
-added only after the relevant syntax, static semantics, dynamic semantics, target behavior, and
-tooling contract can be implemented without guessing.
+The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
+corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
+Release preparation remains a separately authorized operation.
 
 ## Current Work
 
 - [Current handoff](TODO.md)
 - [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
+- [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
 - [New compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
