@@ -5,6 +5,7 @@ use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
+use crate::source_selection::source_binding_key;
 
 /// Protocol-independent semantic classification of one source range.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,14 +67,26 @@ impl AnalysisSnapshot {
         let Some(index) = self.source_index() else {
             return Box::new([]);
         };
-        let mut highlights = index
+        let mut candidates = index
             .bindings_in(source)
-            .filter_map(|binding| highlight(checked, binding))
+            .filter_map(|binding| {
+                highlight(checked, binding)
+                    .map(|highlight| (source_binding_key(binding), highlight))
+            })
             .collect::<Vec<_>>();
-        highlights
-            .sort_unstable_by_key(|item| (item.range().start(), item.range().end(), item.kind()));
-        highlights.dedup_by_key(|item| item.range());
-        highlights.into_boxed_slice()
+        candidates.sort_unstable_by_key(|(authority, highlight)| {
+            (
+                highlight.range().start(),
+                highlight.range().end(),
+                *authority,
+            )
+        });
+        candidates.dedup_by_key(|(_, highlight)| highlight.range());
+        candidates
+            .into_iter()
+            .map(|(_, highlight)| highlight)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
     }
 }
 

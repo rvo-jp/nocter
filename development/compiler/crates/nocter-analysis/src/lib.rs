@@ -29,6 +29,7 @@ mod semantic;
 mod signature;
 mod source_context;
 mod source_edits;
+mod source_selection;
 
 pub use code_actions::{
     ConformanceActionError, OutcomeActionError, SemanticCodeAction, SemanticCodeActionError,

@@ -6,6 +6,7 @@ use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 use crate::AnalysisSnapshot;
 use crate::presentation::{PresentationError, SemanticPresentation, hover_presentation};
 use crate::source_context::{SourceContext, SourceContextError};
+use crate::source_selection::select_source_binding;
 
 /// One exact interactive source occurrence selected independently of presentation or protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -164,11 +165,7 @@ fn selected_binding(
     source: SourceId,
     offset: ByteOffset,
 ) -> Option<SourceBinding> {
-    index
-        .bindings_at(source, offset)
-        .filter(|binding| interactive_binding(binding))
-        .min_by_key(|binding| selection_key(binding))
-        .copied()
+    select_source_binding(index.bindings_at(source, offset), interactive_binding)
 }
 
 fn interactive_binding(binding: &SourceBinding) -> bool {
@@ -195,47 +192,4 @@ const fn interactive_entity(entity: SemanticEntity) -> bool {
             | SemanticEntity::LocalBinding(..)
             | SemanticEntity::Capture(..)
     )
-}
-
-fn selection_key(binding: &SourceBinding) -> (u32, u8, u8) {
-    let range = binding.origin().span().range();
-    (
-        range.end().get() - range.start().get(),
-        match binding.role() {
-            SourceRole::Reference => 0,
-            SourceRole::Declaration => 1,
-            SourceRole::Implementation => 2,
-        },
-        entity_rank(binding.entity()),
-    )
-}
-
-const fn entity_rank(entity: SemanticEntity) -> u8 {
-    match entity {
-        SemanticEntity::LocalBinding(..) | SemanticEntity::Capture(..) => 0,
-        SemanticEntity::Parameter(_) | SemanticEntity::GenericParameter(_) => 1,
-        SemanticEntity::Field(_) | SemanticEntity::BuiltinField(_) | SemanticEntity::Variant(_) => {
-            2
-        }
-        SemanticEntity::Callable(_)
-        | SemanticEntity::NominalType(_)
-        | SemanticEntity::TypeAlias(_)
-        | SemanticEntity::Interface(_)
-        | SemanticEntity::AssociatedType(_) => 3,
-        SemanticEntity::Module(_)
-        | SemanticEntity::Package(_)
-        | SemanticEntity::PackageTarget(_) => 4,
-        SemanticEntity::Import(_)
-        | SemanticEntity::DeclarationSite(_)
-        | SemanticEntity::Construction(_)
-        | SemanticEntity::Instance(_)
-        | SemanticEntity::Conformance(_)
-        | SemanticEntity::Drop(_)
-        | SemanticEntity::Test(_)
-        | SemanticEntity::Requirement(_)
-        | SemanticEntity::Body(_)
-        | SemanticEntity::BodyScope(..)
-        | SemanticEntity::BodyNode(..)
-        | SemanticEntity::OpaqueType(_) => 5,
-    }
 }
