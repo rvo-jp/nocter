@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/testing/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/testing/index.nct.">
+    <title>v0.14.0 Final Design Review - Nocter</title>
+    <meta name="description" content="Status: criteria fixed; read-only inventory pending (2026-08-23).">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/testing/index/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.14.0-final-design/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/testing/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/testing/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/testing/index/">
+    <meta property="og:title" content="v0.14.0 Final Design Review - Nocter">
+    <meta property="og:description" content="Status: criteria fixed; read-only inventory pending (2026-08-23).">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.14.0-final-design/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-12">
+    <meta property="article:modified_time" content="2026-08-22">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/testing/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/testing/index.nct.">
+    <meta name="twitter:title" content="v0.14.0 Final Design Review - Nocter">
+    <meta name="twitter:description" content="Status: criteria fixed; read-only inventory pending (2026-08-23).">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/testing/index.nct - Nocter","description":"Nocter source code for development/std/testing/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/testing/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Testing","item":"https://nocter.dev/development/std/testing/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/testing/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0 Final Design Review - Nocter","description":"Status: criteria fixed; read-only inventory pending (2026-08-23).","url":"https://nocter.dev/development/reviews/v0.14.0-final-design/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.14.0-final-design/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.14.0 Final Design","item":"https://nocter.dev/development/reviews/v0.14.0-final-design/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,48 +120,46 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">v0.14.0 rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">v0.14.0 implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">New compiler architecture</a></li>
-                <li><a href="../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../../../docs/target-program-design/index.html#content">Target and executable program design</a></li>
-                <li><a href="../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
-                <li><a href="../../../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
-                <li><a href="../../../docs/maintenance/index.html#content">Rewrite maintenance policy</a></li>
-                <li><a href="../../../compiler/index.html#content">New compiler boundary</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.14.0 final design review</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/testing/index.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.14.0-final-design.md</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Assertions for native Nocter tests.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! These are ordinary fallible functions. Assertion failure therefore uses the same Error</span>
-<span class="token-comment">//! propagation, process cleanup, and reporting path as application failures.</span>
-
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert</span><span class="token-operator">(</span>condition<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> <span class="token-operator">!</span>condition <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.assertion_failed"</span><span class="token-operator">,</span> <span class="token-string">"assertion failed"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-comment">/// Fails unless two borrowed values satisfy their structural equality requirement.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> assert_eq<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"values are not equal"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="v0-14-0-final-design-review">v0.14.0 Final Design Review</h1><p><strong>Status: criteria fixed; read-only inventory pending (2026-08-23).</strong></p><p>This review is performed after implementation qualification and before release preparation. It does not define language behavior, change release identity, or authorize packaging or publication. The <a href="../../milestones/v0.14.0-qualification/index.html#content">v0.14.0 qualification</a> remains the baseline unless review remediation changes production behavior or architecture, in which case qualification must be run again.</p><h2 id="primary-rule">Primary Rule</h2><p>Each responsibility knows only the contracts supplied by other responsibilities, never their internal implementation.</p><p>A Rust trait is not required at every boundary. An immutable program, closed algebraic IR, exact identity, validated snapshot, or typed error is a contract when all of these conditions hold:</p><ul><li>its owning responsibility and meaning are explicit;</li><li>it is complete and immutable before a consumer receives it;</li><li>its invariants are validated by its owner;</li><li>it exposes semantic facts rather than construction artifacts;</li><li>consumers cannot mutate it or recover omitted facts from source text, names, ranges, ordering, or
+  another side channel;</li><li>its internal construction can change without changing consumers that use the same contract.</li></ul><p>Making a type <code>pub</code> does not by itself make that type a valid contract. Builders, temporary indexes, partially resolved nodes, mutable pipeline state, and presentation strings are internal unless the review proves otherwise.</p><h2 id="review-scope">Review Scope</h2><p>The review covers every production crate in <code>development/compiler/Cargo.toml</code>, the authored standard library, compiler test support, and the composition boundaries used by public examples. It evaluates both the vertical compiler pipeline and horizontal services:</p><pre><code class="language-text">SourceProgram
+  -&gt; SyntaxProgram
+  -&gt; DeclarationProgram
+  -&gt; CheckedProgram
+  -&gt; TargetProgram
+  -&gt; ExecutableProgram
+  -&gt; MirProgram
+  -&gt; MachineProgram
+  -&gt; Arm64Program
+  -&gt; MachOImage
+</code></pre><p>Horizontal boundaries include source projection, diagnostics, package resolution and mutation, filesystem overlays, command orchestration, compiler sessions, semantic analysis, LSP protocol projection, installation, formatting, standard semantic roles, and test fixtures.</p><h2 id="boundary-inventory">Boundary Inventory</h2><p>Each responsibility receives one inventory row containing:</p><table><thead><tr><th>Field</th><th>Required evidence</th></tr></thead><tbody><tr><td>Owner</td><td>The crate or module that alone makes the decision</td></tr><tr><td>Responsibility</td><td>One concrete sentence describing the owned decision</td></tr><tr><td>Input contracts</td><td>Complete values the owner may inspect</td></tr><tr><td>Output contracts</td><td>Complete immutable values or effects consumers receive</td></tr><tr><td>Invariants</td><td>Conditions validated before output escapes</td></tr><tr><td>Consumers</td><td>Production responsibilities that use the output</td></tr><tr><td>Forbidden knowledge</td><td>Source, names, ordering, builders, or upstream representations it must not inspect</td></tr></tbody></table><p>The inventory is complete only when every direct production dependency is justified by at least one input contract. A dependency used only to reach through another owner, recreate a decision, or name an internal helper is a finding.</p><h2 id="audit-questions">Audit Questions</h2><h3 id="contract-purity">Contract purity</h3><ul><li>Can the provider change its internal representation without changing a contract-only consumer?</li><li>Does a consumer pattern-match a deliberate closed IR, or an incidental construction shape?</li><li>Does production code import another responsibility's builder, mutable table, recovery scratch
+  state, or syntax helper?</li><li>Is a test helper bypassing a production facade and thereby proving a different composition?</li></ul><h3 id="one-way-lowering-and-single-authority">One-way lowering and single authority</h3><ul><li>Does a later phase revisit source or an earlier program to reconstruct a decision?</li><li>Are resolution, normalization, dispatch, ownership, provenance, cleanup, specialization, layout,
+  ABI, source selection, and package identity each decided exactly once?</li><li>Does a later phase receive every fact it needs, or infer a missing fact from a spelling, range,
+  arena position, filesystem path, diagnostic message, or standard-library name?</li><li>Can two authorities disagree while local tests still pass?</li></ul><h3 id="completeness-mutation-and-failure">Completeness, mutation, and failure</h3><ul><li>Does the owner freeze and validate a complete output before publication?</li><li>Are authored failures, environment failures, and compiler invariant failures distinct?</li><li>Can an empty value, <code>Option</code>, fallback, stale snapshot, or best-effort branch hide corruption?</li><li>Does one owner control each mutation, transaction, document generation, artifact, and cleanup?</li><li>Are partial source, lock, package, or binary effects impossible on failure?</li></ul><h3 id="determinism-and-backend-closure">Determinism and backend closure</h3><ul><li>Can package, module, source, declaration, hash insertion, discovery, or traversal order select a
+  semantic or machine result?</li><li>Does code generation consume only machine contracts, without source, syntax, resolver state,
+  standard names, or runtime-name lookup?</li><li>Do layout, ABI, linkage, allocation, frame construction, fixups, and final bytes retain one owner
+  each?</li></ul><h3 id="tooling-and-standard-library">Tooling and standard library</h3><ul><li>Do editor adapters perform only protocol and coordinate projection?</li><li>Do all semantic editor features select the same compiler-owned identity and presentation facts?</li><li>Does a failed generation ever reuse a stale successful program or fabricate partial semantics?</li><li>Are built-ins restricted to behavior that cannot be expressed by ordinary source contracts?</li><li>Do authored standard APIs use the ordinary construction, conformance, instance, coercion,
+  operator, ownership, provenance, and primitive-role mechanisms?</li></ul><h3 id="cost-and-maintainability">Cost and maintainability</h3><ul><li>Are complete programs, source graphs, or type stores cloned or rebuilt unnecessarily?</li><li>Do hot paths repeat global scans, normalization, specialization, or standard-library checking?</li><li>Do tests duplicate assertions without protecting a distinct contract or boundary?</li><li>Do temporary build, package, formatter, test, and editor artifacts have bounded ownership and
+  cleanup?</li></ul><h2 id="finding-classes">Finding Classes</h2><ul><li><strong>Release blocker:</strong> observable miscompilation, specification disagreement, unsafe external-input
+  handling, non-atomic public effect, or a boundary that can produce contradictory accepted output.</li><li><strong>Architectural debt:</strong> duplicate authority, reverse dependency, leaked internal representation,
+  or a contract omission that forces another responsibility to reconstruct facts.</li><li><strong>Robustness defect:</strong> order dependence, hidden fallback, incomplete validation, stale state,
+  ambiguous error ownership, or unclosed failure cleanup.</li><li><strong>Maintenance issue:</strong> unjustified public API, avoidable coupling, repeated expensive work,
+  redundant tests, misleading naming, or documentation that obscures the actual owner.</li></ul><p>Every finding must cite a concrete producer, consumer, leaked fact, and failure mode. A preference without such evidence is not a finding.</p><h2 id="work-order">Work Order</h2><ol><li>1. Freeze these criteria before inspecting implementation details for findings.</li><li>Build the complete responsibility and direct-dependency inventory without modifying production
+   code.</li><li>Audit each pipeline and horizontal boundary, recording findings but applying no local fixes.</li><li>Group findings by root cause and design complete authority replacements, deletion sets, migration
+   order, and conformance evidence.</li><li>Ask for a user decision only when the specification permits materially different observable
+   behavior or two boundary designs impose materially different long-term language constraints.</li><li>Implement one coherent responsibility replacement at a time; delete the superseded path in the
+   same change.</li><li>Perform an adversarial second review that assumes the first review missed duplicate and fallback
+   paths.</li><li>Repeat incremental and external-target clean qualification before release preparation.</li></ol><h2 id="completion-gate">Completion Gate</h2><p>The review completes only when every production dependency has a contract justification, every finding is resolved or explicitly accepted by the user, every superseded authority is deleted, and the second review finds no remaining instance of internal-representation knowledge crossing a responsibility boundary. Passing tests alone cannot close this review.</p>
             </div>
         </main>
     </div>
@@ -177,6 +175,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

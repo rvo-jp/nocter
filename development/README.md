@@ -13,6 +13,7 @@ Release preparation remains a separately authorized operation.
 - [Current handoff](TODO.md)
 - [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
 - [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
+- [v0.14.0 final design review](reviews/v0.14.0-final-design.md)
 - [New compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
@@ -54,6 +55,7 @@ development/
 ├── docs/              # rewrite architecture and maintenance policy
 ├── milestones/        # active and historical milestone records
 ├── packaging/         # published-package inputs, unchanged during specification closure
+├── reviews/           # cross-cutting design criteria, findings, and remediation evidence
 ├── releases/          # immutable published qualification records
 └── std/               # existing source, not a bootstrap oracle for the new compiler
 ```

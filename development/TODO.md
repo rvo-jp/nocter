@@ -2,9 +2,13 @@
 
 ## Current Task
 
-The v0.14.0 specification-first implementation and its milestone qualification are complete.
+Perform the v0.14.0 final design review before release preparation. The review first freezes its
+criteria, then inventories every responsibility and direct production dependency without modifying
+production code. Findings are repaired only after the complete inventory has exposed their shared
+root causes.
+
 Release preparation, packaging, artifact qualification, tagging, pushing, and publication have not
-started and require explicit user authorization.
+started and require explicit user authorization after the review and requalification complete.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
@@ -34,12 +38,17 @@ input.
 - The completion-criterion trace and named executable evidence are recorded in
   `development/milestones/v0.14.0-qualification.md`.
 
-## Next Authorized Operation
+## Review Work
 
-After explicit user authorization, create a release-preparation plan that changes version identity,
-writes English release notes, constructs reproducible distribution artifacts, qualifies a fresh
-installation, and stops again before tagging, pushing, or publishing unless those actions are also
-authorized.
+1. Freeze the criteria in `development/reviews/v0.14.0-final-design.md`.
+2. Record one owner, responsibility, input contract, output contract, invariant set, consumer set,
+   and forbidden-knowledge set for every production responsibility.
+3. Justify every direct Cargo dependency with a contract; record reach-through or duplicated
+   authority as a finding.
+4. Complete read-only pipeline, horizontal-service, standard-library, test, determinism, failure,
+   and cost audits before changing production code.
+5. Group findings by root cause, design full authority replacements and deletion sets, then
+   implement and requalify one coherent responsibility at a time.
 
 ## Guardrails
 
