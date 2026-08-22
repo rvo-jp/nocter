@@ -1,5 +1,6 @@
-use nocter_source::{ByteOffset, SourceId, Span, TextRange};
+use nocter_source::{ByteOffset, SourceFile, SourceId, Span, TextRange};
 
+use crate::documentation::DocumentationAttachments;
 use crate::{ExpectedSyntax, LexedFile, ParseDiagnostic, Token, TokenKind};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -454,21 +455,26 @@ pub struct SyntaxTree {
     elements: Vec<SyntaxElement>,
     root: NodeId,
     diagnostics: Vec<ParseDiagnostic>,
+    documentation: DocumentationAttachments,
 }
 
 impl SyntaxTree {
     pub(crate) fn new(
+        source: &SourceFile,
         lexed: LexedFile,
         built: BuiltTree,
         diagnostics: Vec<ParseDiagnostic>,
     ) -> Self {
-        Self {
+        let mut tree = Self {
             lexed,
             nodes: built.nodes,
             elements: built.elements,
             root: built.root,
             diagnostics,
-        }
+            documentation: DocumentationAttachments::empty(),
+        };
+        tree.documentation = DocumentationAttachments::build(source, &tree);
+        tree
     }
 
     #[must_use]
@@ -537,6 +543,21 @@ impl SyntaxTree {
     #[must_use]
     pub fn has_errors(&self) -> bool {
         !self.lexed.diagnostics().is_empty() || !self.diagnostics.is_empty()
+    }
+
+    /// Returns normalized Markdown documentation attached to the complete source file.
+    #[must_use]
+    pub fn file_documentation(&self) -> Option<&str> {
+        self.documentation.file()
+    }
+
+    /// Returns normalized Markdown documentation attached to one documentable syntax node.
+    #[must_use]
+    pub fn documentation(&self, node: NodeId) -> Option<&str> {
+        if node.source() != self.source() {
+            return None;
+        }
+        self.documentation.node(node)
     }
 }
 

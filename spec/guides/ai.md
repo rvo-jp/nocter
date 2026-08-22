@@ -308,6 +308,9 @@ Rules:
 
 - `///` and `/** ... */` document the next documentable declaration, member, field, variant, or local binding.
 - `//!` and `/*! ... */` document the source file/module.
+- In package mode, use `//!` in `nocter.nct` for package documentation and in `index.nct` for the
+  public module documentation. A `//!` comment in an implementation source documents only that
+  source snapshot.
 - Empty lines break attachment between a doc comment and the following construct.
 - `//` and `/* ... */` are normal implementation comments and must not be treated as hover text.
 - `nocter ast app.nct --format json` may expose attached doc text through AST node `documentation` fields.

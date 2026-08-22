@@ -342,6 +342,15 @@ Newline rules:
 - LF bytes inside a block comment are emitted as `newline` tokens so block comments can preserve statement separation.
 - Comment text itself is not emitted as tokens.
 - Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.
+- After removing `///` or `//!`, documentation extraction removes at most one following ASCII
+  space or tab. Adjacent line-doc comments contribute one Markdown line each.
+- After removing `/**` or `/*!` and the closing `*/`, documentation extraction removes an empty
+  outer first or last line, removes the common space/tab indentation of nonempty lines, and then
+  removes a decorative leading `*` plus at most one following space or tab when every nonempty line
+  has that decoration. A single-line block doc removes at most one boundary space or tab on each
+  side. Extraction does not reflow or otherwise rewrite Markdown text.
+- Adjacent documentation comments are joined with one newline. An empty line or an intervening
+  ordinary comment breaks an item-documentation attachment.
 - Newlines inside single-line string literals and byte literals are lexical errors.
 - Newlines inside multi-line string literals are literal content and are not emitted as statement-separating `newline` tokens.
 

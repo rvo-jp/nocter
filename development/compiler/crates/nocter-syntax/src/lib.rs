@@ -1,6 +1,7 @@
 //! Lossless lexical and syntactic projection of normalized Nocter source.
 
 mod diagnostic;
+mod documentation;
 mod lexer;
 mod literal;
 mod parser;

@@ -38,6 +38,16 @@ Hover and generated API documentation use compiler-attached Markdown documentati
 - An empty line ends attachment.
 - Adjacent documentation comments are concatenated in source order.
 
+The lexical chapter defines the single Markdown-extraction rule used by AST output, semantic
+indexes, hover, and future generated documentation. These consumers do not independently strip or
+reformat comment text.
+
+File documentation has one public owner. Documentation in `nocter.nct` belongs to its package.
+Documentation in a directory module's `index.nct`, or in the source of single-file mode, belongs to
+that module. File documentation in a module implementation source remains available on that
+source's syntax snapshot and AST output, but it is not appended to or allowed to replace the public
+module documentation.
+
 Hover on an imported module path presents the resolved module documentation when available.
 Tooling must not infer documentation from nearby raw text after the compiler reports no attachment.
 

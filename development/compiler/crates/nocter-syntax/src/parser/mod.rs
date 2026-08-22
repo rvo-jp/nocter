@@ -36,7 +36,7 @@ pub fn parse(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
     }
     let (events, diagnostics) = parser.finish();
     let built = build_tree(source.id(), &events);
-    SyntaxTree::new(lexed, built, diagnostics)
+    SyntaxTree::new(source, lexed, built, diagnostics)
 }
 
 struct Parser<'source> {

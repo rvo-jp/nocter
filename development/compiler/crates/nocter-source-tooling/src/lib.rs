@@ -213,6 +213,8 @@ impl SourceInspection {
             &diagnostics,
             &self.sources,
         )?;
+        output.push_str(",\"documentation\":");
+        write_optional_json_string(&mut output, self.syntax.file_documentation());
         write!(
             output,
             ",\"root\":{},\"nodes\":[",
@@ -227,6 +229,8 @@ impl SourceInspection {
                 .expect("writing to String cannot fail");
             write_json_string(&mut output, node.kind().as_str());
             write_range(&mut output, node.range());
+            output.push_str(",\"documentation\":");
+            write_optional_json_string(&mut output, self.syntax.documentation(node_id));
             output.push_str(",\"children\":[");
             for (child_index, child) in self.syntax.children(node_id).iter().enumerate() {
                 if child_index != 0 {
@@ -279,6 +283,14 @@ impl SourceInspection {
         self.sources
             .get(self.syntax.source())
             .ok_or(DiagnosticRenderError::UnknownSource(self.syntax.source()))
+    }
+}
+
+fn write_optional_json_string(output: &mut String, value: Option<&str>) {
+    if let Some(value) = value {
+        write_json_string(output, value);
+    } else {
+        output.push_str("null");
     }
 }
 
@@ -420,6 +432,22 @@ mod tests {
         assert!(json.contains("\"kind\":\"missing\""));
         assert!(json.contains("\"tokens\":["));
         assert!(json.ends_with('\n'));
+    }
+
+    #[test]
+    fn ast_projects_syntax_owned_file_and_item_documentation() {
+        let inspection = SourceInspection::new(
+            SourceName::new("/tmp/app.nct"),
+            b"//! Module API.\n\n/// Starts the application.\nfunc main(): void { return }\n",
+            InspectionGoal::ModuleSource,
+        )
+        .unwrap();
+
+        let json = inspection.render_ast_json().unwrap();
+
+        assert!(json.contains("\"documentation\":\"Module API.\""));
+        assert!(json.contains("\"documentation\":\"Starts the application.\""));
+        assert!(json.contains("\"documentation\":null"));
     }
 
     #[test]
