@@ -2,13 +2,13 @@
 
 ## Current Task
 
-Prepare the v0.14.0 release without publishing it. The normative `init` and `graph` omission found
-by the release audit is repaired and committed. Deterministic packaging passed its complete
-installed-artifact matrix with the previous release identity. The tracked compiler installation,
-standard package, manifest, and English candidate notes now identify v0.14.0; full incremental and
-clean requalification remains before the release-content commit can be frozen.
+The v0.14.0 release candidate is fully prepared and qualified without publication. The normative
+`init` and `graph` omission found by the release audit is repaired. Release-content commit
+`22694918b46a379b0046628153396855db444540` passed incremental and clean source gates, deterministic
+double packaging, and the complete fresh-install smoke matrix. Candidate evidence is recorded in
+`development/milestones/v0.14.0-release-preparation.md`.
 
-Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing, and
+The qualified archive is frozen. Tagging, pushing, uploading, public latest-release updates, and
 publication remain outside the current operation and require explicit user authorization.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
