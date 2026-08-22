@@ -35,7 +35,6 @@ pub use declaration::{
 };
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
-pub use nocter_model::PackageTargetKind;
 pub use path::ModulePath;
 pub use program::{
     DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,

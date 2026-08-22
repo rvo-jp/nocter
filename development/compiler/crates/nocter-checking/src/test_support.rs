@@ -1,8 +1,9 @@
-use nocter_declaration_lowering::{
+use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, StandardRoleInput,
-    ToolchainInput, UseResolutionInput, UseTargetInput,
+    PackageDeclarationInput, PackageInput, PackageMode, StandardRoleInput, ToolchainInput,
+    UseResolutionInput, UseTargetInput,
 };
+use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 

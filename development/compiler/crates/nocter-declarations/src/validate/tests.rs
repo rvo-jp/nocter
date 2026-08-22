@@ -1,13 +1,15 @@
-use nocter_model::{BuiltinType, CallableCapability, PackageIdentity, SymbolTable, TypeKind};
+use nocter_model::{
+    BuiltinType, CallableCapability, PackageIdentity, PackageTargetKind, SymbolTable, TypeKind,
+};
 
 use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
     CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
     DeclarationProgramBuilder, DeclarationRule, DeclarationViolation, DropDeclaration,
     FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModuleNamespace,
-    ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, PackageTargetKind, Parameter,
-    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError,
-    ProgramValidationError, ProvenanceOrigin, VariantDeclaration, Visibility,
+    ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter, ParameterOwner,
+    ParameterRole, ProgramBuildError, ProgramIntegrityError, ProgramValidationError,
+    ProvenanceOrigin, VariantDeclaration, Visibility,
 };
 
 #[test]

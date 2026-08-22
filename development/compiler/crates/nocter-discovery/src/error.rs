@@ -2,7 +2,8 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_compile_input::ModuleIdentity;
+use nocter_model::PackageIdentity;
 use nocter_source::SourceError;
 use nocter_syntax::NodeId;
 use nocter_target_selection::TargetSelectionError;

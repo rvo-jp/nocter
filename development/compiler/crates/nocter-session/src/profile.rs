@@ -1,6 +1,7 @@
-use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, PackageIdentity};
+use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity};
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_discovery::{PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest};
+use nocter_model::PackageIdentity;
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 

@@ -2,12 +2,12 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::Arm64TestSuite;
-use nocter_declarations::PackageTargetKind;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveredUnit;
 use nocter_machine::MachineProgram;
 use nocter_macho::MachOImage;
 use nocter_mir::lower_executable;
+use nocter_model::PackageTargetKind;
 use nocter_model::{PackageIdentity, PackageTargetId, TestId};
 use nocter_source_index::SourceIndex;
 use nocter_target_program::{

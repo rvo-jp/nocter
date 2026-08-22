@@ -3,12 +3,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
-    BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode,
-    UseTargetInput,
+    BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageMode, UseTargetInput,
 };
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::CompilationTarget;
+use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;

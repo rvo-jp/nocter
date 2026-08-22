@@ -3,11 +3,11 @@ use std::fmt;
 
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
+    PackageDeclarationInput, PackageInput, PackageMode, PackageTargetResolutionInput,
+    ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
-use nocter_model::CompilationTarget;
+use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
 

@@ -4,16 +4,17 @@ use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution, is_concrete_ty
 use nocter_declarations::NominalShape;
 use nocter_model::{OpaqueTypeId, TypeId, TypeKind};
 use nocter_runtime_contract::{
-    RuntimeFieldRepresentation, RuntimePayloadRepresentation, RuntimeTypeRepresentation,
-    RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
+    RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
+    RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
 };
 
-use super::ExecutableProgramError;
+use super::{ExecutableClosureLayout, ExecutableProgramError};
 use crate::TargetProgram;
 
 pub(super) fn close_type_representations(
     target: &TargetProgram,
     resolver: &mut ConcreteDispatchResolver<'_>,
+    closure_layouts: &[ExecutableClosureLayout],
 ) -> Result<RuntimeTypeRepresentationTable, ExecutableProgramError> {
     let candidates = resolver
         .types()
@@ -81,6 +82,22 @@ pub(super) fn close_type_representations(
         };
         if let Some(representation) = representation {
             entries.insert(ty, representation);
+        }
+    }
+    for layout in closure_layouts {
+        let captures = layout
+            .captures()
+            .iter()
+            .map(|capture| RuntimeCaptureRepresentation::new(capture.binding(), capture.ty()))
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        if entries
+            .insert(layout.ty(), RuntimeTypeRepresentation::Closure { captures })
+            .is_some()
+        {
+            return Err(ExecutableProgramError::InvalidTypeRepresentation(
+                layout.ty(),
+            ));
         }
     }
     Ok(RuntimeTypeRepresentationTable::new(entries))

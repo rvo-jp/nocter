@@ -1,4 +1,4 @@
-pub use nocter_model::PackageIdentity;
+use nocter_model::PackageIdentity;
 use nocter_syntax::Keyword;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

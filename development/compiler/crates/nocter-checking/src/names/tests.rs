@@ -1,8 +1,10 @@
-use nocter_declaration_lowering::{
+use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
-    UseResolutionInput, UseTargetInput, lower_compile_unit_declarations,
+    PackageDeclarationInput, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
+    UseTargetInput,
 };
+use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};

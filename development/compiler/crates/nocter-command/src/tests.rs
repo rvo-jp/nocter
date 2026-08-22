@@ -3,9 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
+use nocter_model::PackageIdentity;
 use nocter_package::{
     ExactDependencyLock, PackageResolutionError, ResolvedPackageGraph, ResolvedPackageSpec,
     StandardPackage,

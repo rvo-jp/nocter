@@ -5,14 +5,14 @@
 //! consumers treat every identity and edge as immutable input.
 
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
-use nocter_model::{CompilationTarget, PackageTargetKind};
+use nocter_model::{CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
 mod identity;
 
-pub use identity::{ModuleIdentity, PackageIdentity, is_valid_module_segment};
+pub use identity::{ModuleIdentity, is_valid_module_segment};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PackageMode {

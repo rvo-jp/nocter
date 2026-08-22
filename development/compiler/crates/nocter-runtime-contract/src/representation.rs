@@ -134,17 +134,6 @@ impl RuntimeTypeRepresentationTable {
         self.entries.get(&ty)
     }
 
-    /// Adds one representation while the target closure is being frozen.
-    ///
-    /// Returns the prior value when the type already had a representation.
-    pub fn insert(
-        &mut self,
-        ty: TypeId,
-        representation: RuntimeTypeRepresentation,
-    ) -> Option<RuntimeTypeRepresentation> {
-        self.entries.insert(ty, representation)
-    }
-
     #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &RuntimeTypeRepresentation)> {
         self.entries

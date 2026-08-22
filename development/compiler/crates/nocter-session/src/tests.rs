@@ -2,9 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
+use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
 

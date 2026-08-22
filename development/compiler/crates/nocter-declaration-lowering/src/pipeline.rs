@@ -292,7 +292,7 @@ fn normalize_types<'syntax>(
 
 #[cfg(test)]
 mod tests {
-    use nocter_declarations::PackageTargetKind;
+    use nocter_model::PackageTargetKind;
     use nocter_source::{SourceMap, SourceName};
     use nocter_source_index::SemanticEntity;
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};

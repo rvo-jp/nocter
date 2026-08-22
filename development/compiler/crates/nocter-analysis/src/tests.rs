@@ -2,10 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{ModuleIdentity, PackageIdentity};
+use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, ToolchainRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::CompilationTarget;
+use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 
 use crate::{AnalysisSnapshot, AnalysisStatus, GenerationId};

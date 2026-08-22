@@ -1,4 +1,5 @@
-use nocter_declaration_lowering::{StandardRoleInput, lower_compile_unit_declarations};
+use nocter_compile_input::StandardRoleInput;
+use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BorrowCapability, TypeKind};
 use nocter_syntax::NodeKind;

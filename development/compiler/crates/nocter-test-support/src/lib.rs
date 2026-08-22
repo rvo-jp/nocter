@@ -1,13 +1,13 @@
 //! Shared source fixture for compiler boundary and integration tests.
 
-use nocter_declaration_lowering::{
+use nocter_compile_input::{
     BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
     PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
     UseTargetInput,
 };
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
-use nocter_model::CompilationTarget;
+use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 

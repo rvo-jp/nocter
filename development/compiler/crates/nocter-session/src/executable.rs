@@ -1,9 +1,9 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nocter_declarations::PackageTargetKind;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveredUnit;
+use nocter_model::PackageTargetKind;
 use nocter_model::{PackageIdentity, PackageTargetId};
 use nocter_target_program::{ExecutableProgram, ExecutableProgramError, TargetProgram};
 

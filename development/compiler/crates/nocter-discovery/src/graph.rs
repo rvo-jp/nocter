@@ -3,10 +3,11 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageIdentity, PackageMode, PackageTargetResolutionInput,
+    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
     PrimitiveRoleInput, StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
 };
 use nocter_filesystem::SourceOverlay;
+use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;

@@ -2030,7 +2030,7 @@ dependencies = [
 name = "nocter-test-support"
 version = "0.0.0"
 dependencies = [
- "nocter-declaration-lowering",
+ "nocter-compile-input",
  "nocter-declarations",
  "nocter-model",
  "nocter-package",

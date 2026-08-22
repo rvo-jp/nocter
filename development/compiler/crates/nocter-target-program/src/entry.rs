@@ -1,6 +1,7 @@
 use std::fmt;
 
-use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity, PackageTargetKind};
+use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity};
+use nocter_model::PackageTargetKind;
 use nocter_model::{
     BodyId, BuiltinType, CallableId, ModuleId, PackageId, PackageTargetId, TypeId, TypeKind,
 };

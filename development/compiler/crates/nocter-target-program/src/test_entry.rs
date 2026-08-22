@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_declarations::PackageTargetKind;
+use nocter_model::PackageTargetKind;
 use nocter_model::{BodyId, ModuleId, PackageId, PackageTargetId, Symbol, TestId};
 
 use crate::TargetProgram;

@@ -4,6 +4,14 @@
 //! lowering boundary canonicalizes an explicit compile unit, creates semantic identities, and
 //! projects them back to source without exposing syntax to later semantic stages.
 
+use nocter_compile_input::{
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageDeclarationInput, PackageInput, PackageMode, PackageTargetResolutionInput,
+    ToolchainInput, UseResolutionInput, UseTargetInput,
+};
+use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_model::PackageIdentity;
+
 mod contract;
 mod contract_diagnostic;
 mod definition_diagnostic;
@@ -53,13 +61,6 @@ pub use imports::{
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
-pub use nocter_compile_input::{
-    BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
-    UseTargetInput,
-};
-pub use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 pub use pipeline::{
     DeclarationLoweringError, lower_compile_unit_declarations, lower_incomplete_body_declarations,
 };
