@@ -216,3 +216,10 @@ use-site structural entry, preserving field declaration order and the ordinary v
 boundary. The CST selects the containing initializer range but never supplies a type or field
 spelling. A structurally inaccessible type therefore produces no field candidates, and an empty
 result inside a complete initializer does not fall back to unrelated lexical names.
+
+Enum-pattern completion also has a distinct compiler query. Once the pattern subject is typed, the
+body checker retains its nominal enum identity before resolving the authored qualifier and variant.
+Complete patterns recover the same owner through the selected variant identity. Both paths ask the
+construction surface for accessible variants only, so construction functions and other entries
+cannot leak into a pattern candidate list. The pattern CST selects the cursor context but does not
+infer the subject type or accept a merely matching qualifier spelling.

@@ -3,9 +3,9 @@ use std::fmt;
 
 use nocter_checking::{
     BodyScope, CheckedOperation, CheckedProgram, ConstructionCompletionError,
-    MemberCompletionContext, MemberCompletionError, MemberCompletionTarget, NameTarget,
-    PreparedSemanticProgram, ReceiverPreparation, StructuralFieldCompletionError,
-    TypedBodyInterruptionKind,
+    EnumPatternCompletionError, MemberCompletionContext, MemberCompletionError,
+    MemberCompletionTarget, NameTarget, PreparedSemanticProgram, ReceiverPreparation,
+    StructuralFieldCompletionError, TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -18,6 +18,7 @@ use crate::presentation::{name_recovery_presentation, prepared_presentation, pre
 use crate::source_context::{SourceContext, SourceContextError};
 
 mod construction;
+mod enum_patterns;
 mod structural_fields;
 
 /// One compiler-selected name visible at an exact source position.
@@ -69,6 +70,7 @@ pub enum SemanticCompletionError {
     Member(MemberCompletionError),
     Construction(ConstructionCompletionError),
     StructuralField(StructuralFieldCompletionError),
+    EnumPattern(EnumPatternCompletionError),
 }
 
 impl fmt::Display for SemanticCompletionError {
@@ -78,6 +80,7 @@ impl fmt::Display for SemanticCompletionError {
             Self::Member(error) => error.fmt(formatter),
             Self::Construction(error) => error.fmt(formatter),
             Self::StructuralField(error) => error.fmt(formatter),
+            Self::EnumPattern(error) => error.fmt(formatter),
         }
     }
 }
@@ -89,6 +92,7 @@ impl std::error::Error for SemanticCompletionError {
             Self::Member(error) => Some(error),
             Self::Construction(error) => Some(error),
             Self::StructuralField(error) => Some(error),
+            Self::EnumPattern(error) => Some(error),
         }
     }
 }
@@ -114,6 +118,12 @@ impl From<ConstructionCompletionError> for SemanticCompletionError {
 impl From<StructuralFieldCompletionError> for SemanticCompletionError {
     fn from(error: StructuralFieldCompletionError) -> Self {
         Self::StructuralField(error)
+    }
+}
+
+impl From<EnumPatternCompletionError> for SemanticCompletionError {
+    fn from(error: EnumPatternCompletionError) -> Self {
+        Self::EnumPattern(error)
     }
 }
 
@@ -201,6 +211,16 @@ impl AnalysisSnapshot {
             program: checked, ..
         } = program
         {
+            if let Some(completions) = enum_patterns::checked_completions(
+                checked,
+                index,
+                self.syntax_trees(),
+                source,
+                offset,
+                module,
+            )? {
+                return Ok(completions);
+            }
             if let Some(completions) = structural_fields::checked_completions(
                 checked,
                 index,
@@ -319,6 +339,17 @@ fn interrupted_completions(
             };
             let candidates = candidates?;
             Ok(Some(structural_fields::render_prepared_completions(
+                recovery.prepared(),
+                module,
+                &candidates,
+            )))
+        }
+        TypedBodyInterruptionKind::EnumPattern { .. } => {
+            let Some(candidates) = recovery.interrupted_enum_pattern_completions(module) else {
+                return Ok(None);
+            };
+            let candidates = candidates?;
+            Ok(Some(enum_patterns::render_prepared_completions(
                 recovery.prepared(),
                 module,
                 &candidates,

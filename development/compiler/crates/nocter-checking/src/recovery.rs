@@ -145,4 +145,20 @@ impl BodyAnalysisRecovery {
                 .structural_field_completions(*definition, module, initialized),
         )
     }
+
+    /// Applies the enum-pattern selector to the target family fixed before pattern failure.
+    #[must_use]
+    pub fn interrupted_enum_pattern_completions(
+        &self,
+        module: ModuleId,
+    ) -> Option<
+        Result<Box<[crate::EnumPatternCompletionCandidate]>, crate::EnumPatternCompletionError>,
+    > {
+        let typed = self.typed.as_ref()?;
+        let TypedBodyInterruptionKind::EnumPattern { definition } = typed.interruption.kind()
+        else {
+            return None;
+        };
+        Some(self.prepared.enum_pattern_completions(*definition, module))
+    }
 }

@@ -14,6 +14,7 @@ mod conformance;
 mod construction_completion;
 mod construction_surfaces;
 mod copyability;
+mod enum_pattern_completion;
 mod expected;
 mod field_selection;
 mod inference;
@@ -94,6 +95,7 @@ pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,
     CopyabilityTable,
 };
+pub use enum_pattern_completion::{EnumPatternCompletionCandidate, EnumPatternCompletionError};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
     plan_expected_type,

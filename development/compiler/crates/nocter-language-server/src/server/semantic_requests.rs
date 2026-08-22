@@ -1062,6 +1062,67 @@ mod tests {
     }
 
     #[test]
+    fn completion_in_enum_patterns_excludes_non_variant_construction_entries() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let source_with = |selection: &str| {
+            concat!(
+                "enum Choice {\n",
+                "    first\n",
+                "    second(value: i32)\n",
+                "}\n",
+                "construct Choice {\n",
+                "    pub func new(): Self { loop {} }\n",
+                "}\n",
+                "func inspect(value: &Choice): void {\n",
+                "    match value {\n",
+                "        Choice.$selection { return }\n",
+                "        _ { return }\n",
+                "    }\n",
+                "}\n",
+            )
+            .replace("$selection", selection)
+        };
+        let assert_variants = |step: &ServerStep| {
+            let response = step.response().unwrap();
+            assert!(
+                response.contains("\"label\":\"first\",\"kind\":20"),
+                "{response}"
+            );
+            assert!(
+                response.contains("\"label\":\"second\",\"kind\":20"),
+                "{response}"
+            );
+            assert!(!response.contains("\"label\":\"new\""), "{response}");
+            assert!(step.issue().is_none(), "{:?}", step.issue());
+        };
+
+        let complete = source_with("first");
+        let opened = set_completion_document(&mut server, &uri, &complete, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        assert_variants(&request_completion(&mut server, &uri, 2, 9, 17));
+
+        let invalid = source_with("missing");
+        let changed = set_completion_document(&mut server, &uri, &invalid, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_variants(&request_completion(&mut server, &uri, 3, 9, 18));
+
+        let incomplete = source_with("");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 3);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        assert_variants(&request_completion(&mut server, &uri, 4, 9, 15));
+    }
+
+    #[test]
     fn module_path_segments_navigate_as_one_resolved_namespace() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

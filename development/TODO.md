@@ -160,6 +160,10 @@ implementation input.
    visibility remain compiler-owned; the LSP adapter neither scans field declarations nor infers a
    type from initializer text. Complete, body-failed, and syntax-incomplete initializer states are
    covered by protocol tests.
+   Enum-pattern completion is now a separate compiler query rather than ordinary `Type.`
+   completion. The typed subject supplies the exact enum family in failed generations, while a
+   checked variant identity supplies it in complete generations. The shared construction surface
+   returns variants only, preventing construction functions from leaking into pattern candidates.
    The public source-tooling boundary is active: `fmt`, `tokens`, and `ast` share one standalone
    source loader and one filesystem-independent `nocter-source-tooling` snapshot containing the
    normalized source, lexer output, and concrete syntax tree. All three commands bypass

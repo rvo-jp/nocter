@@ -54,4 +54,7 @@ pub enum TypedBodyInterruptionKind {
         definition: NominalTypeId,
         initialized: Box<[FieldId]>,
     },
+    EnumPattern {
+        definition: NominalTypeId,
+    },
 }

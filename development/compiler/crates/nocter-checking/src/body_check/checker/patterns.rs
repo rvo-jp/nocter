@@ -4,7 +4,7 @@ use nocter_declarations::{ExportedEntity, NominalShape, ParameterOwner, Paramete
 use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, NominalTypeId, TypeId, TypeKind, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
 use super::{BlockExpectation, BodyChecker};
@@ -20,7 +20,7 @@ use crate::type_relations::{TypeSubstitution, match_type_pattern};
 use crate::{
     CheckedControl, CheckedOperation, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
     CheckedPatternSlot, CheckedPatternSubject, DropSelection, PatternBindingMode, PatternRemainder,
-    PatternSubjectPreparation,
+    PatternSubjectPreparation, TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
 struct PatternSubjectPlan {
@@ -212,12 +212,28 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         subject: &PatternSubjectPlan,
     ) -> Result<CheckedPattern, BodyCheckError> {
+        self.record_enum_pattern_interruption(node, subject.checked.nominal())?;
         let resolved = self.resolve_pattern_variant(node, subject)?;
         let slot_nodes = descendants(self.tree(), node, NodeKind::PayloadSlot);
         if resolved.parameters.len() != slot_nodes.len() {
             return Err(self.rule(BodyRule::InvalidPatternOperation, node)?);
         }
         self.check_pattern_slots(node, subject, resolved, slot_nodes)
+    }
+
+    fn record_enum_pattern_interruption(
+        &mut self,
+        syntax: NodeId,
+        definition: NominalTypeId,
+    ) -> Result<(), BodyCheckInternalError> {
+        let origin = SourceOrigin::from_node(self.tree(), syntax)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(syntax))?;
+        self.interruption = Some(TypedBodyInterruption::new(
+            self.source.body(),
+            origin,
+            TypedBodyInterruptionKind::EnumPattern { definition },
+        ));
+        Ok(())
     }
 
     fn resolve_pattern_variant(
