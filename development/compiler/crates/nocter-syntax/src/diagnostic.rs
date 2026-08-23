@@ -35,7 +35,7 @@ pub enum ExpectedSyntax {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParseDiagnosticKind {
     Expected(ExpectedSyntax),
-    LateUseDeclaration,
+    LateDependencyDeclaration,
     NestingLimit,
 }
 

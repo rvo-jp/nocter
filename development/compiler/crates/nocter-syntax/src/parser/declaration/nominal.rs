@@ -10,7 +10,9 @@ pub(super) fn struct_declaration(parser: &mut Parser<'_>) {
     parser.expect_keyword(Keyword::Struct);
     parser.expect_name();
     generic_parameters_and_requirements(parser);
-    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, struct_field);
+    if parser.at_punctuation(Punctuation::LeftBrace) {
+        parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, struct_field);
+    }
     parser.complete(marker, NodeKind::StructDeclaration);
 }
 
@@ -20,7 +22,9 @@ pub(super) fn enum_declaration(parser: &mut Parser<'_>) {
     parser.expect_keyword(Keyword::Enum);
     parser.expect_name();
     generic_parameters_and_requirements(parser);
-    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, enum_variant);
+    if parser.at_punctuation(Punctuation::LeftBrace) {
+        parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, enum_variant);
+    }
     parser.complete(marker, NodeKind::EnumDeclaration);
 }
 

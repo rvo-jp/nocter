@@ -457,7 +457,7 @@ fn collect_source(
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
     let tree = source.syntax();
-    if tree.root().kind() != NodeKind::ModuleSource {
+    if tree.root().kind() != NodeKind::SourceFile {
         return Err(SurfaceError::InvalidRootShape(tree.source()));
     }
     for child in child_nodes(tree, tree.root_id()) {

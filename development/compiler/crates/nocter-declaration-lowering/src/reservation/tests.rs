@@ -65,7 +65,7 @@ fn reserves_every_recursive_identity_domain_before_header_resolution() {
     );
     let root_id = add_source(&mut sources, "/app/index.nct", &root_text);
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
 
     let reserved = reserve(
         &sources,
@@ -112,8 +112,8 @@ fn contract_and_implementation_receive_one_callable_identity() {
         "func parse(text: &str): usize { 0 }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
     let reserved = reserve(
         &sources,
@@ -155,8 +155,8 @@ fn public_file_documentation_has_one_semantic_owner() {
         "//! Implementation source documentation.\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
     let reserved = reserve(
         &sources,
@@ -202,9 +202,9 @@ fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     let first_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let second_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let first = parse_source(&sources, first_id, ParseGoal::ModuleSource);
-    let second = parse_source(&sources, second_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let first = parse_source(&sources, first_id, ParseGoal::SourceFile);
+    let second = parse_source(&sources, second_id, ParseGoal::SourceFile);
     let source_order = vec![
         ModuleSourceInput::new("/app/z.nct", ModuleSourceKind::Implementation, &second),
         ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),

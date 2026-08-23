@@ -6,12 +6,14 @@ use crate::{ExpectedSyntax, LexedFile, ParseDiagnostic, Token, TokenKind};
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum NodeKind {
     PackageFile,
-    ModuleSource,
+    SourceFile,
     PackageDirective,
     DirectiveValue,
     DirectiveRecord,
     DirectiveField,
     StringLiteral,
+    IncludeDeclaration,
+    IncludePath,
     UseDeclaration,
     Visibility,
     ModulePath,
@@ -164,12 +166,14 @@ impl NodeKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::PackageFile => "package_file",
-            Self::ModuleSource => "module_source",
+            Self::SourceFile => "source_file",
             Self::PackageDirective => "package_directive",
             Self::DirectiveValue => "directive_value",
             Self::DirectiveRecord => "directive_record",
             Self::DirectiveField => "directive_field",
             Self::StringLiteral => "string_literal",
+            Self::IncludeDeclaration => "include_declaration",
+            Self::IncludePath => "include_path",
             Self::UseDeclaration => "use_declaration",
             Self::Visibility => "visibility",
             Self::ModulePath => "module_path",

@@ -376,7 +376,7 @@ mod decode_tests {
             )
             .unwrap();
         let file = sources.get(source).unwrap();
-        let tree = parse(file, ParseGoal::ModuleSource);
+        let tree = parse(file, ParseGoal::SourceFile);
         assert!(!tree.has_errors());
         let mut expressions = Vec::new();
         let mut pending = vec![tree.root_id()];
@@ -404,7 +404,7 @@ mod decode_tests {
             )
             .unwrap();
         let file = sources.get(source).unwrap();
-        let tree = parse(file, ParseGoal::ModuleSource);
+        let tree = parse(file, ParseGoal::SourceFile);
         assert!(!tree.has_errors(), "{:#?}", tree.diagnostics());
         let expression = find_node(&tree, NodeKind::StringExpression);
         let parts = decode_string_expression(file, &tree, expression).unwrap();

@@ -7,7 +7,7 @@ fn parse_module(text: &str) -> SyntaxTree {
     let source = sources
         .add_bytes(SourceName::new("expression.nct"), text.as_bytes())
         .unwrap();
-    parse(sources.get(source).unwrap(), ParseGoal::ModuleSource)
+    parse(sources.get(source).unwrap(), ParseGoal::SourceFile)
 }
 
 fn assert_ok(text: &str) {

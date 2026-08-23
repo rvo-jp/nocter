@@ -56,7 +56,7 @@ pub(super) fn load_standalone_source(
     let goal = if path.file_name().is_some_and(|name| name == "nocter.nct") {
         InspectionGoal::PackageFile
     } else {
-        InspectionGoal::ModuleSource
+        InspectionGoal::SourceFile
     };
     let inspection =
         SourceInspection::new(SourceName::new(name), &bytes, goal).map_err(|source| {

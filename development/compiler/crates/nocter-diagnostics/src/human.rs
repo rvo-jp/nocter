@@ -259,7 +259,7 @@ mod tests {
                 "//! café\nfunc main(): i32 {\n\tlet value = 1\n\treturn value\n}\n".as_bytes(),
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let block = find_node(&tree, tree.root_id(), NodeKind::Block).unwrap();
         let primary = SourceOrigin::from_node(&tree, block).unwrap();
         let name = find_token(&tree, tree.root_id(), &sources, "value").unwrap();
@@ -289,7 +289,7 @@ mod tests {
         let source = sources
             .add_bytes(SourceName::new("tabbed.nct"), b"\tvalue\n")
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let token = find_token(&tree, tree.root_id(), &sources, "value").unwrap();
         let origin = SourceOrigin::from_token(&tree, token).unwrap();
         let diagnostic = SourceDiagnostic::new("E9998", "tabbed", origin, [], None::<&str>);

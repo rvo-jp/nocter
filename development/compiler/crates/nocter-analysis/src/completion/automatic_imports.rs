@@ -417,7 +417,7 @@ mod tests {
             .add_bytes(SourceName::new("index.nct"), source_text.as_bytes())
             .unwrap();
         let source = sources.get(source_id).unwrap();
-        let syntax = parse(source, ParseGoal::ModuleSource);
+        let syntax = parse(source, ParseGoal::SourceFile);
         assert!(!syntax.has_errors());
         let edit = ImportInsertion::new(source, &syntax).edit(import);
         let offset = usize::try_from(edit.range().start().get()).unwrap();

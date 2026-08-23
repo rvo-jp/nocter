@@ -121,10 +121,10 @@ pub fn lexical_diagnostic(diagnostic: LexDiagnostic) -> SourceDiagnostic {
 pub fn parse_diagnostic(diagnostic: ParseDiagnostic) -> SourceDiagnostic {
     let (code, message, help) = match diagnostic.kind() {
         ParseDiagnosticKind::Expected(expected) => ("E0120", expected_message(expected), None),
-        ParseDiagnosticKind::LateUseDeclaration => (
+        ParseDiagnosticKind::LateDependencyDeclaration => (
             "E0121",
-            "module `use` declarations must precede items".into(),
-            Some("move this `use` declaration before the first item"),
+            "top-level `include` and `use` declarations must precede items".into(),
+            Some("move this dependency declaration before the first item"),
         ),
         ParseDiagnosticKind::NestingLimit => (
             "E0122",
@@ -212,8 +212,8 @@ mod tests {
             .add_bytes(SourceName::new("syntax.nct"), b"func\n")
             .unwrap();
         let trees = [
-            parse(sources.get(lexical).unwrap(), ParseGoal::ModuleSource),
-            parse(sources.get(syntax).unwrap(), ParseGoal::ModuleSource),
+            parse(sources.get(lexical).unwrap(), ParseGoal::SourceFile),
+            parse(sources.get(syntax).unwrap(), ParseGoal::SourceFile),
         ];
 
         let diagnostics = syntax_diagnostics(&trees);

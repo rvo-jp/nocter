@@ -55,10 +55,10 @@ fn fixture(
     let prelude_id = add_source(sources, "/std/prelude/index.nct", "");
     (
         parse_source(sources, app_manifest_id, ParseGoal::PackageFile),
-        parse_source(sources, app_id, ParseGoal::ModuleSource),
+        parse_source(sources, app_id, ParseGoal::SourceFile),
         parse_source(sources, std_manifest_id, ParseGoal::PackageFile),
-        parse_source(sources, std_root_id, ParseGoal::ModuleSource),
-        parse_source(sources, prelude_id, ParseGoal::ModuleSource),
+        parse_source(sources, std_root_id, ParseGoal::SourceFile),
+        parse_source(sources, prelude_id, ParseGoal::SourceFile),
     )
 }
 

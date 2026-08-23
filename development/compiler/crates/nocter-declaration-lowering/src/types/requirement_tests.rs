@@ -27,9 +27,9 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
     let bound = bind(
         &sources,
@@ -118,9 +118,9 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
     let bound = bind(
         &sources,
@@ -154,7 +154,7 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
         "/app/recursive.nct",
         "struct Box<T> {}\ninstance Box<T> where T = [T] {}\n",
     );
-    let recursive = parse_source(&sources, recursive_id, ParseGoal::ModuleSource);
+    let recursive = parse_source(&sources, recursive_id, ParseGoal::SourceFile);
     let error = bind(
         &sources,
         vec![

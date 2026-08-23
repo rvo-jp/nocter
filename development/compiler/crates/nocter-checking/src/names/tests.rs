@@ -317,10 +317,10 @@ impl Fixture {
         Self {
             app_manifest: parse_source(&sources, app_manifest_id, ParseGoal::PackageFile),
             std_manifest: parse_source(&sources, std_manifest_id, ParseGoal::PackageFile),
-            app: parse_source(&sources, app_id, ParseGoal::ModuleSource),
-            standard: parse_source(&sources, std_id, ParseGoal::ModuleSource),
-            prelude: parse_source(&sources, prelude_id, ParseGoal::ModuleSource),
-            library: parse_source(&sources, library_id, ParseGoal::ModuleSource),
+            app: parse_source(&sources, app_id, ParseGoal::SourceFile),
+            standard: parse_source(&sources, std_id, ParseGoal::SourceFile),
+            prelude: parse_source(&sources, prelude_id, ParseGoal::SourceFile),
+            library: parse_source(&sources, library_id, ParseGoal::SourceFile),
             sources,
         }
     }

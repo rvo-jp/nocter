@@ -24,10 +24,10 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-    let dep = parse_source(&sources, dep_id, ParseGoal::ModuleSource);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let dep_identity =
         ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
     let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
@@ -93,9 +93,9 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
     let bound = bind(
         &sources,
@@ -151,9 +151,9 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
     let bound = bind(
         &sources,

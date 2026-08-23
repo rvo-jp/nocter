@@ -79,10 +79,10 @@ fn input_order_does_not_change_semantic_topology() {
     );
 
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let app_root = parse_source(&sources, app_root_id, ParseGoal::ModuleSource);
-    let app_impl = parse_source(&sources, app_impl_id, ParseGoal::ModuleSource);
+    let app_root = parse_source(&sources, app_root_id, ParseGoal::SourceFile);
+    let app_impl = parse_source(&sources, app_impl_id, ParseGoal::SourceFile);
     let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
-    let dep_root = parse_source(&sources, dep_root_id, ParseGoal::ModuleSource);
+    let dep_root = parse_source(&sources, dep_root_id, ParseGoal::SourceFile);
 
     let packages = vec![
         declared_package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
@@ -152,7 +152,7 @@ fn rejects_a_physical_source_claimed_by_manifest_and_module() {
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "#name: \"app\"\n");
     let root_id = add_source(&mut sources, "/app/index.nct", "");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/same.nct", &manifest);
     let module = root_module(
         "workspace:app",
@@ -186,7 +186,7 @@ fn single_file_package_has_one_root_module_without_a_manifest() {
         "/tmp/example.nct",
         "func main(): void { return }\n",
     );
-    let syntax = parse_source(&sources, source_id, ParseGoal::ModuleSource);
+    let syntax = parse_source(&sources, source_id, ParseGoal::SourceFile);
     let package = PackageInput::new(
         PackageIdentity::new("single:/tmp/example.nct"),
         "example",
@@ -222,7 +222,7 @@ fn package_mode_cannot_be_smuggled_through_another_source_layout() {
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "#name: \"app\"\n");
     let source_id = add_source(&mut sources, "/app/index.nct", "");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let syntax = parse_source(&sources, source_id, ParseGoal::ModuleSource);
+    let syntax = parse_source(&sources, source_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
     let module = root_module(
         "workspace:app",
@@ -252,8 +252,8 @@ fn every_authored_use_requires_one_discovery_owned_resolution() {
     let root_id = add_source(&mut sources, "/app/index.nct", "use ./parser\n");
     let parser_id = add_source(&mut sources, "/app/parser/index.nct", "");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let parser = parse_source(&sources, parser_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let parser = parse_source(&sources, parser_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
     let modules = vec![
         root_module(
@@ -294,8 +294,8 @@ fn source_imports_must_be_private_bare_edges_within_one_module() {
     let root_id = add_source(&mut sources, "/app/index.nct", "use ./search.find\n");
     let search_id = add_source(&mut sources, "/app/search.nct", "func find(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let search = parse_source(&sources, search_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let search = parse_source(&sources, search_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
     let module = root_module(
         "workspace:app",
@@ -330,10 +330,10 @@ fn source_cycles_are_valid_but_every_implementation_must_be_root_reachable() {
     let b_id = add_source(&mut sources, "/app/b.nct", "use ./a\n");
     let orphan_id = add_source(&mut sources, "/app/orphan.nct", "func orphan(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
-    let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
-    let orphan = parse_source(&sources, orphan_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
+    let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
+    let orphan = parse_source(&sources, orphan_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
     let module = root_module(
         "workspace:app",
@@ -373,9 +373,9 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     let a_id = add_source(&mut sources, "/app/a/index.nct", "use /b\n");
     let b_id = add_source(&mut sources, "/app/b/index.nct", "use /a\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
-    let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
+    let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
     let package_identity = PackageIdentity::new("workspace:app");
     let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
     let b_identity = ModuleIdentity::new(package_identity.clone(), ["b"]);

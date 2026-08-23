@@ -203,7 +203,7 @@ mod tests {
         let source = sources
             .add_bytes(SourceName::new("index.nct"), text.as_bytes())
             .unwrap();
-        let syntax = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let syntax = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         assert!(!syntax.has_errors(), "{:?}", syntax.diagnostics());
         (sources, syntax)
     }

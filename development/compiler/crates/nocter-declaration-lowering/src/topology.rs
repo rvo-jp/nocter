@@ -552,7 +552,7 @@ fn validate_sources(
         let mut roots = 0;
         let mut single_files = 0;
         for source in module.sources() {
-            if source.syntax().root().kind() != NodeKind::ModuleSource {
+            if source.syntax().root().kind() != NodeKind::SourceFile {
                 return Err(LoweringError::InvalidModuleSource(
                     source.canonical_path().into(),
                 ));

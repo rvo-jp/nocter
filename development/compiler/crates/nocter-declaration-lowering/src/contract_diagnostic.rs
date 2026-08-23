@@ -227,8 +227,8 @@ mod tests {
             "func parse(text: usize): usize { text }\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let package = PackageInput::new(
             PackageIdentity::new("workspace:app"),
             "app",
@@ -284,8 +284,8 @@ mod tests {
             "construct Value {\n    func new(): Self {}\n}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,

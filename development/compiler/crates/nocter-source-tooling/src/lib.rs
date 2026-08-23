@@ -49,14 +49,14 @@ impl std::error::Error for FormatError {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InspectionGoal {
     PackageFile,
-    ModuleSource,
+    SourceFile,
 }
 
 impl From<InspectionGoal> for ParseGoal {
     fn from(goal: InspectionGoal) -> Self {
         match goal {
             InspectionGoal::PackageFile => Self::PackageFile,
-            InspectionGoal::ModuleSource => Self::ModuleSource,
+            InspectionGoal::SourceFile => Self::SourceFile,
         }
     }
 }
@@ -397,7 +397,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"let x=1 // note\n@",
-            InspectionGoal::ModuleSource,
+            InspectionGoal::SourceFile,
         )
         .unwrap();
 
@@ -418,7 +418,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"func main(: void\n",
-            InspectionGoal::ModuleSource,
+            InspectionGoal::SourceFile,
         )
         .unwrap();
 
@@ -439,7 +439,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"//! Module API.\n\n/// Starts the application.\nfunc main(): void { return }\n",
-            InspectionGoal::ModuleSource,
+            InspectionGoal::SourceFile,
         )
         .unwrap();
 

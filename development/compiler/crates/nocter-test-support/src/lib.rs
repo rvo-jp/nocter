@@ -447,18 +447,18 @@ impl CompilerFixture {
         } else {
             "/tmp/app.nct"
         };
-        let app = add_parsed(&mut sources, app_path, app_source, ParseGoal::ModuleSource);
+        let app = add_parsed(&mut sources, app_path, app_source, ParseGoal::SourceFile);
         let standard = add_parsed(
             &mut sources,
             "/std/index.nct",
             standard_source,
-            ParseGoal::ModuleSource,
+            ParseGoal::SourceFile,
         );
         let prelude = add_parsed(
             &mut sources,
             "/std/prelude/index.nct",
             "",
-            ParseGoal::ModuleSource,
+            ParseGoal::SourceFile,
         );
         let modules = [
             (&["error"][..], ERROR_SOURCE),
@@ -474,7 +474,7 @@ impl CompilerFixture {
         .into_iter()
         .map(|(path, text)| {
             let source_path = format!("/std/{}/index.nct", path.join("/"));
-            let syntax = add_parsed(&mut sources, &source_path, text, ParseGoal::ModuleSource);
+            let syntax = add_parsed(&mut sources, &source_path, text, ParseGoal::SourceFile);
             FixtureModule {
                 path: path
                     .iter()

@@ -324,12 +324,12 @@ mod tests {
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let tests = parse_source(&sources, test_id, ParseGoal::ModuleSource);
-        let tool = parse_source(&sources, tool_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let tests = parse_source(&sources, test_id, ParseGoal::SourceFile);
+        let tool = parse_source(&sources, tool_id, ParseGoal::SourceFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let app_package = PackageIdentity::new("workspace:app");
         let app_root = ModuleIdentity::new(app_package.clone(), Vec::<&str>::new());
         let test_module = ModuleIdentity::new(app_package.clone(), ["tests", "unit"]);
@@ -387,10 +387,10 @@ mod tests {
         let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let app_package = PackageIdentity::new("single:/tmp/example.nct");
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -498,8 +498,8 @@ mod tests {
             "pub func exposed(): void {}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -540,9 +540,9 @@ mod tests {
         let a_id = add_source(&mut sources, "/app/a/index.nct", "use /b\n");
         let b_id = add_source(&mut sources, "/app/b/index.nct", "use /a\n");
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let a = parse_source(&sources, a_id, ParseGoal::ModuleSource);
-        let b = parse_source(&sources, b_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
+        let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
         let package_identity = PackageIdentity::new("workspace:app");
         let a_identity = ModuleIdentity::new(package_identity.clone(), ["a"]);
         let b_identity = ModuleIdentity::new(package_identity, ["b"]);
@@ -586,7 +586,7 @@ mod tests {
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -631,7 +631,7 @@ mod tests {
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", "struct usize {}\n");
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -667,8 +667,8 @@ mod tests {
             "pub(../../) func exposed(): void {}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let child = parse_source(&sources, child_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let child = parse_source(&sources, child_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -708,7 +708,7 @@ mod tests {
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -759,7 +759,7 @@ mod tests {
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -809,8 +809,8 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let dependency_manifest =
             parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
@@ -859,8 +859,8 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let dependency_manifest =
             parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
@@ -910,9 +910,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let managed_prelude =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
@@ -971,8 +971,8 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let dependency_manifest =
             parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let dependency = parse_source(&sources, dependency_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
             ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
         let input = CompileUnitInput::new(
@@ -1019,9 +1019,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -1074,9 +1074,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1114,9 +1114,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1179,9 +1179,9 @@ mod tests {
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
             let standard_manifest =
                 parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+            let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
             let input = input_with_standard_prelude(
                 &sources,
                 &app_manifest,
@@ -1232,9 +1232,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1281,9 +1281,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1327,9 +1327,9 @@ mod tests {
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let standard_manifest =
             parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let input = input_with_standard_prelude(
             &sources,
             &app_manifest,
@@ -1409,9 +1409,9 @@ mod tests {
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
             let standard_manifest =
                 parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+            let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
             let mut projected = Vec::new();
             for reverse in [false, true] {
                 let input = input_with_standard_prelude_ordered(
@@ -1521,9 +1521,9 @@ mod tests {
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
             let standard_manifest =
                 parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
-            let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-            let standard = parse_source(&sources, standard_id, ParseGoal::ModuleSource);
-            let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+            let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+            let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
+            let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
             let mut projected = Vec::new();
             for reverse in [false, true] {
                 let input = input_with_standard_prelude_ordered(

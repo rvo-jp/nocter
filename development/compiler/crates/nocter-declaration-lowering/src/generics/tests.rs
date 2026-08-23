@@ -65,7 +65,7 @@ fn creates_owner_scopes_and_inherits_them_into_members() {
         "pub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\n\ninstance Pair<T, T> {\n    pub method &self.replace<U>(value: U): U { value }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
 
     let generics = prepare(
         &sources,
@@ -108,7 +108,7 @@ fn repeated_pattern_names_reuse_one_identity_and_project_every_occurrence() {
         "pub interface Compare<T> {}\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\nconform Compare<T> for Pair<T, T> {}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
 
     let generics = prepare(
         &sources,
@@ -137,7 +137,7 @@ fn duplicate_explicit_binders_and_nested_shadowing_are_rejected() {
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", source_text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
 
         let error = prepare(
             &sources,
@@ -176,8 +176,8 @@ fn joined_callable_sources_share_generic_identity() {
         "func identity<T>(value: T): T { value }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
     let generics = prepare(
         &sources,
@@ -215,8 +215,8 @@ fn joined_construction_patterns_reuse_contract_binder_identities() {
         "construct Pair<L, R> {\n    func make(left: L, right: R): Self {\n        return Pair<L, R> { left: move left, right: move right }\n    }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
     let generics = prepare(
         &sources,

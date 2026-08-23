@@ -91,7 +91,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut callables = ArenaBuilder::<CallableId, ()>::new();
         let callable = callables.insert(());
@@ -138,7 +138,7 @@ mod tests {
         let source = sources
             .add_bytes(SourceName::new("selection.nct"), b"value\n")
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut callables = ArenaBuilder::<CallableId, ()>::new();
         let callable = callables.insert(());

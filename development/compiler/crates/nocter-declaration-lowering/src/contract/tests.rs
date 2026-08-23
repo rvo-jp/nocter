@@ -64,8 +64,8 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
         "func parse(text: &str): usize { 0 }\n\ninstance Text {\n    method &self.len(): usize { 0 }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
         &manifest,
@@ -107,8 +107,8 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
         "func parse(text: usize): usize { text }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
         &manifest,
@@ -149,9 +149,9 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
         "func parse(text: &str): usize { 2 }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let first = parse_source(&sources, first_id, ParseGoal::ModuleSource);
-    let second = parse_source(&sources, second_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let first = parse_source(&sources, first_id, ParseGoal::SourceFile);
+    let second = parse_source(&sources, second_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
         &manifest,
@@ -178,7 +178,7 @@ fn body_omission_is_not_a_general_callable_form() {
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
     let root_id = add_source(&mut sources, "/app/index.nct", "func unfinished(): void\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
         &manifest,
@@ -211,8 +211,8 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
         "instance Text {\n    coerce &self as &str { self }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
         &manifest,
@@ -254,8 +254,8 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
         "construct Value {\n    func new(): Self { Value { value: 0 } }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     assert!(!implementation.has_errors());
     let surface = surface(
         &sources,

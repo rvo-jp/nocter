@@ -1,4 +1,4 @@
-use super::{Parser, declaration};
+use super::{Parser, declaration, include};
 use crate::{ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation, TokenKind};
 
 pub(super) fn package_file(parser: &mut Parser<'_>) {
@@ -16,19 +16,19 @@ pub(super) fn package_file(parser: &mut Parser<'_>) {
     parser.complete(root, NodeKind::PackageFile);
 }
 
-pub(super) fn module_source(parser: &mut Parser<'_>) {
+pub(super) fn source_file(parser: &mut Parser<'_>) {
     let root = parser.start();
     parser.eat_newlines();
 
-    while at_use_start(parser) {
-        use_declaration(parser);
+    while at_dependency_start(parser) {
+        dependency_declaration(parser);
         parser.require_line_end();
     }
 
     while !parser.at(TokenKind::Eof) {
-        if at_use_start(parser) {
-            parser.diagnostic(ParseDiagnosticKind::LateUseDeclaration);
-            use_declaration(parser);
+        if at_dependency_start(parser) {
+            parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
+            dependency_declaration(parser);
         } else {
             declaration::item(parser);
         }
@@ -36,7 +36,19 @@ pub(super) fn module_source(parser: &mut Parser<'_>) {
     }
 
     parser.bump();
-    parser.complete(root, NodeKind::ModuleSource);
+    parser.complete(root, NodeKind::SourceFile);
+}
+
+fn at_dependency_start(parser: &Parser<'_>) -> bool {
+    parser.at_keyword(Keyword::Include) || at_use_start(parser)
+}
+
+fn dependency_declaration(parser: &mut Parser<'_>) {
+    if parser.at_keyword(Keyword::Include) {
+        include::declaration(parser);
+    } else {
+        use_declaration(parser);
+    }
 }
 
 fn package_directive(parser: &mut Parser<'_>) {

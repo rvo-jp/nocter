@@ -402,7 +402,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         assert!(!tree.has_errors());
 
         let (module, site) = declaration_ids();
@@ -447,7 +447,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let (_, site) = declaration_ids();
         let entity = SemanticEntity::DeclarationSite(site);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
@@ -475,7 +475,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let (module, site) = declaration_ids();
         let entity = SemanticEntity::DeclarationSite(site);
         let other_entity = SemanticEntity::Module(module);
@@ -526,7 +526,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let (_, site) = declaration_ids();
         let entity = SemanticEntity::DeclarationSite(site);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
@@ -567,7 +567,7 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let (module, site) = declaration_ids();
         let module_origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let name = find_token(&tree, sources.get(source).unwrap(), "main");
@@ -619,8 +619,8 @@ mod tests {
                 b"func main(): void { return }\n",
             )
             .unwrap();
-        let first_tree = parse(sources.get(first).unwrap(), ParseGoal::ModuleSource);
-        let second_tree = parse(sources.get(second).unwrap(), ParseGoal::ModuleSource);
+        let first_tree = parse(sources.get(first).unwrap(), ParseGoal::SourceFile);
+        let second_tree = parse(sources.get(second).unwrap(), ParseGoal::SourceFile);
         let first_name = find_token(&first_tree, sources.get(first).unwrap(), "main");
 
         assert!(SourceOrigin::from_node(&second_tree, first_tree.root_id()).is_err());

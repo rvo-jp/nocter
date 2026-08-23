@@ -156,9 +156,9 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let app_id = add_source(&mut sources, "/app/index.nct", source_text);
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-    let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -208,9 +208,9 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let app_id = add_source(&mut sources, "/app/index.nct", FULL_HEADER_SOURCE);
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-    let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
     let lowered = lower(
         &sources,
@@ -365,10 +365,10 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     );
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
     let app_module = ModuleInput::new(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -580,9 +580,9 @@ fn complete_header_identity_is_independent_of_input_order() {
     );
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-    let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
 
     let build = |reverse: bool| {
@@ -641,9 +641,9 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
     let app_id = add_source(&mut sources, "/app/index.nct", "enum Empty {}\n");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::ModuleSource);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
-    let app_tree = parse_source(&sources, app_id, ParseGoal::ModuleSource);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
 
     let build = |reverse: bool| {

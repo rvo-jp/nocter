@@ -57,7 +57,7 @@ impl TargetSelection {
         sources: &SourceMap,
         tree: &SyntaxTree,
     ) -> Result<(), TargetSelectionError> {
-        if tree.has_errors() || tree.root().kind() != NodeKind::ModuleSource {
+        if tree.has_errors() || tree.root().kind() != NodeKind::SourceFile {
             return Ok(());
         }
         let source = sources
@@ -151,7 +151,7 @@ mod tests {
                 b"#target: \"x64-linux\"\nfunc inactive(): void {\n    use std/io.print\n    return\n}\nfunc active(): void {\n    use std/io.print\n    return\n}\n",
             )
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         assert!(!tree.has_errors());
 
         let uses = descendants_of_kind(&tree, NodeKind::BlockUseDeclaration);

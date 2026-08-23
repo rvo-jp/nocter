@@ -429,7 +429,7 @@ impl Builder {
             &mut self.sources,
             &mut self.syntax,
             &path,
-            ParseGoal::ModuleSource,
+            ParseGoal::SourceFile,
         )?;
         self.source_owners.insert(path.clone(), module.clone());
         self.modules

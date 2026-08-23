@@ -44,10 +44,10 @@ impl Fixture {
         Self {
             app_manifest: parsed(&sources, app_manifest_id, ParseGoal::PackageFile),
             std_manifest: parsed(&sources, std_manifest_id, ParseGoal::PackageFile),
-            app: parsed(&sources, app_id, ParseGoal::ModuleSource),
+            app: parsed(&sources, app_id, ParseGoal::SourceFile),
             child: None,
-            standard: parsed(&sources, std_id, ParseGoal::ModuleSource),
-            prelude: parsed(&sources, prelude_id, ParseGoal::ModuleSource),
+            standard: parsed(&sources, std_id, ParseGoal::SourceFile),
+            prelude: parsed(&sources, prelude_id, ParseGoal::SourceFile),
             sources,
         }
     }
@@ -55,7 +55,7 @@ impl Fixture {
     pub(crate) fn with_child(app: &str, child: &str) -> Self {
         let mut fixture = Self::new(app);
         let child_id = add_source(&mut fixture.sources, "/app/child/index.nct", child);
-        fixture.child = Some(parsed(&fixture.sources, child_id, ParseGoal::ModuleSource));
+        fixture.child = Some(parsed(&fixture.sources, child_id, ParseGoal::SourceFile));
         fixture
     }
 

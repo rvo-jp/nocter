@@ -129,43 +129,88 @@ fn eof_recovery_never_duplicates_the_eof_token() {
 fn parses_private_scoped_and_selected_imports() {
     assert_syntax_ok(
         "use std/io\nuse /parser.Parser\nuse /.RootValue\nuse ../shared/path.{Path, normalize as clean,}\npub use ./public\npub(../../) use ./internal.Value\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
 #[test]
+fn parses_exact_source_includes_separately_from_module_uses() {
+    let tree = assert_syntax_ok(
+        "include ./index.nct\ninclude ./internal/search.nct\nuse ./parser\n",
+        ParseGoal::SourceFile,
+    );
+    assert_eq!(tree.root().kind(), NodeKind::SourceFile);
+    assert_eq!(
+        tree.children(tree.root_id())
+            .iter()
+            .filter_map(|element| match element {
+                SyntaxElement::Node(node) => tree.node(*node),
+                _ => None,
+            })
+            .filter(|node| node.kind() == NodeKind::IncludeDeclaration)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn rejects_noncanonical_include_paths() {
+    for source in [
+        "include ../search.nct\n",
+        "include ./search\n",
+        "include /search.nct\n",
+        "include std/search.nct\n",
+    ] {
+        let tree = parse_text(source, ParseGoal::SourceFile);
+        assert!(tree.has_errors(), "accepted {source:?}");
+        assert_complete_token_projection(&tree);
+    }
+}
+
+#[test]
 fn rejects_empty_selection_and_namespace_alias() {
-    let empty = parse_text("use ./parser.{}\n", ParseGoal::ModuleSource);
+    let empty = parse_text("use ./parser.{}\n", ParseGoal::SourceFile);
     assert!(empty.has_errors());
 
-    let alias = parse_text("use std/io as console\n", ParseGoal::ModuleSource);
+    let alias = parse_text("use std/io as console\n", ParseGoal::SourceFile);
     assert!(alias.has_errors());
 }
 
 #[test]
 fn enforces_the_lexical_module_segment_language() {
     for source in ["use Parser\n", "use _\n", "use std/type\n"] {
-        let tree = parse_text(source, ParseGoal::ModuleSource);
+        let tree = parse_text(source, ParseGoal::SourceFile);
         assert!(tree.diagnostics().iter().any(|diagnostic| {
             diagnostic.kind() == ParseDiagnosticKind::Expected(ExpectedSyntax::ModuleSegment)
         }));
         assert_complete_token_projection(&tree);
     }
 
-    assert_syntax_ok("use package_2/source_file\n", ParseGoal::ModuleSource);
+    assert_syntax_ok("use package_2/source_file\n", ParseGoal::SourceFile);
 }
 
 #[test]
 fn recognizes_late_use_after_an_item_shaped_line() {
-    let tree = parse_text(
-        "func main(): void {}\nuse std/io\n",
-        ParseGoal::ModuleSource,
-    );
+    let tree = parse_text("func main(): void {}\nuse std/io\n", ParseGoal::SourceFile);
 
     assert!(
         tree.diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.kind() == ParseDiagnosticKind::LateUseDeclaration)
+            .any(|diagnostic| diagnostic.kind() == ParseDiagnosticKind::LateDependencyDeclaration)
+    );
+}
+
+#[test]
+fn recognizes_late_include_after_an_item_shaped_line() {
+    let tree = parse_text(
+        "func main(): void {}\ninclude ./helper.nct\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(
+        tree.diagnostics().iter().any(|diagnostic| {
+            diagnostic.kind() == ParseDiagnosticKind::LateDependencyDeclaration
+        })
     );
 }
 
@@ -173,7 +218,7 @@ fn recognizes_late_use_after_an_item_shaped_line() {
 fn parses_callable_declarations_and_nested_type_closers() {
     assert_syntax_ok(
         "pub func choose<T>(left: &T, right: &T): &T from left | right\npub primitive invoke<T>(callback: &+func(input: &T): T, input: &T): T\ntype Nested<T> = parser.Outer<Inner<T>>\ntype DoubleBorrow<T> = &&T\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -181,25 +226,33 @@ fn parses_callable_declarations_and_nested_type_closers() {
 fn parses_opaque_and_layered_callable_results() {
     assert_syntax_ok(
         "func values<T>(): some Source<T, Item = &T>?\nfunc load<T>(): T?!\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
 #[test]
 fn keeps_bodyless_private_functions_as_a_semantic_boundary() {
-    assert_syntax_ok("func contract(): i32\n", ParseGoal::ModuleSource);
+    assert_syntax_ok("func contract(): i32\n", ParseGoal::SourceFile);
+}
+
+#[test]
+fn recognizes_bodyless_nominal_and_operator_contracts() {
+    assert_syntax_ok(
+        "pub struct String\npub enum Token\ninstance String {\n    pub operator (&self == other: &Self): bool\n}\n",
+        ParseGoal::SourceFile,
+    );
 }
 
 #[test]
 fn parses_target_attachment_and_empty_bodies() {
     assert_syntax_ok(
         "#target: \"arm64-darwin\"\npub func main(): void {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     let same_line = parse_text(
         "#target: \"arm64-darwin\" func main(): void {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
     assert!(same_line.has_errors());
 }
@@ -211,7 +264,7 @@ fn rejects_empty_generics_reversed_outcomes_and_missing_results() {
         "func reversed<T>(): T!?\n",
         "func missing()\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -219,7 +272,7 @@ fn rejects_empty_generics_reversed_outcomes_and_missing_results() {
 fn parses_every_requirement_shape_without_type_driven_disambiguation() {
     assert_syntax_ok(
         "func constrained<T, U, C, I>(value: &T): T where T: Interface<U> + &func(&T): U, copy U, T.Item = U, &T = &U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -227,7 +280,7 @@ fn parses_every_requirement_shape_without_type_driven_disambiguation() {
 fn copy_spelling_remains_a_capability_binder_before_colon() {
     assert_syntax_ok(
         "func constrained<copy>(): copy where copy: Interface\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -238,22 +291,22 @@ fn rejects_missing_requirement_commas_and_undeclared_operator_shapes() {
         "func unsupported<T>(): T where (&T <= &T): bool\n",
         "func trailing<T>(): T where T: Interface,\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
 #[test]
 fn flat_tree_owns_deep_non_recursive_prefix_syntax() {
     let source = format!("type Deep = {}i32\n", "*".repeat(10_000));
-    let tree = assert_syntax_ok(&source, ParseGoal::ModuleSource);
+    let tree = assert_syntax_ok(&source, ParseGoal::SourceFile);
 
-    assert_eq!(tree.root().kind(), NodeKind::ModuleSource);
+    assert_eq!(tree.root().kind(), NodeKind::SourceFile);
 }
 
 #[test]
 fn recursive_delimiters_stop_at_the_declared_nesting_limit() {
     let source = format!("type TooDeep = {}i32{}\n", "(".repeat(300), ")".repeat(300));
-    let tree = parse_text(&source, ParseGoal::ModuleSource);
+    let tree = parse_text(&source, ParseGoal::SourceFile);
 
     assert!(
         tree.diagnostics()
@@ -267,14 +320,14 @@ fn recursive_delimiters_stop_at_the_declared_nesting_limit() {
 fn nested_type_arguments_are_parsed_once_per_level() {
     let source = format!("type Deep = {}T{}\n", "Outer<".repeat(128), ">".repeat(128));
 
-    assert_syntax_ok(&source, ParseGoal::ModuleSource);
+    assert_syntax_ok(&source, ParseGoal::SourceFile);
 }
 
 #[test]
 fn parses_the_complete_type_atom_and_prefix_surface() {
     let tree = assert_syntax_ok(
         "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Callback<T> = &+func(input: &T): &T from input\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     for kind in [
@@ -299,7 +352,7 @@ fn rejects_closed_type_shapes_without_semantic_assistance() {
         "type GenericSelf = Self<T>\n",
         "type MissingResult = func(value: i32)\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -307,7 +360,7 @@ fn rejects_closed_type_shapes_without_semantic_assistance() {
 fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
     assert_syntax_ok(
         "type AssociatedArguments<T, U> = T.Item<U>\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source<Item = u8>\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -315,14 +368,14 @@ fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
 fn opaque_results_keep_their_contextual_boundary() {
     assert_syntax_ok(
         "func values<T>(): some Source<T, Item = &T>?! {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     for source in [
         "func unnamed(): some {}\n",
         "type NotCallable = some Source\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -330,7 +383,7 @@ fn opaque_results_keep_their_contextual_boundary() {
 fn parses_structs_enums_and_semantically_empty_enums() {
     let tree = assert_syntax_ok(
         "pub copy struct Pair<T> where copy T {\n    pub left: T\n    right: T\n}\nenum Maybe<T> {\n    some(value: T)\n    missing\n}\nenum Empty {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     for kind in [
@@ -350,7 +403,7 @@ fn rejects_commas_between_line_separated_nominal_members() {
         "struct Pair { left: i32, right: i32 }\n",
         "enum Maybe { some, none }\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -358,7 +411,7 @@ fn rejects_commas_between_line_separated_nominal_members() {
 fn parses_interface_requirements_and_default_methods() {
     let tree = assert_syntax_ok(
         "interface Source<T> where copy T {\n    pub type Item: Iterable<T> + &func(T): T\n    pub method &+self.next(): Self.Item?\n    pub method self.consume(): void {}\n}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     assert!(has_node_kind(&tree, NodeKind::AssociatedTypeDeclaration));
@@ -372,12 +425,12 @@ fn interface_members_require_bare_public_visibility() {
         "interface Source { method &self.read(): void }\n",
         "interface Source { pub(./) method &self.read(): void }\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 
     assert_syntax_ok(
         "interface Source { pub type Item\npub type Item }\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -385,7 +438,7 @@ fn interface_members_require_bare_public_visibility() {
 fn parses_construction_functions_and_both_literal_shapes() {
     let tree = assert_syntax_ok(
         "construct Vec<T> {\n    pub default literal [](...items: T): Self {}\n    pub literal \"\"(text: &str): Self\n    pub func with_capacity(capacity: usize): Self {}\n}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     assert!(has_node_kind(&tree, NodeKind::LiteralShape));
@@ -397,11 +450,11 @@ fn parses_construction_functions_and_both_literal_shapes() {
 fn construction_visibility_and_defaults_remain_semantic() {
     assert_syntax_ok(
         "construct Value { func new(): Self {} }\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
     assert_syntax_ok(
         "construct Value { pub default func first(): Self {}\npub default func second(): Self {} }\nconstruct External {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 }
 
@@ -409,7 +462,7 @@ fn construction_visibility_and_defaults_remain_semantic() {
 fn parses_every_instance_member_family() {
     let tree = assert_syntax_ok(
         "instance Text<T> where copy T {\n    pub method &self.len(): usize {}\n    coerce &self as &str from self {}\n    pub operator (&self == other: &Self): bool {}\n    pub operator (&self < other: &Self): bool {}\n    pub operator (&self[index: usize]): &T from self {}\n    pub operator (&+self[index: usize]): &+T from self {}\n    pub operator (...&self): Iterator<T> {}\n    pub operator (...self): Iterator<T> {}\n}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     for kind in [
@@ -435,7 +488,7 @@ fn rejects_closed_instance_and_pattern_forms() {
         "instance Value { operator (&self != other: &Self): bool {} }\n",
         "instance Value { coerce self as View {} }\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -443,7 +496,7 @@ fn rejects_closed_instance_and_pattern_forms() {
 fn parses_conformance_bindings_and_body_bearing_methods() {
     let tree = assert_syntax_ok(
         "conform Source<T> for Input<T> where copy T {\n    type Item = T\n    method &+self.next(): Self.Item? {}\n}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     assert!(has_node_kind(&tree, NodeKind::AssociatedTypeBinding));
@@ -456,7 +509,7 @@ fn conformance_members_reject_visibility_and_missing_bodies() {
         "conform Source for Input { pub method &self.read(): void {} }\n",
         "conform Source for Input { method &self.read(): void }\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }
 
@@ -464,7 +517,7 @@ fn conformance_members_reject_visibility_and_missing_bodies() {
 fn parses_drop_and_test_declarations() {
     let tree = assert_syntax_ok(
         "drop Buffer<T>(&+self) {}\ntest empty {}\n",
-        ParseGoal::ModuleSource,
+        ParseGoal::SourceFile,
     );
 
     assert!(has_node_kind(&tree, NodeKind::DropDeclaration));
@@ -479,6 +532,6 @@ fn drop_and_test_declarations_keep_their_closed_headers() {
         "test named(): void {}\n",
         "#target: \"arm64-darwin\"\ntest targeted {}\n",
     ] {
-        assert!(parse_text(source, ParseGoal::ModuleSource).has_errors());
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
 }

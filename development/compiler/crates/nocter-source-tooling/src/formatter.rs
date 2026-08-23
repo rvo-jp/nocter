@@ -83,7 +83,7 @@ fn parse_candidate(
         .ok_or(FormatError::ChangedSyntax)?;
     let goal = match original.root().kind() {
         NodeKind::PackageFile => nocter_syntax::ParseGoal::PackageFile,
-        NodeKind::ModuleSource => nocter_syntax::ParseGoal::ModuleSource,
+        NodeKind::SourceFile => nocter_syntax::ParseGoal::SourceFile,
         _ => return Err(FormatError::ChangedSyntax),
     };
     let formatted_tree = nocter_syntax::parse(formatted_source, goal);
@@ -131,8 +131,11 @@ impl<'syntax> Formatter<'syntax> {
                 let node = syntax
                     .node(*id)
                     .expect("root child belongs to the same syntax tree");
-                matches!(node.kind(), NodeKind::Item | NodeKind::UseDeclaration)
-                    .then_some(node.range().start().get())
+                matches!(
+                    node.kind(),
+                    NodeKind::Item | NodeKind::IncludeDeclaration | NodeKind::UseDeclaration
+                )
+                .then_some(node.range().start().get())
             })
             .collect();
         Self {
@@ -321,6 +324,9 @@ fn space_before_punctuation(
                             if space_after_punctuation(previous, None)
                     )
         }
+        Punctuation::Dot if parent == Some(NodeKind::IncludePath) => {
+            previous == TokenKind::Keyword(Keyword::Include)
+        }
         Punctuation::Dot => previous == TokenKind::Keyword(Keyword::Use),
         Punctuation::RightBrace => {
             parent != Some(NodeKind::ImportSelection)
@@ -342,6 +348,7 @@ fn space_before_punctuation(
         Punctuation::Slash if parent == Some(NodeKind::ModulePath) => {
             previous == TokenKind::Keyword(Keyword::Use)
         }
+        Punctuation::Slash if parent == Some(NodeKind::IncludePath) => false,
         Punctuation::Slash if parent == Some(NodeKind::Visibility) => false,
         Punctuation::ReadWrite
         | Punctuation::Star
@@ -426,8 +433,10 @@ const fn space_after_punctuation(punctuation: Punctuation, parent: Option<NodeKi
     {
         return false;
     }
-    if matches!(parent, Some(NodeKind::ModulePath | NodeKind::Visibility))
-        && matches!(punctuation, Punctuation::Slash)
+    if matches!(
+        parent,
+        Some(NodeKind::IncludePath | NodeKind::ModulePath | NodeKind::Visibility)
+    ) && matches!(punctuation, Punctuation::Slash)
     {
         return false;
     }
@@ -531,7 +540,7 @@ mod tests {
     use crate::{InspectionGoal, SourceInspection};
 
     fn format(source: &str) -> String {
-        format_with_goal(source, InspectionGoal::ModuleSource)
+        format_with_goal(source, InspectionGoal::SourceFile)
     }
 
     fn format_with_goal(source: &str, goal: InspectionGoal) -> String {
@@ -659,7 +668,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("test.nct"),
             b"// keep me\nfunc main(): void { return }\n",
-            InspectionGoal::ModuleSource,
+            InspectionGoal::SourceFile,
         )
         .unwrap();
 
@@ -683,7 +692,7 @@ mod tests {
             let goal = if path.file_name().unwrap() == "nocter.nct" {
                 InspectionGoal::PackageFile
             } else {
-                InspectionGoal::ModuleSource
+                InspectionGoal::SourceFile
             };
             let inspection =
                 SourceInspection::new(SourceName::new(path.to_string_lossy()), &bytes, goal)
@@ -698,13 +707,13 @@ mod tests {
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/syntax");
         for (name, goal) in [
             ("g001-package.nct", InspectionGoal::PackageFile),
-            ("g002-g006-module.nct", InspectionGoal::ModuleSource),
-            ("g007-g012-declarations.nct", InspectionGoal::ModuleSource),
-            ("g013-g018-types.nct", InspectionGoal::ModuleSource),
-            ("g001-g018-semantic.nct", InspectionGoal::ModuleSource),
-            ("g019-g024-executable.nct", InspectionGoal::ModuleSource),
-            ("g025-g033-expressions.nct", InspectionGoal::ModuleSource),
-            ("g019-g033-semantic.nct", InspectionGoal::ModuleSource),
+            ("g002-g006-module.nct", InspectionGoal::SourceFile),
+            ("g007-g012-declarations.nct", InspectionGoal::SourceFile),
+            ("g013-g018-types.nct", InspectionGoal::SourceFile),
+            ("g001-g018-semantic.nct", InspectionGoal::SourceFile),
+            ("g019-g024-executable.nct", InspectionGoal::SourceFile),
+            ("g025-g033-expressions.nct", InspectionGoal::SourceFile),
+            ("g019-g033-semantic.nct", InspectionGoal::SourceFile),
         ] {
             let path = fixtures.join(name);
             let bytes = fs::read(&path).unwrap();

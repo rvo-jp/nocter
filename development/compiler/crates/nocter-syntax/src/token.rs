@@ -213,6 +213,7 @@ keywords! {
     For => "for",
     Func => "func",
     If => "if",
+    Include => "include",
     In => "in",
     Instance => "instance",
     Interface => "interface",

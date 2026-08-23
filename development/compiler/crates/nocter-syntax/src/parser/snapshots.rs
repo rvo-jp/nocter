@@ -41,7 +41,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g002-g006-module.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G007-G012 declaration containers",
@@ -53,7 +53,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g007-g012-declarations.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G013-G018 types and requirements",
@@ -65,7 +65,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g013-g018-types.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G001-G018 semantic boundaries",
@@ -77,7 +77,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g001-g018-semantic.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G019-G024 executable syntax",
@@ -89,7 +89,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g019-g024-executable.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G025-G033 expressions",
@@ -101,7 +101,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g025-g033-expressions.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G019-G033 semantic boundaries",
@@ -113,7 +113,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g019-g033-semantic.shape"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
 ];
 
@@ -132,7 +132,7 @@ const REJECTED_CASES: &[RejectedCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g002-g006-module-reject.nct"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     RejectedCase {
         name: "G007-G012 declaration containers",
@@ -140,7 +140,7 @@ const REJECTED_CASES: &[RejectedCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g007-g012-declarations-reject.nct"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     RejectedCase {
         name: "G013-G018 types and requirements",
@@ -148,7 +148,7 @@ const REJECTED_CASES: &[RejectedCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g013-g018-types-reject.nct"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
     RejectedCase {
         name: "G019-G033 executable syntax",
@@ -156,7 +156,7 @@ const REJECTED_CASES: &[RejectedCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g019-g033-reject.nct"
         )),
-        goal: ParseGoal::ModuleSource,
+        goal: ParseGoal::SourceFile,
     },
 ];
 

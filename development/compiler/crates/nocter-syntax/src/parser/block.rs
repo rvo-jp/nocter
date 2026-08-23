@@ -64,7 +64,7 @@ fn executable_sequence(parser: &mut Parser<'_>) {
     let marker = parser.start();
     loop {
         if parser.at_keyword(Keyword::Use) {
-            parser.diagnostic(ParseDiagnosticKind::LateUseDeclaration);
+            parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
             block_use(parser);
         } else {
             let executable = statement::executable(parser);

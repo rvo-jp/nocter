@@ -87,7 +87,7 @@ fn comparison_operator(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     parser.expect_identifier_text("bool");
     optional_requirements(parser);
-    block::required(parser);
+    block::optional(parser);
 }
 
 fn index_operator(parser: &mut Parser<'_>) {
@@ -97,7 +97,7 @@ fn index_operator(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     types::borrow_type(parser);
     optional_provenance_and_requirements(parser);
-    block::required(parser);
+    block::optional(parser);
 }
 
 fn expansion_operator(parser: &mut Parser<'_>) {
@@ -106,7 +106,7 @@ fn expansion_operator(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     types::type_(parser);
     optional_provenance_and_requirements(parser);
-    block::required(parser);
+    block::optional(parser);
 }
 
 fn optional_provenance_and_requirements(parser: &mut Parser<'_>) {

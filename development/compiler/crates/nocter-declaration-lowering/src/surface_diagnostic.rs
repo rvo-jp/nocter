@@ -181,7 +181,7 @@ mod tests {
             "struct Value { value: usize }\nconstruct Value {\n    func new(): Self { Value { value: 0 } }\n}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
             &manifest,
@@ -214,7 +214,7 @@ mod tests {
             "#target: \"unknown-target\"\nfunc main(): void {}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
             &manifest,
@@ -247,8 +247,8 @@ mod tests {
         let root_id = add_source(&mut sources, "/app/index.nct", "use ./implementation\n");
         let implementation_id = add_source(&mut sources, "/app/implementation.nct", text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-        let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-        let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
             &manifest,

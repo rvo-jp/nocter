@@ -53,7 +53,7 @@ fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
         "pub copy struct Value {\n    pub item: usize\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -97,8 +97,8 @@ fn duplicate_module_names_are_order_independent() {
         "func duplicate(value: usize): void {}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let implementation = parse_source(&sources, implementation_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -137,8 +137,8 @@ fn visibility_scopes_resolve_to_semantic_package_and_module_boundaries() {
         "pub(../) func ancestor(): void {}\npub(./) enum Local { item }\npub(/) func package(): void {}\npub func global(): void {}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
-    let root = parse_source(&sources, root_id, ParseGoal::ModuleSource);
-    let child = parse_source(&sources, child_id, ParseGoal::ModuleSource);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let child = parse_source(&sources, child_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,

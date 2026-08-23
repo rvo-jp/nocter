@@ -181,7 +181,7 @@ mod tests {
         let source = sources
             .add_bytes(SourceName::new("index.nct"), b"enum Empty {}\n")
             .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::ModuleSource);
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let diagnostic = SourceDiagnostic::new(
             "E0200",

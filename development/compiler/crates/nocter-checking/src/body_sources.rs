@@ -289,9 +289,9 @@ mod tests {
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let prelude_identity =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let mut results = Vec::new();
@@ -373,9 +373,9 @@ mod tests {
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::ModuleSource);
-        let standard = parse_source(&sources, std_id, ParseGoal::ModuleSource);
-        let prelude = parse_source(&sources, prelude_id, ParseGoal::ModuleSource);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let prelude_identity =
             ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let input = CompileUnitInput::new(
