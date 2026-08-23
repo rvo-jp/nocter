@@ -5,6 +5,7 @@ use crate::decode::{Object, boolean, required};
 use crate::{DocumentUri, ParameterError, Position, Range, TextDocumentPositionParams};
 
 pub type DefinitionParams = TextDocumentPositionParams;
+pub type ImplementationParams = TextDocumentPositionParams;
 
 /// Validated `textDocument/references` parameters.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +64,7 @@ impl Location {
     }
 }
 
-/// Renders a deterministic location array for definition or references.
+/// Renders a deterministic location array for definition, implementation, or references.
 #[must_use]
 pub fn locations_result(locations: &[Location]) -> Value {
     Value::Array(

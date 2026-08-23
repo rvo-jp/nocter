@@ -48,7 +48,7 @@ pub(super) fn checked_completions(
     };
     let used_fields = fields.iter().map(|(field, _)| *field).collect::<Vec<_>>();
     let candidates = program.structural_field_completions(definition, module, &used_fields)?;
-    let spellings = VisibleSpellings::new(program.graph(), module);
+    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
@@ -61,12 +61,11 @@ pub(super) fn checked_completions(
 
 pub(super) fn render_prepared_completions(
     program: &PreparedSemanticProgram,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
     candidates: &[StructuralFieldCompletionCandidate],
 ) -> Box<[SemanticCompletion]> {
-    let spellings = VisibleSpellings::new(program.graph(), module);
     render_completions(program.graph(), candidates, |field| {
-        prepared_presentation(program, SemanticEntity::Field(field), &spellings)
+        prepared_presentation(program, SemanticEntity::Field(field), spellings)
             .map(|value| Box::<str>::from(value.code()))
     })
 }

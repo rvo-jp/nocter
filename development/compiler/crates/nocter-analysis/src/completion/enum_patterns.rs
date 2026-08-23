@@ -36,7 +36,7 @@ pub(super) fn checked_completions(
     };
     let definition = variant_owner(program.graph(), variant)?;
     let candidates = program.enum_pattern_completions(definition, module)?;
-    let spellings = VisibleSpellings::new(program.graph(), module);
+    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
@@ -49,12 +49,11 @@ pub(super) fn checked_completions(
 
 pub(super) fn render_prepared_completions(
     program: &PreparedSemanticProgram,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
     candidates: &[EnumPatternCompletionCandidate],
 ) -> Box<[SemanticCompletion]> {
-    let spellings = VisibleSpellings::new(program.graph(), module);
     render_completions(program.graph(), candidates, |variant| {
-        prepared_presentation(program, SemanticEntity::Variant(variant), &spellings)
+        prepared_presentation(program, SemanticEntity::Variant(variant), spellings)
             .map(|value| Box::<str>::from(value.code()))
     })
 }

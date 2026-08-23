@@ -10,7 +10,6 @@ use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::AnalysisSnapshot;
 use crate::callable_source::project_callable_source;
-use crate::presentation::type_presentation;
 use crate::source_context::{SourceContext, SourceContextError};
 
 /// One compiler-owned inlay fact before editor-coordinate projection.
@@ -181,6 +180,12 @@ struct InlayContext<'a> {
 impl InlayContext<'_> {
     fn local_type_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
         let annotated = annotated_binding_targets(self.syntax);
+        let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
+            self.checked.graph(),
+            self.module,
+            self.index,
+            self.source,
+        );
         let mut hints = Vec::new();
         for binding in self.index.bindings_in(self.source) {
             if binding.role() != SourceRole::Declaration
@@ -205,8 +210,12 @@ impl InlayContext<'_> {
                 .get(local)
                 .ok_or(SemanticInlayHintError::MissingLocal { body, local })?;
             let entity = binding.entity();
-            let rendered = type_presentation(self.checked, checked_local.ty(), self.module)
-                .ok_or(SemanticInlayHintError::UnrenderableType(entity))?;
+            let rendered = crate::presentation::type_presentation_with_spellings(
+                self.checked,
+                checked_local.ty(),
+                &spellings,
+            )
+            .ok_or(SemanticInlayHintError::UnrenderableType(entity))?;
             hints.push(SemanticInlayHint {
                 position,
                 label: format!(": {}", rendered.code()).into(),

@@ -36,7 +36,9 @@ pub use message::{
     IncomingMessage, MessageDecodeError, MessageDecodeErrorKind, RequestId, ResponseError,
     ResponseResult,
 };
-pub use navigation::{DefinitionParams, Location, ReferencesParams, locations_result};
+pub use navigation::{
+    DefinitionParams, ImplementationParams, Location, ReferencesParams, locations_result,
+};
 pub use outbound::{CompletedRequest, OutboundRequest, OutboundRequestError, OutboundRequests};
 pub use parameters::{
     DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, ParameterError,

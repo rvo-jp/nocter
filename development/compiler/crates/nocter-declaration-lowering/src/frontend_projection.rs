@@ -114,12 +114,34 @@ impl FrontendProjectionBuilder {
         authored: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
         fallback: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
     ) {
-        self.bindings
-            .define_source_namespace(source, authored, fallback);
+        let authored = authored.into_iter().collect::<Vec<_>>();
+        let fallback = fallback.into_iter().collect::<Vec<_>>();
+        self.bindings.define_source_namespace(
+            source,
+            authored.iter().copied(),
+            fallback.iter().copied(),
+        );
+        self.source_index.define_visible_names(
+            source,
+            authored
+                .into_iter()
+                .chain(fallback)
+                .map(|(name, entity)| (name, source_entity(entity))),
+        );
     }
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {
         (self.source_index.finish(), self.bindings.finish())
+    }
+}
+
+const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticEntity {
+    match entity {
+        nocter_declarations::ExportedEntity::Module(id) => SemanticEntity::Module(id),
+        nocter_declarations::ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
+        nocter_declarations::ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
+        nocter_declarations::ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
+        nocter_declarations::ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
 }
 

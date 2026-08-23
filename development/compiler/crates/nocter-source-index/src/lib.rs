@@ -7,6 +7,7 @@
 mod documentation;
 mod entity;
 mod index;
+mod names;
 mod origin;
 
 pub use documentation::{DocumentationOwner, DuplicateDocumentation};

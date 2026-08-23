@@ -53,6 +53,36 @@ impl AnalysisSnapshot {
         )
     }
 
+    /// Finds the authored implementation of the exact semantic occurrence at `offset`.
+    #[must_use]
+    pub fn semantic_implementation(
+        &self,
+        source: SourceId,
+        offset: ByteOffset,
+    ) -> Box<[SemanticLocation]> {
+        let Some(selection) = self.semantic_selection(source, offset) else {
+            return Box::new([]);
+        };
+        let Some(index) = self.source_index() else {
+            return Box::new([]);
+        };
+        let bindings = index.bindings_for(selection.entity());
+        let preferred = if bindings
+            .iter()
+            .any(|binding| binding.role() == SourceRole::Implementation)
+        {
+            SourceRole::Implementation
+        } else {
+            SourceRole::Declaration
+        };
+        locations(
+            selection.entity(),
+            bindings
+                .iter()
+                .filter(|binding| binding.role() == preferred),
+        )
+    }
+
     /// Finds every reached occurrence of the exact semantic identity at `offset`.
     #[must_use]
     pub fn semantic_references(

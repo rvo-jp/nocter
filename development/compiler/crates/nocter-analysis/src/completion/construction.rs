@@ -52,7 +52,7 @@ pub(super) fn checked_completions(
     };
     let owner = program.construction_completion_owner(target)?;
     let candidates = program.construction_completions(owner, module)?;
-    let spellings = VisibleSpellings::new(program.graph(), module);
+    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_checked_completions(
         program,
         &spellings,

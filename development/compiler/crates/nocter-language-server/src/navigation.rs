@@ -4,8 +4,8 @@ use std::path::Path;
 use nocter_analysis::{AnalysisSnapshot, SemanticLocation};
 use nocter_json::Value;
 use nocter_lsp::{
-    DefinitionParams, DocumentUri, DocumentUriError, Location, Position, Range, ReferencesParams,
-    locations_result,
+    DefinitionParams, DocumentUri, DocumentUriError, ImplementationParams, Location, Position,
+    Range, ReferencesParams, locations_result,
 };
 use nocter_source::{CoordinateError, SourceId, Utf16Position};
 
@@ -25,6 +25,25 @@ pub(crate) fn query_definition(
     let locations = document
         .snapshot()
         .semantic_definition(document.source().id(), offset);
+    if locations.is_empty() {
+        return Ok(Value::Null);
+    }
+    project_locations(document.snapshot(), &locations).map(|locations| locations_result(&locations))
+}
+
+/// Answers one implementation request through exact compiler identity.
+pub(crate) fn query_implementation(
+    documents: &DocumentWorkspace,
+    analyses: &WorkspaceAnalyses,
+    params: &ImplementationParams,
+) -> Result<Value, NavigationQueryError> {
+    let Some(document) = positioned_document(documents, analyses, params.uri())? else {
+        return Ok(Value::Null);
+    };
+    let offset = byte_offset(&document, params.position())?;
+    let locations = document
+        .snapshot()
+        .semantic_implementation(document.source().id(), offset);
     if locations.is_empty() {
         return Ok(Value::Null);
     }

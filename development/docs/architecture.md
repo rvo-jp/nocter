@@ -46,6 +46,12 @@ into its duplicate-checking builder, adds exact projections, and freezes both de
 orders again. It does not create a phase-specific parallel source index. Canonical semantic
 programs never depend on this projection value.
 
+Declaration lowering also records each source's effective visible spellings in `SourceIndex`.
+This editor-only projection is emitted beside, not read back from, the `FrontendBindings` consumed
+by semantic checking. Hover, completion, signature help, and inlay hints select names from that
+projection, so a source-local alias or direct include can affect presentation without entering a
+module export table or becoming semantic input to a later compiler stage.
+
 Editor descriptions follow the separate
 [semantic presentation boundary](semantic-presentation-design.md). A successful immutable analysis
 selects an exact interactive `SourceBinding` and renders its semantic identity from the checked
@@ -687,8 +693,9 @@ checks the target export from the importing module, and a re-export's normalized
 denote a subset of the target boundary. Declaration lowering freezes each source namespace into a
 dedicated frontend binding contract consumed by header binding, lexical name resolution, and typed
 body type paths. Those consumers cannot reconstruct private visibility from module membership. The
-compiler-managed prelude remains a distinct fallback layer, preserving authored shadowing without
-turning collisions into priority rules.
+same resolved namespace is independently projected into `SourceIndex` for editor spelling only;
+semantic consumers cannot read that projection. The compiler-managed prelude remains a distinct
+fallback layer, preserving authored shadowing without turning collisions into priority rules.
 
 Import preparation retains the exact module-path node for every semantic module import. Prelude
 composition consumes that retained origin instead of reading the syntax tree again. An authored
@@ -1222,7 +1229,8 @@ is not evidence that a responsibility has been designed.
 
 Editor analysis may retain explicit invalid syntax and error semantic nodes in an immutable
 snapshot. It never converts incomplete source into a second successful semantic model. Hover,
-completion, navigation, rename, tokens, diagnostics, and code actions consume the same checked IDs
+completion, definition, implementation, references, rename, tokens, diagnostics, and code actions
+consume the same checked IDs
 when they exist and use syntax-only recovery only when no semantic fact is available. Every
 generation first freezes its complete open-document overlay; package resolution, discovery, syntax,
 and semantic analysis all consume that one value.

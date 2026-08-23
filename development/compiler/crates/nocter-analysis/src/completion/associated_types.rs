@@ -5,7 +5,7 @@ use nocter_checking::{
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, ModuleId};
 use nocter_source::{ByteOffset, SourceId};
-use nocter_source_index::SemanticEntity;
+use nocter_source_index::{SemanticEntity, SourceIndex};
 
 use super::{SemanticCompletion, SemanticCompletionKind};
 use crate::presentation::visible_spelling::VisibleSpellings;
@@ -13,6 +13,7 @@ use crate::presentation::{prepared_presentation, presentation};
 
 pub(super) fn checked_completions(
     program: &CheckedProgram,
+    index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
     module: ModuleId,
@@ -29,7 +30,7 @@ pub(super) fn checked_completions(
         return Ok(None);
     };
     let candidates = program.associated_type_completions(context.candidates())?;
-    let spellings = VisibleSpellings::new(program.graph(), module);
+    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
@@ -46,15 +47,14 @@ pub(super) fn checked_completions(
 
 pub(super) fn render_prepared_completions(
     program: &PreparedSemanticProgram,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
     candidates: &[AssociatedTypeCompletionCandidate],
 ) -> Result<Box<[SemanticCompletion]>, AssociatedTypeCompletionError> {
-    let spellings = VisibleSpellings::new(program.graph(), module);
     render_completions(program.graph(), candidates, |associated| {
         prepared_presentation(
             program,
             SemanticEntity::AssociatedType(associated),
-            &spellings,
+            spellings,
         )
         .map(|value| Box::<str>::from(value.code()))
     })

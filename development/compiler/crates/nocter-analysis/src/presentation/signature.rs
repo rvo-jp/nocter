@@ -12,15 +12,14 @@ pub(crate) struct RenderedSignature {
 pub(crate) fn static_signature_presentation(
     checked: &CheckedProgram,
     selection: &StaticSelection,
-    from: nocter_model::ModuleId,
+    spellings: &super::visible_spelling::VisibleSpellings,
 ) -> Option<RenderedSignature> {
     let graph = checked.graph();
-    let spellings = super::visible_spelling::VisibleSpellings::new(graph, from);
     let mut renderer = Renderer::with_generics(
         graph,
         checked.types(),
         selection.generic_arguments(),
-        &spellings,
+        spellings,
     );
     match selection.dispatch() {
         StaticDispatch::Direct(callable)
@@ -54,11 +53,10 @@ pub(crate) fn static_signature_presentation(
 pub(crate) fn closure_signature_presentation(
     checked: &CheckedProgram,
     closure: nocter_model::ClosureId,
-    from: nocter_model::ModuleId,
+    spellings: &super::visible_spelling::VisibleSpellings,
 ) -> Option<RenderedSignature> {
     let signature = checked.closures().get(closure)?.signature();
-    let spellings = super::visible_spelling::VisibleSpellings::new(checked.graph(), from);
-    let mut renderer = Renderer::for_signature(checked.graph(), checked.types(), &spellings);
+    let mut renderer = Renderer::for_signature(checked.graph(), checked.types(), spellings);
     renderer.callable_shape(
         signature.capability(),
         signature.parameters(),

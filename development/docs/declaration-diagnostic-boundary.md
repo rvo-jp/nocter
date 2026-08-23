@@ -37,7 +37,7 @@ one row have the same classification and boundary reason.
 | Surface error | Class | Reason |
 |---|---|---|
 | `Topology(Rule)` | authored rule | Delegates to the topology rule domain. |
-| `ImplementationVisibility`, `InvalidNominalContract`, `MissingConstructionVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
+| `ImplementationVisibility`, `InvalidNominalContract`, `MissingConstructionContractVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
 | `SyntaxErrors` | upstream rejection | The syntax tree already contains its authoritative lexer/parser diagnostics. |
 | `Topology` with a non-rule error | discovery contract or compiler integrity | Preserves the topology classification above. |
 | `InvalidRootShape`, `InvalidItemShape`, `InconsistentUseResolution` | compiler integrity | A valid parse goal and prepared topology guarantee these shapes and retained resolutions. |

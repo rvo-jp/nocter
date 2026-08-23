@@ -7,6 +7,7 @@ use crate::documentation::{
     EntityDocumentation, OccurrenceDocumentation, finish_entities, finish_occurrences,
     occurrence_sort_key,
 };
+use crate::names::{SourceVisibleNames, SourceVisibleNamesBuilder};
 use crate::{DocumentationOwner, DuplicateDocumentation, SemanticEntity, SourceOrigin};
 
 /// The meaning of one semantic-to-source projection.
@@ -64,6 +65,7 @@ pub struct SourceIndex {
     by_source: Box<[SourceBinding]>,
     entity_documentation: Box<[EntityDocumentation]>,
     occurrence_documentation: Box<[OccurrenceDocumentation]>,
+    visible_names: SourceVisibleNames,
 }
 
 impl SourceIndex {
@@ -130,6 +132,20 @@ impl SourceIndex {
         self.documentation(binding.entity())
     }
 
+    /// Returns the effective semantic names visible from one physical source.
+    ///
+    /// This is an editor presentation projection. Compiler semantic programs never consume it.
+    pub fn visible_names_in(
+        &self,
+        source: SourceId,
+    ) -> impl Iterator<Item = (nocter_model::Symbol, SemanticEntity)> + '_ {
+        self.visible_names
+            .in_source(source)
+            .iter()
+            .copied()
+            .map(crate::names::SourceVisibleName::parts)
+    }
+
     #[must_use]
     pub const fn len(&self) -> usize {
         self.by_entity.len()
@@ -169,6 +185,7 @@ impl SourceIndex {
             unique,
             entity_documentation,
             occurrence_documentation,
+            visible_names: self.visible_names.into_builder(),
         }
     }
 }
@@ -179,6 +196,7 @@ pub struct SourceIndexBuilder {
     unique: HashSet<(SemanticEntity, SourceRole, SourceOrigin)>,
     entity_documentation: HashMap<SemanticEntity, Box<str>>,
     occurrence_documentation: HashMap<(SemanticEntity, SourceOrigin), Box<str>>,
+    visible_names: SourceVisibleNamesBuilder,
 }
 
 impl SourceIndexBuilder {
@@ -189,6 +207,7 @@ impl SourceIndexBuilder {
             unique: HashSet::new(),
             entity_documentation: HashMap::new(),
             occurrence_documentation: HashMap::new(),
+            visible_names: SourceVisibleNamesBuilder::default(),
         }
     }
 
@@ -277,6 +296,15 @@ impl SourceIndexBuilder {
         Ok(())
     }
 
+    /// Defines the effective presentation names for one physical source.
+    pub fn define_visible_names(
+        &mut self,
+        source: SourceId,
+        names: impl IntoIterator<Item = (nocter_model::Symbol, SemanticEntity)>,
+    ) {
+        self.visible_names.define(source, names);
+    }
+
     fn insert_binding(
         &mut self,
         entity: SemanticEntity,
@@ -308,6 +336,7 @@ impl SourceIndexBuilder {
             by_source: by_source.into_boxed_slice(),
             entity_documentation: finish_entities(self.entity_documentation),
             occurrence_documentation: finish_occurrences(self.occurrence_documentation),
+            visible_names: self.visible_names.finish(),
         }
     }
 }
@@ -514,6 +543,27 @@ mod tests {
         assert_eq!(
             extended.documentation_for(extended.bindings_for(entity)[0]),
             Some("Occurrence docs.")
+        );
+    }
+
+    #[test]
+    fn source_visible_names_survive_stage_extension() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("index.nct"), b"")
+            .unwrap();
+        let symbols = SymbolTable::from_spellings(["alias", "app"]);
+        let alias = symbols.get("alias").unwrap();
+        let app = symbols.get("app").unwrap();
+        let (module, _) = build_declaration_ids(symbols, app);
+        let mut builder = SourceIndexBuilder::new();
+        builder.define_visible_names(source, [(alias, SemanticEntity::Module(module))]);
+
+        let index = builder.finish().into_builder().finish();
+
+        assert_eq!(
+            index.visible_names_in(source).collect::<Vec<_>>(),
+            vec![(alias, SemanticEntity::Module(module))]
         );
     }
 

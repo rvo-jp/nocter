@@ -2,6 +2,8 @@ use std::collections::{HashMap, VecDeque};
 
 use nocter_declarations::{DeclarationGraph, ExportedEntity, ModuleNamespace};
 use nocter_model::{ModuleId, Symbol};
+use nocter_source::SourceId;
+use nocter_source_index::{SemanticEntity, SourceIndex};
 
 /// The shortest semantic spelling of every entity reachable from one requesting module.
 ///
@@ -58,8 +60,42 @@ impl VisibleSpellings {
         }
     }
 
+    pub(crate) fn for_source(
+        graph: &DeclarationGraph,
+        from: ModuleId,
+        source_index: &SourceIndex,
+        source: SourceId,
+    ) -> Self {
+        let mut visible = Self::new(graph, from);
+        for (name, entity) in source_index.visible_names_in(source) {
+            let Some(entity) = exported_entity(entity) else {
+                continue;
+            };
+            let candidate = vec![name];
+            if visible.by_entity.get(&entity).is_none_or(|current| {
+                (candidate.len(), candidate.as_slice()) < (current.len(), current.as_ref())
+            }) {
+                visible
+                    .by_entity
+                    .insert(entity, candidate.into_boxed_slice());
+            }
+        }
+        visible
+    }
+
     pub(crate) fn get(&self, entity: ExportedEntity) -> Option<&[Symbol]> {
         self.by_entity.get(&entity).map(AsRef::as_ref)
+    }
+}
+
+const fn exported_entity(entity: SemanticEntity) -> Option<ExportedEntity> {
+    match entity {
+        SemanticEntity::Module(id) => Some(ExportedEntity::Module(id)),
+        SemanticEntity::NominalType(id) => Some(ExportedEntity::NominalType(id)),
+        SemanticEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
+        SemanticEntity::Interface(id) => Some(ExportedEntity::Interface(id)),
+        SemanticEntity::Callable(id) => Some(ExportedEntity::Callable(id)),
+        _ => None,
     }
 }
 

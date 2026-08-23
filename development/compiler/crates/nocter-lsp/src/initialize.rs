@@ -83,6 +83,7 @@ pub fn initialize_result(server_version: &str) -> Value {
                     ]),
                 ),
                 ("definitionProvider", Value::Bool(true)),
+                ("implementationProvider", Value::Bool(true)),
                 ("hoverProvider", Value::Bool(true)),
                 (
                     "completionProvider",
@@ -270,6 +271,7 @@ mod tests {
                 "{\"capabilities\":{\"positionEncoding\":\"utf-16\",",
                 "\"textDocumentSync\":{\"openClose\":true,\"change\":1,",
                 "\"save\":{\"includeText\":true}},\"definitionProvider\":true,",
+                "\"implementationProvider\":true,",
                 "\"hoverProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\"]},",
                 "\"referencesProvider\":true,",
                 "\"renameProvider\":true,",

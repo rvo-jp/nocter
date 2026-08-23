@@ -249,6 +249,11 @@ impl LanguageServer {
                 self.definition(&id, params)
             }
             IncomingMessage::Request { id, method, params }
+                if method.as_ref() == "textDocument/implementation" =>
+            {
+                self.implementation(&id, params)
+            }
+            IncomingMessage::Request { id, method, params }
                 if method.as_ref() == "textDocument/references" =>
             {
                 self.references(&id, params)

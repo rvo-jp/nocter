@@ -1,15 +1,17 @@
 use nocter_json::Value;
 use nocter_lsp::{
-    CodeActionParams, CompletionParams, DefinitionParams, HoverParams, InlayHintParams,
-    ReferencesParams, RenameParams, RequestId, ResponseErrorCode, SemanticTokensParams,
-    SignatureHelpParams, render_error_response, render_success_response,
+    CodeActionParams, CompletionParams, DefinitionParams, HoverParams, ImplementationParams,
+    InlayHintParams, ReferencesParams, RenameParams, RequestId, ResponseErrorCode,
+    SemanticTokensParams, SignatureHelpParams, render_error_response, render_success_response,
 };
 
 use crate::code_actions::query_code_actions;
 use crate::completion::query_completion;
 use crate::hover::query_hover;
 use crate::inlay_hints::query_inlay_hints;
-use crate::navigation::{NavigationQueryError, query_definition, query_references};
+use crate::navigation::{
+    NavigationQueryError, query_definition, query_implementation, query_references,
+};
 use crate::rename::query_rename;
 use crate::semantic_tokens::{SemanticTokensQueryError, query_semantic_tokens};
 use crate::signature::query_signature_help;
@@ -236,6 +238,23 @@ impl LanguageServer {
         Self::navigation_result(
             id,
             query_references(
+                &self.documents,
+                self.analyses
+                    .as_ref()
+                    .expect("initialized server owns workspace analyses"),
+                &params,
+            ),
+        )
+    }
+
+    pub(super) fn implementation(&self, id: &RequestId, params: Option<Value>) -> ServerStep {
+        let params = match ImplementationParams::decode(params) {
+            Ok(params) => params,
+            Err(error) => return invalid_params(id, error.to_string()),
+        };
+        Self::navigation_result(
+            id,
+            query_implementation(
                 &self.documents,
                 self.analyses
                     .as_ref()
@@ -527,6 +546,85 @@ mod tests {
     }
 
     #[test]
+    fn definition_selects_the_contract_and_implementation_selects_the_body() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let contract = temporary.path().join("index.nct");
+        let implementation = temporary.path().join("value.nct");
+        let contract_text = concat!(
+            "include ./value.nct\n",
+            "\n",
+            "pub func helper(): i32\n",
+            "func main(): i32 {\n",
+            "    return helper()\n",
+            "}\n",
+        );
+        std::fs::write(&contract, contract_text).unwrap();
+        std::fs::write(
+            &implementation,
+            concat!(
+                "include ./index.nct\n",
+                "\n",
+                "func helper(): i32 { return 1 }\n",
+            ),
+        )
+        .unwrap();
+        let contract_uri = format!("file://{}", contract.display());
+        let canonical_contract_uri = format!(
+            "file://{}/index.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let canonical_implementation_uri = format!(
+            "file://{}/value.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let mut source_json = String::new();
+        nocter_json::write_string(&mut source_json, contract_text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":12}}}}}}"
+        ));
+        assert_eq!(
+            definition.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":9}},\"end\":{{\"line\":2,\"character\":15}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+
+        let body = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":12}}}}}}"
+        ));
+        assert_eq!(
+            body.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[{{\"uri\":\"{canonical_implementation_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":5}},\"end\":{{\"line\":2,\"character\":11}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+    }
+
+    #[test]
     fn rename_recompiles_the_candidate_and_returns_one_versioned_workspace_edit() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
@@ -587,7 +685,7 @@ mod tests {
         std::fs::write(
             &source,
             concat!(
-                "use ./helper\n",
+                "include ./helper.nct\n",
                 "func main(): void {\n",
                 "    let value = answer()\n",
                 "    return\n",
@@ -754,6 +852,87 @@ mod tests {
         assert!(response.contains("&func(i32): i32"));
         assert!(response.contains("\"activeParameter\":0"));
         assert!(closure.issue().is_none(), "{:?}", closure.issue());
+    }
+
+    #[test]
+    fn semantic_presentations_share_source_local_type_aliases() {
+        let temporary = TemporaryDirectory::new();
+        let widgets = temporary.path().join("widgets");
+        std::fs::create_dir(&widgets).unwrap();
+        std::fs::write(
+            temporary.path().join("nocter.nct"),
+            "#name: \"presentation-alias\"\n#version: \"0.1.0\"\n#executable: {\n    name: \"presentation-alias\",\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            widgets.join("index.nct"),
+            concat!(
+                "pub struct Widget {\n    pub value: i32\n}\n\n",
+                "construct Widget {\n",
+                "    pub default func new(): Self { return Widget { value: 1 } }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let source_path = temporary.path().join("index.nct");
+        let source = concat!(
+            "use ./widgets.Widget as LocalWidget\n",
+            "\n",
+            "func passthrough(value: LocalWidget): LocalWidget { move value }\n",
+            "func main(): void {\n",
+            "    let input = LocalWidget.new()\n",
+            "    let inferred = passthrough(move input)\n",
+            "    return\n",
+            "}\n",
+        );
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":42}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("func passthrough(value: LocalWidget): LocalWidget"),
+            "{response}"
+        );
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":3,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":7,\"character\":1}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(
+            response.contains("\"label\":\": LocalWidget\""),
+            "{response}"
+        );
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let completion = request_completion(&mut server, &uri, 4, 6, 4);
+        let response = completion.response().unwrap();
+        assert!(response.contains("LocalWidget"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
     #[test]

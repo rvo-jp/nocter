@@ -23,10 +23,10 @@ Diagnostics use the envelope specified in [Diagnostics](12-diagnostics.md). The 
 reuses the full compiler pipeline and package model.
 
 Source after a proven terminal statement remains name-resolved and typed when independently valid,
-so definition, references, hover, completion, and semantic tokens use the same declaration and type
-identities there. Flow-sensitive ownership facts are absent rather than fabricated for that
-unreachable continuation. Tooling may later expose an unreachable-code lint, but such a lint is not
-a language diagnostic.
+so definition, implementation, references, hover, completion, and semantic tokens use the same
+declaration and type identities there. Flow-sensitive ownership facts are absent rather than
+fabricated for that unreachable continuation. Tooling may later expose an unreachable-code lint,
+but such a lint is not a language diagnostic.
 
 ## Documentation
 
@@ -54,8 +54,8 @@ Tooling must not infer documentation from nearby raw text after the compiler rep
 ## Language Server Snapshot
 
 One accepted document version belongs to one immutable, generation-numbered package snapshot.
-Diagnostics, hover, completion, signature help, definition, references, rename, code actions,
-inlay hints, and semantic tokens for that request observe the same generation.
+Diagnostics, hover, completion, signature help, definition, implementation, references, rename,
+code actions, inlay hints, and semantic tokens for that request observe the same generation.
 
 An open document overrides disk content throughout its generation. Package graphs for open
 `nocter.nct` overlays are locked, offline, and read-only: analysis never fetches dependencies,
@@ -84,7 +84,8 @@ Internal canonical identities may contain package/module qualification. User pre
 the shortest unambiguous visible spelling and must not leak storage paths such as
 `std/iter.Type` into ordinary signatures. The compiler derives that spelling from the resolved
 namespace graph, including local import aliases and visible module exports; protocol adapters do not
-recover it from source text.
+recover it from source text. Directly included declarations and source-local import aliases affect
+only that source's presentation; they do not become module exports.
 
 ## Semantic Tokens
 
@@ -173,7 +174,10 @@ unresolved interface.
 
 ## Navigation, References, and Rename
 
-Definition and references use semantic declaration identity rather than spelling. Package-wide
+Definition, implementation, and references use semantic declaration identity rather than spelling.
+For a callable split between a public `index.nct` contract and a private body, definition selects
+the contract name and implementation selects the body name. For an inline body with no separate
+implementation projection, implementation selects the declaration itself. Package-wide
 operations start from package roots and explicit executable/test entries, then follow normal imports;
 they do not scan ambient `.nct` files.
 

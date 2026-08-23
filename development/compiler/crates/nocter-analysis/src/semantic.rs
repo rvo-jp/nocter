@@ -112,7 +112,8 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let context = SourceContext::resolve(index, source)?;
-        let presentation = hover_presentation(checked, binding.entity(), context.module())?;
+        let presentation =
+            hover_presentation(checked, binding.entity(), context.module(), index, source)?;
         Ok(Some(SemanticSubject {
             entity: binding.entity(),
             role: binding.role(),

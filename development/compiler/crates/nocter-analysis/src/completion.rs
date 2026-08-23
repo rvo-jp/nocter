@@ -308,7 +308,7 @@ impl AnalysisSnapshot {
         } = program
         {
             if let Some(completions) =
-                associated_types::checked_completions(checked, source, offset, module)?
+                associated_types::checked_completions(checked, index, source, offset, module)?
             {
                 return Ok(completions);
             }
@@ -359,7 +359,7 @@ impl AnalysisSnapshot {
                 &mut candidates,
             );
         }
-        let spellings = VisibleSpellings::new(program.graph(), module);
+        let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
         let automatic_imports =
             automatic_imports::completions(self, &program, source, module, &candidates)?;
         let mut completions = candidates
@@ -395,7 +395,11 @@ fn interrupted_completions(
     if origin.source() != source || !origin.span().range().contains_cursor(offset) {
         return Ok(None);
     }
-    let spellings = VisibleSpellings::new(recovery.prepared().graph(), module);
+    let Some(index) = snapshot.source_index() else {
+        return Ok(None);
+    };
+    let spellings =
+        VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
             let Some(candidates) = recovery.interrupted_member_completions(module) else {
@@ -441,7 +445,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(structural_fields::render_prepared_completions(
                 recovery.prepared(),
-                module,
+                &spellings,
                 &candidates,
             )))
         }
@@ -452,7 +456,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(enum_patterns::render_prepared_completions(
                 recovery.prepared(),
-                module,
+                &spellings,
                 &candidates,
             )))
         }
@@ -463,7 +467,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(associated_types::render_prepared_completions(
                 recovery.prepared(),
-                module,
+                &spellings,
                 &candidates,
             )?))
         }
@@ -533,7 +537,7 @@ fn checked_member_completions(
         available,
         owned,
     ))?;
-    let spellings = VisibleSpellings::new(program.graph(), module);
+    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(
         candidates
             .iter()

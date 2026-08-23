@@ -85,14 +85,12 @@ pub(super) fn presentation(
     })
 }
 
-pub(super) fn type_presentation(
+pub(super) fn type_presentation_with_spellings(
     checked: &CheckedProgram,
     ty: TypeId,
-    from: nocter_model::ModuleId,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let graph = checked.graph();
-    let spellings = visible_spelling::VisibleSpellings::new(graph, from);
-    let mut renderer = Renderer::new(graph, checked.types(), &spellings);
+    let mut renderer = Renderer::new(checked.graph(), checked.types(), spellings);
     renderer.ty(ty)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -117,9 +115,12 @@ pub(super) fn hover_presentation(
     checked: &CheckedProgram,
     entity: SemanticEntity,
     from: nocter_model::ModuleId,
+    source_index: &nocter_source_index::SourceIndex,
+    source: nocter_source::SourceId,
 ) -> Result<SemanticPresentation, PresentationError> {
     let graph = checked.graph();
-    let spellings = visible_spelling::VisibleSpellings::new(graph, from);
+    let spellings =
+        visible_spelling::VisibleSpellings::for_source(graph, from, source_index, source);
     let mut renderer = Renderer::new(graph, checked.types(), &spellings);
     renderer
         .entity(Some(checked), entity)
