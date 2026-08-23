@@ -1,13 +1,11 @@
 # Contributor Documentation
 
-Nocter has completed and qualified a new compiler built from the language specification. The
-v0.14.0 release candidate is being prepared while the published v0.13.0 release remains available
-to users; the v0.13.0 compiler implementation was not an input to the rewrite.
+Nocter has published v0.14.0 with a new compiler built from the language specification. The
+v0.13.0 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
-Release preparation is authorized and in progress. Publication remains a separately authorized
-operation.
+The release preparation and publication evidence is linked from the current-work records below.
 
 ## Current Work
 
@@ -63,4 +61,3 @@ development/
 ```
 
 Rust, Cargo, and Node.js are development requirements for the workspace and release qualification.
-Users of the published v0.13.0 release remain unaffected by the rewrite until v0.14.0 is published.

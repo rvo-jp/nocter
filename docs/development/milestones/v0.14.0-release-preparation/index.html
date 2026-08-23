@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.14.0 Release Preparation - Nocter</title>
-    <meta name="description" content="Status: release candidate qualified and ready for separately authorized publication (2026-08-23). This record owns the authorized preparation of v0.14.0 an">
+    <meta name="description" content="Status: release candidate qualified; publication authorized (2026-08-23). This record owns the completed preparation of v0.14.0. Final publication and down">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0-release-preparation/">
@@ -13,19 +13,19 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.14.0 Release Preparation - Nocter">
-    <meta property="og:description" content="Status: release candidate qualified and ready for separately authorized publication (2026-08-23). This record owns the authorized preparation of v0.14.0 an">
+    <meta property="og:description" content="Status: release candidate qualified; publication authorized (2026-08-23). This record owns the completed preparation of v0.14.0. Final publication and down">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0-release-preparation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-22">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.14.0 Release Preparation - Nocter">
-    <meta name="twitter:description" content="Status: release candidate qualified and ready for separately authorized publication (2026-08-23). This record owns the authorized preparation of v0.14.0 an">
+    <meta name="twitter:description" content="Status: release candidate qualified; publication authorized (2026-08-23). This record owns the completed preparation of v0.14.0. Final publication and down">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0 Release Preparation - Nocter","description":"Status: release candidate qualified and ready for separately authorized publication (2026-08-23). This record owns the authorized preparation of v0.14.0 an","url":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0 Release Preparation","item":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.14.0 Release Preparation - Nocter","description":"Status: release candidate qualified; publication authorized (2026-08-23). This record owns the completed preparation of v0.14.0. Final publication and down","url":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0 Release Preparation","item":"https://nocter.dev/development/milestones/v0.14.0-release-preparation/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -135,7 +135,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0-release-preparation.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-14-0-release-preparation">v0.14.0 Release Preparation</h1><p><strong>Status: release candidate qualified and ready for separately authorized publication (2026-08-23).</strong> This record owns the authorized preparation of v0.14.0 and stops before tagging, pushing, uploading, or publishing the release.</p><h2 id="release-blocker-audit">Release Blocker Audit</h2><p>The initial audit compared the normative command-line specification with the specification-first compiler. It found that <code>nocter init</code> and <code>nocter graph</code> had not crossed the rewrite boundary even though both remained current public commands. That omission was repaired before release identity changed:</p><ul><li><code>init</code> now owns a preflighted, rollback-capable three-file source transaction and does not select
+                <h1 id="v0-14-0-release-preparation">v0.14.0 Release Preparation</h1><p><strong>Status: release candidate qualified; publication authorized (2026-08-23).</strong> This record owns the completed preparation of v0.14.0. Final publication and downloaded-asset evidence belongs in the immutable release record created after the external release succeeds.</p><h2 id="release-blocker-audit">Release Blocker Audit</h2><p>The initial audit compared the normative command-line specification with the specification-first compiler. It found that <code>nocter init</code> and <code>nocter graph</code> had not crossed the rewrite boundary even though both remained current public commands. That omission was repaired before release identity changed:</p><ul><li><code>init</code> now owns a preflighted, rollback-capable three-file source transaction and does not select
   an installed Nocter home;</li><li><code>graph</code> projects the exact package resolver result without package acquisition, generated locks,
   store mutation, or source mutation;</li><li>human and versioned JSON graph output have one command-owned typed projection;</li><li>initialized executable and library packages cross real public checking and native testing.</li></ul><h2 id="candidate-identity">Candidate Identity</h2><p>The tracked release inputs now identify v0.14.0:</p><ul><li><code>development/packaging/VERSION</code> contains <code>0.14.0</code>;</li><li><code>development/packaging/MANIFEST.json</code> names release <code>0.14.0</code> and
   <code>nocter-v0.14.0-arm64-darwin.tar.gz</code>;</li><li><code>development/std/nocter.nct</code> declares standard package version <code>0.14.0</code>;</li><li>compiler and LSP reports derive that identity from the validated installed home rather than a
