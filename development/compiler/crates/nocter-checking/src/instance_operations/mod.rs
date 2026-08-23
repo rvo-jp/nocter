@@ -1,6 +1,7 @@
 mod build;
 mod comparison;
 mod diagnostic;
+mod evidence;
 mod expansion;
 mod methods;
 mod model;
@@ -15,6 +16,7 @@ pub use build::{
 };
 pub(crate) use comparison::ComparisonCandidateImplementation;
 pub use diagnostic::InstanceOperationRule;
+pub(crate) use evidence::ConcreteEvidenceAuthority;
 pub(crate) use methods::{MethodCandidate, MethodCompletionCandidate, receiver_supports};
 pub use model::{CheckedInstanceOperations, InstanceOperationTable};
 pub use selection::InstanceSelectionError;

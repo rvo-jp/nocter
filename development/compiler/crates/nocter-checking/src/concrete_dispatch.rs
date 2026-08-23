@@ -8,10 +8,7 @@ use nocter_model::{
 };
 
 use crate::conformance::normalize_requirements;
-use crate::instance_operations::{
-    ComparisonCandidateImplementation, InstanceOperationSelector, InstanceSelectionContext,
-    retain_direct_candidates,
-};
+use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
 use crate::{
     CheckedPredicate, CheckedProgram, ComparisonOperation, GenericArgument, GenericArguments,
     InstanceSelectionError, StaticDispatch, StaticSelection, SubstitutionError, TypeSubstitution,
@@ -386,21 +383,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
         from: ModuleId,
         requirement: Option<RequirementId>,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let candidates = {
-            let mut selector = InstanceOperationSelector::new(
-                InstanceSelectionContext::new(
-                    self.program.graph(),
-                    self.program.conformances(),
-                    self.program.instance_operations(),
-                    &[],
-                    &[],
-                    from,
-                ),
-                &mut self.types,
-                &mut self.copyabilities,
-            );
-            selector.select_conformance_method_for_application(subject, application, surface)?
-        };
+        let candidates = self
+            .evidence(from)
+            .interface_method(subject, application, surface)?;
         let candidate = if let Some(requirement) = requirement {
             exactly_one(candidates, requirement)?
         } else {
@@ -483,25 +468,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let specialized = self.specialize_opaque_witness(opaque, enclosing)?;
         let definition = specialized.definition;
-        let candidates = {
-            let mut selector = InstanceOperationSelector::new(
-                InstanceSelectionContext::new(
-                    self.program.graph(),
-                    self.program.conformances(),
-                    self.program.instance_operations(),
-                    &[],
-                    &[],
-                    from,
-                ),
-                &mut self.types,
-                &mut self.copyabilities,
-            );
-            selector.select_conformance_method_for_application(
-                specialized.witness,
-                &specialized.application,
-                surface,
-            )?
-        };
+        let candidates = self.evidence(from).interface_method(
+            specialized.witness,
+            &specialized.application,
+            surface,
+        )?;
         let [candidate] = candidates.as_slice() else {
             return Err(if candidates.is_empty() {
                 ConcreteDispatchError::MissingOpaqueEvidence(definition)
@@ -690,10 +661,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         operation: ComparisonOperation,
         from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let candidates = {
-            let mut selector = self.selector(from);
-            selector.select_comparison_operations(ty, ty, operation)?
-        };
+        let candidates = self.evidence(from).comparison(ty, ty, operation)?;
         let candidate = exactly_one(candidates, requirement)?;
         let left_coercion = candidate
             .receiver_coercion()
@@ -769,14 +737,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 }),
             });
         }
-        let mut candidates = {
-            let mut selector = self.selector(from);
-            let mut candidates = selector.select_index_operations(container, capability)?;
-            candidates.extend(selector.select_coerced_index_operations(container, capability)?);
-            candidates
-        };
-        retain_direct_candidates(&mut candidates);
-        candidates.retain(|candidate| candidate.index() == index && candidate.result() == referent);
+        let candidates = self
+            .evidence(from)
+            .index(container, capability, index, referent)?;
         let candidate = exactly_one(candidates, requirement)?;
         let receiver_coercion = candidate
             .receiver_coercion()
@@ -830,14 +793,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 }),
             ));
         }
-        let candidates = {
-            let mut selector = self.selector(from);
-            selector
-                .select_borrow_coercions(source_owner, source_capability, target_capability)?
-                .into_iter()
-                .filter(|candidate| candidate.target() == target_owner)
-                .collect::<Vec<_>>()
-        };
+        let candidates = self.evidence(from).coercion(
+            source_owner,
+            source_capability,
+            target_capability,
+            target_owner,
+        )?;
         let candidate = exactly_one(candidates, requirement)?;
         Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
             candidate.selection(),
@@ -852,33 +813,15 @@ impl<'program> ConcreteDispatchResolver<'program> {
         result: TypeId,
         from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let candidates = {
-            let mut selector = self.selector(from);
-            selector
-                .select_expansions(source, capability)?
-                .into_iter()
-                .filter(|candidate| candidate.result() == result)
-                .collect::<Vec<_>>()
-        };
+        let candidates = self.evidence(from).expansion(source, capability, result)?;
         let candidate = exactly_one(candidates, requirement)?;
         Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
             candidate.selection(),
         )?))
     }
 
-    fn selector(&mut self, from: ModuleId) -> InstanceOperationSelector<'_> {
-        InstanceOperationSelector::new(
-            InstanceSelectionContext::new(
-                self.program.graph(),
-                self.program.conformances(),
-                self.program.instance_operations(),
-                &[],
-                &[],
-                from,
-            ),
-            &mut self.types,
-            &mut self.copyabilities,
-        )
+    fn evidence(&mut self, from: ModuleId) -> ConcreteEvidenceAuthority<'_> {
+        ConcreteEvidenceAuthority::new(self.program, from, &mut self.types, &mut self.copyabilities)
     }
 
     fn direct_step(
